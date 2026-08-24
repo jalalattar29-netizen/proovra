@@ -575,19 +575,30 @@
   unicode-bidi: isolate;
   color: var(--app-ink-secondary);
 }
-/* The Case chip is bounded by the identity track and ellipsizes there, so it
-   can never reach the activity or badge zones again. */
+/* The Case is a labelled relationship, as TEXT — no capsule. It is bounded by
+   the identity track and ellipsizes there, so a long case name can never reach
+   the activity or badge zones. `Case:` is a quiet metadata key; the name
+   carries the canonical blue and a little more weight. */
 .evidence-library-row__case {
   flex: 0 1 auto;
   min-width: 0;
-  /* text-overflow does not apply to a flex container, and .app-chip is
-     inline-flex — so the chip hard-clipped mid-word instead of ellipsizing.
-     Laying it out as a block restores a real ellipsis. */
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   unicode-bidi: plaintext;
+  /* Metadata-level, matching the record id beside it — never a heading. */
+  font-size: 12px;
+  line-height: 18px;
+}
+.evidence-library-row__case-label {
+  color: var(--app-ink-secondary);
+}
+.evidence-library-row__case-name {
+  /* The canonical blue text token (--info), the same blue used for
+     informational state across the app. No page-specific hex. */
+  color: var(--info);
+  font-weight: 600;
 }
 
 /* ---- Activity zone ------------------------------------------------------- */
@@ -640,7 +651,11 @@
     grid-template-areas:
       "check identity badges"
       "blank activity badges";
-    grid-template-columns: 28px minmax(0, 1fr) clamp(190px, 30%, 280px);
+    /* The badges zone now carries only the lifecycle status (the generic
+       review-state bucket was removed), so its track is narrower than the
+       two-label width it used to reserve — the identity zone takes the room
+       back rather than a gap being left behind. */
+    grid-template-columns: 28px minmax(0, 1fr) clamp(96px, 16%, 150px);
     align-items: start;
   }
   .evidence-library-row__badges {
@@ -659,17 +674,17 @@
       28px
       minmax(0, 1fr)
       clamp(180px, 21%, 250px)
-      clamp(190px, 26%, 300px);
+      clamp(96px, 12%, 160px);
     align-items: center;
     row-gap: 0;
   }
   .evidence-library-row__badges {
     align-items: center;
-    /* Aligned to the LOGICAL end, so every status group ends on one axis. */
+    /* Aligned to the LOGICAL end, so every status ends on one axis. */
     justify-content: flex-end;
-    /* Wrapping, deliberately: a long review state is allowed a second line but
-       is never sliced into an unreadable fragment. The end axis is unaffected
-       because the group stays right-aligned inside a container-derived track. */
+    /* A long fallback status ("Status not recorded") may take a second line
+       rather than being sliced; the end axis is unaffected because the status
+       stays right-aligned inside a container-derived track. */
     flex-wrap: wrap;
     row-gap: 6px;
   }

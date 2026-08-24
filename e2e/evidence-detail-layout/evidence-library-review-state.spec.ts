@@ -1,19 +1,21 @@
 /**
- * BROWSER VERIFICATION — the Evidence Library review-state labels + colours.
+ * BROWSER VERIFICATION — the simplified Evidence Library row.
  *
- * The audit proved (by executing the shipped resolver) that in the library a
- * row is `Operational notes` when it has NO case assigned and `Stable review
- * state` when a case is assigned. This drives two records — identical except
- * for `caseId` — through the REAL production bundle and reads the computed ink,
- * so the colour contract (Stable -> blue, Operational -> orange) and the
- * text-only treatment are verified against what the browser actually paints.
+ * The generic review-state bucket ("Operational notes" / "Reviewer action
+ * recommended" / "Stable review state" / "Critical follow-up") was removed from
+ * the row, and the Case relationship is now labelled TEXT ("Case: <name>") in
+ * the canonical blue, omitted when there is no case. This drives two records —
+ * one linked to a case, one not — through the REAL production bundle and reads
+ * the computed styles, so the removal, the text-only Case treatment, its blue
+ * ink, its compact size, and the clean layout are verified against what the
+ * browser actually paints, at every supported width and in RTL.
  */
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { envelopeFor } from "./_fixtures";
 
-/** Two Reported records, alike but for the one field the audit found decisive. */
+/** Two Reported records: one linked to a case, one unlinked. */
 function evidenceRow(i: number, caseId: string | null) {
   return {
     id: `ev-${i}`,
@@ -32,6 +34,8 @@ function evidenceRow(i: number, caseId: string | null) {
     sizeBytes: 12345,
   };
 }
+
+const CASE_NAME = "Bilal";
 
 async function installLibraryApi(page: Page): Promise<void> {
   const envelope = envelopeFor("organization");
@@ -53,8 +57,10 @@ async function installLibraryApi(page: Page): Promise<void> {
       return json({ scope: "active", totalActive: items.length, totalTrash: 0 });
     }
     if (path.endsWith("/v1/evidence/saved-views")) return json({ views: [] });
-    if (path.endsWith("/v1/cases")) return json({ cases: [], items: [] });
-    // Everything else the shell touches: a well-formed empty answer.
+    // The row's case name is resolved from the cases list (caseMap).
+    if (path.endsWith("/v1/cases")) {
+      return json({ cases: [{ id: "case-1", name: CASE_NAME }], items: [{ id: "case-1", name: CASE_NAME }] });
+    }
     return json({});
   });
 }
@@ -62,68 +68,135 @@ async function installLibraryApi(page: Page): Promise<void> {
 async function openLibrary(page: Page): Promise<void> {
   await installLibraryApi(page);
   await page.goto("/evidence");
-  await page.waitForSelector("[data-evidence-row-priority]", { timeout: 30_000 });
+  await page.waitForSelector("[data-evidence-row]", { timeout: 30_000 });
 }
 
-async function reviewState(page: Page, level: "stable" | "informational") {
-  return page.locator(`[data-evidence-row-priority="${level}"]`).first();
-}
+const WIDTHS = [
+  { name: "1440", width: 1440, height: 900 },
+  { name: "1280", width: 1280, height: 900 },
+  { name: "1024", width: 1024, height: 800 },
+  { name: "768", width: 768, height: 1024 },
+  { name: "390", width: 390, height: 844 },
+  { name: "375", width: 375, height: 812 },
+] as const;
 
-async function inkOf(el: import("@playwright/test").Locator): Promise<string> {
-  return el.evaluate((n) => getComputedStyle(n as Element).color);
-}
+const linkedRow = (page: Page) => page.locator('[data-evidence-row="ev-1"]');
+const unlinkedRow = (page: Page) => page.locator('[data-evidence-row="ev-2"]');
+const caseEl = (row: Locator) => row.locator("[data-evidence-row-case]");
 
-async function boxOf(el: import("@playwright/test").Locator) {
+async function computed(el: Locator) {
   return el.evaluate((n) => {
     const s = getComputedStyle(n as Element);
     return {
       background: s.backgroundColor,
+      border: [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth].join(" "),
+      shadow: s.boxShadow,
       radius: [s.borderTopLeftRadius, s.borderBottomRightRadius].join(" "),
-      padding: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].join(" "),
+      color: s.color,
+      fontSize: s.fontSize,
     };
   });
 }
 
-test("library: Stable review state renders blue, text-only", async ({ page }) => {
+async function horizontalOverflow(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const d = document.documentElement;
+    return Math.max(0, d.scrollWidth - d.clientWidth);
+  });
+}
+
+test("library: the generic review-state bucket is gone from every row", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openLibrary(page);
-  const el = await reviewState(page, "stable");
-  await expect(el, "no Stable row rendered").toHaveCount(1);
-  await expect(el).toHaveText("Stable review state");
-  expect(await inkOf(el), "Stable is not the canonical blue --info").toBe("rgb(37, 99, 235)");
-  const box = await boxOf(el);
-  expect(box.background, "Stable painted a capsule").toBe("rgba(0, 0, 0, 0)");
-  expect(box.radius).toBe("0px 0px");
-  expect(box.padding).toBe("0px 0px 0px 0px");
+  const body = (await page.locator("[data-evidence-list], main").first().innerText()).toLowerCase();
+  for (const phrase of [
+    "stable review state",
+    "operational notes",
+    "reviewer action recommended",
+    "critical follow-up",
+  ]) {
+    expect(body, `row still shows "${phrase}"`).not.toContain(phrase);
+  }
+  // The old bucket hook is gone entirely.
+  expect(await page.locator("[data-evidence-row-priority]").count()).toBe(0);
 });
 
-test("library: Operational notes renders orange, text-only, and is explainable", async ({
+test("library: a linked record shows `Case: <name>` as text-only canonical blue", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openLibrary(page);
-  const el = await reviewState(page, "informational");
-  await expect(el, "no Operational row rendered").toHaveCount(1);
-  await expect(el).toHaveText("Operational notes");
-  expect(await inkOf(el), "Operational is not the canonical orange --orange-ink").toBe(
-    "rgb(194, 65, 12)",
+  const el = caseEl(linkedRow(page));
+  await expect(el, "no Case metadata rendered for the linked record").toHaveCount(1);
+  await expect(el).toHaveText(/Case:\s*Bilal/);
+
+  // The NAME carries the canonical blue (--info); the "Case:" label is neutral.
+  const name = el.locator(".evidence-library-row__case-name");
+  const label = el.locator(".evidence-library-row__case-label");
+  expect((await computed(name)).color, "case name is not the canonical blue").toBe("rgb(37, 99, 235)");
+  expect((await computed(label)).color, "the Case: label is not neutral").not.toBe("rgb(37, 99, 235)");
+
+  // Text-only: no capsule anywhere on the case element or its name.
+  for (const part of [el, name]) {
+    const box = await computed(part);
+    expect(box.background, "case paints a background").toBe("rgba(0, 0, 0, 0)");
+    expect(box.border, "case paints a border").toBe("0px 0px 0px 0px");
+    expect(box.shadow, "case paints a shadow").toBe("none");
+    expect(box.radius, "case keeps a capsule radius").toBe("0px 0px");
+  }
+  await expect(el).not.toHaveClass(/app-chip/);
+
+  // Compact metadata typography: the same 12px as the activity/timestamp
+  // metadata line, and strictly smaller than the 14px filename heading — the
+  // Case must read as secondary, never enlarged into a CTA.
+  const caseSize = parseFloat((await computed(el)).fontSize);
+  const metaSize = parseFloat(
+    (await computed(linkedRow(page).locator(".evidence-library-row__activity-line"))).fontSize,
   );
-  const box = await boxOf(el);
-  expect(box.background, "Operational painted a capsule").toBe("rgba(0, 0, 0, 0)");
-  // Explainable at the point of display: the concrete note is on the label's
-  // tooltip, so the reader learns WHY without opening the record.
-  const title = await el.getAttribute("title");
-  expect(title, "the label carries no explanation").toContain("No case assigned");
+  const titleSize = parseFloat(
+    (await computed(linkedRow(page).locator(".evidence-library-row__title"))).fontSize,
+  );
+  expect(caseSize, "case is not the row metadata size").toBe(metaSize);
+  expect(caseSize, "case grew to heading size").toBeLessThan(titleSize);
 });
 
-test("library: the two labels differ ONLY because of case assignment", async ({ page }) => {
+test("library: an unlinked record shows NO Case metadata (no placeholder/warning)", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openLibrary(page);
-  // Both rows are Reported; the sole difference is caseId, and that is exactly
-  // what flips the review state. This is the user's scenario, reproduced live.
-  const stable = await reviewState(page, "stable");
-  const operational = await reviewState(page, "informational");
-  await expect(stable).toHaveCount(1);
-  await expect(operational).toHaveCount(1);
-  expect(await inkOf(stable)).not.toBe(await inkOf(operational));
+  await expect(unlinkedRow(page)).toHaveCount(1);
+  await expect(caseEl(unlinkedRow(page)), "unlinked record rendered a Case slot").toHaveCount(0);
+  const text = (await unlinkedRow(page).innerText()).toLowerCase();
+  for (const phrase of ["case:", "unassigned", "no case"]) {
+    expect(text, `unlinked row shows "${phrase}"`).not.toContain(phrase);
+  }
 });
+
+test("library: the lifecycle status still renders on every row", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openLibrary(page);
+  for (const row of [linkedRow(page), unlinkedRow(page)]) {
+    const status = row.locator(".evidence-library-row__badges .app-status-text");
+    await expect(status).toHaveText("Reported");
+  }
+});
+
+for (const dir of ["ltr", "rtl"] as const) {
+  for (const vp of WIDTHS) {
+    test(`library: Case reads cleanly with no overflow — ${vp.name} ${dir}`, async ({ page }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await openLibrary(page);
+      await page.evaluate((d) => document.documentElement.setAttribute("dir", d), dir);
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+
+      await expect(caseEl(linkedRow(page))).toHaveText(/Case:\s*Bilal/);
+      // Text-only holds at every width.
+      expect((await computed(caseEl(linkedRow(page)))).background).toBe("rgba(0, 0, 0, 0)");
+      expect(await horizontalOverflow(page), "the page scrolls sideways").toBeLessThanOrEqual(1);
+      await page.screenshot({
+        path: `test-results/evidence-library-case/${vp.name}-${dir}.png`,
+      });
+    });
+  }
+}

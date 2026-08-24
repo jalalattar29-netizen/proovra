@@ -169,13 +169,20 @@ test("I. Integrity `Recorded` -> blue, and every state stays text-only", () => {
   assert.doesNotMatch(integrity, /app-status-badge/);
 });
 
-test("J. the library review-state label is explainable at the point of display", () => {
-  // The row surfaces the concrete notes as the label's tooltip, so a reader who
-  // sees "Operational notes" can find out it means "No case assigned" without
-  // opening the record. It reuses `priority.notes` — no second computation.
+test("J. the library row no longer shows the generic review-state bucket or its tooltip", () => {
+  // The vague review-state summary and its explaining tooltip were removed from
+  // the row entirely. What made "Operational notes" == "no case assigned" is
+  // now shown DIRECTLY and far more clearly: the row labels the relationship as
+  // "Case: <name>" when a case is linked (see evidence-library-row-presentation
+  // tests), and simply omits it otherwise. `buildReviewPriority` is retained for
+  // the Priority sort in page.tsx, just not surfaced as a row label.
   const row = read("apps/web/app/(app)/evidence/components/EvidenceLibraryRow.tsx");
-  assert.match(row, /priority\.notes/);
-  assert.match(row, /title=\{reviewStateTitle\}/);
+  assert.doesNotMatch(row, /buildReviewPriority|priority\.notes|reviewStateTitle|priority\.label/);
+  assert.match(
+    read("apps/web/app/(app)/evidence/page.tsx"),
+    /buildReviewPriority/,
+    "the Priority sort must still consume the retained resolver",
+  );
 });
 
 test("K. the Evidence Detail view exposes the driver (case assignment) in domain terms", () => {

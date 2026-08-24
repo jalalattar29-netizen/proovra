@@ -235,8 +235,10 @@ test("4c. every regressed label asks for the size its badge had", () => {
     /className="app-status-text"\s*\n\s*data-tone=\{caseStatusTone\(caseDetail\.status\)\}\s*\n\s*data-size="md"/,
   ); // case status under the title
   assert.match(EV_DETAIL_PAGE, /className="app-status-text"\s*\n\s*data-tone=\{getRecordStatusBadgeTone[\s\S]{0,60}?data-size="md"/);
+  // The library row keeps its lifecycle status at md; the generic review-state
+  // bucket beside it was removed, so there is no second review label to size.
   assert.match(EV_ROW, /className="app-status-text" data-size="md" data-tone=\{getStatusBadgeTone/);
-  assert.match(EV_ROW, /className="app-status-text"\s*\n\s*data-size="md"\s*\n\s*data-tone=\{getReviewPriorityTone/);
+  assert.doesNotMatch(EV_ROW, /getReviewPriorityTone/);
   assert.match(EV_INTEGRITY, /className="app-status-text evidence-detail-matrix-cell__state"\s*\n\s*data-size="md"/);
 
   // The AppStatusText component defaults to md, so the Cases-list status, the
@@ -399,12 +401,12 @@ test("13. the Case Copilot row states its status as text and keeps the KIND chip
 // 14–19. Evidence
 // ===========================================================================
 
-test("14. Evidence Library rows state their status and review signal as text", () => {
+test("14. Evidence Library rows state their lifecycle status as text (no review bucket)", () => {
   assert.match(EV_ROW, /className="app-status-text" data-size="md" data-tone=\{getStatusBadgeTone\(item\)\}/);
-  assert.match(EV_ROW, /className="app-status-text"\s*\n\s*data-size="md"\s*\n\s*data-tone=\{getReviewPriorityTone/);
   assert.doesNotMatch(EV_ROW, /app-status-badge/);
-  // The container was already a wrapping flex row with its own gap, so the two
-  // phrases cannot run together.
+  // The generic review-state bucket is gone — no second review label, and none
+  // of its wording survives in the row.
+  assert.doesNotMatch(EV_ROW, /getReviewPriorityTone|buildReviewPriority|priority\.label|Operational notes|Reviewer action recommended|Stable review state|Critical follow-up/);
   const badges = rule(read("apps/web/app/(app)/evidence/evidence-library.css"), ".evidence-library-row__badges");
   assert.match(badges, /display: flex;/);
   assert.match(badges, /gap: 8px;/);
