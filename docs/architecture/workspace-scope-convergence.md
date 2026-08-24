@@ -200,15 +200,23 @@ assertion in `phase-32-8-c-workflow-causality`.
 
 ## 7. Deployment ordering
 
-Two expand-only migrations, both idempotent, both safe to apply before the code:
+Two expand-only migrations, both idempotent, both safe to apply before the code.
 
-1. `20271220000000_workspace_operations_reconciliation_kind` — adds the
+Timestamps are 20271222 / 20271223 rather than 20271220 / 20271221. The Evidence
+retention-lifecycle work landed `20271220000000_evidence_lifecycle_trashed_state`
+and `20271220000001_evidence_lifecycle_state_backfill` in parallel with this
+branch, and two migrations claiming the same instant make their deploy order a
+lexicographic accident rather than a stated decision. These two are unapplied and
+unpushed, so renumbering them past that pair costs nothing and keeps the ordering
+explicit.
+
+1. `20271222000000_workspace_operations_reconciliation_kind` — adds the
    `WORKSPACE_OPERATIONS` enum value. **Must land in its own transaction**:
    PostgreSQL will not let a value added by `ALTER TYPE … ADD VALUE` be used in
    the transaction that adds it. Deploying code first produces
    `invalid input value for enum` on every sweep tick — the failure mode that
    killed Search's reconciler at its first workspace, every tick, silently.
-2. `20271221000000_operational_incident_scope` — adds `IncidentScope`, the
+2. `20271223000000_operational_incident_scope` — adds `IncidentScope`, the
    `scope` column (default `WORKSPACE`), the backfill to `LEGACY_UNSCOPED`, and
    the guarded index.
 
