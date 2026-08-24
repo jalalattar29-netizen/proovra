@@ -299,11 +299,17 @@ export async function applyEvidenceLifecycleAction(
         ? "TERMINAL_DESTROYED"
         : input.action === "TRASH"
           ? (caps.trashBlockReason ?? "ALREADY_IN_STATE")
-          : evidence.lockedAt
-            ? "EVIDENCE_LOCKED"
-            : input.action === "RESTORE_FROM_TRASH"
-              ? "NOT_TRASHED"
-              : "ALREADY_IN_STATE";
+          : // ARCHIVE reports its OWN reason. Falling through to the generic
+            // branches would have told a caller "already in that state" when the
+            // truth was "a legal hold is in force", which is the difference
+            // between a no-op and a preservation obligation.
+            input.action === "ARCHIVE"
+            ? (caps.archiveBlockReason ?? "ALREADY_IN_STATE")
+            : evidence.lockedAt
+              ? "EVIDENCE_LOCKED"
+              : input.action === "RESTORE_FROM_TRASH"
+                ? "NOT_TRASHED"
+                : "ALREADY_IN_STATE";
     return {
       ok: false,
       statusCode: 409,

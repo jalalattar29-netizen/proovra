@@ -5,9 +5,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
-  PutObjectLegalHoldCommand,
   PutObjectRetentionCommand,
-  type ObjectLockLegalHoldStatus,
   type ObjectLockMode,
   type S3ClientConfig,
 } from "@aws-sdk/client-s3";
@@ -132,17 +130,28 @@ function isObjectLockEnabled(): boolean {
   return clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() === "true";
 }
 
+/**
+ * WHY THERE IS NO `legalHold` HERE ANY MORE (2026-08-24).
+ *
+ * Mirror of the API copy — see `services/api/src/storage.ts` for the full
+ * reasoning. In short: `S3_OBJECT_LOCK_LEGAL_HOLD` is `OFF` in production and
+ * `"OFF"` is truthy, so every finalized object was actively stamped with a
+ * legal-hold status the application had never decided; and setting the variable
+ * to `ON` would have placed NATIVE holds that this codebase cannot release,
+ * because it persists no S3 VersionId and has no release path. On a
+ * COMPLIANCE bucket that is permanent.
+ *
+ * Object Lock RETENTION is untouched and still applied to every object.
+ */
 function readObjectLockDefaults(): {
   mode?: ObjectLockMode;
   retainUntilDate?: Date;
-  legalHold?: ObjectLockLegalHoldStatus;
 } {
   if (!isObjectLockEnabled()) {
     return {};
   }
 
   const modeRaw = clean(process.env.S3_OBJECT_LOCK_MODE)?.toUpperCase();
-  const legalHoldRaw = clean(process.env.S3_OBJECT_LOCK_LEGAL_HOLD)?.toUpperCase();
   const retainDays = parsePositiveInt(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
 
   const mode: ObjectLockMode | undefined =
@@ -150,10 +159,6 @@ function readObjectLockDefaults(): {
       ? (modeRaw as ObjectLockMode)
       : undefined;
 
-  const legalHold: ObjectLockLegalHoldStatus | undefined =
-    legalHoldRaw === "ON" || legalHoldRaw === "OFF"
-      ? (legalHoldRaw as ObjectLockLegalHoldStatus)
-      : undefined;
 
   const retainUntilDate =
     mode && retainDays
@@ -163,7 +168,6 @@ function readObjectLockDefaults(): {
   return {
     mode,
     retainUntilDate,
-    legalHold,
   };
 }
 
@@ -323,9 +327,7 @@ export async function putObjectBuffer(params: {
           ...(objectLock.retainUntilDate
             ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
             : {}),
-          ...(objectLock.legalHold
-            ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
-            : {}),
+          // No ObjectLockLegalHoldStatus. See readObjectLockDefaults.
         }),
       );
     },
@@ -337,7 +339,6 @@ export async function applyObjectRetention(params: {
   key: string;
   mode?: ObjectLockMode;
   retainUntilDate?: Date;
-  legalHold?: ObjectLockLegalHoldStatus;
   bypassGovernance?: boolean;
 }) {
   const bucket = mustClean(params.bucket, "bucket");
@@ -364,18 +365,6 @@ export async function applyObjectRetention(params: {
     );
   }
 
-  if (params.legalHold) {
-    await s3.send(
-      new PutObjectLegalHoldCommand({
-        Bucket: bucket,
-        Key: key,
-        LegalHold: {
-          Status: params.legalHold,
-        },
-      })
-    );
-  }
-
   return {
     applied: true,
   };
@@ -393,7 +382,6 @@ export async function applyDefaultObjectRetention(params: {
     key: params.key,
     mode: defaults.mode,
     retainUntilDate: defaults.retainUntilDate,
-    legalHold: defaults.legalHold,
     bypassGovernance: params.bypassGovernance,
   });
 }

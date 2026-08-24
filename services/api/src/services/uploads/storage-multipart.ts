@@ -122,26 +122,30 @@ function readMultipartBucket(): string | null {
   return clean(process.env.S3_BUCKET);
 }
 
+/**
+ * WHY THERE IS NO `ObjectLockLegalHoldStatus` HERE ANY MORE (2026-08-24).
+ *
+ * The multipart upload stamped it too, from the same environment variable, so
+ * every part of every multipart evidence record carried a legal-hold status the
+ * application had never decided — and one config edit would have made those
+ * stamps `ON`, i.e. native holds this codebase cannot release. See
+ * `services/api/src/storage.ts` for the full reasoning.
+ *
+ * Object Lock RETENTION is untouched: mode and retain-until are still applied
+ * to the multipart upload exactly as before.
+ */
 function readObjectLockDefaults(): {
   ObjectLockMode?: "GOVERNANCE" | "COMPLIANCE";
   ObjectLockRetainUntilDate?: Date;
-  ObjectLockLegalHoldStatus?: "ON" | "OFF";
 } {
   if (clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() !== "true") {
     return {};
   }
   const modeRaw = clean(process.env.S3_OBJECT_LOCK_MODE)?.toUpperCase();
-  const legalHoldRaw = clean(
-    process.env.S3_OBJECT_LOCK_LEGAL_HOLD,
-  )?.toUpperCase();
   const retainDays = parsePositiveInt(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
   const mode =
     modeRaw === "GOVERNANCE" || modeRaw === "COMPLIANCE"
       ? (modeRaw as "GOVERNANCE" | "COMPLIANCE")
-      : undefined;
-  const legalHold =
-    legalHoldRaw === "ON" || legalHoldRaw === "OFF"
-      ? (legalHoldRaw as "ON" | "OFF")
       : undefined;
   const retainUntilDate =
     mode && retainDays
@@ -150,7 +154,6 @@ function readObjectLockDefaults(): {
   return {
     ...(mode ? { ObjectLockMode: mode } : {}),
     ...(retainUntilDate ? { ObjectLockRetainUntilDate: retainUntilDate } : {}),
-    ...(legalHold ? { ObjectLockLegalHoldStatus: legalHold } : {}),
   };
 }
 

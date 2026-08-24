@@ -56,9 +56,29 @@ const EnvSchema = z.object({
     .enum(["GOVERNANCE", "COMPLIANCE"])
     .optional(),
   S3_OBJECT_LOCK_RETAIN_DAYS: optionalPositiveInt,
+  /**
+   * LEGACY AND INERT (2026-08-24). Nothing reads this into an S3 request any
+   * more — see `readObjectLockDefaults` in `storage.ts`.
+   *
+   * `OFF` and unset are accepted so existing deployments keep booting; both do
+   * nothing. `ON` is REFUSED, and the refusal is the point. Before this pass
+   * that single character would have placed a NATIVE S3 legal hold on every
+   * newly finalized object — holds this codebase cannot release, because it
+   * persists no S3 VersionId and has no release path, and which on a
+   * COMPLIANCE bucket no account can clear. An operator who sets it is
+   * reaching for a capability that does not exist yet; failing to start says
+   * so, where silently ignoring it would let them believe evidence was
+   * protected by something that was never applied.
+   */
   S3_OBJECT_LOCK_LEGAL_HOLD: z
     .enum(["ON", "OFF"])
-    .optional(),
+    .optional()
+    .refine((v) => v !== "ON", {
+      message:
+        "S3_OBJECT_LOCK_LEGAL_HOLD=ON is not supported: native S3 Object Lock legal hold is not implemented. " +
+        "PROOVRA enforces legal hold in the application (EvidenceLegalHold), and has no per-version apply/release " +
+        "path, so ON would place holds that cannot be released. Unset it or use OFF.",
+    }),
 
   REPORT_VERIFY_BASE_URL: optionalUrl,
   REPORT_APP_BASE_URL: optionalUrl,

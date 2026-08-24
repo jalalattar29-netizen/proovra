@@ -44,6 +44,7 @@ function lifecycle(over: Record<string, unknown> = {}) {
     canTrash: true,
     canRestoreFromTrash: false,
     trashBlockReason: null,
+    archiveBlockReason: null,
     trashGraceUntilUtc: null,
     appRetentionUntilUtc: null,
     objectLockRetainUntilUtc: null,
@@ -266,6 +267,46 @@ test.describe("Evidence Detail — lifecycle states", () => {
     await expect(page.locator("[data-evidence-legal-hold]")).toHaveText(
       "Legal hold: active",
     );
+  });
+
+  test("a LEGAL HOLD also withdraws Archive, and the page says which actions are gone", async ({
+    page,
+  }) => {
+    // The projection is what the API now emits for a held record: BOTH verdicts
+    // false, both with the same reason. Before the correction the same record
+    // came back with `canArchive: true`, so the page offered an Archive button
+    // whose click returned 409 — and for a personal-scope record the click
+    // actually archived it.
+    await openLifecycle(page, {
+      lifecycle: lifecycle({
+        canArchive: false,
+        archiveBlockReason: "LEGAL_HOLD_ACTIVE",
+        canTrash: false,
+        trashBlockReason: "LEGAL_HOLD_ACTIVE",
+        legalHold: true,
+      }),
+      archivedAt: null,
+      deletedAt: null,
+      lockedAt: null,
+    });
+
+    // No Archive control at all — not a disabled one, because archive under a
+    // hold is not "try again later", it is unavailable while the hold stands.
+    await expect(page.locator('[data-evidence-action="archive"]')).toHaveCount(0);
+
+    const helper = page.locator("[data-evidence-trash-helper]");
+    // The heading covers BOTH withdrawn actions. "Move to trash is
+    // unavailable" beside a vanished Archive button describes half the page.
+    await expect(helper).toContainText("Lifecycle changes are unavailable");
+    // …and the verdict is stated rather than left to be inferred from a
+    // control that is not on the page.
+    await expect(helper).toHaveAttribute(
+      "data-evidence-archive-reason",
+      "LEGAL_HOLD_ACTIVE",
+    );
+    // The alternative-action copy must NOT appear: offering "Archive instead"
+    // under a hold that blocks archive is the contradiction being removed.
+    await expect(helper).not.toContainText("Archive removes the record");
   });
 
   test("a disabled trash control cannot open the confirmation modal", async ({

@@ -609,6 +609,33 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
     class: "SCHEMA_DECLARATION",
     test: (p) => /(^|\/)prisma\/schema\.prisma$/.test(p),
   },
+  /**
+   * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — `.env.example` is its own
+   * class, added for the same reason and by the same procedure as
+   * `SCHEMA_DECLARATION` above: it matched nothing, the table correctly refused
+   * to default, and somebody had to look at it.
+   *
+   * Having looked. It is not PRODUCTION_RUNTIME — no module imports it, and
+   * changing it changes no shipped behaviour. It is not DOCUMENTATION: prose
+   * describes the system, whereas this file is copied by an operator and
+   * becomes the system's configuration, so a wrong line here is a wrong
+   * deployment rather than a wrong sentence. And it is not
+   * RELEASE_CONFIGURATION alongside `tsconfig.json`, which configures the
+   * BUILD; this declares the variables a running service reads.
+   *
+   * What it is: the ENVIRONMENT CONTRACT — the enumerated set of variables the
+   * service consults, with defaults chosen to be safe and with no secret
+   * values. The change that prompted the class is the case in point: a variable
+   * that used to be read straight into `PutObjectLegalHold` is now inert, and
+   * saying so in this file is the only place an operator would ever find out.
+   *
+   * `.env` itself is never in a change set — it is gitignored — so this rule
+   * deliberately matches only the committed templates.
+   */
+  {
+    class: "ENVIRONMENT_TEMPLATE",
+    test: (p) => /(^|\/)\.env\.(example|sample|template)$/.test(p),
+  },
   // Before DOCUMENTATION: the snapshot holds `.txt` and `.patch` files, and a
   // suffix rule further down was claiming them as prose. A recovery snapshot
   // filed as documentation is a recovery snapshot nobody protects.

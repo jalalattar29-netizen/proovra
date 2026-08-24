@@ -101,7 +101,14 @@ never reduced.
 `lifecycleState=ARCHIVED` + `archivedAt` set. No S3 op, no retention change, no
 timer, no destruction request, no artifact-status change, verification/custody
 intact. Reversible. Single and bulk call the same `archiveEvidence` primitive.
-Capability gate: `canArchive` (ACTIVE, not locked).
+Capability gate: `canArchive` (ACTIVE, not locked, **not under a legal hold**).
+
+A hold blocks archive for the same reason it blocks trash: archive removes the
+record from the default working set, and a preservation obligation is exactly
+the period during which a reviewer must be able to find it where they expect
+it. Retention does **not** block archive — that boundary stays on destruction.
+The refusal is reported as `archiveBlockReason`, beside `trashBlockReason`, so
+no surface has to infer one verdict from the other.
 
 ## 5. Trash — final semantics (§5/§6/§26)
 
@@ -188,9 +195,18 @@ in favour of the governance tombstone.
 Application legal hold (DB union evaluator) is the authoritative destruction gate,
 fail-closed, and is honoured by the authority (`legalHold` input). **S3 Object
 Lock legal hold is NOT wired to app holds today** (`storageObjectLockLegalHoldStatus`
-reflects the bucket/env default). Wiring real `PutObjectLegalHold` is a documented
-follow-up; until then we do **not** claim S3 legal hold is active. DB hold is never
-weakened.
+reflects whatever the bucket reports on a HEAD, and nothing writes it). Wiring
+real `PutObjectLegalHold` is a documented follow-up; until then we do **not**
+claim S3 legal hold is active. DB hold is never weakened.
+
+As of 2026-08-24 the hold gates ARCHIVE as well as trash and destruction, in the
+canonical authority rather than in a governance layer that runs later. That
+ordering matters: the governance gate returns `allowed` unconditionally for
+evidence with no `teamId`, so a hold enforced only there was not enforced at all
+for personal-scope records — held personal evidence was archived on request.
+Deciding it in `computeEvidenceLifecycleCapabilities`, which runs before the
+governance gate and which both the single and bulk routes consult, closes that
+by construction rather than by adding a fourth check.
 
 ## 12. Single/bulk parity (§13/§49)
 
@@ -243,9 +259,21 @@ migration tests + clean-db-boot proof + migration inventory before any deploy.
 ## 16. Storage config convergence (§34)
 
 One env-parsing authority shared by API and worker for Object Lock
-(mode/retain/legal-hold). No stale 365-day assumption where production is 2920. No
+(mode/retain). No stale 365-day assumption where production is 2920. No
 upload path may stage preserved Evidence without applying required Object Lock
 retention. Secrets never committed.
+
+**`S3_OBJECT_LOCK_LEGAL_HOLD` is no longer read by any storage path** (corrected
+2026-08-24). It was parsed into `PutObjectLegalHold` at finalize time, which
+made it a foot-gun in both directions: the value was carried as a truthy string,
+so `OFF` still stamped a status onto every finalized object, and setting it to
+`ON` would have placed native, per-object holds that no code in this repository
+can release. Native legal hold is not implemented, so the variable now maps to
+nothing — the worker's config schema REFUSES `ON` at boot and the API raises a
+startup violation for it, rather than accepting a setting it cannot honour.
+Object Lock RETENTION is untouched: `PutObjectRetention` still applies
+COMPLIANCE/2920 exactly as before, proven behaviourally by capturing the
+commands the storage layer emits.
 
 ## 17. Rollout safety (§55/§56) — MANDATORY GATING
 

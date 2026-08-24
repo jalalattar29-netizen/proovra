@@ -52,21 +52,85 @@ const PURGE_ENTRY = getWorkEntryOrThrow(JOB_NAMES.PURGE_DELETED_EVIDENCE);
 const storageCalls = vi.hoisted(() => ({
   deleted: [] as Array<{ bucket: string; key: string }>,
   put: [] as string[],
+  /**
+   * Keys this double has actually removed. `headObject` reports 404 for
+   * exactly these and "present" for everything else, which is what makes the
+   * double a STORE rather than a call recorder.
+   *
+   * Deliberately NOT cleared by `reset()`: reset clears the call counters a
+   * case is about to measure, and a deletion that un-happened between two
+   * assertions would model a storage layer nobody has.
+   */
+  removed: new Set<string>(),
   reset() {
     this.deleted.length = 0;
     this.put.length = 0;
   },
 }));
 
+/**
+ * THE OBJECT-STORAGE BOUNDARY, MODELLED — not merely recorded.
+ *
+ * WHY BOTH OPERATIONS ARE FAKED, AND WHY THAT IS THE WHOLE POINT
+ * ---------------------------------------------------------------------------
+ * This double used to replace `deleteObject` alone. The canonical destruction
+ * executor deletes and then VERIFIES, by asking storage whether the object is
+ * still there — and verification runs through `headObject`, which this file
+ * left real. So the executor's most safety-critical step reached an actual
+ * network socket.
+ *
+ * That socket exists on a developer machine (the repository's disposable
+ * `p7-minio` on 127.0.0.1:59000, which `test/setup/safe-environment.ts` points
+ * S3 at) and does not exist on CI. On a laptop the HEAD returned 404, the
+ * executor read "gone", and the suite passed. On CI the HEAD failed to
+ * connect; the adapter correctly refuses to read a connection error as proof of
+ * absence and rethrows; the executor correctly treats "I could not check" as
+ * "still there" and fails closed with STORAGE_VERIFY_FAILED.
+ *
+ * Every one of those production behaviours is right. The bug was the test:
+ * half a double is an environment dependency wearing a mock's clothes, and it
+ * made this suite pass or fail on whether a container happened to be running.
+ *
+ * Faking both operations is therefore not a weakening of verification — it is
+ * what lets the verification step be exercised AT ALL, deterministically, in
+ * any environment. The executor still deletes, still asks, and still fails
+ * closed when the answer is "present"; the only thing that changed is that the
+ * answer now comes from this file instead of from ambient infrastructure.
+ */
 vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
+  const idOf = (i: { bucket: string; key: string }) => `${i.bucket} ${i.key}`;
   return {
     ...actual,
-    // Only the destructive entry points are replaced. Everything else the
-    // module exports keeps its real implementation, so a code path that
-    // reaches storage some OTHER way is not silently satisfied by this fake.
+    // Everything the module exports that is NOT part of the destruction
+    // boundary keeps its real implementation, so a code path that reaches
+    // storage some OTHER way is still not silently satisfied by this fake.
     deleteObject: async (p: { bucket: string; key: string }) => {
       storageCalls.deleted.push(p);
+      storageCalls.removed.add(idOf(p));
+      return { deleted: true };
+    },
+    headObject: async (p: { bucket: string; key: string }) => {
+      if (storageCalls.removed.has(idOf(p))) {
+        // The shape the AWS SDK raises for a missing object, and the shape
+        // `destruction-storage-port.ts` narrowly recognises as proof of
+        // absence. Anything else it rethrows — which is the behaviour that
+        // exposed this defect, and which stays exercised by the negative case.
+        const err = Object.assign(new Error("NotFound"), {
+          name: "NotFound",
+          $metadata: { httpStatusCode: 404 },
+        });
+        throw err;
+      }
+      return {
+        sizeBytes: 1,
+        contentType: "application/octet-stream",
+        etag: "test",
+        metadata: null,
+        objectLockMode: null,
+        objectLockRetainUntilDate: null,
+        objectLockLegalHoldStatus: null,
+      };
     },
     putObjectBuffer: async (p: { key: string }) => {
       storageCalls.put.push(p.key);
@@ -356,10 +420,22 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
     expect(
       await prisma.custodyEvent.count({ where: { evidenceId } }),
     ).toBeGreaterThan(0);
+    // EXACTLY ONE physical deletion. Three racing executions that each deleted
+    // would show three calls even though the KEY set is one, so the call count
+    // is asserted as well as the key set — a de-duplicated key set would hide
+    // precisely the overlap this case exists to catch.
+    expect(storageCalls.deleted).toHaveLength(1);
     // Storage deletion is idempotent by nature, but a purge that ran three
     // times over would show three DISTINCT object keys deleted for one record.
     const keys = new Set(storageCalls.deleted.map((c) => c.key));
     expect(keys.size).toBeLessThanOrEqual(1);
+    // ONE certificate. The losers stood down on the claim; a second attestation
+    // would mean two executions both believed they had destroyed this record.
+    const certificates = await prisma.custodyEvent.findMany({
+      where: { evidenceId, eventType: "EVIDENCE_PURGED" },
+      select: { payload: true },
+    });
+    expect(certificates).toHaveLength(1);
     provenCase("purge.claim.one_winner");
   });
 

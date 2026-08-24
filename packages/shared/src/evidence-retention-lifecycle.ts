@@ -339,6 +339,15 @@ export interface EvidenceLifecycleCapabilities {
    */
   trashBlockReason: EvidenceLifecycleBlockReason | null;
 
+  /**
+   * Why archive is unavailable, or null when it is available.
+   *
+   * Reported separately from `trashBlockReason` because the two answers differ
+   * in the ordinary case: an ARCHIVED record cannot be archived again but can
+   * still be trashed. They coincide under a legal hold, which blocks both.
+   */
+  archiveBlockReason: EvidenceLifecycleBlockReason | null;
+
   trashGraceUntil: Date | null;
   appRetentionUntil: Date | null;
   objectLockRetainUntil: Date | null;
@@ -399,12 +408,40 @@ export function computeEvidenceLifecycleCapabilities(
           ? "LEGAL_HOLD_ACTIVE"
           : null;
 
+  // ARCHIVE UNDER A LEGAL HOLD — corrected 2026-08-24.
+  //
+  // This used to be `active && !locked`, and it disagreed with the runtime.
+  // `canArchiveEvidence` in the governance layer already refused a held record
+  // with `blocked_by_legal_hold`, so the projection offered an Archive button
+  // whose click returned 409 — and, worse, that governance layer short-circuits
+  // for PERSONAL-scope records (`teamId === null`), so held personal evidence
+  // was not merely offered the action but actually archived by it.
+  //
+  // The hold now decides here, in the one authority both single and bulk paths
+  // consult, which closes the personal-scope gap by construction: the
+  // capability gate runs before the governance gate and applies to every scope.
+  //
+  // WHY A HOLD BLOCKS ARCHIVE AT ALL, when it is not a deletion: archive
+  // removes the record from the default working set, and a preservation
+  // obligation is precisely the period during which a reviewer must be able to
+  // find the record where they expect it. It is the same reasoning that makes a
+  // hold block trash while a retention deadline does not.
+  const archiveBlockReason: EvidenceLifecycleBlockReason | null = destroyed
+    ? "TERMINAL_DESTROYED"
+    : archived || trashed
+      ? "ALREADY_IN_STATE"
+      : locked
+        ? "EVIDENCE_LOCKED"
+        : elig.legalHold
+          ? "LEGAL_HOLD_ACTIVE"
+          : null;
+
   return {
     productState,
 
     // Archive only organises the active working set; it never applies to a
-    // trashed or destroyed record.
-    canArchive: active && !locked,
+    // trashed or destroyed record, and never to one under a legal hold.
+    canArchive: active && archiveBlockReason === null,
     canUnarchive: archived && !locked,
     // Recoverable soft-trash: allowed from the working set regardless of
     // retention or Object Lock; blocked only by a permanent lock, a legal hold,
@@ -413,6 +450,7 @@ export function computeEvidenceLifecycleCapabilities(
     canRestoreFromTrash: trashed && !locked,
     canDestroy: elig.eligible,
     trashBlockReason,
+    archiveBlockReason,
 
     trashGraceUntil: elig.trashGraceUntil,
     appRetentionUntil: toDate(input.appRetentionUntil),
@@ -479,6 +517,8 @@ export interface EvidenceLifecycleProjection {
 
   /** Why trash is unavailable, or null. NEVER a retention deadline. */
   trashBlockReason: EvidenceLifecycleBlockReason | null;
+  /** Why archive is unavailable, or null. NEVER a retention deadline. */
+  archiveBlockReason: EvidenceLifecycleBlockReason | null;
 
   /** ISO. When the recoverable window closes. */
   trashGraceUntilUtc: string | null;
@@ -517,6 +557,7 @@ export function toEvidenceLifecycleProjection(
     canTrash: caps.canTrash,
     canRestoreFromTrash: caps.canRestoreFromTrash,
     trashBlockReason: caps.trashBlockReason,
+    archiveBlockReason: caps.archiveBlockReason,
     trashGraceUntilUtc: iso(caps.trashGraceUntil),
     appRetentionUntilUtc: iso(caps.appRetentionUntil),
     objectLockRetainUntilUtc: iso(caps.objectLockRetainUntil),

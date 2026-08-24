@@ -206,7 +206,7 @@ export function toLegacyDeleteEligibility(
         reasonCode: "LEGAL_HOLD",
         blockedUntil: null,
         message:
-          "This record is under an active legal hold and cannot be moved to trash.",
+          "This record is under an active legal hold. It cannot be archived or moved to trash while the hold stands.",
       };
     default:
       return {

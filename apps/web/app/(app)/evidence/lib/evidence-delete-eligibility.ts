@@ -128,7 +128,9 @@ function mapReasonCode(
 function mapReasonMessage(lifecycle: EvidenceLifecycleProjection): string {
   switch (lifecycle.trashBlockReason) {
     case "LEGAL_HOLD_ACTIVE":
-      return "This record is under an active legal hold and cannot be moved to trash.";
+      // A hold blocks archive as well as trash, so naming only trash would
+      // leave the user wondering where the Archive button went.
+      return "This record is under an active legal hold. It cannot be archived or moved to trash while the hold stands.";
     case "EVIDENCE_LOCKED":
       return "This record is permanently locked and cannot be moved to trash.";
     case "TERMINAL_DESTROYED":

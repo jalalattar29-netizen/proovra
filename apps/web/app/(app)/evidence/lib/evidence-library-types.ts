@@ -343,6 +343,7 @@ export type EvidenceLifecycleProjection = {
   canTrash: boolean;
   canRestoreFromTrash: boolean;
   trashBlockReason: EvidenceLifecycleBlockReason | null;
+  archiveBlockReason: EvidenceLifecycleBlockReason | null;
   trashGraceUntilUtc: string | null;
   appRetentionUntilUtc: string | null;
   objectLockRetainUntilUtc: string | null;

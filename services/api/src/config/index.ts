@@ -210,7 +210,13 @@ export type StartupConfigViolation = {
     // either have PDF_SIGNING_ENABLED=true OR carry an explicit
     // PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true. Both unset is a
     // structurally unsafe config; the API refuses to start.
-    | "pdf_signing_unconfigured_in_production";
+    | "pdf_signing_unconfigured_in_production"
+    // 2026-08-24 — native S3 Object Lock legal hold is NOT implemented.
+    // `S3_OBJECT_LOCK_LEGAL_HOLD=ON` used to be read straight into every
+    // upload and into PutObjectLegalHold, so one character placed native holds
+    // this codebase cannot release. The read is gone; this violation stops an
+    // operator believing the switch still does something.
+    | "s3_native_legal_hold_unsupported";
 };
 
 /**
@@ -220,6 +226,20 @@ export type StartupConfigViolation = {
  */
 export function collectStartupViolations(): StartupConfigViolation[] {
   const out: StartupConfigViolation[] = [];
+
+  // Native S3 legal hold is not implemented. `OFF` and unset are inert and
+  // accepted; `ON` is a request for a capability that does not exist, and is
+  // refused rather than ignored so nobody concludes evidence is protected by
+  // a storage-level hold that was never placed. Checked in every environment —
+  // the value's danger did not depend on NODE_ENV.
+  if (
+    (process.env.S3_OBJECT_LOCK_LEGAL_HOLD ?? "").trim().toUpperCase() === "ON"
+  ) {
+    out.push({
+      envName: "S3_OBJECT_LOCK_LEGAL_HOLD",
+      reason: "s3_native_legal_hold_unsupported",
+    });
+  }
   // Core required in prod.
   for (const name of CORE_REQUIRED_PROD) {
     if ((process.env[name] ?? "").trim().length === 0) {

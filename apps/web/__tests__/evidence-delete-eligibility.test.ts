@@ -61,6 +61,7 @@ function projection(over: Record<string, unknown> = {}) {
       canTrash: true,
       canRestoreFromTrash: false,
       trashBlockReason: null,
+      archiveBlockReason: null,
       trashGraceUntilUtc: null,
       appRetentionUntilUtc: null,
       objectLockRetainUntilUtc: null,

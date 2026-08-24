@@ -43,6 +43,7 @@ function evidenceRow(i: number) {
       canTrash: true,
       canRestoreFromTrash: false,
       trashBlockReason: null,
+      archiveBlockReason: null,
       trashGraceUntilUtc: null,
       appRetentionUntilUtc: null,
       objectLockRetainUntilUtc: null,
@@ -94,12 +95,21 @@ async function openLibrary(page: Page): Promise<void> {
   await page.waitForSelector("[data-evidence-row]", { timeout: 30_000 });
 }
 
-/** The workspace-scope filter's rendered options. */
+/**
+ * The workspace-scope filter's rendered options.
+ *
+ * The wait is not politeness. `AppListbox` mounts its popup through an anchored
+ * OVERLAY, so the options do not exist in the document on the tick the click
+ * returns; reading straight afterwards returned `[]`. That made
+ * `toContain("Trash")` fail and — worse — made `not.toContain("Deleted")` pass
+ * against nothing at all, which is the shape of a guard that reports green
+ * because it measured an empty page.
+ */
 async function scopeOptions(page: Page): Promise<string[]> {
   await page.locator("#scope-filter").click();
-  const labels = await page
-    .locator('[role="listbox"] [role="option"], #scope-filter + * [role="option"]')
-    .allInnerTexts();
+  const options = page.locator('[role="listbox"] [role="option"]');
+  await options.first().waitFor({ state: "visible", timeout: 10_000 });
+  const labels = await options.allInnerTexts();
   await page.keyboard.press("Escape");
   return labels.map((t) => t.trim()).filter(Boolean);
 }

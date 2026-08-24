@@ -4,12 +4,10 @@ import {
   HeadObjectCommand,
   GetObjectCommand,
   GetObjectLockConfigurationCommand,
-  PutObjectLegalHoldCommand,
   PutObjectRetentionCommand,
   CopyObjectCommand,
   RestoreObjectCommand,
   DeleteObjectCommand,
-  type ObjectLockLegalHoldStatus,
   type ObjectLockMode,
   type S3ClientConfig,
   type StorageClass,
@@ -175,27 +173,53 @@ function isObjectLockEnabled(): boolean {
   return clean(process.env.S3_OBJECT_LOCK_ENABLED)?.toLowerCase() === "true";
 }
 
+/**
+ * WHY THERE IS NO `legalHold` HERE ANY MORE (2026-08-24).
+ *
+ * This function used to return a `legalHold` read straight from
+ * `S3_OBJECT_LOCK_LEGAL_HOLD`, and every ordinary upload and retention call
+ * spread it into the S3 request. Two things were wrong with that, and the
+ * second is the serious one.
+ *
+ * FIRST: the variable is set to `OFF` in production, and `"OFF"` is a truthy
+ * string. So the guard `if (objectLock.legalHold)` passed, and PROOVRA
+ * actively stamped `LegalHold=OFF` on every finalized object and part — a
+ * write nobody asked for, expressing a decision the application had not made.
+ *
+ * SECOND: the variable reads like an opt-out and behaves like an opt-in. An
+ * operator setting it to `ON` — a one-character change that looks like
+ * "enable the legal-hold feature" — would have placed a NATIVE S3 legal hold on
+ * every newly finalized object. On this platform's COMPLIANCE bucket that hold
+ * is not releasable by any code that exists: PROOVRA persists no S3 VersionId,
+ * has no GetObjectLegalHold, and has no release path. The result would be
+ * permanently unreleasable objects, and no account — including root — can
+ * clear a COMPLIANCE-mode legal hold it cannot address by version.
+ *
+ * Native legal hold is a real and worthwhile future capability. It needs
+ * durable version tracking, a per-version apply/release saga, propagation to
+ * artifacts created after placement, and drift reconciliation. None of that is
+ * a default on an upload helper, so the capability is removed from this path
+ * entirely rather than left behind a variable. When it is built it will arrive
+ * as an explicit, saga-owned operation.
+ *
+ * RETENTION IS UNTOUCHED. `mode` and `retainUntilDate` still come from
+ * `S3_OBJECT_LOCK_MODE` and `S3_OBJECT_LOCK_RETAIN_DAYS` and are still applied
+ * to every object exactly as before. Only the legal-hold stamp is gone.
+ */
 function readObjectLockDefaults(): {
   mode?: ObjectLockMode;
   retainUntilDate?: Date;
-  legalHold?: ObjectLockLegalHoldStatus;
 } {
   if (!isObjectLockEnabled()) {
     return {};
   }
 
   const modeRaw = clean(process.env.S3_OBJECT_LOCK_MODE)?.toUpperCase();
-  const legalHoldRaw = clean(process.env.S3_OBJECT_LOCK_LEGAL_HOLD)?.toUpperCase();
   const retainDays = parsePositiveInt(process.env.S3_OBJECT_LOCK_RETAIN_DAYS);
 
   const mode: ObjectLockMode | undefined =
     modeRaw === "GOVERNANCE" || modeRaw === "COMPLIANCE"
       ? (modeRaw as ObjectLockMode)
-      : undefined;
-
-  const legalHold: ObjectLockLegalHoldStatus | undefined =
-    legalHoldRaw === "ON" || legalHoldRaw === "OFF"
-      ? (legalHoldRaw as ObjectLockLegalHoldStatus)
       : undefined;
 
   const retainUntilDate =
@@ -206,7 +230,6 @@ function readObjectLockDefaults(): {
   return {
     mode,
     retainUntilDate,
-    legalHold,
   };
 }
 
@@ -307,9 +330,7 @@ export async function presignPutObject(params: {
     ...(objectLock.retainUntilDate
       ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
       : {}),
-    ...(objectLock.legalHold
-      ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
-      : {}),
+    // No ObjectLockLegalHoldStatus. See readObjectLockDefaults.
   });
 
   const signableHeaders = new Set<string>(["content-type"]);
@@ -405,21 +426,28 @@ export async function putObjectBuffer(params: {
           ...(objectLock.retainUntilDate
             ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
             : {}),
-          ...(objectLock.legalHold
-            ? { ObjectLockLegalHoldStatus: objectLock.legalHold }
-            : {}),
+          // No ObjectLockLegalHoldStatus. See readObjectLockDefaults.
         }),
       );
     },
   );
 }
 
+/**
+ * Apply Object Lock RETENTION to one object.
+ *
+ * The `legalHold` parameter and its `PutObjectLegalHoldCommand` call were
+ * removed on 2026-08-24. A retention helper that can also place a legal hold is
+ * a loaded gun: the only caller passed the value straight from an environment
+ * variable, so a config edit could place unreleasable native holds with no
+ * application lifecycle behind them. Native legal hold returns as an explicit
+ * saga-owned operation or not at all.
+ */
 export async function applyObjectRetention(params: {
   bucket: string;
   key: string;
   mode?: ObjectLockMode;
   retainUntilDate?: Date;
-  legalHold?: ObjectLockLegalHoldStatus;
   bypassGovernance?: boolean;
 }) {
   const bucket = clean(params.bucket);
@@ -450,18 +478,6 @@ export async function applyObjectRetention(params: {
     );
   }
 
-  if (params.legalHold) {
-    await s3.send(
-      new PutObjectLegalHoldCommand({
-        Bucket: bucket,
-        Key: key,
-        LegalHold: {
-          Status: params.legalHold,
-        },
-      })
-    );
-  }
-
   return {
     applied: true,
   };
@@ -479,7 +495,6 @@ export async function applyDefaultObjectRetention(params: {
     key: params.key,
     mode: defaults.mode,
     retainUntilDate: defaults.retainUntilDate,
-    legalHold: defaults.legalHold,
     bypassGovernance: params.bypassGovernance,
   });
 }

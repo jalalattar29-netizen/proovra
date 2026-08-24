@@ -430,3 +430,95 @@ test("the projection carries verdicts and dates, and no raw lock mode to re-deri
   // has nothing to compare a date against.
   assert.equal("objectLockMode" in p, false);
 });
+
+// ===========================================================================
+// archiveBlockReason — a legal hold blocks archive (corrected 2026-08-24)
+// ===========================================================================
+//
+// Before this, `canArchive` was `active && !locked`, which disagreed with the
+// runtime: the governance layer already refused a held record, so the
+// projection advertised an Archive button whose click returned 409. Worse, that
+// governance layer allows unconditionally when `teamId` is null, so a held
+// PERSONAL record was not merely offered the action — it was archived by it.
+// The hold now decides here, in the one authority the single route, the bulk
+// route and every read surface all consult.
+
+test("ACTIVE with no hold: archive is available and has no block reason", () => {
+  const caps = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "ACTIVE" },
+    CONV_NOW,
+  );
+  assert.equal(caps.canArchive, true);
+  assert.equal(caps.archiveBlockReason, null);
+});
+
+test("ACTIVE under a legal hold: archive is refused, and says why", () => {
+  const caps = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "ACTIVE", legalHold: true },
+    CONV_NOW,
+  );
+  assert.equal(caps.canArchive, false, "a legal hold must block archive");
+  assert.equal(caps.archiveBlockReason, "LEGAL_HOLD_ACTIVE");
+  // The two answers coincide under a hold, which is the whole point: one
+  // preservation obligation, not two independently drifting verdicts.
+  assert.equal(caps.canTrash, false);
+  assert.equal(caps.trashBlockReason, "LEGAL_HOLD_ACTIVE");
+});
+
+test("retention is still NOT an archive block — only a hold is", () => {
+  const caps = computeEvidenceLifecycleCapabilities(
+    {
+      lifecycleState: "ACTIVE",
+      appRetentionUntil: CONV_FAR,
+      objectLockRetainUntil: CONV_FAR,
+      objectLockMode: "COMPLIANCE",
+    },
+    CONV_NOW,
+  );
+  assert.equal(caps.canArchive, true, "retention must not block archive");
+  assert.equal(caps.archiveBlockReason, null);
+});
+
+test("archive block reasons follow the same precedence as trash", () => {
+  const locked = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "ACTIVE", lockedAt: "2026-01-01T00:00:00Z" },
+    CONV_NOW,
+  );
+  assert.equal(locked.canArchive, false);
+  assert.equal(locked.archiveBlockReason, "EVIDENCE_LOCKED");
+
+  const destroyed = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "DESTROYED", legalHold: true },
+    CONV_NOW,
+  );
+  assert.equal(destroyed.canArchive, false);
+  assert.equal(
+    destroyed.archiveBlockReason,
+    "TERMINAL_DESTROYED",
+    "a tombstone outranks a hold — the record is already gone",
+  );
+
+  const archived = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "ARCHIVED", archivedAt: "2026-01-01T00:00:00Z" },
+    CONV_NOW,
+  );
+  assert.equal(archived.canArchive, false);
+  assert.equal(archived.archiveBlockReason, "ALREADY_IN_STATE");
+  // …but an ARCHIVED record with no hold can still be trashed, so the two
+  // reasons are genuinely independent outside the hold case.
+  assert.equal(archived.canTrash, true);
+  assert.equal(archived.trashBlockReason, null);
+});
+
+test("the wire projection carries archiveBlockReason", () => {
+  const held = toEvidenceLifecycleProjection(
+    { lifecycleState: "ACTIVE", legalHold: true },
+    CONV_NOW,
+  );
+  assert.equal(held.canArchive, false);
+  assert.equal(held.archiveBlockReason, "LEGAL_HOLD_ACTIVE");
+
+  const free = toEvidenceLifecycleProjection({ lifecycleState: "ACTIVE" }, CONV_NOW);
+  assert.equal(free.canArchive, true);
+  assert.equal(free.archiveBlockReason, null);
+});

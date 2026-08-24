@@ -523,8 +523,24 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                   role="status"
                   data-evidence-trash-helper
                   data-evidence-trash-reason={eligibility.reasonCode ?? "UNKNOWN"}
+                  // The archive verdict is reported alongside the trash one
+                  // rather than inferred from the Archive button's absence —
+                  // "the control is not rendered" is not a reason, and a
+                  // browser proof cannot assert on something that is missing.
+                  data-evidence-archive-reason={
+                    lifecycle?.archiveBlockReason ?? "ELIGIBLE"
+                  }
                 >
-                  <strong>Move to trash is unavailable</strong>
+                  {/* Under a LEGAL HOLD both lifecycle actions are refused,
+                      so "Move to trash is unavailable" would describe half of
+                      what the user is looking at — and the Archive button has
+                      just disappeared from beside it with no explanation. One
+                      heading covering both is the truthful version. */}
+                  <strong>
+                    {lifecycle?.trashBlockReason === "LEGAL_HOLD_ACTIVE"
+                      ? "Lifecycle changes are unavailable"
+                      : "Move to trash is unavailable"}
+                  </strong>
                   <p>{eligibility.message}</p>
                   {lifecycle?.canArchive ? (
                     <p>{ARCHIVE_AS_ALTERNATIVE_COPY}</p>

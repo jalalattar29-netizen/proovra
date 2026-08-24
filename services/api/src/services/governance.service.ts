@@ -628,6 +628,25 @@ export async function canDeleteEvidence(input: {
   return { allowed: true };
 }
 
+/**
+ * Workspace-policy view of "may this actor archive this record".
+ *
+ * THE HOLD CHECK BELOW IS NO LONGER THE AUTHORITY (2026-08-24).
+ *
+ * `computeEvidenceLifecycleCapabilities` decides archive-under-hold, and
+ * `applyEvidenceLifecycleAction` — the only caller that reaches this function,
+ * via the `archive_evidence` sensitive action — consults it BEFORE the
+ * governance gate runs. So a held record never gets this far.
+ *
+ * It stays because it costs one indexed lookup and it is a second, independent
+ * refusal for any future caller that reaches the governance layer directly.
+ * What it must NOT be mistaken for is coverage: `enforceSensitiveAction`
+ * returns `allowed` unconditionally when the evidence has no `teamId`, so this
+ * check has never run for personal-scope records and cannot be the reason they
+ * are protected. It is also narrower than the canonical path — evidence-scoped
+ * holds only, where the union evaluator also sees case- and workspace-scoped
+ * ones.
+ */
 export async function canArchiveEvidence(input: {
   role: DbTeamRole | null | undefined;
   evidence: Pick<DbEvidence, "id" | "teamId">;
