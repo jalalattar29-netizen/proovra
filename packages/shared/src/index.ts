@@ -2187,6 +2187,27 @@ export type {
   LifecycleOutputReadiness,
 } from "./evidence-lifecycle-contract.js";
 
+// Canonical Evidence retention / archive / trash / destruction authority.
+// The ONE domain module for product lifecycle state + archive/trash/restore/
+// destroy capability + destruction eligibility (see the module header). Every
+// surface — Library, Details, single + bulk routes, trash-grace worker,
+// destruction executor, dry-run tool — derives from this.
+export {
+  resolveEvidenceProductState,
+  computeEffectiveRetentionUntil,
+  computeEvidenceDestructionEligibility,
+  computeEvidenceLifecycleCapabilities,
+  evaluateDestructionCandidate,
+} from "./evidence-retention-lifecycle.js";
+export type {
+  EvidenceProductState,
+  EvidenceLifecycleBlockReason,
+  EvidenceRetentionLifecycleInput,
+  EvidenceDestructionEligibility,
+  EvidenceLifecycleCapabilities,
+  DestructionCandidateEvaluation,
+} from "./evidence-retention-lifecycle.js";
+
 // PROOVRA Phase 2 — Canonical Evidence Materials.
 // Pure, read-only projection of existing lifecycle facts into one
 // typed bundle that Report PDF, Verification Package, Public Verify,
