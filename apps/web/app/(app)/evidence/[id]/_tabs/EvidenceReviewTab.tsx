@@ -35,6 +35,8 @@ import { AppStatusBadge } from "../../../../../components/app-primitives";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   ARCHIVE_AS_ALTERNATIVE_COPY,
+  getEvidenceLifecycle,
+  getRetentionPosture,
   getEvidenceDeletionEligibility,
 } from "../../lib/evidence-delete-eligibility";
 import { canManageEvidenceRelationships } from "../../lib/evidence-relationships-visibility";
@@ -119,9 +121,23 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const reportAvailable = workspace.artifactStatus.report.available === true;
   const reportPending = workspace.artifactStatus.report.pending === true;
 
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — ONE read of the canonical
+  // projection. `archiveDisabled` used to be re-derived here from two
+  // timestamps, which made this component a fifth place that decided lifecycle
+  // availability; the projection answers it.
+  const lifecycle = getEvidenceLifecycle(evidence);
   const eligibility = getEvidenceDeletionEligibility(evidence);
+  const retention = getRetentionPosture(evidence);
   const trashDisabled = !eligibility.canMoveToTrash;
-  const archiveDisabled = evidence.deletedAt != null || evidence.archivedAt != null;
+  const productState = lifecycle?.productState ?? "ACTIVE";
+  const productStateLabel =
+    productState === "TRASHED"
+      ? "In trash"
+      : productState === "ARCHIVED"
+        ? "Archived"
+        : productState === "DESTROYED"
+          ? "Destroyed"
+          : "Active";
 
   return (
     <>
@@ -334,9 +350,19 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         formatDateTime={formatUserDateTime}
       />
 
-      {/* Phase 1 — ONLY the operational archive/trash actions live here; the
-          full retention/object-lock detail is on the Integrity tab (single
-          source of preservation posture). */}
+      {/* Lifecycle management. EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24):
+          every control below is offered or withheld by the canonical
+          `evidence.lifecycle` projection, which the server computes from the
+          same authority the write path calls. This component decides nothing.
+
+          RETENTION IS REPORTED SEPARATELY, and that separation is the fix. The
+          previous version could only ever describe retention as the reason an
+          action was missing — it rendered "This record is protected by
+          compliance retention until Jun 14, 2034. It cannot be moved to trash
+          before that date" over a disabled button, for an operation that
+          deletes nothing. Retention now states what it actually constrains
+          (physical destruction) as a fact about the record, and the buttons
+          state their own availability. */}
       <section
         className="evidence-detail-lifecycle"
         data-evidence-section="record-actions"
@@ -351,11 +377,16 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         <div className="evidence-detail-lifecycle__body">
           <div className="evidence-detail-facts-grid" data-evidence-facts-grid>
             {[
+              { label: "State", value: productStateLabel },
               { label: "Locked at", value: formatValueDate(evidence.lockedAt) },
               { label: "Archived at", value: formatValueDate(evidence.archivedAt) },
-              { label: "Deleted at", value: formatValueDate(evidence.deletedAt) },
+              // "Deleted at" / "Scheduled deletion" were both untrue. Nothing
+              // was deleted, and the scheduled date was never a deletion date —
+              // it is when the record stops being recoverable by an ordinary
+              // user and becomes a destruction CANDIDATE.
+              { label: "Moved to trash", value: formatValueDate(evidence.deletedAt) },
               {
-                label: "Scheduled deletion",
+                label: "Recoverable until",
                 value: formatValueDate(evidence.deleteScheduledForUtc),
               },
             ].map((fact) => (
@@ -366,97 +397,142 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             ))}
           </div>
 
-          {/* Phase EVIDENCE-DELETE-ELIGIBILITY — Move to trash is gated on the
-              canonical helper so the control is disabled BEFORE the click
-              rather than failing with a 409 toast. Neither lifecycle action
-              uses the purple primary style: these are destructive or
-              near-destructive operations, so Archive is the neutral filled
-              action and trash stays a plain neutral control. */}
-          <div
-            className="evidence-detail-lifecycle__actions"
-            data-evidence-record-actions
-          >
-            {evidence.archivedAt ? (
-              <button
-                type="button"
-                className="app-secondary-action app-secondary-action--filled"
-                onClick={() =>
-                  void runRecordAction(
-                    `/v1/evidence/${evidence.id}/unarchive`,
-                    "Evidence restored from archive",
-                  )
-                }
-                data-evidence-action="restore-archive"
-              >
-                Restore archive
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="app-secondary-action app-secondary-action--filled"
-                onClick={() => setArchiveOpen(true)}
-                disabled={archiveDisabled}
-                data-evidence-action="archive"
-                data-archive-recommended={
-                  trashDisabled && !archiveDisabled ? "true" : "false"
-                }
-              >
-                Archive evidence
-              </button>
-            )}
-
-            {evidence.deletedAt ? (
-              <button
-                type="button"
-                className="app-secondary-action"
-                onClick={() => void restoreTrash()}
-                data-evidence-action="restore-trash"
-              >
-                Restore from trash
-              </button>
-            ) : (
-              // The disabled control stays visible (consistent affordance)
-              // but the click can never reach setTrashOpen — that is exactly
-              // the "modal opens then fails" behaviour this replaces.
-              <span
-                data-evidence-trash-wrapper
-                data-evidence-trash-disabled={trashDisabled ? "true" : "false"}
-                title={trashDisabled ? eligibility.message : undefined}
-              >
-                <button
-                  type="button"
-                  className="app-secondary-action"
-                  onClick={() => {
-                    if (trashDisabled) return;
-                    setTrashOpen(true);
-                  }}
-                  disabled={trashDisabled}
-                  aria-disabled={trashDisabled}
-                  aria-describedby={
-                    trashDisabled ? "evidence-trash-helper" : undefined
-                  }
-                  data-evidence-action="trash"
-                  data-evidence-trash-reason={eligibility.reasonCode ?? "ELIGIBLE"}
-                >
-                  Move to trash
-                </button>
-              </span>
-            )}
-          </div>
-
-          {trashDisabled && !evidence.deletedAt ? (
+          {/* Retention posture — INDEPENDENT of action availability. Compact:
+              at most three short lines, and absent entirely when nothing
+              retains the record. */}
+          {retention.retainedUntilLabel ||
+          retention.objectLockLabel ||
+          retention.legalHold ? (
             <div
-              id="evidence-trash-helper"
-              className="app-alert app-alert--warn evidence-detail-lifecycle__blocked"
-              role="status"
-              data-evidence-trash-helper
-              data-evidence-trash-reason={eligibility.reasonCode ?? "UNKNOWN"}
+              className="evidence-detail-lifecycle__retention"
+              data-evidence-retention-posture
             >
-              <strong>Move to trash is unavailable</strong>
-              <p>{eligibility.message}</p>
-              {!archiveDisabled ? <p>{ARCHIVE_AS_ALTERNATIVE_COPY}</p> : null}
+              {retention.retainedUntilLabel ? (
+                <p data-evidence-retained-until>{retention.retainedUntilLabel}</p>
+              ) : null}
+              {retention.objectLockLabel ? (
+                <p data-evidence-object-lock>{retention.objectLockLabel}</p>
+              ) : null}
+              {retention.legalHold ? (
+                <p data-evidence-legal-hold>Legal hold: active</p>
+              ) : null}
+              {retention.destructionNote ? (
+                <p data-evidence-destruction-note>{retention.destructionNote}</p>
+              ) : null}
             </div>
           ) : null}
+
+          {productState === "DESTROYED" ? (
+            /* A tombstone. The record's content is gone and verified gone; what
+               remains is the governance fact that it existed and was destroyed.
+               No mutable action is offered because none exists — this is the
+               one terminal state. */
+            <div
+              className="app-alert evidence-detail-lifecycle__blocked"
+              role="status"
+              data-evidence-tombstone
+            >
+              <strong>This record has been destroyed</strong>
+              <p>
+                Its content was permanently removed from storage and the removal
+                was verified. The record is retained as a tombstone so the
+                destruction remains auditable.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div
+                className="evidence-detail-lifecycle__actions"
+                data-evidence-record-actions
+              >
+                {lifecycle?.canUnarchive ? (
+                  <button
+                    type="button"
+                    className="app-secondary-action app-secondary-action--filled"
+                    onClick={() =>
+                      void runRecordAction(
+                        `/v1/evidence/${evidence.id}/unarchive`,
+                        "Evidence restored to active",
+                      )
+                    }
+                    data-evidence-action="restore-archive"
+                  >
+                    Restore to active
+                  </button>
+                ) : null}
+
+                {lifecycle?.canArchive ? (
+                  <button
+                    type="button"
+                    className="app-secondary-action app-secondary-action--filled"
+                    onClick={() => setArchiveOpen(true)}
+                    data-evidence-action="archive"
+                    data-archive-recommended={
+                      trashDisabled ? "true" : "false"
+                    }
+                  >
+                    Archive evidence
+                  </button>
+                ) : null}
+
+                {lifecycle?.canRestoreFromTrash ? (
+                  <button
+                    type="button"
+                    className="app-secondary-action"
+                    onClick={() => void restoreTrash()}
+                    data-evidence-action="restore-trash"
+                  >
+                    Restore from trash
+                  </button>
+                ) : productState !== "TRASHED" ? (
+                  // Kept visible when disabled so the affordance is stable, but
+                  // the click can never reach setTrashOpen — that is exactly the
+                  // "modal opens, then 409s" behaviour this replaces.
+                  <span
+                    data-evidence-trash-wrapper
+                    data-evidence-trash-disabled={trashDisabled ? "true" : "false"}
+                    title={trashDisabled ? eligibility.message : undefined}
+                  >
+                    <button
+                      type="button"
+                      className="app-secondary-action"
+                      onClick={() => {
+                        if (trashDisabled) return;
+                        setTrashOpen(true);
+                      }}
+                      disabled={trashDisabled}
+                      aria-disabled={trashDisabled}
+                      aria-describedby={
+                        trashDisabled ? "evidence-trash-helper" : undefined
+                      }
+                      data-evidence-action="trash"
+                      data-evidence-trash-reason={
+                        eligibility.reasonCode ?? "ELIGIBLE"
+                      }
+                    >
+                      Move to trash
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+
+              {trashDisabled && productState !== "TRASHED" ? (
+                <div
+                  id="evidence-trash-helper"
+                  className="app-alert app-alert--warn evidence-detail-lifecycle__blocked"
+                  role="status"
+                  data-evidence-trash-helper
+                  data-evidence-trash-reason={eligibility.reasonCode ?? "UNKNOWN"}
+                >
+                  <strong>Move to trash is unavailable</strong>
+                  <p>{eligibility.message}</p>
+                  {lifecycle?.canArchive ? (
+                    <p>{ARCHIVE_AS_ALTERNATIVE_COPY}</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </section>
     </>

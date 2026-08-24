@@ -59,7 +59,8 @@
     "ops:audit-tenant-scope-readiness": "tsx src/commands/audit-tenant-scope-readiness.ts",
     "ops:redact-leaked-intake-tokens": "tsx src/scripts/redact-leaked-intake-tokens.ts",
     "ops:twilio-message-recheck": "tsx src/scripts/twilio-message-recheck.ts",
-    "db:org-security-policy-readiness": "tsx prisma/scripts/org-security-policy-readiness.ts"
+    "db:org-security-policy-readiness": "tsx prisma/scripts/org-security-policy-readiness.ts",
+    "db:lifecycle-state-readiness": "node scripts/evidence-lifecycle-state-readiness.mjs"
   },
   "keywords": [],
   "author": "",

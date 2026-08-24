@@ -1,3 +1,4 @@
+import { getEvidenceScope } from "./evidence-library-status";
 import type {
   DetailWorkspaceState,
   EvidenceListItem,
@@ -19,11 +20,17 @@ export function buildReviewAlerts(
     .trim()
     .toUpperCase();
 
-  if (item.deletedAt) {
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — a trashed record is not a
+  // critical incident. It is recoverable, physically intact, and got there
+  // because somebody asked. The old alert called it "Deleted scope" at critical
+  // severity, which was wrong on the noun and wrong on the severity: it put a
+  // red banner on every record sitting normally in the trash.
+  if (getEvidenceScope(item) === "trash") {
     alerts.push({
-      severity: "critical",
-      label: "Deleted scope",
-      detail: "This record is currently in deleted scope and should be restored or reviewed carefully before reuse.",
+      severity: "operational",
+      label: "In trash",
+      detail:
+        "This record is in the trash. It is fully retained and can be restored; review before reusing it in a case.",
     });
   }
 

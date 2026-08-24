@@ -96,6 +96,10 @@ import {
 } from "./redaction/redaction-derivative.processor.js";
 import { runRetentionReconciliation } from "./governance/retention-reconciliation.worker.js";
 import { runDestructionOrchestration } from "./governance/destruction-orchestrator.worker.js";
+import {
+  automaticDestructionEnabled,
+  runTrashGraceReconciliation,
+} from "./governance/trash-grace-reconciler.js";
 import { runImmutableStorageReconciliation } from "./governance/immutable-storage-reconciliation.worker.js";
 // Phase 4B Final Closure I7 — Archive tier auto-transition scheduler.
 import { runArchiveTierAutoTransitions } from "./governance/archive-tier-auto-transition.worker.js";
@@ -874,6 +878,65 @@ function startRedactionReconcilerScheduler() {
 }
 startRedactionReconcilerScheduler();
 void redactionReconcilerTimer;
+
+// ---------------------------------------------------------------------------
+// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the trash-grace reconciler.
+//
+// The producer that closes the trash lifecycle. Before it, a record whose
+// 90-day recovery window elapsed was only ever revisited by the ONE delayed job
+// enqueued at trash time; if that job was lost, drained or never enqueued, the
+// record stayed in the trash forever and the workspace's retention policy was
+// silently not enforced for it.
+//
+// OBSERVE-ONLY unless AUTOMATIC_EVIDENCE_DESTRUCTION_ENABLED is explicitly
+// "true". The scan, the evaluation and the reporting all run either way — the
+// flag gates only the enqueue of an actual destruction. See the reconciler's
+// module header for why a newly-correct irreversible pipeline is not turned
+// loose on an existing backlog without an operator reading the candidate report
+// first.
+// ---------------------------------------------------------------------------
+const trashGraceReconcilerEnabled = envBoolean(
+  "TRASH_GRACE_RECONCILER_ENABLED",
+  true,
+);
+const trashGraceReconcilerIntervalMs = envNumber(
+  "TRASH_GRACE_RECONCILER_INTERVAL_MS",
+  60 * 60 * 1000, // 1h — grace boundaries are days wide; a tighter tick buys nothing.
+);
+let trashGraceReconcilerTimer: ReturnType<typeof setInterval> | null = null;
+let trashGraceReconcilerRunning = false;
+async function runTrashGraceReconcilerTick() {
+  if (trashGraceReconcilerRunning) return;
+  trashGraceReconcilerRunning = true;
+  try {
+    await withCronLock("trash-grace-reconciler", () =>
+      runTrashGraceReconciliation({ trigger: "scheduler" }),
+    );
+  } catch (err) {
+    logger.error({ err }, "trash_grace.reconciler.failed");
+  } finally {
+    trashGraceReconcilerRunning = false;
+  }
+}
+function startTrashGraceReconcilerScheduler() {
+  if (!trashGraceReconcilerEnabled) {
+    logger.info({}, "trash_grace.reconciler.scheduler.disabled");
+    return;
+  }
+  trashGraceReconcilerTimer = setInterval(() => {
+    void runTrashGraceReconcilerTick();
+  }, trashGraceReconcilerIntervalMs);
+  trashGraceReconcilerTimer.unref?.();
+  logger.info(
+    {
+      intervalMs: trashGraceReconcilerIntervalMs,
+      automaticDestructionEnabled: automaticDestructionEnabled(),
+    },
+    "trash_grace.reconciler.scheduler.started",
+  );
+}
+startTrashGraceReconcilerScheduler();
+void trashGraceReconcilerTimer;
 
 // ===========================================================================
 // PHASE 12 — POINT 5: stranded-work reconcilers for the projection and

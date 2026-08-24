@@ -27,8 +27,31 @@ export function detectEvidenceKind(
   return "other";
 }
 
-export function getEvidenceScope(item: Pick<EvidenceListItem, "archivedAt" | "deletedAt">): EvidenceListScope | "active" {
-  if (item.deletedAt) return "deleted";
+/**
+ * The row's library scope.
+ *
+ * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — read from the canonical
+ * lifecycle projection, not re-derived from timestamps. The old version tested
+ * `deletedAt` then `archivedAt`, which was a fourth copy of the product-state
+ * precedence and disagreed with the server in both directions: a record the
+ * governance pipeline had archived without stamping `archivedAt` rendered as
+ * Active, and a DESTROYED tombstone (which keeps `deletedAt` from its time in
+ * the trash) rendered as an ordinary trashed row the user could try to restore.
+ *
+ * The timestamps remain as a fallback for a row from a response that predates
+ * the projection — compatibility, not a competing authority.
+ */
+export function getEvidenceScope(
+  item: Pick<EvidenceListItem, "archivedAt" | "deletedAt"> & {
+    lifecycle?: { productState?: string | null } | null;
+  },
+): EvidenceListScope | "active" {
+  const state = item.lifecycle?.productState;
+  if (state === "TRASHED" || state === "DESTROYED") return "trash";
+  if (state === "ARCHIVED") return "archived";
+  if (state === "ACTIVE") return "active";
+
+  if (item.deletedAt) return "trash";
   if (item.archivedAt) return "archived";
   return "active";
 }
@@ -265,7 +288,7 @@ export function getRecordStatusBadgeTone(status: string | null | undefined): App
 
 export function getStatusTone(item: EvidenceListItem): "neutral" | "success" | "warning" | "danger" | "processing" {
   const scope = getEvidenceScope(item);
-  if (scope === "deleted") return "danger";
+  if (scope === "trash") return "danger";
   if (scope === "archived") return "warning";
 
   return getRecordStatusSemanticTone(item.status);

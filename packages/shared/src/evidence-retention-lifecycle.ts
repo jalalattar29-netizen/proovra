@@ -422,3 +422,85 @@ export function evaluateDestructionCandidate(
     trashGraceExpired: trashGraceUntil === null ? false : trashGraceUntil.getTime() <= now.getTime(),
   };
 }
+
+// ---------------------------------------------------------------------------
+// The WIRE projection — one shape, both sides
+// ---------------------------------------------------------------------------
+
+/**
+ * The lifecycle facts a client is allowed to render, as JSON.
+ *
+ * This exists so the browser can stop computing lifecycle decisions. Before the
+ * convergence `apps/web/.../evidence-delete-eligibility.ts` carried a full
+ * client-side mirror of the retention, Object Lock and legal-hold predicates
+ * with a comment instructing future readers to keep its precedence in step with
+ * the backend's by hand. It did not stay in step, and it could not: the browser
+ * cannot see the legal-hold tables at all, so its answer was a guess dressed as
+ * a decision.
+ *
+ * Every field here is a RESULT. There is deliberately nothing on this shape a
+ * client could use to re-derive a verdict of its own — no raw lock mode next to
+ * a raw retain-until inviting a comparison — only the verdicts themselves and
+ * the dates a human needs to read.
+ */
+export interface EvidenceLifecycleProjection {
+  productState: EvidenceProductState;
+
+  canArchive: boolean;
+  canUnarchive: boolean;
+  canTrash: boolean;
+  canRestoreFromTrash: boolean;
+
+  /** Why trash is unavailable, or null. NEVER a retention deadline. */
+  trashBlockReason: EvidenceLifecycleBlockReason | null;
+
+  /** ISO. When the recoverable window closes. */
+  trashGraceUntilUtc: string | null;
+  /** ISO. Application/workspace retention deadline. */
+  appRetentionUntilUtc: string | null;
+  /** ISO. S3 Object Lock retain-until. */
+  objectLockRetainUntilUtc: string | null;
+  /** ISO. The later of the two above. */
+  effectiveRetentionUntilUtc: string | null;
+  objectLockCompliance: boolean;
+  legalHold: boolean;
+
+  /** ISO. The earliest instant physical destruction could be lawful. */
+  destructionEligibleAtUtc: string | null;
+  destructionBlockReason: EvidenceLifecycleBlockReason | null;
+}
+
+function iso(value: Date | null): string | null {
+  return value === null ? null : value.toISOString();
+}
+
+/**
+ * Serialise the capability projection for the wire. The ONE place a lifecycle
+ * response body is shaped, so a list row and a detail response cannot describe
+ * the same record differently.
+ */
+export function toEvidenceLifecycleProjection(
+  input: EvidenceRetentionLifecycleInput,
+  now: Date,
+): EvidenceLifecycleProjection {
+  const caps = computeEvidenceLifecycleCapabilities(input, now);
+  return {
+    productState: caps.productState,
+    canArchive: caps.canArchive,
+    canUnarchive: caps.canUnarchive,
+    canTrash: caps.canTrash,
+    canRestoreFromTrash: caps.canRestoreFromTrash,
+    trashBlockReason: caps.trashBlockReason,
+    trashGraceUntilUtc: iso(caps.trashGraceUntil),
+    appRetentionUntilUtc: iso(caps.appRetentionUntil),
+    objectLockRetainUntilUtc: iso(caps.objectLockRetainUntil),
+    effectiveRetentionUntilUtc: iso(caps.effectiveRetentionUntil),
+    objectLockCompliance: caps.objectLockCompliance,
+    legalHold: caps.legalHold,
+    destructionEligibleAtUtc: iso(caps.destructionEligibleAt),
+    destructionBlockReason: caps.destructionBlockReason,
+  };
+}
+
+/** The canonical response field name. Pinned by tests on both sides. */
+export const EVIDENCE_LIFECYCLE_RESPONSE_FIELD = "lifecycle" as const;

@@ -1,42 +1,50 @@
 /**
- * Phase EVIDENCE-DELETE-ELIGIBILITY — single source of truth for
- * "can this record be moved to trash right now?".
+ * The Evidence lifecycle PROJECTION for API responses — a mapper, not an
+ * authority.
  *
- * Existing backend guards already enforce all of the following on the
- * `POST /v1/evidence/:id/trash` route:
+ * WHAT THIS FILE USED TO BE
+ * ---------------------------------------------------------------------------
+ * A second implementation of the retention rules. It carried its own precedence
+ * chain — already-deleted, locked, Object Lock COMPLIANCE, S3 legal-hold flag,
+ * `retentionUntilUtc` — with a docstring instructing the reader to keep it in
+ * step with the route's guards and with the frontend's copy of the same chain.
+ * Three hand-synchronised implementations of one rule; they disagreed, and the
+ * disagreement is what shipped "this record cannot be moved to trash until
+ * 2034" to users for an operation that deletes nothing.
  *
- *   - `assertEvidenceNotLocked`              (evidence.routes.ts:327)
- *     → 409 EVIDENCE_LOCKED when `lockedAt` is set
+ * WHAT IT IS NOW
+ * ---------------------------------------------------------------------------
+ * A translation from persisted columns to the wire shape, with the decision
+ * made by `computeEvidenceLifecycleCapabilities` in `@proovra/shared` — the
+ * same function the write path calls, so what a response advertises and what a
+ * click actually does cannot diverge.
  *
- *   - `assertEvidenceDeletionAllowedByRetention`  (evidence.routes.ts:338)
- *     → 409 COMPLIANCE_RETENTION_ACTIVE when
- *       `storageObjectLockMode === "COMPLIANCE"` AND
- *       `storageObjectLockRetainUntilUtc > now`
- *
- *   - `canDeleteEvidence`                    (governance.service.ts:396)
- *     → "blocked_by_retention" when `retentionUntilUtc > now`
- *     → "blocked_by_legal_hold" when active EvidenceLegalHold exists
- *
- *   - `gateRetentionAction`                  (workspace retention policy)
- *     → workspace policy denial
- *
- * This service does NOT change any of those guards. It computes the
- * same set of conditions in a READ-ONLY shape so the Evidence Detail
- * response can advertise eligibility to the UI BEFORE the user
- * clicks. Frontend mirrors this logic for offline / list-row
- * computations (and prefers this server-computed field whenever it's
- * present on the wire).
- *
- * Stable contract — frontend and backend both depend on the
- * `reasonCode` literals. New reasons MUST be added at the END of the
- * union and the frontend mirror updated in lockstep.
+ * The legacy `deleteEligibility` field is still emitted alongside the new
+ * `lifecycle` projection, DERIVED FROM IT rather than computed beside it, so a
+ * client that has not been updated keeps working and cannot be told something
+ * the canonical authority did not say.
  */
 
 import type { PrismaClient } from "@prisma/client";
+import {
+  toEvidenceLifecycleProjection,
+  type EvidenceLifecycleProjection,
+  type EvidenceRetentionLifecycleInput,
+} from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 
+/**
+ * Legacy reason vocabulary.
+ *
+ * Retained EXACTLY as it was so existing clients keep parsing, but every value
+ * is now derived from a canonical block reason rather than decided here. Note
+ * what can no longer appear: `COMPLIANCE_RETENTION` and `RETENTION_UNTIL` are
+ * unreachable, because no retention deadline blocks a recoverable trash any
+ * more. They stay in the union because removing a literal from a published
+ * contract breaks clients that switch on it exhaustively.
+ */
 export type EvidenceDeleteReasonCode =
   | "COMPLIANCE_RETENTION"
   | "LEGAL_HOLD"
@@ -55,162 +63,82 @@ export type EvidenceDeleteEligibility = {
 };
 
 /**
- * Subset of Evidence columns the eligibility check needs. Keeping
- * the shape narrow (instead of `Prisma.Evidence`) means the service
- * can be called from the list mapper, the detail mapper, or a unit
- * test fixture without a full row.
+ * Subset of Evidence columns the projection needs. Narrow so the list mapper,
+ * the detail mapper and a test fixture can all satisfy it.
  */
-export type EvidenceDeleteEligibilityInput = {
+export type EvidenceLifecycleProjectionInput = {
   id: string;
-  /**
-   * PHASE 12B CLUSTER 8 — tenant of the record. Optional for backwards
-   * compatibility; when omitted the async path resolves it so the union
-   * evaluator can see WORKSPACE-scoped holds. `null` = personal scope.
-   */
   teamId?: string | null;
+  lifecycleState?: string | null;
+  archivedAt?: Date | string | null;
   deletedAt: Date | string | null;
+  destroyedAtUtc?: Date | string | null;
   lockedAt: Date | string | null;
+  deleteScheduledForUtc?: Date | string | null;
   storageObjectLockMode: string | null;
   storageObjectLockRetainUntilUtc: Date | string | null;
   storageObjectLockLegalHoldStatus: string | null;
   retentionUntilUtc: Date | string | null;
 };
 
-function toDateOrNull(value: Date | string | null | undefined): Date | null {
-  if (!value) return null;
-  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
-  const parsed = new Date(value);
-  return Number.isFinite(parsed.getTime()) ? parsed : null;
-}
+/** Kept as an alias so existing imports do not churn. */
+export type EvidenceDeleteEligibilityInput = EvidenceLifecycleProjectionInput;
 
-function formatDateForCopy(value: Date | string | null | undefined): string | null {
-  const d = toDateOrNull(value);
-  if (!d) return null;
-  // YYYY-MM-DD keeps the copy locale-stable and never mangles month
-  // ordering. The UI may reformat for display if it wants.
-  return d.toISOString().slice(0, 10);
-}
-
-/**
- * Pure / synchronous half of the check. Uses ONLY fields already on
- * the evidence row — no extra DB roundtrips. Suitable for list-row
- * decoration where we cannot afford a per-record legal-hold lookup.
- *
- * The legal-hold branch is layered on top in
- * `computeEvidenceDeleteEligibility` (async), which calls this then
- * checks the EvidenceLegalHold table if no synchronous reason has
- * fired.
- */
-export function computeEvidenceDeleteEligibilitySync(
-  evidence: EvidenceDeleteEligibilityInput,
-): EvidenceDeleteEligibility {
-  // Precedence — match the existing backend route's check order
-  // (assertEvidenceNotLocked → assertEvidenceDeletionAllowedByRetention →
-  // canDeleteEvidence) so the surfaced reason matches what the API
-  // would actually return on click.
-
-  if (evidence.deletedAt) {
-    return {
-      canMoveToTrash: false,
-      reasonCode: "ALREADY_DELETED",
-      blockedUntil: null,
-      message: "This record is already in trash.",
-    };
-  }
-
-  if (evidence.lockedAt) {
-    return {
-      canMoveToTrash: false,
-      reasonCode: "EVIDENCE_LOCKED",
-      blockedUntil: null,
-      message:
-        "This record is permanently locked and cannot be moved to trash.",
-    };
-  }
-
-  // Object Lock COMPLIANCE — mirrors assertEvidenceDeletionAllowedByRetention.
-  const mode = String(evidence.storageObjectLockMode ?? "").toUpperCase();
-  const olRetainUntil = toDateOrNull(evidence.storageObjectLockRetainUntilUtc);
-  if (mode === "COMPLIANCE" && olRetainUntil && olRetainUntil.getTime() > Date.now()) {
-    const human = formatDateForCopy(olRetainUntil);
-    return {
-      canMoveToTrash: false,
-      reasonCode: "COMPLIANCE_RETENTION",
-      blockedUntil: olRetainUntil.toISOString(),
-      message: human
-        ? `This record is protected by compliance retention until ${human}. It cannot be moved to trash before that date.`
-        : "This record is protected by compliance retention and cannot be moved to trash while retention is active.",
-    };
-  }
-
-  // Object Lock legal hold — `ON` means S3 has the hold engaged.
-  if (
-    String(evidence.storageObjectLockLegalHoldStatus ?? "").toUpperCase() === "ON"
-  ) {
-    return {
-      canMoveToTrash: false,
-      reasonCode: "LEGAL_HOLD",
-      blockedUntil: null,
-      message:
-        "This record is under an active legal hold and cannot be moved to trash.",
-    };
-  }
-
-  // Workspace retention until — the only generic retention deadline
-  // not covered by Object Lock.
-  const retentionUntil = toDateOrNull(evidence.retentionUntilUtc);
-  if (retentionUntil && retentionUntil.getTime() > Date.now()) {
-    const human = formatDateForCopy(retentionUntil);
-    return {
-      canMoveToTrash: false,
-      reasonCode: "RETENTION_UNTIL",
-      blockedUntil: retentionUntil.toISOString(),
-      message: human
-        ? `This record is protected by workspace retention until ${human}. It cannot be moved to trash before that date.`
-        : "This record is protected by workspace retention and cannot be moved to trash while retention is active.",
-    };
-  }
-
+function toAuthorityInput(
+  evidence: EvidenceLifecycleProjectionInput,
+  legalHold: boolean,
+): EvidenceRetentionLifecycleInput {
   return {
-    canMoveToTrash: true,
-    reasonCode: null,
-    blockedUntil: null,
-    message: "",
+    lifecycleState: evidence.lifecycleState ?? null,
+    archivedAt: evidence.archivedAt ?? null,
+    trashedAt: evidence.deletedAt,
+    destroyedAt: evidence.destroyedAtUtc ?? null,
+    lockedAt: evidence.lockedAt,
+    trashGraceUntil: evidence.deleteScheduledForUtc ?? null,
+    appRetentionUntil: evidence.retentionUntilUtc,
+    objectLockRetainUntil: evidence.storageObjectLockRetainUntilUtc,
+    objectLockMode: evidence.storageObjectLockMode,
+    legalHold,
   };
 }
 
 /**
- * Async variant — same precedence, plus a follow-up check against the ONE
- * effective-hold evaluator when the synchronous branch did not already block.
+ * SYNCHRONOUS projection, for list rows.
  *
- * PHASE 12B CLUSTER 8 — this used to read `evidence_legal_holds` ALONE, so a
- * CASE-scoped hold or a scope-generic lifecycle hold left the UI advertising
- * "you can delete this" while the write path blocked. It now evaluates the
- * UNION of all three stores through
- * `services/governance/effective-legal-hold.ts` and FAILS CLOSED: a transient
- * database failure surfaces as "not eligible", never as "go ahead".
- *
- * Use this on single-record paths (Evidence Detail response). For list views,
- * prefer the sync variant + the Object Lock legal-hold column we already
- * select.
+ * The hold input is the S3 Object Lock legal-hold COLUMN, which is a weaker
+ * signal than the union evaluator: it cannot see a case-scoped or
+ * workspace-scoped application hold. That limitation is the same one the
+ * pre-convergence list path had and is accepted for the same reason — a list of
+ * 50 rows cannot afford 50 hold lookups — but it is now bounded to a DISPLAY
+ * hint. Nothing acts on it: every write re-resolves the hold through the union
+ * evaluator inside the canonical lifecycle service, so a row that looks
+ * trashable and is not produces a refusal, never a trashing.
  */
-export async function computeEvidenceDeleteEligibility(
-  evidence: EvidenceDeleteEligibilityInput,
+export function projectEvidenceLifecycleSync(
+  evidence: EvidenceLifecycleProjectionInput,
+  now: Date = new Date(),
+): EvidenceLifecycleProjection {
+  const legalHold =
+    String(evidence.storageObjectLockLegalHoldStatus ?? "").toUpperCase() === "ON";
+  return toEvidenceLifecycleProjection(toAuthorityInput(evidence, legalHold), now);
+}
+
+/**
+ * ASYNC projection, for single-record responses.
+ *
+ * Uses THE union legal-hold evaluator (evidence + case + workspace stores) and
+ * FAILS CLOSED: if the hold status cannot be established, the projection
+ * reports a hold, so the surface advertises "you cannot change this" rather
+ * than inviting an action that will be refused.
+ */
+export async function projectEvidenceLifecycle(
+  evidence: EvidenceLifecycleProjectionInput,
   client: PrismaClient = defaultPrisma,
-): Promise<EvidenceDeleteEligibility> {
-  const sync = computeEvidenceDeleteEligibilitySync(evidence);
-  if (!sync.canMoveToTrash) return sync;
-
-  const heldMessage: EvidenceDeleteEligibility = {
-    canMoveToTrash: false,
-    reasonCode: "LEGAL_HOLD",
-    blockedUntil: null,
-    message:
-      "This record is under an active legal hold and cannot be moved to trash.",
-  };
-
-  let teamId = evidence.teamId ?? null;
+  now: Date = new Date(),
+): Promise<EvidenceLifecycleProjection> {
+  let legalHold = true;
   try {
+    let teamId = evidence.teamId ?? null;
     if (evidence.teamId === undefined) {
       const row = await client.evidence.findUnique({
         where: { id: evidence.id },
@@ -222,18 +150,95 @@ export async function computeEvidenceDeleteEligibility(
       teamId,
       evidenceId: evidence.id,
     });
-    if (held.held) return heldMessage;
+    legalHold = held.held;
   } catch {
-    // FAIL CLOSED. This surface tells the operator whether deletion is
-    // possible; if we cannot prove the absence of a hold we must NOT
-    // advertise the record as destructible.
-    return heldMessage;
+    // FAIL CLOSED — see the docstring.
+    legalHold = true;
   }
-
-  return sync;
+  return toEvidenceLifecycleProjection(toAuthorityInput(evidence, legalHold), now);
 }
 
-// Re-export the field name used in the Evidence Detail response so
-// the response builder and the frontend reader stay in sync via a
-// single shared constant. Tests pin this name to catch drift.
+/**
+ * The legacy `deleteEligibility` shape, DERIVED from the canonical projection.
+ *
+ * One translation table, no second decision. `COMPLIANCE_RETENTION` and
+ * `RETENTION_UNTIL` have no case here because the authority cannot produce a
+ * retention-based trash refusal — which is precisely the bug this convergence
+ * removed, so re-introducing a mapping for them would re-introduce it.
+ */
+export function toLegacyDeleteEligibility(
+  projection: EvidenceLifecycleProjection,
+): EvidenceDeleteEligibility {
+  if (projection.canTrash) {
+    return {
+      canMoveToTrash: true,
+      reasonCode: null,
+      blockedUntil: null,
+      message: "",
+    };
+  }
+  switch (projection.trashBlockReason) {
+    case "ALREADY_IN_STATE":
+      return {
+        canMoveToTrash: false,
+        reasonCode: "ALREADY_DELETED",
+        blockedUntil: null,
+        message: "This record is already in the trash.",
+      };
+    case "TERMINAL_DESTROYED":
+      return {
+        canMoveToTrash: false,
+        reasonCode: "ALREADY_DELETED",
+        blockedUntil: null,
+        message: "This record has been destroyed. Only its tombstone remains.",
+      };
+    case "EVIDENCE_LOCKED":
+      return {
+        canMoveToTrash: false,
+        reasonCode: "EVIDENCE_LOCKED",
+        blockedUntil: null,
+        message:
+          "This record is permanently locked and cannot be moved to trash.",
+      };
+    case "LEGAL_HOLD_ACTIVE":
+      return {
+        canMoveToTrash: false,
+        reasonCode: "LEGAL_HOLD",
+        blockedUntil: null,
+        message:
+          "This record is under an active legal hold and cannot be moved to trash.",
+      };
+    default:
+      return {
+        canMoveToTrash: false,
+        reasonCode: "UNKNOWN",
+        blockedUntil: null,
+        message: "This record cannot be moved to trash right now.",
+      };
+  }
+}
+
+/**
+ * Back-compatible entry point for the Evidence Detail response.
+ *
+ * Same name and same return shape as before so its call sites do not churn;
+ * everything behind it is now the canonical authority.
+ */
+export async function computeEvidenceDeleteEligibility(
+  evidence: EvidenceLifecycleProjectionInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<EvidenceDeleteEligibility> {
+  return toLegacyDeleteEligibility(await projectEvidenceLifecycle(evidence, client));
+}
+
+/** Synchronous legacy shape, for list rows. */
+export function computeEvidenceDeleteEligibilitySync(
+  evidence: EvidenceLifecycleProjectionInput,
+): EvidenceDeleteEligibility {
+  return toLegacyDeleteEligibility(projectEvidenceLifecycleSync(evidence));
+}
+
+// The response field names, exported so the response builders and the frontend
+// readers share one literal and tests can pin them.
 export const DELETE_ELIGIBILITY_RESPONSE_FIELD = "deleteEligibility" as const;
+export { EVIDENCE_LIFECYCLE_RESPONSE_FIELD } from "@proovra/shared";

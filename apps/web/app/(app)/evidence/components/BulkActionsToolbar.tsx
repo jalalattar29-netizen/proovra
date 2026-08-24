@@ -17,7 +17,10 @@ import type {
   EvidenceBulkActionResponse,
   EvidenceListItem,
 } from "../lib/evidence-library-types";
-import { getEvidenceDeletionEligibility } from "../lib/evidence-delete-eligibility";
+import {
+  getEvidenceDeletionEligibility,
+  getEvidenceLifecycle,
+} from "../lib/evidence-delete-eligibility";
 
 /**
  * The toolbar's options are DERIVED from the shared action vocabulary, so a
@@ -164,20 +167,53 @@ export function BulkActionsToolbar({
     if (error) errorRef.current?.focus();
   }, [error]);
 
-  // Phase EVIDENCE-DELETE-ELIGIBILITY — count selected records that
-  // backend would refuse to trash. Same helper used everywhere else
-  // so the categorisation cannot drift across surfaces.
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — availability for EVERY
+  // lifecycle bulk action, from the SAME canonical projection the single-record
+  // page and the route guard read.
+  //
+  // Previously only TRASH was checked, so selecting archived records and
+  // pressing Archive, or selecting active records and pressing Restore from
+  // trash, produced a request that was refused per record and surfaced as a
+  // list of failures after the fact. The four actions are one question now, and
+  // the toolbar asks the projection rather than guessing from timestamps.
   const protectedSelected = useMemo(() => {
-    if (action !== "TRASH") return [];
+    const capabilityFor = (
+      item: (typeof selectedItems)[number],
+    ): boolean | null => {
+      const lifecycle = getEvidenceLifecycle(item);
+      if (!lifecycle) return null;
+      switch (action) {
+        case "ARCHIVE":
+          return lifecycle.canArchive;
+        case "RESTORE_ARCHIVED":
+          return lifecycle.canUnarchive;
+        case "TRASH":
+          return lifecycle.canTrash;
+        case "RESTORE_TRASH":
+          return lifecycle.canRestoreFromTrash;
+        default:
+          return null;
+      }
+    };
     return selectedItems
-      .map((item) => ({ item, eligibility: getEvidenceDeletionEligibility(item) }))
-      .filter(({ eligibility }) => !eligibility.canMoveToTrash);
+      .map((item) => ({ item, capable: capabilityFor(item) }))
+      .filter(({ capable }) => capable === false)
+      .map(({ item }) => ({
+        item,
+        eligibility: getEvidenceDeletionEligibility(item),
+      }));
   }, [action, selectedItems]);
+  const isLifecycleAction =
+    action === "ARCHIVE" ||
+    action === "RESTORE_ARCHIVED" ||
+    action === "TRASH" ||
+    action === "RESTORE_TRASH";
   const protectedCount = protectedSelected.length;
-  const eligibleCount = action === "TRASH"
+  const eligibleCount = isLifecycleAction
     ? Math.max(0, selectedCount - protectedCount)
     : selectedCount;
-  const allSelectedProtected = action === "TRASH" && protectedCount > 0 && eligibleCount === 0;
+  const allSelectedProtected =
+    isLifecycleAction && protectedCount > 0 && eligibleCount === 0;
 
   const failureGroups = useMemo(() => {
     const failed = (result?.results ?? []).filter((item) => !item.ok);

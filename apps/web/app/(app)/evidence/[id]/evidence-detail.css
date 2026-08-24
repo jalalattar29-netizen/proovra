@@ -2567,6 +2567,25 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   gap: 10px;
   min-inline-size: 0;
 }
+/* Retention posture — a compact, quiet block of FACTS about the record, not a
+   warning about something the user cannot do. It reads as metadata (secondary
+   ink, no capsule, no alert colour) because retention is an ordinary property
+   of a preserved record, and the previous treatment — an amber alert under a
+   disabled button — made every retained record look like a problem. */
+.evidence-detail-lifecycle__retention {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-lifecycle__retention p {
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
 .evidence-detail-lifecycle__blocked {
   margin: 0;
   min-inline-size: 0;

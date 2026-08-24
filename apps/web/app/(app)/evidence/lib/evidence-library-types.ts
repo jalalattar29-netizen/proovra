@@ -5,7 +5,16 @@ import type {
   TeamWorkspaceSummary,
 } from "../../../../components/billing/types";
 
-export type EvidenceListScope = "active" | "archived" | "deleted" | "locked";
+/**
+ * Library scopes.
+ *
+ * `trash` replaced `deleted`. The old name described an operation the scope
+ * never performed: nothing in it has been deleted, every record is physically
+ * present in storage, and every record is restorable. Physical destruction is a
+ * separate, governed pipeline whose results are tombstones and do not appear in
+ * any regular library scope.
+ */
+export type EvidenceListScope = "active" | "archived" | "trash" | "locked";
 
 export type SavedViewFilters = {
   search: string;
@@ -84,6 +93,16 @@ export type EvidenceListItem = {
   displayFileName: string | null;
   reviewReadyAtUtc: string | null;
   createdAt: string;
+  /**
+   * THE canonical lifecycle projection for this row — the same shape the detail
+   * response carries, so a row and the page it opens cannot disagree.
+   *
+   * The row variant resolves legal hold from the Object Lock column rather than
+   * the union evaluator (a list of 50 rows cannot afford 50 hold lookups), so
+   * treat it as a display hint: every write re-resolves the hold properly, and
+   * the worst case is an action offered and then refused.
+   */
+  lifecycle?: EvidenceLifecycleProjection | null;
   archivedAt: string | null;
   deletedAt: string | null;
   deleteScheduledForUtc: string | null;
@@ -298,12 +317,59 @@ export type EvidenceRecord = {
    * with any client that hits an older API build.
    */
   deleteEligibility?: EvidenceDeleteEligibility | null;
+  /**
+   * THE canonical lifecycle projection. Present on both list rows and the
+   * detail response; the ONE thing any surface reads to decide which lifecycle
+   * actions to offer.
+   */
+  lifecycle?: EvidenceLifecycleProjection | null;
 };
 
 /**
- * Phase EVIDENCE-DELETE-ELIGIBILITY — shape mirrors the backend
- * type in services/api/src/services/evidence/evidence-delete-eligibility.service.ts.
- * Source-pinned contract tests assert the two stay in lockstep.
+ * THE canonical lifecycle projection, as it arrives on the wire.
+ *
+ * Re-declared here rather than imported from `@proovra/shared` because this
+ * module is the browser's view of an API RESPONSE, and a response shape is a
+ * contract that should break loudly if the server changes it — a structural
+ * import would silently absorb a rename. A source-pinned contract test asserts
+ * this stays field-for-field identical to `EvidenceLifecycleProjection`.
+ *
+ * Every field is a RESULT. Nothing here lets a client re-derive a verdict.
+ */
+export type EvidenceLifecycleProjection = {
+  productState: "ACTIVE" | "ARCHIVED" | "TRASHED" | "DESTROYED";
+  canArchive: boolean;
+  canUnarchive: boolean;
+  canTrash: boolean;
+  canRestoreFromTrash: boolean;
+  trashBlockReason: EvidenceLifecycleBlockReason | null;
+  trashGraceUntilUtc: string | null;
+  appRetentionUntilUtc: string | null;
+  objectLockRetainUntilUtc: string | null;
+  effectiveRetentionUntilUtc: string | null;
+  objectLockCompliance: boolean;
+  legalHold: boolean;
+  destructionEligibleAtUtc: string | null;
+  destructionBlockReason: EvidenceLifecycleBlockReason | null;
+};
+
+export type EvidenceLifecycleBlockReason =
+  | "ALREADY_IN_STATE"
+  | "EVIDENCE_LOCKED"
+  | "TERMINAL_DESTROYED"
+  | "NOT_TRASHED"
+  | "TRASH_GRACE_ACTIVE"
+  | "APP_RETENTION_ACTIVE"
+  | "OBJECT_LOCK_RETENTION_ACTIVE"
+  | "LEGAL_HOLD_ACTIVE"
+  | "DESTRUCTION_APPROVAL_REQUIRED";
+
+/**
+ * LEGACY delete-eligibility shape. Still emitted by the API, still read as a
+ * fallback, but derived server-side FROM the projection above rather than
+ * computed beside it. `COMPLIANCE_RETENTION` and `RETENTION_UNTIL` remain in
+ * the union for wire compatibility and are now unreachable: no retention
+ * deadline blocks a recoverable move to trash.
  */
 export type EvidenceDeleteReasonCode =
   | "COMPLIANCE_RETENTION"

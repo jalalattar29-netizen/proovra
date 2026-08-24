@@ -204,29 +204,43 @@ export async function getWorkspaceUsage(
 ): Promise<WorkerWorkspaceUsage> {
   const caps = getPlanCapabilities(scope.plan);
 
+  // STORAGE ACCOUNTING — EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24).
+  //
+  // These filters excluded `deletedAt != null`, so a record stopped counting
+  // toward the workspace's storage the moment a user moved it to trash. Nothing
+  // had left the bucket: trash is recoverable and the objects sit there for the
+  // full 90-day grace window and then for however long retention, Object Lock
+  // or a legal hold keeps them — which can be years. A workspace could
+  // therefore trash its way under quota while its actual stored bytes never
+  // moved, and the invoice, the quota gate and the bucket all disagreed.
+  //
+  // The line is now DESTROYED, which is the only state in which the bytes are
+  // provably gone: the canonical executor writes it after verifying the objects
+  // no longer exist. ACTIVE, ARCHIVED and TRASHED all consume storage, because
+  // they all are storage.
   const evidenceWhere = scope.teamId
     ? {
         teamId: scope.teamId,
-        deletedAt: null,
+        lifecycleState: { not: "DESTROYED" as const },
       }
     : {
         ownerUserId: scope.ownerUserId,
         teamId: null,
-        deletedAt: null,
+        lifecycleState: { not: "DESTROYED" as const },
       };
 
   const reportWhere = scope.teamId
     ? {
         evidence: {
           teamId: scope.teamId,
-          deletedAt: null,
+          lifecycleState: { not: "DESTROYED" as const },
         },
       }
     : {
         evidence: {
           ownerUserId: scope.ownerUserId,
           teamId: null,
-          deletedAt: null,
+          lifecycleState: { not: "DESTROYED" as const },
         },
       };
 
@@ -234,14 +248,14 @@ export async function getWorkspaceUsage(
     ? {
         evidence: {
           teamId: scope.teamId,
-          deletedAt: null,
+          lifecycleState: { not: "DESTROYED" as const },
         },
       }
     : {
         evidence: {
           ownerUserId: scope.ownerUserId,
           teamId: null,
-          deletedAt: null,
+          lifecycleState: { not: "DESTROYED" as const },
         },
       };
 

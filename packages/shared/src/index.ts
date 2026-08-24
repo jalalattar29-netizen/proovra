@@ -2198,6 +2198,8 @@ export {
   computeEvidenceDestructionEligibility,
   computeEvidenceLifecycleCapabilities,
   evaluateDestructionCandidate,
+  toEvidenceLifecycleProjection,
+  EVIDENCE_LIFECYCLE_RESPONSE_FIELD,
 } from "./evidence-retention-lifecycle.js";
 export type {
   EvidenceProductState,
@@ -2206,6 +2208,7 @@ export type {
   EvidenceDestructionEligibility,
   EvidenceLifecycleCapabilities,
   DestructionCandidateEvaluation,
+  EvidenceLifecycleProjection,
 } from "./evidence-retention-lifecycle.js";
 
 // PROOVRA Phase 2 — Canonical Evidence Materials.

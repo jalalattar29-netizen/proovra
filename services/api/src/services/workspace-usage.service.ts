@@ -201,6 +201,20 @@ export async function getWorkspaceUsage(
   // byte would silently vanish from personal storage accounting.
   // (Evidence has no `team` relation field, so the personal team id is
   // resolved first.)
+  // STORAGE ACCOUNTING — EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24).
+  //
+  // These filters excluded `deletedAt != null`, so a record stopped counting
+  // toward the workspace's storage the moment a user moved it to trash. Nothing
+  // had left the bucket: trash is recoverable and the objects sit there for the
+  // full 90-day grace window and then for however long retention, Object Lock
+  // or a legal hold keeps them — which can be years. A workspace could
+  // therefore trash its way under quota while its actual stored bytes never
+  // moved, and the invoice, the quota gate and the bucket all disagreed.
+  //
+  // The line is now DESTROYED, which is the only state in which the bytes are
+  // provably gone: the canonical executor writes it after verifying the objects
+  // no longer exist. ACTIVE, ARCHIVED and TRASHED all consume storage, because
+  // they all are storage.
   const personalTeamForUsage = scope.teamId
     ? null
     : await prisma.team.findFirst({
@@ -209,7 +223,9 @@ export async function getWorkspaceUsage(
       });
   const personalEvidenceWhere = {
     ownerUserId: scope.ownerUserId,
-    deletedAt: null,
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — see STORAGE ACCOUNTING
+    // below. Only a DESTROYED tombstone stops consuming storage.
+    lifecycleState: { not: "DESTROYED" as const },
     OR: [
       { teamId: null },
       ...(personalTeamForUsage ? [{ teamId: personalTeamForUsage.id }] : []),
@@ -219,7 +235,7 @@ export async function getWorkspaceUsage(
   const evidenceWhere = scope.teamId
     ? {
         teamId: scope.teamId,
-        deletedAt: null,
+        lifecycleState: { not: "DESTROYED" as const },
       }
     : personalEvidenceWhere;
 
@@ -227,7 +243,7 @@ export async function getWorkspaceUsage(
     ? {
         evidence: {
           teamId: scope.teamId,
-          deletedAt: null,
+          lifecycleState: { not: "DESTROYED" as const },
         },
       }
     : {
@@ -238,7 +254,7 @@ export async function getWorkspaceUsage(
     ? {
         evidence: {
           teamId: scope.teamId,
-          deletedAt: null,
+          lifecycleState: { not: "DESTROYED" as const },
         },
       }
     : {

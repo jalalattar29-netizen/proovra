@@ -368,6 +368,43 @@ export async function applyEvidenceLifecycleAction(
     });
   });
 
+  // 8. PUBLICATION — an EXPLICIT rule, not a side effect of a timestamp.
+  //
+  //    Public exposure used to end at trash time by accident: the public verify
+  //    route filtered on `deleted_at IS NULL`, so trashing a record silently
+  //    took its public page down and restoring it silently put the page back —
+  //    with no publication event, no audit line, and no way for an operator to
+  //    see that publication state had changed. Worse, it read a TRASH timestamp
+  //    as an exposure decision, which is the same conflation this convergence
+  //    exists to remove.
+  //
+  //    Trashing a PUBLISHED record now SUSPENDS its publication through the
+  //    publication authority, which records the transition. Restoring from
+  //    trash deliberately does NOT re-publish: re-exposing a record to the
+  //    public internet is a decision a person makes, not one a restore infers.
+  if (input.action === "TRASH" && evidence.teamId) {
+    try {
+      const { suspendPublicVerify } = await import(
+        "../governance/publication.service.js"
+      );
+      await suspendPublicVerify(
+        {
+          evidenceId: evidence.id,
+          teamId: evidence.teamId,
+          actorUserId: input.actorUserId,
+          reason: "Record moved to trash",
+        },
+        client,
+      );
+    } catch {
+      // The record was not PUBLISHED (the overwhelmingly common case, and an
+      // invalid-transition throw), or publication is unavailable. Neither is a
+      // reason to fail a lifecycle change that has already been committed —
+      // and the public route gates on lifecycle state as well, so an
+      // unsuspended trashed record is still not publicly reachable.
+    }
+  }
+
   return {
     ok: true,
     changed: true,

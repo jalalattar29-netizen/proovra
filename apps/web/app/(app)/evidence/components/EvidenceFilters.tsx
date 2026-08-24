@@ -122,7 +122,7 @@ export function EvidenceFilters({
             { value: "active", label: "Active" },
             { value: "locked", label: "Locked" },
             { value: "archived", label: "Archived" },
-            { value: "deleted", label: "Deleted" },
+            { value: "trash", label: "Trash" },
           ]}
         />
         <FilterChip

@@ -156,8 +156,11 @@ import { buildEvidenceIntelligence } from "../services/evidence-intelligence.ser
 // (assertEvidenceNotLocked / assertEvidenceDeletionAllowedByRetention /
 // canDeleteEvidence / gateRetentionAction) are untouched.
 import {
-  computeEvidenceDeleteEligibility,
+  projectEvidenceLifecycle,
+  projectEvidenceLifecycleSync,
+  toLegacyDeleteEligibility,
   DELETE_ELIGIBILITY_RESPONSE_FIELD,
+  EVIDENCE_LIFECYCLE_RESPONSE_FIELD,
 } from "../services/evidence/evidence-delete-eligibility.service.js";
 import {
   attestEvidenceCertification,
@@ -830,6 +833,10 @@ const SAFE_EVIDENCE_SELECT = {
   lockedAt: true,
   lockedByUserId: true,
   archivedAt: true,
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the state pointer and the
+  // physical-destruction stamp the canonical authority reads.
+  lifecycleState: true,
+  destroyedAtUtc: true,
   // Track 1B closure — the legacy `caseId` scalar is gone; the primary
   // case is DERIVED from the earliest canonical link. Response payloads
   // keep emitting a `caseId` field with the derived value.
@@ -2513,6 +2520,28 @@ function mapEvidenceListItem(item: SelectedEvidenceListItem) {
     displayFileName: item.displayFileName ?? null,
     reviewReadyAtUtc: item.reviewReadyAtUtc ? item.reviewReadyAtUtc.toISOString() : null,
     createdAt: item.createdAt.toISOString(),
+    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the SAME projection the
+    // detail response carries, so a row and the page it opens can never
+    // describe the record differently. The list variant resolves the hold from
+    // the Object Lock column rather than the union evaluator (50 rows cannot
+    // afford 50 hold lookups); that is a display hint and the write path
+    // re-resolves it properly, so the worst case is an action offered and then
+    // refused, never an action taken that should not have been.
+    [EVIDENCE_LIFECYCLE_RESPONSE_FIELD]: projectEvidenceLifecycleSync({
+      id: item.id,
+      lifecycleState: item.lifecycleState ?? null,
+      archivedAt: item.archivedAt ?? null,
+      deletedAt: item.deletedAt ?? null,
+      destroyedAtUtc: item.destroyedAtUtc ?? null,
+      lockedAt: item.lockedAt ?? null,
+      deleteScheduledForUtc: item.deleteScheduledForUtc ?? null,
+      storageObjectLockMode: item.storageObjectLockMode ?? null,
+      storageObjectLockRetainUntilUtc:
+        item.storageObjectLockRetainUntilUtc ?? null,
+      storageObjectLockLegalHoldStatus:
+        item.storageObjectLockLegalHoldStatus ?? null,
+      retentionUntilUtc: item.retentionUntilUtc ?? null,
+    }),
     archivedAt: item.archivedAt ? item.archivedAt.toISOString() : null,
     deletedAt: item.deletedAt ? item.deletedAt.toISOString() : null,
     deleteScheduledForUtc: item.deleteScheduledForUtc
@@ -2874,6 +2903,14 @@ const EVIDENCE_LIST_SELECT = {
   latestReportVersion: true,
   reportGeneratedAtUtc: true,
   reviewReadyAtUtc: true,
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the columns the canonical
+  // authority reads. Selected together because the projection is only correct
+  // when it sees all of them: a state pointer without its retention bounds
+  // produces a confident wrong answer.
+  lifecycleState: true,
+  destroyedAtUtc: true,
+  lockedAt: true,
+  retentionUntilUtc: true,
   createdAt: true,
   archivedAt: true,
   deletedAt: true,
@@ -9231,16 +9268,21 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
           itemCount,
         });
 
-        // Phase EVIDENCE-DELETE-ELIGIBILITY — additive read-only field
-        // computed from existing retention columns + the legal-hold
-        // table. Lets the UI disable "Move to trash" before the
-        // user clicks. Backend reject paths are unchanged; this
-        // mirrors the same precedence so the UI's reason matches
-        // what the API would actually return on a delete attempt.
-        const deleteEligibility = await computeEvidenceDeleteEligibility({
+        // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the canonical lifecycle
+        // projection, resolved through the union legal-hold evaluator. It is
+        // the ONE thing the Evidence Details surface reads to decide which
+        // lifecycle actions to offer; the browser no longer computes any of it.
+        // `deleteEligibility` is the legacy shape for older clients, DERIVED
+        // from this projection rather than computed beside it.
+        const lifecycleProjection = await projectEvidenceLifecycle({
           id: evidence.id,
+          teamId: evidence.teamId ?? null,
+          lifecycleState: evidence.lifecycleState ?? null,
+          archivedAt: evidence.archivedAt ?? null,
           deletedAt: evidence.deletedAt ?? null,
+          destroyedAtUtc: evidence.destroyedAtUtc ?? null,
           lockedAt: evidence.lockedAt ?? null,
+          deleteScheduledForUtc: evidence.deleteScheduledForUtc ?? null,
           storageObjectLockMode: evidence.storageObjectLockMode ?? null,
           storageObjectLockRetainUntilUtc:
             evidence.storageObjectLockRetainUntilUtc ?? null,
@@ -9248,6 +9290,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
             evidence.storageObjectLockLegalHoldStatus ?? null,
           retentionUntilUtc: evidence.retentionUntilUtc ?? null,
         });
+        const deleteEligibility = toLegacyDeleteEligibility(lifecycleProjection);
 
         return reply.code(200).send({
           evidence: toJsonSafe({
@@ -9276,6 +9319,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
             primaryContentItem: content.primaryItem,
             previewPolicy: content.previewPolicy,
             evidenceIntelligence,
+            [EVIDENCE_LIFECYCLE_RESPONSE_FIELD]: lifecycleProjection,
             [DELETE_ELIGIBILITY_RESPONSE_FIELD]: deleteEligibility,
           }),
         });
@@ -11256,7 +11300,14 @@ action: "evidence.certification_requested",
     req.log = req.log.child({ evidenceId: id });
 
     const evidence = await prisma.evidence.findFirst({
-      where: { id, deletedAt: null },
+      // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the gate is the LIFECYCLE
+      // STATE, not the trash timestamp. `deleted_at IS NULL` happened to
+      // exclude trashed records, but it did so by reading a trash timestamp as
+      // a publication decision, and it did NOT exclude a DESTROYED tombstone —
+      // whose `deleted_at` is non-null only because it passed through the trash
+      // on the way, and which would otherwise have kept serving a public verify
+      // page for evidence that no longer exists.
+      where: { id, lifecycleState: { notIn: ["TRASHED", "DESTROYED"] } },
       select: {
         id: true,
         // Phase 31.12 — needed for the public Verify media-intelligence
