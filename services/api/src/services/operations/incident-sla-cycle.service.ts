@@ -316,17 +316,48 @@ export async function closeSlaCycle(
 }
 
 /**
- * Suppression latches whatever has already happened and stops the clock.
+ * SUPPRESSION DOES NOT STOP THE CLOCK.
  *
- * It does NOT delete the breach flags. Silencing a condition is an instruction
- * about notification; it is not a way to un-miss a deadline, and a system that
- * treated it as one would let any workspace clear its own SLA record.
+ * This function deliberately does NOT close the cycle. It latches whatever
+ * deadlines have already passed — the same bookkeeping every transition does —
+ * and leaves the cycle running.
+ *
+ * WHY, AT LENGTH, BECAUSE THE OPPOSITE IS TEMPTING
+ * ---------------------------------------------------------------------------
+ * Suppression is a VISIBILITY decision: "stop telling me about this". It is
+ * not resolution, and the underlying condition is still unresolved and still
+ * unfixed. If suppressing stopped the SLA clock, then any workspace could
+ * clear its own SLA record by silencing the conditions it was about to miss —
+ * and the number the workspace reports about itself would be a measure of how
+ * often it pressed a button, not of how often it met its commitments.
+ *
+ * So a suppressed condition keeps ticking: an ON_TRACK one still becomes
+ * BREACHED when its deadline passes, an AT_RISK one still escalates, and
+ * unsuppressing continues the SAME cycle with the SAME deadlines and the same
+ * policy version rather than starting a new promise.
+ *
+ * A REAL pause would need a real authority: a persisted, workspace-scoped,
+ * versioned and audited policy saying that this workspace's SLA pauses on
+ * suppression, recorded in the incident's own immutable snapshot so a later
+ * policy edit could not rewrite it. No such authority exists in this product.
+ * The only `slaPausedAtUtc` here belongs to REVIEW workflows, is set by an
+ * explicit operator toggle rather than by suppression, and is not workspace
+ * policy at all. Inventing one to justify the previous behaviour would be
+ * manufacturing an authority to license a convenience.
+ *
+ * What suppression DOES change is where the condition appears — the queue's
+ * default view — which is the surface's business and not the clock's.
  */
 export async function suppressSlaCycle(
   input: { incidentId: string; at?: Date },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
-  await closeSlaCycle({ ...input, reason: "SUPPRESSED" }, client);
+  const now = input.at ?? new Date();
+  const cycle = await liveCycle(input.incidentId, client);
+  if (!cycle) return;
+  // Latch only. The cycle stays live, so `endedAtUtc` remains null and the
+  // projection keeps measuring it.
+  await latchBreaches(cycle, now, client);
 }
 
 /**

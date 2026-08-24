@@ -376,6 +376,30 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
       });
     });
 
+    /**
+     * Return a suppressed or resolved condition to OPEN.
+     *
+     * Through `recordIncident`, which is the canonical way a condition comes
+     * back: the source observes it again. There is no "unsuppress" verb, and
+     * inventing one in a test would prove something the product cannot do.
+     */
+    async function reopen(id: string) {
+      const existing = await prisma.operationalIncident.findUniqueOrThrow({
+        where: { id },
+      });
+      const { recordIncident } = await import(
+        "../src/services/observability/incident.service.js"
+      );
+      await recordIncident({
+        teamId: A.teamId,
+        category: existing.category as never,
+        severity: existing.severity as never,
+        fingerprint: existing.fingerprint,
+        title: existing.title,
+        safeSummary: existing.safeSummary,
+      });
+    }
+
     async function transition(id: string, verb: string, payload = {}) {
       return harness.app.inject({
         method: "POST",
@@ -454,20 +478,271 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
       expect(cycles[1].cycleNumber).toBe(2);
     });
 
-    it("RISK 9 — suppression yields NOT_APPLICABLE and does not rewrite a breach", async () => {
+    /**
+     * RISK 9 — SUPPRESSION DOES NOT STOP THE CLOCK.
+     *
+     * The previous implementation CLOSED the SLA cycle on suppression, nulled
+     * the deadline and reported NOT_APPLICABLE — measured, before this was
+     * written. That made suppression a permanent escape from the workspace's
+     * own commitments: silence a condition before its deadline and it could
+     * never breach, so the reported number measured how often somebody
+     * pressed a button rather than how often promises were met.
+     *
+     * Suppression is a VISIBILITY decision. The condition is still unresolved
+     * and still unfixed, so the clock keeps running. A real pause would need a
+     * persisted, workspace-scoped, versioned and audited policy recorded in
+     * the incident's own snapshot; no such authority exists here, so the
+     * conservative rule applies.
+     */
+    it("a suppressed ON_TRACK condition still BREACHES when its deadline passes", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      expect((await slaOf(A.teamId, A.ownerToken, id))?.posture).toBe("ON_TRACK");
+      await transition(id, "suppress");
+
+      // Still measured, still on track, deadline unchanged.
+      const suppressed = await slaOf(A.teamId, A.ownerToken, id);
+      expect(suppressed?.posture).toBe("ON_TRACK");
+      expect(suppressed?.dueAtUtc).toBeTruthy();
+
+      // Now let the deadline pass. The cycle is still live, so it breaches.
+      const cycle = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
+        where: { incidentId: id },
+      });
+      expect(cycle.endedAtUtc, "suppression must not close the cycle").toBeNull();
+      await prisma.operationalIncidentSlaCycle.update({
+        where: { id: cycle.id },
+        data: { acknowledgementDueAtUtc: new Date(Date.now() - 60_000) },
+      });
+      expect((await slaOf(A.teamId, A.ownerToken, id))?.posture).toBe("BREACHED");
+    });
+
+    it("a suppressed AT_RISK condition stays AT_RISK and may still breach", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 3 });
+      expect((await slaOf(A.teamId, A.ownerToken, id))?.posture).toBe("AT_RISK");
+      await transition(id, "suppress");
+      expect((await slaOf(A.teamId, A.ownerToken, id))?.posture).toBe("AT_RISK");
+
+      const cycle = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
+        where: { incidentId: id },
+      });
+      await prisma.operationalIncidentSlaCycle.update({
+        where: { id: cycle.id },
+        data: { acknowledgementDueAtUtc: new Date(Date.now() - 60_000) },
+      });
+      expect((await slaOf(A.teamId, A.ownerToken, id))?.posture).toBe("BREACHED");
+    });
+
+    it("a suppressed BREACHED condition stays BREACHED", async () => {
       const id = await open({ teamId: A.teamId, hoursAgo: 10 });
       expect((await slaOf(A.teamId, A.ownerToken, id))?.posture).toBe("BREACHED");
       await transition(id, "suppress");
+      // Silencing a condition is not a way to un-miss a deadline.
+      expect((await slaOf(A.teamId, A.ownerToken, id))?.posture).toBe("BREACHED");
+    });
 
-      expect((await slaOf(A.teamId, A.ownerToken, id))?.posture).toBe(
-        "NOT_APPLICABLE",
-      );
-      const cycle = await prisma.operationalIncidentSlaCycle.findFirst({
+    it("suppression changes NEITHER deadline", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      const before = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
         where: { incidentId: id },
       });
-      // Silencing a condition is an instruction about NOTIFICATION. It is not
-      // a way to delete the record of a missed promise.
-      expect(cycle?.acknowledgementBreached).toBe(true);
+      await transition(id, "suppress");
+      const after = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
+        where: { incidentId: id },
+      });
+      expect(after.acknowledgementDueAtUtc).toEqual(before.acknowledgementDueAtUtc);
+      expect(after.resolutionDueAtUtc).toEqual(before.resolutionDueAtUtc);
+      expect(after.acknowledgementTargetHours).toBe(before.acknowledgementTargetHours);
+      expect(after.resolutionTargetHours).toBe(before.resolutionTargetHours);
+    });
+
+    it("suppress then unsuppress continues the SAME cycle and policy version", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      const before = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
+        where: { incidentId: id },
+      });
+      await transition(id, "suppress");
+
+      // The condition recurs while suppressed — the canonical unsuppress path.
+      const existing = await prisma.operationalIncident.findUniqueOrThrow({
+        where: { id },
+      });
+      const { recordIncident } = await import(
+        "../src/services/observability/incident.service.js"
+      );
+      await recordIncident({
+        teamId: A.teamId,
+        category: existing.category as never,
+        severity: existing.severity as never,
+        fingerprint: existing.fingerprint,
+        title: existing.title,
+        safeSummary: existing.safeSummary,
+      });
+
+      const cycles = await prisma.operationalIncidentSlaCycle.findMany({
+        where: { incidentId: id },
+      });
+      // ONE cycle. A silenced condition that re-fires did not get a fresh
+      // promise: the original was never discharged.
+      expect(cycles).toHaveLength(1);
+      expect(cycles[0].cycleNumber).toBe(before.cycleNumber);
+      expect(cycles[0].policyVersionId).toBe(before.policyVersionId);
+      expect(cycles[0].acknowledgementDueAtUtc).toEqual(
+        before.acknowledgementDueAtUtc,
+      );
+    });
+
+    it("a suppressed condition must be reopened before it can be acknowledged", async () => {
+      // The CANONICAL state machine (`INCIDENT_TRANSITIONS` in
+      // @proovra/shared) allows SUPPRESSED -> OPEN only. That is the product's
+      // own rule and this suite honours it rather than widening a shared state
+      // machine to suit a test.
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      await transition(id, "suppress");
+
+      const direct = await transition(id, "ack");
+      expect(direct.statusCode).toBeGreaterThanOrEqual(400);
+
+      // Reopening is what the canonical path calls for, and the SLA cycle
+      // survives it untouched — the promise was never discharged.
+      const before = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
+        where: { incidentId: id },
+      });
+      await reopen(id);
+      expect((await transition(id, "ack")).statusCode).toBe(200);
+
+      const after = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
+        where: { incidentId: id },
+      });
+      expect(after.cycleNumber).toBe(before.cycleNumber);
+      expect(after.acknowledgementDueAtUtc).toEqual(before.acknowledgementDueAtUtc);
+
+      // Acknowledgement stops ONLY the acknowledgement clock.
+      const sla = await slaOf(A.teamId, A.ownerToken, id);
+      expect(sla?.obligation).toBe("RESOLUTION");
+      expect(sla?.targetHours).toBe(24);
+      expect(sla?.posture).toBe("ACKNOWLEDGED");
+    });
+
+    it("a suppressed unresolved condition is still counted in SLA truth", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 10 });
+      await transition(id, "suppress");
+      const s = await summaryOf(A.teamId, A.ownerToken);
+      // Excluding it would let a workspace improve its own SLA numbers by
+      // suppressing whatever it was about to miss.
+      expect(s.slaBreached).toBe(1);
+      expect(s.open).toBeGreaterThan(0);
+      expect(id).toBeTruthy();
+    });
+
+    it("the summary, the list and the detail agree while suppressed", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 10 });
+      await transition(id, "suppress");
+
+      const listed = JSON.parse(
+        (
+          await harness.app.inject({
+            method: "GET",
+            url: `/v1/ops/incidents?teamId=${A.teamId}&status=SUPPRESSED`,
+            headers: { authorization: `Bearer ${A.ownerToken}` },
+          })
+        ).body,
+      ).incidents.find((i: { id: string }) => i.id === id);
+
+      const detail = await slaOf(A.teamId, A.ownerToken, id);
+      expect(listed.sla).toEqual(detail);
+      const s = await summaryOf(A.teamId, A.ownerToken);
+      expect(s.slaBreached).toBe(1);
+      expect(listed.sla.posture).toBe("BREACHED");
+    });
+
+    it("a suppressed condition remains reachable through the status filter", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      await transition(id, "suppress");
+      const found = JSON.parse(
+        (
+          await harness.app.inject({
+            method: "GET",
+            url: `/v1/ops/incidents?teamId=${A.teamId}&status=SUPPRESSED`,
+            headers: { authorization: `Bearer ${A.ownerToken}` },
+          })
+        ).body,
+      ).incidents.some((i: { id: string }) => i.id === id);
+      // Hidden from a default view is not the same as removed from the truth.
+      expect(found).toBe(true);
+    });
+
+    it("suppression writes its own history entry, distinct from SLA bookkeeping", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      await transition(id, "suppress");
+      const events = await prisma.operationalIncidentEvent.findMany({
+        where: { incidentId: id },
+      });
+      expect(events.some((e) => e.eventType === "suppressed")).toBe(true);
+      // The SLA cycle is bookkeeping, not an operator action: it must not
+      // manufacture timeline entries of its own.
+      expect(events.some((e) => e.eventType.includes("sla"))).toBe(false);
+    });
+
+    it("concurrent suppress and resolve cannot produce two live cycles", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      await Promise.all([transition(id, "suppress"), transition(id, "resolve")]);
+      const live = await prisma.operationalIncidentSlaCycle.count({
+        where: { incidentId: id, endedAtUtc: null },
+      });
+      const all = await prisma.operationalIncidentSlaCycle.count({
+        where: { incidentId: id },
+      });
+      expect(all, "one qualification means one cycle").toBe(1);
+      expect(live).toBeLessThanOrEqual(1);
+    });
+
+    it("workspace B cannot suppress workspace A's condition, and learns nothing", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      const res = await harness.app.inject({
+        method: "POST",
+        url: `/v1/ops/incidents/${id}/suppress`,
+        headers: { authorization: `Bearer ${B.ownerToken}` },
+        payload: { teamId: B.teamId } as never,
+      });
+      expect(res.statusCode).toBe(404);
+      const after = await prisma.operationalIncident.findUniqueOrThrow({
+        where: { id },
+      });
+      expect(after.status).toBe("OPEN");
+    });
+
+    it("ACTUAL RESOLUTION closes the cycle; silence never does", async () => {
+      const id = await open({ teamId: A.teamId, hoursAgo: 1 });
+      await transition(id, "suppress");
+
+      // Still live after suppression. This is the whole correction: the
+      // previous implementation closed the cycle here with
+      // `endReason = SUPPRESSED`, which made silence a permanent escape from
+      // the workspace's own commitments.
+      const suppressed = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
+        where: { incidentId: id },
+      });
+      expect(suppressed.endedAtUtc).toBeNull();
+      expect(suppressed.endReason).toBeNull();
+
+      // The canonical path back is a reopen, then a real resolution.
+      await reopen(id);
+      expect(
+        (await transition(id, "resolve", { resolutionNote: "Recovered." }))
+          .statusCode,
+      ).toBe(200);
+
+      const cycle = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
+        where: { incidentId: id },
+      });
+      expect(cycle.endedAtUtc).toBeTruthy();
+      expect(cycle.endReason).toBe("RESOLVED");
+      // And still ONE cycle: the condition was never discharged in between.
+      expect(
+        await prisma.operationalIncidentSlaCycle.count({
+          where: { incidentId: id },
+        }),
+      ).toBe(1);
     });
 
     it("RISK 4 — severity escalation never extends an existing deadline", async () => {

@@ -163,18 +163,16 @@ export function projectIncidentSla(
     };
   }
 
-  // Suppression is a deliberate instruction to stop reporting. The latched
-  // breach flags travel with the projection so the record survives, but the
-  // workspace is not told it is behind on something it silenced.
-  if (incidentStatus === "SUPPRESSED" || cycle.endReason === "SUPPRESSED") {
-    return {
-      posture: "NOT_APPLICABLE",
-      obligation: "NONE",
-      dueAtUtc: null,
-      targetHours: null,
-      ...latched,
-    };
-  }
+  // SUPPRESSION IS NOT HANDLED HERE, DELIBERATELY.
+  //
+  // A suppressed condition is still unresolved and still unfixed, so it still
+  // has a posture and its clock is still running. Returning NOT_APPLICABLE
+  // here would let a workspace clear its own SLA record by silencing the
+  // conditions it was about to miss — the reported number would measure how
+  // often somebody pressed a button, not how often commitments were met.
+  //
+  // Suppression changes where the condition APPEARS, which is the queue's
+  // business. It does not change what was promised about it.
 
   // The condition was actually fixed. Whether it was fixed in time is the
   // latched fact, not the posture.

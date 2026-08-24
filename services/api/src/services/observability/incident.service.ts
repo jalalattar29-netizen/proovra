@@ -200,10 +200,15 @@ export async function recordIncident(
    * swallows its own — an SLA bookkeeping fault must not lose the observation
    * of the condition itself.
    */
+  // Only a RESOLVED condition recurring is a new qualification.
+  //
+  // A SUPPRESSED one is deliberately excluded: suppression silences
+  // notification without stopping the clock, so its cycle is still LIVE and
+  // `openSlaCycle` would decline anyway. Naming it here would suggest a new
+  // promise begins when a silenced condition re-fires, and it does not — the
+  // original promise was never discharged.
   const reopened =
-    !created &&
-    (existingStatusBeforeWrite === prismaPkg.IncidentStatus.RESOLVED ||
-      existingStatusBeforeWrite === prismaPkg.IncidentStatus.SUPPRESSED);
+    !created && existingStatusBeforeWrite === prismaPkg.IncidentStatus.RESOLVED;
   // A workspace-less condition gets no cycle: an SLA promise is a promise BY
   // a workspace, and one with no tenant has nobody to have made it.
   const cycleTeamId = row.teamId ?? input.teamId ?? null;
@@ -634,9 +639,11 @@ function slaWhere(
 ): prismaPkg.Prisma.OperationalIncidentWhereInput {
   if (!posture) return {};
 
-  // Only the LIVE cycle is considered, and a suppressed one is excluded — a
-  // silenced condition reports NOT_APPLICABLE and must not be selected by a
-  // filter that asks about commitments.
+  // Only the LIVE cycle is considered. A SUPPRESSED condition still has one:
+  // silencing a condition does not stop its clock, so it is still selectable
+  // by a filter that asks about commitments — which is the point, because
+  // otherwise the set an operator can see would be smaller than the set the
+  // workspace is actually behind on.
   const live = { endedAtUtc: null } as const;
 
   if (posture === "BREACHED") {

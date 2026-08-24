@@ -125,9 +125,24 @@ export type OperationsSummary = {
  */
 const SUMMARY_SCAN_BOUND = 5000;
 
+/**
+ * What counts as UNRESOLVED work.
+ *
+ * SUPPRESSED is included, and that is a deliberate correction. Suppression
+ * silences NOTIFICATION; the condition itself is still unresolved and still
+ * unfixed. Excluding it would let a workspace improve its own SLA numbers by
+ * suppressing whatever it was about to miss, which makes the number a measure
+ * of button-pressing rather than of commitments met.
+ *
+ * The queue's DEFAULT VIEW still hides suppressed conditions — that is what
+ * suppression is for — and they remain reachable through the status filter.
+ * Hiding something from a default view and removing it from the truth are
+ * different acts, and only the first is what an operator asked for.
+ */
 const UNRESOLVED_STATUSES = [
   prismaPkg.IncidentStatus.OPEN,
   prismaPkg.IncidentStatus.ACKNOWLEDGED,
+  prismaPkg.IncidentStatus.SUPPRESSED,
 ] as const;
 
 export type OperationsSummaryInput = {

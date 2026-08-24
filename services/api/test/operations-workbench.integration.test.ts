@@ -730,7 +730,20 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       expect(res.body).not.toContain("displayName");
     });
 
-    it("a suppressed condition leaves the unresolved population, and says nothing false", async () => {
+    it("a suppressed condition STAYS in the unresolved population", async () => {
+      // SUPERSEDED ASSERTION: this case used to expect `after.open === 0` —
+      // that suppressing a condition removed it from the unresolved count.
+      //
+      // WHY THAT WAS WRONG: suppression silences NOTIFICATION. The condition
+      // is still unresolved and still unfixed, so dropping it from the count
+      // let a workspace improve its own numbers by suppressing whatever it
+      // was about to miss. The number then measured how often somebody
+      // pressed a button rather than how often work was actually done.
+      //
+      // THE ORIGINAL INTENT — that the summary says nothing false about a
+      // suppressed condition — is preserved and strengthened below: it is
+      // still counted, its severity is still counted, and the queue's DEFAULT
+      // view still hides it, which is what suppression is actually for.
       const row = await seed({ teamId: A.teamId, severity: "CRITICAL" });
       const before = JSON.parse(
         (await get(`/v1/ops/summary?teamId=${A.teamId}`, A.ownerToken)).body,
@@ -745,16 +758,30 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       const after = JSON.parse(
         (await get(`/v1/ops/summary?teamId=${A.teamId}`, A.ownerToken)).body,
       ).summary;
-      // Suppression is a DECISION to stop being told, so the condition leaves
-      // the unresolved count. It is still readable under its own status — it
-      // was not deleted and the record of it is intact.
-      expect(after.open).toBe(0);
-      expect(after.critical).toBe(0);
-      const suppressed = await get(
-        `/v1/ops/incidents?teamId=${A.teamId}&status=SUPPRESSED`,
-        A.ownerToken,
+      expect(after.open, "silence is not resolution").toBe(1);
+      expect(after.critical).toBe(1);
+
+      // …and it is gone from the DEFAULT queue view, which is the part the
+      // operator asked for.
+      const defaultView = JSON.parse(
+        (await get(`/v1/ops/incidents?teamId=${A.teamId}&status=OPEN`, A.ownerToken))
+          .body,
+      ).incidents;
+      expect(defaultView.some((i: { id: string }) => i.id === row.id)).toBe(false);
+
+      // Still reachable through the status filter: hidden from a default view
+      // and removed from the truth are different acts.
+      const suppressedView = JSON.parse(
+        (
+          await get(
+            `/v1/ops/incidents?teamId=${A.teamId}&status=SUPPRESSED`,
+            A.ownerToken,
+          )
+        ).body,
+      ).incidents;
+      expect(suppressedView.some((i: { id: string }) => i.id === row.id)).toBe(
+        true,
       );
-      expect(idsOf(suppressed)).toEqual([row.id]);
     });
   });
 
@@ -1402,7 +1429,16 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       expect(listed.sla.obligation).toBe("ACKNOWLEDGEMENT");
     });
 
-    it("a suppressed condition reports no posture and no deadline", async () => {
+    it("a suppressed condition keeps its posture and its deadline", async () => {
+      // SUPERSEDED ASSERTION: NOT_APPLICABLE with a null deadline.
+      //
+      // WHY THAT WAS WRONG: it made suppression a permanent escape from the
+      // workspace's own commitments — silence a condition before its deadline
+      // and it could never breach.
+      //
+      // THE ORIGINAL INTENT — that a suppressed condition is not shouted
+      // about — is preserved by the QUEUE (its default view hides it), not by
+      // deleting the commitment.
       const row = await seedWithSla({
         teamId: A.teamId,
         status: "SUPPRESSED",
@@ -1416,8 +1452,9 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
           )
         ).body,
       ).incidents.find((i: { id: string }) => i.id === row.id);
-      expect(listed.sla.posture).toBe("NOT_APPLICABLE");
-      expect(listed.sla.dueAtUtc).toBeNull();
+      expect(listed.sla.posture).toBe("BREACHED");
+      expect(listed.sla.dueAtUtc).toBeTruthy();
+      expect(listed.sla.targetHours).toBeTruthy();
     });
 
     it("the recorded lifecycle instants are projected, since the posture is measured from them", async () => {

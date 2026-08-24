@@ -177,15 +177,21 @@ describe("a missed promise stays missed", () => {
     ).toBe("BREACHED");
   });
 
-  it("the latched facts travel with the projection so the record survives", () => {
+  it("the latched facts travel with the projection, and suppression does not hide them", () => {
+    // ORIGINAL INTENT, PRESERVED: a missed promise survives suppression.
+    //
+    // The original case asserted posture NOT_APPLICABLE, which was the
+    // superseded rule — suppression used to close the cycle and stop the
+    // clock, so a workspace could clear its own SLA record by silencing
+    // whatever it was about to miss. The record-survives guarantee is
+    // unchanged and is now STRONGER: the breach is visible in the posture
+    // itself, not merely retained in a flag nobody renders.
     const p = projectIncidentSla(
       "SUPPRESSED",
-      cycle({ acknowledgementBreached: true, endReason: "SUPPRESSED" }),
+      cycle({ acknowledgementBreached: true }),
       at(100),
     );
-    // Posture is NOT_APPLICABLE — the workspace asked not to be told — but
-    // the fact that a promise was missed is still carried.
-    expect(p.posture).toBe("NOT_APPLICABLE");
+    expect(p.posture).toBe("BREACHED");
     expect(p.acknowledgementBreached).toBe(true);
   });
 });
@@ -217,15 +223,37 @@ describe("terminal states", () => {
     expect(p.resolutionBreached).toBe(true);
   });
 
-  it("suppression reports NOT_APPLICABLE and no deadline", () => {
-    const p = projectIncidentSla("SUPPRESSED", cycle(), at(10_000));
-    expect(p.posture).toBe("NOT_APPLICABLE");
-    expect(p.dueAtUtc).toBeNull();
-    expect(p.targetHours).toBeNull();
+  it("suppression keeps the deadline and the clock", () => {
+    // Suppression is a VISIBILITY decision. The condition is still unresolved
+    // and still unfixed, so it still has a promise and that promise still has
+    // a deadline. Nulling them here is what let silence become a permanent
+    // escape from a workspace's own commitments.
+    const p = projectIncidentSla("SUPPRESSED", cycle(), at(1));
+    expect(p.posture).toBe("ON_TRACK");
+    expect(p.dueAtUtc).toBe(at(ACK_HOURS).toISOString());
+    expect(p.targetHours).toBe(ACK_HOURS);
   });
 
-  it("suppression wins over an unmet live deadline", () => {
-    expect(postureAt(10_000, {}, "SUPPRESSED")).toBe("NOT_APPLICABLE");
+  it("a suppressed condition still BREACHES when its deadline passes", () => {
+    expect(postureAt(10_000, {}, "SUPPRESSED")).toBe("BREACHED");
+  });
+
+  it("NOT_APPLICABLE is reserved for a condition with no promise to measure", () => {
+    // The value survives — it just no longer means "somebody silenced this".
+    // It means the workspace had no policy when the condition qualified, or
+    // the stored promise cannot be trusted.
+    const noPolicy = projectIncidentSla(
+      "SUPPRESSED",
+      cycle({
+        policyVersionId: null,
+        acknowledgementTargetHours: null,
+        resolutionTargetHours: null,
+        acknowledgementDueAtUtc: null,
+        resolutionDueAtUtc: null,
+      }),
+      at(10_000),
+    );
+    expect(noPolicy.posture).toBe("NOT_APPLICABLE");
   });
 });
 
@@ -309,6 +337,17 @@ describe("one authority", () => {
     }
   });
 
+  it("the projection does not special-case suppression", () => {
+    // A branch on SUPPRESSED here is how silence became an SLA escape. The
+    // status is still an input — it reaches the function — but nothing may
+    // read it to stop a clock.
+    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+      /^\s*\/\/.*$/gm,
+      "",
+    );
+    expect(code).not.toContain('"SUPPRESSED"');
+  });
+
   it("carries no hour literals of its own", () => {
     for (const literal of ["= 24", "= 48", "= 72", "= 4;", "DEFAULT_HOURS"]) {
       expect(
@@ -349,7 +388,18 @@ describe("one authority", () => {
       postureAt(6),
       postureAt(1, { acknowledgedAtUtc: at(1) }, "ACKNOWLEDGED"),
       postureAt(29, { resolvedAtUtc: at(29), endReason: "RESOLVED" }, "RESOLVED"),
-      postureAt(1, {}, "SUPPRESSED"),
+      // NOT_APPLICABLE now comes from an absent promise rather than from
+      // suppression, which is the correction this closure made.
+      projectIncidentSla(
+        "OPEN",
+        cycle({
+          acknowledgementTargetHours: null,
+          resolutionTargetHours: null,
+          acknowledgementDueAtUtc: null,
+          resolutionDueAtUtc: null,
+        }),
+        at(1),
+      ).posture,
     ]);
     // A posture nothing can produce is dead vocabulary the UI must still
     // handle and no operator will ever see.
