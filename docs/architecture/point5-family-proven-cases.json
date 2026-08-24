@@ -396,6 +396,22 @@
       "runId": "52ce1499-b832-4fab-ba53-ffde4e3b50ac",
       "binding": "fad9dbce7ae040f166cecc85c6371f835578c50b65dade33f63ae14668fb30a3",
       "recordedAtUtc": "2026-08-24T04:35:38.009Z"
+    },
+    "test/point5/family-trash-grace.integration.test.ts": {
+      "sha256": "cf4d1d67e2ceab0a747db52b38832857bcedadd5dc21406a7e100f58c3e112ad",
+      "cases": [
+        "trashgrace.claim.active_not_stolen",
+        "trashgrace.claim.one_winner",
+        "trashgrace.durable.intent_before_work",
+        "trashgrace.idempotency.duplicate_is_noop",
+        "trashgrace.observe_only_by_default",
+        "trashgrace.tenant.cross_workspace_denied",
+        "trashgrace.tenant.workspace_reloaded",
+        "trashgrace.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "e68db4f2-9438-4811-be4d-b5a7febb832e",
+      "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
+      "recordedAtUtc": "2026-08-24T11:49:23.101Z"
     }
   }
 }

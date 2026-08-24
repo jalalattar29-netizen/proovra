@@ -573,6 +573,7 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
     suites: [
       "test/point5/family-retention-destruction.integration.test.ts",
       "test/point5/family-retention-sweeps.integration.test.ts",
+      "test/point5/family-trash-grace.integration.test.ts",
     ],
     units: [
       {
@@ -588,6 +589,20 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
           "purge.terminal.stale_cannot_overwrite",
           "purge.legal_hold_blocks",
           "purge.payload.rejects_unknown_field",
+        ],
+      },
+      {
+        workName: "TrashGraceReconciliationSweep",
+        executor: "services/worker/src/governance/trash-grace-reconciler.ts",
+        cases: [
+          "trashgrace.durable.intent_before_work",
+          "trashgrace.tenant.workspace_reloaded",
+          "trashgrace.tenant.cross_workspace_denied",
+          "trashgrace.claim.one_winner",
+          "trashgrace.claim.active_not_stolen",
+          "trashgrace.idempotency.duplicate_is_noop",
+          "trashgrace.terminal.stale_cannot_overwrite",
+          "trashgrace.observe_only_by_default",
         ],
       },
       {

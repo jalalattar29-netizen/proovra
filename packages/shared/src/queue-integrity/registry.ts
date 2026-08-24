@@ -883,6 +883,54 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     projection: "GET /v1/governance/reconciliation-runs",
   },
   {
+    workName: SWEEP_NAMES.TRASH_GRACE_RECONCILER,
+    family: "retention_destruction",
+    familyReason:
+      "Scans trashed evidence whose recovery grace has elapsed and evaluates canonical destruction eligibility; the producer side of the destructive lifecycle.",
+    transport: "db_outbox_sweep",
+    queueName: null,
+    implementation: "CURRENT_RUNTIME",
+    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
+    jobIdPrefix: null,
+    // The durable authority is the Evidence row. `lifecycle_state = TRASHED`
+    // plus `delete_scheduled_for_utc` IS the work item; the synchronous
+    // lifecycle service commits it when a user moves a record to trash. There
+    // is no separate outbox table because there is no separate fact.
+    durableAuthority: {
+      model: "Evidence",
+      tenantSource: "Evidence.teamId",
+      createdBySynchronousPath: true,
+    },
+    canonicalProducer:
+      "services/api/src/services/evidence/evidence-lifecycle.service.ts",
+    canonicalProcessor:
+      "services/worker/src/governance/trash-grace-reconciler.ts",
+    workerRegistration: WORKER_INDEX,
+    // The sweep itself claims NOTHING and mutates no lifecycle state — that is
+    // deliberate, and it is why the claim describes the DESTRUCTION claim it
+    // hands off to. Its only mutations are an idempotent destruction-review
+    // creation (guarded by `Evidence.activeDestructionReviewId`) and an
+    // enqueue. The irreversible claim belongs to the canonical executor:
+    // TRASHED -> PENDING_DESTRUCTION with a lease stamp, so a crashed executor
+    // is recoverable and two executors cannot both delete the same keys.
+    claim: {
+      from: "TRASHED",
+      to: "PENDING_DESTRUCTION",
+      mechanism: "conditional_update_many",
+      leaseField: "destructionClaimedAtUtc",
+      leaseMs: 30 * 60 * 1000,
+    },
+    terminalWriter:
+      "packages/shared-runtime/src/evidence-destruction/executor.ts",
+    idempotency: ["deterministic_job_id", "unique_constraint"],
+    reconciler: "services/worker/src/governance/trash-grace-reconciler.ts",
+    retry: RETRY_POLICIES.SWEEP,
+    recovery: RECOVERY_POLICIES.SWEEP,
+    externalBoundary: "storage",
+    auditFamily: "governance.destruction",
+    projection: "GET /v1/evidence/:id",
+  },
+  {
     workName: SWEEP_NAMES.ARCHIVE_AUTO_TRANSITION,
     family: "retention_destruction",
     familyReason:

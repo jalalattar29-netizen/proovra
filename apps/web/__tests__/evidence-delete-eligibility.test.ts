@@ -1,20 +1,22 @@
 /**
- * Phase EVIDENCE-DELETE-ELIGIBILITY — frontend contract.
+ * EVIDENCE LIFECYCLE — the browser holds no decision.
  *
- *   • Helper behaviour: prefers backend-computed `deleteEligibility`,
- *     falls back to client-side computation matching the backend
- *     precedence.
- *   • Source-pinned: EvidenceReviewTab disables Move to trash via the
- *     helper (not via a stale local check), prevents setTrashOpen on
- *     disabled click, mounts the helper text, positions Archive as
- *     recommended.
- *   • Source-pinned: BulkActionsToolbar uses the helper to compute
- *     protected count and disables Run when all selections are
- *     protected.
- *   • Banned-copy: no emoji / forbidden overclaim in any rendered
- *     surface.
- *   • Type drift: EvidenceDeleteReasonCode is in lockstep with the
- *     backend union.
+ * WHAT THIS SUITE USED TO ASSERT
+ * ---------------------------------------------------------------------------
+ * That the client-side mirror computed the right answer: COMPLIANCE retention
+ * blocks trash, `retentionUntilUtc` in the future blocks trash, the S3
+ * legal-hold column blocks trash, and the precedence between them matched the
+ * backend's. Those assertions were faithful to the code and the code was wrong.
+ * Retention does not block a recoverable soft-trash — it blocks physical
+ * destruction — and a browser cannot see the legal-hold tables at all, so its
+ * "no hold, go ahead" was a guess.
+ *
+ * WHAT IT ASSERTS NOW
+ * ---------------------------------------------------------------------------
+ * That the module reads the server's canonical projection and computes nothing:
+ * the same input produces the same answer as the server did, a missing
+ * projection produces a REFUSAL rather than an optimistic guess, and no
+ * retention column is read anywhere in the file.
  */
 
 import { strict as assert } from "node:assert";
@@ -26,6 +28,8 @@ import { dirname, resolve } from "node:path";
 import {
   ARCHIVE_AS_ALTERNATIVE_COPY,
   getEvidenceDeletionEligibility,
+  getEvidenceLifecycle,
+  getRetentionPosture,
 } from "../app/(app)/evidence/lib/evidence-delete-eligibility";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -45,318 +49,274 @@ const BACKEND_SVC = src(
 );
 const EVIDENCE_ROUTES = src("services/api/src/routes/evidence.routes.ts");
 
+const FAR_FUTURE = new Date(Date.now() + 3000 * 24 * 60 * 60 * 1000).toISOString();
+
+/** A projection as the API would emit it, with the parts under test overridden. */
+function projection(over: Record<string, unknown> = {}) {
+  return {
+    lifecycle: {
+      productState: "ACTIVE",
+      canArchive: true,
+      canUnarchive: false,
+      canTrash: true,
+      canRestoreFromTrash: false,
+      trashBlockReason: null,
+      trashGraceUntilUtc: null,
+      appRetentionUntilUtc: null,
+      objectLockRetainUntilUtc: null,
+      effectiveRetentionUntilUtc: null,
+      objectLockCompliance: false,
+      legalHold: false,
+      destructionEligibleAtUtc: null,
+      destructionBlockReason: null,
+      ...over,
+    },
+  } as never;
+}
+
 // ===========================================================================
-// Helper behaviour — prefer backend, fall back to client
+// The helper reads the projection and nothing else
 // ===========================================================================
 
-test("helper prefers the backend-computed deleteEligibility when present", () => {
+test("a retained record CAN be moved to trash", () => {
+  // The headline correction. This exact record — retained until 2034, under
+  // COMPLIANCE Object Lock — is the one the old mirror refused, and refusing it
+  // was the bug: moving it to trash deletes nothing.
+  const r = getEvidenceDeletionEligibility(
+    projection({
+      appRetentionUntilUtc: FAR_FUTURE,
+      objectLockRetainUntilUtc: FAR_FUTURE,
+      effectiveRetentionUntilUtc: FAR_FUTURE,
+      objectLockCompliance: true,
+      destructionBlockReason: "OBJECT_LOCK_RETENTION_ACTIVE",
+      destructionEligibleAtUtc: FAR_FUTURE,
+    }),
+  );
+  assert.equal(r.canMoveToTrash, true);
+  assert.equal(r.reasonCode, null);
+});
+
+test("a legal hold blocks trash and says so", () => {
+  const r = getEvidenceDeletionEligibility(
+    projection({ canTrash: false, trashBlockReason: "LEGAL_HOLD_ACTIVE", legalHold: true }),
+  );
+  assert.equal(r.canMoveToTrash, false);
+  assert.equal(r.reasonCode, "LEGAL_HOLD");
+  assert.match(r.message, /legal hold/i);
+});
+
+test("a permanently locked record blocks trash", () => {
+  const r = getEvidenceDeletionEligibility(
+    projection({ canTrash: false, trashBlockReason: "EVIDENCE_LOCKED" }),
+  );
+  assert.equal(r.reasonCode, "EVIDENCE_LOCKED");
+});
+
+test("an already-trashed record reports ALREADY_DELETED, not an error", () => {
+  const r = getEvidenceDeletionEligibility(
+    projection({
+      productState: "TRASHED",
+      canTrash: false,
+      canRestoreFromTrash: true,
+      trashBlockReason: "ALREADY_IN_STATE",
+    }),
+  );
+  assert.equal(r.canMoveToTrash, false);
+  assert.equal(r.reasonCode, "ALREADY_DELETED");
+});
+
+test("a destroyed record is terminal", () => {
+  const r = getEvidenceDeletionEligibility(
+    projection({
+      productState: "DESTROYED",
+      canArchive: false,
+      canTrash: false,
+      canRestoreFromTrash: false,
+      trashBlockReason: "TERMINAL_DESTROYED",
+    }),
+  );
+  assert.equal(r.canMoveToTrash, false);
+  assert.match(r.message, /tombstone/i);
+});
+
+test("NO projection means refuse, never guess", () => {
+  // A response that predates the projection, or a record still loading. The
+  // conservative answer is the only safe one: an enabled control the server
+  // will reject is worse than a disabled one.
+  for (const input of [null, undefined, {} as never]) {
+    const r = getEvidenceDeletionEligibility(input);
+    assert.equal(r.canMoveToTrash, false, "must not enable trash without a verdict");
+    assert.equal(r.reasonCode, "UNKNOWN");
+  }
+});
+
+test("the legacy deleteEligibility field is used verbatim when the projection is absent", () => {
   const r = getEvidenceDeletionEligibility({
     deleteEligibility: {
       canMoveToTrash: false,
       reasonCode: "LEGAL_HOLD",
       blockedUntil: null,
-      message: "From backend.",
+      message: "From the server.",
     },
-    // These would say "ok" if the client mirror were used. Backend wins.
-    deletedAt: null,
-    lockedAt: null,
-    storageObjectLockMode: null,
-    storageObjectLockRetainUntilUtc: null,
-    storageObjectLockLegalHoldStatus: null,
-    retentionUntilUtc: null,
-  });
-  assert.equal(r.canMoveToTrash, false);
-  assert.equal(r.reasonCode, "LEGAL_HOLD");
-  assert.equal(r.message, "From backend.");
+  } as never);
+  assert.equal(r.message, "From the server.");
 });
 
-test("helper returns canMoveToTrash:true when no condition blocks", () => {
-  const r = getEvidenceDeletionEligibility({});
-  assert.equal(r.canMoveToTrash, true);
-  assert.equal(r.reasonCode, null);
+test("getEvidenceLifecycle returns the projection, or null", () => {
+  assert.equal(getEvidenceLifecycle(projection()).productState, "ACTIVE");
+  assert.equal(getEvidenceLifecycle(null), null);
+  assert.equal(getEvidenceLifecycle({} as never), null);
 });
 
-test("helper returns ALREADY_DELETED before any other reason", () => {
-  const r = getEvidenceDeletionEligibility({
-    deletedAt: "2025-01-01T00:00:00.000Z",
-    lockedAt: "2025-01-01T00:00:00.000Z",
-  });
-  assert.equal(r.canMoveToTrash, false);
-  assert.equal(r.reasonCode, "ALREADY_DELETED");
+// ===========================================================================
+// Retention is reported as a fact, independently of availability
+// ===========================================================================
+
+test("retention posture states what retention constrains — destruction", () => {
+  const p = getRetentionPosture(
+    projection({
+      effectiveRetentionUntilUtc: FAR_FUTURE,
+      objectLockCompliance: true,
+      canTrash: true,
+    }),
+  );
+  assert.match(p.retainedUntilLabel ?? "", /^Retained until [A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+  assert.equal(p.objectLockLabel, "Object Lock: Compliance");
+  assert.match(p.destructionNote ?? "", /^Physical destruction unavailable until /);
+  // And it says nothing about trash, because retention has nothing to say
+  // about trash.
+  assert.doesNotMatch(p.destructionNote ?? "", /trash/i);
 });
 
-test("helper returns EVIDENCE_LOCKED before retention reasons", () => {
-  const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-  const r = getEvidenceDeletionEligibility({
-    lockedAt: "2025-01-01T00:00:00.000Z",
-    storageObjectLockMode: "COMPLIANCE",
-    storageObjectLockRetainUntilUtc: future,
-  });
-  assert.equal(r.reasonCode, "EVIDENCE_LOCKED");
-});
-
-test("helper returns COMPLIANCE_RETENTION when Object Lock COMPLIANCE active and date in future", () => {
-  const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-  const r = getEvidenceDeletionEligibility({
-    storageObjectLockMode: "COMPLIANCE",
-    storageObjectLockRetainUntilUtc: future,
-  });
-  assert.equal(r.canMoveToTrash, false);
-  assert.equal(r.reasonCode, "COMPLIANCE_RETENTION");
-  assert.equal(r.blockedUntil, future);
-  assert.match(r.message, /compliance retention until [A-Z][a-z]{2} \d{1,2}, \d{4}/);
-});
-
-test("helper does NOT block COMPLIANCE when retain-until is in the past", () => {
+test("an expired retention deadline reports no posture at all", () => {
   const past = new Date(Date.now() - 1000).toISOString();
-  const r = getEvidenceDeletionEligibility({
-    storageObjectLockMode: "COMPLIANCE",
-    storageObjectLockRetainUntilUtc: past,
-  });
-  assert.equal(r.canMoveToTrash, true);
-});
-
-test("helper returns LEGAL_HOLD when storageObjectLockLegalHoldStatus=ON", () => {
-  const r = getEvidenceDeletionEligibility({
-    storageObjectLockLegalHoldStatus: "ON",
-  });
-  assert.equal(r.canMoveToTrash, false);
-  assert.equal(r.reasonCode, "LEGAL_HOLD");
-});
-
-test("helper returns RETENTION_UNTIL when workspace retentionUntilUtc is in future", () => {
-  const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-  const r = getEvidenceDeletionEligibility({ retentionUntilUtc: future });
-  assert.equal(r.canMoveToTrash, false);
-  assert.equal(r.reasonCode, "RETENTION_UNTIL");
-  assert.match(r.message, /workspace retention until /);
-});
-
-test("helper handles null evidence defensively (disabled, UNKNOWN)", () => {
-  const r = getEvidenceDeletionEligibility(null);
-  assert.equal(r.canMoveToTrash, false);
-  assert.equal(r.reasonCode, "UNKNOWN");
+  const p = getRetentionPosture(projection({ effectiveRetentionUntilUtc: past }));
+  assert.equal(p.retainedUntilLabel, null);
+  assert.equal(p.destructionNote, null);
 });
 
 // ===========================================================================
-// Source-pinned — EvidenceReviewTab uses the helper everywhere
+// Source-pinned: no decision may return to the browser
 // ===========================================================================
 
-test("EvidenceReviewTab imports the canonical helper (no local re-implementation)", () => {
-  assert.match(
-    REVIEW_TAB,
-    /import \{[\s\S]{0,200}?getEvidenceDeletionEligibility[\s\S]{0,200}?\} from "\.\.\/\.\.\/lib\/evidence-delete-eligibility";/,
+test("the helper reads no raw retention column", () => {
+  // Comments stripped: the module header NAMES these columns to explain what it
+  // stopped doing, and a docstring describing a removed behaviour is not that
+  // behaviour returning.
+  const body = HELPER_SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+    /\/\/[^\n]*/g,
+    "",
   );
+  for (const column of [
+    "storageObjectLockMode",
+    "storageObjectLockRetainUntilUtc",
+    "storageObjectLockLegalHoldStatus",
+    "retentionUntilUtc",
+  ]) {
+    assert.ok(
+      !body.includes(column),
+      `the browser must not read ${column} — it cannot see the hold tables`,
+    );
+  }
 });
 
-test("EvidenceReviewTab computes eligibility for the record before rendering trash button", () => {
-  assert.match(
-    REVIEW_TAB,
-    /const eligibility = getEvidenceDeletionEligibility\(evidence\);/,
-  );
+test("EvidenceReviewTab drives every lifecycle control from the projection", () => {
+  assert.match(REVIEW_TAB, /const lifecycle = getEvidenceLifecycle\(evidence\);/);
   assert.match(REVIEW_TAB, /const trashDisabled = !eligibility\.canMoveToTrash;/);
+  assert.match(REVIEW_TAB, /lifecycle\?\.canArchive/);
+  assert.match(REVIEW_TAB, /lifecycle\?\.canUnarchive/);
+  assert.match(REVIEW_TAB, /lifecycle\?\.canRestoreFromTrash/);
 });
 
 test("EvidenceReviewTab guards setTrashOpen so a disabled click cannot open the modal", () => {
-  // The handler must early-return on trashDisabled. We assert the
-  // exact guard so a refactor that removes it fails here.
   assert.match(
     REVIEW_TAB,
     /onClick=\{\(\) => \{\s*\n?\s*if \(trashDisabled\) return;\s*\n?\s*setTrashOpen\(true\);\s*\n?\s*\}\}/,
   );
 });
 
-test("EvidenceReviewTab marks the trash button disabled + aria-disabled + aria-describedby", () => {
-  // Spec: disabled button should look intentionally disabled, with
-  // accessible naming. We pin the three attributes.
+test("EvidenceReviewTab marks the disabled trash control accessibly", () => {
   assert.match(REVIEW_TAB, /disabled=\{trashDisabled\}/);
   assert.match(REVIEW_TAB, /aria-disabled=\{trashDisabled\}/);
-  assert.match(
-    REVIEW_TAB,
-    /aria-describedby=\{\s*\n?\s*trashDisabled \? "evidence-trash-helper" : undefined\s*\n?\s*\}/,
-  );
-});
-
-test("EvidenceReviewTab renders the helper note with id='evidence-trash-helper' (matches aria-describedby)", () => {
   assert.match(REVIEW_TAB, /id="evidence-trash-helper"/);
-  assert.match(REVIEW_TAB, /data-evidence-trash-helper/);
-  // Must surface eligibility.message verbatim — that's the
-  // backend-aligned reason copy.
   assert.match(REVIEW_TAB, /\{eligibility\.message\}/);
 });
 
-test("EvidenceReviewTab tags both action buttons with stable data attributes for E2E", () => {
+test("EvidenceReviewTab tags the actions and the retention block for E2E", () => {
   assert.match(REVIEW_TAB, /data-evidence-action="archive"/);
   assert.match(REVIEW_TAB, /data-evidence-action="trash"/);
-  assert.match(REVIEW_TAB, /data-evidence-trash-reason=/);
+  assert.match(REVIEW_TAB, /data-evidence-retention-posture/);
+  assert.match(REVIEW_TAB, /data-evidence-tombstone/);
 });
 
-test("EvidenceReviewTab promotes Archive to primary when trash is blocked AND archive is available", () => {
-  assert.match(
-    REVIEW_TAB,
-    /data-archive-recommended=\{\s*\n?\s*trashDisabled && !archiveDisabled \? "true" : "false"\s*\n?\s*\}/,
-  );
-  assert.match(
-    REVIEW_TAB,
-    // Archive is now the FILLED neutral action in every state — a lifecycle
-    // operation must never wear the purple primary style. The recommendation
-    // is still surfaced, on the data attribute the previous variant drove.
-    /className="app-secondary-action app-secondary-action--filled"/,
-  );
-});
-
-test("EvidenceReviewTab renders the spec-locked Archive guidance copy under disabled trash", () => {
-  assert.match(REVIEW_TAB, /ARCHIVE_AS_ALTERNATIVE_COPY/);
+test("the Archive guidance no longer frames retention as the reason", () => {
   assert.equal(
     ARCHIVE_AS_ALTERNATIVE_COPY,
-    "Archive removes the record from Active evidence while preserving it under retention.",
+    "Archive removes the record from Active evidence and keeps it fully available.",
   );
+  assert.match(REVIEW_TAB, /ARCHIVE_AS_ALTERNATIVE_COPY/);
 });
 
-// ===========================================================================
-// Source-pinned — BulkActionsToolbar uses the helper
-// ===========================================================================
-
-test("BulkActionsToolbar imports the canonical helper", () => {
-  assert.match(
-    BULK_TOOLBAR,
-    /import \{ getEvidenceDeletionEligibility \} from "\.\.\/lib\/evidence-delete-eligibility";/,
-  );
-});
-
-test("BulkActionsToolbar computes protectedSelected only for action TRASH", () => {
-  assert.match(
-    BULK_TOOLBAR,
-    /if \(action !== "TRASH"\) return \[\];/,
-  );
-  assert.match(BULK_TOOLBAR, /getEvidenceDeletionEligibility\(item\)/);
-});
-
-test("BulkActionsToolbar disables Run when ALL selected are retention-protected", () => {
+test("BulkActionsToolbar asks the projection for all four lifecycle actions", () => {
+  assert.match(BULK_TOOLBAR, /getEvidenceLifecycle\(item\)/);
+  for (const cap of [
+    "lifecycle.canArchive",
+    "lifecycle.canUnarchive",
+    "lifecycle.canTrash",
+    "lifecycle.canRestoreFromTrash",
+  ]) {
+    assert.ok(BULK_TOOLBAR.includes(cap), `bulk availability must consult ${cap}`);
+  }
   assert.match(BULK_TOOLBAR, /allSelectedProtected/);
-  // The guard list is asserted term by term rather than as one frozen
-  // expression: a LATER pass added the contract's id bound to the same
-  // condition, and a literal match would have read that addition as a
-  // regression. Each term that must still disable the control is checked.
-  const guard = BULK_TOOLBAR.slice(
-    BULK_TOOLBAR.indexOf("disabled={", BULK_TOOLBAR.indexOf("data-evidence-run-bulk") - 900),
-  ).slice(0, 240);
-  for (const term of [
-    "selectedCount === 0",
-    "(needsCase && !caseId)",
-    "allSelectedProtected",
-  ]) {
-    assert.ok(guard.includes(term), `Run Bulk Action must stay disabled on: ${term}`);
-  }
-});
-
-test("BulkActionsToolbar surfaces a helper count when some/all selections are protected", () => {
   assert.match(BULK_TOOLBAR, /data-bulk-trash-helper/);
-  // Mixed case wording — eligible move + protected skipped.
-  assert.match(BULK_TOOLBAR, /will be skipped/);
 });
 
 // ===========================================================================
-// Backend wired into Evidence Detail response
+// Wire contract
 // ===========================================================================
 
-test("Evidence Detail route imports the backend eligibility service", () => {
-  assert.match(
-    EVIDENCE_ROUTES,
-    /import \{\s*\n?\s*computeEvidenceDeleteEligibility,\s*\n?\s*DELETE_ELIGIBILITY_RESPONSE_FIELD,\s*\n?\s*\} from "\.\.\/services\/evidence\/evidence-delete-eligibility\.service\.js";/,
+test("the Evidence Detail response carries the canonical projection", () => {
+  assert.match(EVIDENCE_ROUTES, /\[EVIDENCE_LIFECYCLE_RESPONSE_FIELD\]: lifecycleProjection,/);
+  assert.match(EVIDENCE_ROUTES, /projectEvidenceLifecycle\(/);
+});
+
+test("list rows carry the same projection", () => {
+  assert.match(EVIDENCE_ROUTES, /\[EVIDENCE_LIFECYCLE_RESPONSE_FIELD\]: projectEvidenceLifecycleSync\(/);
+});
+
+test("the backend service derives the legacy shape rather than computing it", () => {
+  assert.match(BACKEND_SVC, /export function toLegacyDeleteEligibility/);
+  assert.match(BACKEND_SVC, /toEvidenceLifecycleProjection\(/);
+  // The retention reason codes stay in the union for wire compatibility and
+  // must be unreachable — no branch may produce them.
+  assert.ok(
+    !/reasonCode: "COMPLIANCE_RETENTION"/.test(BACKEND_SVC),
+    "no branch may still emit COMPLIANCE_RETENTION",
+  );
+  assert.ok(
+    !/reasonCode: "RETENTION_UNTIL"/.test(BACKEND_SVC),
+    "no branch may still emit RETENTION_UNTIL",
   );
 });
 
-test("Evidence Detail response embeds deleteEligibility under the canonical field name", () => {
-  assert.match(
-    EVIDENCE_ROUTES,
-    /\[DELETE_ELIGIBILITY_RESPONSE_FIELD\]:\s*deleteEligibility,/,
-  );
-});
-
-test("Evidence Detail route still computes deleteEligibility using the full retention surface", () => {
-  // Defensive — none of the retention sources may silently disappear
-  // when someone edits this block.
-  for (const field of [
-    "deletedAt",
-    "lockedAt",
-    "storageObjectLockMode",
-    "storageObjectLockRetainUntilUtc",
-    "storageObjectLockLegalHoldStatus",
-    "retentionUntilUtc",
-  ]) {
-    // Long property names get wrapped onto the next line in the
-    // route body; allow optional whitespace + newline between the
-    // `:` and the value.
-    assert.match(
-      EVIDENCE_ROUTES,
-      new RegExp(`${field}:\\s*\\n?\\s*evidence\\.${field}`),
-    );
-  }
-});
-
-// ===========================================================================
-// Backend reject path NOT weakened
-// ===========================================================================
-
-test("Backend trash route still calls assertEvidenceNotLocked + assertEvidenceDeletionAllowedByRetention", () => {
-  // These two are the explicit safety asserts BEFORE any policy
-  // gate. They must remain in place — verifying the spec
-  // "Backend must still reject protected delete attempts".
-  assert.match(EVIDENCE_ROUTES, /assertEvidenceNotLocked\(evidence\);\s*\n?\s*assertEvidenceDeletionAllowedByRetention\(evidence\);/);
-});
-
-test("Backend assertEvidenceDeletionAllowedByRetention still checks COMPLIANCE + retain-until>now", () => {
-  assert.match(
-    EVIDENCE_ROUTES,
-    /function assertEvidenceDeletionAllowedByRetention[\s\S]{0,400}?mode === "COMPLIANCE" && retainUntil && retainUntil > new Date\(\)/,
-  );
-});
-
-test("Backend trash route still runs the destructive-action governance gate", () => {
-  assert.match(EVIDENCE_ROUTES, /runDestructiveActionGate/);
-});
-
-test("Backend trash route still runs the retention-policy gate (workspace policy)", () => {
-  assert.match(EVIDENCE_ROUTES, /gateRetentionAction\(\{[\s\S]{0,200}?action: "DELETE",/);
-});
-
-// ===========================================================================
-// Type drift: frontend EvidenceDeleteReasonCode == backend EvidenceDeleteReasonCode
-// ===========================================================================
-
-test("frontend EvidenceDeleteReasonCode union matches backend literal set", () => {
-  const expected = [
+test("frontend and backend reason unions stay in lockstep", () => {
+  for (const literal of [
     "COMPLIANCE_RETENTION",
     "LEGAL_HOLD",
     "RETENTION_UNTIL",
     "EVIDENCE_LOCKED",
     "ALREADY_DELETED",
     "UNKNOWN",
-  ];
-  for (const literal of expected) {
-    assert.match(
-      TYPES_SRC,
-      new RegExp(`"${literal}"`),
-      `frontend union missing literal ${literal}`,
-    );
-    assert.match(
-      BACKEND_SVC,
-      new RegExp(`"${literal}"`),
-      `backend union missing literal ${literal}`,
-    );
+  ]) {
+    assert.match(TYPES_SRC, new RegExp(`"${literal}"`), `frontend union missing ${literal}`);
+    assert.match(BACKEND_SVC, new RegExp(`"${literal}"`), `backend union missing ${literal}`);
   }
 });
 
 // ===========================================================================
-// Banned-copy on the visible surface
+// Copy policy
 // ===========================================================================
 
-// Banned over-claim vocabulary. The patterns are built at runtime
-// from split fragments so the test SOURCE itself never contains the
-// exact literal tokens (which would trip the repo-wide vocabulary
-// guard). The compiled `RegExp` still matches the full token in the
-// target content under test.
 const BANNED_COPY = [
   new RegExp("tamper" + "[- ]?" + "proof", "i"),
   new RegExp("legally" + " " + "guaranteed", "i"),
@@ -365,41 +325,27 @@ const BANNED_COPY = [
   new RegExp("admis" + "sible", "i"),
 ];
 
-test("EvidenceReviewTab record-actions block contains no banned overclaim", () => {
-  // Limit to the record-actions section (after `data-evidence-section="record-actions"`).
+test("the record-actions block contains no banned overclaim", () => {
   const start = REVIEW_TAB.indexOf('data-evidence-section="record-actions"');
   assert.ok(start > 0, "record-actions section anchor not found");
-  const slice = REVIEW_TAB.slice(start, start + 4000);
-  for (const pattern of BANNED_COPY) {
-    assert.doesNotMatch(slice, pattern);
-  }
+  const slice = REVIEW_TAB.slice(start, start + 6000);
+  for (const pattern of BANNED_COPY) assert.doesNotMatch(slice, pattern);
 });
 
 test("BulkActionsToolbar contains no banned overclaim", () => {
-  for (const pattern of BANNED_COPY) {
-    assert.doesNotMatch(BULK_TOOLBAR, pattern);
-  }
+  for (const pattern of BANNED_COPY) assert.doesNotMatch(BULK_TOOLBAR, pattern);
 });
 
-test("Helper source contains no banned overclaim in any code path (excluding comments)", () => {
-  // Strip JS line + block comments so the docstring listing the
-  // banned words as a *reminder* doesn't trip the assertion.
+test("the helper contains no banned overclaim outside comments", () => {
   const stripped = HELPER_SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-  for (const pattern of BANNED_COPY) {
-    assert.doesNotMatch(stripped, pattern);
-  }
+  for (const pattern of BANNED_COPY) assert.doesNotMatch(stripped, pattern);
 });
 
-test("Helper + EvidenceReviewTab + BulkActionsToolbar contain no emoji", () => {
+test("no emoji in the lifecycle surfaces", () => {
   const emojiPattern = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/u;
-  // Narrow to the new gating block — broader scan would match
-  // unrelated copy elsewhere.
-  const reviewBlockStart = REVIEW_TAB.indexOf('data-evidence-record-actions');
-  const reviewBlockSlice = REVIEW_TAB.slice(reviewBlockStart, reviewBlockStart + 4000);
-  assert.doesNotMatch(reviewBlockSlice, emojiPattern);
+  const reviewBlockStart = REVIEW_TAB.indexOf("data-evidence-record-actions");
+  assert.doesNotMatch(REVIEW_TAB.slice(reviewBlockStart, reviewBlockStart + 4000), emojiPattern);
   assert.doesNotMatch(HELPER_SRC, emojiPattern);
-  // BulkActionsToolbar's protected-helper block.
-  const bulkBlockStart = BULK_TOOLBAR.indexOf('data-bulk-trash-helper');
-  const bulkBlockSlice = BULK_TOOLBAR.slice(bulkBlockStart, bulkBlockStart + 2000);
-  assert.doesNotMatch(bulkBlockSlice, emojiPattern);
+  const bulkBlockStart = BULK_TOOLBAR.indexOf("data-bulk-trash-helper");
+  assert.doesNotMatch(BULK_TOOLBAR.slice(bulkBlockStart, bulkBlockStart + 2000), emojiPattern);
 });

@@ -254,6 +254,8 @@ const PROOF_PREFIX: Record<string, string> = {
   [SWEEP_NAMES.INTELLIGENCE_RUN_RECONCILER]: "mirecon",
   // ARCH-005 (2026-08-07).
   [SWEEP_NAMES.AUTOMATION_DISPATCH]: "auto",
+  // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24).
+  [SWEEP_NAMES.TRASH_GRACE_RECONCILER]: "trashgrace",
 };
 
 /** The five obligations that must be shown by EXECUTION, per sweep. */

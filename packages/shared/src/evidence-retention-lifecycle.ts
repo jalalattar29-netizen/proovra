@@ -32,7 +32,14 @@
  *   Retention and S3 Object Lock block PHYSICAL DESTRUCTION — they do NOT block
  *   recoverable soft-trash. A record retained until 2034 can be trashed in 2027
  *   (TRASHED + RETAINED) and simply cannot be physically destroyed before 2034.
- *   Only a permanent record LOCK (`lockedAt`) or a terminal state blocks trash.
+ *   A permanent record LOCK (`lockedAt`), a terminal state, or an active LEGAL
+ *   HOLD blocks trash. The hold is in that list and retention is not, because
+ *   the two obligations differ: a retention deadline says "these bytes must
+ *   still exist on <date>", which a recoverable trash does not contradict,
+ *   while a legal hold says "preserve this record and SUSPEND ROUTINE
+ *   DISPOSITION on it" — and moving a record to trash is routine disposition,
+ *   since it leaves the working set and starts the grace clock the reconciler
+ *   reads to nominate it for destruction.
  *   S3 COMPLIANCE retention is a HARD lower bound on physical deletion and is
  *   never bypassed.
  */

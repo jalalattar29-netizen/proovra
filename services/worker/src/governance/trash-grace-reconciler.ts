@@ -237,7 +237,15 @@ export async function runTrashGraceReconciliation(
       // The one branch that creates governance work. Idempotent by the
       // `activeDestructionReviewId` pointer: a record that already has an open
       // review is left alone rather than accumulating one review per tick.
-      if (row.activeDestructionReviewId || dryRun || observeOnly) {
+      //
+      // GATED BY `dryRun` ONLY — deliberately NOT by the destruction flag.
+      // Opening a review destroys nothing; it is the opposite, surfacing a
+      // decision to a person. Gating it behind
+      // AUTOMATIC_EVIDENCE_DESTRUCTION_ENABLED would mean that in the shipping
+      // default the reconciler does nothing at all for exactly the records that
+      // most need an operator to look at them, which is the backlog the flag
+      // exists to have reviewed in the first place.
+      if (row.activeDestructionReviewId || dryRun) {
         disposition = "APPROVAL_PENDING";
       } else {
         const created = await ensureDestructionReview(row.id, row.teamId, now);

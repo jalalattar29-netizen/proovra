@@ -169,6 +169,22 @@ export const SWEEP_NAMES = {
   SEARCH_INDEX_RECONCILER: "SearchIndexStrandedReconciler",
   INTELLIGENCE_RUN_RECONCILER: "IntelligenceRunStrandedReconciler",
   /**
+   * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24).
+   *
+   * The producer the trash lifecycle never had. `deleteScheduledForUtc` was a
+   * deadline in a column with no scanner: the only thing that ever revisited a
+   * trashed record was the ONE delayed job enqueued at trash time, so a lost
+   * enqueue, a drained queue or a trash path that did not enqueue left the
+   * record in the trash permanently. This sweep is the recovery path that makes
+   * the deadline mean something.
+   *
+   * It is a db_outbox_sweep for the usual reason: the durable authority is the
+   * Evidence row itself (`lifecycle_state = TRASHED` plus its grace deadline),
+   * committed by the synchronous lifecycle service, and the sweep claims due
+   * rows rather than receiving a message about them.
+   */
+  TRASH_GRACE_RECONCILER: "TrashGraceReconciliationSweep",
+  /**
    * PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07).
    *
    * THE ONE AUTOMATION EXECUTION AUTHORITY.

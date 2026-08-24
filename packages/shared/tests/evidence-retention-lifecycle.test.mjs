@@ -16,6 +16,7 @@ import {
   computeEvidenceDestructionEligibility,
   computeEvidenceLifecycleCapabilities,
   evaluateDestructionCandidate,
+  toEvidenceLifecycleProjection,
 } from "../dist/index.js";
 
 const NOW = new Date("2027-01-01T00:00:00.000Z");
@@ -61,15 +62,38 @@ test("CORE: a record retained until 2034 can still be trashed in 2027", () => {
   assert.equal(caps.canDestroy, false);
 });
 
-test("a legal hold does NOT block recoverable trash, but DOES block destruction", () => {
+test("a legal hold blocks BOTH trash and destruction", () => {
+  // CORRECTED IN THE WIRING PASS. The additive foundation asserted that a hold
+  // blocked destruction only, on the same reasoning that keeps retention from
+  // blocking trash: trash deletes nothing. Wiring it to the runtime showed the
+  // two obligations are not alike.
+  //
+  // A retention deadline says "these bytes must still exist on <date>", and a
+  // recoverable trash does not contradict that. A legal hold says "preserve
+  // this record and SUSPEND ROUTINE DISPOSITION on it" — and moving a record to
+  // trash IS routine disposition: it leaves the working set and starts the
+  // grace clock the reconciler later reads to nominate it for destruction.
+  //
+  // It is also what the system already did. `canDeleteEvidence` refused a
+  // held record and Phase R1 deliberately extended that refusal to the bulk
+  // path after finding held workspace evidence could be trashed in bulk.
+  // Adopting the foundation's reading verbatim would have silently dropped a
+  // protection that was added on purpose — so the authority moved to the
+  // runtime's position rather than the runtime to the authority's.
   const caps = computeEvidenceLifecycleCapabilities({ legalHold: true }, NOW);
-  assert.equal(caps.canTrash, true);
+  assert.equal(caps.canTrash, false);
+  assert.equal(caps.trashBlockReason, "LEGAL_HOLD_ACTIVE");
+
   const trashedHeld = computeEvidenceLifecycleCapabilities(
     { trashedAt: PAST, trashGraceUntil: PAST, legalHold: true },
     NOW,
   );
   assert.equal(trashedHeld.canDestroy, false);
   assert.equal(trashedHeld.destructionBlockReason, "LEGAL_HOLD_ACTIVE");
+  // A record already in the trash when the hold lands can still be RESTORED —
+  // restoring returns it to the working set, which is preservation, not
+  // disposition.
+  assert.equal(trashedHeld.canRestoreFromTrash, true);
 });
 
 test("a PERMANENT record lock blocks trash, restore, and destroy", () => {
@@ -242,4 +266,167 @@ test("COMPLIANCE object lock is surfaced and treated as a hard boundary", () => 
   assert.equal(caps.objectLockCompliance, true);
   assert.equal(caps.canDestroy, false);
   assert.equal(caps.destructionBlockReason, "OBJECT_LOCK_RETENTION_ACTIVE");
+});
+
+// ===========================================================================
+// CONVERGENCE PASS — the state pointer becomes the authority
+// ===========================================================================
+
+test("lifecycleState is the product-state authority for TRASHED and ARCHIVED", () => {
+  // The whole point of the schema migration: the state is a state, not a
+  // timestamp. A pointer that names a product state is taken verbatim.
+  assert.equal(resolveEvidenceProductState({ lifecycleState: "TRASHED" }), "TRASHED");
+  assert.equal(resolveEvidenceProductState({ lifecycleState: "ARCHIVED" }), "ARCHIVED");
+  assert.equal(resolveEvidenceProductState({ lifecycleState: "DESTROYED" }), "DESTROYED");
+});
+
+test("a governance-internal posture falls through to the lifecycle timestamps", () => {
+  // UNDER_REVIEW / ON_HOLD / RETENTION_LOCKED / PENDING_DESTRUCTION are not
+  // product states and deliberately survive the backfill, so the product state
+  // of such a record still comes from its events.
+  for (const posture of [
+    "UNDER_REVIEW",
+    "ON_HOLD",
+    "RETENTION_LOCKED",
+    "PENDING_DESTRUCTION",
+  ]) {
+    assert.equal(
+      resolveEvidenceProductState({ lifecycleState: posture }),
+      "ACTIVE",
+      `${posture} with no events is ACTIVE`,
+    );
+    assert.equal(
+      resolveEvidenceProductState({ lifecycleState: posture, trashedAt: "2026-01-01T00:00:00Z" }),
+      "TRASHED",
+      `${posture} with a trash event is TRASHED`,
+    );
+  }
+});
+
+test("a pointer saying ACTIVE does not override a trash timestamp", () => {
+  // ACTIVE is the column DEFAULT, so it is also what a row reads as when
+  // nobody set it — a weaker claim than an explicit TRASHED. Resolving ACTIVE
+  // here would put a trashed record back on the active shelf.
+  assert.equal(
+    resolveEvidenceProductState({
+      lifecycleState: "ACTIVE",
+      trashedAt: "2026-01-01T00:00:00Z",
+    }),
+    "TRASHED",
+  );
+  assert.equal(
+    resolveEvidenceProductState({
+      lifecycleState: "ACTIVE",
+      archivedAt: "2026-01-01T00:00:00Z",
+    }),
+    "ARCHIVED",
+  );
+});
+
+test("the destruction timestamp alone is terminal", () => {
+  // Written only after verified deletion, so it is a positive record that the
+  // bytes are gone — sufficient on its own.
+  assert.equal(
+    resolveEvidenceProductState({
+      lifecycleState: "TRASHED",
+      destroyedAt: "2026-01-01T00:00:00Z",
+    }),
+    "DESTROYED",
+  );
+});
+
+// ===========================================================================
+// trashBlockReason — retention never appears in it
+// ===========================================================================
+
+const CONV_NOW = new Date("2027-06-01T00:00:00Z");
+const CONV_FAR = "2034-06-14T00:00:00Z";
+
+test("a record retained until 2034 can be trashed in 2027", () => {
+  const caps = computeEvidenceLifecycleCapabilities(
+    {
+      lifecycleState: "ACTIVE",
+      appRetentionUntil: CONV_FAR,
+      objectLockRetainUntil: CONV_FAR,
+      objectLockMode: "COMPLIANCE",
+    },
+    CONV_NOW,
+  );
+  assert.equal(caps.canTrash, true, "retention must not block a recoverable trash");
+  assert.equal(caps.trashBlockReason, null);
+  // …and still cannot be destroyed, which is where the boundary belongs.
+  assert.equal(caps.canDestroy, false);
+  assert.equal(caps.destructionBlockReason, "NOT_TRASHED");
+});
+
+test("a legal hold blocks trash; a lock blocks trash; a tombstone blocks trash", () => {
+  const held = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "ACTIVE", legalHold: true },
+    CONV_NOW,
+  );
+  assert.equal(held.canTrash, false);
+  assert.equal(held.trashBlockReason, "LEGAL_HOLD_ACTIVE");
+
+  const locked = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "ACTIVE", lockedAt: "2026-01-01T00:00:00Z" },
+    CONV_NOW,
+  );
+  assert.equal(locked.canTrash, false);
+  assert.equal(locked.trashBlockReason, "EVIDENCE_LOCKED");
+
+  const destroyed = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "DESTROYED" },
+    CONV_NOW,
+  );
+  assert.equal(destroyed.canTrash, false);
+  assert.equal(destroyed.trashBlockReason, "TERMINAL_DESTROYED");
+  assert.equal(destroyed.canArchive, false);
+  assert.equal(destroyed.canRestoreFromTrash, false);
+});
+
+test("an archived record can still be trashed", () => {
+  const caps = computeEvidenceLifecycleCapabilities(
+    { lifecycleState: "ARCHIVED", archivedAt: "2026-01-01T00:00:00Z" },
+    CONV_NOW,
+  );
+  assert.equal(caps.canTrash, true);
+  assert.equal(caps.canUnarchive, true);
+  assert.equal(caps.canArchive, false);
+});
+
+// ===========================================================================
+// The wire projection
+// ===========================================================================
+
+test("the projection carries verdicts and dates, and no raw lock mode to re-derive from", () => {
+  const p = toEvidenceLifecycleProjection(
+    {
+      lifecycleState: "TRASHED",
+      trashedAt: "2027-01-01T00:00:00Z",
+      trashGraceUntil: "2027-04-01T00:00:00Z",
+      appRetentionUntil: CONV_FAR,
+      objectLockRetainUntil: CONV_FAR,
+      objectLockMode: "COMPLIANCE",
+    },
+    CONV_NOW,
+  );
+  assert.equal(p.productState, "TRASHED");
+  assert.equal(p.canRestoreFromTrash, true);
+  assert.equal(p.objectLockCompliance, true);
+  assert.equal(p.effectiveRetentionUntilUtc, new Date(CONV_FAR).toISOString());
+  assert.equal(p.destructionBlockReason, "APP_RETENTION_ACTIVE");
+  // Every date is an ISO string, so the shape is JSON-safe as-is.
+  for (const key of [
+    "trashGraceUntilUtc",
+    "appRetentionUntilUtc",
+    "objectLockRetainUntilUtc",
+    "effectiveRetentionUntilUtc",
+    "destructionEligibleAtUtc",
+  ]) {
+    const v = p[key];
+    assert.ok(v === null || typeof v === "string", `${key} must be ISO or null`);
+  }
+  // There is no raw mode string on the wire — only the verdict — so a client
+  // has nothing to compare a date against.
+  assert.equal("objectLockMode" in p, false);
 });
