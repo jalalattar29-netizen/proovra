@@ -181,6 +181,39 @@ function infrastructureAccess(file, model, op) {
 }
 
 const TENANT_COLUMNS = ["teamId", "organizationId", "workspaceId"];
+
+/**
+ * THE CANONICAL WORKSPACE SCOPE AUTHORITY (`@proovra/shared-runtime`).
+ *
+ * A `where` built from one of these is tenant-bound — MORE strictly than a raw
+ * `teamId` column, not less. Each returns the workspace's canonical
+ * population: a strict `{ teamId }` for a shared workspace, and for a personal
+ * one that same predicate widened by an arm conjoined with that workspace's
+ * single owner. The tenant id is the helper's first argument.
+ *
+ * Without this entry, converging a read from `where: { teamId: team.id }` onto
+ * `where: { AND: [scope] }` makes the route read as UNBOUND: the predicate
+ * detector matches tenant COLUMN NAMES, and the correction removes the literal
+ * name while strengthening the actual binding. That is the instrument
+ * reporting a stricter query as a weaker one — the false finding this file's
+ * own header warns is worse than a missing one.
+ */
+const CANONICAL_SCOPE_HELPERS = [
+  "workspaceEvidenceWhere",
+  "workspaceCaseWhere",
+  "workspaceEvidenceWhereMany",
+  "evidenceScopeFor",
+  "caseScopeFor",
+  "evidenceScopeForMany",
+  "workspaceIncidentWhere",
+];
+
+/** Does this expression obtain a canonical workspace scope? */
+function mentionsCanonicalScope(text) {
+  return CANONICAL_SCOPE_HELPERS.some((helper) =>
+    new RegExp(`\\b${helper}\\s*\\(`).test(text),
+  );
+}
 const SELF_COLUMNS = ["userId", "ownerUserId", "actorUserId", "createdByUserId"];
 
 const READ_OPS = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count", "aggregate", "groupBy"]);
@@ -230,7 +263,9 @@ function predicatesOf(callNode) {
   if (text === null) text = callNode.getText();
   return {
     whereText: text,
-    tenant: TENANT_COLUMNS.some((c) => new RegExp(`\\b${c}\\b`).test(text)),
+    tenant:
+      TENANT_COLUMNS.some((c) => new RegExp(`\\b${c}\\b`).test(text)) ||
+      mentionsCanonicalScope(text),
     self: SELF_COLUMNS.some((c) => new RegExp(`\\b${c}\\b`).test(text)),
   };
 }
@@ -264,6 +299,16 @@ export function analyzeHandlerTenancy(handlerNode, handlerFile, cg, maxDepth = 8
   const infrastructureSites = new Set();
   const insertSites = [];
   const scopedRowBindings = new Map();
+  /**
+   * Variables holding a CANONICAL WORKSPACE SCOPE.
+   *
+   * Kept apart from `scopedRowBindings` because the two are referenced
+   * differently: a confirmed row is used through a field (`target.id`), which
+   * is why that map matches `<name>.`, while a scope is used BARE
+   * (`where: { AND: [scope] }`). Loosening the row rule to match a bare name
+   * would let a variable called `id` satisfy it.
+   */
+  const canonicalScopeBindings = new Set();
   const tenantVerificationFiles = new Set();
   const pendingUnscoped = [];
   const tenantAccessModels = new Set();
@@ -359,6 +404,15 @@ export function analyzeHandlerTenancy(handlerNode, handlerFile, cg, maxDepth = 8
           const p = predicatesOf(readAcc.node);
           if (p.tenant) scopedRowBindings.set(n.name.text, "tenant");
           else if (p.self) scopedRowBindings.set(n.name.text, "self");
+        }
+        // CANONICAL-SCOPE BINDING.
+        //
+        // `const scope = await workspaceEvidenceWhere(teamId)` followed by
+        // `findMany({ where: { AND: [scope] } })` is tenant-bound; the binding
+        // simply travels through a variable, exactly as a confirmed row's does
+        // above. Recorded in the SAME map so one mechanism carries both.
+        if (mentionsCanonicalScope(n.initializer.getText())) {
+          canonicalScopeBindings.add(n.name.text);
         }
       }
       // A parameter literally named for the actor in a helper that receives it
@@ -462,6 +516,14 @@ export function analyzeHandlerTenancy(handlerNode, handlerFile, cg, maxDepth = 8
       // must govern.
       tenantAccessModels.add(acc.model);
       let { tenant, self, whereText } = predicatesOf(acc.node);
+      if (!tenant && !self) {
+        for (const name of canonicalScopeBindings) {
+          if (new RegExp(`\b${name}\b`).test(whereText)) {
+            tenant = true;
+            break;
+          }
+        }
+      }
       if (!tenant && !self) {
         for (const [name, kind] of scopedRowBindings) {
           if (new RegExp(`\\b${name}\\.`).test(whereText)) {

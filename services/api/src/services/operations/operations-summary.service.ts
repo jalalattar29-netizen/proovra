@@ -44,6 +44,10 @@ import * as prismaPkg from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import {
+  projectConditionGroups,
+  type OperationsConditionGroup,
+} from "./operations-grouping.service.js";
+import {
   latestWorkspaceOperationsRun,
   mayAssertOperationsClear,
   type ClearRefusalReason,
@@ -126,6 +130,16 @@ export type OperationsSummary = {
    * consumer can tell "we looked, thoroughly, minutes ago, and found nothing"
    * from "nothing has ever looked".
    */
+  /**
+   * The grouped queue (§11).
+   *
+   * 34 Evidence records that each failed to be timestamped are 34 conditions,
+   * and they stay 34 conditions — this is a PRESENTATION projection over the
+   * same rows the counters above were computed from, never a merge. Each group
+   * reports `affectedCount` and a bounded sample; per-record drill-down and
+   * per-record lifecycle are unchanged.
+   */
+  groups: OperationsConditionGroup[];
   readiness: OperationsReadiness;
   /** Null when no run has ever been recorded. */
   reconciliation: WorkspaceOperationsRunSnapshot | null;
@@ -197,9 +211,16 @@ export async function buildOperationsSummary(
 
   let rows: Array<{
     id: string;
+    category: prismaPkg.IncidentCategory;
+    fingerprint: string;
+    title: string;
+    safeSummary: string;
     severity: prismaPkg.IncidentSeverity;
     status: prismaPkg.IncidentStatus;
     firstSeenAtUtc: Date;
+    lastSeenAtUtc: Date;
+    occurrenceCount: number;
+    relatedEvidenceId: string | null;
     assignedOperatorUserId: string | null;
   }>;
   try {
@@ -216,9 +237,21 @@ export async function buildOperationsSummary(
       },
       select: {
         id: true,
+        // WORKSPACE-SCOPE CONVERGENCE (§11) — the grouped queue projection is
+        // built from THIS scan, not a second one. Conservation with `open` is
+        // then true by construction rather than by two queries agreeing: the
+        // sum of every group's affectedCount IS the number of rows counted
+        // above, because it is the same array.
+        category: true,
+        fingerprint: true,
+        title: true,
+        safeSummary: true,
         severity: true,
         status: true,
         firstSeenAtUtc: true,
+        lastSeenAtUtc: true,
+        occurrenceCount: true,
+        relatedEvidenceId: true,
         assignedOperatorUserId: true,
       },
       // The bound is deliberately larger than any plausible real backlog, so
@@ -319,6 +352,10 @@ export async function buildOperationsSummary(
     }
   }
 
+  // Built from `bounded` — the same array every counter above was derived
+  // from — so `totalAffected(groups) === open` holds without a second read.
+  const groups = projectConditionGroups(bounded);
+
   const clearVerdict = mayAssertOperationsClear({
     run,
     incidentReadComplete: complete,
@@ -340,6 +377,7 @@ export async function buildOperationsSummary(
     slaAtRisk,
     slaOnTrack,
     slaUntracked,
+    groups,
     complete,
     // THE GATE. Every condition in one call, because the failure mode this
     // guards against is a caller that checks three of five and forgets the
@@ -381,6 +419,7 @@ export function unavailableSummary(
     slaAtRisk: 0,
     slaOnTrack: 0,
     slaUntracked: 0,
+    groups: [],
     complete: false,
     mayAssertAllClear: false,
     incompleteReason: reason,

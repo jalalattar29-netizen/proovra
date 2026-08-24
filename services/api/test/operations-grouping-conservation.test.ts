@@ -192,3 +192,33 @@ describe("§11 — the group is a projection, not a lifecycle", () => {
     expect(projectConditionGroups(rows)[0].assignedCount).toBe(2);
   });
 });
+
+// ===========================================================================
+// §11 — the projection is REACHED by production, not merely exported.
+//
+// A projection with no consumer is a feature nobody can see and a rule nobody
+// follows. The repo's reachability verifier flagged exactly that on the first
+// run of this module, which is how it came to be wired into the summary scan.
+// ===========================================================================
+
+describe("§11 — the grouped queue is served, and conserved, by the summary", () => {
+  it("the summary builds groups from the SAME scan its counters come from", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const src = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../src/services/operations/operations-summary.service.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    // `bounded` is the array every counter is derived from. Grouping from it
+    // is what makes `totalAffected(groups) === open` true by construction
+    // rather than by two reads happening to agree.
+    expect(src).toMatch(/projectConditionGroups\(bounded\)/);
+    // And there must be no second query feeding the groups.
+    expect(src).not.toMatch(/projectConditionGroups\(\s*await/);
+  });
+});

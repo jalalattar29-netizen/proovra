@@ -610,6 +610,16 @@ export async function teamsRoutes(app: FastifyInstance) {
           },
         });
 
+        // WORKSPACE-SCOPE CONVERGENCE — the canonical scope is named INLINE in
+        // the `where`, deliberately.
+        //
+        // The tenant-binding analyzer reads a query's `where` text to decide
+        // whether the access is tenant-bound. It recognises the canonical
+        // helpers by name (`CANONICAL_SCOPE_HELPERS` in
+        // `capability-authority/tenant-binding.mjs`), so the call has to be
+        // visible there. Hoisting it to a variable hides it, and this route
+        // then reads as tenant-UNBOUND — a stricter query reported as a weaker
+        // one, which is the false finding that instrument exists to avoid.
         const caseCount = await prisma.case.count({
           where: { AND: [await workspaceCaseWhere(team.id, prisma)] },
         });
