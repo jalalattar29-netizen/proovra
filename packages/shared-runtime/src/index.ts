@@ -26,6 +26,10 @@ export * from "./search-index-reconciliation.js";
 // a workspace's operational conditions, plus the readiness contract that
 // decides whether "workspace operations are clear" may be said at all.
 export * from "./workspace-operations-reconciliation.js";
+// THE org-health projection authority. It lived twice — once in the API, once
+// in the Worker — and the two computed DIFFERENT pending-report counts because
+// only one carried the pipeline-status filter. One implementation, both hosts.
+export * from "./org-health-projection.js";
 
 export * from "./signing/index.js";
 

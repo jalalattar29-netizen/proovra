@@ -34,10 +34,16 @@ import {
 import { listIncidents } from "../observability/incident.service.js";
 import { buildOperationsSummary } from "../operations/operations-summary.service.js";
 // Phase 37.98 — Projection-backed dashboard reads.
+//
+// WORKSPACE-SCOPE CONVERGENCE — from `@proovra/shared-runtime`, not from a
+// local API module. The arithmetic existed twice (here and in the Worker's
+// refresh job) and the two disagreed about which records are "pending a
+// report": only one carried the pipeline-status filter. One implementation
+// now, consumed by both hosts.
 import {
   readLatestOrgHealthProjection,
   refreshOrgHealthProjection,
-} from "./projections/refresh-org-health.service.js";
+} from "@proovra/shared-runtime";
 import {
   backfillIntegritySnapshots,
   listWorkspaceIntegritySnapshots,
