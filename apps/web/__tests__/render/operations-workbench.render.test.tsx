@@ -185,6 +185,24 @@ function summary(over: Record<string, number | boolean | string | null> = {}) {
       complete: true,
       mayAssertAllClear: true,
       incompleteReason: null,
+      // WORKSPACE-SCOPE CONVERGENCE (§8/§16) — the reconciliation facts now
+      // travel with the summary. The default is a fresh, complete READY run,
+      // because every pre-existing case in this file describes a workspace
+      // that HAS been checked; the new cases below override it to describe
+      // the states that previously rendered as "clear".
+      readiness: "READY",
+      clearRefusalReason: null,
+      reconciliation: {
+        startedAtUtc: new Date(NOW - 60_000).toISOString(),
+        completedAtUtc: new Date(NOW - 30_000).toISOString(),
+        sources: {
+          requiredSources: ["evidence_integrity.tsa_failed"],
+          successfulSources: ["evidence_integrity.tsa_failed"],
+          failedSources: [],
+          truncatedSources: [],
+        },
+        safeFailureCategory: null,
+      },
       ...over,
     },
     workspace: { operatorCount: (over.operatorCount as number) ?? 1 },
@@ -1048,5 +1066,132 @@ describe("Operations — accessibility", () => {
     const notice = q("[data-ops-refreshing]");
     if (notice) expect(notice.getAttribute("role")).toBe("status");
     await settle();
+  });
+});
+
+// ===========================================================================
+// WORKSPACE-SCOPE CONVERGENCE (§16) — the reconciliation states.
+//
+// Before discovery became a scheduled run, every one of these rendered as
+// "Workspace operations are clear". That sentence tells an operator to stop
+// looking, and each case below is a workspace where they should not.
+// ===========================================================================
+
+describe("Operations — reconciliation state is visible, and gates the all-clear", () => {
+  it("a NEVER-RUN workspace says PREPARING, never clear", async () => {
+    incidentsReply = () => list([]);
+    summaryReply = () =>
+      summary({
+        open: 0,
+        critical: 0,
+        high: 0,
+        overdue: 0,
+        readiness: "NEVER_RUN",
+        mayAssertAllClear: false,
+        clearRefusalReason: "NEVER_RUN",
+      });
+    await mount(envelope(TEAM_ADMIN));
+
+    // The exact combination that used to license the all-clear: zero
+    // conditions, a complete read, no filters — over a workspace nothing has
+    // ever examined.
+    expect(q('[data-ops-empty="clear"]')).toBeNull();
+    expect(q('[data-ops-empty="preparing"]')).not.toBeNull();
+    expect(document.body.textContent).toMatch(/Preparing workspace operations/);
+    expect(document.body.textContent).not.toMatch(
+      /Workspace operations are clear/,
+    );
+  });
+
+  it("a RUNNING reconciliation is announced while the queue stays readable", async () => {
+    summaryReply = () => summary({ readiness: "RUNNING" });
+    await mount(envelope(TEAM_ADMIN));
+    expect(q('[data-ops-reconciling="true"]')).not.toBeNull();
+    // The existing rows are still on screen — a refresh in flight is not a
+    // reason to blank the queue somebody is working.
+    expect(q("[data-ops-row]") ?? q("table")).not.toBeNull();
+  });
+
+  it("a PARTIAL run warns that the counts are a floor", async () => {
+    summaryReply = () =>
+      summary({
+        readiness: "PARTIAL",
+        mayAssertAllClear: false,
+        clearRefusalReason: "PARTIAL_SOURCES",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    expect(q('[data-ops-partial="true"]')).not.toBeNull();
+    expect(document.body.textContent).toMatch(/not necessarily all of them/i);
+  });
+
+  it("a STALLED run is reported as unfinished, not as busy", async () => {
+    summaryReply = () =>
+      summary({
+        readiness: "STALLED",
+        mayAssertAllClear: false,
+        clearRefusalReason: "STALLED",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    expect(q('[data-ops-stalled="true"]')).not.toBeNull();
+    expect(document.body.textContent).toMatch(/didn’t finish|didn't finish/i);
+  });
+
+  it("a FAILED run explains the bounded category and never a provider message", async () => {
+    summaryReply = () =>
+      summary({
+        readiness: "FAILED",
+        mayAssertAllClear: false,
+        clearRefusalReason: "FAILED",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    const panel = q("[data-ops-reconcile-failed]") as HTMLElement;
+    expect(panel).not.toBeNull();
+    // The category is a bounded server classification. A stack, a SQL fragment
+    // or a connection string reaching here would be the leak the API boundary
+    // reduces it to prevent.
+    expect(panel.textContent).not.toMatch(/select |prisma|postgres|:\/\//i);
+  });
+
+  it("a STALE run says the conditions may be out of date", async () => {
+    summaryReply = () =>
+      summary({
+        readiness: "STALE",
+        mayAssertAllClear: false,
+        clearRefusalReason: "STALE",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    expect(q('[data-ops-stale="true"]')).not.toBeNull();
+  });
+
+  it("the page NEVER says clear when the server withholds permission", async () => {
+    // The single most important assertion in this file. Enumerated over every
+    // refusing state so a future edit that reintroduces a client-side
+    // derivation fails here rather than in production.
+    for (const readiness of [
+      "NEVER_RUN",
+      "RUNNING",
+      "STALE",
+      "FAILED",
+      "STALLED",
+      "PARTIAL",
+    ] as const) {
+      cleanup();
+      incidentsReply = () => list([]);
+      summaryReply = () =>
+        summary({
+          open: 0,
+          critical: 0,
+          high: 0,
+          overdue: 0,
+          readiness,
+          mayAssertAllClear: false,
+          clearRefusalReason: readiness,
+        });
+      await mount(envelope(TEAM_ADMIN));
+      expect(
+        q('[data-ops-empty="clear"]'),
+        `rendered the all-clear under ${readiness}`,
+      ).toBeNull();
+    }
   });
 });

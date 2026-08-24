@@ -101,14 +101,35 @@ export async function recordIncident(
   // + occurrenceCount + status (if it was RESOLVED/SUPPRESSED we
   // reopen it, mirroring the documented Phase 21 invariant that a
   // fresh occurrence after resolution opens a new occurrence).
-  const existing = await client.operationalIncident.findUnique({
-    where: {
-      teamId_fingerprint: {
-        teamId: input.teamId ?? null,
-        fingerprint: input.fingerprint,
-      } as never,
-    },
-  });
+  // WORKSPACE-SCOPE CONVERGENCE — the NULL-team branch is a separate lookup,
+  // and it has to be.
+  //
+  // The compound unique `(teamId, fingerprint)` CANNOT be queried with a null
+  // teamId: Prisma rejects `Argument \`teamId\` must not be null` at runtime.
+  // The `as never` cast that used to sit here hid exactly that from the
+  // compiler, so `security-event.service.ts` — whose `input.teamId ?? null`
+  // records account-tier events — threw on every such write instead of
+  // recording one. The cast made a runtime crash look like a type
+  // accommodation.
+  //
+  // It could not have deduplicated them either. PostgreSQL treats NULLs as
+  // DISTINCT in a unique index, so `(NULL, 'fingerprint')` never collides with
+  // itself and the constraint provides no exclusion at all for these rows. The
+  // dedup for them is therefore explicitly at the application layer, which is
+  // where it was always actually happening.
+  const existing = input.teamId
+    ? await client.operationalIncident.findUnique({
+        where: {
+          teamId_fingerprint: {
+            teamId: input.teamId,
+            fingerprint: input.fingerprint,
+          },
+        },
+      })
+    : await client.operationalIncident.findFirst({
+        where: { teamId: null, fingerprint: input.fingerprint },
+        orderBy: { firstSeenAtUtc: "asc" },
+      });
 
   let row: prismaPkg.OperationalIncident;
   let created: boolean;

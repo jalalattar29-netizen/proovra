@@ -23,6 +23,7 @@ import { prisma } from "../../db.js";
 import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
+import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
@@ -511,7 +512,13 @@ export async function buildGovernanceControlPlane(input: {
   try {
     const rows = await prisma.operationalIncident.findMany({
       where: {
-        OR: [{ teamId: input.teamId }, { teamId: null }],
+        // WORKSPACE-SCOPE CONVERGENCE (§12) — was
+        // `OR: [{ teamId: input.teamId }, { teamId: null }]`. The NULL arm was
+        // written to pick up platform-wide incidents; because deleting a
+        // workspace rewrites ITS incidents' team_id to NULL via
+        // `ON DELETE SET NULL`, the same arm returned every other tenant's
+        // orphans into this workspace's read.
+        ...workspaceIncidentWhere(input.teamId),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
         category: { in: ["GOVERNANCE", "PACKAGE", "REPORT"] },
       },

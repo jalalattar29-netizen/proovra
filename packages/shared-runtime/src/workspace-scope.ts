@@ -218,22 +218,27 @@ export async function workspaceEvidenceWhereMany(
 }
 
 /**
- * Scope for a model that has no workspace column worth trusting but hangs off
- * Evidence — reviewer comments, annotations, review workflows, parts.
+ * SCOPING A DEPENDENT MODEL.
  *
- * The related Evidence row is the ownership authority for those. Expressing it
- * as a relation filter means the dependent model never needs a workspace
- * predicate, and therefore can never disagree with the Evidence population it
- * is supposed to describe. `EvidenceReviewWorkflow` in particular has its OWN
- * nullable `team_id` that its writer sets to NULL whenever the caller omits
+ * A row on a model that hangs off Evidence — a reviewer comment, an
+ * annotation, a review workflow, a part — belongs to the workspace its
+ * Evidence belongs to. Scope those by spelling the relation inline:
+ *
+ *     where: { evidence: <scope>, ... }
+ *
+ * There is deliberately NO wrapper helper for this. Two earlier ones
+ * (`evidenceRelationScopeFor`, `workspaceEvidenceRelationWhere`) were exported
+ * and never called, because the inline form is shorter than importing them —
+ * and an exported rule nobody invokes is exactly the state `workspaceCaseWhere`
+ * was in when Case reads drifted away from Evidence reads. The architecture
+ * verifier recognises the inline form as RELATION_SCOPED, so the rule is
+ * enforced without a function to forget.
+ *
+ * `EvidenceReviewWorkflow` is the case that matters most: it has its OWN
+ * nullable `team_id` which its writer sets to NULL whenever the caller omits
  * one, so scoping it by that column reproduces the original defect on a second
- * table; scoping it through `evidence` cannot.
+ * table. Scoping it through `evidence` cannot.
  */
-export function evidenceRelationScopeFor(input: WorkspaceScopeInput): {
-  evidence: WorkspaceEvidenceScope;
-} {
-  return { evidence: evidenceScopeFor(input) };
-}
 
 // ---------------------------------------------------------------------------
 // LEGACY_TRANSITIONAL entry points.
@@ -307,10 +312,3 @@ export async function workspaceCaseWhere(
   return caseScopeFor(await scopeInputForTeamId(teamId, client));
 }
 
-/** Relation filter for Evidence-dependent models, from a bare workspace id. */
-export async function workspaceEvidenceRelationWhere(
-  teamId: string,
-  client: PrismaClient = getRegisteredPrisma(),
-): Promise<{ evidence: WorkspaceEvidenceScope }> {
-  return { evidence: await workspaceEvidenceWhere(teamId, client) };
-}

@@ -41,6 +41,7 @@ import {
 } from "../config/index.js";
 import { prisma } from "../db.js";
 import { buildOperationsSummary } from "../services/operations/operations-summary.service.js";
+import { ensureWorkspaceOperationsFresh } from "../services/operations/operations-reconciliation.service.js";
 import {
   isAssignableOperator,
   listAssignableOperators,
@@ -857,6 +858,22 @@ export async function opsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const actor = await requireOpsActor(req, reply, q.teamId);
       if (!actor) return;
+
+      // WORKSPACE-SCOPE CONVERGENCE (§7.3) — ENSURE, then read.
+      //
+      // If this workspace has never been scanned, or its last scan has gone
+      // stale, this schedules a fresh one and returns immediately. It does NOT
+      // run discovery inline and wait: a GET that performs an unbounded
+      // multi-source scan before answering is the shape this phase removes,
+      // and it is why a workspace nobody opened was never scanned at all.
+      //
+      // Bounded and idempotent by the durable per-workspace lock, so a hundred
+      // simultaneous page loads produce ONE run. Failures are recorded on the
+      // run row and surface through `readiness`; they never block the read.
+      await ensureWorkspaceOperationsFresh({ workspaceId: q.teamId }).catch(
+        () => null,
+      );
+
       const summary = await buildOperationsSummary({
         workspaceId: q.teamId,
         viewerUserId: actor.userId,
