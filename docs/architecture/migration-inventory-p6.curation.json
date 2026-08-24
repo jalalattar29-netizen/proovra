@@ -2841,6 +2841,13 @@
       "safeBeforeCodeDeployment": true,
       "requiresBackfill": false,
       "evidence": "PHASE B §8 — bulk incident assignment. A single ALTER TYPE ... ADD VALUE IF NOT EXISTS on the existing BulkOperationalActionType enum. No table is created, no column changes type, no constraint is added and no row is rewritten; destructiveStatements is empty. Safe BEFORE the code deployment because an enum value nothing yet writes is inert: the old application never emits BULK_ASSIGN_INCIDENTS, so applying this ahead of the rollout changes no behaviour, while the reverse order would make the new route fail on an enum the database does not know. Deliberately NO BACKFILL and no reclassification of historical runs — a past sweep that assigned workflows assigned workflows, and relabelling it would rewrite the record of what an operator actually did. The new value carries no new authority: it maps to operations.assign, the same permission a single row's assignment requires, and fans out to the same assignIncident service."
+    },
+    "20271219000000_incident_sla_history": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "evidence": "PHASE B CLOSURE — the historical incident SLA authority. Creates two new tables (workspace_sla_policy_versions, operational_incident_sla_cycles), their indexes and their foreign keys. No existing table gains, loses or changes a column; no existing row is read, rewritten or deleted; destructiveStatements is empty. Safe BEFORE the code deployment because empty tables nothing yet writes are inert, while the reverse order would make the new projection query relations the database does not have. It performs NO BACKFILL, and that is the point rather than an omission: every incident existing at apply time has no cycle row and is reported as UNTRACKED_LEGACY. Backfilling would have to pick a policy that was not in force and stamp it as though it had been — inventing a deadline and then inventing whether it was missed, which on a workspace with an old backlog manufactures a wave of breaches out of a schema change. The policy-version foreign key is ON DELETE RESTRICT deliberately: a version referenced by a cycle is the evidence of what was promised."
     }
   }
 }

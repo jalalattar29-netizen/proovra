@@ -1,22 +1,23 @@
 /**
- * THE INCIDENT SLA AUTHORITY — its arithmetic and its refusals.
+ * THE INCIDENT SLA PROJECTION — its arithmetic, its latches and its refusals.
  *
- * The posture resolver is a PURE function over (incident, policy, now), which
- * is the whole reason it is written that way: every case below fixes the
- * instants explicitly, so nothing here passes or fails because of what the
- * clock happened to say during the run.
+ * The projection is a PURE function over (incident status, persisted cycle,
+ * now), which is the whole reason it is written that way: every case below
+ * fixes the instants explicitly, so nothing here passes or fails because of
+ * what the clock happened to say during a run.
  *
- * What these cases are actually defending:
+ * What these cases defend:
  *
- *   - the arithmetic, at both edges of every window, since an off-by-one on a
+ *   - the arithmetic at BOTH edges of every window, since an off-by-one on a
  *     boundary is invisible in a screenshot and wrong for exactly the rows an
  *     operator is about to be judged on;
- *   - the REFUSALS, which are the part a later pass is most likely to "fix"
- *     into something friendlier and untrue — a suppressed condition that
- *     reports a breach, a MET claimed from a status with no timestamp, or a
- *     posture computed from defaults a workspace never agreed to;
- *   - the SINGLE-AUTHORITY property: the hours come from the canonical
- *     reviewer-ops resolver, and nothing here restates them.
+ *   - the LATCH, which is the closure's central claim: a missed promise stays
+ *     missed through acknowledgement, suppression and severity changes;
+ *   - the REFUSALS, which are what a later pass is most likely to "fix" into
+ *     something friendlier and untrue — a legacy condition measured against
+ *     today's policy, or a corrupt cycle reported as a breach;
+ *   - that the projection reads PERSISTED history and never the live policy,
+ *     which is the defect this closure exists to remove.
  */
 
 import { readFileSync } from "node:fs";
@@ -28,207 +29,263 @@ import {
   SLA_ATTENTION_POSTURES,
   SLA_POSTURES,
   projectIncidentSla,
-  type IncidentSlaPolicy,
   type SlaPosture,
 } from "../src/services/operations/incident-sla.js";
 
 const HOUR = 3_600_000;
-
-/** A deliberately un-round policy, so a hard-coded 24 cannot pass by luck. */
-const POLICY: IncidentSlaPolicy = {
-  responseHours: 5,
-  resolutionHours: 30,
-  dueSoonHours: 2,
-};
-
 const OPENED = new Date("2026-08-20T00:00:00.000Z");
+
+/** Deliberately un-round, so a hard-coded 24 cannot pass by luck. */
+const ACK_HOURS = 5;
+const RES_HOURS = 30;
+const DUE_SOON_HOURS = 2;
 
 function at(hoursAfterOpen: number): Date {
   return new Date(OPENED.getTime() + hoursAfterOpen * HOUR);
 }
 
-function posture(input: {
-  status?: string;
-  acknowledgedAfter?: number | null;
-  resolvedAfter?: number | null;
-  nowAfter: number;
-}): SlaPosture {
-  return projectIncidentSla(
-    {
-      status: input.status ?? "OPEN",
-      firstSeenAtUtc: OPENED,
-      acknowledgedAtUtc:
-        input.acknowledgedAfter == null ? null : at(input.acknowledgedAfter),
-      resolvedAtUtc: input.resolvedAfter == null ? null : at(input.resolvedAfter),
-    },
-    POLICY,
-    at(input.nowAfter),
-  ).posture;
+/** A persisted cycle, exactly as the cycle service writes one. */
+function cycle(over: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "cycle-1",
+    teamId: "team-1",
+    incidentId: "incident-1",
+    cycleNumber: 1,
+    policyVersionId: "version-1",
+    policyDigest: "d".repeat(64),
+    severityAtStart: "HIGH",
+    startedAtUtc: OPENED,
+    acknowledgementTargetHours: ACK_HOURS,
+    resolutionTargetHours: RES_HOURS,
+    dueSoonHours: DUE_SOON_HOURS,
+    acknowledgementDueAtUtc: at(ACK_HOURS),
+    resolutionDueAtUtc: at(RES_HOURS),
+    acknowledgedAtUtc: null,
+    resolvedAtUtc: null,
+    acknowledgementBreached: false,
+    resolutionBreached: false,
+    endedAtUtc: null,
+    endReason: null,
+    version: 1,
+    createdAt: OPENED,
+    updatedAt: OPENED,
+    ...over,
+  } as never;
 }
 
-describe("incident SLA — the response window", () => {
+const postureAt = (
+  hoursAfterOpen: number,
+  over: Partial<Record<string, unknown>> = {},
+  status = "OPEN",
+): SlaPosture => projectIncidentSla(status, cycle(over), at(hoursAfterOpen)).posture;
+
+// ===========================================================================
+// 1. THE ACKNOWLEDGEMENT WINDOW
+// ===========================================================================
+
+describe("the acknowledgement window", () => {
   it("is ON_TRACK well inside the window", () => {
-    expect(posture({ nowAfter: 1 })).toBe("ON_TRACK");
+    expect(postureAt(1)).toBe("ON_TRACK");
   });
 
-  it("becomes DUE_SOON exactly when the warning lead time is reached", () => {
-    // Window 5h, lead time 2h -> the warning begins at 3h, not at 3h+epsilon.
-    expect(posture({ nowAfter: 2.99 })).toBe("ON_TRACK");
-    expect(posture({ nowAfter: 3 })).toBe("DUE_SOON");
+  it("becomes AT_RISK exactly when the warning lead time is reached", () => {
+    // Window 5h, lead 2h -> the warning begins at 3h, not at 3h + epsilon.
+    expect(postureAt(2.99)).toBe("ON_TRACK");
+    expect(postureAt(3)).toBe("AT_RISK");
   });
 
-  it("is still DUE_SOON at the deadline itself, and BREACHED only after it", () => {
+  it("is still AT_RISK at the deadline itself, and BREACHED only after it", () => {
     // A condition AT its deadline has not yet missed it. Reporting a breach
     // one instant early is a false accusation, and it is the boundary a
     // reader would never notice was wrong.
-    expect(posture({ nowAfter: 5 })).toBe("DUE_SOON");
-    expect(posture({ nowAfter: 5.01 })).toBe("BREACHED");
+    expect(postureAt(5)).toBe("AT_RISK");
+    expect(postureAt(5.01)).toBe("BREACHED");
   });
 
-  it("measures RESPONSE while unacknowledged, whatever the resolution window says", () => {
-    const projected = projectIncidentSla(
-      { status: "OPEN", firstSeenAtUtc: OPENED, acknowledgedAtUtc: null, resolvedAtUtc: null },
-      POLICY,
-      at(6),
-    );
-    expect(projected.obligation).toBe("RESPONSE");
-    expect(projected.targetHours).toBe(POLICY.responseHours);
+  it("measures ACKNOWLEDGEMENT while unacknowledged, whatever the resolution window says", () => {
+    const p = projectIncidentSla("OPEN", cycle(), at(6));
+    expect(p.obligation).toBe("ACKNOWLEDGEMENT");
+    expect(p.targetHours).toBe(ACK_HOURS);
     // Breached against 5h even though 30h have not elapsed.
-    expect(projected.posture).toBe("BREACHED");
+    expect(p.posture).toBe("BREACHED");
   });
 });
 
-describe("incident SLA — the handover to resolution", () => {
-  it("acknowledgement moves the live obligation to RESOLUTION", () => {
-    const projected = projectIncidentSla(
-      {
-        status: "ACKNOWLEDGED",
-        firstSeenAtUtc: OPENED,
-        acknowledgedAtUtc: at(2),
-        resolvedAtUtc: null,
-      },
-      POLICY,
+// ===========================================================================
+// 2. THE HANDOVER TO RESOLUTION
+// ===========================================================================
+
+describe("the handover to resolution", () => {
+  it("acknowledgement moves the live obligation and reports ACKNOWLEDGED", () => {
+    const p = projectIncidentSla(
+      "ACKNOWLEDGED",
+      cycle({ acknowledgedAtUtc: at(2) }),
       at(6),
     );
-    expect(projected.obligation).toBe("RESOLUTION");
-    expect(projected.targetHours).toBe(POLICY.resolutionHours);
-    // Past the 5h response window, but comfortably inside the 30h one.
-    expect(projected.posture).toBe("ON_TRACK");
+    expect(p.obligation).toBe("RESOLUTION");
+    expect(p.targetHours).toBe(RES_HOURS);
+    // Past the 5h acknowledgement window, comfortably inside the 30h one.
+    expect(p.posture).toBe("ACKNOWLEDGED");
   });
 
   it("does NOT restart the clock at acknowledgement", () => {
-    // Acknowledged at hour 20, resolved at hour 35. Measured from FIRST SEEN
-    // that is late; measured from acknowledgement it would be 15h and look
-    // fine. Late acknowledgement must not buy a fresh window.
-    const projected = projectIncidentSla(
-      {
-        status: "RESOLVED",
-        firstSeenAtUtc: OPENED,
-        acknowledgedAtUtc: at(20),
-        resolvedAtUtc: at(35),
-      },
-      POLICY,
-      at(40),
+    // Acknowledged at hour 20 with a 30h resolution window: the deadline is
+    // still hour 30 from FIRST OBSERVATION, not hour 50. Acknowledging late
+    // must not buy a fresh window.
+    const p = projectIncidentSla(
+      "ACKNOWLEDGED",
+      cycle({ acknowledgedAtUtc: at(20) }),
+      at(21),
     );
-    expect(projected.posture).toBe("MET_LATE");
-    expect(projected.dueAtUtc).toBe(at(POLICY.resolutionHours).toISOString());
+    expect(p.dueAtUtc).toBe(at(RES_HOURS).toISOString());
   });
 
   it("an acknowledged condition can still breach the resolution window", () => {
-    expect(posture({ acknowledgedAfter: 1, nowAfter: 31 })).toBe("BREACHED");
+    expect(postureAt(31, { acknowledgedAtUtc: at(1) }, "ACKNOWLEDGED")).toBe(
+      "BREACHED",
+    );
   });
 });
 
-describe("incident SLA — discharged obligations", () => {
-  it("reports MET when resolved inside the window", () => {
-    expect(posture({ resolvedAfter: 29, nowAfter: 100 })).toBe("MET");
+// ===========================================================================
+// 3. THE LATCH — the closure's central claim
+// ===========================================================================
+
+describe("a missed promise stays missed", () => {
+  it("acknowledging late does not clear the breach", () => {
+    // The single most tempting bug in this module: reporting ACKNOWLEDGED for
+    // a condition somebody picked up after the deadline would let every
+    // missed promise be cleared by clicking one button.
+    expect(
+      postureAt(
+        6,
+        { acknowledgedAtUtc: at(6), acknowledgementBreached: true },
+        "ACKNOWLEDGED",
+      ),
+    ).toBe("BREACHED");
   });
 
-  it("reports MET at the deadline exactly, not MET_LATE", () => {
-    expect(posture({ resolvedAfter: 30, nowAfter: 100 })).toBe("MET");
-    expect(posture({ resolvedAfter: 30.01, nowAfter: 100 })).toBe("MET_LATE");
+  it("a latched breach survives even when the live deadline has not passed", () => {
+    // Acknowledged late (ack breach latched), now inside the resolution
+    // window. The live obligation is fine; the cycle is not.
+    expect(
+      postureAt(
+        7,
+        { acknowledgedAtUtc: at(6), acknowledgementBreached: true },
+        "ACKNOWLEDGED",
+      ),
+    ).toBe("BREACHED");
   });
 
-  it("does not round a late resolution up to MET", () => {
-    // The distinction exists so a workspace reviewing its own performance
-    // can see that something WAS handled AND that it was handled late.
-    // Collapsing the two would make the record flatter than the truth.
-    expect(posture({ resolvedAfter: 200, nowAfter: 300 })).toBe("MET_LATE");
-  });
-
-  it("a resolved condition answers about RESOLUTION even if never acknowledged", () => {
-    const projected = projectIncidentSla(
-      {
-        status: "RESOLVED",
-        firstSeenAtUtc: OPENED,
-        acknowledgedAtUtc: null,
-        resolvedAtUtc: at(4),
-      },
-      POLICY,
-      at(50),
+  it("the latched facts travel with the projection so the record survives", () => {
+    const p = projectIncidentSla(
+      "SUPPRESSED",
+      cycle({ acknowledgementBreached: true, endReason: "SUPPRESSED" }),
+      at(100),
     );
-    // Resolving is a stronger discharge of the same duty; reporting a
-    // response breach on something already fixed is true but useless.
-    expect(projected.obligation).toBe("RESOLUTION");
-    expect(projected.posture).toBe("MET");
-  });
-
-  it("a posture is never MET without a recorded instant", () => {
-    // A status of RESOLVED with no `resolvedAtUtc` is a record that cannot
-    // support the claim. It must fall through to the open-obligation branch
-    // rather than assert a success it has no evidence for.
-    const projected = projectIncidentSla(
-      {
-        status: "RESOLVED",
-        firstSeenAtUtc: OPENED,
-        acknowledgedAtUtc: null,
-        resolvedAtUtc: null,
-      },
-      POLICY,
-      at(50),
-    );
-    expect(projected.posture).not.toBe("MET");
-    expect(projected.posture).not.toBe("MET_LATE");
+    // Posture is NOT_APPLICABLE — the workspace asked not to be told — but
+    // the fact that a promise was missed is still carried.
+    expect(p.posture).toBe("NOT_APPLICABLE");
+    expect(p.acknowledgementBreached).toBe(true);
   });
 });
 
-describe("incident SLA — what it refuses to measure", () => {
-  it("a suppressed condition has NO posture and NO deadline", () => {
-    const projected = projectIncidentSla(
-      {
-        status: "SUPPRESSED",
-        firstSeenAtUtc: OPENED,
-        acknowledgedAtUtc: null,
-        resolvedAtUtc: null,
-      },
-      POLICY,
+// ===========================================================================
+// 4. TERMINAL STATES
+// ===========================================================================
+
+describe("terminal states", () => {
+  it("a resolved cycle reports RESOLVED", () => {
+    expect(
+      postureAt(29, { resolvedAtUtc: at(29), endReason: "RESOLVED" }, "RESOLVED"),
+    ).toBe("RESOLVED");
+  });
+
+  it("a LATE resolution still reports RESOLVED, with the breach recorded", () => {
+    const p = projectIncidentSla(
+      "RESOLVED",
+      cycle({
+        resolvedAtUtc: at(200),
+        endReason: "RESOLVED",
+        resolutionBreached: true,
+      }),
+      at(300),
+    );
+    // The condition IS resolved; whether it was resolved in time is a
+    // different question, and both answers are available.
+    expect(p.posture).toBe("RESOLVED");
+    expect(p.resolutionBreached).toBe(true);
+  });
+
+  it("suppression reports NOT_APPLICABLE and no deadline", () => {
+    const p = projectIncidentSla("SUPPRESSED", cycle(), at(10_000));
+    expect(p.posture).toBe("NOT_APPLICABLE");
+    expect(p.dueAtUtc).toBeNull();
+    expect(p.targetHours).toBeNull();
+  });
+
+  it("suppression wins over an unmet live deadline", () => {
+    expect(postureAt(10_000, {}, "SUPPRESSED")).toBe("NOT_APPLICABLE");
+  });
+});
+
+// ===========================================================================
+// 5. THE REFUSALS
+// ===========================================================================
+
+describe("what it refuses to measure", () => {
+  it("NO CYCLE is UNTRACKED_LEGACY, not measured against anything", () => {
+    const p = projectIncidentSla("OPEN", null, at(10_000));
+    expect(p.posture).toBe("UNTRACKED_LEGACY");
+    expect(p.dueAtUtc).toBeNull();
+    expect(p.targetHours).toBeNull();
+    expect(p.policyVersionId).toBeNull();
+  });
+
+  it("a cycle with NO TARGETS is NOT_APPLICABLE — the workspace had no policy", () => {
+    const p = projectIncidentSla(
+      "OPEN",
+      cycle({
+        policyVersionId: null,
+        policyDigest: null,
+        acknowledgementTargetHours: null,
+        resolutionTargetHours: null,
+        acknowledgementDueAtUtc: null,
+        resolutionDueAtUtc: null,
+      }),
       at(10_000),
     );
-    // Suppression is the workspace saying "stop telling me". Reporting a
-    // breach against it would make the workspace's own decision look broken.
-    expect(projected.posture).toBe("NOT_APPLICABLE");
-    expect(projected.dueAtUtc).toBeNull();
-    expect(projected.targetHours).toBeNull();
+    expect(p.posture).toBe("NOT_APPLICABLE");
   });
 
-  it("suppression wins even over a resolved instant", () => {
-    expect(
-      posture({ status: "SUPPRESSED", resolvedAfter: 1, nowAfter: 2 }),
-    ).toBe("NOT_APPLICABLE");
+  it("a CORRUPT cycle is not reported as a breach", () => {
+    // A non-positive window is not a strict promise, it is a broken row.
+    // Measuring against it would report a breach the instant the condition
+    // opened, which is worse than saying nothing.
+    for (const bad of [-1, 0]) {
+      expect(
+        postureAt(1, {
+          acknowledgementTargetHours: bad,
+          resolutionTargetHours: bad,
+        }),
+      ).toBe("NOT_APPLICABLE");
+    }
   });
 
-  it("the deadline is stated so the reader can check the verdict", () => {
-    const projected = projectIncidentSla(
-      { status: "OPEN", firstSeenAtUtc: OPENED, acknowledgedAtUtc: null, resolvedAtUtc: null },
-      POLICY,
-      at(1),
-    );
-    expect(projected.dueAtUtc).toBe(at(POLICY.responseHours).toISOString());
-    expect(projected.targetHours).toBe(POLICY.responseHours);
+  it("neither refusal is ever counted as needing attention", () => {
+    expect(SLA_ATTENTION_POSTURES.has("UNTRACKED_LEGACY")).toBe(false);
+    expect(SLA_ATTENTION_POSTURES.has("NOT_APPLICABLE")).toBe(false);
+    // RESOLVED is an outcome, not work: highlighting it would put finished
+    // conditions back in front of the operator.
+    expect(SLA_ATTENTION_POSTURES.has("RESOLVED")).toBe(false);
   });
 });
 
-describe("incident SLA — one authority", () => {
+// ===========================================================================
+// 6. ONE AUTHORITY
+// ===========================================================================
+
+describe("one authority", () => {
   const SRC = readFileSync(
     fileURLToPath(
       new URL("../src/services/operations/incident-sla.ts", import.meta.url),
@@ -236,54 +293,66 @@ describe("incident SLA — one authority", () => {
     "utf8",
   );
 
-  it("takes its hours from the canonical resolver and defines none of its own", () => {
-    expect(SRC).toContain("resolveEffectiveSlaPolicy");
-    // No literal hour count anywhere: a default typed here would be a second
-    // SLA authority that quietly outranked the workspace's own policy.
+  it("the projection reads PERSISTED history and never the live policy", () => {
+    // This is the closure. A projection that resolved the policy at read time
+    // would be correct until somebody edited it, and then silently wrong
+    // about every condition that already existed.
+    for (const forbidden of [
+      "resolveEffectiveSlaPolicy",
+      "workspaceGovernancePolicy",
+      "REVIEWER_OPS_DEFAULT_SLA_POLICY",
+    ]) {
+      expect(
+        SRC,
+        `the projection must not read the live policy (${forbidden})`,
+      ).not.toContain(forbidden);
+    }
+  });
+
+  it("carries no hour literals of its own", () => {
     for (const literal of ["= 24", "= 48", "= 72", "= 4;", "DEFAULT_HOURS"]) {
       expect(
         SRC,
-        `the incident SLA must not carry its own hours (${literal})`,
+        `the projection must not carry its own hours (${literal})`,
       ).not.toContain(literal);
     }
   });
 
-  it("yields no posture at all when the workspace policy cannot be resolved", () => {
-    // The loader's declared return admits null and its failure path takes
-    // it, so an unreadable policy produces NO envelope. Asserted on the
-    // signature and the catch rather than on prose, which reflows.
-    expect(SRC).toContain("Promise<IncidentSlaPolicy | null>");
-    expect(SRC).toMatch(/catch\s*\{[\s\S]{0,400}?return null;/);
-    // And the route omits the envelope rather than substituting one.
-    const ROUTE = readFileSync(
-      fileURLToPath(new URL("../src/routes/ops.routes.ts", import.meta.url)),
+  it("the age heuristic no longer exists as a competing authority", () => {
+    const SUMMARY = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../src/services/operations/operations-summary.service.ts",
+          import.meta.url,
+        ),
+      ),
       "utf8",
     );
-    expect(ROUTE).toContain("if (!policy) return projected;");
-  });
-
-  it("the attention set is a subset of the declared postures", () => {
-    for (const p of SLA_ATTENTION_POSTURES) {
-      expect(SLA_POSTURES).toContain(p);
-    }
-    // MET/MET_LATE are outcomes, not work: a queue that highlighted them
-    // would put finished conditions back in front of the operator.
-    expect(SLA_ATTENTION_POSTURES.has("MET")).toBe(false);
-    expect(SLA_ATTENTION_POSTURES.has("MET_LATE")).toBe(false);
-    expect(SLA_ATTENTION_POSTURES.has("NOT_APPLICABLE")).toBe(false);
+    // A fixed age threshold beside a real SLA is two answers to "is this
+    // late?" on one screen, and the operator cannot tell which to act on.
+    const code = SUMMARY.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+      /^\s*\/\/.*$/gm,
+      "",
+    );
+    expect(code).not.toContain("UNATTENDED_OVERDUE_HOURS");
+    expect(code).not.toContain("overdueBefore");
+    // And the counters it publishes come from the shared projection.
+    expect(SUMMARY).toContain("projectIncidentSla");
+    expect(SUMMARY).toContain("slaBreached");
   });
 
   it("every declared posture is reachable from some real input", () => {
     const reached = new Set<SlaPosture>([
-      posture({ nowAfter: 1 }),
-      posture({ nowAfter: 3 }),
-      posture({ nowAfter: 6 }),
-      posture({ resolvedAfter: 1, nowAfter: 2 }),
-      posture({ resolvedAfter: 200, nowAfter: 300 }),
-      posture({ status: "SUPPRESSED", nowAfter: 1 }),
+      projectIncidentSla("OPEN", null, at(1)).posture,
+      postureAt(1),
+      postureAt(3),
+      postureAt(6),
+      postureAt(1, { acknowledgedAtUtc: at(1) }, "ACKNOWLEDGED"),
+      postureAt(29, { resolvedAtUtc: at(29), endReason: "RESOLVED" }, "RESOLVED"),
+      postureAt(1, {}, "SUPPRESSED"),
     ]);
-    // A posture nothing can produce is a value the UI must still handle and
-    // no operator will ever see — dead vocabulary that outlives its reason.
+    // A posture nothing can produce is dead vocabulary the UI must still
+    // handle and no operator will ever see.
     for (const p of SLA_POSTURES) {
       expect(reached, `no input produces ${p}`).toContain(p);
     }

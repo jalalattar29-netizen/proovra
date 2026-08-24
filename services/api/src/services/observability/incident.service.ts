@@ -108,6 +108,7 @@ export async function recordIncident(
 
   let row: prismaPkg.OperationalIncident;
   let created: boolean;
+  let existingStatusBeforeWrite: prismaPkg.IncidentStatus | null = null;
   if (!existing) {
     row = await client.operationalIncident.create({
       data: {
@@ -158,6 +159,9 @@ export async function recordIncident(
         ? { resolvedAtUtc: null, resolvedByUserId: null, resolutionNote: null }
         : {}),
     };
+    // Captured BEFORE the write: the update sets status to OPEN, so after it
+    // there is no way to tell a reopen from an increment.
+    existingStatusBeforeWrite = existing.status;
     row = await client.operationalIncident.update({
       where: { id: existing.id },
       data,
@@ -178,6 +182,51 @@ export async function recordIncident(
     });
   } catch {
     /* best-effort */
+  }
+
+  /**
+   * THE SLA PROMISE.
+   *
+   * Opened when a condition QUALIFIES: on first observation, and again when a
+   * resolved or suppressed condition recurs. A re-fire of a condition that is
+   * still open does NOT restart it — the cycle service refuses that, because
+   * a promise about one occurrence cannot be reset by the same occurrence
+   * happening again.
+   *
+   * Deliberately outside the event try/catch above and deliberately awaited:
+   * a condition recorded WITHOUT its promise would read as UNTRACKED_LEGACY
+   * forever, which is a permanent hole in the record rather than a transient
+   * failure. Its own errors are swallowed for the same reason the event write
+   * swallows its own — an SLA bookkeeping fault must not lose the observation
+   * of the condition itself.
+   */
+  const reopened =
+    !created &&
+    (existingStatusBeforeWrite === prismaPkg.IncidentStatus.RESOLVED ||
+      existingStatusBeforeWrite === prismaPkg.IncidentStatus.SUPPRESSED);
+  // A workspace-less condition gets no cycle: an SLA promise is a promise BY
+  // a workspace, and one with no tenant has nobody to have made it.
+  const cycleTeamId = row.teamId ?? input.teamId ?? null;
+  if ((created || reopened) && cycleTeamId) {
+    try {
+      const { openSlaCycle } = await import(
+        "../operations/incident-sla-cycle.service.js"
+      );
+      await openSlaCycle(
+        {
+          teamId: cycleTeamId,
+          incidentId: row.id,
+          severity: row.severity,
+          // Measured from the instant the occurrence was OBSERVED, not from
+          // now: the two differ under retry and backlog, and the observation
+          // is the one the workspace made a promise about.
+          startedAtUtc: reopened ? row.lastSeenAtUtc : row.firstSeenAtUtc,
+        },
+        client,
+      );
+    } catch {
+      /* best-effort; never loses the condition itself */
+    }
   }
 
   // Update gauges.
@@ -387,6 +436,35 @@ async function transitionIncident(
   } catch {
     /* best-effort */
   }
+
+  /**
+   * THE SLA CYCLE FOLLOWS THE LIFECYCLE.
+   *
+   * Each transition latches whatever deadlines have already passed BEFORE it
+   * records the transition, so a breach is written at the moment it is
+   * observed rather than inferred later from a clock that has moved on.
+   *
+   * Acknowledgement stops only the acknowledgement clock. Resolution closes
+   * the cycle. Suppression closes it too, but keeps the latched breach flags —
+   * silencing a condition is an instruction about notification, not a way to
+   * un-miss a deadline.
+   */
+  try {
+    const cycles = await import("../operations/incident-sla-cycle.service.js");
+    if (next === prismaPkg.IncidentStatus.ACKNOWLEDGED) {
+      await cycles.recordSlaAcknowledgement({ incidentId: updated.id }, client);
+    } else if (next === prismaPkg.IncidentStatus.RESOLVED) {
+      await cycles.closeSlaCycle(
+        { incidentId: updated.id, reason: "RESOLVED" },
+        client,
+      );
+    } else if (next === prismaPkg.IncidentStatus.SUPPRESSED) {
+      await cycles.suppressSlaCycle({ incidentId: updated.id }, client);
+    }
+  } catch {
+    /* best-effort; never blocks an authorized transition */
+  }
+
   if (next === prismaPkg.IncidentStatus.ACKNOWLEDGED)
     bump("operational_incident_acknowledged");
   if (next === prismaPkg.IncidentStatus.RESOLVED)
@@ -446,6 +524,10 @@ export type IncidentOwnerFilter =
   | { kind: "USER"; userId: string };
 
 export type ListIncidentsInput = {
+  /** One posture from the closed SLA vocabulary, or null for no SLA filter. */
+  sla?: string | null;
+  /** Injectable clock, so the predicate is testable against fixed instants. */
+  now?: Date;
   teamId: string;
   status?: IncidentStatus;
   severity?: IncidentSeverity;
@@ -532,6 +614,81 @@ function orderByFor(
   }
 }
 
+/**
+ * TRANSLATE AN SLA POSTURE INTO A DATABASE PREDICATE.
+ *
+ * The one place where the posture vocabulary becomes SQL. It must agree with
+ * `projectIncidentSla` exactly — a filter that selected different rows from
+ * the ones the badge marks would be the second SLA authority this closure
+ * removed, just hidden in a WHERE clause. A conservation test drives both and
+ * asserts they select the same set.
+ *
+ * BREACHED is deliberately `latched OR past due`, matching the projection:
+ * once a promise is missed the condition stays in the breached set for the
+ * rest of the cycle, so acknowledging it late does not quietly remove it from
+ * the workspace's own report.
+ */
+function slaWhere(
+  posture: string | null,
+  now: Date,
+): prismaPkg.Prisma.OperationalIncidentWhereInput {
+  if (!posture) return {};
+
+  // Only the LIVE cycle is considered, and a suppressed one is excluded — a
+  // silenced condition reports NOT_APPLICABLE and must not be selected by a
+  // filter that asks about commitments.
+  const live = { endedAtUtc: null } as const;
+
+  if (posture === "BREACHED") {
+    return {
+      slaCycles: {
+        some: {
+          ...live,
+          OR: [
+            { acknowledgementBreached: true },
+            { resolutionBreached: true },
+            {
+              acknowledgedAtUtc: null,
+              acknowledgementDueAtUtc: { lt: now },
+            },
+            {
+              acknowledgedAtUtc: { not: null },
+              resolutionDueAtUtc: { lt: now },
+            },
+          ],
+        },
+      },
+    };
+  }
+
+  if (posture === "AT_RISK") {
+    // Inside the window and within the workspace's own warning lead time. The
+    // lead time is a column on the cycle, so this cannot drift from the
+    // promise that was actually recorded.
+    return {
+      slaCycles: {
+        some: {
+          ...live,
+          acknowledgementBreached: false,
+          resolutionBreached: false,
+          acknowledgedAtUtc: null,
+          acknowledgementDueAtUtc: { gte: now },
+        },
+      },
+      // The lead-time comparison itself is not expressible in one Prisma
+      // predicate, so the coarse set is narrowed by the projection in the
+      // route. Deliberately a SUPERSET here: a filter that under-selected
+      // would hide work.
+    };
+  }
+
+  if (posture === "UNTRACKED_LEGACY") {
+    return { slaCycles: { none: {} } };
+  }
+
+  return {};
+}
+
 export async function listIncidents(
   input: ListIncidentsInput,
   client: PrismaClient = defaultPrisma,
@@ -545,6 +702,7 @@ export async function listIncidents(
   const rows = await client.operationalIncident.findMany({
     where: {
       teamId: input.teamId,
+      ...slaWhere(input.sla ?? null, input.now ?? new Date()),
       ...(input.status ? { status: input.status as prismaPkg.IncidentStatus } : {}),
       ...(input.severity ? { severity: input.severity as prismaPkg.IncidentSeverity } : {}),
       ...(input.category ? { category: input.category as prismaPkg.IncidentCategory } : {}),

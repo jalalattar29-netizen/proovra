@@ -1070,6 +1070,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // by exact name, like every entry above, so the allowlist never becomes
       // a pattern.
       "20271218000000_bulk_assign_incidents",
+      // PHASE B CLOSURE (2026-08-24). Adds the two tables that persist what a
+      // workspace promised about a specific condition, so a policy edit stops
+      // rewriting history. Nothing to do with Phase 32.7.2's security-event
+      // mapping; permitted by exact name, like every entry above.
+      "20271219000000_incident_sla_history",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

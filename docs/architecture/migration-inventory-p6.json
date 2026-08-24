@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 239,
-    "classifiedMigrations": 239,
+    "filesystemMigrations": 240,
+    "classifiedMigrations": 240,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 239,
+    "productionSnapshotUnknown": 240,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 239,
-    "classifiedMigrations": 239,
+    "filesystemMigrations": 240,
+    "classifiedMigrations": 240,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 239,
+    "productionSnapshotUnknown": 240,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 25,
+      "EXPAND": 26,
       "BACKFILL": 16,
       "CONTRACT_DROP": 10,
       "REPAIR": 3
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 31,
+      "SAFE_TO_APPLY_NOW": 32,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 239
+    "ProductionMigrationStateUnknown": 240
   },
   "gateFailures": [],
   "migrations": [
@@ -18876,8 +18876,8 @@
       "checksumSha256": "4ec5cb27a25982bb560362fe7dfb1d861e7174115ff7740890320d5f58a401ab",
       "checksumSha256Raw": "4ec5cb27a25982bb560362fe7dfb1d861e7174115ff7740890320d5f58a401ab",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
-      "gitIntroductionCommit": null,
+      "gitTracked": true,
+      "gitIntroductionCommit": "5a0044ed35df2bc18d80b1e9e33509b6fe9658e6",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
       "sqlShape": "REPAIR",
@@ -18928,8 +18928,89 @@
       "evidence": "PHASE B §8 — bulk incident assignment. A single ALTER TYPE ... ADD VALUE IF NOT EXISTS on the existing BulkOperationalActionType enum. No table is created, no column changes type, no constraint is added and no row is rewritten; destructiveStatements is empty. Safe BEFORE the code deployment because an enum value nothing yet writes is inert: the old application never emits BULK_ASSIGN_INCIDENTS, so applying this ahead of the rollout changes no behaviour, while the reverse order would make the new route fail on an enum the database does not know. Deliberately NO BACKFILL and no reclassification of historical runs — a past sweep that assigned workflows assigned workflows, and relabelling it would rewrite the record of what an operator actually did. The new value carries no new authority: it maps to operations.assign, the same permission a single row's assignment requires, and fans out to the same assignIncident service."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271219000000_incident_sla_history",
       "order": 238,
+      "sqlPresent": true,
+      "byteLength": 9540,
+      "checksumSha256": "cbaca74ba1b344b1038d1341a6c8ec29c5e87328c635d9aa1c6c506d7c048dad",
+      "checksumSha256Raw": "cbaca74ba1b344b1038d1341a6c8ec29c5e87328c635d9aa1c6c506d7c048dad",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": true,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "operational_incident_sla_cycles",
+          "workspace_sla_policy_versions"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "operational_incident_sla_cycles",
+          "workspace_sla_policy_versions"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "operational_incident_sla_cycles_incident_id_cycle_number_key",
+          "operational_incident_sla_cycles_team_id_ack_due_idx",
+          "operational_incident_sla_cycles_team_id_ended_at_utc_idx",
+          "operational_incident_sla_cycles_team_id_res_due_idx",
+          "workspace_sla_policy_versions_team_id_digest_key",
+          "workspace_sla_policy_versions_team_id_effective_from_utc_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "operational_incident_sla_cycles_incident_id_fkey",
+          "operational_incident_sla_cycles_policy_version_id_fkey",
+          "workspace_sla_policy_versions_team_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing",
+        "20260529100000_add_operational_incidents_phase21"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "PHASE B CLOSURE — the historical incident SLA authority. Creates two new tables (workspace_sla_policy_versions, operational_incident_sla_cycles), their indexes and their foreign keys. No existing table gains, loses or changes a column; no existing row is read, rewritten or deleted; destructiveStatements is empty. Safe BEFORE the code deployment because empty tables nothing yet writes are inert, while the reverse order would make the new projection query relations the database does not have. It performs NO BACKFILL, and that is the point rather than an omission: every incident existing at apply time has no cycle row and is reported as UNTRACKED_LEGACY. Backfilling would have to pick a policy that was not in force and stamp it as though it had been — inventing a deadline and then inventing whether it was missed, which on a workspace with an old backlog manufactures a wave of breaches out of a schema change. The policy-version foreign key is ON DELETE RESTRICT deliberately: a version referenced by a cycle is the evidence of what was promised."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 239,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

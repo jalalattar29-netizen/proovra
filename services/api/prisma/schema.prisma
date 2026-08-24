@@ -1175,6 +1175,7 @@ model Team {
   workflowIntakeLinks       WorkflowIntakeLink[]
   evidenceRequests          EvidenceRequest[]
   governancePolicy          WorkspaceGovernancePolicy?
+  slaPolicyVersions         WorkspaceSlaPolicyVersion[]
   aiPolicy                  WorkspaceAiPolicy?
   legalHolds                EvidenceLegalHold[]
   apiCredentials            ApiCredential[]
@@ -6716,6 +6717,7 @@ model OperationalIncident {
   acknowledgedBy User?                      @relation("OperationalIncidentAcknowledgedBy", fields: [acknowledgedByUserId], references: [id], onDelete: SetNull)
   resolvedBy     User?                      @relation("OperationalIncidentResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
   events         OperationalIncidentEvent[]
+  slaCycles      OperationalIncidentSlaCycle[]
 
   // Fingerprint is the dedup key. We allow one OPEN/ACKNOWLEDGED row
   // per (teamId, fingerprint); after RESOLVED a fresh occurrence
@@ -6732,6 +6734,129 @@ model OperationalIncident {
   @@index([status])
   @@index([assignedOperatorUserId])
   @@map("operational_incidents")
+}
+
+// =============================================================================
+// PHASE B CLOSURE — the historical SLA authority.
+//
+// WHY TWO MODELS AND NOT A COLUMN
+// -----------------------------------------------------------------------------
+// A deadline that moves when the policy moves is not a deadline. Before this,
+// incident SLA posture was DERIVED per read from `WorkspaceGovernancePolicy`,
+// which is a single mutable row per workspace — so tightening the policy
+// retroactively breached every open condition, and loosening it erased real
+// breaches from the record. Both were measured.
+//
+// The promise a workspace made about a SPECIFIC condition is a historical
+// fact, so it is persisted as one:
+//
+//   WorkspaceSlaPolicyVersion     an IMMUTABLE set of hours, identified by a
+//                                 digest of its own content. Never updated in
+//                                 place; a policy edit either finds the
+//                                 existing version with that digest or creates
+//                                 a new one.
+//
+//   OperationalIncidentSlaCycle   the promise as it stood when ONE condition
+//                                 was qualified: the version that governed it
+//                                 AND a copy of the resolved targets and
+//                                 deadlines. The copy is deliberate — reading
+//                                 targets through the version would be correct
+//                                 today and fragile the first time anything
+//                                 about version resolution changed.
+//
+// A condition with no cycle row predates this authority and is UNTRACKED_LEGACY.
+// A cycle whose targets are null means the workspace had no policy when the
+// condition qualified, which is NOT_APPLICABLE. Neither is backfilled: the
+// only honest thing to say about a promise nobody recorded is that nobody
+// recorded it.
+// =============================================================================
+
+model WorkspaceSlaPolicyVersion {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId String @map("team_id") @db.Uuid
+
+  /// sha256 over the canonical hour tuple. Two edits that produce the same
+  /// hours resolve to the SAME version rather than to a new one, so a
+  /// workspace toggling a value back and forth does not accumulate versions
+  /// that are indistinguishable in every way that matters.
+  digest String @db.VarChar(64)
+
+  assignmentHours  Int @map("assignment_hours")
+  firstReviewHours Int @map("first_review_hours")
+  completionHours  Int @map("completion_hours")
+  escalationHours  Int @map("escalation_hours")
+  dueSoonHours     Int @map("due_soon_hours")
+
+  /// When this set of hours FIRST took effect for this workspace. Kept for the
+  /// record; the binding that governs an incident is the cycle's reference to
+  /// this row, not a date comparison.
+  effectiveFromUtc DateTime @map("effective_from_utc") @db.Timestamptz(6)
+
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  team   Team                          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  cycles OperationalIncidentSlaCycle[]
+
+  @@unique([teamId, digest])
+  @@index([teamId, effectiveFromUtc(sort: Desc)])
+  @@map("workspace_sla_policy_versions")
+}
+
+model OperationalIncidentSlaCycle {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId     String @map("team_id") @db.Uuid
+  incidentId String @map("incident_id") @db.Uuid
+
+  /// 1 for the first qualification, 2 after the first reopen, and so on. A
+  /// reopen NEVER overwrites the completed cycle: what happened to the earlier
+  /// occurrence is a separate fact from what is happening to this one.
+  cycleNumber Int @map("cycle_number")
+
+  /// NULL means the workspace had no resolvable policy when this condition
+  /// qualified. That is NOT_APPLICABLE, and it is deliberately distinguishable
+  /// from having no cycle row at all (UNTRACKED_LEGACY).
+  policyVersionId String? @map("policy_version_id") @db.Uuid
+  policyDigest    String? @map("policy_digest") @db.VarChar(64)
+
+  severityAtStart String   @map("severity_at_start") @db.VarChar(16)
+  startedAtUtc    DateTime @map("started_at_utc") @db.Timestamptz(6)
+
+  /// The resolved promise, copied at qualification time.
+  acknowledgementTargetHours Int? @map("acknowledgement_target_hours")
+  resolutionTargetHours      Int? @map("resolution_target_hours")
+  dueSoonHours               Int? @map("due_soon_hours")
+
+  acknowledgementDueAtUtc DateTime? @map("acknowledgement_due_at_utc") @db.Timestamptz(6)
+  resolutionDueAtUtc      DateTime? @map("resolution_due_at_utc") @db.Timestamptz(6)
+
+  acknowledgedAtUtc DateTime? @map("acknowledged_at_utc") @db.Timestamptz(6)
+  resolvedAtUtc     DateTime? @map("resolved_at_utc") @db.Timestamptz(6)
+
+  /// Latched. Once a promise is missed it stays missed — suppressing the
+  /// condition, de-escalating its severity or acknowledging it late are all
+  /// things that happen AFTER the fact and none of them un-miss a deadline.
+  acknowledgementBreached Boolean @default(false) @map("acknowledgement_breached")
+  resolutionBreached      Boolean @default(false) @map("resolution_breached")
+
+  endedAtUtc DateTime? @map("ended_at_utc") @db.Timestamptz(6)
+  /// RESOLVED | SUPPRESSED | REOPENED
+  endReason  String?   @map("end_reason") @db.VarChar(24)
+
+  /// Optimistic concurrency for the latch-and-close transitions.
+  version Int @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  incident      OperationalIncident        @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  policyVersion WorkspaceSlaPolicyVersion? @relation(fields: [policyVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([incidentId, cycleNumber])
+  @@index([teamId, endedAtUtc])
+  @@index([teamId, acknowledgementDueAtUtc])
+  @@index([teamId, resolutionDueAtUtc])
+  @@map("operational_incident_sla_cycles")
 }
 
 // =============================================================================
