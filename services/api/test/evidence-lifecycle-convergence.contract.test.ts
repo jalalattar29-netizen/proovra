@@ -391,6 +391,44 @@ describe("the library speaks Active / Archived / Trash", () => {
     expect(WEB_FILTERS).not.toMatch(/label: "Deleted"/);
   });
 
+  it("NO product surface carries a 'Deleted Evidence' label — web or mobile", () => {
+    // Repo-wide, not scoped to the files this pass happened to touch. A guard
+    // that only looks where the fix landed proves nothing about the next
+    // surface, and the mobile Trash tab is exactly the instance a narrower
+    // guard would have missed: it carried the literal label, a "Deleted At"
+    // row and a "No deleted evidence" empty state, none of which described
+    // anything that had been deleted.
+    const surfaces = [
+      "apps/web/app/(app)/evidence/components/EvidenceFilters.tsx",
+      "apps/web/app/(app)/evidence/lib/evidence-library-alerts.ts",
+      "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx",
+      "apps/mobile/app/(tabs)/deleted.tsx",
+      "apps/mobile/app/(tabs)/_layout.tsx",
+    ];
+    for (const rel of surfaces) {
+      const body = code(src(rel));
+      for (const banned of [
+        "Deleted Evidence",
+        "Deleted scope",
+        "deleted evidence",
+        "Deleted At",
+        "Scheduled deletion",
+      ]) {
+        expect(body, `${rel} still shows the label "${banned}"`).not.toContain(
+          banned,
+        );
+      }
+    }
+  });
+
+  it("the mobile client asks for the canonical scope, not the alias", () => {
+    // The alias exists for clients that shipped and cannot be edited. This one
+    // can be edited, so it is.
+    expect(src("apps/mobile/app/(tabs)/deleted.tsx")).toContain(
+      "/v1/evidence?scope=trash",
+    );
+  });
+
   it("the scope resolver reads the projection, not the timestamps", () => {
     expect(WEB_STATUS).toMatch(/item\.lifecycle\?\.productState/);
   });

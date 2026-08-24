@@ -56,13 +56,15 @@ export default function DeletedEvidenceScreen() {
       setError(null);
 
       const data = (await apiFetch(
-        "/v1/evidence?scope=deleted"
+        // The canonical scope name. `deleted` is still accepted as a wire alias,
+        // but a client that is being edited should stop using it.
+        "/v1/evidence?scope=trash"
       )) as DeletedEvidenceResponse;
 
       setItems(Array.isArray(data?.items) ? data.items : []);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to load deleted evidence";
+        err instanceof Error ? err.message : "Failed to load trash";
       setError(message);
     } finally {
       setLoading(false);
@@ -90,7 +92,7 @@ export default function DeletedEvidenceScreen() {
 
     Alert.alert(
       "Restore Evidence",
-      "Do you want to restore this evidence from secure trash?",
+      "This returns the record to Active evidence. Its content, custody history and verification state are unchanged.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -127,7 +129,7 @@ export default function DeletedEvidenceScreen() {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <Text style={styles.title}>Deleted Evidence</Text>
+      <Text style={styles.title}>Trash</Text>
       <Text style={styles.subtitle}>
         Records in secure trash remain recoverable until their scheduled
         permanent deletion date.
@@ -140,7 +142,7 @@ export default function DeletedEvidenceScreen() {
 
     return (
       <View style={styles.emptyCard}>
-        <Text style={styles.emptyTitle}>No deleted evidence</Text>
+        <Text style={styles.emptyTitle}>Trash is empty</Text>
         <Text style={styles.emptyText}>
           Your secure trash is currently empty.
         </Text>
@@ -168,7 +170,7 @@ export default function DeletedEvidenceScreen() {
 
         <View style={styles.metaBlock}>
           <Text style={styles.metaLine}>
-            <Text style={styles.metaLabel}>Deleted At: </Text>
+            <Text style={styles.metaLabel}>Moved to trash: </Text>
             {formatUtcAuditDateTime(item.deletedAt)}
           </Text>
 
@@ -213,7 +215,7 @@ export default function DeletedEvidenceScreen() {
         {renderHeader()}
         <View style={styles.loaderWrap}>
           <ActivityIndicator size="large" />
-          <Text style={styles.loaderText}>Loading deleted evidence...</Text>
+          <Text style={styles.loaderText}>Loading trash...</Text>
         </View>
       </SafeAreaView>
     );
@@ -223,7 +225,7 @@ export default function DeletedEvidenceScreen() {
     <SafeAreaView style={styles.screen}>
       {error ? (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorTitle}>Failed to load deleted evidence</Text>
+          <Text style={styles.errorTitle}>Failed to load trash</Text>
           <Text style={styles.errorText}>{error}</Text>
 
           <TouchableOpacity

@@ -22,9 +22,14 @@ export default function TabsLayout() {
         options={{ title: "Archived Evidence" }}
       />
 
+      {/* EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — "Deleted Evidence"
+          described an operation this tab never performed: nothing in it is
+          deleted, every record is physically present and every one is
+          restorable. The ROUTE name stays `deleted` (renaming it would break
+          deep links); the label a person reads does not. */}
       <Tabs.Screen
         name="deleted"
-        options={{ title: "Deleted Evidence" }}
+        options={{ title: "Trash" }}
       />
 
       <Tabs.Screen
