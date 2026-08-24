@@ -311,4 +311,3 @@ export async function workspaceCaseWhere(
 ): Promise<WorkspaceCaseScope> {
   return caseScopeFor(await scopeInputForTeamId(teamId, client));
 }
-
