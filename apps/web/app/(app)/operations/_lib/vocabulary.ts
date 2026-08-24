@@ -170,7 +170,8 @@ export type QueueMetricKey =
   | "open"
   | "critical"
   | "high"
-  | "overdue"
+  | "slaBreached"
+  | "slaAtRisk"
   | "assignedToMe"
   | "unassigned";
 
@@ -192,19 +193,24 @@ export const QUEUE_METRIC_ORDER: readonly QueueMetricKey[] = Object.freeze([
   "open",
   "critical",
   "high",
-  "overdue",
+  "slaBreached",
+  "slaAtRisk",
   "assignedToMe",
   "unassigned",
 ]);
 
 /**
- * Matches UNATTENDED_OVERDUE_HOURS in the canonical summary service.
+ * REMOVED (Phase B closure): `UNATTENDED_OVERDUE_HOURS`.
  *
- * Named and exported so the copy under the card and the server threshold
- * cannot drift into saying two different numbers. This is AGE, not an SLA:
- * see the SLA note in page.tsx.
+ * The Overdue card counted conditions open for more than a fixed 48 hours,
+ * which was a SECOND authority on lateness competing with the workspace's own
+ * SLA promise. A row could read BREACHED against a four-hour commitment while
+ * this card called it fine, and a workspace that promised a week saw its
+ * conditions called overdue on day two.
+ *
+ * Lateness is now counted in exactly one place — the persisted SLA cycle —
+ * and the two cards below read the SAME projection the row badge does.
  */
-export const UNATTENDED_OVERDUE_HOURS = 48;
 
 export const QUEUE_METRIC_VOCABULARY: Readonly<
   Record<QueueMetricKey, QueueMetricEntry>
@@ -227,10 +233,18 @@ export const QUEUE_METRIC_VOCABULARY: Readonly<
     note: "Needs an operator soon.",
     collaborative: false,
   },
-  overdue: {
+  slaBreached: {
     label: "Overdue",
     tone: "red",
-    note: `Open and untouched for over ${UNATTENDED_OVERDUE_HOURS} hours.`,
+    // Names the AUTHORITY rather than a number: the promise differs per
+    // workspace and, for a historical condition, differs from today's.
+    note: "Past the time this workspace committed to.",
+    collaborative: false,
+  },
+  slaAtRisk: {
+    label: "Due soon",
+    tone: "amber",
+    note: "Approaching the committed time.",
     collaborative: false,
   },
   assignedToMe: {
@@ -318,20 +332,21 @@ export function slaLabel(posture: SlaPosture): string {
   switch (posture) {
     case "BREACHED":
       return "Overdue";
-    case "DUE_SOON":
+    case "AT_RISK":
       return "Due soon";
     case "ON_TRACK":
       return "On time";
-    case "MET":
-      return "Met";
-    case "MET_LATE":
-      // Recorded rather than rounded up to "Met": it WAS handled, and it was
-      // handled late, and a workspace reviewing its own performance needs
-      // both halves.
-      return "Handled late";
+    case "ACKNOWLEDGED":
+      return "Owned";
+    case "RESOLVED":
+      return "Resolved";
+    case "UNTRACKED_LEGACY":
+      // Said plainly, because "—" reads as a loading state and "N/A" reads as
+      // a product gap. Neither is what happened: nobody recorded a promise.
+      return "No SLA recorded";
     case "NOT_APPLICABLE":
     default:
-      return "Not tracked";
+      return "No SLA applies";
   }
 }
 
@@ -339,16 +354,20 @@ export function slaTone(posture: SlaPosture): AppTone {
   switch (posture) {
     case "BREACHED":
       return "red";
-    case "DUE_SOON":
+    case "AT_RISK":
       return "amber";
-    case "MET":
+    case "RESOLVED":
       return "green";
-    case "MET_LATE":
-      return "orange";
+    case "ACKNOWLEDGED":
+      return "indigo";
     case "ON_TRACK":
       return "blue";
+    case "UNTRACKED_LEGACY":
     case "NOT_APPLICABLE":
     default:
+      // Neutral, deliberately. An absent promise is not a warning; treating
+      // it as one would push every legacy condition to the top of a queue
+      // sorted by urgency it was never measured for.
       return "slate";
   }
 }
@@ -361,27 +380,51 @@ export function slaTone(posture: SlaPosture): AppTone {
  */
 export function slaExplanation(sla: IncidentSla): string {
   const duty =
-    sla.obligation === "RESPONSE"
+    sla.obligation === "ACKNOWLEDGEMENT"
       ? "for someone to take this on"
       : "for this to be resolved";
   const promise =
     sla.targetHours === null
       ? ""
-      : ` This workspace allows ${sla.targetHours} ${sla.targetHours === 1 ? "hour" : "hours"} ${duty}.`;
+      : ` This workspace allowed ${sla.targetHours} ${sla.targetHours === 1 ? "hour" : "hours"} ${duty}.`;
 
   switch (sla.posture) {
     case "BREACHED":
-      return `Past the time this workspace allows ${duty}.${promise}`;
-    case "DUE_SOON":
-      return `Approaching the time this workspace allows ${duty}.${promise}`;
+      return `Past the time this workspace allowed ${duty}.${promise}`;
+    case "AT_RISK":
+      return `Approaching the time this workspace allowed ${duty}.${promise}`;
     case "ON_TRACK":
-      return `Within the time this workspace allows ${duty}.${promise}`;
-    case "MET":
-      return "This was handled within the time this workspace allows.";
-    case "MET_LATE":
-      return "This was handled, but after the time this workspace allows.";
+      return `Within the time this workspace allowed ${duty}.${promise}`;
+    case "ACKNOWLEDGED":
+      return `Someone has taken this on and no commitment has been missed.${promise}`;
+    case "RESOLVED":
+      return sla.resolutionBreached
+        ? "This was resolved, but after the time this workspace allowed."
+        : "This was resolved within the time this workspace allowed.";
+    case "UNTRACKED_LEGACY":
+      // The honest sentence. Applying today's policy to a record from before
+      // the policy existed would invent a deadline and then invent whether it
+      // was missed.
+      return "No historical SLA was recorded for this incident, so no commitment can be reported for it.";
     case "NOT_APPLICABLE":
     default:
-      return "Notifications are stopped for this condition, so no time commitment applies.";
+      return "No time commitment applies to this condition.";
   }
+}
+
+/**
+ * The latched record, when it differs from the posture.
+ *
+ * A condition can be RESOLVED and still have missed its promise, and a
+ * suppressed one can carry a breach nobody should be able to erase. Returning
+ * null when there is nothing extra to say keeps the drawer from repeating the
+ * verdict it just rendered.
+ */
+export function slaBreachRecord(sla: IncidentSla): string | null {
+  const missed: string[] = [];
+  if (sla.acknowledgementBreached) missed.push("was not taken on in time");
+  if (sla.resolutionBreached) missed.push("was not resolved in time");
+  if (missed.length === 0) return null;
+  if (sla.posture === "BREACHED") return null;
+  return `Recorded: this condition ${missed.join(" and ")}.`;
 }

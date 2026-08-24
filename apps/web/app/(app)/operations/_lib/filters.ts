@@ -30,6 +30,7 @@ import {
   type IncidentSeverity,
   type IncidentStatus,
 } from "./types";
+import type { SlaPosture } from "./types";
 import { SORT_VALUES, type SortValue } from "./vocabulary";
 
 /** The sentinel an AppListbox uses for "no constraint". */
@@ -45,6 +46,13 @@ export const ANY = "__any__";
 export type OwnerFilter = "any" | "me" | "unassigned" | (string & {});
 
 export type FilterState = {
+  /**
+   * One posture from the closed SLA vocabulary, or "" for no SLA filter.
+   *
+   * Carried in the URL like every other filter, so a filtered queue stays
+   * shareable and a saved view can restore it.
+   */
+  sla: SlaPosture | "";
   status: IncidentStatus | "";
   severity: IncidentSeverity | "";
   category: IncidentCategory | "";
@@ -62,6 +70,7 @@ export type FilterState = {
  * says so.
  */
 export const DEFAULT_FILTERS: FilterState = Object.freeze({
+  sla: "",
   status: "OPEN",
   severity: "",
   category: "",
@@ -73,6 +82,7 @@ export const DEFAULT_FILTERS: FilterState = Object.freeze({
 /** True when anything narrows the collection beyond the default view. */
 export function anyFilterActive(f: FilterState): boolean {
   return (
+    f.sla !== "" ||
     f.status !== DEFAULT_FILTERS.status ||
     f.severity !== "" ||
     f.category !== "" ||
@@ -102,6 +112,24 @@ function readEnum<T extends string>(
  * a crash — and silently widening a filter is safe here in a way that silently
  * narrowing one would not be.
  */
+/**
+ * The SLA postures a FILTER may name.
+ *
+ * Mirrors the server's closed vocabulary. Kept as a local constant rather than
+ * derived from a response because the codec runs before any response arrives —
+ * and an unrecognised value is dropped, so a drift here can only ever widen
+ * the queue, never silently narrow it.
+ */
+export const SLA_POSTURE_VALUES = [
+  "UNTRACKED_LEGACY",
+  "NOT_APPLICABLE",
+  "ON_TRACK",
+  "AT_RISK",
+  "BREACHED",
+  "ACKNOWLEDGED",
+  "RESOLVED",
+] as const;
+
 export function filtersFromParams(
   params: URLSearchParams | null,
 ): FilterState {
@@ -117,6 +145,10 @@ export function filtersFromParams(
     : DEFAULT_FILTERS.sort;
   const ownerRaw = params.get("owner");
   return {
+    // Read through the closed vocabulary: an unrecognised posture becomes NO
+    // filter rather than one nothing can satisfy, which would render an empty
+    // queue that looks like good news.
+    sla: readEnum(params.get("sla"), SLA_POSTURE_VALUES) as FilterState["sla"],
     status,
     severity: readEnum(params.get("severity"), INCIDENT_SEVERITIES),
     category: readEnum(params.get("category"), INCIDENT_CATEGORIES),
@@ -136,6 +168,7 @@ export function filtersFromParams(
  */
 export function filtersToParams(f: FilterState): URLSearchParams {
   const p = new URLSearchParams();
+  if (f.sla) p.set("sla", f.sla);
   if (f.status !== DEFAULT_FILTERS.status) p.set("status", f.status || "all");
   if (f.severity) p.set("severity", f.severity);
   if (f.category) p.set("category", f.category);
@@ -166,6 +199,7 @@ export function incidentsQuery(input: {
 }): string {
   const p = new URLSearchParams();
   p.set("teamId", input.teamId);
+  if (input.filters.sla) p.set("sla", input.filters.sla);
   if (input.filters.status) p.set("status", input.filters.status);
   if (input.filters.severity) p.set("severity", input.filters.severity);
   if (input.filters.category) p.set("category", input.filters.category);

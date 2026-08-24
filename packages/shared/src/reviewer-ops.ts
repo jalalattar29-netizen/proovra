@@ -773,9 +773,37 @@ export type SavedViewScope = (typeof SAVED_VIEW_SCOPES)[number];
  * any part of an answer with it would make the answer stale the moment it
  * was saved.
  */
+/**
+ * The saved-view SCHEMA VERSION.
+ *
+ * Stored with every view so a later release can tell a view it understands
+ * from one it does not. A view carrying an unknown version is REFUSED rather
+ * than replayed: a filter shape that changed meaning between releases would
+ * otherwise silently apply a different query than the one that was saved,
+ * which is worse than an error the operator can see.
+ */
+export const OPERATIONS_SAVED_VIEW_SCHEMA_VERSION = 1;
+
 export const OperationsSavedViewFilterSchema = z
   .object({
+    /**
+     * Absent on views saved before versioning existed. Those are treated as
+     * version 1, which is what they are — the shape has not changed since.
+     */
+    v: z.literal(OPERATIONS_SAVED_VIEW_SCHEMA_VERSION).optional(),
     teamId: z.string().uuid(),
+    /** One posture from the closed SLA vocabulary. */
+    sla: z
+      .enum([
+        "UNTRACKED_LEGACY",
+        "NOT_APPLICABLE",
+        "ON_TRACK",
+        "AT_RISK",
+        "BREACHED",
+        "ACKNOWLEDGED",
+        "RESOLVED",
+      ])
+      .optional(),
     // Each field mirrors the queue route's own parameter EXACTLY — same
     // names, same values, same bounds. A saved view that could express a
     // filter the queue cannot apply is a view that silently does something

@@ -59,6 +59,15 @@ export type OperationsSavedViewProjection = {
   /** True when the READER owns it — the only one who may rename or delete it. */
   ownedByViewer: boolean;
   createdAt: string;
+  /**
+   * The optimistic-concurrency token.
+   *
+   * `updatedAt` IS the version: an update must send the value it read, and a
+   * write whose token no longer matches is refused rather than applied. Two
+   * operators editing one shared view otherwise produce a silent lost update —
+   * the second save wins and the first person's change disappears with no
+   * error anywhere.
+   */
   updatedAt: string;
   filter: OperationsSavedViewFilter;
 };
@@ -148,6 +157,101 @@ export async function createOperationsSavedView(
     // The table's unique key is (team, creator, name). A collision is the
     // operator saving over their own view, which is a distinguishable answer
     // and not a failure — the route reports it as one.
+    return { ok: false, reason: "duplicate_name" };
+  }
+}
+
+export type UpdateOperationsSavedViewInput = {
+  teamId: string;
+  actorUserId: string;
+  id: string;
+  /** The `updatedAt` the caller read. A stale token is refused. */
+  expectedUpdatedAt: string;
+  name?: string;
+  description?: string | null;
+  visibility?: SavedViewVisibility;
+  filter?: OperationsSavedViewFilter;
+};
+
+export type UpdateOperationsSavedViewResult =
+  | { ok: true; view: OperationsSavedViewProjection }
+  | {
+      ok: false;
+      reason: "not_found" | "conflict" | "duplicate_name" | "workspace_mismatch";
+    };
+
+/**
+ * Rename, re-scope or re-filter one view.
+ *
+ * The WHERE clause carries the creator AND the expected `updatedAt`, so:
+ *
+ *   - somebody else's view is NOT FOUND rather than refused, since sharing a
+ *     view exposes its results and must not also expose which ids exist;
+ *   - a view that changed since the caller read it is a CONFLICT rather than
+ *     an overwrite. The lost update this prevents is silent by nature: both
+ *     saves succeed, and the first operator's change is simply gone.
+ *
+ * The two are distinguished by re-reading afterwards, so a conflict never
+ * reports itself as a missing view — an operator told "not found" about a
+ * view they are looking at will assume the product is broken.
+ */
+export async function updateOperationsSavedView(
+  input: UpdateOperationsSavedViewInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<UpdateOperationsSavedViewResult> {
+  if (input.filter && input.filter.teamId !== input.teamId) {
+    return { ok: false, reason: "workspace_mismatch" };
+  }
+
+  const expected = new Date(input.expectedUpdatedAt);
+  if (Number.isNaN(expected.getTime())) return { ok: false, reason: "conflict" };
+
+  try {
+    const result = await client.savedSearchView.updateMany({
+      where: {
+        id: input.id,
+        teamId: input.teamId,
+        scope: OPERATIONS_SAVED_VIEW_SCOPE,
+        createdByUserId: input.actorUserId,
+        updatedAt: expected,
+      },
+      data: {
+        ...(input.name !== undefined
+          ? { name: input.name.trim().slice(0, 120) }
+          : {}),
+        ...(input.description !== undefined
+          ? { description: input.description?.trim().slice(0, 400) || null }
+          : {}),
+        ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
+        ...(input.filter !== undefined
+          ? {
+              queryJson: input.filter as unknown as prismaPkg.Prisma.InputJsonValue,
+            }
+          : {}),
+      },
+    });
+
+    if (result.count === 0) {
+      // Nothing matched. Re-read WITHOUT the token to tell "gone" from
+      // "changed underneath you", because those need different words.
+      const still = await client.savedSearchView.findFirst({
+        where: {
+          id: input.id,
+          teamId: input.teamId,
+          scope: OPERATIONS_SAVED_VIEW_SCOPE,
+          createdByUserId: input.actorUserId,
+        },
+      });
+      return { ok: false, reason: still ? "conflict" : "not_found" };
+    }
+
+    const row = await client.savedSearchView.findFirstOrThrow({
+      where: { id: input.id, teamId: input.teamId },
+    });
+    return { ok: true, view: projectView(row, input.actorUserId) };
+  } catch {
+    // The unique key is (team, creator, name): a rename onto a name the same
+    // operator already uses is a distinguishable answer, not a failure.
     return { ok: false, reason: "duplicate_name" };
   }
 }

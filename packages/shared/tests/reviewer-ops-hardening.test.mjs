@@ -25,6 +25,8 @@ import {
   REVIEWER_OPS_INACTIVITY_DEFAULT_HOURS,
   REVIEWER_OPS_REMINDER_KINDS,
   REVIEWER_OPS_REMINDER_STATUSES,
+  OPERATIONS_SAVED_VIEW_SCOPE,
+  OperationsSavedViewFilterSchema,
   REVIEWER_OPS_SAVED_VIEW_SCOPE,
   REVIEWER_OPS_SLA_POLICY_HOURS_MAX,
   REVIEWER_OPS_SLA_POLICY_HOURS_MIN,
@@ -266,10 +268,51 @@ test("REVIEWER_OPS_BULK_HIGH_RISK_ACTIONS contains ESCALATE / CLOSE / PRIORITY_U
 // Saved view scope
 // -----------------------------------------------------------------------------
 
-test("SAVED_VIEW_SCOPES enumerates SEARCH + REVIEWER_OPS", () => {
-  assert.equal(SAVED_VIEW_SCOPES.length, 2);
+test("SAVED_VIEW_SCOPES enumerates SEARCH + REVIEWER_OPS + OPERATIONS", () => {
+  // Three surfaces now store named queries on the ONE SavedSearchView table,
+  // discriminated by scope. The count is pinned rather than left open so a
+  // fourth surface has to declare itself here — an unlisted scope is how one
+  // surface's views end up in another surface's list.
+  assert.equal(SAVED_VIEW_SCOPES.length, 3);
   assert.equal(SAVED_VIEW_SCOPES.includes(SEARCH_SAVED_VIEW_SCOPE), true);
   assert.equal(SAVED_VIEW_SCOPES.includes(REVIEWER_OPS_SAVED_VIEW_SCOPE), true);
+  assert.equal(SAVED_VIEW_SCOPES.includes(OPERATIONS_SAVED_VIEW_SCOPE), true);
+  // Distinct values: two scopes that collided would silently merge two
+  // surfaces' saved views.
+  assert.equal(new Set(SAVED_VIEW_SCOPES).size, 3);
+});
+
+test("the Operations saved-view filter mirrors the queue's own vocabulary", () => {
+  // A saved view that could express a filter the queue cannot apply would
+  // silently do something else when replayed.
+  const ok = OperationsSavedViewFilterSchema.safeParse({
+    teamId: TEAM_ID,
+    v: 1,
+    sla: "BREACHED",
+    status: "OPEN",
+    severity: "CRITICAL",
+    owner: "me",
+    sort: "recent",
+  });
+  assert.equal(ok.success, true);
+
+  // Strict: an unknown key is refused rather than dropped.
+  assert.equal(
+    OperationsSavedViewFilterSchema.safeParse({ teamId: TEAM_ID, rawSql: "1=1" })
+      .success,
+    false,
+  );
+  // Only the canonical SLA vocabulary.
+  assert.equal(
+    OperationsSavedViewFilterSchema.safeParse({ teamId: TEAM_ID, sla: "VERY_LATE" })
+      .success,
+    false,
+  );
+  // And only a schema version this release understands.
+  assert.equal(
+    OperationsSavedViewFilterSchema.safeParse({ teamId: TEAM_ID, v: 9 }).success,
+    false,
+  );
 });
 
 test("ReviewerOpsSavedViewFilterSchema accepts a minimal valid filter", () => {

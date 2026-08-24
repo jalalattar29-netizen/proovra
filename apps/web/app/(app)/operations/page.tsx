@@ -595,6 +595,50 @@ function OperationsWorkbench() {
     [teamId, busy, filters, loadSavedViews],
   );
 
+  /**
+   * RENAME ONE VIEW.
+   *
+   * Sends the `updatedAt` the browser last read. A view that changed since
+   * then is a 409 rather than an overwrite: without that, two operators
+   * renaming one shared view both succeed and the first person's change is
+   * gone with no error anywhere.
+   */
+  const renameView = React.useCallback(
+    async (view: OperationsSavedView, name: string) => {
+      if (!teamId || busy) return;
+      setBusy(true);
+      setMutationError(null);
+      try {
+        await apiFetch(
+          `/v1/ops/saved-views/${encodeURIComponent(view.id)}`,
+          {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              teamId,
+              expectedUpdatedAt: view.updatedAt,
+              name,
+            }),
+          },
+        );
+        loadSavedViews();
+      } catch (err) {
+        setMutationError(
+          toSafeUserError(err, {
+            message:
+              "That view could not be renamed. It may have changed since you opened it.",
+          }),
+        );
+        // Re-read either way, so the operator sees whatever is actually there
+        // rather than the name they tried to set.
+        loadSavedViews();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [teamId, busy, loadSavedViews],
+  );
+
   const deleteView = React.useCallback(
     async (view: OperationsSavedView) => {
       if (!teamId || busy) return;
@@ -892,7 +936,11 @@ function OperationsWorkbench() {
   // separately — otherwise a browser Back that changes the URL leaves the
   // highlighted card disagreeing with the queue underneath it.
   const selectedMetric: QueueMetricKey | null =
-    filters.severity === "CRITICAL" && filters.status === "OPEN"
+    filters.sla === "BREACHED"
+      ? "slaBreached"
+      : filters.sla === "AT_RISK"
+        ? "slaAtRisk"
+        : filters.severity === "CRITICAL" && filters.status === "OPEN"
       ? "critical"
       : filters.severity === "HIGH" && filters.status === "OPEN"
         ? "high"
@@ -908,7 +956,9 @@ function OperationsWorkbench() {
       // clears the ones it does not. Layering a card on top of leftover
       // filters is how an operator presses "Critical" and sees nothing.
       const base: FilterState = { ...DEFAULT_FILTERS };
-      if (key === "critical") applyFilters({ ...base, severity: "CRITICAL" });
+      if (key === "slaBreached") applyFilters({ ...base, sla: "BREACHED" });
+      else if (key === "slaAtRisk") applyFilters({ ...base, sla: "AT_RISK" });
+      else if (key === "critical") applyFilters({ ...base, severity: "CRITICAL" });
       else if (key === "high") applyFilters({ ...base, severity: "HIGH" });
       else if (key === "assignedToMe") applyFilters({ ...base, owner: "me" });
       else if (key === "unassigned") applyFilters({ ...base, owner: "unassigned" });
@@ -1060,6 +1110,7 @@ function OperationsWorkbench() {
             canSave={anyFilterActive(filters)}
             onApply={applyView}
             onSave={(input) => void saveView(input)}
+            onRename={(view, name) => void renameView(view, name)}
             onDelete={(view) => void deleteView(view)}
           />
 

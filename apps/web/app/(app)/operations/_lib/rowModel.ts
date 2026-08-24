@@ -15,6 +15,7 @@ import {
   SEVERITY_VOCABULARY,
   STATUS_VOCABULARY,
   categoryLabel,
+  slaBreachRecord,
   slaExplanation,
   slaLabel,
   slaTone,
@@ -63,13 +64,6 @@ export type OperationsRowModel = {
    */
   assignedOperatorUserId: string | null;
   /**
-   * True when this condition is OPEN and has gone unattended past the age the
-   * canonical summary counts as overdue. Derived from the SAME threshold the
-   * server uses, so the row and the Overdue card cannot disagree.
-   */
-  overdue: boolean;
-
-  /**
    * SLA POSTURE, resolved by the server against the workspace's own policy.
    *
    * Carried through verbatim rather than recomputed: a threshold in the
@@ -83,6 +77,8 @@ export type OperationsRowModel = {
     explanation: string;
     posture: SlaPosture;
     dueAtUtc: string | null;
+    /** The latched breach record, when the posture no longer shows it. */
+    breachRecord: string | null;
     /** True when the SERVER classed this posture as needing attention. */
     needsAttention: boolean;
   } | null;
@@ -93,9 +89,6 @@ export type OperationsRowModel = {
   canSuppress: boolean;
   canAssign: boolean;
 };
-
-/** Mirrors UNATTENDED_OVERDUE_HOURS in the canonical summary service. */
-const OVERDUE_MS = 48 * 60 * 60 * 1000;
 
 /**
  * Where a condition's affected record lives.
@@ -189,9 +182,6 @@ export function buildRowModel(
 
     owner: ownerFor(i, ctx.viewerUserId, ctx.operatorLabels),
     assignedOperatorUserId: i.assignedOperatorUserId,
-    overdue:
-      isOpen && ctx.now - new Date(i.firstSeenAtUtc).getTime() >= OVERDUE_MS,
-
     sla: i.sla
       ? {
           label: slaLabel(i.sla.posture),
@@ -199,6 +189,7 @@ export function buildRowModel(
           explanation: slaExplanation(i.sla),
           posture: i.sla.posture,
           dueAtUtc: i.sla.dueAtUtc,
+          breachRecord: slaBreachRecord(i.sla),
           // Membership is decided by the SERVER's list, not by a set repeated
           // here — so the queue's emphasis, the filter and any future alert
           // all agree by construction.

@@ -100,26 +100,44 @@ export type Incident = {
  * disagree the first time the policy changed.
  */
 export type SlaPosture =
+  /** No promise was ever recorded for this condition. */
+  | "UNTRACKED_LEGACY"
+  /** A cycle exists but the workspace had no policy when it qualified. */
+  | "NOT_APPLICABLE"
   | "ON_TRACK"
-  | "DUE_SOON"
+  | "AT_RISK"
   | "BREACHED"
-  | "MET"
-  | "MET_LATE"
-  | "NOT_APPLICABLE";
+  | "ACKNOWLEDGED"
+  | "RESOLVED";
 
 export type IncidentSla = {
   posture: SlaPosture;
-  /** Which commitment the posture is measured against. */
-  obligation: "RESPONSE" | "RESOLUTION";
+  /** Which commitment the live posture is measured against. */
+  obligation: "ACKNOWLEDGEMENT" | "RESOLUTION" | "NONE";
   dueAtUtc: string | null;
   targetHours: number | null;
+  /**
+   * The immutable policy version that governed this cycle. Present so a
+   * reader can tell that two conditions were judged against different
+   * promises; never used by the browser to compute anything.
+   */
+  policyVersionId: string | null;
+  cycleNumber: number | null;
+  /** Latched facts, kept even after the posture moves on. */
+  acknowledgementBreached: boolean;
+  resolutionBreached: boolean;
 };
 
-/** The workspace's commitment, sent once per page beside the rows. */
+/**
+ * The SLA VOCABULARY this page speaks, sent once per page.
+ *
+ * Deliberately carries no hours. Hours belong to an individual condition's
+ * recorded promise, and a page-level number would invite the browser to
+ * recompute a deadline from it — which is the second authority this closure
+ * removed.
+ */
 export type SlaEnvelope = {
-  responseHours: number;
-  resolutionHours: number;
-  dueSoonHours: number;
+  postures: SlaPosture[];
   /** The postures the SERVER considers "needs attention on time grounds". */
   attentionPostures: SlaPosture[];
 };
@@ -170,7 +188,19 @@ export type OperationsSummary = {
   acknowledged: number;
   assignedToMe: number;
   unassigned: number;
-  overdue: number;
+  /**
+   * SLA counters, from the SAME projection the rows carry — so a card and the
+   * list it summarises cannot disagree about whether something is late.
+   *
+   * `slaUntracked` counts conditions with no recorded promise. They are
+   * deliberately absent from `slaBreached`: counting a record that predates
+   * the SLA authority as a broken promise would manufacture a failure that
+   * never happened.
+   */
+  slaBreached: number;
+  slaAtRisk: number;
+  slaOnTrack: number;
+  slaUntracked: number;
   complete: boolean;
   mayAssertAllClear: boolean;
   incompleteReason: string | null;
@@ -307,10 +337,18 @@ export type OperationsSavedView = {
   /** Only the author may delete it, and only the server decides who that is. */
   ownedByViewer: boolean;
   createdAt: string;
+  /**
+   * The optimistic-concurrency token, echoed back on every update.
+   *
+   * Two operators editing one shared view otherwise produce a silent lost
+   * update: both saves succeed and the first person's change is gone with no
+   * error anywhere.
+   */
   updatedAt: string;
   /** The stored filters, in the queue's own vocabulary. */
   filter: {
     teamId: string;
+    sla?: string;
     status?: string;
     severity?: string;
     category?: string;

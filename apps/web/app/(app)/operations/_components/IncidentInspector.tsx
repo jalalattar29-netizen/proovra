@@ -410,10 +410,7 @@ export function IncidentInspector({
                     {row.sla.dueAtUtc ? (
                       <>
                         {" — "}
-                        {row.sla.posture === "MET" ||
-                        row.sla.posture === "MET_LATE"
-                          ? "was due "
-                          : "due "}
+                        {row.sla.posture === "RESOLVED" ? "was due " : "due "}
                         {formatUserDateTime(row.sla.dueAtUtc)}
                       </>
                     ) : null}
@@ -421,6 +418,18 @@ export function IncidentInspector({
                   <span className="opsw-muted opsw-sla-hint">
                     {row.sla.explanation}
                   </span>
+                  {/* The LATCHED record, when the posture no longer shows it.
+                      A resolved condition can still have missed its promise,
+                      and a suppressed one carries a breach that nobody should
+                      be able to erase by silencing it. */}
+                  {row.sla.breachRecord ? (
+                    <span
+                      className="opsw-muted opsw-sla-hint"
+                      data-ops-sla-breach-record
+                    >
+                      {row.sla.breachRecord}
+                    </span>
+                  ) : null}
                 </Fact>
               ) : null}
             </dl>

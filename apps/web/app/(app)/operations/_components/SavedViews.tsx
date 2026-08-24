@@ -42,6 +42,7 @@ export function SavedViews({
   canSave,
   onApply,
   onSave,
+  onRename,
   onDelete,
 }: {
   views: ReadonlyArray<OperationsSavedView>;
@@ -51,10 +52,13 @@ export function SavedViews({
   canSave: boolean;
   onApply: (view: OperationsSavedView) => void;
   onSave: (input: { name: string; visibility: "PRIVATE" | "TEAM" }) => void;
+  onRename: (view: OperationsSavedView, name: string) => void;
   onDelete: (view: OperationsSavedView) => void;
 }) {
   const { confirm: confirmAction } = useConfirmAction();
   const [naming, setNaming] = React.useState(false);
+  /** The view being renamed, or null when the form is creating a new one. */
+  const [renaming, setRenaming] = React.useState<string | null>(null);
   const [name, setName] = React.useState("");
   const [shared, setShared] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -65,6 +69,7 @@ export function SavedViews({
 
   const close = React.useCallback(() => {
     setNaming(false);
+    setRenaming(null);
     setName("");
     setShared(false);
   }, []);
@@ -111,6 +116,19 @@ export function SavedViews({
                 icon={<IconDots size={16} />}
                 actions={[
                   {
+                    key: "rename",
+                    label: "Rename view",
+                    onSelect: () => {
+                      // `window.prompt` is not used here for the same reason
+                      // `window.confirm` is banned: it is unstyled, not
+                      // focus-managed and not announced. The name field the
+                      // save flow already owns is reused instead.
+                      setRenaming(view.id);
+                      setName(view.name);
+                      setNaming(true);
+                    },
+                  },
+                  {
                     key: "delete",
                     label: "Delete view",
                     danger: true,
@@ -143,7 +161,11 @@ export function SavedViews({
             e.preventDefault();
             const trimmed = name.trim();
             if (!trimmed) return;
-            onSave({ name: trimmed, visibility: shared ? "TEAM" : "PRIVATE" });
+            const target = renaming
+              ? views.find((v) => v.id === renaming)
+              : null;
+            if (target) onRename(target, trimmed);
+            else onSave({ name: trimmed, visibility: shared ? "TEAM" : "PRIVATE" });
             close();
           }}
         >
@@ -153,8 +175,10 @@ export function SavedViews({
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={120}
-            placeholder="Name this view"
-            aria-label="Name for the saved view"
+            placeholder={renaming ? "Rename this view" : "Name this view"}
+            aria-label={
+              renaming ? "New name for the saved view" : "Name for the saved view"
+            }
             data-ops-view-name
             onKeyDown={(e) => {
               // Escape abandons the naming without saving. Without it the
@@ -166,6 +190,7 @@ export function SavedViews({
               }
             }}
           />
+          {renaming ? null : (
           <label className="opsw-views__share">
             <input
               type="checkbox"
@@ -175,13 +200,14 @@ export function SavedViews({
             />
             <span>Share with this workspace</span>
           </label>
+          )}
           <button
             type="submit"
             className="app-primary-action"
             disabled={busy || name.trim().length === 0}
             data-ops-view-save
           >
-            Save
+            {renaming ? "Rename" : "Save"}
           </button>
           <button type="button" className="app-ghost-action" onClick={close}>
             Cancel

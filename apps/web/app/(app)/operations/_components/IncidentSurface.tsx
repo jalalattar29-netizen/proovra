@@ -179,45 +179,40 @@ function Activity({ row }: { row: OperationsRowModel }) {
 /**
  * HOW LONG THIS HAS BEEN OPEN, AND WHETHER THAT IS LATE.
  *
- * ONE time signal per row, deliberately.
+ * TWO different facts, and only one of them is a verdict.
  *
- * There are two available answers to "is this late?". The SLA posture
- * measures the condition against the commitment the workspace itself
- * published; the age heuristic measures it against a fixed threshold this
- * product chose. When the workspace HAS a policy, its own promise is the
- * authority and the heuristic is not shown — two "Overdue" badges built from
- * different thresholds would eventually disagree on the same row, and an
- * operator has no way to tell which one to believe.
+ * The elapsed time is an OBSERVATION and is always shown: it is how long the
+ * condition has existed, and nothing judges it. The SLA badge is a VERDICT
+ * against the promise the workspace recorded for this specific condition,
+ * and it comes from the server.
  *
- * The heuristic still renders when no policy could be resolved, so a
- * workspace without one loses nothing.
+ * There is no longer a second "overdue" badge derived from a fixed age
+ * threshold. That was a competing authority on lateness — a row could read
+ * BREACHED against a four-hour promise while the same page's counter called
+ * it fine — and two answers to "is this late?" on one screen is worse than
+ * either answer alone, because the operator cannot tell which to act on.
+ *
+ * Only postures the SERVER classed as needing attention are badged. A
+ * condition that is on time, owned, resolved or has no recorded promise gets
+ * its elapsed time and nothing else: badging every row would make the badge
+ * mean "this is a row" rather than "look at this".
  */
 function Age({ row }: { row: OperationsRowModel }) {
   const sla = row.sla;
   return (
-    <span
-      className="opsw-age"
-      data-ops-overdue={row.overdue ? "true" : "false"}
-      data-ops-sla={sla?.posture ?? "none"}
-    >
+    <span className="opsw-age" data-ops-sla={sla?.posture ?? "none"}>
       <span title={formatUserDateTime(row.firstSeenAtUtc)}>
         {describeRelativeTime(row.firstSeenAtUtc)}
       </span>
       {/* Lateness is a WORD as well as a colour, because an operator who
           cannot distinguish the two reds still has to be able to triage. */}
-      {sla ? (
-        sla.needsAttention ? (
-          <AppStatusBadge
-            tone={sla.tone}
-            title={sla.explanation}
-            data-ops-sla-badge={sla.posture}
-          >
-            {sla.label}
-          </AppStatusBadge>
-        ) : null
-      ) : row.overdue ? (
-        <AppStatusBadge tone="red" data-ops-overdue-badge="true">
-          Overdue
+      {sla?.needsAttention ? (
+        <AppStatusBadge
+          tone={sla.tone}
+          title={sla.explanation}
+          data-ops-sla-badge={sla.posture}
+        >
+          {sla.label}
         </AppStatusBadge>
       ) : null}
     </span>

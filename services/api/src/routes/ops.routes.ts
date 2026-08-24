@@ -72,12 +72,13 @@ import {
   createOperationsSavedView,
   deleteOperationsSavedView,
   listOperationsSavedViews,
+  updateOperationsSavedView,
 } from "../services/operations/saved-views.service.js";
 import {
-  loadIncidentSlaPolicy,
+  loadSlaCycles,
   projectIncidentSla,
   SLA_ATTENTION_POSTURES,
-  type IncidentSlaPolicy,
+  SLA_POSTURES,
 } from "../services/operations/incident-sla.js";
 import {
   IncidentError,
@@ -918,6 +919,16 @@ export async function opsRoutes(app: FastifyInstance) {
               z.string().uuid(),
             ])
             .optional(),
+          /**
+           * ONE posture from the closed SLA vocabulary.
+           *
+           * Enumerated against `SLA_POSTURES` rather than a free string, so
+           * a filter can never ask for a state the projection cannot produce
+           * — which would return an empty queue that looks like good news.
+           */
+          sla: z
+            .enum(SLA_POSTURES as unknown as [string, ...string[]])
+            .optional(),
           /** Free text over title + safe summary. Bounded. */
           q: z.string().trim().max(120).optional(),
           sort: z
@@ -939,8 +950,11 @@ export async function opsRoutes(app: FastifyInstance) {
             : q.owner === "me"
               ? ({ kind: "USER", userId: actor.userId } as const)
               : ({ kind: "USER", userId: q.owner } as const);
+      const slaNowForFilter = new Date();
       const page = await listIncidents({
         teamId: q.teamId,
+        sla: q.sla ?? null,
+        now: slaNowForFilter,
         status: q.status as never,
         severity: q.severity as never,
         category: q.category as never,
@@ -950,34 +964,52 @@ export async function opsRoutes(app: FastifyInstance) {
         limit: q.limit,
         cursor: q.cursor ?? null,
       });
-      // ONE policy read per page, and ONE clock. Re-resolving the policy per
-      // row would issue a query per condition to learn the same number, and a
-      // fresh `new Date()` per row would measure the first and last rows of a
-      // long page against different presents.
-      const slaPolicy = await loadIncidentSlaPolicy(q.teamId);
-      const slaNow = new Date();
+      // ONE cycle read per page, and ONE clock. A read per row would issue a
+      // query per condition, and a fresh `new Date()` per row would measure
+      // the first and last rows of a long page against different presents.
+      const slaCycles = await loadSlaCycles({
+        teamId: q.teamId,
+        incidentIds: page.incidents.map((i) => i.id),
+      });
+      const slaNow = slaNowForFilter;
+      const projectedRows = page.incidents.map((row) =>
+        withSla(projectIncident(row), slaCycles, slaNow),
+      );
+      /**
+       * THE FILTER AND THE BADGE AGREE, BY CONSTRUCTION.
+       *
+       * The database predicate selects a SUPERSET for postures whose exact
+       * definition is not expressible in one WHERE clause (AT_RISK needs the
+       * per-cycle lead time). Narrowing here with the SAME projection the
+       * badge uses is what keeps the filtered list from containing a row
+       * whose badge says something else — the alternative, a second copy of
+       * the rule in SQL, is precisely the divergence this closure removed.
+       *
+       * Deliberately a narrowing and never a widening: the predicate never
+       * under-selects, so nothing is hidden by this step.
+       */
+      const rows = q.sla
+        ? projectedRows.filter((r) => r.sla.posture === q.sla)
+        : projectedRows;
       return reply.code(200).send({
-        incidents: page.incidents.map((row) =>
-          withSla(projectIncident(row), slaPolicy, slaNow),
-        ),
+        incidents: rows,
         /**
-         * WHAT THE WORKSPACE COMMITTED TO.
+         * THE SLA VOCABULARY THIS PAGE SPEAKS.
          *
-         * Sent alongside the rows so the surface can name the promise rather
-         * than only the verdict, and so a workspace with no resolvable policy
-         * renders no SLA anything instead of a silent default.
+         * The closed set of postures and the subset the SERVER classes as
+         * needing attention, sent with the rows so the browser emphasises
+         * what the server decided rather than repeating the decision. There
+         * are deliberately no HOURS here: hours belong to an individual
+         * condition's recorded promise, and a page-level number would invite
+         * a client to recompute a deadline from it.
          */
-        sla: slaPolicy
-          ? {
-              responseHours: slaPolicy.responseHours,
-              resolutionHours: slaPolicy.resolutionHours,
-              dueSoonHours: slaPolicy.dueSoonHours,
-              attentionPostures: [...SLA_ATTENTION_POSTURES],
-            }
-          : null,
+        sla: {
+          postures: [...SLA_POSTURES],
+          attentionPostures: [...SLA_ATTENTION_POSTURES],
+        },
         pagination: {
           nextCursor: page.nextCursor,
-          returned: page.incidents.length,
+          returned: rows.length,
         },
         // PHASE 2.2 / 2.3 — say whether this read reached the end.
         //
@@ -1086,10 +1118,14 @@ export async function opsRoutes(app: FastifyInstance) {
         },
       );
 
-      // The drawer reads the SAME posture the row does, from the same helper.
-      const detailPolicy = await loadIncidentSlaPolicy(q.teamId);
+      // The drawer reads the SAME posture the row does, from the same helper
+      // and the same persisted cycle.
+      const detailCycles = await loadSlaCycles({
+        teamId: q.teamId,
+        incidentIds: [detail.id],
+      });
       return reply.code(200).send({
-        incident: withSla(detail, detailPolicy, new Date()),
+        incident: withSla(detail, detailCycles, new Date()),
         remediation,
       });
     },
@@ -2090,41 +2126,31 @@ export async function opsRoutes(app: FastifyInstance) {
    * ONE place, used by the list and the detail alike, so the queue and the
    * drawer can never disagree about whether something is late.
    *
-   * A null policy means the workspace's commitment could not be resolved. The
-   * envelope is then OMITTED rather than defaulted: a posture computed from
-   * hours the workspace never agreed to would read exactly like a measurement.
+   * The posture is read from the PERSISTED cycle, never recomputed from the
+   * workspace's current policy. A condition with no cycle is reported as
+   * UNTRACKED_LEGACY rather than measured against today's numbers — which is
+   * the closure this route exists to carry: the previous derivation was
+   * measured to flip an open condition from ON_TRACK to BREACHED when a
+   * workspace tightened its policy, and to erase a real breach when it
+   * loosened one.
    */
   function withSla<
-    T extends {
-      status: string;
-      firstSeenAtUtc: string;
-      acknowledgedAtUtc: string | null;
-      resolvedAtUtc: string | null;
-    },
+    T extends { id: string; status: string },
   >(
     projected: T,
-    policy: IncidentSlaPolicy | null,
+    cycles: Map<string, prismaPkg.OperationalIncidentSlaCycle>,
     now: Date,
-  ): T & { sla?: ReturnType<typeof projectIncidentSla> } {
-    if (!policy) return projected;
+  ): T & { sla: ReturnType<typeof projectIncidentSla> } {
     return {
       ...projected,
       sla: projectIncidentSla(
-        {
-          status: projected.status,
-          firstSeenAtUtc: new Date(projected.firstSeenAtUtc),
-          acknowledgedAtUtc: projected.acknowledgedAtUtc
-            ? new Date(projected.acknowledgedAtUtc)
-            : null,
-          resolvedAtUtc: projected.resolvedAtUtc
-            ? new Date(projected.resolvedAtUtc)
-            : null,
-        },
-        policy,
+        projected.status,
+        cycles.get(projected.id) ?? null,
         now,
       ),
     };
   }
+
 
   // ---------------------------------------------------------------------------
   // SAVED VIEWS
@@ -2208,6 +2234,67 @@ export async function opsRoutes(app: FastifyInstance) {
     },
   );
 
+  /**
+   * PATCH /v1/ops/saved-views/:id
+   *
+   * Rename, re-scope or re-filter a view the caller owns.
+   *
+   * `expectedUpdatedAt` is REQUIRED. Without it two operators editing one
+   * shared view produce a silent lost update: both saves succeed and the
+   * first person's change is gone with no error anywhere. A stale token
+   * answers 409 so the caller can re-read and decide, which is the only
+   * outcome that does not quietly destroy somebody's work.
+   */
+  app.patch(
+    "/v1/ops/saved-views/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsIncidentId.parse(req.params);
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          expectedUpdatedAt: z.string().datetime(),
+          name: z.string().trim().min(1).max(120).optional(),
+          description: z.string().trim().max(400).nullable().optional(),
+          visibility: z.enum(["PRIVATE", "TEAM"]).optional(),
+          filter: OperationsSavedViewFilterSchema.optional(),
+        })
+        .parse(req.body ?? {});
+
+      const actor = await requireOpsCapability(
+        req,
+        reply,
+        body.teamId,
+        "operations.view",
+      );
+      if (!actor) return;
+
+      const updated = await updateOperationsSavedView({
+        teamId: body.teamId,
+        actorUserId: actor.userId,
+        id,
+        expectedUpdatedAt: body.expectedUpdatedAt,
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.description !== undefined
+          ? { description: body.description }
+          : {}),
+        ...(body.visibility !== undefined ? { visibility: body.visibility } : {}),
+        ...(body.filter !== undefined ? { filter: body.filter } : {}),
+      });
+
+      if (!updated.ok) {
+        const status =
+          updated.reason === "not_found"
+            ? 404
+            : updated.reason === "conflict" || updated.reason === "duplicate_name"
+              ? 409
+              : 400;
+        return reply.code(status).send({ error: { code: updated.reason } });
+      }
+      return reply.code(200).send({ view: updated.view });
+    },
+  );
+
   app.delete(
     "/v1/ops/saved-views/:id",
     { preHandler: requireAuth },
@@ -2233,6 +2320,7 @@ export async function opsRoutes(app: FastifyInstance) {
       return reply.code(204).send();
     },
   );
+
 
   const BulkActionBody = z.object({
     teamId: z.string().uuid(),

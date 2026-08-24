@@ -217,6 +217,32 @@ export function FilterToolbar({
         <span className="opsw-resultbar__count" data-ops-result-summary>
           {resultSummary}
         </span>
+        {/* SLA POSTURE.
+            Rendered from the SAME closed vocabulary the server enumerates, so
+            a filter can never ask for a state the projection cannot produce —
+            which would return an empty queue that reads as good news. */}
+        <div className="opsw-toolbar__filter">
+          <span className="app-visually-hidden" id={labelId("sla")}>
+            Filter by time commitment
+          </span>
+          <AppListbox
+            value={filters.sla}
+            onChange={(v) => onChange({ sla: v as FilterState["sla"] })}
+            disabled={busy}
+            ariaLabelledby={labelId("sla")}
+            options={[
+              { value: "", label: "Any commitment" },
+              { value: "BREACHED", label: "Overdue" },
+              { value: "AT_RISK", label: "Due soon" },
+              { value: "ON_TRACK", label: "On time" },
+              { value: "ACKNOWLEDGED", label: "Owned" },
+              { value: "RESOLVED", label: "Resolved" },
+              { value: "UNTRACKED_LEGACY", label: "No SLA recorded" },
+              { value: "NOT_APPLICABLE", label: "No SLA applies" },
+            ]}
+            data-ops-filter="sla"
+          />
+        </div>
         {showClear ? (
           <button
             type="button"
