@@ -150,12 +150,19 @@ import {
   type EvidenceRecordPermission,
 } from "../services/evidence/evidence-record-access.service.js";
 import { buildEvidenceIntelligence } from "../services/evidence-intelligence.service.js";
-// Phase EVIDENCE-DELETE-ELIGIBILITY — single source of truth for
-// "can this record be moved to trash right now?". Used on the
-// Evidence Detail response so the UI can disable the action BEFORE
-// the user clicks. The actual delete route guards
-// (assertEvidenceNotLocked / assertEvidenceDeletionAllowedByRetention /
-// canDeleteEvidence / gateRetentionAction) are untouched.
+// The canonical lifecycle PROJECTION for responses. The Evidence Detail body
+// and every list row carry it, so a surface can offer the right actions before
+// the user clicks rather than discovering the answer from a 409.
+//
+// EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — this comment used to end "the
+// actual delete route guards (assertEvidenceNotLocked /
+// assertEvidenceDeletionAllowedByRetention / canDeleteEvidence /
+// gateRetentionAction) are untouched", which is how a projection and a write
+// path drift: the projection was explicitly NOT the thing the click would run.
+// They are the same thing now. `projectEvidenceLifecycle` and
+// `applyEvidenceLifecycleAction` both derive from
+// `computeEvidenceLifecycleCapabilities`, so what a surface advertises and what
+// a click does cannot disagree. Two of those four guards no longer exist.
 import {
   projectEvidenceLifecycle,
   projectEvidenceLifecycleSync,
