@@ -263,7 +263,23 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
       expect(summary.high).toBe(1000);
       expect(summary.unassigned).toBe(1000);
       expect(summary.complete).toBe(true);
-      expect(summary.mayAssertAllClear).toBe(true);
+      // WORKSPACE-SCOPE CONVERGENCE (§8) — this assertion INVERTED, and the
+      // inversion is the fix.
+      //
+      // `mayAssertAllClear` used to be a copy of `complete`: it answered "did
+      // the incident read finish?", so it was TRUE over a workspace with a
+      // thousand unresolved conditions. The field's name has always described
+      // a different and stronger claim, and now it makes it — a fresh READY
+      // discovery run, every required source succeeded, nothing truncated, and
+      // nothing unresolved. A workspace with open conditions may never assert
+      // an all-clear, which is the whole point.
+      expect(summary.mayAssertAllClear).toBe(false);
+      // A REASON is always given. Which one depends on the fixture's run
+      // state — a workspace with unresolved conditions AND a partially
+      // covered discovery run has two grounds for refusal, and the gate
+      // reports the more fundamental of them. Pinning one exact string would
+      // make this assert the fixture rather than the contract.
+      expect(summary.clearRefusalReason).toBeTruthy();
     }, 120_000);
 
     it("paging all the way through 1,000 sees each condition exactly once", async () => {

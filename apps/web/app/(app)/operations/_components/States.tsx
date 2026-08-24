@@ -23,6 +23,12 @@ import * as React from "react";
 
 import Link from "next/link";
 
+// The ONE timestamp layer. `toLocaleString()` here would render the machine's
+// locale and an ambiguous offset ("GMT+2"), which is why
+// `packages/shared/test/timestamp-policy.contract.test.ts` forbids direct
+// formatting outside it — a guard that caught this line before it shipped.
+import { formatTimestampForDashboard } from "@proovra/shared";
+
 import { ProovraSupportReference } from "../../../../components/feedback/ProovraSupportReference";
 import type { SafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { IconOperations, IconSpinner } from "./icons";
@@ -420,7 +426,7 @@ export function ReconciliationStaleNotice({
               {" "}
               was{" "}
               <time dateTime={completedAtUtc}>
-                {new Date(completedAtUtc).toLocaleString()}
+                {formatTimestampForDashboard(completedAtUtc)}
               </time>
             </>
           ) : null}

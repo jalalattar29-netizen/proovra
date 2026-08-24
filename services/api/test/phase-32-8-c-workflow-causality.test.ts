@@ -400,9 +400,22 @@ describe("Phase 32.8C FINAL-2 — causality engine", () => {
 
   it("bounded reads: incidents ≤ 200, workflows ≤ 200, correlations ≤ 50", () => {
     // The 50 limit is for correlations; incident/workflow `take` is 200.
-    const inc = CAUSAL.match(/operationalIncident\.findMany[\s\S]{0,400}take:\s*200/);
-    const wf = CAUSAL.match(/operationalWorkflow\.findMany[\s\S]{0,500}take:\s*200/);
-    const corr = CAUSAL.match(/operationalCorrelation\.findMany[\s\S]{0,400}take:\s*50/);
+    //
+    // Measured against the CODE, with comments stripped. These matches are
+    // character-distance windows, and a docblock explaining why a query is
+    // shaped the way it is inflates that distance without changing a single
+    // executable token — so the assertion would fail for a file that had been
+    // documented rather than one that had lost its bound. That is the same
+    // window fragility PHASE 13 removed from `phase-37-98` (a comment added
+    // between a function and its query broke five assertions while the code
+    // was untouched); stripping comments is the narrow version of that fix.
+    const code = CAUSAL.replace(/\/\*[\s\S]*?\*\//g, " ").replace(
+      /(^|[^:])\/\/[^\n]*/g,
+      "$1 ",
+    );
+    const inc = code.match(/operationalIncident\.findMany[\s\S]{0,400}take:\s*200/);
+    const wf = code.match(/operationalWorkflow\.findMany[\s\S]{0,500}take:\s*200/);
+    const corr = code.match(/operationalCorrelation\.findMany[\s\S]{0,400}take:\s*50/);
     expect(inc).not.toBeNull();
     expect(wf).not.toBeNull();
     expect(corr).not.toBeNull();

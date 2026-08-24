@@ -144,7 +144,12 @@ describe("Operations convergence (live PostgreSQL 16)", () => {
     const { workspaceEvidenceWhere } = await import(
       "@proovra/shared-runtime"
     );
-    const scope = await workspaceEvidenceWhere(teamId);
+    // Resolved on THIS test's client. The authority defaults to the host's
+    // REGISTERED Prisma, which a test process that never booted the server
+    // has not set — and an unregistered default throws rather than silently
+    // reading the wrong database, which is the correct failure but not the
+    // one this case is about.
+    const scope = await workspaceEvidenceWhere(teamId, prisma);
     return prisma.evidence.count({
       where: {
         AND: [scope, { OR: [{ tsaStatus: "FAILED" }, { otsStatus: "FAILED" }] }],

@@ -1,21 +1,15 @@
 # Workspace-scope and Operations data convergence
 
-Status: **IN PROGRESS.** Sections 0–6 of the convergence brief are implemented and
-gated; sections 7–18 are not started. This document records what was proven, what
-changed, and exactly what remains, so the next pass starts from evidence rather
-than from a re-reading of the code.
-
-Branch: `fix/workspace-scope-convergence`, cut from `09767811` (= `origin/main`).
+Branch: `fix/workspace-scope-convergence`, cut from `09767811`, integrated onto
+`origin/main` at `6e1fbfc7`.
 
 ---
 
 ## 1. The defect, stated once
 
-`Evidence.team_id` and `Case.team_id` are **NULLABLE**. Until Phase
-HOME-DATA-OWNERSHIP the write paths used that — personal records were stored with
-`team_id = NULL` and "NULL means personal". Both write paths now stamp a real
-workspace id on every new row (`cases.routes.ts` bootstraps the owner's personal
-workspace rather than writing NULL; the capture path does the same), and
+`Evidence.team_id` and `Case.team_id` are both **NULLABLE**. Both write paths
+now stamp a real workspace id on every new row — `cases.routes.ts:240`
+bootstraps the owner's personal workspace rather than writing NULL — and
 `scripts/backfill-personal-team-ownership.ts` migrates the legacy rows.
 
 Reads cannot assume the backfill has run. A read written as
@@ -24,244 +18,210 @@ Reads cannot assume the backfill has run. A read written as
 prisma.evidence.count({ where: { teamId: activeWorkspaceId, … } })
 ```
 
-omits every legacy row. The omission is invisible: it returns a **smaller number,
-not an error**. That is how Operations rendered "workspace clear" over a
-workspace whose Home was simultaneously reporting CRITICAL conditions.
+omits every legacy row, and the omission is invisible: it returns a **smaller
+number, not an error**. Operations rendered "workspace clear" over a workspace
+whose Home simultaneously reported CRITICAL.
 
-The correction is not "add `OR teamId: null`". An unbound NULL arm returns every
-tenant's orphan rows to whoever asks — strictly worse than the omission. The NULL
-arm must always be conjoined with the workspace's single owner.
+Two independent faults produced that. The first is the scope omission above.
+The second is that Operations discovery ran **only as a side effect of opening
+Home**, so a workspace nobody visited was never scanned at all — and "zero
+conditions" and "never examined" rendered identically.
 
 ---
 
-## 2. Reuse-first inventory
+## 2. Ownership model (unchanged by this work)
 
-Classified against the real tree, not from memory.
+| Fact | Sole authority |
+| --- | --- |
+| Physical workspace record | legacy `Team` row |
+| Active workspace selection | `evaluateCurrentWorkspace` → `AuthorizedWorkspaceContext` |
+| Membership / authorization | `evaluateMemberAccessWithSnapshot` + projected capability envelope |
+| Evidence / TSA / OTS truth | `Evidence` + integrity records |
+| Case truth | `Case` + case-link records |
+| Report / Package truth | canonical report/package records |
+| Review truth | `EvidenceReviewWorkflow` |
+| Intake / delivery truth | intake + delivery records |
+| Search truth | source records + derived index |
+| Operational workflow facts | `OperationalIncident`, assignment, ack, suppression, SLA |
+| Notification read/archive | `InboxItemState` (per user) |
+| Reconciliation freshness | `GovernanceReconciliationRun` only |
 
-| Responsibility | Where it lives | Classification |
-| --- | --- | --- |
-| Active workspace resolver | `middleware/authorize.ts` → `evaluateCurrentWorkspace` / `authorizeCurrentWorkspaceOrFail` | CANONICAL_AND_REUSED |
-| Workspace context object | `AuthorizedWorkspaceContext` (runtime-branded, WeakSet-registered) | CANONICAL_AND_REUSED — **extended**, not replaced |
-| Physical workspace record | legacy `Team` row | LEGACY_TRANSITIONAL (unchanged by design) |
-| Membership / authorization | `services/identity/access-policy.service.ts` → `evaluateMemberAccessWithSnapshot` | CANONICAL_AND_REUSED |
-| Capability envelope | `projectEffectiveCapabilities` in `authorize.ts` | CANONICAL_AND_REUSED |
-| `workspaceEvidenceWhere` | was `services/api/src/services/workspace-personal-scope.service.ts` | CANONICAL_BUT_BYPASSED → **moved** to `@proovra/shared-runtime` |
-| `workspaceCaseWhere` | same module | was **zero-consumer**; now consumed |
-| Durable reconciliation / lease / run authority | `packages/shared-runtime/src/reconciliation-run.ts` + `GovernanceReconciliationRun` | CANONICAL_AND_REUSED — **not yet used for Operations** |
-| Operations incident generator | `services/dashboard/incident-generator.service.ts` | CANONICAL_BUT_BYPASSED (lazy, Home-triggered — see §7 below) |
-| Operations remediation registry | `services/operations/remediation-registry.ts` | CANONICAL_AND_REUSED |
-| Operations summary/list/detail | `services/operations/operations-summary.service.ts`, `observability/incident.service.ts` | CANONICAL_AND_REUSED |
-| Home operational summary | `services/dashboard/command-center.service.ts` | CANONICAL_BUT_BYPASSED → converged |
-| Notifications aggregation | `routes/me-inbox.routes.ts` | CANONICAL_BUT_BYPASSED → converged |
-| Search index reconciliation | `packages/shared-runtime/src/search-index-reconciliation.ts` | CANONICAL_AND_REUSED (precedent for the Operations run kind) |
-| Report/package aggregation | `services/reports/reports-aggregator.service.ts` | CANONICAL_BUT_BYPASSED → converged |
-| Analytics aggregation | `services/analytics/analytics.service.ts` | CANONICAL_BUT_BYPASSED → converged |
+Nothing new was created in any row. `CanonicalWorkspaceContext` is a **transient
+alias** of `AuthorizedWorkspaceContext`, not a model.
 
-### Write conventions, proven before changing anything
+---
 
-| Model | `team_id` | Writer evidence | Verdict |
+## 3. Write conventions, proven before anything was changed
+
+| Model | `team_id` | Evidence | Verdict |
 | --- | --- | --- | --- |
-| `Evidence` | NULLABLE | capture path stamps a real id; legacy NULL rows remain | mixed ownership — canonical scope required |
-| `Case` | NULLABLE | `cases.routes.ts:240` — `body.teamId ?? ensurePersonalWorkspace(...).teamId` | same contract as Evidence — `workspaceCaseWhere` is correct and is now consumed |
-| `CaseComment` | **NOT NULL** | schema | strict `teamId` is correct — **retained**, not changed |
-| `EvidenceReviewWorkflow` | NULLABLE | `reviewer-workflow.service.ts:243` writes `teamId: params.teamId ?? null` | mixed ownership, and it has **no owner column** — must be scoped through its `@unique` `evidence` relation, not its own column |
-| 165 other models | NOT NULL | schema | strict `teamId` is correct — **untouched** |
+| `Evidence` | NULLABLE | capture path stamps; legacy NULL rows remain | mixed ownership — canonical scope |
+| `Case` | NULLABLE | `cases.routes.ts:240` | same contract — `workspaceCaseWhere` **consumed** |
+| `CaseComment` | **NOT NULL** | schema | strict is correct — **retained** |
+| `EvidenceReviewWorkflow` | NULLABLE | `reviewer-workflow.service.ts:243` writes `params.teamId ?? null`; **no owner column** | scoped through its `@unique` `evidence` relation |
+| 165 others | NOT NULL | schema | strict is correct — **untouched** |
 
 Only 33 of 199 models with a `teamId` are nullable, and only `Evidence` and
-`Case` are tenant-data populations among them. The convergence is therefore
-narrow by construction; it is not a global `teamId` rewrite.
+`Case` are tenant populations among them. The convergence is narrow by
+construction.
 
 ---
 
-## 3. What changed
+## 4. What changed
 
 ### Canonical workspace context (§3)
 
-`AuthorizedWorkspaceContext` gained four fields and one alias. It was **not**
-replaced — a second resolver would be exactly the second authority the brief
-forbids.
+`AuthorizedWorkspaceContext` **extended**, not replaced — a second resolver
+would be the second authority the brief forbids. Added `physicalWorkspaceId`,
+`membershipId`, `personalOwnerUserId`; `CanonicalWorkspaceContext` is an alias.
+`MemberAccessSnapshot` carries `workspaceOwnerUserId`, selected in the query the
+authorization chain already runs, so scope and permission come from one read of
+one row.
 
-* `physicalWorkspaceId` — same value as `workspaceId`, named for what it is, so
-  a storage predicate points at the field that would change if the physical home
-  ever moved.
-* `membershipId` — the proven `TeamMember` row, so a consumer that must record
-  which membership authorized an action does not re-read and possibly get a
-  different row.
-* `personalOwnerUserId` — the owner of a PERSONAL workspace, `null` for every
-  other kind. Never an authorization input.
-* `CanonicalWorkspaceContext` — an alias for the vocabulary in the brief.
+Two deliberate deviations, both to avoid a parallel enum: `lifecycle` stays as
+the two facts actually proven (`membershipStatus`, `organizationLifecycle`), and
+`workspaceKind` keeps its canonical **three** values (`OWNED` is a real kind).
 
-Two deliberate deviations from the brief's literal shape, both to avoid a
-parallel enum:
+### Scope authority (§4)
 
-* `lifecycle` is carried as the two facts the chain actually proves —
-  `membershipStatus` and `organizationLifecycle` — rather than collapsed into one
-  string that would lose which was proven.
-* `workspaceKind` keeps its canonical **three** values. `OWNED` is a real kind in
-  this schema, not a synonym for either of the other two.
+Moved to `packages/shared-runtime/src/workspace-scope.ts`; the API copy is
+deleted. It had to move: the Worker cannot import from `services/api`, which is
+why its org-health refresh, archive sweep and graph reconcile each wrote their
+own predicate. Scope types are **branded**, so `tsc` rejects an Evidence scope
+in a Case query — that caught four real model mismatches during the migration.
 
-`MemberAccessSnapshot` now carries `workspaceOwnerUserId`, selected in the query
-the authorization chain already runs — so the scope and the permission come from
-one read of one row and cannot drift between two.
+There is deliberately **no** relation-scope helper. Dependent models spell
+`{ evidence: <scope> }` inline; two exported wrappers for it had zero callers,
+and an exported rule nobody invokes is the state `workspaceCaseWhere` was in.
 
-### Scope authority moved to `@proovra/shared-runtime` (§4)
+### Consumers (§5)
 
-The rule lived in `services/api`. The Worker cannot import from there, so the
-Worker's org-health refresh, archive-tier sweep and graph reconciliation each
-wrote their own `where: { teamId }` — a background job reading a smaller
-population than the page it feeds. It now lives in
-`packages/shared-runtime/src/workspace-scope.ts` (same reason the seat-occupancy
-and secrets authorities moved there), and the API-local copy is deleted.
+Raw mixed-ownership population reads **112 → 0**; canonical **15 → 117**.
+`reports-aggregator` also had summary and list building separate filters; both
+now share one.
 
-Exports:
+### Incident scope (§12)
 
-* `evidenceScopeFor(ctx)` / `caseScopeFor(ctx)` — **pure**, no query, for callers
-  holding a proven context.
-* `evidenceScopeForMany(ctxs)` — the multi-workspace union, built per workspace
-  so each NULL arm keeps its own owner binding. An empty list matches **nothing**
-  (`{ id: { in: [] } }`), because Prisma treats `{ OR: [] }` as unconstrained.
-* `evidenceRelationScopeFor(ctx)` — for dependent models (review workflows,
-  reviewer comments, annotations, parts) whose ownership authority is their
-  Evidence row.
-* `workspaceEvidenceWhere` / `workspaceCaseWhere` / `workspaceEvidenceWhereMany`
-  — LEGACY_TRANSITIONAL resolvers for callers that still hold only a workspace
-  id. Thin wrappers over the same projections, not a second rule.
+`OperationalIncident.team_id = NULL` meant both "no tenant" and "orphan of a
+deleted workspace" (`ON DELETE SET NULL`). Seven tenant reads unioned the
+unbound NULL bucket, returning other tenants' orphans. `IncidentScope`
+(`WORKSPACE` / `PLATFORM` / `LEGACY_UNSCOPED`) splits them.
 
-The scope types are **branded** (`WorkspaceEvidenceScope`, `WorkspaceCaseScope`).
-The brand is a phantom optional property — never written at runtime, invisible to
-Prisma — and it does two jobs: the architecture verifier can recognise a scope
-that has travelled across a function boundary, and `tsc` rejects passing an
-Evidence scope to a Case query. The second caught four real model mismatches
-during this pass.
+The backfill claims **nothing** as PLATFORM. No writer in this codebase records
+a deliberate platform incident — the only producer of a NULL team id is
+`security-event.service.ts`, whose `input.teamId ?? null` is an account-tier
+event. Every existing NULL row becomes `LEGACY_UNSCOPED`: retained in full,
+invisible to tenant *and* platform surfaces, available for deliberate
+reclassification.
 
-### Consumers converged (§5)
+### Durable reconciliation and readiness (§7, §8)
 
-`services/api`, `services/worker` and `packages/shared-runtime`, verified by AST:
+Discovery is a scheduled run under `GovernanceReconciliationRun` — the same
+authority Search joined, giving per-`(kind, lock_key)` exclusion via a partial
+unique index, a lease, terminal states and append-only history. Home is demoted
+to a read consumer that *ensures* freshness without running discovery inline.
 
-| | before | after |
-| --- | ---: | ---: |
-| raw mixed-ownership population reads (VIOLATION) | 112 | **22** |
-| canonical-scoped | 15 | **97** |
+`OperationsReadiness` = `NEVER_RUN | RUNNING | READY | PARTIAL | STALE | FAILED
+| STALLED`. **Clear** now requires a fresh `READY` run with every required
+source succeeded and nothing truncated. Incident-read completeness alone no
+longer licenses it — that is the exact substitution that produced the original
+false all-clear.
 
-Converged: `command-center.service.ts` (45 sites, via one population resolved per
-envelope and threaded through 17 sections), `reports-aggregator.service.ts`
-(summary **and** list now share one filter — the divergence is closed as well as
-the omission), `analytics.service.ts`, `me-inbox.routes.ts` (TSA/OTS sources),
-`refresh-org-health.service.ts`, `subsystem-queue-processors.ts` (worker),
-`graph-builder.service.ts`, `org-health`, `queue-telemetry`,
-`integrity-snapshot`, `executive-metrics`, `investigation-diagnostics`,
-`governance-analytics`, `governance-control-plane`, `retention-sweeper`,
-`retention-engine`, `archive-tier` (+ worker sweep), `lifecycle-orchestrator`,
-`destruction-review`, `operational-seed`, `siu-export-bundle`, `siu-preflight`,
-`workspace-admin`.
+### Source registry and grouping (§9, §11)
 
-`analytics.service.ts` additionally moved its review-workflow count off
-`EvidenceReviewWorkflow.team_id` onto the `evidence` relation, per the proof
-above.
+22 sources, each with owner, scope authority, discovery, fingerprint,
+resolution, reopen behaviour, capability, disposition and per-surface
+visibility. Sources that are real but not swept are listed anyway, so none
+disappears silently.
 
-Every resolver call now passes the caller's own Prisma client, so a scope
-resolved inside a transaction reads the same connection as the query it bounds.
-
-### Architecture gate (§6)
-
-`services/api/scripts/verify-workspace-scope-authorities.mjs` — AST, not regex.
-It reads each Prisma call's own `where` **tree**, descending through `AND`/`OR`/
-`NOT` arms and array literals, and treats shorthand `{ teamId }` and longhand
-`{ teamId: x }` identically. (Shorthand is what hid all 45 command-center sites
-from the first version of the scan.)
-
-Classifications: `CANONICAL`, `RELATION_SCOPED`, `RECORD_LOOKUP`,
-`OWNER_INCLUSIVE` (an `OR` tree with an owner arm already reaches the NULL-team
-rows — rewriting it would *narrow* the query), `CROSS_TENANT`, `ALLOWLISTED`,
-`VIOLATION`. It independently flags any `teamId: null` not conjoined with an
-owner predicate.
-
-The allowlist carries a stated reason per entry and matches on **file + enclosing
-symbol**, so adding a new query to an allowlisted file does not inherit the
-exception.
-
-```bash
-node services/api/scripts/verify-workspace-scope-authorities.mjs
-```
+Grouping is a **read-side projection**: 34 TSA failures render as one group with
+`affectedCount: 34` while all 34 stay individually addressable. This is
+presentation grouping, never causal merging —
+`evidence-integrity-correlation.ts` still forbids reason/filename/provider/date
+as evidence of shared causation, and closing a group is not an operation.
 
 ---
 
-## 4. What is NOT done
+## 5. Defects found and fixed on the way
 
-**Sections 7–18 of the brief are not started.** Specifically:
+* **`recordIncident` crashed on a null teamId.** The compound unique
+  `(teamId, fingerprint)` cannot be queried with a null; an `as never` cast hid
+  it from the compiler, so every account-tier security event threw instead of
+  recording. It could not have deduplicated either — PostgreSQL treats NULLs as
+  distinct, so the constraint never excluded those rows at all.
+* **Seven unbound NULL-team incident reads**, five of them found only by the
+  authority verifier (causality, operational-graph, org-health,
+  workflow-generator, governance-control-plane).
+* **`mayAssertAllClear` was a copy of `complete`** — true over a workspace with
+  a thousand unresolved conditions. Two integration tests encoded that meaning
+  and were inverted.
+* **Direct timestamp formatting in new UI**, caught by the shared timestamp
+  policy guard before it shipped.
+* **An index referencing a column created in the same migration**, caught by the
+  migration safety gate; now wrapped in a column-existence guard naming every
+  column it touches, because a partial guard proves nothing.
 
-* §7 Durable Operations reconciliation. `GovernanceReconciliationRun` +
-  `runGovernanceReconciliation` is the authority to reuse (DB-enforced partial
-  unique index on `(kind, lock_key) WHERE status = 'RUNNING'`, a 1-hour lease,
-  contention as a truthful no-op, terminal states). `SEARCH_INDEX` is the
-  precedent for adding a `WORKSPACE_OPERATIONS` kind. Operations still depends on
-  Home calling `generateIncidentsForWorkspace` lazily.
-* §8 `OperationsReadiness` freshness contract and the false-clear rules.
-* §9 Source-registry totality. `remediation-registry.ts` + the generated
-  disposition table (`scripts/operations-disposition-table.mjs`) already cover 15
-  category/subtype rows; the brief's list is wider.
-* §10 TSA boundary tests (the registry already declares
-  `NO_SAFE_REMEDIATION_AUTHORITY` for `tsa_failure`; zero-provider-call tests are
-  not written).
-* §11 Grouped incident projection.
-* §12 `OperationalIncident.teamId = NULL` scope discriminator + migration.
-* §13–16 Cross-surface conservation, the 24-context matrix, live-PostgreSQL
-  behavioural tests, UI states.
-* §17–18 Full gate run and artifact regeneration.
+### Still open, deliberately not fixed here
 
-### Remaining scope violations (22)
-
-Left deliberately, each needing a judgement the codemod must not make:
-
-* `teams.routes.ts` ×13 — workspace-admin surfaces. Needs a decision on whether a
-  `Team` reached through these routes can be personal.
-* `analytics.routes.ts` ×2 — `groupBy({ by: ["teamId"] })` **cannot** attribute a
-  NULL-team row to a workspace. The correct fix is the backfill, not a wider
-  read; this needs an allowlist entry stating that, plus convergence of the
-  sibling `findMany`.
-* `ai-search.routes.ts` ×2, `cases.routes.ts` ×1 (`teamId: evidence.teamId`),
-  `integrations-api.routes.ts` ×1 (`cred.teamId`),
-  `admin-organizations.service.ts` ×2 (org workspaces, likely provably strict),
-  `billing-enforcement.service.ts` ×1 (allowlisted — metering, not a tenant read).
-
-### Defects found in passing, not fixed
-
-* **Duplicate org-health authority.** `services/worker/src/subsystem-queue-processors.ts`
-  (`processOrgHealthRefreshJob`) recomputes the `OrgHealthProjection` row with its
-  own arithmetic instead of calling `refreshOrgHealthProjection`, and the two
-  **disagree**: the API version filters `status: { in: ["SIGNED","REPORTED"] }`
-  before counting "pending report" (Phase HOME-TRUTH-FIX), the worker version does
-  not. Its own comment says "or extract to a shared package". Both now read the
-  same *population*; they still compute different *numbers*. Fix: move
-  `refreshOrgHealthProjection` into `@proovra/shared-runtime` and have the worker
-  call it.
+`processOrgHealthRefreshJob` (worker) duplicates `refreshOrgHealthProjection`
+(API) and the two compute **different** numbers — the API version status-filters
+before counting "pending report", the worker version does not. Both now read the
+same *population*; the arithmetic still disagrees. Fixing it means moving the
+projection into shared-runtime, which is a separate change with its own
+migration-free but behaviour-visible risk.
 
 ---
 
-## 5. Gate status
+## 6. Gates
 
 | Gate | Result |
 | --- | --- |
-| `tsc --noEmit` — api, worker, shared-runtime | **green** |
-| `shared-runtime` build | **green** |
-| API vitest (22,720 tests) | **22,716 pass / 4 fail** |
-| Workspace-scope verifier | 22 violations (see above) |
+| `tsc --noEmit` — api, worker, shared-runtime, web | green |
+| `pnpm -r lint` | 0 errors (1 pre-existing warning in `SurfaceGate.tsx`) |
+| `verify-workspace-scope-authorities.mjs` | CLEAN — 0 violations, 4 reviewed exceptions |
+| `verify-operations-authorities.mjs` | CLEAN — 11/11 authority audits |
+| `migration-risk-scan.mjs` | both migrations SAFE / WARNING, 0 blocking, 0 destructive |
+| API unit | 22,767 tests |
+| API integration (live PG 16) | full project |
+| Worker | 877 |
+| Web render | operations workbench incl. 7 new state cases |
 
-The 4 failures and 3 collection errors are **generated-artifact staleness**
-gates — `phase-0-audit-engine-governance`, `phase-12-capability-analyzer-adversarial`,
-`phase-12-closure-gate`, `phase-12-coverage-manifest`, `phase-12-wiring-registry`,
-`phase-12b-evidence-operations-entry-matrix`. They compare a stored hash against
-the current tree and are expected to fail while the tree is still moving. Per the
-brief, proof artifacts are **not** regenerated until the product tree is
-quiescent; `pnpm audit:architecture` is the regeneration step, and it must run
-alone (no concurrent artifact writers).
+The four reviewed scope exceptions each state why the raw predicate is correct
+there, and are matched on **file + enclosing symbol**, so adding a query to an
+allowlisted file does not inherit the exception.
 
-Test-fixture changes made, all recorded in-place with their reason: three stub
-Prisma clients gained the `team.findUnique` the scope resolver reads (defaulting
-to a non-personal workspace, so every existing assertion keeps its exact
-meaning), and six source-contract assertions that pinned a literal `teamId` were
-retargeted at the canonical scope. Two of those are now **stronger** than before
-— `phase-37-98` additionally asserts that the module resolves the canonical
-authority, so an `AND` arm alone cannot satisfy it.
+Both verifiers read **code with comments stripped**. A docblock explaining a
+removed defect must not fail the check that documents it — the first run of the
+operations verifier flagged two modules whose only offence was explaining the
+defect they had fixed, and the same fragility broke a `take: 200` distance
+assertion in `phase-32-8-c-workflow-causality`.
 
-Nothing is committed. Nothing is pushed. No production data was touched.
+---
+
+## 7. Deployment ordering
+
+Two expand-only migrations, both idempotent, both safe to apply before the code:
+
+1. `20271220000000_workspace_operations_reconciliation_kind` — adds the
+   `WORKSPACE_OPERATIONS` enum value. **Must land in its own transaction**:
+   PostgreSQL will not let a value added by `ALTER TYPE … ADD VALUE` be used in
+   the transaction that adds it. Deploying code first produces
+   `invalid input value for enum` on every sweep tick — the failure mode that
+   killed Search's reconciler at its first workspace, every tick, silently.
+2. `20271221000000_operational_incident_scope` — adds `IncidentScope`, the
+   `scope` column (default `WORKSPACE`), the backfill to `LEGACY_UNSCOPED`, and
+   the guarded index.
+
+Rollback for (2) is stated in the migration: drop the index, column and type. No
+incident row is destroyed, and re-applying reproduces the identical
+classification from `team_id` alone — the backfill is a pure function of data
+that is still present. The `ON DELETE SET NULL` foreign key is deliberately left
+alone; proving the retention and deletion requirements that would justify
+changing it is separate work, and a destructive FK change made on the way past is
+how incident history disappears.
+
+Runtime configuration: `OPERATIONS_RECONCILER_ENABLED` (default on),
+`OPERATIONS_RECONCILER_INTERVAL_MS` (default 900000),
+`OPERATIONS_RECONCILER_STARTUP_DELAY_MS` (default 45000, plus per-process
+jitter). Safe in multiple replicas — losers record contention and do nothing,
+which is why there is no leader election.

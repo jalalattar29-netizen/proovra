@@ -362,8 +362,6 @@ describe("Phase 37.98 — Command Center consumes projection", () => {
       expectTenantScopedCount(hit, "in the bounded fallback");
     }
     expectResolvesCanonicalScope(CMD_CENTER, "the bounded fallback");
-    {
-    }
   });
 
   /**
@@ -467,8 +465,6 @@ describe("Phase 37.98 — refresh pipeline wired in worker", () => {
       expectTenantScopedCount(hit, "in the worker refresh processor");
     }
     expectResolvesCanonicalScope(WORKER_PROCESSORS, "the worker refresh processor");
-    {
-    }
   });
 
   it("processor refuses an unresolvable workspace loudly (no global refresh)", () => {
@@ -606,8 +602,6 @@ describe("Phase 37.98 — refresh service contract reassertion", () => {
       readApi("src/services/dashboard/projections/refresh-org-health.service.ts"),
       "the refresh authority",
     );
-    {
-    }
   });
 
   it("readLatestOrgHealthProjection filters by teamId (no global read)", () => {

@@ -555,6 +555,27 @@ describe("§1.2 — AuthorizedWorkspaceContext is unforgeable at RUNTIME", () =>
       "organizationId",
       "organizationLifecycle",
       "capabilities",
+      // WORKSPACE-SCOPE CONVERGENCE — three additive fields, each a stated,
+      // non-secret fact about a grant the caller already holds. The property
+      // this test defends is that the brand is not a transportable SECRET;
+      // adding a field is only safe if the field is not one, so each is
+      // justified individually rather than waved through as "additive".
+      //
+      //   physicalWorkspaceId  the same value as `workspaceId`, named for the
+      //                        storage row it addresses. Knowing it conveys
+      //                        nothing `workspaceId` did not already.
+      //   membershipId         the caller's OWN TeamMember row id. It
+      //                        authorizes nothing — presenting it grants no
+      //                        access — and it identifies a row the caller is
+      //                        the subject of.
+      //   personalOwnerUserId  populated ONLY for a PERSONAL workspace, whose
+      //                        single member is the caller, so it is the
+      //                        caller's own id. Null for every other kind,
+      //                        which is what stops it from ever disclosing
+      //                        another member's identity in a shared space.
+      "physicalWorkspaceId",
+      "membershipId",
+      "personalOwnerUserId",
     ]);
     for (const key of Reflect.ownKeys(genuine)) {
       expect(
