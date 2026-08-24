@@ -15,23 +15,160 @@
         "nocfg.transcript.terminal_failed_not_completed",
         "nocfg.transcript.wrong_tenant_concealed"
       ],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:37:27.756Z"
+      "recordedAtUtc": "2026-08-24T13:22:42.475Z"
     },
     "test/point5/family-retention-destruction.integration.test.ts": {
-      "sha256": "5b1abb8277619e84326489e5df8a69b49184941fe2d9ca91119f67ade969910e",
-      "cases": [],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "sha256": "2504d01c0bf486f577995170e779982fc5f3d4ee86bd4859f53166ec0cc4c036",
+      "cases": [
+        "archive.claim.active_not_stolen",
+        "archive.claim.one_winner",
+        "archive.durable.intent_before_work",
+        "archive.idempotency.duplicate_is_noop",
+        "archive.tenant.cross_workspace_denied",
+        "archive.tenant.workspace_reloaded",
+        "archive.terminal.stale_cannot_overwrite",
+        "destruction.claim.active_not_stolen",
+        "destruction.claim.one_winner",
+        "destruction.durable.intent_before_work",
+        "destruction.idempotency.duplicate_is_noop",
+        "destruction.legal_hold_blocks",
+        "destruction.no_delete_before_final_check",
+        "destruction.tenant.cross_workspace_denied",
+        "destruction.tenant.workspace_reloaded",
+        "destruction.terminal.stale_cannot_overwrite",
+        "destruction.unresolved_hold_fails_closed",
+        "mfagc.claim.active_not_stolen",
+        "mfagc.claim.one_winner",
+        "mfagc.durable.intent_before_work",
+        "mfagc.idempotency.duplicate_is_noop",
+        "mfagc.tenant.cross_workspace_denied",
+        "mfagc.tenant.workspace_reloaded",
+        "mfagc.terminal.stale_cannot_overwrite",
+        "purge.claim.active_not_stolen",
+        "purge.claim.one_winner",
+        "purge.durable.intent_before_work",
+        "purge.idempotency.duplicate_is_noop",
+        "purge.legal_hold_blocks",
+        "purge.payload.rejects_unknown_field",
+        "purge.tenant.cross_workspace_denied",
+        "purge.tenant.workspace_reloaded",
+        "purge.terminal.stale_cannot_overwrite",
+        "reaper.claim.active_not_stolen",
+        "reaper.claim.one_winner",
+        "reaper.durable.intent_before_work",
+        "reaper.idempotency.duplicate_is_noop",
+        "reaper.tenant.cross_workspace_denied",
+        "reaper.tenant.workspace_reloaded",
+        "reaper.terminal.stale_cannot_overwrite",
+        "retention.claim.active_not_stolen",
+        "retention.claim.one_winner",
+        "retention.durable.intent_before_work",
+        "retention.idempotency.duplicate_is_noop",
+        "retention.tenant.cross_workspace_denied",
+        "retention.tenant.workspace_reloaded",
+        "retention.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "51b9ea3a-b55c-44fc-80fc-ea1a4fe68e36",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:17:25.943Z"
+      "recordedAtUtc": "2026-08-24T13:22:11.008Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "aca0fd5a22026bf09ab0c9b9b78043b38881e64fc61dd100741d458899636ca8",
-      "cases": [],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "cases": [
+        "graphdomain.claim.active_not_stolen",
+        "graphdomain.claim.one_winner",
+        "graphdomain.durable.intent_before_work",
+        "graphdomain.idempotency.duplicate_is_noop",
+        "graphdomain.tenant.cross_workspace_denied",
+        "graphdomain.tenant.workspace_reloaded",
+        "graphdomain.terminal.stale_cannot_overwrite",
+        "graphproj.claim.active_not_stolen",
+        "graphproj.claim.one_winner",
+        "graphproj.durable.intent_before_work",
+        "graphproj.idempotency.duplicate_is_noop",
+        "graphproj.tenant.cross_workspace_denied",
+        "graphproj.tenant.workspace_reloaded",
+        "graphproj.terminal.stale_cannot_overwrite",
+        "graphrecon.claim.active_not_stolen",
+        "graphrecon.claim.one_winner",
+        "graphrecon.durable.intent_before_work",
+        "graphrecon.idempotency.duplicate_is_noop",
+        "graphrecon.recon.authorities_reconciled",
+        "graphrecon.tenant.cross_workspace_denied",
+        "graphrecon.tenant.workspace_reloaded",
+        "graphrecon.terminal.stale_cannot_overwrite",
+        "graphtimeline.claim.active_not_stolen",
+        "graphtimeline.claim.one_winner",
+        "graphtimeline.durable.intent_before_work",
+        "graphtimeline.idempotency.duplicate_is_noop",
+        "graphtimeline.tenant.cross_workspace_denied",
+        "graphtimeline.tenant.workspace_reloaded",
+        "graphtimeline.terminal.stale_cannot_overwrite",
+        "immutable.claim.active_not_stolen",
+        "immutable.claim.one_winner",
+        "immutable.durable.intent_before_work",
+        "immutable.idempotency.duplicate_is_noop",
+        "immutable.tenant.cross_workspace_denied",
+        "immutable.tenant.workspace_reloaded",
+        "immutable.terminal.stale_cannot_overwrite",
+        "lifecycle.claim.active_not_stolen",
+        "lifecycle.claim.one_winner",
+        "lifecycle.durable.intent_before_work",
+        "lifecycle.idempotency.duplicate_is_noop",
+        "lifecycle.tenant.cross_workspace_denied",
+        "lifecycle.tenant.workspace_reloaded",
+        "lifecycle.terminal.stale_cannot_overwrite",
+        "misearch.claim.active_not_stolen",
+        "misearch.claim.one_winner",
+        "misearch.durable.intent_before_work",
+        "misearch.idempotency.duplicate_is_noop",
+        "misearch.tenant.cross_workspace_denied",
+        "misearch.tenant.workspace_reloaded",
+        "misearch.terminal.stale_cannot_overwrite",
+        "orghealth.claim.active_not_stolen",
+        "orghealth.claim.one_winner",
+        "orghealth.durable.intent_before_work",
+        "orghealth.idempotency.duplicate_is_noop",
+        "orghealth.tenant.cross_workspace_denied",
+        "orghealth.tenant.workspace_reloaded",
+        "orghealth.terminal.stale_cannot_overwrite",
+        "orphan.claim.active_not_stolen",
+        "orphan.claim.one_winner",
+        "orphan.durable.intent_before_work",
+        "orphan.idempotency.duplicate_is_noop",
+        "orphan.tenant.cross_workspace_denied",
+        "orphan.tenant.workspace_reloaded",
+        "orphan.terminal.stale_cannot_overwrite",
+        "recon.concurrent.claimless_duplicates_nothing",
+        "recon.concurrent.readonly_and_delegated_safe",
+        "recon.concurrent.record_scoped_duplicates_nothing",
+        "reviewer.claim.active_not_stolen",
+        "reviewer.claim.one_winner",
+        "reviewer.durable.intent_before_work",
+        "reviewer.idempotency.duplicate_is_noop",
+        "reviewer.tenant.cross_workspace_denied",
+        "reviewer.tenant.workspace_reloaded",
+        "reviewer.terminal.stale_cannot_overwrite",
+        "searchdoc.claim.active_not_stolen",
+        "searchdoc.claim.one_winner",
+        "searchdoc.durable.intent_before_work",
+        "searchdoc.idempotency.duplicate_is_noop",
+        "searchdoc.tenant.cross_workspace_denied",
+        "searchdoc.tenant.workspace_reloaded",
+        "searchdoc.terminal.stale_cannot_overwrite",
+        "searchrecon.claim.active_not_stolen",
+        "searchrecon.claim.one_winner",
+        "searchrecon.durable.intent_before_work",
+        "searchrecon.idempotency.duplicate_is_noop",
+        "searchrecon.tenant.cross_workspace_denied",
+        "searchrecon.tenant.workspace_reloaded",
+        "searchrecon.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:09:48.299Z"
+      "recordedAtUtc": "2026-08-24T12:56:34.759Z"
     },
     "test/point5/family-notifications.integration.test.ts": {
       "sha256": "9255eeb48bf6ecf9944df566eb875353c94ec09f6e66e948b15de20a66b13329",
@@ -136,9 +273,9 @@
         "exchange.tenant.workspace_reloaded",
         "exchange.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:31:50.622Z"
+      "recordedAtUtc": "2026-08-24T12:58:15.009Z"
     },
     "test/point5/family-invite-delivery.integration.test.ts": {
       "sha256": "b16485d2248f4567e07c5d9ab2846fa8b8b29732e4501927548ab8550157476c",
@@ -161,9 +298,9 @@
         "invite.terminal.stale_cannot_overwrite",
         "invite.token.never_leaves_persistence"
       ],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:32:26.300Z"
+      "recordedAtUtc": "2026-08-24T13:01:21.932Z"
     },
     "test/point5/family-redaction.integration.test.ts": {
       "sha256": "78c454b84d41f45e23beb9d08bf9691faebeef44e250763aa7fc01fc891d371e",
@@ -187,9 +324,9 @@
         "redaction.tenant.workspace_reloaded",
         "redaction.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:32:50.261Z"
+      "recordedAtUtc": "2026-08-24T12:58:35.734Z"
     },
     "test/phase-12-point5-report-authority.integration.test.ts": {
       "sha256": "d288b78d8cc581773f2e93948925cab8611aaa6849d0d87bcc09c1d6c575b75a",
@@ -202,9 +339,9 @@
         "report.tenant.workspace_reloaded",
         "report.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:34:47.806Z"
+      "recordedAtUtc": "2026-08-24T12:59:37.215Z"
     },
     "test/point5/intelligence-run-claim.integration.test.ts": {
       "sha256": "8ccb54947b56a74b1ae5d80ee366b5d384b551ad91b417fec8d4d6c667f10f6f",
@@ -220,23 +357,45 @@
         "mirecon.tenant.workspace_reloaded",
         "mirecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:35:35.372Z"
+      "recordedAtUtc": "2026-08-24T12:59:16.701Z"
     },
     "test/point5/family-webhooks-providers.integration.test.ts": {
       "sha256": "acf904184bea316df9858dbaa06963362bf66cd23f9f092fca08f1ee19fdb898",
-      "cases": [],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "cases": [
+        "webhook.claim.active_not_stolen",
+        "webhook.claim.one_winner",
+        "webhook.disabled_destination_refused",
+        "webhook.durable.intent_before_work",
+        "webhook.idempotency.duplicate_is_noop",
+        "webhook.provider.unknown_outcome_non_terminal",
+        "webhook.secret_never_in_payload_or_log",
+        "webhook.tenant.cross_workspace_denied",
+        "webhook.tenant.workspace_reloaded",
+        "webhook.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:16:13.516Z"
+      "recordedAtUtc": "2026-08-24T12:50:27.780Z"
     },
     "test/phase-12-arch-005-automation-runtime.integration.test.ts": {
       "sha256": "3d33613e8756b4b6f6ec57f903d23cebb41a747724e53fc9d6f1444f319e1eb1",
-      "cases": [],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "cases": [
+        "auto.claim.active_not_stolen",
+        "auto.claim.one_winner",
+        "auto.durable.intent_before_work",
+        "auto.idempotency.duplicate_is_noop",
+        "auto.provider.unknown_never_projected_as_failure",
+        "auto.provider.unknown_outcome_non_terminal",
+        "auto.reconciler.recovers_stranded_once",
+        "auto.tenant.cross_workspace_denied",
+        "auto.tenant.workspace_reloaded",
+        "auto.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:08:49.674Z"
+      "recordedAtUtc": "2026-08-24T12:55:01.799Z"
     },
     "test/point5/family-trash-grace.integration.test.ts": {
       "sha256": "cf4d1d67e2ceab0a747db52b38832857bcedadd5dc21406a7e100f58c3e112ad",
@@ -250,9 +409,9 @@
         "trashgrace.tenant.workspace_reloaded",
         "trashgrace.terminal.stale_cannot_overwrite"
       ],
-      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
+      "runId": "b055aac1-a95d-481b-b3fb-cf7da4a3db3c",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:47:33.702Z"
+      "recordedAtUtc": "2026-08-24T13:13:32.922Z"
     }
   }
 }

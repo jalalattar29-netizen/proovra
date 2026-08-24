@@ -84,7 +84,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 289,
+    "AuditFilesInventoried": 290,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -168,7 +168,7 @@
     "HISTORICAL_REPORT": 22,
     "HISTORICAL_PROOF": 17,
     "DOMAIN_REPORT_TEMPLATE": 1,
-    "DOMAIN_AUTHORITY": 39,
+    "DOMAIN_AUTHORITY": 40,
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
@@ -1940,6 +1940,21 @@
       "sourceOfTruthFor": [
         "ORIGIN_RESOLUTIONS"
       ],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/scripts/capability-authority/manifests/port-implementations.json",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Reviewed-judgement manifest; each entry names the source evidence it was read from.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
       "disposition": "RETAINED"
     },
     {

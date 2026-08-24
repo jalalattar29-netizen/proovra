@@ -47,16 +47,17 @@ UndisposedRoutes                               0
 ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
-MUTATION CLOSURE (ten disjoint buckets, identity asserted)
-TerminalWriters                             1229
+MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
+TerminalWriters                             1224
 ROUTE_ATTRIBUTED_REACHABLE                  1103
-JOB_ATTRIBUTED_REACHABLE                     114
+JOB_ATTRIBUTED_REACHABLE                     107
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                           9
 MIGRATION_ONLY                                 0
 TEST_OR_BUILD_ONLY                             0
 PRESERVED_PLANNED_WRITER                       0
+PORT_ATTRIBUTED_REACHABLE                      2
 DEAD_UNREACHABLE                               0
 UNRESOLVED                                     0
 UnwiredExecutableWriters                       0

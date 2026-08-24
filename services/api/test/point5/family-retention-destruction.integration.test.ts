@@ -163,6 +163,53 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
     });
   }
 
+  /**
+   * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the automatic path cannot
+   * destroy workspace evidence on its own any more.
+   *
+   * The purge job carries no approval of its own, and a WORKSPACE-scoped record
+   * requires an approved destruction review before physical destruction. That
+   * gate is new and deliberate: before it, a delayed job scheduled ninety days
+   * earlier could destroy another organisation's evidence with no reviewed
+   * decision behind it at all.
+   *
+   * So a case that wants the purge to SUCCEED must supply the approval, and the
+   * case immediately below proves the refusal when it is absent.
+   */
+  /**
+   * A purgeable record in PERSONAL scope, where no approval is required.
+   *
+   * The first attempt at this satisfied the approval gate by creating an
+   * APPROVED `DestructionReview` in the shared workspace — and that review was
+   * then picked up by the destruction-orchestrator sweeps LATER IN THIS FILE,
+   * which scan every APPROVED review in the team. The suite passed or failed
+   * depending on ordering, which is the definition of a flake and would have
+   * been blamed on the executor rather than on the fixture.
+   *
+   * Personal scope removes the interference at the source instead of tidying up
+   * after it: `resolveDestructionApproval` requires no approval for a record
+   * with no workspace, so these cases create no review at all. The workspace
+   * gate is covered by its own case, which asserts the refusal.
+   */
+  async function purgeablePersonalEvidence(): Promise<string> {
+    const row = await prisma.evidence.create({
+      data: {
+        title: `point5-purge-personal-${randomUUID()}`,
+        type: "PHOTO",
+        status: "CREATED",
+        teamId: null,
+        organizationId: null,
+        ownerUserId: own.ownerUserId,
+        deletedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+        deleteScheduledForUtc: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        storageBucket: "point5-test-bucket",
+        storageKey: `point5/${randomUUID()}`,
+      },
+      select: { id: true },
+    });
+    return row.id;
+  }
+
   function purgeJob(evidenceId: string, dataOverrides: Record<string, unknown> = {}) {
     return {
       id: `evidence-purge-${evidenceId}`,
@@ -177,7 +224,35 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
     } as never;
   }
 
+  /**
+   * EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — "destroyed" no longer means
+   * "the row is gone".
+   *
+   * The purge used to run `tx.evidence.delete` AND `tx.custodyEvent.deleteMany`,
+   * so a destroyed record left no row, no custody chain and no evidence that
+   * anything had ever existed — the opposite of a tombstone, on a platform whose
+   * product is auditability. Destruction now clears the CONTENT and preserves a
+   * minimal row plus its chain.
+   *
+   * So these cases ask "is the content still here", and read the answer from the
+   * lifecycle state rather than from the row's existence.
+   */
+  async function evidenceDestroyed(id: string): Promise<boolean> {
+    const row = await prisma.evidence.findUnique({
+      where: { id },
+      select: { lifecycleState: true, destroyedAtUtc: true, storageKey: true },
+    });
+    if (!row) return false;
+    return (
+      row.lifecycleState === "DESTROYED" &&
+      row.destroyedAtUtc !== null &&
+      row.storageKey === null
+    );
+  }
+
   async function evidenceExists(id: string): Promise<boolean> {
+    // "Still a live record" — present AND not a tombstone.
+    if (await evidenceDestroyed(id)) return false;
     return (await prisma.evidence.count({ where: { id } })) === 1;
   }
 
@@ -263,7 +338,7 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
   });
 
   it("purge: three concurrent executions destroy the record exactly once", async () => {
-    const evidenceId = await purgeableEvidence(own);
+    const evidenceId = await purgeablePersonalEvidence();
     storageCalls.reset();
 
     // Genuinely simultaneous. Whatever races inside, the observable outcome
@@ -274,12 +349,31 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
       processor.processPurgeDeletedEvidence(purgeJob(evidenceId)),
     ]);
 
+    // The content is gone and the TOMBSTONE remains — the row and its custody
+    // chain survive, which is what makes the destruction auditable.
+    expect(await evidenceDestroyed(evidenceId)).toBe(true);
     expect(await evidenceExists(evidenceId)).toBe(false);
+    expect(
+      await prisma.custodyEvent.count({ where: { evidenceId } }),
+    ).toBeGreaterThan(0);
     // Storage deletion is idempotent by nature, but a purge that ran three
     // times over would show three DISTINCT object keys deleted for one record.
     const keys = new Set(storageCalls.deleted.map((c) => c.key));
     expect(keys.size).toBeLessThanOrEqual(1);
     provenCase("purge.claim.one_winner");
+  });
+
+  it("purge: a WORKSPACE record with no approved review is never destroyed", async () => {
+    // The gate the two cases above have to satisfy, proven from the other side.
+    // The automatic path carries no approval, so it refuses and reschedules —
+    // the governance pipeline, which does carry one, is the only way through.
+    const evidenceId = await purgeableEvidence(own);
+    storageCalls.reset();
+
+    await processor.processPurgeDeletedEvidence(purgeJob(evidenceId));
+
+    expect(await evidenceDestroyed(evidenceId)).toBe(false);
+    expect(storageCalls.deleted).toHaveLength(0);
   });
 
   it("purge: a record whose delete date has not arrived is never destroyed", async () => {
@@ -301,16 +395,32 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
   });
 
   it("purge: a duplicate execution after completion is a bounded no-op", async () => {
-    const evidenceId = await purgeableEvidence(own);
+    const evidenceId = await purgeablePersonalEvidence();
     await processor.processPurgeDeletedEvidence(purgeJob(evidenceId));
-    expect(await evidenceExists(evidenceId)).toBe(false);
+    expect(await evidenceDestroyed(evidenceId)).toBe(true);
 
     storageCalls.reset();
-    // The row is gone. A redelivered job must not throw, must not recreate it,
-    // and must not reach storage on behalf of a record that no longer exists.
+    // The record is a tombstone. A redelivered job must not throw, must not
+    // re-destroy, must not reach storage on behalf of content that is already
+    // gone — and must not mint a second destruction certificate.
     await processor.processPurgeDeletedEvidence(purgeJob(evidenceId));
-    expect(await evidenceExists(evidenceId)).toBe(false);
+    expect(await evidenceDestroyed(evidenceId)).toBe(true);
     expect(storageCalls.deleted).toHaveLength(0);
+    // EXACTLY ONE certificate, counted on the custody chain rather than the
+    // governance ledger. `EvidenceLifecycleEvent` is workspace-scoped by
+    // schema, so a PERSONAL record — which has no workspace governance to
+    // report to — earns a custody certificate and no ledger row. The custody
+    // event is the attestation that exists for every scope, which makes it the
+    // right thing to count.
+    const certificates = await prisma.custodyEvent.findMany({
+      where: { evidenceId, eventType: "EVIDENCE_PURGED" },
+      select: { payload: true },
+    });
+    expect(certificates).toHaveLength(1);
+    expect(
+      (certificates[0]!.payload as { certificateHash?: string } | null)
+        ?.certificateHash,
+    ).toEqual(expect.any(String));
     provenCase("purge.idempotency.duplicate_is_noop");
   });
 

@@ -98,6 +98,10 @@ export function derivedScalars(doc) {
     MIGRATION_ONLY: bucket.MIGRATION_ONLY,
     TEST_OR_BUILD_ONLY: bucket.TEST_OR_BUILD_ONLY,
     PRESERVED_PLANNED_WRITER: bucket.PRESERVED_PLANNED_WRITER ?? 0,
+    // A writer reached only through an injected port, each one carrying a
+    // manifest entry whose whole chain is re-verified every run. Derivable so
+    // the checkpoint can PRINT it — the count existing at all is worth reading.
+    PORT_ATTRIBUTED_REACHABLE: bucket.PORT_ATTRIBUTED_REACHABLE ?? 0,
     DEAD_UNREACHABLE: bucket.DEAD_UNREACHABLE,
     UNRESOLVED: bucket.UNRESOLVED,
     ModuleScopedAttributionWriters: f.mutations.moduleScopedAttribution,

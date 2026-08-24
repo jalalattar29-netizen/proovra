@@ -268,7 +268,26 @@ export function computeEvidenceDestructionEligibility(
   if (state === "DESTROYED") {
     return { ...base, eligible: false, blockReason: "TERMINAL_DESTROYED" };
   }
-  if (state !== "TRASHED") {
+  // Destruction proceeds from TRASHED — the ordinary path, where a user put the
+  // record in the trash and its grace window has elapsed — OR from
+  // PENDING_DESTRUCTION, the governance state machine's own marker for
+  // "approved for destruction".
+  //
+  // The second is not a loophole; excluding it was the bug. A retention-expired
+  // record that a governance workspace reviews and approves for destruction has
+  // never been in anybody's trash: the retention reconciler flags it, a reviewer
+  // approves it, and the review executor destroys it. Requiring a detour through
+  // the user-facing trash would make PENDING_DESTRUCTION mean nothing, and it
+  // would put a record an operator has decided to destroy back on a shelf where
+  // an ordinary user could restore it.
+  //
+  // Every other boundary below applies identically to both. Nothing is skipped
+  // for the governance path — retention, Object Lock, holds, the permanent lock
+  // and the approval requirement are all still checked, and the approval
+  // requirement is the one that makes this route deliberate.
+  const pendingDestruction =
+    String(input.lifecycleState ?? "").toUpperCase() === "PENDING_DESTRUCTION";
+  if (state !== "TRASHED" && !pendingDestruction) {
     return { ...base, eligible: false, blockReason: "NOT_TRASHED" };
   }
   // A permanent record lock is a hard, non-expiring block on destruction (it

@@ -651,6 +651,10 @@ export function resolveMutationEntrypoints(cg, writers, entrypoints) {
 export const NON_REQUEST_DISPOSITIONS = Object.freeze([
   "REGISTERED_CLI", "MIGRATION_ONLY", "TEST_ONLY", "BUILD_ONLY",
   "STARTUP_TASK", "RECONCILER_OR_SWEEP", "SEED",
+  // A writer reached ONLY through a port the host injects into a shared
+  // executor. See PORT_ATTRIBUTED_REACHABLE below for why this is a real
+  // attribution and not an exemption.
+  "INJECTED_PORT_IMPLEMENTATION",
   "PRESERVED_PLANNED_WRITER", "DEAD_UNREACHABLE_WRITER",
 ]);
 
@@ -782,6 +786,21 @@ export const WRITER_BUCKETS = Object.freeze([
   // count is visible: preserved code that nothing calls is a wiring backlog,
   // and a backlog that cannot be counted is a backlog nobody works off.
   "PRESERVED_PLANNED_WRITER",
+  // A writer whose ONLY caller is a shared executor that receives it as an
+  // injected port. The call edge is real and the writer runs in production; it
+  // is invisible to THIS analyzer because the call site is `port.method(...)`
+  // on a parameter, which no static resolution can follow.
+  //
+  // This is the writer-side twin of `PROP_CALLBACK` in dynamic-resolutions:
+  // an indirection a human reads ONCE, records with its evidence, and which the
+  // generator re-verifies on every run — the adapter must still call the
+  // writer, the executor must still call the port, and an entrypoint must still
+  // reach the executor. A stale entry fails rather than lingering.
+  //
+  // It is deliberately NOT folded into a reachable bucket: the count stays
+  // visible, because "reached only through injection" is a weaker claim than
+  // "reached by a route" and should read as one.
+  "PORT_ATTRIBUTED_REACHABLE",
   "DEAD_UNREACHABLE",
   "UNRESOLVED",
 ]);
@@ -795,6 +814,7 @@ const DISPOSITION_BUCKET = Object.freeze({
   SEED: "STARTUP_OR_SCHEDULED",
   RECONCILER_OR_SWEEP: "STARTUP_OR_SCHEDULED",
   STARTUP_TASK: "STARTUP_OR_SCHEDULED",
+  INJECTED_PORT_IMPLEMENTATION: "PORT_ATTRIBUTED_REACHABLE",
   PRESERVED_PLANNED_WRITER: "PRESERVED_PLANNED_WRITER",
   DEAD_UNREACHABLE_WRITER: "DEAD_UNREACHABLE",
 });
@@ -864,6 +884,10 @@ export function evaluateMutationClosure(writers) {
     // preservation, or by removal — never by reclassification.
     DeadUnreachableWritersPending: byDisposition.DEAD_UNREACHABLE_WRITER,
     PreservedPlannedWriters: byDisposition.PRESERVED_PLANNED_WRITER,
+    // Reported so the injection count can never grow unnoticed. Every one of
+    // these carries a verified manifest entry; the number existing at all is
+    // the thing to keep an eye on.
+    PortAttributedWriters: byDisposition.INJECTED_PORT_IMPLEMENTATION,
     AuthorizationAfterMutation: reachable.filter((w) => w.invariants?.authorizationBeforeMutation === false).length,
     TenantUnboundMutations: reachable.filter((w) => w.invariants?.tenantBinding === "UNBOUND").length,
     UnsafeEffectsInsideTransactions: rows.filter(

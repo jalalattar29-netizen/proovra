@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 6e6c5ec47417e8b2f0f6003deece534a375ff1ce6d6bf6891fe9943a9e6f5548 |
+| engineHash    | 62326c9fa8965c3f46cc181ffd1233c2e6e56fb5400dc00873752dd26f02b367 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -75,7 +75,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 289   |
+| AuditFilesInventoried                      | 290   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -204,5 +204,4 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- UNWIRED EXECUTABLE WRITERS: 2 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- CHECKPOINT: 6 violation(s) — SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1229, facts say 1224 | SCALAR_DISAGREES_WITH_FACTS: JOB_ATTRIBUTED_REACHABLE: checkpoint says 114, facts say 107 | SCALAR_DISAGREES_WITH_FACTS: DEAD_UNREACHABLE: checkpoint says 0, facts say 2 | SCALAR_DISAGREES_WITH_FACTS: UnwiredExecutableWriters: checkpoint says 0, facts say 2 | SCALAR_DISAGREES_WITH_FACTS: DeadUnreachableWritersPending: checkpoint says 0, facts say 2
+_(none)_

@@ -258,6 +258,19 @@ export async function executeEvidenceDestruction(
       id: input.evidenceId,
       OR: [
         { lifecycleState: "TRASHED" },
+        // COMPATIBILITY, and it is load-bearing during a rolling deploy: a
+        // record trashed by a build that predates the state pointer carries
+        // `deleted_at` and a `lifecycle_state` that never caught up. Requiring
+        // the pointer alone would leave those records permanently unclaimable —
+        // eligible by every boundary, invisible to the one thing that could act
+        // on them. The canonical authority already resolves such a row as
+        // TRASHED (its fail-safe fallthrough); the claim now agrees with it.
+        {
+          deletedAt: { not: null },
+          lifecycleState: { notIn: ["DESTROYED", "PENDING_DESTRUCTION"] },
+        },
+        // A governance record approved for destruction, whose previous claim
+        // expired or was never stamped.
         {
           lifecycleState: "PENDING_DESTRUCTION",
           destructionClaimedAtUtc: { lt: leaseCutoff },
@@ -275,11 +288,21 @@ export async function executeEvidenceDestruction(
   });
   if (claim.count !== 1) return { ok: false, outcome: "CLAIM_HELD" };
 
-  /** Put the record back where it was. Used on every refusal below. */
+  /**
+   * Put the record back where it was — WHERE IT WAS, not where the ordinary
+   * path would have found it.
+   *
+   * This used to restore TRASHED unconditionally, which is right for the trash
+   * path and wrong for the governance one: a record approved for destruction
+   * that had never been in anybody's trash would have been released INTO the
+   * trash by a failed attempt, where an ordinary user could then restore it.
+   * A refusal must leave the record exactly as it found it.
+   */
+  const priorState = preflight.lifecycleState;
   const releaseClaim = async () => {
     await prisma.evidence.updateMany({
       where: { id: input.evidenceId, lifecycleState: "PENDING_DESTRUCTION" },
-      data: { lifecycleState: "TRASHED", destructionClaimedAtUtc: null },
+      data: { lifecycleState: priorState, destructionClaimedAtUtc: null },
     });
   };
 
@@ -441,8 +464,14 @@ export async function executeEvidenceDestruction(
       },
     });
 
-    // The governance ledger row IS the per-evidence destruction certificate.
-    // One row, one hash, minted here and nowhere else.
+    // The governance ledger row IS the per-evidence destruction certificate for
+    // a WORKSPACE record. One row, one hash, minted here and nowhere else.
+    //
+    // A PERSONAL record has no workspace governance to report to, and
+    // `EvidenceLifecycleEvent` is workspace-scoped by schema, so it earns no
+    // ledger row. Its attestation is the custody event written above, which
+    // carries the same certificate hash and exists for every scope. Nothing is
+    // silently unattested; the two scopes attest in the place each one has.
     if (evidence.teamId) {
       await tx.evidenceLifecycleEvent.create({
         data: {

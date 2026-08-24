@@ -319,6 +319,7 @@ export function build() {
   const consumerManifest = loadManifest("consumer-resolutions.json");
   const dispositionManifest = loadManifest("route-dispositions.json");
   const preservationManifest = loadManifest("writer-preservations.json");
+  const portManifest = loadManifest("port-implementations.json");
 
   const originResolutions = new Map(originManifest.entries.map((e) => [e.site, e.verdict]));
   const dynamicResolutions = new Map(dynamicManifest.entries.map((e) => [e.site, e.class]));
@@ -963,6 +964,52 @@ export function build() {
       .map((e) => [e.site, e]),
   );
 
+  // PORT IMPLEMENTATIONS — an injected writer, re-verified rather than trusted.
+  //
+  // Every link of the claimed chain is checked against the tree on THIS run: the
+  // adapter must still reference the writer, the executor must still call the
+  // port method, and every named entrypoint must still reference the executor.
+  // An entry whose chain has broken is dropped and reported, so the writer falls
+  // back to DEAD_UNREACHABLE and the run fails — which is the point. A manifest
+  // that cannot go stale loudly is an exemption with extra steps.
+  const portBroken = [];
+  const portByDecl = new Map();
+  for (const impl of portManifest.implementations ?? []) {
+    const method = String(impl.port ?? "").split(".").pop() ?? "";
+    const readOr = (rel) => {
+      try {
+        return readFileSync(path.join(REPO, rel), "utf8");
+      } catch {
+        return null;
+      }
+    };
+    const [file, decl] = String(impl.writer ?? "").split("#");
+    const adapterSrc = readOr(impl.adapter);
+    const executorSrc = readOr(impl.executor);
+    const problems = [];
+    if (!adapterSrc) problems.push(`adapter missing: ${impl.adapter}`);
+    else if (!adapterSrc.includes(decl)) {
+      problems.push(`adapter does not reference ${decl}: ${impl.adapter}`);
+    }
+    if (!executorSrc) problems.push(`executor missing: ${impl.executor}`);
+    else if (!executorSrc.includes(`.${method}(`)) {
+      problems.push(`executor never calls .${method}(): ${impl.executor}`);
+    }
+    for (const ep of impl.entrypoints ?? []) {
+      const src = readOr(ep);
+      if (!src) problems.push(`entrypoint missing: ${ep}`);
+      else if (!src.includes("executeEvidenceDestruction")) {
+        problems.push(`entrypoint does not reach the executor: ${ep}`);
+      }
+    }
+    if (!impl.evidence) problems.push("no evidence recorded");
+    if (problems.length > 0) {
+      portBroken.push(`${impl.writer}: ${problems.join("; ")}`);
+      continue;
+    }
+    portByDecl.set(`${file}#${decl}`, impl);
+  }
+
   const routeFactsById = new Map(routesOut.map((r) => [r.routeId, r]));
   const workRegistryByProducerFile = new Map(
     workRegistry.map((e) => [String(e.canonicalProducer), e]),
@@ -979,6 +1026,20 @@ export function build() {
       // A reviewed preservation outranks the file-name heuristic, but ONLY for
       // a writer the heuristic already called dead: an entry here can keep a
       // writer, never re-label one that a route, job or schedule reaches.
+      if (w.nonRequestDisposition === "DEAD_UNREACHABLE_WRITER") {
+        const port = portByDecl.get(`${w.file}#${w.enclosingDeclaration}`);
+        if (port) {
+          w.nonRequestDisposition = "INJECTED_PORT_IMPLEMENTATION";
+          w.portImplementation = {
+            port: port.port,
+            adapter: port.adapter,
+            executor: port.executor,
+            entrypoints: port.entrypoints,
+            evidence: port.evidence,
+            reviewedAtUtc: port.reviewedAtUtc ?? null,
+          };
+        }
+      }
       if (w.nonRequestDisposition === "DEAD_UNREACHABLE_WRITER") {
         const entry = preservedByDecl.get(`${w.file}#${w.enclosingDeclaration}`);
         if (entry) {

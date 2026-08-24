@@ -1,0 +1,63 @@
+{
+  "$schema": "capability-authority/port-implementations@1",
+  "why": [
+    "THE WRITER-SIDE TWIN OF `PROP_CALLBACK`.",
+    "",
+    "A terminal writer whose only caller is a shared executor that RECEIVES it as",
+    "an injected port has a real call edge and runs in production — but the call",
+    "site is `port.method(...)` on a parameter, and no static resolution can",
+    "follow that. Left alone the analyzer reports it as DEAD_UNREACHABLE, which",
+    "is the one thing it definitely is not.",
+    "",
+    "The alternatives were considered and are worse. Removing the injection would",
+    "mean either duplicating the executor per host — the exact duplication the",
+    "Evidence Lifecycle Convergence existed to remove, since two of the four",
+    "destroyers it replaced certified destructions they never performed — or",
+    "building a third S3 client inside the shared package, re-implementing the TLS",
+    "and endpoint safety rules that each host already applies to its own. A third",
+    "construction of the rules that decide whether a delete may leave the machine",
+    "is not an improvement on an analyzer blind spot.",
+    "",
+    "So each injected implementation is read ONCE and recorded here with the four",
+    "links of its chain. The generator RE-VERIFIES all four on every run:",
+    "",
+    "  - `adapter` must exist and must reference the writer's declaration;",
+    "  - `executor` must exist and must call the port method;",
+    "  - `entrypoints` must each exist and must reference the executor;",
+    "  - the writer itself must still exist at the declaration named.",
+    "",
+    "Any link that breaks fails the run rather than leaving a stale exemption. An",
+    "entry that matches no writer is reported for the same reason: a manifest that",
+    "silently stops describing the tree is worse than no manifest.",
+    "",
+    "These land in the PORT_ATTRIBUTED_REACHABLE bucket, counted separately and",
+    "never folded into the route- or job-attributed totals. 'Reached only through",
+    "injection' is a weaker claim than 'reached by a route' and reads as one."
+  ],
+  "implementations": [
+    {
+      "writer": "services/api/src/storage.ts#deleteObject",
+      "port": "EvidenceDestructionStoragePort.deleteObject",
+      "adapter": "services/api/src/services/evidence/destruction-storage-port.ts",
+      "executor": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "entrypoints": [
+        "services/api/src/services/lifecycle/destruction-governance.service.ts",
+        "services/api/src/services/governance-lifecycle/destruction-review.service.ts"
+      ],
+      "evidence": "The ONE physical evidence-destruction executor deletes storage objects through the injected port. The API host supplies `apiEvidenceDestructionStorage`, whose `deleteObject` IS this function by direct reference. Both entrypoints are route-driven: `executeDestruction` (POST /v1/product-and-lifecycle destruction execute) and `executeApprovedReview` (destruction-review execute). Exercised end to end against a disposable object store by services/api/test/evidence-destruction-storage.integration.test.ts, which drives the real executor through the real port shape.",
+      "reviewedAtUtc": "2026-08-24"
+    },
+    {
+      "writer": "services/worker/src/storage.ts#deleteObject",
+      "port": "EvidenceDestructionStoragePort.deleteObject",
+      "adapter": "services/worker/src/governance/destruction-storage-port.ts",
+      "executor": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "entrypoints": [
+        "services/worker/src/processor.ts",
+        "services/worker/src/governance/destruction-orchestrator.worker.ts"
+      ],
+      "evidence": "The worker half of the same one executor. `workerEvidenceDestructionStorage.deleteObject` wraps this function to normalise its throw-on-failure into the port's result shape (the API's already returns a result). Both entrypoints are queue- or sweep-driven: `processPurgeDeletedEvidence` (PurgeDeletedEvidenceJob) and `runDestructionOrchestration` (DestructionOrchestratorSweep). Before the convergence this function was reached directly from the purge job's own inline storage loop; the loop is gone because the purge job no longer decides or performs destruction.",
+      "reviewedAtUtc": "2026-08-24"
+    }
+  ]
+}

@@ -40,9 +40,11 @@ function isNotFound(err: unknown): boolean {
 }
 
 export const apiEvidenceDestructionStorage: EvidenceDestructionStoragePort = {
-  async deleteObject(input) {
-    return s3DeleteObject(input);
-  },
+  // A DIRECT reference, not a wrapper. The shapes already match exactly, so a
+  // wrapper would add nothing but a hop — and the hop costs something real:
+  // static analysis can follow a named function through an object literal, and
+  // cannot follow an anonymous method that closes over it.
+  deleteObject: s3DeleteObject,
   async objectExists(input) {
     try {
       await s3HeadObject(input);
