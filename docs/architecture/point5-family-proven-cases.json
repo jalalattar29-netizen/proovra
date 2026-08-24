@@ -393,9 +393,9 @@
         "auto.tenant.workspace_reloaded",
         "auto.terminal.stale_cannot_overwrite"
       ],
-      "runId": "ab39099d-d9d3-4a24-a90e-d1042286ce1f",
+      "runId": "5704bac7-aafe-4ca0-9901-ba27de662a49",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T13:25:37.488Z"
+      "recordedAtUtc": "2026-08-24T13:57:17.277Z"
     },
     "test/point5/family-trash-grace.integration.test.ts": {
       "sha256": "cf4d1d67e2ceab0a747db52b38832857bcedadd5dc21406a7e100f58c3e112ad",

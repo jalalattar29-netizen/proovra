@@ -548,7 +548,10 @@ async function enumerateStorageTargets(
   const targets: StorageTarget[] = [];
   for (const row of all) {
     if (!row.bucket || !row.key) continue;
-    const id = `${row.bucket} ${row.key}`;
+    // A space is an unambiguous separator: S3 bucket names are restricted to
+    // lowercase letters, digits, dots and hyphens, so one cannot contain a
+    // space and `bucket key` cannot collide with a different pair.
+    const id = `${row.bucket} ${row.key}`;
     if (seen.has(id)) continue;
     seen.add(id);
     targets.push({ bucket: row.bucket, key: row.key });
