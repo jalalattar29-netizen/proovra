@@ -441,6 +441,62 @@ describe("the library speaks Active / Archived / Trash", () => {
 });
 
 // ===========================================================================
+// 6b. Publication is an explicit rule, not a side effect of a timestamp
+// ===========================================================================
+
+describe("trash unpublishes as a stated rule", () => {
+  it("public verify gates on the lifecycle state, not on the trash timestamp", () => {
+    // `deleted_at IS NULL` happened to exclude trashed records, but it did so by
+    // reading a trash timestamp as an exposure decision — and it did NOT exclude
+    // a DESTROYED tombstone, whose `deleted_at` is non-null only because it
+    // passed through the trash on the way. That route would have kept serving a
+    // public verify page for evidence that no longer exists.
+    expect(EVIDENCE_ROUTES).toContain(
+      'where: { id, lifecycleState: { notIn: ["TRASHED", "DESTROYED"] } }',
+    );
+  });
+
+  it("trashing a published record suspends publication through the publication authority", () => {
+    // An explicit, RECORDED transition. Before this, publication ended at trash
+    // time silently: no event, no audit line, and no way for an operator to see
+    // that public exposure had changed.
+    expect(LIFECYCLE_SERVICE).toContain("suspendPublicVerify");
+    expect(LIFECYCLE_SERVICE).toContain('reason: "Record moved to trash"');
+  });
+
+  it("restoring from trash does NOT re-publish", () => {
+    // Re-exposing a record to the public internet is a decision a person makes,
+    // not one a restore infers. The suspend call is scoped to TRASH only.
+    expect(LIFECYCLE_SERVICE).toContain(
+      'if (input.action === "TRASH" && evidence.teamId)',
+    );
+  });
+});
+
+// ===========================================================================
+// 6c. Storage accounting follows the bytes, not the user's intent
+// ===========================================================================
+
+describe("trashed bytes still consume storage", () => {
+  it("both usage authorities draw the line at DESTROYED", () => {
+    for (const rel of [
+      "services/api/src/services/workspace-usage.service.ts",
+      "services/worker/src/workspace-billing.ts",
+    ]) {
+      const body = code(src(rel));
+      expect(body, `${rel} must count everything that is not destroyed`).toContain(
+        'lifecycleState: { not: "DESTROYED" as const }',
+      );
+      // The old line — a record stopped counting the moment a user clicked
+      // trash, while its bytes sat in the bucket for years.
+      expect(body, `${rel} must not exclude trashed records`).not.toMatch(
+        /deletedAt: null/,
+      );
+    }
+  });
+});
+
+// ===========================================================================
 // 7. The 90-day value is a recovery boundary
 // ===========================================================================
 

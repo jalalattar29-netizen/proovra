@@ -240,10 +240,19 @@
     },
     "test/point5/family-trash-grace.integration.test.ts": {
       "sha256": "cf4d1d67e2ceab0a747db52b38832857bcedadd5dc21406a7e100f58c3e112ad",
-      "cases": [],
-      "runId": "7a117735-19d9-47b2-8b09-24c22510db44",
+      "cases": [
+        "trashgrace.claim.active_not_stolen",
+        "trashgrace.claim.one_winner",
+        "trashgrace.durable.intent_before_work",
+        "trashgrace.idempotency.duplicate_is_noop",
+        "trashgrace.observe_only_by_default",
+        "trashgrace.tenant.cross_workspace_denied",
+        "trashgrace.tenant.workspace_reloaded",
+        "trashgrace.terminal.stale_cannot_overwrite"
+      ],
+      "runId": "c9ddaa2a-17a7-4119-af51-c85faa1dda69",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-24T12:14:08.358Z"
+      "recordedAtUtc": "2026-08-24T12:47:33.702Z"
     }
   }
 }
