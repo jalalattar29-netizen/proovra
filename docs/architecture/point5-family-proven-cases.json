@@ -15,9 +15,9 @@
         "nocfg.transcript.terminal_failed_not_completed",
         "nocfg.transcript.wrong_tenant_concealed"
       ],
-      "runId": "4569f0db-f2b7-4475-8172-27cc112bc89b",
+      "runId": "4eb17822-ec52-4c0f-b341-452a6240759e",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-08-25T02:01:46.975Z"
+      "recordedAtUtc": "2026-08-25T09:22:03.005Z"
     },
     "test/point5/family-retention-destruction.integration.test.ts": {
       "sha256": "223ef999fc976b8309caf7127fa8cc112aab73807de96ef268619e560bfd9d32",
