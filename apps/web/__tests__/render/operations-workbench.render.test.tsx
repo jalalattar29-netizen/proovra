@@ -1197,6 +1197,158 @@ describe("Operations — reconciliation state is visible, and gates the all-clea
     expect(document.body.textContent).toMatch(/not necessarily all of them/i);
   });
 
+  /**
+   * A PARTIAL run whose recorded reasons are all NON-retryable.
+   *
+   * This is the production shape: six sources failed, every one of them on a
+   * deployment/schema disagreement. Offering "Check again" here is an
+   * instruction to waste an operator's time during an incident, and worse, a
+   * suggestion that the problem is transient when it is not.
+   */
+  function partialWith(failures: Array<Record<string, unknown>>) {
+    const base = summary({
+      readiness: "PARTIAL",
+      mayAssertAllClear: false,
+      clearRefusalReason: "PARTIAL_SOURCES",
+    });
+    return {
+      ...base,
+      summary: {
+        ...base.summary,
+        reconciliation: {
+          ...base.summary.reconciliation,
+          sources: {
+            ...base.summary.reconciliation.sources,
+            failedSources: failures.map((f) => f.sourceId as string),
+            sourceFailures: failures,
+          },
+        },
+      },
+    };
+  }
+
+  const SIX_PRODUCTION_FAILURES = [
+    "evidence_integrity.tsa_failed",
+    "evidence_integrity.ots_failed",
+    "evidence_integrity.ots_pending_aged",
+    "pipeline.report_backlog",
+    "pipeline.package_backlog",
+    "platform.telemetry_stale",
+  ].map((sourceId) => ({
+    sourceId,
+    stage: "WRITE",
+    category: "schema_mismatch",
+    retryable: false,
+  }));
+
+  it("a NON-retryable PARTIAL run withholds 'Check again' and says why", async () => {
+    summaryReply = () => partialWith(SIX_PRODUCTION_FAILURES);
+    await mount(envelope(TEAM_ADMIN));
+
+    const panel = q('[data-ops-partial="true"]') as HTMLElement;
+    expect(panel).not.toBeNull();
+    // The control is ABSENT, not disabled: a disabled button still says "this
+    // is the thing to press once conditions change", and nothing the operator
+    // can do from here will change these conditions.
+    expect(within(panel).queryByRole("button", { name: /check again/i })).toBeNull();
+    expect(panel.querySelector("[data-ops-partial-nonretryable]")).not.toBeNull();
+    expect(panel.textContent).toMatch(/won.t change this/i);
+    // And still no internals.
+    expect(panel.textContent).not.toMatch(/select |prisma|column|schema_mismatch/i);
+  });
+
+  it("a RETRYABLE PARTIAL run still offers 'Check again'", async () => {
+    summaryReply = () =>
+      partialWith([
+        {
+          sourceId: "pipeline.report_backlog",
+          stage: "SCAN",
+          category: "timeout",
+          retryable: true,
+        },
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    const panel = q('[data-ops-partial="true"]') as HTMLElement;
+    expect(
+      within(panel).queryByRole("button", { name: /check again/i }),
+    ).not.toBeNull();
+  });
+
+  it("a run recorded by an OLDER image, carrying no reasons, still offers the retry", async () => {
+    // An unknown cause is not evidence that a retry is pointless, and
+    // withholding the control on a guess is worse than offering one that may
+    // not help.
+    summaryReply = () =>
+      summary({
+        readiness: "PARTIAL",
+        mayAssertAllClear: false,
+        clearRefusalReason: "PARTIAL_SOURCES",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    const panel = q('[data-ops-partial="true"]') as HTMLElement;
+    expect(
+      within(panel).queryByRole("button", { name: /check again/i }),
+    ).not.toBeNull();
+  });
+
+  it("'Check again' asks for a NEW CHECK — it does not re-read the same summary", async () => {
+    summaryReply = () =>
+      partialWith([
+        {
+          sourceId: "pipeline.report_backlog",
+          stage: "SCAN",
+          category: "timeout",
+          retryable: true,
+        },
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    requestLog = [];
+
+    const panel = q('[data-ops-partial="true"]') as HTMLElement;
+    const button = within(panel).getByRole("button", { name: /check again/i });
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    // The whole correction. It used to bump a token and re-fetch the SAME
+    // summary, so a PARTIAL run re-rendered the same warning and the control
+    // appeared to do nothing.
+    const reconcile = requestLog.filter((r) =>
+      r.path.startsWith("/v1/ops/workspace-reconcile"),
+    );
+    expect(reconcile).toHaveLength(1);
+    expect(reconcile[0].method).toBe("POST");
+    expect(reconcile[0].body).toContain(WS);
+  });
+
+  it("a FAILED run on a schema mismatch offers no retry at all", async () => {
+    summaryReply = () => {
+      // `safeFailureCategory` lives on the RUN, not on the summary — the
+      // category is a property of the reconciliation that failed, not of the
+      // projection that reports it.
+      const base = summary({
+        readiness: "FAILED",
+        mayAssertAllClear: false,
+        clearRefusalReason: "FAILED",
+      });
+      return {
+        ...base,
+        summary: {
+          ...base.summary,
+          reconciliation: {
+            ...base.summary.reconciliation,
+            safeFailureCategory: "schema_mismatch",
+          },
+        },
+      };
+    };
+    await mount(envelope(TEAM_ADMIN));
+    const panel = q("[data-ops-reconcile-failed]") as HTMLElement;
+    expect(panel.getAttribute("data-ops-reconcile-retryable")).toBe("false");
+    expect(within(panel).queryByRole("button", { name: /try again/i })).toBeNull();
+    expect(panel.textContent).toMatch(/don.t currently match/i);
+  });
+
   it("a STALLED run is reported as unfinished, not as busy", async () => {
     summaryReply = () =>
       summary({

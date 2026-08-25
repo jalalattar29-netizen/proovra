@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
+| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,16 +21,16 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 2de8bb5d4088bbaa401148b741bd1093056a8736794946ee0e16830a4bd1ef9d |
+| engineHash    | b0a5cc5f0e6e03effdbe7a2a00438159b1192eb494693f50437ef12adba46457 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1097  |
+| registeredRoutes              | 1098  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 868   |
+| productConsumerRoutes         | 869   |
 | machineOnlyConsumerRoutes     | 4     |
 | noConsumerRoutes              | 225   |
 | dispositionedNonProductRoutes | 228   |
@@ -75,7 +75,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 293   |
+| AuditFilesInventoried                      | 295   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -128,7 +128,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 172   |
+| ProductBehaviorTestsInventoried            | 174   |
 
 ### Report roles
 
@@ -204,4 +204,4 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-_(none)_
+- CHECKPOINT: 3 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1096, facts say 1097 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1097, facts say 1098 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 868, facts say 869

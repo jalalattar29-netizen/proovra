@@ -63,6 +63,10 @@ export async function reconcileWorkspaceOperations(input: {
           successfulSources: discovery.sources.successful,
           failedSources: discovery.sources.failed,
           truncatedSources: discovery.sources.truncated,
+          // The reasons travel with the ids. Bounded categories and stages
+          // only; the sweep classified them through one authority so nothing
+          // message-shaped can reach the row.
+          sourceFailures: discovery.sources.failures,
           // Discovery is synchronous and self-contained: it does not hand
           // follow-on work to a queue, so there is never a continuation to
           // wait for. Stated rather than omitted so the field's meaning is

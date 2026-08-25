@@ -42,6 +42,7 @@ import {
 import { prisma } from "../db.js";
 import { buildOperationsSummary } from "../services/operations/operations-summary.service.js";
 import { ensureWorkspaceOperationsFresh } from "../services/operations/operations-reconciliation.service.js";
+import { checkWriterSchemaContract } from "../services/operations/operations-writer-readiness.js";
 import {
   isAssignableOperator,
   listAssignableOperators,
@@ -468,7 +469,7 @@ export async function opsRoutes(app: FastifyInstance) {
   // AND the required runtime schema is present. Operators /
   // orchestrators should use this for "should new traffic be sent to
   // this instance".
-  app.get("/readyz", async (_req, reply) => {
+  app.get("/readyz", async (req, reply) => {
     const violations = collectStartupViolations();
     if (violations.length > 0 && process.env.NODE_ENV === "production") {
       return reply.code(503).send({
@@ -498,6 +499,29 @@ export async function opsRoutes(app: FastifyInstance) {
       return reply.code(503).send({
         status: "degraded",
         reason: "required_schema_missing",
+      });
+    }
+    // THE OPERATIONS WRITER CONTRACT.
+    //
+    // The canary above proves one table exists. It cannot prove that the
+    // writer's tables have every COLUMN this image's Prisma model declares,
+    // and that gap is not theoretical: a production workspace reported six
+    // failed Operations sources and zero recorded conditions while `/readyz`
+    // answered ok, `SELECT 1` answered ok and the canary table was present.
+    // An image that cannot record an operational condition is not ready to
+    // receive traffic, and saying so here is what stops it claiming otherwise.
+    //
+    // Bounded reason only. The detail goes to the operator's logs, never to a
+    // load balancer's response body.
+    const writerContract = await checkWriterSchemaContract();
+    if (!writerContract.ok) {
+      req.log?.error(
+        { writerContract: writerContract.detail },
+        "operations writer schema contract unsatisfied",
+      );
+      return reply.code(503).send({
+        status: "degraded",
+        reason: "operations_writer_schema_mismatch",
       });
     }
     return reply.code(200).send({ status: "ok" });
@@ -859,21 +883,26 @@ export async function opsRoutes(app: FastifyInstance) {
       const actor = await requireOpsActor(req, reply, q.teamId);
       if (!actor) return;
 
-      // WORKSPACE-SCOPE CONVERGENCE (§7.3) — ENSURE, then read.
+      // THIS GET IS SIDE-EFFECT FREE, AND THAT IS A CORRECTION.
       //
-      // If this workspace has never been scanned, or its last scan has gone
-      // stale, this schedules a fresh one and returns immediately. It does NOT
-      // run discovery inline and wait: a GET that performs an unbounded
-      // multi-source scan before answering is the shape this phase removes,
-      // and it is why a workspace nobody opened was never scanned at all.
+      // It used to call `ensureWorkspaceOperationsFresh` before reading, so
+      // every page load, every poll and every browser tab could start a
+      // reconciliation. Three things were wrong with that:
       //
-      // Bounded and idempotent by the durable per-workspace lock, so a hundred
-      // simultaneous page loads produce ONE run. Failures are recorded on the
-      // run row and surface through `readiness`; they never block the read.
-      await ensureWorkspaceOperationsFresh({ workspaceId: q.teamId }).catch(
-        () => null,
-      );
-
+      //   * A GET that mutates cannot be retried, cached or replayed safely,
+      //     and "Check again" in the browser was therefore indistinguishable
+      //     from a plain refetch — pressing it re-ran the same read and, by
+      //     accident, sometimes a run.
+      //   * The trigger was invisible. Nothing in the response said whether
+      //     this request had started work, so a workspace could be reconciling
+      //     because somebody opened a tab, and nothing recorded that.
+      //   * It made the read's latency and failure modes depend on the
+      //     writer's, which is how a broken writer became a broken page.
+      //
+      // Reconciliation now has ONE explicit entry point for a person —
+      // `POST /v1/ops/workspace-reconcile` below — plus the scheduler. This
+      // handler reads what is known and says so honestly, including
+      // `NEVER_RUN`, which the client answers by asking for a run.
       const summary = await buildOperationsSummary({
         workspaceId: q.teamId,
         viewerUserId: actor.userId,
@@ -903,6 +932,77 @@ export async function opsRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         summary,
         workspace: { operatorCount },
+      });
+    },
+  );
+
+  /**
+   * POST /v1/ops/workspace-reconcile — ask for a fresh picture, explicitly.
+   *
+   * WHY IT IS A MUTATION AND NOT A QUERY PARAMETER ON THE GET
+   * -------------------------------------------------------------------------
+   * Starting a multi-source discovery sweep is work. It takes a durable lock,
+   * writes incident rows and records a run. That is a mutation whatever verb
+   * carries it, and pretending otherwise is what let a page load start one
+   * invisibly.
+   *
+   * IDEMPOTENCY IS THE LOCK, NOT A HEADER
+   * -------------------------------------------------------------------------
+   * The durable per-workspace lock in `@proovra/shared-runtime` is the
+   * idempotency key. A second caller during a live run gets
+   * `alreadyRunning` — which is not an error, it is the honest answer to
+   * "please reconcile": it IS being reconciled. So a double-click, a retry and
+   * fifty operators pressing the button at once produce ONE run, and none of
+   * them is told something false.
+   *
+   * AUTHORIZATION is the same `operations.view` floor as the read. Asking the
+   * system to look again at a workspace you may already look at is not a
+   * larger authority than looking — it creates no incident that was not
+   * already true, exposes nothing new, and is bounded by the lock. It is
+   * deliberately NOT gated on `operations.assign` or a remediation
+   * permission: a viewer who can see a stale picture and cannot ask for a
+   * fresh one is being shown something they know is wrong with no way to
+   * correct it.
+   */
+  app.post(
+    "/v1/ops/workspace-reconcile",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = z
+        .object({ teamId: z.string().uuid() })
+        .parse((req.body ?? req.query ?? {}) as unknown);
+      const actor = await requireOpsActor(req, reply, body.teamId);
+      if (!actor) return;
+
+      // An image that cannot RECORD a condition must not be asked to look for
+      // one: the sweep would find the same conditions, fail the same writes
+      // and produce a second identical PARTIAL run. Refuse before doing the
+      // work, and say that retrying is not the remedy.
+      const contract = await checkWriterSchemaContract();
+      if (!contract.ok) {
+        req.log?.error(
+          { writerContract: contract.detail, workspaceId: body.teamId },
+          "refusing workspace reconcile: writer schema contract unsatisfied",
+        );
+        return reply.code(503).send({
+          started: false,
+          alreadyRunning: false,
+          // Bounded and closed-vocabulary. The client renders a
+          // non-retryable state from this; it never sees the detail.
+          refusedReason: "schema_mismatch",
+          retryable: false,
+        });
+      }
+
+      const outcome = await ensureWorkspaceOperationsFresh({
+        workspaceId: body.teamId,
+      });
+      return reply.code(202).send({
+        started: outcome.refreshing,
+        alreadyRunning: outcome.refreshing && outcome.run?.readiness === "RUNNING",
+        refusedReason: outcome.refreshBlockedReason,
+        retryable: outcome.refreshBlockedReason == null,
+        readiness: outcome.run?.readiness ?? "NEVER_RUN",
       });
     },
   );

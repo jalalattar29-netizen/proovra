@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 244,
-    "classifiedMigrations": 244,
+    "filesystemMigrations": 245,
+    "classifiedMigrations": 245,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 244,
+    "productionSnapshotUnknown": 245,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 244,
-    "classifiedMigrations": 244,
+    "filesystemMigrations": 245,
+    "classifiedMigrations": 245,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 244,
+    "productionSnapshotUnknown": 245,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
       "EXPAND": 29,
       "BACKFILL": 17,
       "CONTRACT_DROP": 10,
-      "REPAIR": 3
+      "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 36,
+      "SAFE_TO_APPLY_NOW": 37,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 244
+    "ProductionMigrationStateUnknown": 245
   },
   "gateFailures": [],
   "migrations": [
@@ -19270,8 +19270,80 @@
       "evidence": "WORKSPACE-SCOPE CONVERGENCE — the incident scope discriminator. Creates the IncidentScope enum, adds operational_incidents.scope NOT NULL DEFAULT 'WORKSPACE', reclassifies NULL-team rows to LEGACY_UNSCOPED, and adds one guarded index. Nothing is dropped, no type narrowed, no row deleted; destructiveStatements is empty. The ON DELETE SET NULL foreign key is left exactly as it is — proving the retention and deletion requirements that would justify changing it is separate work, and a destructive FK change made on the way past is how incident history disappears. Every statement is guarded so a partial apply can be re-run. Safe BEFORE the code: an older build ignores the column and keeps its previous behaviour; the new predicate is additive. THE RECLASSIFICATION CLAIMS NOTHING AS PLATFORM — no writer in this codebase records a deliberate platform-wide incident (the only producer of a NULL team id is security-event.service.ts, whose input.teamId ?? null is an account-tier event), so deriving PLATFORM from a NULL would invent the intent the column exists to record. Counted as requiresBackfill:false because the UPDATE is not a data migration in the release-wave sense: it is bounded by 'team_id IS NULL AND scope <> LEGACY_UNSCOPED', touches only rows the new column just defaulted, and is a pure function of data still present — re-applying reproduces the identical classification. The index guard names EVERY column it touches, because an index over three columns fails if any one is absent and the safety gate treats a partial guard as no guard."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271224000000_operational_incident_naming_convergence",
       "order": 243,
+      "sqlPresent": true,
+      "byteLength": 27455,
+      "checksumSha256": "c626297703e04c93e3e58a82d0390146d36a400744f0700e1a4d74a45be20308",
+      "checksumSha256Raw": "c626297703e04c93e3e58a82d0390146d36a400744f0700e1a4d74a45be20308",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "REPAIR",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "operational_incident_events"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "operational_incident_events_incident_created_at_idx",
+          "operational_incidents_assigned_operator_user_id_idx",
+          "operational_incidents_last_seen_at_idx",
+          "operational_incidents_team_fingerprint_uk"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "operational_incident_events_incident_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260529100000_add_operational_incidents_phase21"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 8,
+      "guardRaises": 4,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": null,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "Nothing to roll back: the backfill only fills absent values and a relaxed NOT NULL can be re-tightened. An older image is unaffected — every shipped Prisma client since @map reads and writes only the canonical columns.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": "Apply BEFORE deploying API and Worker. Until it runs, recordIncident fails on every category and the workspace records no operational conditions at all.",
+      "removalCondition": "NEVER removed. Idempotent, so it is a no-op on databases that never drifted (every clean boot and CI), where it only asserts the canonical unique exists.",
+      "evidence": "The EXPAND half of the operational-incident naming convergence, and it removes nothing. Production carries BOTH column families on operational_incidents / operational_incident_events: the canonical snake_case columns migrations manage, and a legacy camelCase family named after Prisma FIELD names, produced when those fields carried no @map — the mechanism 20260620200000_reviewer_ops_naming_drift_repair documented on other tables while explicitly deferring the cleanup (\"a separate cleanup migration will drop them\"), which was never written for these. Measured against a reproduced hybrid, the real recordIncident fails P2011 / 23502 (null value in column \"safeSummary\") at create() while the LOOKUP succeeds — six Operations sources failed, zero conditions recorded, every read surface healthy. This migration backfills canonical-from-legacy where canonical IS NULL, PROVES no row holds a legacy value its canonical column lacks, DROPS the legacy NOT NULLs that were failing every insert, and rebuilds the unique/indexes/FK on canonical columns."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 244,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

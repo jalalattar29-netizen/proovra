@@ -149,8 +149,176 @@ jobs:
           fi
           echo "OK — in-process hook refused with exit 8."
 
-      - name: Test
-        run: pnpm -r test
+      # ONE STEP PER PACKAGE, not a single `pnpm -r test`.
+      #
+      # The recursive form runs the same tests, but when it fails it says only
+      # "Process completed with exit code 1". The step NAME is visible through
+      # the jobs API; the log is not, without a token. So a single step made a
+      # red build undiagnosable for anyone without log access, and that is not
+      # a hypothetical inconvenience — it is exactly the position this branch
+      # spent hours in, reproducing CI locally to guess which package was
+      # failing.
+      #
+      # Split, the failing package is named by the step itself. Ordered cheapest
+      # first so a broad failure surfaces in seconds rather than after the API's
+      # twenty-three thousand cases.
+      - name: Test — shared
+        run: |
+          set +e
+          pnpm --filter @proovra/shared test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
+              | while IFS= read -r line; do echo "::error::@proovra/shared: $line"; done
+          fi
+          exit $rc
+
+      - name: Test — ui
+        run: |
+          set +e
+          pnpm --filter @proovra/ui test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
+              | while IFS= read -r line; do echo "::error::@proovra/ui: $line"; done
+          fi
+          exit $rc
+
+      - name: Test — mobile
+        run: |
+          set +e
+          pnpm --filter proovra-mobile test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
+              | while IFS= read -r line; do echo "::error::proovra-mobile: $line"; done
+          fi
+          exit $rc
+
+      - name: Test — web
+        run: |
+          set +e
+          pnpm --filter proovra-web test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
+              | while IFS= read -r line; do echo "::error::proovra-web: $line"; done
+          fi
+          exit $rc
+
+      - name: Test — worker
+        run: |
+          set +e
+          pnpm --filter proovra-worker test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
+              | while IFS= read -r line; do echo "::error::proovra-worker: $line"; done
+          fi
+          exit $rc
+
+      # The API step captures its WHOLE output and prints the tail UNFILTERED.
+      #
+      # The previous form annotated only lines matching a pattern, and on the
+      # run that mattered it matched NOTHING — not even vitest's own
+      # "Test Files"/"Tests" summary. So the build said "exit code 1" and
+      # nothing else, which is indistinguishable from a runner flake and is
+      # exactly the state that must never be guessed at: an exit code with no
+      # output is not evidence of a reporter problem, it is evidence of
+      # missing evidence.
+      #
+      # Unfiltered tail, duration and exit code go to the step log; the
+      # complete log is uploaded as an artifact so it survives the run.
+      - name: Test — api
+        run: |
+          set +e
+          start=$(date +%s)
+          pnpm --filter proovra-api test > /tmp/api-test.log 2>&1
+          rc=$?
+          set -e
+          end=$(date +%s)
+          echo "proovra-api tests exited $rc after $((end - start))s"
+          if [ "$rc" != "0" ]; then
+            echo "=================== last 250 lines, unfiltered ==================="
+            tail -n 250 /tmp/api-test.log
+            echo "================================================================="
+            echo "::error::proovra-api tests exited $rc after $((end - start))s — the complete log is the api-test-log artifact"
+            tail -n 40 /tmp/api-test.log | while IFS= read -r line; do echo "::error::proovra-api: $line"; done
+          fi
+          exit $rc
+
+      - name: Upload API test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-log
+          path: /tmp/api-test.log
+          if-no-files-found: ignore
 
       - name: Build Shared
         run: pnpm --filter @proovra/shared build

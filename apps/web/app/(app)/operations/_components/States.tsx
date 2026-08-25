@@ -294,10 +294,21 @@ export function PartialCoverageNotice({
   failedCount,
   truncatedCount,
   onRetry,
+  retryable = true,
 }: {
   failedCount: number;
   truncatedCount: number;
   onRetry?: () => void;
+  /**
+   * Could running the same check again plausibly succeed?
+   *
+   * SERVER-COMPUTED, from the bounded failure category on the run row. A
+   * deployment/schema disagreement fails identically every time until
+   * something is deployed, so offering  for one is an
+   * instruction to waste an operator's time during an incident — and, worse,
+   * a suggestion that the problem is transient when it is not.
+   */
+  retryable?: boolean;
 }) {
   const what =
     truncatedCount > 0 && failedCount > 0
@@ -318,8 +329,16 @@ export function PartialCoverageNotice({
           them. This workspace can&apos;t be reported as clear until a complete
           check succeeds.
         </span>
+        {!retryable ? (
+          <span data-ops-partial-nonretryable="true">
+            {" "}
+            Checking again won&apos;t change this — the app and its data store
+            don&apos;t currently match, so the same checks will fail until that
+            is corrected. Contact whoever manages this deployment.
+          </span>
+        ) : null}
       </div>
-      {onRetry ? (
+      {onRetry && retryable ? (
         <button type="button" className="app-secondary-action" onClick={onRetry}>
           Check again
         </button>
@@ -372,18 +391,26 @@ export function ReconciliationFailedNotice({
   category: string | null;
   onRetry?: () => void;
 }) {
+  // `schema_mismatch` and `permission_denied` describe a deployment, not a
+  // transient. Retrying cannot change either, and the copy has to say so
+  // instead of implying the operator simply caught a bad moment.
+  const retryable =
+    category !== "schema_mismatch" && category !== "permission_denied";
   const explanation =
     category === "database_unavailable"
       ? "The workspace's data couldn't be reached."
       : category === "timeout"
         ? "The check took too long and was stopped."
         : category === "schema_mismatch"
-          ? "The check couldn't run against this environment."
-          : "The check couldn't be completed.";
+          ? "This version of the app and its data store don't currently match, so the check can't run at all. Checking again won't change that — it needs whoever manages this deployment."
+          : category === "permission_denied"
+            ? "The check wasn't allowed to read what it needs. Checking again won't change that — it needs whoever manages this deployment."
+            : "The check couldn't be completed.";
   return (
     <div
       className="app-alert app-alert--danger"
       data-ops-reconcile-failed={category ?? "unexpected_error"}
+      data-ops-reconcile-retryable={retryable ? "true" : "false"}
       role="alert"
     >
       <div>
@@ -393,7 +420,7 @@ export function ReconciliationFailedNotice({
           of date.
         </span>
       </div>
-      {onRetry ? (
+      {onRetry && retryable ? (
         <button type="button" className="app-secondary-action" onClick={onRetry}>
           Try again
         </button>

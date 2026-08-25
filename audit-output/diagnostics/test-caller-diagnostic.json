@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "ff08d125c0297f3647c347324f3a7475817b80a08ca757d58e69c0e52349e312",
+  "capabilityRouteInventoryHash": "346ddf2519f99eb93876ba10067f855971da8e482080731bbf9e7e2d1eafe9a2",
   "totals": {
-    "routes": 1097,
+    "routes": 1098,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -5658,6 +5658,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/ops/workspace-reconcile",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/org-invite-deliveries/process",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6664,5 +6670,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "34ac50fc1f8787d3d217b68f116c9efb01933ad47d4e32c7a7379729c1575acf"
+  "contentHash": "d4b35f964fe6413d7a46377753f736a412e001e4598c7c39f4c1ea7b827841db"
 }

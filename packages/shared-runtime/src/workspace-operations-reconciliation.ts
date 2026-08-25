@@ -117,7 +117,77 @@ export type OperationsSourceAccounting = {
   truncatedSources: string[];
   /** True when the run handed follow-on work to a queue and did not finish it. */
   continuationScheduled: boolean;
+  /**
+   * WHY a failed source failed — bounded, one entry per id in `failedSources`.
+   *
+   * Recording only the ids was measured to be not enough. A production
+   * workspace reported six failed sources and `safeFailureCategory: null`, and
+   * the reason could not be recovered from any log, run row or response
+   * because the sweep caught the writer's exception with a bare `catch {}` —
+   * the error object was not even bound. Six ids and no cause is a report that
+   * something is wrong and a refusal to say what, which costs an outage the
+   * time it takes to rediscover from outside.
+   *
+   * Empty is legitimate and means no source failed. A failed source with no
+   * entry here is a defect, and `assertSourceFailuresCovered` says so.
+   */
+  sourceFailures: OperationsSourceFailure[];
 };
+
+/**
+ * One source's failure, reduced to what an operator can act on and nothing
+ * that could identify a tenant, a record or the shape of a query.
+ */
+export type OperationsSourceFailure = {
+  /** The registered source id. Always one of `failedSources`. */
+  sourceId: string;
+  /** Which half of the source's work gave way. */
+  stage: OperationsSourceStage;
+  /** Bounded category from `safeOperationsFailureCategory`. */
+  category: string;
+  /**
+   * Could running the SAME discovery again plausibly succeed?
+   *
+   * This is the field the UI branches on, and it is why it is computed on the
+   * server. A deployment/schema disagreement does not become true because the
+   * operator pressed a button again, and offering them "Check again" for one
+   * is an instruction to waste their time during an incident.
+   */
+  retryable: boolean;
+};
+
+/**
+ * Where in a source's work the failure happened.
+ *
+ * The distinction is load-bearing: SCAN means the condition could not be
+ * LOOKED for, WRITE means it was found and could not be RECORDED. The second
+ * is strictly worse — the workspace has a real, observed, unrecorded condition
+ * — and the two have completely different remedies.
+ */
+export type OperationsSourceStage =
+  /** The discovery query failed. Nothing was learned. */
+  | "SCAN"
+  /** The condition was observed and the incident writer refused it. */
+  | "WRITE"
+  /** The failure could not be attributed to either half. */
+  | "UNKNOWN";
+
+/**
+ * Which bounded categories describe a condition that a retry cannot change.
+ *
+ * `schema_mismatch` is the reason this list exists: an API image whose Prisma
+ * model requires a column its database does not have will fail identically on
+ * every attempt until something is DEPLOYED. `permission_denied` is the same
+ * shape of fact about the database role.
+ */
+const NON_RETRYABLE_FAILURE_CATEGORIES: ReadonlySet<string> = new Set([
+  "schema_mismatch",
+  "permission_denied",
+]);
+
+export function isRetryableOperationsFailure(category: string): boolean {
+  return !NON_RETRYABLE_FAILURE_CATEGORIES.has(category);
+}
 
 export function emptySourceAccounting(): OperationsSourceAccounting {
   return {
@@ -127,7 +197,25 @@ export function emptySourceAccounting(): OperationsSourceAccounting {
     failedSources: [],
     truncatedSources: [],
     continuationScheduled: false,
+    sourceFailures: [],
   };
+}
+
+/**
+ * Every failed source must say why.
+ *
+ * Returns the ids that failed without a recorded reason. A non-empty result is
+ * a defect in the sweep, not a state the product can be in: it is the exact
+ * condition — "six sources failed and nobody knows why" — that this accounting
+ * was added to make impossible.
+ */
+export function sourceFailuresWithoutReason(
+  accounting: Pick<OperationsSourceAccounting, "failedSources" | "sourceFailures">,
+): string[] {
+  const explained = new Set(
+    (accounting.sourceFailures ?? []).map((f) => f.sourceId),
+  );
+  return (accounting.failedSources ?? []).filter((id) => !explained.has(id));
 }
 
 /**
@@ -248,6 +336,15 @@ export async function reconcileWorkspaceOperationalConditions(
           failed: bodyResult.sources.failedSources,
           truncated: bodyResult.sources.truncatedSources,
           continuationScheduled: bodyResult.sources.continuationScheduled,
+          // The REASONS, alongside the ids. Bounded on the way in by
+          // `safeOperationsFailureCategory`, so what lands on the row is a
+          // category and a stage and never a message, a stack or a statement.
+          sourceFailures: bodyResult.sources.sourceFailures.map((f) => ({
+            sourceId: f.sourceId,
+            stage: f.stage,
+            category: f.category,
+            retryable: f.retryable,
+          })),
         });
         return bodyResult;
       },
@@ -312,7 +409,38 @@ function readSourceAccounting(metadata: unknown): OperationsSourceAccounting {
     failedSources: list(obj.failed),
     truncatedSources: list(obj.truncated),
     continuationScheduled: obj.continuationScheduled === true,
+    // Decoded defensively: this metadata is read back from rows written by
+    // OLDER images that had no such key, and a run recorded before this field
+    // existed must project as "no reason recorded" rather than throwing and
+    // taking the whole readiness projection down with it.
+    sourceFailures: failureList(obj.sourceFailures),
   };
+}
+
+const SOURCE_STAGES: ReadonlySet<string> = new Set(["SCAN", "WRITE", "UNKNOWN"]);
+
+function failureList(v: unknown): OperationsSourceFailure[] {
+  if (!Array.isArray(v)) return [];
+  const out: OperationsSourceFailure[] = [];
+  for (const raw of v) {
+    if (raw == null || typeof raw !== "object") continue;
+    const o = raw as Record<string, unknown>;
+    if (typeof o.sourceId !== "string" || typeof o.category !== "string") continue;
+    const stage =
+      typeof o.stage === "string" && SOURCE_STAGES.has(o.stage)
+        ? (o.stage as OperationsSourceStage)
+        : "UNKNOWN";
+    out.push({
+      sourceId: o.sourceId.slice(0, 120),
+      stage,
+      category: o.category.slice(0, 64),
+      // Recomputed from the category rather than trusted from the row. The
+      // retryability of a category is a decision this module owns, and a row
+      // written by an older image cannot be allowed to assert a different one.
+      retryable: isRetryableOperationsFailure(o.category),
+    });
+  }
+  return out;
 }
 
 /**

@@ -84,7 +84,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 293,
+    "AuditFilesInventoried": 295,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -137,7 +137,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 172
+    "ProductBehaviorTestsInventoried": 174
   },
   "reportRoles": {
     "counts": {
@@ -156,7 +156,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 172,
+    "PRODUCT_BEHAVIOR_TEST": 174,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
@@ -2670,7 +2670,37 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/test/operations-reconcile-authority.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/test/operations-saved-views-authority.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/operations-workspace-capability-matrix.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

@@ -146,7 +146,25 @@ describe("PHASE 12 POINT 8 — committed signing fixture reachability", () => {
       expect(m).not.toContain(body);
       expect(m).not.toMatch(/-----BEGIN [A-Z ]*PRIVATE KEY-----/);
       // No base64 run long enough to be key material.
-      expect(m).not.toMatch(/[A-Za-z0-9+/]{40,}={0,2}/);
+      //
+      // FILESYSTEM PATHS ARE REMOVED FIRST, and that is a correction rather
+      // than a loosening. `[A-Za-z0-9+/]` includes the POSIX separator, so a
+      // long absolute path is indistinguishable from base64 to this pattern:
+      // on the CI runner the stack traces carry
+      // `/home/runner/work/proovra/proovra/services/api/...`, which is
+      // forty-plus characters of exactly that class and matched. On Windows
+      // the same stack reads `D:\digital-witness\...`, where the drive colon
+      // and backslashes break every run — so the assertion passed locally and
+      // could not pass on Linux.
+      //
+      // A path is not key material. Removing path-shaped runs keeps the
+      // property this test exists to hold — that no key bytes reach an error
+      // message — while dropping a false positive that was only ever about
+      // where the checkout happens to live.
+      const withoutPaths = m
+        .replace(/(?:\/[A-Za-z0-9._@+-]+)+\/?/g, "<path>")
+        .replace(/[A-Za-z]:\\[^\s)]*/g, "<path>");
+      expect(withoutPaths).not.toMatch(/[A-Za-z0-9+/]{40,}={0,2}/);
     }
   });
 });

@@ -230,9 +230,32 @@ export type OperationsSummary = {
       successfulSources: string[];
       failedSources: string[];
       truncatedSources: string[];
+      /**
+       * WHY each failed source failed. One entry per id in `failedSources`.
+       *
+       * Optional because a run recorded by an older image has no such key,
+       * and a workspace whose last run predates this field must render as
+       * "reason not recorded" rather than crash the page.
+       */
+      sourceFailures?: OperationsSourceFailure[];
     };
     safeFailureCategory: string | null;
   } | null;
+};
+
+/**
+ * Mirrors the server vocabulary exactly. Never a parallel spelling.
+ *
+ * `retryable` is the field the surface branches on, and it is deliberately
+ * SERVER-COMPUTED: whether pressing a button again could help is a fact about
+ * the failure, not a guess the browser should make. A deployment/schema
+ * disagreement does not become false because an operator tried twice.
+ */
+export type OperationsSourceFailure = {
+  sourceId: string;
+  stage: "SCAN" | "WRITE" | "UNKNOWN";
+  category: string;
+  retryable: boolean;
 };
 
 /** Mirrors the server vocabulary exactly. Never a parallel spelling. */

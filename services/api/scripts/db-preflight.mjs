@@ -303,6 +303,71 @@ if (skipDrift) {
 }
 
 // =============================================================================
+// Check 5 — the Operations writer schema contract.
+//
+// Check 4 asks whether the database has the objects this release DECLARES, one
+// hand-written requirement at a time. That is the right shape for "which
+// migration supplies this", and it is the wrong shape for the failure that
+// prompted this check: a workspace reported six failed Operations sources and
+// zero conditions because ONE column the deployed Prisma model declared was
+// absent from `operational_incidents`, and no hand-maintained list had it.
+//
+// This check does not enumerate objects. It asks the deployed data model for
+// the writer's tables and requires the database to satisfy ALL of it. It
+// cannot fall behind a model change, because it IS the model.
+//
+// Skipped under the same rule as Check 4, recorded as WARN, never as PASS.
+// =============================================================================
+{
+  const { checkOperationsWriterContract, describeWriterContractFailure, loadDeployedDatamodel } =
+    await import("./operations-writer-schema-contract.mjs");
+
+  if (skipDrift || !databaseUrl) {
+    recordResult({
+      name: "Operations writer schema contract",
+      status: "WARN",
+      detail: !databaseUrl
+        ? "skipped (no DATABASE_URL)"
+        : "skipped (would require connecting to a non-local DB)",
+    });
+  } else {
+    let pool = null;
+    try {
+      const { Pool } = await import("pg");
+      pool = new Pool({ connectionString: databaseUrl, max: 1 });
+      const dmmf = await loadDeployedDatamodel();
+      const result = await checkOperationsWriterContract(dmmf, async (sql) => {
+        const rows = await pool.query(sql);
+        return rows.rows;
+      });
+      if (result.ok) {
+        recordResult({
+          name: "Operations writer schema contract",
+          status: "PASS",
+          detail: `every column the deployed model declares is present on ${result.checkedTables.join(", ")}`,
+        });
+      } else {
+        recordResult({
+          name: "Operations writer schema contract",
+          status: "FAIL",
+          detail: describeWriterContractFailure(result),
+        });
+      }
+    } catch {
+      recordResult({
+        name: "Operations writer schema contract",
+        status: "FAIL",
+        detail:
+          "could not read the database catalog — the writer contract is treated as unsatisfied. " +
+          "Check DATABASE_URL and that the server is reachable, then re-run.",
+      });
+    } finally {
+      await pool?.end().catch(() => {});
+    }
+  }
+}
+
+// =============================================================================
 // Summary
 // =============================================================================
 process.stderr.write("\n");

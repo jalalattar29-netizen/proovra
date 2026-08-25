@@ -416,8 +416,25 @@ export function build() {
   for (const routeId of routeIds) {
     const base = routeById.get(routeId);
     const cs = byRoute.get(routeId) ?? [];
-    const productConsumers = cs.filter((c) => c.product);
-    const machineConsumers = cs.filter((c) => !c.product);
+    // SORTED AT THE POINT THEY ARE BUILT, not later.
+    //
+    // These lists come out of a filesystem walk, whose order differs between
+    // platforms, and they are consumed in two ways that both bake that order
+    // into the committed artifact: the arrays are written out verbatim, and
+    // `dispositionEvidence` takes `.slice(0, 3)` — so on a different host a
+    // DIFFERENT THREE callers were quoted as the evidence for the same
+    // disposition. Sorting here fixes both at once; sorting only at the
+    // write-out sites would have left the evidence string non-deterministic.
+    //
+    // Plain code-unit comparison, never `localeCompare`, which is itself
+    // locale and ICU dependent. The line is zero-padded so 9 sorts before 10.
+    const bySite = (a, b) => {
+      const ka = `${a.file}:${String(a.line).padStart(8, "0")}:${a.caller}`;
+      const kb = `${b.file}:${String(b.line).padStart(8, "0")}:${b.caller}`;
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    };
+    const productConsumers = cs.filter((c) => c.product).sort(bySite);
+    const machineConsumers = cs.filter((c) => !c.product).sort(bySite);
 
     // -----------------------------------------------------------------------
     // PRIMARY DISPOSITION — exactly one per route, and the sets are DISJOINT.
@@ -1311,7 +1328,29 @@ export function build() {
   const taxonomy = new Map(
     (loadManifest("capability-taxonomy.json").entries ?? []).map((e) => [e.routeId, e]),
   );
-  const capabilities = routesOut.map((r) => {
+  /**
+   * SORTED, for the same reason `tally` sorts its keys.
+   *
+   * `routesOut` is built in the order the analyzers walked the route files,
+   * and `readdirSync` does not return the same order on every platform. The
+   * SET of capabilities was always identical — the same route simply appeared
+   * at a different index — but this artifact is committed and byte-compared,
+   * so a reordering is indistinguishable from a change.
+   *
+   * Measured on one commit: `POST:/v1/_test/rate-limit/reset` sat at a
+   * different position in the array depending on the host that generated it.
+   */
+  // Plain code-unit comparison, NOT `localeCompare`: that is itself locale and
+  // ICU dependent, which is the very class of host-dependence being removed
+  // here. `<`/`>` on strings is defined by the language and identical
+  // everywhere.
+  const capabilities = [...routesOut]
+    .sort((a, b) => {
+      const ka = `${a.method}:${a.path}`;
+      const kb = `${b.method}:${b.path}`;
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    })
+    .map((r) => {
     const tax = taxonomy.get(r.routeId);
     return {
       capabilityId: `${r.method}:${r.path}`,
@@ -1327,9 +1366,34 @@ export function build() {
     };
   });
 
+  /**
+   * Count rows by one key, with the KEYS IN SORTED ORDER.
+   *
+   * The sort is not cosmetic and it is not for readability. Without it the
+   * keys land in the order the rows were encountered, which is the order the
+   * analyzers walked the filesystem — and `readdirSync` does not return the
+   * same order on every platform. The COUNTS were always identical; only the
+   * key order moved.
+   *
+   * That made this artifact host-dependent, and the consequence was a
+   * permanently red CI: a map generated on Windows and committed does not
+   * byte-match the same map regenerated on the Linux runner, so
+   * `audit:architecture --engine-check` reported STALE on every run of the
+   * build-test job — including on `main` — while passing for whoever
+   * generated it. Measured, not inferred: the same commit, same tree,
+   * produced `TARGET_COMPLETE, INTERNAL_REQUIRED, COMPATIBILITY_TEMPORARY` on
+   * one host and `INTERNAL_REQUIRED, TARGET_COMPLETE, COMPATIBILITY_TEMPORARY`
+   * on the other.
+   *
+   * A generated artifact that a gate byte-compares must be a pure function of
+   * the tree, and "pure function of the tree" has to include the order its
+   * own keys are written in.
+   */
   const tally = (rows, key) => {
+    const counts = new Map();
+    for (const row of rows) counts.set(row[key], (counts.get(row[key]) ?? 0) + 1);
     const out = {};
-    for (const row of rows) out[row[key]] = (out[row[key]] ?? 0) + 1;
+    for (const k of [...counts.keys()].sort()) out[k] = counts.get(k);
     return out;
   };
 

@@ -1097,6 +1097,20 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Nothing to do with Phase 32.7.2's security-event mapping; permitted by
       // exact name.
       "20271223000000_operational_incident_scope",
+      // OPERATIONAL INCIDENT NAMING CONVERGENCE (2026-08-25). Removes the
+      // LEGACY camelCase column family from `operational_incidents` and
+      // `operational_incident_events` — the duplicate columns a generation of
+      // the model without `@map` created beside the canonical snake_case ones,
+      // and which this repository documented on OTHER tables in
+      // 20260620200000_reviewer_ops_naming_drift_repair while explicitly
+      // deferring the cleanup for these.
+      //
+      // It is naming-drift work, which is why it is worth being explicit that
+      // it is NOT Phase 32.7.2's naming drift: that phase is about the
+      // security-event MAPPING, and this migration touches neither
+      // `security_events` nor any mapping it owns. Permitted by exact name,
+      // like every entry above, so the allowlist never becomes a pattern.
+      "20271224000000_operational_incident_naming_convergence",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -30,6 +30,14 @@ import { describe, expect, it } from "vitest";
 import { registrationsByOperation } from "./_canonical-facts";
 
 describe("Phase R9 — duplicate route registration guard", () => {
+  // 60s, not the 5s default.
+  //
+  // `registrationsByOperation()` parses EVERY route file in the service to
+  // build its inventory. That is seconds of AST work on an idle developer
+  // machine and considerably more on a shared four-core CI runner, where it
+  // exceeded the default and failed for a reason that had nothing to do with
+  // duplicate routes. A test that walks the whole route tree must not be
+  // governed by a timeout meant for unit assertions.
   it("no (method, path) pair is registered in more than one route file", () => {
     const duplicates = [...registrationsByOperation().entries()]
       .filter(([, files]) => files.length > 1)
@@ -43,7 +51,7 @@ describe("Phase R9 — duplicate route registration guard", () => {
       duplicates,
       `Fastify routes registered in more than one route file (would crash boot with FST_ERR_DUPLICATED_ROUTE):\n${report}`,
     ).toEqual([]);
-  });
+  }, 60_000);
 
   it("GET /v1/governance/dashboard is registered exactly once", () => {
     // The original incident, pinned by name. The generic assertion above would
@@ -56,5 +64,5 @@ describe("Phase R9 — duplicate route registration guard", () => {
         .map((f) => `  ${f}`)
         .join("\n")}`,
     ).toHaveLength(1);
-  });
+  }, 60_000);
 });

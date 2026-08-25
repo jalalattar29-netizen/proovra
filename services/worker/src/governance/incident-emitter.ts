@@ -184,18 +184,59 @@ export async function recordWorkerIncident(
       : undefined;
 
   try {
-    const existing = await prisma.operationalIncident.findUnique({
-      where: {
-        teamId_fingerprint: {
-          teamId,
-          fingerprint,
-        } as never,
-      },
-    });
+    // ---------------------------------------------------------------
+    // THE LOOKUP IS NARROW, AND THE NULL-TEAM BRANCH IS SEPARATE.
+    //
+    // Both of those used to be wrong here, in the same two ways the API's
+    // canonical writer was:
+    //
+    //   * NO EXPLICIT SELECT, so Prisma named every scalar column the model
+    //     declares. That makes this statement a full-width compatibility
+    //     check between the worker image and the database, and one column
+    //     the model declares and the database lacks fails EVERY worker
+    //     incident identically — the same mechanism that left a production
+    //     workspace reporting zero conditions over a real backlog.
+    //
+    //   * AN `as never` CAST on a compound unique whose `teamId` may be
+    //     null. Prisma rejects a null there at runtime, so every
+    //     account-tier worker incident threw instead of recording. The cast
+    //     made a runtime crash look like a type accommodation, and the
+    //     catch below turned the crash into silence.
+    //
+    // PostgreSQL treats NULLs as DISTINCT in a unique index, so a
+    // (NULL, fingerprint) pair never collides with itself and the constraint
+    // provides no exclusion for those rows at all. Their dedup is therefore
+    // explicitly at this layer, which is where it was always happening.
+    // ---------------------------------------------------------------
+    const DEDUPE_SELECT = {
+      id: true,
+      status: true,
+      severity: true,
+      relatedEvidenceId: true,
+    } as const;
+    const existing = teamId
+      ? await prisma.operationalIncident.findUnique({
+          where: { teamId_fingerprint: { teamId, fingerprint } },
+          select: DEDUPE_SELECT,
+        })
+      : await prisma.operationalIncident.findFirst({
+          where: { teamId: null, fingerprint },
+          orderBy: { firstSeenAtUtc: "asc" },
+          select: DEDUPE_SELECT,
+        });
     if (!existing) {
       const row = await prisma.operationalIncident.create({
         data: {
           teamId,
+          // DERIVED, never defaulted. The column's default is WORKSPACE, so
+          // omitting it — which this writer did — stamps WORKSPACE onto a
+          // NULL-team row: precisely the contradiction the discriminator was
+          // added to make impossible, and it would have made every
+          // account-tier worker incident indistinguishable from a deleted
+          // workspace's orphan.
+          scope: teamId
+            ? prismaPkg.IncidentScope.WORKSPACE
+            : prismaPkg.IncidentScope.LEGACY_UNSCOPED,
           category: categoryToPrismaEnum(input.category),
           severity: severityToPrismaEnum(input.severity),
           status: prismaPkg.IncidentStatus.OPEN,
@@ -265,8 +306,23 @@ export async function recordWorkerIncident(
     }
     return row;
   } catch (err) {
-    logger.warn(
-      { err, fingerprint, correlationId: input.correlationId ?? null },
+    // ERROR, not warn. This path returns null and every caller treats null as
+    // "nothing to do", so a failure here means a condition the worker OBSERVED
+    // is not recorded anywhere — the same disappearance the API sweep's bare
+    // `catch {}` produced. It may not be logged at a level production filters
+    // out, and the code is carried so a schema disagreement is separable from
+    // a transient at a glance rather than by re-deriving it from a message.
+    logger.error(
+      {
+        err,
+        fingerprint,
+        correlationId: input.correlationId ?? null,
+        prismaCode:
+          typeof (err as { code?: unknown })?.code === "string"
+            ? (err as { code: string }).code
+            : null,
+        teamScoped: teamId != null,
+      },
       "worker.incident.record_failed",
     );
     return null;

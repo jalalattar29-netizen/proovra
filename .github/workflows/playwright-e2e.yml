@@ -25,7 +25,20 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector, NOT postgres:16-alpine.
+        #
+        # `20270701000000_phase15_semantic_search` and its neighbours issue
+        # `CREATE EXTENSION vector`, which the stock alpine image does not ship,
+        # so `prisma migrate deploy` cannot complete against it. This was
+        # invisible for as long as the job died at "Initialize containers" — the
+        # MinIO service could never start — and surfaced the moment that was
+        # fixed.
+        #
+        # `schema-reproducibility.yml` has always used this image and has always
+        # passed its `migrate deploy`, so it is the proven choice rather than a
+        # guess: two workflows migrating the same tree should not disagree about
+        # what the tree needs.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: proovra
           POSTGRES_PASSWORD: proovra_password
@@ -44,19 +57,6 @@ jobs:
           - 6379:6379
         options: >-
           --health-cmd="redis-cli ping"
-          --health-interval=2s
-          --health-timeout=3s
-          --health-retries=20
-
-      minio:
-        image: minio/minio:RELEASE.2024-12-18T13-15-44Z
-        env:
-          MINIO_ROOT_USER: minio
-          MINIO_ROOT_PASSWORD: minio_password
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd="curl -f http://localhost:9000/minio/health/live || exit 1"
           --health-interval=2s
           --health-timeout=3s
           --health-retries=20
@@ -121,6 +121,38 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # MinIO is started HERE and not as a service container, and that is not a
+      # style preference.
+      #
+      # `services:` cannot pass a command to a container, and the MinIO image's
+      # entrypoint does nothing useful without `server /data` — it prints usage
+      # and exits. So the container died on startup, its health check never
+      # passed, and "Initialize containers" failed in about nine seconds,
+      # BEFORE the checkout, on every run of this workflow. The job has never
+      # reached a single test, on this branch or on main.
+      #
+      # Started as a plain `docker run` on the host network the command can be
+      # supplied, and the readiness wait is explicit — including dumping the
+      # container's own logs on timeout, because the previous failure mode gave
+      # no clue at all as to which of the three services had not come up.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio --network host \
+            -e MINIO_ROOT_USER=minio \
+            -e MINIO_ROOT_PASSWORD=minio_password \
+            minio/minio:RELEASE.2024-12-18T13-15-44Z \
+            server /data --address ':9000'
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:9000/minio/health/live >/dev/null 2>&1; then
+              echo "MinIO ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MinIO did not become ready. Last 50 log lines:"
+          docker logs --tail 50 minio || true
+          exit 1
 
       - name: Provision MinIO bucket
         run: |

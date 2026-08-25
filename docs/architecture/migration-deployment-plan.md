@@ -91,6 +91,7 @@ Every one is backward-compatible with the currently deployed build.
 | `20271220000001_evidence_lifecycle_state_backfill` | BACKFILL | yes — two UPDATEs converging `lifecycle_state` with the timestamps that were the de-facto product-state authority (`deleted_at` → TRASHED, then `archived_at` → ARCHIVED), both excluding rows already DESTROYED and already in the target state, so a second run is a no-op. Destruction is NEVER inferred: `deleted_at` maps to TRASHED and nothing else, because the purge worker set it ninety days BEFORE deleting anything and the two paths that emitted destruction certificates deleted no bytes at all — reading it as destruction would manufacture a tombstone for every recoverable record in every workspace's trash. Governance-internal postures (UNDER_REVIEW / ON_HOLD / RETENTION_LOCKED / PENDING_DESTRUCTION) are LEFT ALONE rather than reset to ACTIVE: no other column records them. Readiness: `node services/api/scripts/evidence-lifecycle-state-readiness.mjs` |
 | `20271222000000_workspace_operations_reconciliation_kind` | EXPAND | yes — one `ALTER TYPE … ADD VALUE IF NOT EXISTS` on `GovernanceReconciliationKind`, adding `WORKSPACE_OPERATIONS`. Idempotent and additive: no table, no column, no constraint, no row rewritten, and unread by the deployed build until the scheduled Operations reconciler ships. MUST APPLY BEFORE THE CODE — the reverse order is a measured outage, not a theoretical one: `SEARCH_INDEX` shipped code-first once and every reconciler tick died on `invalid input value for enum` at its first workspace, silently, because the claim row could not be written. Kept as its OWN migration because PostgreSQL will not let a value added by `ADD VALUE` be USED in the transaction that adds it |
 | `20271223000000_operational_incident_scope` | EXPAND | yes — the `IncidentScope` enum, `operational_incidents.scope NOT NULL DEFAULT 'WORKSPACE'`, a bounded reclassification of NULL-team rows to `LEGACY_UNSCOPED`, and one guarded index. Nothing dropped, no type narrowed, no row deleted, and the `ON DELETE SET NULL` foreign key left exactly as it is. Every statement guarded, so a partial apply can be re-run. Unread by the deployed build until the scope-discriminated reads ship, and an older build ignores the column entirely. The reclassification CLAIMS NOTHING AS PLATFORM: no writer in this codebase records a deliberate platform-wide incident, so deriving `PLATFORM` from a NULL would invent the intent the column exists to record |
+| `20271224000000_operational_incident_naming_convergence` | REPAIR | yes, and it is the one that must apply BEFORE the API and Worker images — the writer is broken until it does, and it REMOVES NOTHING. Production carries BOTH column families on `operational_incidents` / `operational_incident_events`: the canonical snake_case columns migrations manage, and a legacy camelCase family named after Prisma FIELD names, produced when those fields carried no `@map`. `20260620200000_reviewer_ops_naming_drift_repair` documented that mechanism on other tables and deferred the cleanup ("a separate cleanup migration will drop them"); for these tables it was never written. Measured, not theorised: `safe_summary` is `VARCHAR(400) NOT NULL` with no default, so its legacy twin is too, and the real `recordIncident` fails **P2011 / 23502 `null value in column "safeSummary"`** at `create()` while the LOOKUP succeeds — which is why every read surface kept working and `/readyz` answered ok. This migration backfills canonical-from-legacy where canonical IS NULL, PROVES no row holds a legacy value its canonical column lacks, DROPS the legacy NOT NULLs (a relaxation, not a removal — this is what unblocks the writer), and rebuilds the unique/indexes/FK on the canonical columns. Idempotent: on any database that never drifted it does nothing except assert the canonical unique exists |
 | `email_password_auth` | EXPAND | yes — proven byte-identical no-op twin |
 
 > **PHASE 12 CORRECTIVE PASS §2/§3/§5.2 (2026-08-06).**
@@ -474,8 +475,23 @@ reads them.
    value added by `ALTER TYPE … ADD VALUE` be USED in the transaction that adds
    it, which is the whole reason it is a migration of its own;
 3. apply `20271223000000_operational_incident_scope`;
-4. **only then** deploy API and Worker;
-5. deploy Web afterward.
+4. apply `20271224000000_operational_incident_naming_convergence` — not
+   optional and not deferrable: until it runs, `recordIncident` fails
+   P2011/23502 on every category, so the workspace records no operational
+   conditions at all while every read surface looks healthy. It removes
+   nothing, so it is safe to apply to the CURRENTLY deployed image;
+5. **only then** deploy API and Worker;
+6. deploy Web afterward.
+
+The legacy columns are deliberately NOT dropped in this release, and no
+migration in this tree drops them. The drop is held back on
+`chore/operations-contract-drop-later` until the above is live and healthy.
+That is not a documented preference an operator could forget: `prisma migrate
+deploy` applies every pending migration in one pass, so the only way to make
+the ordinary command safe is for the removal not to be in the tree. Nothing
+needs it to have happened for Operations to work — once their NOT NULLs are
+relaxed the legacy columns are inert, read by no image and written by no
+writer.
 
 Steps 4 and 5 used to be enforced by nothing. `db:preflight` checked the
 DATABASE_URL's shape, the migration files' contents and whether those files
