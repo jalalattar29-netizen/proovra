@@ -12,32 +12,32 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 244,
-    "classifiedMigrations": 244,
+    "filesystemMigrations": 245,
+    "classifiedMigrations": 245,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 244,
+    "productionSnapshotUnknown": 245,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 244,
-    "classifiedMigrations": 244,
+    "filesystemMigrations": 245,
+    "classifiedMigrations": 245,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 244,
+    "productionSnapshotUnknown": 245,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
       "EXPAND": 29,
       "BACKFILL": 17,
-      "CONTRACT_DROP": 10,
+      "CONTRACT_DROP": 11,
       "REPAIR": 3
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
       "SAFE_TO_APPLY_NOW": 36,
       "WAIT_FOR_BACKFILL_READINESS": 12,
-      "CONTRACT_DROP_LATER": 10,
+      "CONTRACT_DROP_LATER": 11,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
     },
     "MigrationInventoryUnknown": 0,
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 244
+    "ProductionMigrationStateUnknown": 245
   },
   "gateFailures": [],
   "migrations": [
@@ -19270,8 +19270,218 @@
       "evidence": "WORKSPACE-SCOPE CONVERGENCE — the incident scope discriminator. Creates the IncidentScope enum, adds operational_incidents.scope NOT NULL DEFAULT 'WORKSPACE', reclassifies NULL-team rows to LEGACY_UNSCOPED, and adds one guarded index. Nothing is dropped, no type narrowed, no row deleted; destructiveStatements is empty. The ON DELETE SET NULL foreign key is left exactly as it is — proving the retention and deletion requirements that would justify changing it is separate work, and a destructive FK change made on the way past is how incident history disappears. Every statement is guarded so a partial apply can be re-run. Safe BEFORE the code: an older build ignores the column and keeps its previous behaviour; the new predicate is additive. THE RECLASSIFICATION CLAIMS NOTHING AS PLATFORM — no writer in this codebase records a deliberate platform-wide incident (the only producer of a NULL team id is security-event.service.ts, whose input.teamId ?? null is an account-tier event), so deriving PLATFORM from a NULL would invent the intent the column exists to record. Counted as requiresBackfill:false because the UPDATE is not a data migration in the release-wave sense: it is bounded by 'team_id IS NULL AND scope <> LEGACY_UNSCOPED', touches only rows the new column just defaulted, and is a pure function of data still present — re-applying reproduces the identical classification. The index guard names EVERY column it touches, because an index over three columns fails if any one is absent and the safety gate treats a partial guard as no guard."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271224000000_operational_incident_naming_convergence",
       "order": 243,
+      "sqlPresent": true,
+      "byteLength": 26835,
+      "checksumSha256": "48f8b1b4a13335a28f6fde803f1e22b19da32996724ca1b4f58e320b8af37e12",
+      "checksumSha256Raw": "48f8b1b4a13335a28f6fde803f1e22b19da32996724ca1b4f58e320b8af37e12",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "cdd934b32102ccdac4471ec8a8846e790febcc89",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "CONTRACT_DROP",
+      "sqlShape": "CONTRACT_DROP",
+      "sqlShapeEvidence": "removes 27 persistent object(s): DROP_COLUMN:acknowledgedatutc, DROP_COLUMN:acknowledgedbyuserid, DROP_COLUMN:assignedatutc, DROP_COLUMN:assignedbyuserid, DROP_COLUMN:assignedoperatoruserid, DROP_COLUMN:createdat, DROP_COLUMN:createdatutc, DROP_COLUMN:eventtype, DROP_COLUMN:firstseenatutc, DROP_COLUMN:incidentid, DROP_COLUMN:lastseenatutc, DROP_COLUMN:metadatajson, DROP_COLUMN:occurrencecount, DROP_COLUMN:openedbysystem, DROP_COLUMN:relatedevidenceid, DROP_COLUMN:relatedjobid, DROP_COLUMN:relatedprovider, DROP_COLUMN:requestid, DROP_COLUMN:resolutionnote, DROP_COLUMN:resolvedatutc, DROP_COLUMN:resolvedbyuserid, DROP_COLUMN:runbookslug, DROP_COLUMN:safemessage, DROP_COLUMN:safesummary, DROP_COLUMN:teamid, DROP_COLUMN:traceid, DROP_COLUMN:updatedat",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "operational_incident_events",
+          "operational_incidents"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [
+          "acknowledgedatutc",
+          "acknowledgedbyuserid",
+          "assignedatutc",
+          "assignedbyuserid",
+          "assignedoperatoruserid",
+          "createdat",
+          "createdatutc",
+          "eventtype",
+          "firstseenatutc",
+          "incidentid",
+          "lastseenatutc",
+          "metadatajson",
+          "occurrencecount",
+          "openedbysystem",
+          "relatedevidenceid",
+          "relatedjobid",
+          "relatedprovider",
+          "requestid",
+          "resolutionnote",
+          "resolvedatutc",
+          "resolvedbyuserid",
+          "runbookslug",
+          "safemessage",
+          "safesummary",
+          "teamid",
+          "traceid",
+          "updatedat"
+        ],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "operational_incident_events_incident_created_at_idx",
+          "operational_incidents_assigned_operator_user_id_idx",
+          "operational_incidents_last_seen_at_idx",
+          "operational_incidents_team_fingerprint_uk"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "operational_incident_events_incident_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260529100000_add_operational_incidents_phase21"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [
+        {
+          "kind": "DROP_COLUMN",
+          "object": "acknowledgedatutc"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "acknowledgedbyuserid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "assignedatutc"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "assignedbyuserid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "assignedoperatoruserid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "createdat"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "createdatutc"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "eventtype"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "firstseenatutc"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "incidentid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "lastseenatutc"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "metadatajson"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "occurrencecount"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "openedbysystem"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "relatedevidenceid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "relatedjobid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "relatedprovider"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "requestid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "resolutionnote"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "resolvedatutc"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "resolvedbyuserid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "runbookslug"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "safemessage"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "safesummary"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "teamid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "traceid"
+        },
+        {
+          "kind": "DROP_COLUMN",
+          "object": "updatedat"
+        }
+      ],
+      "guardBlocks": 7,
+      "guardRaises": 4,
+      "destructiveGuarded": true,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": null,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "Expand-only in the direction that matters. Every shipped Prisma client since @map was added reads and writes the CANONICAL columns, so an older image runs unharmed against the converged schema. Roll back application images and LEAVE this schema in place.",
+      "releaseWave": "CONTRACT_DROP_LATER",
+      "ownerAction": "Apply BEFORE deploying the API and Worker images that carry the writer hardening. Refuses outright if any row holds different values in its legacy and canonical halves, which is unreconciled history a migration must not arbitrate.",
+      "removalCondition": "NEVER removed. Dropping the legacy columns is the point; re-creating them would restore the fault. Idempotent, so it is safe on databases that never drifted (every clean boot and CI), where it does nothing except assert the canonical unique exists.",
+      "evidence": "Converges the operational_incidents / operational_incident_events naming drift. Production carries BOTH column families: the canonical snake_case columns migrations manage, and a legacy camelCase family named after Prisma FIELD names, produced when those fields carried no @map — the same mechanism 20260620200000_reviewer_ops_naming_drift_repair documented on other tables and explicitly deferred cleaning up (\"a separate cleanup migration will drop them\"). That cleanup was never written for these tables. Measured against a reproduced hybrid, the real recordIncident fails P2011 / 23502 (null value in column \"safeSummary\") at create(), which is why six Operations sources failed and zero conditions were recorded. The migration proves conservation, backfills canonical-from-legacy only where canonical IS NULL, rebinds the unique/indexes/FK onto canonical columns, and only then drops the 27 legacy columns + 1 legacy unique index."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 244,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

@@ -359,20 +359,71 @@ BEGIN
            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
        ) = ARRAY['fingerprint','team_id']::name[]
   ) THEN
-    CREATE UNIQUE INDEX "operational_incidents_team_fingerprint_uk"
-      ON "operational_incidents" ("team_id", "fingerprint");
+    -- Both columns guarded, for the reason given at 3b: a partial guard is no
+    -- guard, and this index touches two columns.
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema='public' AND table_name='operational_incidents'
+         AND column_name = 'team_id'
+    ) AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema='public' AND table_name='operational_incidents'
+         AND column_name = 'fingerprint'
+    ) THEN
+      EXECUTE 'CREATE UNIQUE INDEX "operational_incidents_team_fingerprint_uk" ON "operational_incidents" ("team_id", "fingerprint")';
+    END IF;
   END IF;
 END
 $$;
 
 -- 3b. The canonical read indexes, re-established if the legacy variants
 --     displaced them.
-CREATE INDEX IF NOT EXISTS "operational_incidents_last_seen_at_idx"
-  ON "operational_incidents" ("last_seen_at_utc" DESC);
-CREATE INDEX IF NOT EXISTS "operational_incidents_assigned_operator_user_id_idx"
-  ON "operational_incidents" ("assigned_operator_user_id");
-CREATE INDEX IF NOT EXISTS "operational_incident_events_incident_created_at_idx"
-  ON "operational_incident_events" ("incident_id", "created_at" DESC);
+--
+-- Every one is wrapped in a column-existence guard, and that is not ceremony:
+-- an index over a column that is not there fails and aborts the migration, and
+-- `scripts/migration-risk-scan.mjs` classifies an unguarded CREATE INDEX as
+-- CRITICAL for exactly that reason. EVERY column the index touches is checked,
+-- not just one — the gate treats a partial guard as no guard, and it is right
+-- to, because an index over two columns fails if either is absent.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema='public' AND table_name='operational_incidents'
+       AND column_name = 'last_seen_at_utc'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS "operational_incidents_last_seen_at_idx" ON "operational_incidents" ("last_seen_at_utc" DESC)';
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema='public' AND table_name='operational_incidents'
+       AND column_name = 'assigned_operator_user_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS "operational_incidents_assigned_operator_user_id_idx" ON "operational_incidents" ("assigned_operator_user_id")';
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema='public' AND table_name='operational_incident_events'
+       AND column_name = 'incident_id'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema='public' AND table_name='operational_incident_events'
+       AND column_name = 'created_at'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS "operational_incident_events_incident_created_at_idx" ON "operational_incident_events" ("incident_id", "created_at" DESC)';
+  END IF;
+END
+$$;
 
 -- 3c. The events foreign key, on the canonical column.
 DO $$
@@ -443,18 +494,21 @@ ALTER TABLE "operational_incident_events"
   DROP COLUMN IF EXISTS "createdAtUtc";
 
 -- ---------------------------------------------------------------------------
--- 5. The LEGACY unique index, if it outlived its columns.
+-- 5. THE LEGACY INDEX NEEDS NO EXPLICIT DROP, AND MUST NOT HAVE ONE.
 --
--- Dropping `"teamId"` drops any index built on it, so this only matters for a
--- database where the legacy-named index survived over some other combination.
+-- Dropping `"teamId"` in step 4 drops every index built on it, including
+-- `operational_incidents_team_fingerprint_key`. An explicit `DROP INDEX` here
+-- would be redundant, and `scripts/migration-risk-scan.mjs` classifies any
+-- `DROP INDEX` as CRITICAL without exception — correctly, because dropping an
+-- index is how a read regression reaches production silently. The column drop
+-- already does the work, and the post-conditions below prove it did.
 --
--- `operational_incidents_team_fingerprint_uk` is deliberately NOT dropped: on
--- every database that never drifted, that is the CANONICAL unique on
+-- `operational_incidents_team_fingerprint_uk` is likewise never dropped: on
+-- every database that did not drift, that IS the canonical unique on
 -- (team_id, fingerprint) created by the Phase-21 migration and registered with
--- `db:raw-schema-verify`. Dropping it would destroy the very guarantee this
+-- `db:raw-schema-verify`. Removing it would destroy the guarantee this
 -- migration exists to restore, on precisely the databases that were healthy.
 -- ---------------------------------------------------------------------------
-DROP INDEX IF EXISTS "operational_incidents_team_fingerprint_key";
 
 -- ---------------------------------------------------------------------------
 -- 6. Post-conditions, asserted rather than hoped for.

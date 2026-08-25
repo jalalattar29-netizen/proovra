@@ -30,6 +30,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const H = vi.hoisted(() => ({
   dbUnreachable: false,
   scheduleTableMissing: false,
+  /**
+   * The Operations writer schema contract, simulated.
+   *
+   * `/readyz` now also refuses when the incident writer's tables disagree with
+   * the deployed model — because a production workspace recorded zero
+   * operational conditions for as long as it did while this endpoint answered
+   * ok. The three flags below are the three ways that contract can fail.
+   */
+  writerLegacyColumns: false,
+  writerDedupeIndexMissing: false,
 }));
 
 vi.mock("../src/db.js", () => {
@@ -55,7 +65,23 @@ vi.mock("../src/db.js", () => {
       }
       return [{ ok: 1 }];
     },
-    $queryRawUnsafe: async () => [],
+    // The writer-contract probes. Each is parameterless SQL, so they are
+    // told apart by the column they select — which is also how the real
+    // contract distinguishes them.
+    $queryRawUnsafe: async (sql: string) => {
+      if (H.dbUnreachable) throw new Error("connect ECONNREFUSED");
+      if (typeof sql === "string" && sql.includes("missing_column")) return [];
+      if (typeof sql === "string" && sql.includes("legacy_column")) {
+        return H.writerLegacyColumns && sql.includes("operational_incidents'")
+          ? [{ legacy_column: "safeSummary" }]
+          : [];
+      }
+      if (typeof sql === "string" && sql.includes("indisunique")) {
+        // An empty answer means NO unique index covers (team_id, fingerprint).
+        return H.writerDedupeIndexMissing ? [] : [{ ok: 1 }];
+      }
+      return [];
+    },
   };
   const prisma = new Proxy(
     {},
@@ -83,9 +109,17 @@ async function buildApp() {
   return app;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   H.dbUnreachable = false;
   H.scheduleTableMissing = false;
+  H.writerLegacyColumns = false;
+  H.writerDedupeIndexMissing = false;
+  // The contract result is cached per process; each case must start from a
+  // fresh look or it would assert against the previous case's answer.
+  const readiness = await import(
+    "../src/services/operations/operations-writer-readiness.js"
+  );
+  readiness.resetWriterContractCache();
 });
 
 // =============================================================================
@@ -109,6 +143,42 @@ describe("/readyz — required-schema gate (Operations Center migrations)", () =
     expect(res.json()).toEqual({
       status: "degraded",
       reason: "required_schema_missing",
+    });
+    await app.close();
+  });
+
+  it("reports NOT ready when the incident writer's tables carry LEGACY duplicate columns", async () => {
+    // THE CASE THIS ENDPOINT WAS MISSING.
+    //
+    // Nothing is unreachable, the canary table exists, and every column the
+    // model declares is present — the exact state production was in while it
+    // recorded zero operational conditions. An image that cannot record an
+    // operational condition is not ready to receive traffic.
+    H.writerLegacyColumns = true;
+    const app = await buildApp();
+    const res = await app.inject({ method: "GET", url: "/readyz" });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({
+      status: "degraded",
+      reason: "operations_writer_schema_mismatch",
+    });
+    // The bounded reason only. The column name is a fact about the
+    // deployment's history and belongs in the operator's logs, not in a load
+    // balancer's response body.
+    expect(res.body).not.toContain("safeSummary");
+    await app.close();
+  });
+
+  it("reports NOT ready when no UNIQUE index covers (team_id, fingerprint)", async () => {
+    // Deduplication that the database does not enforce is not deduplication,
+    // and the writer's whole idempotency story rests on that index.
+    H.writerDedupeIndexMissing = true;
+    const app = await buildApp();
+    const res = await app.inject({ method: "GET", url: "/readyz" });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({
+      status: "degraded",
+      reason: "operations_writer_schema_mismatch",
     });
     await app.close();
   });
