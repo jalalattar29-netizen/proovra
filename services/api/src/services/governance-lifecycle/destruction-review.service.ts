@@ -57,7 +57,17 @@ import {
 } from "./lifecycle-orchestrator.service.js";
 // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — this service triggers the ONE
 // canonical destruction executor instead of writing DESTROYED itself.
-import { executeEvidenceDestruction } from "@proovra/shared-runtime";
+//
+// WORKSPACE-SCOPE CONVERGENCE (2026-08-24) — and reads its candidate
+// population through the ONE canonical workspace scope, so a personal
+// workspace's legacy NULL-team evidence is not silently skipped by a
+// destruction sweep that reports success.
+//
+// Both are additive imports from the same package; neither replaces the other.
+import {
+  executeEvidenceDestruction,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 import { apiEvidenceDestructionStorage } from "../evidence/destruction-storage-port.js";
 import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 
@@ -845,7 +855,12 @@ export async function countPendingDestructionByEvidence(
   teamId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<number> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(teamId, client);
   return client.evidence.count({
-    where: { teamId, lifecycleState: "PENDING_DESTRUCTION" },
+    where: { AND: [scope], lifecycleState: "PENDING_DESTRUCTION" },
   });
 }

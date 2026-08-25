@@ -74,6 +74,9 @@ import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js"
 import { classifyChatScope } from "../services/ai/chat-scope-classifier.service.js";
 import { parseNlSearch, type NlStateQuery } from "../services/ai/nl-search-parser.service.js";
 import { executeSearch } from "../services/search/evidence-search.service.js";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 const Body = z.object({
   teamId: z.string().uuid(),
@@ -86,12 +89,12 @@ async function runStateQuery(teamId: string, query: NlStateQuery): Promise<{ row
   const take = 25;
   const evRows = async (where: Record<string, unknown>, badge: string) => {
     const rows = await prisma.evidence.findMany({
-      where: { teamId, deletedAt: null, ...where },
+      where: { AND: [await workspaceEvidenceWhere(teamId, prisma)], deletedAt: null, ...where },
       select: { id: true, title: true },
       orderBy: { createdAt: "desc" },
       take,
     });
-    const total = await prisma.evidence.count({ where: { teamId, deletedAt: null, ...where } });
+    const total = await prisma.evidence.count({ where: { AND: [await workspaceEvidenceWhere(teamId, prisma)], deletedAt: null, ...where } });
     return {
       rows: rows.map((r) => ({ id: r.id, title: r.title ?? "Untitled evidence", route: `/evidence/${r.id}`, badge })),
       total,

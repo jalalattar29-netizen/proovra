@@ -218,8 +218,15 @@ describe("Phase 32.8C — service layer composition", () => {
   });
 
   it("detectWorkspaceScope uses the workspace's personal/team flag rather than member count", () => {
+    // WORKSPACE-SCOPE CONVERGENCE — the flag is now read through the canonical
+    // scope authority (`resolvePersonalScope`) instead of an inline
+    // `team.isPersonal` lookup. The invariant this test protects is unchanged
+    // and is now stronger: the display density and the read populations are
+    // derived from ONE answer to "is this workspace personal", so they cannot
+    // disagree about it. Member count still must not decide it.
+    expect(SERVICE).toMatch(/resolvePersonalScope\(teamId\)/);
     expect(SERVICE).toMatch(
-      /scope:\s*team\?\.isPersonal\s*===\s*true\s*\?\s*"SINGLE_OCCUPANT"\s*:\s*"SHARED"/,
+      /scope:\s*personal\.isPersonal\s*\?\s*"SINGLE_OCCUPANT"\s*:\s*"SHARED"/,
     );
   });
 });

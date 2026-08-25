@@ -91,6 +91,11 @@ export function buildMemberActor(overrides: MemberOverrides = {}): ActorSnapshot
       // is never consulted by `evaluateAccess`, so every existing negative
       // conformance assertion is unchanged in meaning.
       organizationId: "44444444-4444-4444-8444-444444444444",
+      // WORKSPACE-SCOPE CONVERGENCE — additive owner identity, same status as
+      // `organizationId` above: it bounds an already-authorized READ and is
+      // never consulted by `evaluateAccess`, so every negative conformance
+      // assertion below keeps its exact meaning.
+      workspaceOwnerUserId: "33333333-3333-4333-8333-333333333333",
       capabilityGrants: overrides.capabilityGrants ?? [],
       delegatedAdminScopes: overrides.delegatedAdminScopes ?? [],
     },

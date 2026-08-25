@@ -34,6 +34,12 @@ import {
   cleanup,
   fireEvent,
 } from "@testing-library/react";
+import { QUEUE_METRIC_ORDER } from "../../app/(app)/operations/_lib/vocabulary";
+// The SLA fixture below is typed against the PAGE'S OWN contract rather than
+// shaped by hand. A hand-written block drifts from the server projection
+// silently; borrowing the real type means a change to the contract breaks the
+// fixture at COMPILE time, which is where it should break.
+import type { IncidentSla } from "../../app/(app)/operations/_lib/types";
 
 // ---------------------------------------------------------------------------
 // Seams
@@ -142,6 +148,9 @@ type IncidentOver = {
 
 function incident(over: IncidentOver) {
   return {
+    // Absent by default: most conditions carry no recorded promise, and a
+    // fixture that always supplied one would hide the untracked case.
+    sla: undefined as IncidentSla | undefined,
     id: over.id,
     category: over.category ?? "EVIDENCE_INTEGRITY",
     severity: over.severity ?? "HIGH",
@@ -185,6 +194,24 @@ function summary(over: Record<string, number | boolean | string | null> = {}) {
       complete: true,
       mayAssertAllClear: true,
       incompleteReason: null,
+      // WORKSPACE-SCOPE CONVERGENCE (§8/§16) — the reconciliation facts now
+      // travel with the summary. The default is a fresh, complete READY run,
+      // because every pre-existing case in this file describes a workspace
+      // that HAS been checked; the new cases below override it to describe
+      // the states that previously rendered as "clear".
+      readiness: "READY",
+      clearRefusalReason: null,
+      reconciliation: {
+        startedAtUtc: new Date(NOW - 60_000).toISOString(),
+        completedAtUtc: new Date(NOW - 30_000).toISOString(),
+        sources: {
+          requiredSources: ["evidence_integrity.tsa_failed"],
+          successfulSources: ["evidence_integrity.tsa_failed"],
+          failedSources: [],
+          truncatedSources: [],
+        },
+        safeFailureCategory: null,
+      },
       ...over,
     },
     workspace: { operatorCount: (over.operatorCount as number) ?? 1 },
@@ -459,9 +486,19 @@ describe("Operations — one design, three densities", () => {
     expect(metric("unassigned")).toBeNull();
     expect(q("[data-ops-owner]")).toBeNull();
     // The severity axis is untouched — this is not a smaller product.
+    //
+    // `overdue` is deliberately NOT here. The Overdue card counted conditions
+    // open past a fixed 48 hours, which was a SECOND authority on lateness
+    // competing with the workspace's own SLA promise: a four-hour promise was
+    // breached at hour five while the card called it fine, and a seven-day
+    // promise had conditions called overdue on day two. Lateness is now
+    // measured in exactly one place — the persisted SLA cycle — and the cards
+    // that replaced it are `slaBreached` / `slaAtRisk`.
     expect(metric("open")).not.toBeNull();
     expect(metric("critical")).not.toBeNull();
-    expect(metric("overdue")).not.toBeNull();
+    expect(metric("slaBreached")).not.toBeNull();
+    expect(metric("slaAtRisk")).not.toBeNull();
+    expect(metric("overdue")).toBeNull();
     // And it never asked who could be assigned, because nobody could be.
     expect(gets().some((p) => p.includes("assignable-operators"))).toBe(false);
   });
@@ -694,13 +731,62 @@ describe("Operations — two renderers, one model", () => {
     expect(document.body.textContent).not.toContain("ACKNOWLEDGED");
   });
 
-  it("an unattended condition past the overdue age is marked in words", async () => {
+  it("a condition that is late against its OWN promise is marked in words", async () => {
+    // Was "past the overdue age" — a fixed 48-hour heuristic that has been
+    // removed. Lateness is now the workspace's own recorded commitment, so the
+    // row carries an SLA POSTURE rather than an age verdict.
+    //
+    // The assertion is stronger than the one it replaces: it requires the
+    // posture to be one of the bounded values AND the badge to say so in
+    // words, because an operator who cannot distinguish two reds still has to
+    // be able to triage.
+    incidentsReply = () => ({
+      // The SLA VOCABULARY travels with the rows it governs. `needsAttention`
+      // is derived from `attentionPostures` — the postures the SERVER
+      // considers late — so a page that never received the envelope makes no
+      // claim about lateness at all. That is the correct default and it is why
+      // the badge is absent without this.
+      sla: {
+        postures: [
+          "UNTRACKED_LEGACY",
+          "NOT_APPLICABLE",
+          "ON_TRACK",
+          "AT_RISK",
+          "BREACHED",
+          "ACKNOWLEDGED",
+          "RESOLVED",
+        ],
+        attentionPostures: ["BREACHED", "AT_RISK"],
+      },
+      ...list([
+        {
+          ...incident({ id: "11111111-1111-4111-8111-111111111111" }),
+          // The workspace's OWN recorded promise, breached. The posture and
+          // its words come from the server projection; the browser renders the
+          // verdict and never recomputes it, which is what stopped the page
+          // from becoming a second SLA authority.
+          sla: {
+            posture: "BREACHED",
+            obligation: "RESOLUTION",
+            dueAtUtc: HOURS_AGO(1),
+            targetHours: 4,
+            policyVersionId: "22222222-2222-4222-8222-222222222222",
+            cycleNumber: 1,
+            acknowledgementBreached: false,
+            resolutionBreached: true,
+          },
+        },
+      ]),
+    });
     await mount(envelope(TEAM_ADMIN));
-    const overdue = qa('[data-ops-overdue="true"]');
-    expect(overdue.length).toBeGreaterThan(0);
-    expect(
-      qa("[data-ops-overdue-badge]").some((el) => el.textContent === "Overdue"),
-    ).toBe(true);
+    const late = qa("[data-ops-sla-badge]");
+    expect(late.length).toBeGreaterThan(0);
+    for (const badge of late) {
+      expect(badge.getAttribute("data-ops-sla-badge")).toMatch(
+        /^(BREACHED|AT_RISK)$/,
+      );
+      expect((badge.textContent ?? "").trim().length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -986,7 +1072,12 @@ describe("Operations — accessibility", () => {
     summaryReply = () => summary({ operatorCount: 3 });
     await mount(envelope(TEAM_ADMIN));
     const cards = qa("[data-ops-metric]");
-    expect(cards.length).toBe(6);
+    // SEVEN, from `QUEUE_METRIC_ORDER`: open, critical, high, slaBreached,
+    // slaAtRisk, assignedToMe, unassigned. The count is asserted against the
+    // vocabulary rather than a literal so a card added there cannot pass here
+    // by coincidence.
+    expect(cards.length).toBe(QUEUE_METRIC_ORDER.length);
+    expect(cards.length).toBe(7);
     for (const card of cards) {
       expect(card.tagName).toBe("BUTTON");
       expect(card.getAttribute("aria-pressed")).toMatch(/^(true|false)$/);
@@ -1048,5 +1139,132 @@ describe("Operations — accessibility", () => {
     const notice = q("[data-ops-refreshing]");
     if (notice) expect(notice.getAttribute("role")).toBe("status");
     await settle();
+  });
+});
+
+// ===========================================================================
+// WORKSPACE-SCOPE CONVERGENCE (§16) — the reconciliation states.
+//
+// Before discovery became a scheduled run, every one of these rendered as
+// "Workspace operations are clear". That sentence tells an operator to stop
+// looking, and each case below is a workspace where they should not.
+// ===========================================================================
+
+describe("Operations — reconciliation state is visible, and gates the all-clear", () => {
+  it("a NEVER-RUN workspace says PREPARING, never clear", async () => {
+    incidentsReply = () => list([]);
+    summaryReply = () =>
+      summary({
+        open: 0,
+        critical: 0,
+        high: 0,
+        overdue: 0,
+        readiness: "NEVER_RUN",
+        mayAssertAllClear: false,
+        clearRefusalReason: "NEVER_RUN",
+      });
+    await mount(envelope(TEAM_ADMIN));
+
+    // The exact combination that used to license the all-clear: zero
+    // conditions, a complete read, no filters — over a workspace nothing has
+    // ever examined.
+    expect(q('[data-ops-empty="clear"]')).toBeNull();
+    expect(q('[data-ops-empty="preparing"]')).not.toBeNull();
+    expect(document.body.textContent).toMatch(/Preparing workspace operations/);
+    expect(document.body.textContent).not.toMatch(
+      /Workspace operations are clear/,
+    );
+  });
+
+  it("a RUNNING reconciliation is announced while the queue stays readable", async () => {
+    summaryReply = () => summary({ readiness: "RUNNING" });
+    await mount(envelope(TEAM_ADMIN));
+    expect(q('[data-ops-reconciling="true"]')).not.toBeNull();
+    // The existing rows are still on screen — a refresh in flight is not a
+    // reason to blank the queue somebody is working.
+    expect(q("[data-ops-row]") ?? q("table")).not.toBeNull();
+  });
+
+  it("a PARTIAL run warns that the counts are a floor", async () => {
+    summaryReply = () =>
+      summary({
+        readiness: "PARTIAL",
+        mayAssertAllClear: false,
+        clearRefusalReason: "PARTIAL_SOURCES",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    expect(q('[data-ops-partial="true"]')).not.toBeNull();
+    expect(document.body.textContent).toMatch(/not necessarily all of them/i);
+  });
+
+  it("a STALLED run is reported as unfinished, not as busy", async () => {
+    summaryReply = () =>
+      summary({
+        readiness: "STALLED",
+        mayAssertAllClear: false,
+        clearRefusalReason: "STALLED",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    expect(q('[data-ops-stalled="true"]')).not.toBeNull();
+    expect(document.body.textContent).toMatch(/didn’t finish|didn't finish/i);
+  });
+
+  it("a FAILED run explains the bounded category and never a provider message", async () => {
+    summaryReply = () =>
+      summary({
+        readiness: "FAILED",
+        mayAssertAllClear: false,
+        clearRefusalReason: "FAILED",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    const panel = q("[data-ops-reconcile-failed]") as HTMLElement;
+    expect(panel).not.toBeNull();
+    // The category is a bounded server classification. A stack, a SQL fragment
+    // or a connection string reaching here would be the leak the API boundary
+    // reduces it to prevent.
+    expect(panel.textContent).not.toMatch(/select |prisma|postgres|:\/\//i);
+  });
+
+  it("a STALE run says the conditions may be out of date", async () => {
+    summaryReply = () =>
+      summary({
+        readiness: "STALE",
+        mayAssertAllClear: false,
+        clearRefusalReason: "STALE",
+      });
+    await mount(envelope(TEAM_ADMIN));
+    expect(q('[data-ops-stale="true"]')).not.toBeNull();
+  });
+
+  it("the page NEVER says clear when the server withholds permission", async () => {
+    // The single most important assertion in this file. Enumerated over every
+    // refusing state so a future edit that reintroduces a client-side
+    // derivation fails here rather than in production.
+    for (const readiness of [
+      "NEVER_RUN",
+      "RUNNING",
+      "STALE",
+      "FAILED",
+      "STALLED",
+      "PARTIAL",
+    ] as const) {
+      cleanup();
+      incidentsReply = () => list([]);
+      summaryReply = () =>
+        summary({
+          open: 0,
+          critical: 0,
+          high: 0,
+          overdue: 0,
+          readiness,
+          mayAssertAllClear: false,
+          clearRefusalReason: readiness,
+        });
+      await mount(envelope(TEAM_ADMIN));
+      expect(
+        q('[data-ops-empty="clear"]'),
+        `rendered the all-clear under ${readiness}`,
+      ).toBeNull();
+    }
   });
 });

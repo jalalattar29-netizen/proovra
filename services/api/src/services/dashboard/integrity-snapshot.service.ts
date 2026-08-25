@@ -28,6 +28,9 @@ import { prisma } from "../../db.js";
 // violations; the snapshot flips matches → false ONLY when a real
 // digest disagreement is observed.
 import { evaluateDigestPolicy } from "@proovra/shared";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 export type IntegritySnapshotOverallStatus =
   | "OK"
@@ -383,12 +386,17 @@ export async function backfillIntegritySnapshots(input: {
   teamId: string;
   limit: number;
 }): Promise<{ persisted: number; failed: number }> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   let persisted = 0;
   let failed = 0;
   try {
     const evidence = await prisma.evidence.findMany({
       where: {
-        teamId: input.teamId,
+        AND: [scope],
         status: { in: ["SIGNED", "REPORTED"] },
       },
       take: Math.min(Math.max(input.limit, 1), 200),

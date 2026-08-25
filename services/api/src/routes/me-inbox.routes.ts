@@ -112,6 +112,7 @@ import {
 } from "../services/notifications/notification-classification.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { formatTimestampForReportUtc } from "@proovra/shared";
+import { evidenceScopeForMany } from "@proovra/shared-runtime";
 
 /**
  * Phase IA-enterprise — server-driven filter enum. Every chip the
@@ -1503,6 +1504,27 @@ export async function buildInboxAggregation(
       // restricts the ownership fallback to PERSONAL Space (identity mode).
       const accessibleWorkspaces = await listAccessibleWorkspaces({ userId });
       const teamIds = accessibleWorkspaces.map((w) => w.workspaceId);
+      // WORKSPACE-SCOPE CONVERGENCE — the canonical Evidence population across
+      // every workspace this caller can reach.
+      //
+      // The inbox previously read `teamId: { in: teamIds }`, which omitted the
+      // legacy NULL-team Evidence of every PERSONAL workspace in the list. The
+      // consequence was not a smaller list — it was a CONTRADICTION: Operations
+      // opened a managed condition for a personal workspace's failed timestamp
+      // (it reads through the canonical scope) while the owner's notifications
+      // never mentioned it, because the row the alert would have been built
+      // from was invisible to this query.
+      //
+      // Built from the workspaces already loaded above, so it costs no extra
+      // round trip and each personal arm is bound to that workspace's own
+      // owner rather than to an assumption about who the caller is.
+      const inboxEvidenceScope = evidenceScopeForMany(
+        accessibleWorkspaces.map((w) => ({
+          physicalWorkspaceId: w.workspaceId,
+          workspaceKind: w.kind,
+          personalOwnerUserId: w.ownerUserId,
+        })),
+      );
       const teamNameById = new Map<string, string>(
         accessibleWorkspaces.map((w) => [w.workspaceId, w.name] as [string, string]),
       );
@@ -2058,7 +2080,7 @@ export async function buildInboxAggregation(
               () =>
                 prisma.evidence.findMany({
                   where: {
-                    teamId: { in: teamIds },
+                    AND: [inboxEvidenceScope],
                     otsStatus: "FAILED",
                     deletedAt: null,
                   },
@@ -2209,7 +2231,7 @@ export async function buildInboxAggregation(
               () =>
                 prisma.evidence.findMany({
                   where: {
-                    teamId: { in: teamIds },
+                    AND: [inboxEvidenceScope],
                     tsaStatus: "FAILED",
                     deletedAt: null,
                   },

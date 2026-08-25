@@ -204,7 +204,57 @@ export type OperationsSummary = {
   complete: boolean;
   mayAssertAllClear: boolean;
   incompleteReason: string | null;
+
+  /**
+   * WORKSPACE-SCOPE CONVERGENCE (§8) — the state of the workspace's most
+   * recent DISCOVERY run.
+   *
+   * `complete` above answers "did the incident-table read finish?", which an
+   * empty table satisfies. An incident table is empty when nothing has ever
+   * scanned the workspace, so that field alone once licensed "workspace
+   * operations are clear" over workspaces that had never been examined.
+   *
+   * This is what lets the surface distinguish "we looked, thoroughly, minutes
+   * ago, and found nothing" from "nothing has ever looked" — two states that
+   * previously rendered the same reassuring sentence.
+   */
+  readiness?: OperationsReadiness;
+  /** Bounded reason the all-clear is refused. Null when it is permitted. */
+  clearRefusalReason?: ClearRefusalReason | null;
+  /** The durable run facts, for the operator-facing detail line. */
+  reconciliation?: {
+    startedAtUtc: string;
+    completedAtUtc: string | null;
+    sources: {
+      requiredSources: string[];
+      successfulSources: string[];
+      failedSources: string[];
+      truncatedSources: string[];
+    };
+    safeFailureCategory: string | null;
+  } | null;
 };
+
+/** Mirrors the server vocabulary exactly. Never a parallel spelling. */
+export type OperationsReadiness =
+  | "NEVER_RUN"
+  | "RUNNING"
+  | "READY"
+  | "PARTIAL"
+  | "STALE"
+  | "FAILED"
+  | "STALLED";
+
+export type ClearRefusalReason =
+  | "NEVER_RUN"
+  | "RUNNING"
+  | "STALE"
+  | "FAILED"
+  | "STALLED"
+  | "PARTIAL_SOURCES"
+  | "TRUNCATED_SOURCE"
+  | "INCIDENT_READ_INCOMPLETE"
+  | "UNRESOLVED_CONDITIONS";
 
 export type AssignableOperator = {
   userId: string;

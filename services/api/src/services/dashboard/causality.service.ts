@@ -17,6 +17,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 
 type Relation =
   | "CAUSED_BY"
@@ -97,7 +98,13 @@ export async function detectCausalityForWorkspace(input: {
   try {
     incidents = (await prisma.operationalIncident.findMany({
       where: {
-        OR: [{ teamId: input.teamId }, { teamId: null }],
+        // WORKSPACE-SCOPE CONVERGENCE (§12) — was
+        // `OR: [{ teamId: input.teamId }, { teamId: null }]`. The NULL arm was
+        // written to pick up platform-wide incidents; because deleting a
+        // workspace rewrites ITS incidents' team_id to NULL via
+        // `ON DELETE SET NULL`, the same arm returned every other tenant's
+        // orphans into this workspace's read.
+        ...workspaceIncidentWhere(input.teamId),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
       },
       orderBy: { lastSeenAtUtc: "desc" },

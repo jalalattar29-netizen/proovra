@@ -13,6 +13,10 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
+import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 
 function clamp100(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -22,6 +26,11 @@ function clamp100(n: number): number {
 export async function recordOrgHealthSnapshotForWorkspace(input: {
   teamId: string;
 }): Promise<{ persisted: boolean; failed: boolean }> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   try {
     // Real counters
     const [
@@ -39,13 +48,25 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
     ] = await Promise.all([
       prisma.operationalIncident.count({
         where: {
-          OR: [{ teamId: input.teamId }, { teamId: null }],
+          // WORKSPACE-SCOPE CONVERGENCE (§12) — was
+        // `OR: [{ teamId: input.teamId }, { teamId: null }]`. The NULL arm was
+        // written to pick up platform-wide incidents; because deleting a
+        // workspace rewrites ITS incidents' team_id to NULL via
+        // `ON DELETE SET NULL`, the same arm returned every other tenant's
+        // orphans into this workspace's read.
+        ...workspaceIncidentWhere(input.teamId),
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
         },
       }),
       prisma.operationalIncident.count({
         where: {
-          OR: [{ teamId: input.teamId }, { teamId: null }],
+          // WORKSPACE-SCOPE CONVERGENCE (§12) — was
+        // `OR: [{ teamId: input.teamId }, { teamId: null }]`. The NULL arm was
+        // written to pick up platform-wide incidents; because deleting a
+        // workspace rewrites ITS incidents' team_id to NULL via
+        // `ON DELETE SET NULL`, the same arm returned every other tenant's
+        // orphans into this workspace's read.
+        ...workspaceIncidentWhere(input.teamId),
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
           severity: "CRITICAL",
         },
@@ -125,7 +146,7 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       prisma.evidence
         .count({
           where: {
-            teamId: input.teamId,
+            AND: [scope],
             status: "SIGNED",
             latestReportVersion: null,
           },
@@ -134,7 +155,7 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       prisma.evidence
         .count({
           where: {
-            teamId: input.teamId,
+            AND: [scope],
             status: "REPORTED",
             verificationPackageVersion: null,
           },

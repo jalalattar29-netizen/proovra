@@ -251,16 +251,17 @@
       "reviewedAtUtc": "2026-08-17"
     },
     {
-      "site": "services/api/src/services/dashboard/projections/refresh-org-health.service.ts#refreshOrgHealthProjection",
+      "site": "packages/shared-runtime/src/org-health-projection.ts#refreshOrgHealthProjection",
       "disposition": "WIRED_CURRENT_CAPABILITY",
-      "capability": "recomputes the organization health projection the command centre reads",
+      "capability": "recomputes the organization health projection that the command centre and the Worker's refresh job both read",
       "classification": "CURRENT_FEATURE_MISSING_INTEGRATION",
-      "evidence": "This was the only writer of orgHealthProjection and nothing called it, so the row buildProjectionSummary reads was never written by anything: every request took the 'missing' branch, reported usedLiveFallback:true, and returned two of the eight counters with the other six defaulted to zero, while the code comment described a refresh worker expected to tick every sixty seconds. There is no such worker — the worker-side processor that would have been one has no producer either, since nothing ever enqueues org-health-refresh.",
+      "evidence": "Originally this was the only writer of orgHealthProjection and nothing called it, so the row buildProjectionSummary reads was never written: every request took the 'missing' branch and returned two of eight counters with the rest defaulted to zero. Wiring it exposed a second defect — the arithmetic existed TWICE. The Worker's processOrgHealthRefreshJob carried its own copy WITHOUT the pipeline-status filters, so it counted a CREATED / UPLOADING / UPLOADED / FAILED_HASH_MISMATCH record as 'pending a report'. A workspace with ten stalled uploads read as ten reports outstanding from one path and zero from the other, and which number Home showed depended on whether the Worker's row or the API's live path had written last.",
       "wiredAt": "services/api/src/services/dashboard/command-center.service.ts",
       "wiredSymbol": "refreshOrgHealthProjection",
-      "integration": "buildProjectionSummary refreshes when the read finds the projection missing or past its own freshness threshold, then uses the result. Refresh-on-stale-read rather than a new scheduler: freshness only matters when somebody is looking, and a per-tenant scheduler would compute eight counters for workspaces nobody has opened in months. Failure is non-fatal and falls through to the existing fallback — a dashboard must render when its cache cannot be written.",
+      "integration": "The writer now lives in @proovra/shared-runtime because the Worker cannot import from services/api, and BOTH hosts call this one implementation: command-center.service.ts refreshes on a missing or stale read, and the Worker's org-health-refresh processor delegates to it rather than recomputing. The duplicate at services/api/src/services/dashboard/projections/refresh-org-health.service.ts is deleted, so the two surfaces can no longer disagree by arithmetic — there is only one.",
       "alsoFixed": "sampledAtUtc was `new Date()` while the upsert key is (teamId, sampledAtUtc), so the upsert could only ever take its create branch — an INSERT wearing an upsert's clothes, appending a row per refresh without bound. It is now floored to a one-minute bucket, so concurrent dashboard loads inside a minute converge on one row instead of racing to append.",
-      "reviewedAtUtc": "2026-08-17"
+      "reviewedAtUtc": "2026-08-24",
+      "relocatedFrom": "services/api/src/services/dashboard/projections/refresh-org-health.service.ts (deleted; this is a relocation of the single authority, not a removal of the capability)"
     },
     {
       "site": "services/api/src/services/platform-audit-log.service.ts#repairAdminAuditChainVersions",

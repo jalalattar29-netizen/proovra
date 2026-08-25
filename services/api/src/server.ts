@@ -1490,5 +1490,67 @@ allowedHeaders: [
     );
   }
 
+  // WORKSPACE-SCOPE CONVERGENCE (§7.2) — scheduled Operations discovery.
+  //
+  // Before this, discovery ran ONLY as a lazy side effect of somebody opening
+  // Home. A workspace nobody visited was never scanned, and its Operations
+  // page rendered "clear" — not because it was, but because nothing had ever
+  // looked. "Zero conditions" and "never examined" were indistinguishable on
+  // screen, and the second is the one that hides real failures.
+  //
+  // Every workspace's run is claimed through the ONE reconciliation-run
+  // authority, so this scheduler, an operator-triggered run and a page-load
+  // `ensure` all contend for the same per-workspace slot. Running it in more
+  // than one replica is therefore safe: the losers record contention and do
+  // nothing, which is why this has no in-process leader election.
+  //
+  // Enabled by default. A recovery path that has to be switched on is a
+  // recovery path that is off in exactly the deployments that need it.
+  if (process.env.OPERATIONS_RECONCILER_ENABLED !== "false") {
+    const { runWorkspaceOperationsSweepSafe } = await import(
+      "./jobs/workspace-operations-reconciliation.job.js"
+    );
+    const intervalMs = Number.parseInt(
+      process.env.OPERATIONS_RECONCILER_INTERVAL_MS ?? "900000",
+      10,
+    );
+    // DELAYED and JITTERED, never immediate. Immediate would put every replica
+    // in a rolling deploy onto the same discovery at the same moment, against
+    // a database that has just been migrated — a thundering herd aimed at the
+    // component that is itself the recovery path. The jitter is per-process,
+    // so replicas spread out without coordinating.
+    const startupDelayMs =
+      Number.parseInt(
+        process.env.OPERATIONS_RECONCILER_STARTUP_DELAY_MS ?? "45000",
+        10,
+      ) + Math.floor(Math.random() * 30_000);
+    const startupHandle = setTimeout(() => {
+      void runWorkspaceOperationsSweepSafe({ trigger: "startup" });
+    }, startupDelayMs);
+    if (typeof (startupHandle as { unref?: () => void }).unref === "function") {
+      (startupHandle as { unref?: () => void }).unref!();
+    }
+    const handle = setInterval(() => {
+      void runWorkspaceOperationsSweepSafe({ trigger: "scheduler" });
+    }, intervalMs);
+    if (typeof (handle as { unref?: () => void }).unref === "function") {
+      (handle as { unref?: () => void }).unref!();
+    }
+    app.addHook("onClose", async () => {
+      clearTimeout(startupHandle);
+      clearInterval(handle);
+    });
+    app.log.info(
+      { intervalMs, startupDelayMs },
+      "operations_reconciler.scheduled",
+    );
+  } else {
+    // A disabled reconciler is a DECISION, and a decision nobody can see is
+    // indistinguishable from a bug. Operations has no other automatic
+    // discovery path now that the Home-triggered one is demoted, so switching
+    // this off is stated once, loudly, at boot.
+    app.log.warn({ reconciler: "operations" }, "operations_reconciler.disabled");
+  }
+
   return app;
 }

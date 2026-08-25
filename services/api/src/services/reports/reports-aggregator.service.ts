@@ -22,7 +22,13 @@
  *     while the artifact list still renders.
  */
 
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "../../db.js";
+import {
+  workspaceEvidenceWhere,
+  type WorkspaceEvidenceScope,
+} from "@proovra/shared-runtime";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable";
 
@@ -185,6 +191,22 @@ export async function listWorkspaceArtifacts(input: {
     MAX_LIMIT,
   );
 
+  // WORKSPACE-SCOPE CONVERGENCE — resolve the canonical population ONCE, and
+  // use the SAME value for the summary counts and the artifact rows below.
+  //
+  // Two defects closed by one change. The first is the personal omission: a
+  // strict `teamId` equality misses a personal workspace's legacy NULL-team
+  // Evidence, so this page reported fewer reports and packages than the
+  // workspace actually had. The second is DIVERGENCE — the summary and the
+  // list each built their own filter, so even once one of them was corrected
+  // the other could still disagree, and a header that contradicts the rows
+  // beneath it is a worse failure than a wrong number in both.
+  //
+  // Resolved outside the two try/catch blocks deliberately: if the scope
+  // itself cannot be resolved, neither section may fall back to a strict
+  // filter and report a confident smaller number. Both degrade instead.
+  const scope: WorkspaceEvidenceScope = await workspaceEvidenceWhere(input.teamId, prisma);
+
   // ----------- Summary counts (workspace-level) -----------
   let summary: ReportsArtifactsEnvelope["sections"]["summary"] = {
     status: "unavailable",
@@ -200,19 +222,23 @@ export async function listWorkspaceArtifacts(input: {
       totalEvidenceWithArtifacts,
     ] = await Promise.all([
       prisma.evidence.count({
-        where: { teamId: input.teamId, status: "REPORTED" },
+        where: { AND: [scope, { status: "REPORTED" }] },
       }),
       prisma.evidence.count({
-        where: { teamId: input.teamId, status: "SIGNED" },
+        where: { AND: [scope, { status: "SIGNED" }] },
       }),
       prisma.verificationPackage.count({
-        where: { evidence: { teamId: input.teamId } },
+        where: { evidence: scope },
       }),
       prisma.evidence.count({
         where: {
-          teamId: input.teamId,
-          status: { in: ["SIGNED", "REPORTED"] },
-          verificationPackages: { none: {} },
+          AND: [
+            scope,
+            {
+              status: { in: ["SIGNED", "REPORTED"] },
+              verificationPackages: { none: {} },
+            },
+          ],
         },
       }),
       // Packages where the gate-denial metadata indicates `blocked: true`.
@@ -222,9 +248,15 @@ export async function listWorkspaceArtifacts(input: {
       prisma.evidence
         .findMany({
           where: {
-            teamId: input.teamId,
-            status: { in: ["SIGNED", "REPORTED"] },
-            verificationPackageMetadata: { not: null as unknown as undefined },
+            AND: [
+              scope,
+              {
+                status: { in: ["SIGNED", "REPORTED"] },
+                verificationPackageMetadata: {
+                  not: null as unknown as undefined,
+                },
+              },
+            ],
           },
           take: 500,
           select: { verificationPackageMetadata: true },
@@ -242,8 +274,7 @@ export async function listWorkspaceArtifacts(input: {
         .catch(() => 0),
       prisma.evidence.count({
         where: {
-          teamId: input.teamId,
-          status: { in: ["SIGNED", "REPORTED"] },
+          AND: [scope, { status: { in: ["SIGNED", "REPORTED"] } }],
         },
       }),
     ]);
@@ -269,8 +300,13 @@ export async function listWorkspaceArtifacts(input: {
     nextCursor: null,
   };
   try {
-    const whereBase: Record<string, unknown> = {
-      teamId: input.teamId,
+    // Typed as a Prisma filter rather than `Record<string, unknown>` so the
+    // canonical scope cannot be dropped from it without the compiler noticing.
+    const whereBase: Prisma.EvidenceWhereInput = {
+      // The SAME `scope` the summary above counted through. The list and the
+      // header are now population-identical by construction, not by two edits
+      // that happen to agree.
+      AND: [scope],
       status: { in: ["SIGNED", "REPORTED"] },
     };
     if (input.caseId) whereBase.caseLinks = { some: { caseId: input.caseId } };
@@ -281,7 +317,7 @@ export async function listWorkspaceArtifacts(input: {
       };
     }
     // Cursor — opaque, last (createdAt, id) pair, base64-encoded JSON.
-    let cursorFilter: Record<string, unknown> | null = null;
+    let cursorFilter: Prisma.EvidenceWhereInput | null = null;
     if (input.cursor) {
       try {
         const parsed = JSON.parse(

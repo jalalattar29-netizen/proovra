@@ -20,6 +20,10 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
@@ -147,6 +151,15 @@ export async function buildWorkspaceAdmin(input: {
   userId: string;
   role: string;
 }): Promise<WorkspaceAdminEnvelope | { notFound: true }> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace populations.
+  // Named `evidenceScope`/`caseScope` rather than `scope`: this module
+  // already has a `scope` and it means something else entirely (the
+  // SINGLE_OCCUPANT/SHARED display density). Two different facts must not
+  // share one name in one function.
+  const [evidenceScope, caseScope] = await Promise.all([
+    workspaceEvidenceWhere(input.teamId),
+    workspaceCaseWhere(input.teamId),
+  ]);
   const team = await prisma.team.findUnique({
     where: { id: input.teamId },
     select: {
@@ -194,8 +207,8 @@ export async function buildWorkspaceAdmin(input: {
         where: { id: team.ownerUserId },
         select: { id: true, email: true },
       }),
-      prisma.case.count({ where: { teamId: input.teamId } }),
-      prisma.evidence.count({ where: { teamId: input.teamId } }),
+      prisma.case.count({ where: { AND: [caseScope] } }),
+      prisma.evidence.count({ where: { AND: [evidenceScope] } }),
     ]);
     overview = {
       status: "ok",

@@ -22,6 +22,7 @@
 
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 const MAX_TEAMS_PER_SWEEP = 500;
 
@@ -52,9 +53,14 @@ function isArchiveTier(value: string): value is ArchiveTier {
  * errors).
  */
 async function sweepTeam(teamId: string): Promise<number> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(teamId, prisma);
   // 1. Gather evidence rows that might need a tier downgrade.
   const evidenceRows = await prisma.evidence.findMany({
-    where: { teamId, deletedAt: null },
+    where: { AND: [scope], deletedAt: null },
     select: { id: true, createdAt: true },
     take: MAX_PER_TEAM * 4, // over-fetch so we can skip already-at-tier rows
   });

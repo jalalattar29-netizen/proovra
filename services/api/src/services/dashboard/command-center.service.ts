@@ -24,13 +24,26 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  caseScopeFor,
+  evidenceScopeFor,
+  resolvePersonalScope,
+  type WorkspaceCaseScope,
+  type WorkspaceEvidenceScope,
+} from "@proovra/shared-runtime";
 import { listIncidents } from "../observability/incident.service.js";
 import { buildOperationsSummary } from "../operations/operations-summary.service.js";
 // Phase 37.98 — Projection-backed dashboard reads.
+//
+// WORKSPACE-SCOPE CONVERGENCE — from `@proovra/shared-runtime`, not from a
+// local API module. The arithmetic existed twice (here and in the Worker's
+// refresh job) and the two disagreed about which records are "pending a
+// report": only one carried the pipeline-status filter. One implementation
+// now, consumed by both hosts.
 import {
   readLatestOrgHealthProjection,
   refreshOrgHealthProjection,
-} from "./projections/refresh-org-health.service.js";
+} from "@proovra/shared-runtime";
 import {
   backfillIntegritySnapshots,
   listWorkspaceIntegritySnapshots,
@@ -53,7 +66,7 @@ import {
   projectWorkspaceTimeline,
 } from "./operational-timeline.service.js";
 import { getWorkspaceCaseCommentBacklog } from "./case-comment.service.js";
-import { generateIncidentsForWorkspace } from "./incident-generator.service.js";
+import { ensureWorkspaceOperationsFresh } from "../operations/operations-reconciliation.service.js";
 import {
   correlateWorkspaceIncidents,
   listWorkspaceCorrelations,
@@ -1189,22 +1202,57 @@ const SEVERITY_FROM_INCIDENT: Record<string, SeverityTone> = {
 // Personal vs team detection
 // ---------------------------------------------------------------------------
 
+/**
+ * WORKSPACE-SCOPE CONVERGENCE — the populations every section below reads.
+ *
+ * Resolved ONCE per envelope and threaded, rather than re-derived inside each
+ * of the seventeen sections that touch Evidence or Case. That is not an
+ * optimisation: sections that each build their own filter are sections that
+ * can each be wrong differently, and this envelope's whole job is to present
+ * one coherent picture of one workspace. A `teamId` still travels beside them
+ * because most models here — Report, VerificationPackage, OperationalIncident,
+ * TeamMember, CaseComment — have a NOT NULL `team_id` and are correctly read
+ * with a strict predicate. Widening those would be a different defect.
+ */
+type WorkspacePopulation = {
+  /** Physical workspace id. For models whose `team_id` is NOT NULL. */
+  readonly teamId: string;
+  /** Canonical Evidence population, personal NULL-team rows included. */
+  readonly evidence: WorkspaceEvidenceScope;
+  /** Canonical Case population, personal NULL-team rows included. */
+  readonly cases: WorkspaceCaseScope;
+};
+
 async function detectWorkspaceScope(teamId: string): Promise<{
   scope: WorkspaceScope;
   memberCount: number;
+  population: WorkspacePopulation;
 }> {
-  const [memberCount, team] = await Promise.all([
+  const [memberCount, personal] = await Promise.all([
     prisma.teamMember.count({
       where: { teamId, status: "ACTIVE" },
     }),
-    prisma.team.findUnique({
-      where: { id: teamId },
-      select: { isPersonal: true },
-    }),
+    // The SAME lookup that used to read `isPersonal` alone. It now resolves
+    // through the canonical scope authority, so "is this workspace personal"
+    // is answered once, by the module that owns the answer, and the display
+    // scope below and the read populations above cannot disagree about it.
+    resolvePersonalScope(teamId),
   ]);
+  const scopeInput = {
+    physicalWorkspaceId: teamId,
+    workspaceKind: personal.isPersonal
+      ? ("PERSONAL" as const)
+      : ("ORGANIZATION" as const),
+    personalOwnerUserId: personal.ownerUserId,
+  };
   return {
-    scope: team?.isPersonal === true ? "SINGLE_OCCUPANT" : "SHARED",
+    scope: personal.isPersonal ? "SINGLE_OCCUPANT" : "SHARED",
     memberCount,
+    population: {
+      teamId,
+      evidence: evidenceScopeFor(scopeInput),
+      cases: caseScopeFor(scopeInput),
+    },
   };
 }
 
@@ -1336,10 +1384,11 @@ async function runOperationalPressure(
 async function runCaseOperations(
   teamId: string,
   scope: WorkspaceScope,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["sections"]["caseOperations"]> {
   try {
     const now = new Date();
-    const activeCasesCount = await prisma.case.count({ where: { teamId } });
+    const activeCasesCount = await prisma.case.count({ where: { AND: [pop.cases] } });
     const evidenceWithCase = await prisma.caseEvidenceLink.groupBy({
       by: ["caseId"],
       where: { evidence: { teamId } },
@@ -1353,14 +1402,14 @@ async function runCaseOperations(
       activeCasesCount - casesWithEvidenceCount,
     );
     const unlinkedEvidenceCount = await prisma.evidence.count({
-      where: { teamId, caseLinks: { none: {} } },
+      where: { AND: [pop.evidence], caseLinks: { none: {} } },
     });
 
     let unreviewedEvidenceCount = 0;
     if (scope === "SHARED") {
       unreviewedEvidenceCount = await prisma.evidence.count({
         where: {
-          teamId,
+          AND: [pop.evidence],
           status: { in: ["UPLOADED", "SIGNED"] },
           reviewWorkflow: null,
         },
@@ -1369,7 +1418,7 @@ async function runCaseOperations(
 
     // Top cases by overdue review pressure + recent activity.
     const recentCases = await prisma.case.findMany({
-      where: { teamId },
+      where: { AND: [pop.cases] },
       orderBy: { updatedAt: "desc" },
       take: TOP_CASES_LIMIT,
       select: {
@@ -1774,6 +1823,7 @@ async function runReviewerOrchestration(
 
 async function runPipelineDetail(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["sections"]["pipelineDetail"]> {
   try {
     const stuckCutoff = new Date(
@@ -1818,26 +1868,26 @@ async function runPipelineDetail(
         // with this filter applied).
         prisma.evidence.groupBy({
           by: ["status"],
-          where: { teamId, deletedAt: null },
+          where: { AND: [pop.evidence], deletedAt: null },
           _count: { _all: true },
         }),
         prisma.evidence.count({
           where: {
-            teamId,
+            AND: [pop.evidence],
             status: "UPLOADING",
             updatedAt: { lt: stuckCutoff },
           },
         }),
         prisma.evidence.count({
           where: {
-            teamId,
+            AND: [pop.evidence],
             deletedAt: null,
             reports: { some: {} },
           },
         }),
         prisma.evidence.count({
           where: {
-            teamId,
+            AND: [pop.evidence],
             deletedAt: null,
             verificationPackages: { some: {} },
           },
@@ -1856,7 +1906,7 @@ async function runPipelineDetail(
         // inflate every bucket here too.
         prisma.evidence.groupBy({
           by: ["publicVerifyState"],
-          where: { teamId, deletedAt: null },
+          where: { AND: [pop.evidence], deletedAt: null },
           _count: { _all: true },
         }),
       ]);
@@ -1895,7 +1945,7 @@ async function runPipelineDetail(
       prisma.evidence
         .findMany({
           where: {
-            teamId,
+            AND: [pop.evidence],
             status: { in: ["SIGNED", "REPORTED"] },
           },
           take: 500,
@@ -1974,6 +2024,7 @@ async function runPipelineDetail(
 async function runGovernancePosture(
   teamId: string,
   scope: WorkspaceScope,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["sections"]["governancePosture"]> {
   if (scope === "SINGLE_OCCUPANT") {
     return { status: "not_applicable", data: null };
@@ -2045,7 +2096,7 @@ async function runGovernancePosture(
   try {
     const sample = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: { in: ["SIGNED", "REPORTED"] },
       },
       take: 500,
@@ -2096,6 +2147,7 @@ async function runGovernancePosture(
 
 async function runOrganizationalIntelligence(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["sections"]["organizationalIntelligence"]> {
   try {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -2110,14 +2162,14 @@ async function runOrganizationalIntelligence(
       activityLast7d,
     ] = await Promise.all([
       prisma.evidence.count({
-        where: { teamId, createdAt: { gte: since24h } },
+        where: { AND: [pop.evidence], createdAt: { gte: since24h } },
       }),
       prisma.evidence.count({
-        where: { teamId, createdAt: { gte: since7d } },
+        where: { AND: [pop.evidence], createdAt: { gte: since7d } },
       }),
       prisma.evidence.count({
         where: {
-          teamId,
+          AND: [pop.evidence],
           status: { in: ["SIGNED", "REPORTED"] },
           updatedAt: { gte: since7d },
         },
@@ -2161,6 +2213,7 @@ async function runOrganizationalIntelligence(
 
 async function runTimeline(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["sections"]["timeline"]> {
   const items: TimelineEvent[] = [];
   let anyOk = false;
@@ -2171,7 +2224,7 @@ async function runTimeline(
   try {
     const rows = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: { in: ["SIGNED", "REPORTED"] },
         updatedAt: { gte: since14d },
       },
@@ -2313,7 +2366,7 @@ async function runTimeline(
   try {
     const rows = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         publicVerifyState: "PUBLISHED",
         publicVerifyPublishedAtUtc: { gte: since14d },
       },
@@ -2473,6 +2526,7 @@ async function runTimeline(
 async function runAuditReadiness(
   teamId: string,
   scope: WorkspaceScope,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["sections"]["auditReadiness"]> {
   try {
     const unsignedAgeCutoff = new Date(
@@ -2482,7 +2536,7 @@ async function runAuditReadiness(
 
     const unsignedOld = await prisma.evidence.count({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: { in: ["CREATED", "UPLOADING", "UPLOADED"] },
         createdAt: { lt: unsignedAgeCutoff },
       },
@@ -2495,7 +2549,7 @@ async function runAuditReadiness(
     });
 
     const missingReports = await prisma.evidence.count({
-      where: { teamId, status: "SIGNED", reports: { none: {} } },
+      where: { AND: [pop.evidence], status: "SIGNED", reports: { none: {} } },
     });
     counters.push({
       key: "missing_reports",
@@ -2562,7 +2616,7 @@ async function runAuditReadiness(
     let blockedExportsCount = 0;
     try {
       const sample = await prisma.evidence.findMany({
-        where: { teamId, status: { in: ["SIGNED", "REPORTED"] } },
+        where: { AND: [pop.evidence], status: { in: ["SIGNED", "REPORTED"] } },
         take: 500,
         select: { verificationPackageMetadata: true },
       });
@@ -2595,10 +2649,11 @@ async function runAuditReadiness(
 
 async function runRecentEvidence(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["sections"]["recentEvidence"]> {
   try {
     const items = await prisma.evidence.findMany({
-      where: { teamId },
+      where: { AND: [pop.evidence] },
       orderBy: { createdAt: "desc" },
       take: RECENT_EVIDENCE_LIMIT,
       select: {
@@ -2633,10 +2688,27 @@ async function runRecentEvidence(
 async function runIncidents(
   teamId: string,
 ): Promise<CommandCenterEnvelope["sections"]["incidents"]> {
-  // Phase 32.8C control plane — lazy generate incidents from real
-  // pressure signals + cross-system correlate, then read. Each step
-  // is wrapped — failures never block core flows.
-  await generateIncidentsForWorkspace({ teamId }).catch(() => {});
+  // WORKSPACE-SCOPE CONVERGENCE (§7.3) — DEMOTED from generator to consumer.
+  //
+  // This line used to be `generateIncidentsForWorkspace({ teamId })`: opening
+  // Home ran the full multi-source discovery sweep inline, and it was the ONLY
+  // thing that ever ran it. The consequences were all silent — a workspace
+  // nobody opened was never scanned and rendered "clear" because nothing had
+  // looked; two people opening Home at once ran two unbounded discoveries over
+  // the same workspace; and a discovery that failed halfway left a partial set
+  // of conditions with no record that it had failed.
+  //
+  // Discovery is now a SCHEDULED run under a durable per-workspace lock
+  // (`jobs/workspace-operations-reconciliation.job.ts`). What remains here is
+  // an ENSURE: if the picture has never been built or has gone stale, ask for
+  // one and return what is currently known. It does not run discovery inline
+  // and it does not wait — a GET that performs an unbounded scan before
+  // answering is the shape this phase exists to remove.
+  //
+  // `.catch` is retained deliberately: Home must render even when Operations
+  // discovery cannot be scheduled at all. What changed is that the failure is
+  // now durable on a run row instead of vanishing into this empty handler.
+  await ensureWorkspaceOperationsFresh({ workspaceId: teamId }).catch(() => {});
   await correlateWorkspaceIncidents({ teamId }).catch(() => {});
   // Phase 32.8C FINAL-2 — generate workflows from active incidents +
   // build deterministic causality chains. Both wrapped.
@@ -2725,11 +2797,12 @@ async function runIncidents(
 
 async function runLegacyPipelineSummary(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["sections"]["pipeline"]> {
   try {
     const grouped = await prisma.evidence.groupBy({
       by: ["status"],
-      where: { teamId },
+      where: { AND: [pop.evidence] },
       _count: { _all: true },
     });
     const data = { reported: 0, signed: 0, uploaded: 0, uploading: 0, created: 0 };
@@ -2819,7 +2892,8 @@ export async function buildCommandCenter(input: {
   teamId: string;
   role: string;
 }): Promise<CommandCenterEnvelope> {
-  const { scope, memberCount } = await detectWorkspaceScope(input.teamId);
+  const { scope, memberCount, population: pop } =
+    await detectWorkspaceScope(input.teamId);
 
   const [
     pressure,
@@ -2836,16 +2910,16 @@ export async function buildCommandCenter(input: {
     legacyReviewer,
   ] = await Promise.all([
     runOperationalPressure(input.teamId, scope, input.role),
-    runCaseOperations(input.teamId, scope),
+    runCaseOperations(input.teamId, scope, pop),
     runReviewerOrchestration(input.teamId, scope),
-    runPipelineDetail(input.teamId),
-    runGovernancePosture(input.teamId, scope),
-    runOrganizationalIntelligence(input.teamId),
-    runTimeline(input.teamId),
-    runAuditReadiness(input.teamId, scope),
-    runRecentEvidence(input.teamId),
+    runPipelineDetail(input.teamId, pop),
+    runGovernancePosture(input.teamId, scope, pop),
+    runOrganizationalIntelligence(input.teamId, pop),
+    runTimeline(input.teamId, pop),
+    runAuditReadiness(input.teamId, scope, pop),
+    runRecentEvidence(input.teamId, pop),
     runIncidents(input.teamId),
-    runLegacyPipelineSummary(input.teamId),
+    runLegacyPipelineSummary(input.teamId, pop),
     runLegacyReviewerWorkload(input.teamId, scope),
   ]);
 
@@ -2857,9 +2931,9 @@ export async function buildCommandCenter(input: {
     securityResult,
     workloadEngineResult,
   ] = await Promise.all([
-    runInvestigationIntelligence(input.teamId, scope),
-    runQueueCongestion(input.teamId, scope),
-    runCustodyIntegrityAnomalies(input.teamId),
+    runInvestigationIntelligence(input.teamId, scope, pop),
+    runQueueCongestion(input.teamId, scope, pop),
+    runCustodyIntegrityAnomalies(input.teamId, pop),
     runAccessSecurityAnomalies(input.teamId),
     runWorkloadEngine(input.teamId, scope),
   ]);
@@ -2874,12 +2948,12 @@ export async function buildCommandCenter(input: {
     queueWorkerTelemetryResult,
     coordinationResult,
   ] = await Promise.all([
-    runRelationshipIntelligence(input.teamId),
-    runCrossCaseIntelligenceV2(input.teamId, scope),
+    runRelationshipIntelligence(input.teamId, pop),
+    runCrossCaseIntelligenceV2(input.teamId, scope, pop),
     runReconstructedTimeline(input.teamId),
-    runDeepIntegrityWatch(input.teamId),
+    runDeepIntegrityWatch(input.teamId, pop),
     runAccessSecurityClassifier(input.teamId),
-    runQueueWorkerTelemetry(input.teamId, scope),
+    runQueueWorkerTelemetry(input.teamId, scope, pop),
     runCoordinationSignals(input.teamId, scope),
   ]);
 
@@ -2904,7 +2978,7 @@ export async function buildCommandCenter(input: {
       reviewers: workloadEngineResult.reviewers,
       saturationScore: workloadEngineResult.saturationScore,
       bottlenecks: workloadEngineResult.bottlenecks,
-    },
+    }, pop,
   );
 
   // Phase 32.8C FINAL-3 — reviewer capacity / operational graph /
@@ -3022,7 +3096,7 @@ export async function buildCommandCenter(input: {
   // Phase 37.98 — Projection-backed summary. Reads from
   // OrgHealthProjection (refreshed by the org-health-refresh worker).
   // Falls back to two bounded live counts when no projection exists.
-  const projectionSummary = await buildProjectionSummary(input.teamId);
+  const projectionSummary = await buildProjectionSummary(input.teamId, pop);
 
   // Compose summary from real sections (no fake metrics).
   const summary: CommandCenterEnvelope["sections"]["summary"] = {
@@ -3391,6 +3465,7 @@ const CRITICAL_REASON_CODES = new Set([
 async function runInvestigationIntelligence(
   teamId: string,
   scope: WorkspaceScope,
+  pop: WorkspacePopulation,
 ): Promise<{
   meta: SectionMeta;
   items: InvestigationRiskItem[];
@@ -3422,7 +3497,7 @@ async function runInvestigationIntelligence(
 
   try {
     const cases = await prisma.case.findMany({
-      where: { teamId },
+      where: { AND: [pop.cases] },
       orderBy: { updatedAt: "desc" },
       take: INVESTIGATION_TOP_LIMIT,
       select: { id: true, name: true, updatedAt: true },
@@ -3737,6 +3812,7 @@ async function runInvestigationIntelligence(
 async function runQueueCongestion(
   teamId: string,
   scope: WorkspaceScope,
+  pop: WorkspacePopulation,
 ): Promise<{ meta: SectionMeta; items: QueueCongestionItem[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -3784,7 +3860,7 @@ async function runQueueCongestion(
 
     // Report pipeline pressure: evidence SIGNED without a Report row.
     const reportPending = await prisma.evidence.count({
-      where: { teamId, status: "SIGNED", reports: { none: {} } },
+      where: { AND: [pop.evidence], status: "SIGNED", reports: { none: {} } },
     });
     items.push({
       queueId: "report_queue_pending",
@@ -3798,7 +3874,7 @@ async function runQueueCongestion(
     // Package pipeline pressure: evidence REPORTED without a Package row.
     const packagePending = await prisma.evidence.count({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: "REPORTED",
         verificationPackages: { none: {} },
       },
@@ -3857,6 +3933,7 @@ async function runQueueCongestion(
 
 async function runCustodyIntegrityAnomalies(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<{ meta: SectionMeta; items: IntegrityAnomalyItem[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -3875,7 +3952,7 @@ async function runCustodyIntegrityAnomalies(
     // Integrity REVIEW_REQUIRED or FAILED — real classifications on Evidence.
     const integrityRows = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         verificationStatus: { in: ["REVIEW_REQUIRED", "FAILED"] },
       },
       orderBy: { updatedAt: "desc" },
@@ -3902,7 +3979,7 @@ async function runCustodyIntegrityAnomalies(
     // Package exists but no Report — integrity inconsistency.
     const packageButNoReport = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: "REPORTED",
         reports: { none: {} },
         verificationPackages: { some: {} },
@@ -3925,7 +4002,7 @@ async function runCustodyIntegrityAnomalies(
     // Package blocked by governance metadata.
     const sample = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: { in: ["SIGNED", "REPORTED"] },
       },
       take: 500,
@@ -4357,6 +4434,7 @@ const RELATIONSHIP_CLUSTER_LIMIT = 12;
 
 async function runRelationshipIntelligence(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<{ meta: SectionMeta; clusters: RelationshipCluster[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -4377,7 +4455,7 @@ async function runRelationshipIntelligence(
   try {
     const dupHashes = await prisma.evidence.groupBy({
       by: ["fileSha256"],
-      where: { teamId, fileSha256: { not: null } },
+      where: { AND: [pop.evidence], fileSha256: { not: null } },
       _count: { _all: true },
       having: { fileSha256: { _count: { gt: 1 } } },
       orderBy: { _count: { fileSha256: "desc" } },
@@ -4386,7 +4464,7 @@ async function runRelationshipIntelligence(
     for (const g of dupHashes) {
       if (!g.fileSha256) continue;
       const members = await prisma.evidence.findMany({
-        where: { teamId, fileSha256: g.fileSha256 },
+        where: { AND: [pop.evidence], fileSha256: g.fileSha256 },
         select: { id: true, caseLinks: { select: { caseId: true } } },
         take: 10,
       });
@@ -4448,7 +4526,7 @@ async function runRelationshipIntelligence(
   try {
     const submitterGroups = await prisma.evidence.groupBy({
       by: ["submittedByUserId"],
-      where: { teamId, submittedByUserId: { not: null } },
+      where: { AND: [pop.evidence], submittedByUserId: { not: null } },
       _count: { _all: true },
       having: { submittedByUserId: { _count: { gte: 3 } } },
       orderBy: { _count: { submittedByUserId: "desc" } },
@@ -4457,7 +4535,7 @@ async function runRelationshipIntelligence(
     for (const g of submitterGroups) {
       if (!g.submittedByUserId) continue;
       const sample = await prisma.evidence.findMany({
-        where: { teamId, submittedByUserId: g.submittedByUserId },
+        where: { AND: [pop.evidence], submittedByUserId: g.submittedByUserId },
         take: 5,
         select: { id: true, caseLinks: { select: { caseId: true } } },
       });
@@ -4521,6 +4599,7 @@ export type CrossCaseSignalV2 = {
 async function runCrossCaseIntelligenceV2(
   teamId: string,
   scope: WorkspaceScope,
+  pop: WorkspacePopulation,
 ): Promise<{ meta: SectionMeta; signals: CrossCaseSignalV2[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -4600,7 +4679,7 @@ async function runCrossCaseIntelligenceV2(
     // Shared governance block — multiple cases with package-blocked evidence.
     const blockedSample = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: { in: ["SIGNED", "REPORTED"] },
         caseLinks: { some: {} },
       },
@@ -4692,7 +4771,7 @@ async function runCrossCaseIntelligenceV2(
     const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const heldButStale = await prisma.case.findMany({
       where: {
-        teamId,
+        AND: [pop.cases],
         updatedAt: { lt: since30d },
         // PHASE 12 POINT 3 — the legacy `legalHolds` relation pointed at the
         // dropped `case_legal_holds` table. CASE-scoped rows now live in the
@@ -5086,6 +5165,7 @@ const REPORT_BUT_NO_PACKAGE_AGE_HOURS = 6;
 
 async function runDeepIntegrityWatch(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<{ meta: SectionMeta; items: DeepIntegritySignal[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -5167,7 +5247,7 @@ async function runDeepIntegrityWatch(
     // verificationStatus = REVIEW_REQUIRED / FAILED
     const reviewRequired = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         verificationStatus: { in: ["REVIEW_REQUIRED", "FAILED"] },
       },
       orderBy: { updatedAt: "desc" },
@@ -5201,7 +5281,7 @@ async function runDeepIntegrityWatch(
     // TSA unavailable for finalized evidence (REPORTED but no tsaTokenBase64).
     const tsaUnavailable = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: "REPORTED",
         tsaTokenBase64: null,
       },
@@ -5229,7 +5309,7 @@ async function runDeepIntegrityWatch(
     // OTS unavailable / failed.
     const otsUnavailable = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: "REPORTED",
         OR: [
           { otsStatus: null },
@@ -5266,7 +5346,7 @@ async function runDeepIntegrityWatch(
     );
     const reportFinalizedNoPackage = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: "REPORTED",
         updatedAt: { lt: cutoff },
         verificationPackages: { none: {} },
@@ -5294,7 +5374,7 @@ async function runDeepIntegrityWatch(
     // Package blocked.
     const sample = await prisma.evidence.findMany({
       where: {
-        teamId,
+        AND: [pop.evidence],
         status: { in: ["SIGNED", "REPORTED"] },
       },
       take: 400,
@@ -5642,6 +5722,7 @@ export type QueueWorkerTelemetry = {
 async function runQueueWorkerTelemetry(
   teamId: string,
   scope: WorkspaceScope,
+  pop: WorkspacePopulation,
 ): Promise<{ meta: SectionMeta; data: QueueWorkerTelemetry }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -5713,11 +5794,11 @@ async function runQueueWorkerTelemetry(
           })
         : Promise.resolve(0),
       prisma.evidence.count({
-        where: { teamId, status: "SIGNED", reports: { none: {} } },
+        where: { AND: [pop.evidence], status: "SIGNED", reports: { none: {} } },
       }),
       prisma.evidence.count({
         where: {
-          teamId,
+          AND: [pop.evidence],
           status: "REPORTED",
           verificationPackages: { none: {} },
         },
@@ -6265,6 +6346,7 @@ async function runOrgIntelligenceV2(
   teamId: string,
   pressure: CommandCenterEnvelope["sections"]["operationalPressure"],
   workload: CommandCenterEnvelope["sections"]["workloadEngine"],
+  pop: WorkspacePopulation,
 ): Promise<{ meta: SectionMeta; data: OrgIntelligenceV2 }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -6279,13 +6361,13 @@ async function runOrgIntelligenceV2(
   try {
     const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const evidence30d = await prisma.evidence.count({
-      where: { teamId, createdAt: { gte: since30d } },
+      where: { AND: [pop.evidence], createdAt: { gte: since30d } },
     });
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const [last24h, last7d] = await Promise.all([
-      prisma.evidence.count({ where: { teamId, createdAt: { gte: since24h } } }),
-      prisma.evidence.count({ where: { teamId, createdAt: { gte: since7d } } }),
+      prisma.evidence.count({ where: { AND: [pop.evidence], createdAt: { gte: since24h } } }),
+      prisma.evidence.count({ where: { AND: [pop.evidence], createdAt: { gte: since7d } } }),
     ]);
 
     // Bottleneck domains — group pressure items by affectedDomain.
@@ -6422,6 +6504,7 @@ const PROJECTION_FRESH_THRESHOLD_SEC = 90;
  */
 async function buildProjectionSummary(
   teamId: string,
+  pop: WorkspacePopulation,
 ): Promise<CommandCenterEnvelope["projectionSummary"]> {
   // Read the most recent projection row for THIS tenant. The Prisma
   // helper filters by teamId; cross-tenant read is impossible.
@@ -6478,8 +6561,8 @@ async function buildProjectionSummary(
   // chip until the refresh worker populates the row.
   try {
     const [evidenceCount, caseCount] = await Promise.all([
-      prisma.evidence.count({ where: { teamId, deletedAt: null } }),
-      prisma.case.count({ where: { teamId } }),
+      prisma.evidence.count({ where: { AND: [pop.evidence], deletedAt: null } }),
+      prisma.case.count({ where: { AND: [pop.cases] } }),
     ]);
     return {
       projectionStatus: "missing",

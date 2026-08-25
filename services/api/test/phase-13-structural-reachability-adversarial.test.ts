@@ -746,7 +746,7 @@ describe("NEW-047 case 11 — the fixture index cannot drift from the live index
    * gap — that the tables those decisions read are built the same way.
    */
   const REAL = [
-    "services/api/src/services/dashboard/projections/refresh-org-health.service.ts",
+    "packages/shared-runtime/src/org-health-projection.ts",
     "services/api/src/services/dashboard/command-center.service.ts",
   ];
 

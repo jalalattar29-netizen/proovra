@@ -42,6 +42,10 @@ import {
   deriveCustomerLifecycle,
   type LifecycleStage,
 } from "../admin/customer-lifecycle.js";
+import {
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 // Plans considered "paid" for lifecycle provisioning derivation.
 const PAID_PLANS = new Set(["PAYG", "PRO", "TEAM", "ENTERPRISE"]);
@@ -914,18 +918,28 @@ export async function getAdminOrganizationDetail(
   // ---------------------------------------------------------------------------
   const workspaceMap: AdminOrgDetailWorkspace[] = [];
   for (const ws of workspaceRows) {
+    // WORKSPACE-SCOPE CONVERGENCE — resolved OUTSIDE the `safeCall` thunks.
+    //
+    // Inline `await` inside a synchronous arrow is not merely a type error: it
+    // would also resolve the scope inside the retry/suppress wrapper, so a
+    // failure to resolve it would be swallowed as "count unavailable" rather
+    // than surfacing. Resolving first keeps the two failure modes distinct.
+    const wsCaseScope = await workspaceCaseWhere(ws.id, client);
+    const wsEvidenceScope = await workspaceEvidenceWhere(ws.id, client);
     const caseCount = await safeCall(
-      () => client.case.count({ where: { teamId: ws.id } }),
+      () => client.case.count({ where: { AND: [wsCaseScope] } }),
       null as number | null,
     );
     const wsEvidenceCount = await safeCall(
-      () => client.evidence.count({ where: { teamId: ws.id, deletedAt: null } }),
+      () => client.evidence.count({ where: { AND: [wsEvidenceScope], deletedAt: null } }),
       0,
     );
     const wsReportCount = await safeCall(
       () =>
         client.report.count({
-          where: { evidence: { teamId: ws.id, deletedAt: null } },
+          // Scoped through the canonical Evidence population, so the report
+          // count describes the same records the evidence count did.
+          where: { evidence: { AND: [wsEvidenceScope], deletedAt: null } },
         }),
       null as number | null,
     );

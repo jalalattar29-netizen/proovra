@@ -13,9 +13,23 @@ export { registerPrisma, getRegisteredPrisma } from "./prisma-registry.js";
 // The ONE durable reconciliation-run authority: DB-enforced per-lock-key
 // exclusion, a lease, and terminal transitions. Both hosts start runs.
 export * from "./reconciliation-run.js";
+// THE workspace read-scope authority for the two mixed-ownership models
+// (Evidence, Case). It lives here because BOTH hosts read those populations:
+// the API for every page, the Worker for org-health refresh, archive-tier
+// sweeps and graph reconciliation. A background job that reads a smaller
+// population than the page it feeds is the disagreement this ends.
+export * from "./workspace-scope.js";
 // The Search-shaped face of that authority. Every entry point that can
 // start a Search reconciliation resolves through it.
 export * from "./search-index-reconciliation.js";
+// The Operations-shaped face of the SAME run authority. Scheduled discovery of
+// a workspace's operational conditions, plus the readiness contract that
+// decides whether "workspace operations are clear" may be said at all.
+export * from "./workspace-operations-reconciliation.js";
+// THE org-health projection authority. It lived twice — once in the API, once
+// in the Worker — and the two computed DIFFERENT pending-report counts because
+// only one carried the pipeline-status filter. One implementation, both hosts.
+export * from "./org-health-projection.js";
 
 export * from "./signing/index.js";
 

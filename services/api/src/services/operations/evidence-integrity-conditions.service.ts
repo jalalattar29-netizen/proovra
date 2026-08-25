@@ -72,7 +72,7 @@ import * as prismaPkg from "@prisma/client";
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { workspaceEvidenceWhere } from "../workspace-personal-scope.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { recordIncident } from "../observability/incident.service.js";
 import {
   classifyIntegrityFailure,

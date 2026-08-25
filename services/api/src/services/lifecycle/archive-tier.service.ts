@@ -45,6 +45,7 @@ import {
   restoreObject,
   headObjectStorageClass,
 } from "../../storage.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 // -----------------------------------------------------------------------------
 // S3 StorageClass mapping
@@ -575,6 +576,11 @@ export async function projectArchiveCostsByTier(input: {
   teamId: string;
 }): Promise<Record<ArchiveTier, ArchiveTierCostBucket>> {
   const prisma = input.prisma ?? defaultPrisma;
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below, on THIS call's client. A strict
+  // `teamId` equality here omitted a personal workspace's legacy NULL-team
+  // rows, and reported the smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
 
   const buckets: Record<ArchiveTier, ArchiveTierCostBucket> = {
     HOT: { evidenceCount: 0, totalCostUsdMicrosPerMonth: 0 },
@@ -584,7 +590,7 @@ export async function projectArchiveCostsByTier(input: {
   };
 
   const evidenceRows = await prisma.evidence.findMany({
-    where: { teamId: input.teamId, deletedAt: null },
+    where: { AND: [scope], deletedAt: null },
     select: { id: true, sizeBytes: true },
   });
   if (evidenceRows.length === 0) return buckets;
@@ -630,6 +636,11 @@ export async function scheduleAutoTransitions(input: {
   teamId: string;
 }): Promise<{ scheduled: number }> {
   const prisma = input.prisma ?? defaultPrisma;
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below, on THIS call's client. A strict
+  // `teamId` equality here omitted a personal workspace's legacy NULL-team
+  // rows, and reported the smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
 
   const HOT_TO_WARM_DAYS = 30;
   const WARM_TO_COLD_CUMULATIVE_DAYS = 120;   // 30 + 90
@@ -637,7 +648,7 @@ export async function scheduleAutoTransitions(input: {
   const MAX_PER_RUN = 100;
 
   const evidenceRows = await prisma.evidence.findMany({
-    where: { teamId: input.teamId, deletedAt: null },
+    where: { AND: [scope], deletedAt: null },
     select: { id: true, createdAt: true },
     take: MAX_PER_RUN * 4,
   });

@@ -29,6 +29,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { isEvidenceUnderAnyLegalHold } from "./legal-hold.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 const FLAG_REISSUE_WINDOW_MS = 24 * 3600 * 1000;
 
@@ -175,9 +176,14 @@ export async function listRetentionCandidates(
   input: { teamId: string; limit?: number },
   client: PrismaClient = defaultPrisma,
 ): Promise<RetentionCandidateRow[]> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, client);
   const rows = await client.evidence.findMany({
     where: {
-      teamId: input.teamId,
+      AND: [scope],
       retentionReconciliationFlaggedAtUtc: { not: null },
       archivedAt: null,
       deletedAt: null,

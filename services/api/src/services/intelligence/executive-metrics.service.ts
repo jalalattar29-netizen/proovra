@@ -32,6 +32,9 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 // ---------------------------------------------------------------------------
 // Snapshot — kept intact for backward compatibility.
@@ -250,6 +253,11 @@ async function aggregateWindow(input: {
   untilUtc?: Date;
 }): Promise<WindowTotals> {
   const { prisma, teamId, sinceUtc } = input;
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(teamId, prisma);
   const untilUtc = input.untilUtc;
   const within = untilUtc ? { gte: sinceUtc, lt: untilUtc } : { gte: sinceUtc };
 
@@ -265,15 +273,15 @@ async function aggregateWindow(input: {
 
   // Evidence + storage totals (cumulative, not window-scoped).
   const evidenceTotal = await safeCount(() =>
-    prisma.evidence.count({ where: { teamId } }),
+    prisma.evidence.count({ where: { AND: [scope] } }),
   );
   const storageAgg = await prisma.evidence
-    .aggregate({ where: { teamId }, _sum: { sizeBytes: true } })
+    .aggregate({ where: { AND: [scope] }, _sum: { sizeBytes: true } })
     .catch(() => ({ _sum: { sizeBytes: null as bigint | null } }));
   const byMimeRaw = await prisma.evidence
     .groupBy({
       by: ["mimeType"],
-      where: { teamId },
+      where: { AND: [scope] },
       _count: { _all: true },
     })
     .catch(() => [] as Array<{ mimeType: string | null; _count: { _all: number } }>);

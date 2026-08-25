@@ -41,6 +41,7 @@ import {
   resolveActiveWorkspace,
   type JobLike,
 } from "./canonical-job.js";
+import { refreshOrgHealthProjection } from "@proovra/shared-runtime";
 
 /**
  * PHASE 12 — POINT 5: the shared preamble for the workspace-scoped subsystem
@@ -623,72 +624,25 @@ export async function processOrgHealthRefreshJob(
     "org_health_refresh.received",
   );
   try {
-    // PHASE 12 — POINT 5, CLAIM 2. The sample instant is BUCKETED to the
-    // minute, and that is what makes this unit's declared idempotency real.
+    // WORKSPACE-SCOPE CONVERGENCE — DELEGATED, not recomputed.
     //
-    // `OrgHealthProjection`'s primary key is (team_id, sampled_at_utc), and
-    // the registry records `upsert_by_natural_key` as this unit's only
-    // protection — it declares no claim. With `new Date()` the key was
-    // different on every execution, so the upsert could never collapse
-    // anything: it was an INSERT wearing an upsert's clothes, and two
-    // concurrent ticks wrote two rows for the same observation. Measured, not
-    // theorised — the concurrency probe in the reconciliation family suite
-    // caught it adding a tenth row to nine.
+    // This job used to carry its own copy of the projection arithmetic, and
+    // the copy was WRONG in a specific way: it counted every non-deleted
+    // record with no report as "pending a report", with no pipeline-status
+    // filter, so ten stalled uploads read as ten reports outstanding. The API
+    // path filtered on SIGNED/REPORTED and did not. Which number Home showed
+    // depended on whether this row or the live path had written last.
     //
-    // A minute is the smallest bucket that makes concurrent and
-    // immediately-retried ticks collapse while leaving a genuine time series
-    // intact at any real cadence: two ticks a minute apart still sample twice.
-    const sampledAtUtc = new Date(Math.floor(Date.now() / 60_000) * 60_000);
-    const [
+    // The sample bucket, the upsert key and the four zero-valued subsystem
+    // counters all live in the shared authority too — every one of them was a
+    // place the two implementations could drift apart independently.
+    const row = await refreshOrgHealthProjection({ teamId }, prisma);
+    const {
       evidenceCount,
       caseCount,
       pendingReportCount,
       pendingPackageCount,
-    ] = await Promise.all([
-      prisma.evidence.count({ where: { teamId, deletedAt: null } }),
-      prisma.case.count({ where: { teamId } }),
-      prisma.evidence.count({
-        where: { teamId, deletedAt: null, reports: { none: {} } },
-      }),
-      prisma.evidence.count({
-        where: { teamId, deletedAt: null, verificationPackages: { none: {} } },
-      }),
-    ]);
-
-    // Counters that depend on subsystem-specific tables; default to 0
-    // until those subsystems plumb in their own per-tenant counters.
-    const openIncidentCount = 0;
-    const slaBreachCount = 0;
-    const governanceBlockerCount = 0;
-    const recentVerificationCount = 0;
-
-    await prisma.orgHealthProjection.upsert({
-      where: { teamId_sampledAtUtc: { teamId, sampledAtUtc } },
-      create: {
-        teamId,
-        sampledAtUtc,
-        evidenceCount,
-        caseCount,
-        openIncidentCount,
-        slaBreachCount,
-        governanceBlockerCount,
-        recentVerificationCount,
-        pendingPackageCount,
-        pendingReportCount,
-        source: "worker_refresh_v1",
-      },
-      update: {
-        evidenceCount,
-        caseCount,
-        openIncidentCount,
-        slaBreachCount,
-        governanceBlockerCount,
-        recentVerificationCount,
-        pendingPackageCount,
-        pendingReportCount,
-        source: "worker_refresh_v1",
-      },
-    });
+    } = row;
 
     logger.info(
       {

@@ -606,9 +606,44 @@ export type AuthorizedWorkspaceContext = {
   readonly [AUTHORIZED_WORKSPACE_BRAND]: true;
   readonly userId: string;
   readonly workspaceId: string;
+  /**
+   * WORKSPACE-SCOPE CONVERGENCE — the id of the row that PHYSICALLY stores
+   * this workspace, which today is the legacy `Team` row.
+   *
+   * `workspaceId` is the SEMANTIC name every API and service boundary speaks;
+   * `physicalWorkspaceId` is the value a storage predicate is written against.
+   * They are the same string today and this field asserts that rather than
+   * hiding it: a reader of a `where: { teamId: ctx.physicalWorkspaceId }` can
+   * see they are looking at storage, and if the physical home ever moves,
+   * every such predicate is already pointing at the field that would change.
+   *
+   * It is deliberately NOT a second source of truth — it is minted from the
+   * same proven workspace id, in the same constructor, and can never diverge.
+   */
+  readonly physicalWorkspaceId: string;
   readonly workspaceKind: CanonicalWorkspaceKind;
   readonly workspaceRole: CanonicalRole;
   readonly membershipStatus: CanonicalActiveMembershipStatus;
+  /**
+   * The proven `TeamMember` row id this grant rests on. Carried so a consumer
+   * that must record WHICH membership authorized an action does not re-read
+   * the row to find out — a second read that could return a different row than
+   * the one the decision was made from.
+   */
+  readonly membershipId: string;
+  /**
+   * The owner of a PERSONAL workspace, and `null` for every other kind.
+   *
+   * This is the binding the canonical read scope needs: a personal
+   * workspace's legacy `team_id IS NULL` rows are identified by their owner,
+   * and the NULL arm of the scope is conjoined with THIS id so it can never
+   * reach another tenant's orphan rows. It is deliberately null for OWNED and
+   * ORGANIZATION workspaces — those are strict-scope workspaces and an owner
+   * arm there would widen a shared population, which is the opposite defect.
+   *
+   * NEVER an authorization input. Membership decided that, above.
+   */
+  readonly personalOwnerUserId: string | null;
   readonly organizationId: string | null;
   /**
    * `ACTIVE` for an ORGANIZATION_PROVISIONED workspace (proven above), and
@@ -627,6 +662,36 @@ export type AuthorizedWorkspaceContext = {
    */
   readonly capabilities: ReadonlySet<Permission>;
 };
+
+/**
+ * WORKSPACE-SCOPE CONVERGENCE — the canonical workspace context.
+ *
+ * This is an ALIAS, not a new type. The convergence brief asked for a
+ * "CanonicalWorkspaceContext": a transient, server-resolved object carrying
+ * workspace identity, physical storage identity, kind, owner, membership,
+ * lifecycle and capabilities, which fails closed on any contradiction.
+ * `AuthorizedWorkspaceContext` already IS that object — it is minted by one
+ * constructor, only after the full identity → workspace → kind → membership →
+ * status → expiry → organization-lifecycle → permission → support-guard
+ * chain, and it is unforgeable at runtime, not merely at compile time.
+ *
+ * Introducing a separate type would have created exactly what the brief
+ * forbids: a second workspace authority, resolvable by a second path, able to
+ * disagree with the first. The name is provided so the vocabulary exists; the
+ * authority remains singular.
+ *
+ * On the two field mappings that are not spelled identically:
+ *   * `lifecycle` is carried as the TWO facts the chain actually proves —
+ *     `membershipStatus` (always ACTIVE here) and `organizationLifecycle`
+ *     (ACTIVE for an ORGANIZATION workspace, null where CUSTOMER-org
+ *     lifecycle does not apply). Collapsing them into one string would lose
+ *     which of the two was proven and add a third spelling of both.
+ *   * `workspaceKind` keeps its canonical THREE values. `OWNED` is a real
+ *     kind in this schema, not a synonym for either of the other two, and
+ *     re-spelling the enum with two would be the parallel enum the brief
+ *     rules out.
+ */
+export type CanonicalWorkspaceContext = AuthorizedWorkspaceContext;
 
 // =============================================================================
 // PHASE 12 CORRECTIVE PASS §1.2 (2026-08-06) — RUNTIME AUTHORITY.
@@ -1033,9 +1098,19 @@ export async function evaluateAuthorizedWorkspace(
       {
         userId,
         workspaceId: options.workspaceId,
+        // The physical home of this workspace is the Team row the whole chain
+        // above was evaluated against. Same value, named for what it is.
+        physicalWorkspaceId: options.workspaceId,
         workspaceKind,
         workspaceRole: mapTeamRoleToCanonical(member.role),
         membershipStatus: "ACTIVE",
+        membershipId: member.teamMemberId,
+        // Owner identity is carried ONLY for a PERSONAL workspace. On OWNED
+        // and ORGANIZATION workspaces the population is strict, so exposing an
+        // owner here would invite a read to widen a shared workspace by one
+        // person's rows — the mirror image of the omission this closes.
+        personalOwnerUserId:
+          workspaceKind === "PERSONAL" ? member.workspaceOwnerUserId : null,
         organizationId: member.organizationId,
         organizationLifecycle:
           workspaceKind === "ORGANIZATION" ? "ACTIVE" : null,

@@ -61,6 +61,7 @@ const FINALIZED_LIFECYCLE_STATES: ReadonlySet<string> = new Set([
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -608,9 +609,14 @@ export async function countByLifecycleState(
   teamId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<Record<EvidenceLifecycleState, number>> {
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below. A strict `teamId` equality here
+  // omitted a personal workspace's legacy NULL-team rows, and reported the
+  // smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(teamId, client);
   const rows = await client.evidence.groupBy({
     by: ["lifecycleState"],
-    where: { teamId },
+    where: { AND: [scope] },
     _count: { _all: true },
   });
   const out: Record<EvidenceLifecycleState, number> = {

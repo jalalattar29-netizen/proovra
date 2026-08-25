@@ -76,13 +76,14 @@ const COMMAND_CENTER = readFileSync(
 const REFRESH_PROJ = readFileSync(
   resolve(
     REPO_ROOT,
-    "services",
-    "api",
+    // WORKSPACE-SCOPE CONVERGENCE — the org-health projection moved into
+    // `@proovra/shared-runtime`. It existed twice, in the API and the Worker,
+    // and the two computed different pending-report counts because only one
+    // carried the pipeline-status filter this file exists to pin.
+    "packages",
+    "shared-runtime",
     "src",
-    "services",
-    "dashboard",
-    "projections",
-    "refresh-org-health.service.ts",
+    "org-health-projection.ts",
   ),
   "utf8",
 );
@@ -135,13 +136,13 @@ describe("HOME-TRUTH-FIX — Reports/Packages KPI uses evidence-distinct counts"
   it("reportsReady counts EVIDENCE records (with at least one Report), not Report rows", () => {
     // The new query: prisma.evidence.count({ where: { teamId, deletedAt: null, reports: { some: {} } } })
     expect(COMMAND_CENTER).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*teamId,\s*\n?\s*deletedAt:\s*null,\s*\n?\s*reports:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*reports:\s*\{\s*some:\s*\{\s*\}\s*\}/,
     );
   });
 
   it("packagesReady counts EVIDENCE records (with at least one VerificationPackage), not Package rows", () => {
     expect(COMMAND_CENTER).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*teamId,\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
     );
   });
 
@@ -253,16 +254,49 @@ describe("HOME-TRUTH-FIX — Operational Queue includes timestamp-provider failu
 });
 
 describe("HOME-TRUTH-FIX — projection no longer counts pre-SIGNED rows as pending", () => {
-  it("pendingReportCount is scoped to status SIGNED or REPORTED", () => {
-    // The projection's `none: {}` query must carry a status filter.
+  // WORKSPACE-SCOPE CONVERGENCE — the eligible statuses are now NAMED
+  // constants at the top of the authority rather than literals repeated at
+  // each query. That is what made the divergence fixable: the Worker's copy
+  // omitted the filter entirely, and a filter that exists in one spelling in
+  // one file is a filter that can be forgotten in another.
+  //
+  // Both halves are asserted — that the constants hold exactly these statuses,
+  // AND that the counts are bounded by them — so neither a renamed constant
+  // nor a widened one can pass.
+  it("the eligible-status constants name exactly the pipeline stages", () => {
     expect(REFRESH_PROJ).toMatch(
-      /status:\s*\{\s*in:\s*\[\s*"SIGNED",\s*"REPORTED"\s*\][\s\S]{0,80}reports:\s*\{\s*none/,
+      /REPORT_ELIGIBLE_STATUSES\s*=\s*\[\s*"SIGNED",\s*"REPORTED"\s*\]\s*as const/,
+    );
+    expect(REFRESH_PROJ).toMatch(
+      /PACKAGE_ELIGIBLE_STATUSES\s*=\s*\[\s*"REPORTED"\s*\]\s*as const/,
+    );
+  });
+
+  it("pendingReportCount is scoped to status SIGNED or REPORTED", () => {
+    expect(REFRESH_PROJ).toMatch(
+      /status:\s*\{\s*in:\s*\[\s*\.\.\.REPORT_ELIGIBLE_STATUSES\s*\][\s\S]{0,120}reports:\s*\{\s*none/,
     );
   });
 
   it("pendingPackageCount is scoped to status REPORTED (package only meaningful after report)", () => {
     expect(REFRESH_PROJ).toMatch(
-      /status:\s*"REPORTED"[\s\S]{0,120}verificationPackages:\s*\{\s*none/,
+      /status:\s*\{\s*in:\s*\[\s*\.\.\.PACKAGE_ELIGIBLE_STATUSES\s*\][\s\S]{0,160}verificationPackages:\s*\{\s*none/,
     );
+  });
+
+  it("the Worker no longer carries its own copy of the arithmetic", () => {
+    // The defect in one assertion. The processor must DELEGATE, never count.
+    const worker = readFileSync(
+      resolve(REPO_ROOT, "services", "worker", "src", "subsystem-queue-processors.ts"),
+      "utf8",
+    );
+    const start = worker.indexOf("export async function processOrgHealthRefreshJob");
+    expect(start).toBeGreaterThan(0);
+    const end = worker.indexOf("\nexport async function ", start + 1);
+    const body = worker.slice(start, end > 0 ? end : worker.length);
+    expect(body).toMatch(/refreshOrgHealthProjection\(\s*\{\s*teamId\s*\}/);
+    expect(body).not.toMatch(/prisma\.evidence\.count/);
+    expect(body).not.toMatch(/prisma\.case\.count/);
+    expect(body).not.toMatch(/orgHealthProjection\.upsert/);
   });
 });

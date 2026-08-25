@@ -1083,6 +1083,20 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // entry above.
       "20271220000000_evidence_lifecycle_trashed_state",
       "20271220000001_evidence_lifecycle_state_backfill",
+      // WORKSPACE-SCOPE CONVERGENCE (2026-08-24). Adds WORKSPACE_OPERATIONS to
+      // GovernanceReconciliationKind so Operations discovery claims a slot in
+      // the SAME reconciliation-run authority every other family uses, rather
+      // than running as a side effect of somebody opening Home. Nothing to do
+      // with Phase 32.7.2's security-event mapping; permitted by exact name,
+      // like every entry above, so the allowlist never becomes a pattern.
+      "20271222000000_workspace_operations_reconciliation_kind",
+      // WORKSPACE-SCOPE CONVERGENCE (2026-08-24). Adds the IncidentScope
+      // discriminator, so `OperationalIncident.team_id = NULL` stops meaning
+      // both "belongs to no tenant" and "orphan of a deleted workspace" — an
+      // overload that let four tenant reads return other tenants' orphans.
+      // Nothing to do with Phase 32.7.2's security-event mapping; permitted by
+      // exact name.
+      "20271223000000_operational_incident_scope",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

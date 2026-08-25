@@ -42,6 +42,9 @@ import {
 import {
   EvidenceRequestInputSchema,
 } from "@proovra/shared";
+import {
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
@@ -131,7 +134,7 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
 
         const rows = await prisma.evidence.findMany({
           where: {
-            teamId: cred.teamId,
+            AND: [await workspaceEvidenceWhere(cred.teamId, prisma)],
             ...(query.status ? { status: query.status as never } : {}),
             ...(Object.keys(dateFilter).length > 0
               ? { createdAt: dateFilter }

@@ -31,6 +31,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { resolveEntitlement } from "../packaging/entitlement.service.js";
 import { emitLifecycleEvent } from "../intelligence/intelligence-activity.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 // ===========================================================================
 // Template defaults
@@ -541,6 +542,11 @@ export async function computeUpcomingExpirations(input: {
   withinDays?: number;
 }): Promise<{ count: number; sampleEvidenceIds: ReadonlyArray<string> }> {
   const prisma = input.prisma ?? defaultPrisma;
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
+  // resolved once for every query below, on THIS call's client. A strict
+  // `teamId` equality here omitted a personal workspace's legacy NULL-team
+  // rows, and reported the smaller number as if it were the whole population.
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   const withinDays = Math.max(1, Math.min(input.withinDays ?? 30, 3650));
   const horizonMs = withinDays * 24 * 3600 * 1000;
   const now = nowMs();
@@ -551,7 +557,7 @@ export async function computeUpcomingExpirations(input: {
   const upcoming = await prisma.evidence
     .findMany({
       where: {
-        teamId: input.teamId,
+        AND: [scope],
         deletedAt: null,
         archivedAt: null,
         retentionUntilUtc: {

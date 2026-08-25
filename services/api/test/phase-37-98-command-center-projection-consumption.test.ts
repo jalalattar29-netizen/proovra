@@ -68,7 +68,7 @@ vi.setConfig({ testTimeout: 300_000 });
 const CMD_CENTER_MODULE =
   "services/api/src/services/dashboard/command-center.service.ts";
 const PROJECTION_MODULE =
-  "services/api/src/services/dashboard/projections/refresh-org-health.service.ts";
+  "packages/shared-runtime/src/org-health-projection.ts";
 const WORKER_PROCESSORS_MODULE = "services/worker/src/subsystem-queue-processors.ts";
 const WORKER_INDEX_MODULE = "services/worker/src/index.ts";
 
@@ -77,6 +77,51 @@ type CountHit = {
   model: string;
   where: { ok: boolean; keys?: string[]; reason?: string };
 };
+
+/**
+ * WORKSPACE-SCOPE CONVERGENCE — what "tenant-scoped" means for a count now.
+ *
+ * These checks read the top-level KEYS of a `where` clause and used to demand
+ * a literal `teamId`. That was never quite the invariant: on `Evidence` and
+ * `Case` — the two models whose `team_id` is NULLABLE — a literal
+ * `teamId: <workspace>` is BOUNDED but INCOMPLETE. It omits a personal
+ * workspace's legacy NULL-team rows, so a projection built that way passed
+ * this test while silently under-counting the workspace it claimed to
+ * describe.
+ *
+ * The canonical scope is carried in an `AND` arm (`AND: [scope]`), so `AND` is
+ * accepted here. `AND` on its own would be a weaker assertion than the one it
+ * replaces, which is why every call site below ALSO asserts that the module
+ * under test resolves the canonical authority — see
+ * `expectResolvesCanonicalScope`. Together they say: bounded, and bounded by
+ * the one rule that is complete.
+ */
+function expectTenantScopedCount(hit: CountHit, context: string): void {
+  const keys = hit.where.keys ?? [];
+  const bounded = keys.includes("teamId") || keys.includes("AND");
+  expect(
+    bounded,
+    `prisma.${hit.model}.count ${context} is not tenant-scoped ` +
+      `(where keys: ${keys.join(", ") || "<none>"})`,
+  ).toBe(true);
+}
+
+/**
+ * The companion half: the module really does build its filter from the
+ * canonical workspace authority rather than assembling an `AND` of its own.
+ */
+function expectResolvesCanonicalScope(source: string, context: string): void {
+  // Both entry points into the ONE authority count. `workspaceEvidenceWhere` /
+  // `workspaceCaseWhere` resolve the workspace's owner themselves;
+  // `evidenceScopeFor` / `caseScopeFor` are the pure projections a caller that
+  // already holds a proven context uses, and the Command Center uses those
+  // because it resolves the workspace once per envelope rather than once per
+  // section. They are the same rule reached two ways, not two rules.
+  expect(
+    /workspace(Evidence|Case)Where\s*\(|(evidence|case)ScopeFor\s*\(/.test(source),
+    `${context} must resolve the canonical workspace scope`,
+  ).toBe(true);
+}
 
 /** Built once; the graph is the same for every case in this file. */
 let CALL_GRAPH: ReturnType<typeof buildCallGraph> | null = null;
@@ -314,11 +359,9 @@ describe("Phase 37.98 — Command Center consumes projection", () => {
           `(${hit.where.reason}) — an unreadable predicate is an analysis gap, ` +
           "not proof of scoping",
       ).toBe(true);
-      expect(
-        hit.where.keys,
-        `prisma.${hit.model}.count in the bounded fallback is not tenant-scoped`,
-      ).toContain("teamId");
+      expectTenantScopedCount(hit, "in the bounded fallback");
     }
+    expectResolvesCanonicalScope(CMD_CENTER, "the bounded fallback");
   });
 
   /**
@@ -349,7 +392,7 @@ describe("Phase 37.98 — Command Center consumes projection", () => {
     expect(
       [...new Set(walk.evidence.map((e) => e.file as string))],
       "the projection query must be attributed to the module that declares it",
-    ).toEqual(["services/api/src/services/dashboard/projections/refresh-org-health.service.ts"]);
+    ).toEqual(["packages/shared-runtime/src/org-health-projection.ts"]);
 
     const dynamicGaps = walk.unresolved.filter(
       (u) => (u as { reason?: string }).reason === "DYNAMIC_IMPORT_UNRESOLVED",
@@ -412,19 +455,42 @@ describe("Phase 37.98 — refresh pipeline wired in worker", () => {
     expect(start.ok, `processor not declared: ${start.reason}`).toBe(true);
     expect(start.via).toBe("DECLARATION");
 
-    const walk = reachesFrom(cg, start, { maxDepth: 0, match: anyCount });
-    expect(walk.reached, "the refresh processor issues no counts at all").toBe(true);
+    // `maxDepth: 1`, not 0. The processor no longer counts inline: it
+    // DELEGATES to the one shared `refreshOrgHealthProjection` authority in
+    // `@proovra/shared-runtime`. That delegation is the fix — this processor
+    // used to carry its own copy of the arithmetic and the copy omitted the
+    // pipeline-status filter, so ten stalled uploads read as ten reports
+    // outstanding while the API path said zero.
+    //
+    // Following ONE hop does not weaken the assertion. It still proves the
+    // processor reaches real counts and that every one of them is
+    // tenant-scoped; what it no longer demands is that the counts be written
+    // in this file, which is the very duplication being removed.
+    // `maxDepth: 2` — MEASURED, not guessed: processor -> the shared
+    // `refreshOrgHealthProjection` -> `computeOrgHealthCounts`, where the four
+    // counts live. Two hops is the whole delegation chain.
+    const walk = reachesFrom(cg, start, { maxDepth: 2, match: anyCount });
+    expect(walk.reached, "the refresh processor reaches no counts at all").toBe(true);
     for (const hit of walk.evidence as CountHit[]) {
       expect(
         hit.where.ok,
         `${hit.model}.count has no statically readable where clause (${hit.where.reason})`,
       ).toBe(true);
-      expect(
-        hit.where.keys,
-        `Every refresh count must filter by teamId. Offender: ${hit.model}.count ` +
-          `where { ${(hit.where.keys ?? []).join(", ")} }`,
-      ).toContain("teamId");
+      expectTenantScopedCount(hit, "in the worker refresh processor");
     }
+    // The processor DELEGATES, so the canonical scope is resolved by the
+    // shared authority it calls — not in this file. Asserting it here would
+    // demand the Worker keep resolving scopes of its own, which is the
+    // duplication being removed. Assert it where it actually happens.
+    expectResolvesCanonicalScope(
+      readFileSync(
+        fileURLToPath(
+          new URL("../../../packages/shared-runtime/src/org-health-projection.ts", import.meta.url),
+        ),
+        "utf8",
+      ),
+      "the shared org-health authority the processor delegates to",
+    );
   });
 
   it("processor refuses an unresolvable workspace loudly (no global refresh)", () => {
@@ -545,22 +611,30 @@ describe("Phase 37.98 — refresh service contract reassertion", () => {
     expect(start.ok, `refreshOrgHealthProjection not declared: ${start.reason}`).toBe(true);
 
     const guard = reachesFrom(cg, start, {
-      maxDepth: 0,
+      // `maxDepth: 1`: the refusal now lives in `computeOrgHealthCounts`,
+      // which `refreshOrgHealthProjection` calls before anything else. One
+      // hop, one authority — and the guard is STRICTER than it was, because it
+      // also rejects a whitespace-only id.
+      maxDepth: 1,
       match: refusalGuardOn("input.teamId"),
     });
     expect(guard.reached, "the refresh authority does not refuse a missing teamId").toBe(
       true,
     );
 
-    const walk = reachesFrom(cg, start, { maxDepth: 0, match: anyCount });
+    // One hop: `refreshOrgHealthProjection` -> `computeOrgHealthCounts`. The
+    // counts moved there so BOTH hosts share them; requiring them in the outer
+    // function would forbid the very extraction that removed the duplicate.
+    const walk = reachesFrom(cg, start, { maxDepth: 1, match: anyCount });
     expect(walk.reached, "the refresh authority issues no counts").toBe(true);
     for (const hit of walk.evidence as CountHit[]) {
       expect(hit.where.ok, `${hit.model}.count: ${hit.where.reason}`).toBe(true);
-      expect(
-        hit.where.keys,
-        `${hit.model}.count in the refresh authority is not tenant-scoped`,
-      ).toContain("teamId");
+      expectTenantScopedCount(hit, "in the refresh authority");
     }
+    expectResolvesCanonicalScope(
+      readFileSync(fileURLToPath(new URL("../../../packages/shared-runtime/src/org-health-projection.ts", import.meta.url)), "utf8"),
+      "the refresh authority",
+    );
   });
 
   it("readLatestOrgHealthProjection filters by teamId (no global read)", () => {

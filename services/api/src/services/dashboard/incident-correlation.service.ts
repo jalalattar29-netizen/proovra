@@ -22,6 +22,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 
 const CORRELATION_WINDOW_HOURS = 2;
 const CORRELATION_EXPIRY_HOURS = 24;
@@ -72,7 +73,13 @@ export async function correlateWorkspaceIncidents(input: {
     );
     incidents = (await prisma.operationalIncident.findMany({
       where: {
-        OR: [{ teamId: input.teamId }, { teamId: null }],
+        // WORKSPACE-SCOPE CONVERGENCE — was
+        // `OR: [{ teamId: input.teamId }, { teamId: null }]`. The NULL arm was
+        // written to pick up platform-wide incidents; because a deleted
+        // workspace's incidents are ALSO rewritten to NULL by the
+        // `ON DELETE SET NULL` relation, it returned every other tenant's
+        // orphans into this workspace's correlation window.
+        ...workspaceIncidentWhere(input.teamId),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
         lastSeenAtUtc: { gte: since },
       },

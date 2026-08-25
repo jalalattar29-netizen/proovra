@@ -32,6 +32,10 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  workspaceCaseWhere,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 
 // ---------------------------------------------------------------------------
 // Bounded window
@@ -129,15 +133,35 @@ export async function getOperationsOverview(
   input: AnalyticsInput,
 ): Promise<AnalyticsEnvelope<OperationsOverviewMetrics>> {
   const prisma = input.prisma ?? defaultPrisma;
+  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace populations,
+  // resolved once for every query below.
+  //
+  // A strict `teamId` equality omitted a personal workspace's legacy
+  // NULL-team rows and reported the smaller number as if it were the whole
+  // population — so this page told a personal-workspace operator they had
+  // captured less evidence than they actually had.
+  //
+  // Resolved through THIS function's client, not the module default: the
+  // caller may inject one, and a scope resolved on a different connection
+  // than the query it bounds is a scope that can describe a different
+  // database.
+  const [scope, caseScope] = await Promise.all([
+    workspaceEvidenceWhere(input.teamId, prisma),
+    workspaceCaseWhere(input.teamId, prisma),
+  ]);
   const window = resolveWindow(input);
   const windowStart = new Date(window.start);
   const degraded: string[] = [];
 
   const sourceTrace: SourceTrace = [
-    { metric: "evidenceCreated", source: "Evidence", filter: "teamId + createdAt>=window", windowed: true },
-    { metric: "evidenceFinalized", source: "Evidence", filter: "teamId + status=REPORTED + createdAt>=window", windowed: true },
-    { metric: "openCases", source: "Case", filter: "teamId + status=OPEN", windowed: false },
-    { metric: "openReviewWorkflows", source: "EvidenceReviewWorkflow", filter: "teamId + status not in (APPROVED_INTERNAL, CLOSED)", windowed: false },
+    // The filter strings are operator-facing provenance: they must describe
+    // the query that actually ran. "workspace scope" is the canonical
+    // population (strict for a shared workspace, owner-bound NULL-team rows
+    // included for a personal one) rather than a bare column equality.
+    { metric: "evidenceCreated", source: "Evidence", filter: "workspace scope + createdAt>=window", windowed: true },
+    { metric: "evidenceFinalized", source: "Evidence", filter: "workspace scope + status=REPORTED + createdAt>=window", windowed: true },
+    { metric: "openCases", source: "Case", filter: "workspace scope + status=OPEN", windowed: false },
+    { metric: "openReviewWorkflows", source: "EvidenceReviewWorkflow", filter: "evidence in workspace scope + status not in (APPROVED_INTERNAL, CLOSED)", windowed: false },
     { metric: "openEscalations", source: "ReviewEscalation", filter: "teamId + status=OPEN", windowed: false },
     { metric: "reviewerCount", source: "TeamMember", filter: "teamId + role in (ADMIN, OWNER, MEMBER)", windowed: false },
   ];
@@ -152,7 +176,7 @@ export async function getOperationsOverview(
   ] = await Promise.all([
     safe(
       prisma.evidence.count({
-        where: { teamId: input.teamId, createdAt: { gte: windowStart } },
+        where: { AND: [scope], createdAt: { gte: windowStart } },
       }),
       "Evidence",
       degraded,
@@ -160,7 +184,7 @@ export async function getOperationsOverview(
     safe(
       prisma.evidence.count({
         where: {
-          teamId: input.teamId,
+          AND: [scope],
           createdAt: { gte: windowStart },
           // EvidenceStatus.REPORTED is the canonical "finalized" state
           // (artifact generated). String match to avoid enum import.
@@ -172,7 +196,7 @@ export async function getOperationsOverview(
     ),
     safe(
       prisma.case.count({
-        where: { teamId: input.teamId, status: "OPEN" as never },
+        where: { AND: [caseScope], status: "OPEN" as never },
       }),
       "Case",
       degraded,
@@ -180,7 +204,16 @@ export async function getOperationsOverview(
     safe(
       prisma.evidenceReviewWorkflow.count({
         where: {
-          teamId: input.teamId,
+          // WORKSPACE-SCOPE CONVERGENCE — scoped through the Evidence the
+          // workflow belongs to, not through its own `team_id`.
+          //
+          // `EvidenceReviewWorkflow.team_id` is nullable AND its writer
+          // (`reviewer-workflow.service.ts`) stores `params.teamId ?? null`,
+          // so a workflow created without an explicit workspace lands with a
+          // NULL that no strict predicate can see. The Evidence row is the
+          // ownership authority for a workflow — the relation is `@unique` —
+          // so reading through it is both correct and one authority fewer.
+          evidence: scope,
           status: { notIn: ["APPROVED_INTERNAL", "CLOSED"] as never[] },
         },
       }),

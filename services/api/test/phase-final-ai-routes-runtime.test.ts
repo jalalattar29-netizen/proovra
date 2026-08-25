@@ -74,6 +74,12 @@ vi.mock("../src/db.js", () => ({
     // recordPermissionDecision (on deny) writes a SecurityEvent; provide a
     // no-op sink so the fail-closed audit path never throws in this mock.
     securityEvent: { create: async () => ({ id: "se-1" }) },
+    // WORKSPACE-SCOPE CONVERGENCE — the canonical scope authority resolves the
+    // workspace's kind and owner before any Evidence/Case read, so the mock
+    // must model the Team row. NON-personal by default, which keeps every
+    // assertion below meaning exactly what it meant: a shared workspace's
+    // scope IS the strict `{ teamId }` filter these tests were written for.
+    team: { findUnique: async () => ({ isPersonal: false, ownerUserId: null }) },
     evidence: {
       findUnique: async () => H.evidenceRow,
       // The TOCTOU re-check re-reads the SAME ids through `findMany`, so this

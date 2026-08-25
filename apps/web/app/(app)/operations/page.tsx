@@ -111,6 +111,12 @@ import {
   InlineMutationError,
   LoadingState,
   NoMatchState,
+  PartialCoverageNotice,
+  PreparingState,
+  ReconcilingNotice,
+  ReconciliationFailedNotice,
+  ReconciliationStalledNotice,
+  ReconciliationStaleNotice,
   RefreshingNotice,
   RestrictedState,
   UnavailableState,
@@ -1048,17 +1054,39 @@ function OperationsWorkbench() {
   const queueFailed = incidents.kind === "error";
   const summaryFailed = summary.kind === "error";
   /**
+   * WORKSPACE-SCOPE CONVERGENCE (§8/§16) — the reconciliation facts.
+   *
+   * Read from the summary rather than derived here. The server owns the
+   * decision about whether this workspace may be described as clear; the page
+   * renders that decision and does not re-compute it, because a second
+   * predicate is a second answer.
+   */
+  const readiness = summary.kind === "ready" ? summary.data.readiness : undefined;
+  const reconciliation =
+    summary.kind === "ready" ? (summary.data.reconciliation ?? null) : null;
+  const serverPermitsClear =
+    summary.kind === "ready" ? summary.data.mayAssertAllClear : false;
+
+  /**
    * The all-clear predicate, stated once.
    *
-   * FOUR things must be true: the read succeeded, it reached the end of the
-   * collection, the result is empty, and nothing was filtering it. Drop any
-   * one and this sentence becomes a lie an operator will act on.
+   * FIVE things must be true now. The first four are unchanged: the read
+   * succeeded, it reached the end of the collection, the result is empty, and
+   * nothing was filtering it.
+   *
+   * The fifth is the correction. Those four are all satisfied by a workspace
+   * NOTHING HAS EVER SCANNED — an empty incident table read completely is
+   * exactly what "never examined" looks like from here. The server's
+   * `mayAssertAllClear` additionally requires a fresh READY discovery run with
+   * every required source succeeded and nothing truncated, which is the only
+   * evidence that "no conditions" means anything at all.
    */
   const mayAssertClear =
     incidents.kind === "ready" &&
     complete &&
     rows.length === 0 &&
-    !anyFilterActive(filters);
+    !anyFilterActive(filters) &&
+    serverPermitsClear;
 
   return (
     <PageShell className="opsw-page" header={header} data-testid="operations-page">
@@ -1084,6 +1112,36 @@ function OperationsWorkbench() {
           message="More conditions exist than were returned."
         />
       ) : null}
+
+      {/*
+        WORKSPACE-SCOPE CONVERGENCE (§16) — the reconciliation banner.
+
+        One notice at most, chosen by the run's own state. Ordered by how
+        badly the state undermines the numbers below it: a failed or stalled
+        check makes them stale, a partial one makes them a floor, and a stale
+        one makes them old but complete.
+      */}
+      {readiness === "FAILED" ? (
+        <ReconciliationFailedNotice
+          category={reconciliation?.safeFailureCategory ?? null}
+          onRetry={refresh}
+        />
+      ) : readiness === "STALLED" ? (
+        <ReconciliationStalledNotice onRetry={refresh} />
+      ) : readiness === "PARTIAL" ? (
+        <PartialCoverageNotice
+          failedCount={reconciliation?.sources.failedSources.length ?? 0}
+          truncatedCount={reconciliation?.sources.truncatedSources.length ?? 0}
+          onRetry={refresh}
+        />
+      ) : readiness === "STALE" ? (
+        <ReconciliationStaleNotice
+          completedAtUtc={reconciliation?.completedAtUtc ?? null}
+          onRetry={refresh}
+        />
+      ) : null}
+
+      {readiness === "RUNNING" ? <ReconcilingNotice /> : null}
 
       {firstLoad ? <LoadingState /> : null}
 
@@ -1159,6 +1217,11 @@ function OperationsWorkbench() {
           {rows.length === 0 ? (
             mayAssertClear ? (
               <ClearState />
+            ) : readiness === "NEVER_RUN" && !anyFilterActive(filters) ? (
+              // Nothing has scanned this workspace. "No conditions" is not a
+              // finding yet, and NoMatchState would be wrong too — there are
+              // no filters to widen.
+              <PreparingState />
             ) : (
               <NoMatchState onClear={clearFilters} />
             )

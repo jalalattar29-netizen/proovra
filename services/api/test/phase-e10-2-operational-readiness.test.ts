@@ -347,8 +347,17 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // not see the stale field. It now filters through the ONE runtime
       // authority, CaseEvidenceLink. Sanctioned, audited growth — the pin is
       // moved to the current size so it keeps catching UNAUDITED drift.
-rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 14446,
+      // Rebaselined 2026-08-24 (WORKSPACE-SCOPE CONVERGENCE). The summary
+      // counts and the artifact list each built their own `where`, both keyed
+      // on a strict `teamId` equality. On a personal workspace that omits the
+      // owner's legacy NULL-team Evidence, so the page under-reported its
+      // reports and packages — and because the two filters were separate, a
+      // fix to one could still leave the header contradicting the rows. Both
+      // now consume ONE `workspaceEvidenceWhere` resolved at the top of the
+      // function. Sanctioned, audited growth — the pin moves to the current
+      // size so it keeps catching UNAUDITED drift.
+      rel: "src/services/reports/reports-aggregator.service.ts",
+        expected: 16047,
       },
     ];
     for (const { rel, expected } of PINS) {

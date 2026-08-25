@@ -23,6 +23,12 @@ import * as React from "react";
 
 import Link from "next/link";
 
+// The ONE timestamp layer. `toLocaleString()` here would render the machine's
+// locale and an ambiguous offset ("GMT+2"), which is why
+// `packages/shared/test/timestamp-policy.contract.test.ts` forbids direct
+// formatting outside it — a guard that caught this line before it shipped.
+import { formatTimestampForDashboard } from "@proovra/shared";
+
 import { ProovraSupportReference } from "../../../../components/feedback/ProovraSupportReference";
 import type { SafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { IconOperations, IconSpinner } from "./icons";
@@ -223,5 +229,215 @@ export function RefreshingNotice() {
     <p className="opsw-refreshing" role="status" data-ops-refreshing="true">
       <IconSpinner size={14} /> <span>Refreshing…</span>
     </p>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WORKSPACE-SCOPE CONVERGENCE (§16) — the RECONCILIATION states.
+//
+// Discovery used to run as a side effect of somebody opening Home, so there
+// was no such thing as "this workspace has not been scanned yet" — every visit
+// scanned it on the way in. Now that discovery is a scheduled run, four new
+// facts are possible and each of them USED to render as "clear":
+//
+//   never run   — nothing has ever looked here
+//   running     — something is looking right now
+//   partial     — it looked, and could not see everything
+//   stalled     — something started looking and died holding the lock
+//
+// Every panel below exists because collapsing one of those into the all-clear
+// is how an operator stops looking at a workspace that has real, unexamined
+// failures in it.
+// ---------------------------------------------------------------------------
+
+/**
+ * Nothing has scanned this workspace yet.
+ *
+ * DELIBERATELY not an empty state and deliberately not reassuring. The count
+ * of conditions is zero and that number means nothing at all until the first
+ * run completes.
+ */
+export function PreparingState() {
+  return (
+    <div className="app-empty" data-ops-empty="preparing" role="status">
+      <span className="app-empty__icon">
+        <IconSpinner size={24} />
+      </span>
+      <strong>Preparing workspace operations</strong>
+      <p>
+        This workspace hasn&apos;t been checked for operational conditions yet.
+        The first check is running now — this page will update when it
+        finishes.
+      </p>
+    </div>
+  );
+}
+
+/** A discovery run holds the lock right now. */
+export function ReconcilingNotice() {
+  return (
+    <p className="opsw-refreshing" role="status" data-ops-reconciling="true">
+      <IconSpinner size={14} />{" "}
+      <span>Refreshing operational conditions…</span>
+    </p>
+  );
+}
+
+/**
+ * The run finished without seeing everything.
+ *
+ * `role="alert"`, because this changes what every count on the page MEANS:
+ * they become a floor rather than a total, and a reader who is told politely
+ * and later is the one most likely to act on the smaller number.
+ */
+export function PartialCoverageNotice({
+  failedCount,
+  truncatedCount,
+  onRetry,
+}: {
+  failedCount: number;
+  truncatedCount: number;
+  onRetry?: () => void;
+}) {
+  const what =
+    truncatedCount > 0 && failedCount > 0
+      ? "Some checks failed and others returned more than they could read"
+      : truncatedCount > 0
+        ? "Some checks returned more than they could read in one pass"
+        : "Some checks could not be completed";
+  return (
+    <div
+      className="app-alert app-alert--warn"
+      data-ops-partial="true"
+      role="alert"
+    >
+      <div>
+        <strong>{what}.</strong>{" "}
+        <span>
+          The conditions below are what could be found, not necessarily all of
+          them. This workspace can&apos;t be reported as clear until a complete
+          check succeeds.
+        </span>
+      </div>
+      {onRetry ? (
+        <button type="button" className="app-secondary-action" onClick={onRetry}>
+          Check again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A run claimed the workspace and never finished.
+ *
+ * The most misleading state of all before this existed: an abandoned run looks
+ * exactly like a busy one, and nobody investigates busy.
+ */
+export function ReconciliationStalledNotice({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div
+      className="app-alert app-alert--warn"
+      data-ops-stalled="true"
+      role="alert"
+    >
+      <div>
+        <strong>The last check didn&apos;t finish.</strong>{" "}
+        <span>
+          It started but stopped before completing, so anything below may be out
+          of date. A new check can be started now.
+        </span>
+      </div>
+      {onRetry ? (
+        <button type="button" className="app-secondary-action" onClick={onRetry}>
+          Check again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The last run failed outright.
+ *
+ * The category is a BOUNDED server-side classification, never a provider
+ * message, a stack or a SQL fragment — the run row stores an exception message
+ * and it is reduced at the API boundary precisely so nothing like that can
+ * reach here.
+ */
+export function ReconciliationFailedNotice({
+  category,
+  onRetry,
+}: {
+  category: string | null;
+  onRetry?: () => void;
+}) {
+  const explanation =
+    category === "database_unavailable"
+      ? "The workspace's data couldn't be reached."
+      : category === "timeout"
+        ? "The check took too long and was stopped."
+        : category === "schema_mismatch"
+          ? "The check couldn't run against this environment."
+          : "The check couldn't be completed.";
+  return (
+    <div
+      className="app-alert app-alert--danger"
+      data-ops-reconcile-failed={category ?? "unexpected_error"}
+      role="alert"
+    >
+      <div>
+        <strong>The last check for operational conditions failed.</strong>{" "}
+        <span>
+          {explanation} Anything below is from an earlier check and may be out
+          of date.
+        </span>
+      </div>
+      {onRetry ? (
+        <button type="button" className="app-secondary-action" onClick={onRetry}>
+          Try again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The last complete check is older than the freshness window.
+ *
+ * Distinct from FAILED: this workspace WAS seen completely, just not recently.
+ * Saying so is more useful than either hiding it or calling it broken.
+ */
+export function ReconciliationStaleNotice({
+  completedAtUtc,
+  onRetry,
+}: {
+  completedAtUtc: string | null;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="app-alert app-alert--warn" data-ops-stale="true" role="status">
+      <div>
+        <strong>These conditions may be out of date.</strong>{" "}
+        <span>
+          The last complete check
+          {completedAtUtc ? (
+            <>
+              {" "}
+              was{" "}
+              <time dateTime={completedAtUtc}>
+                {formatTimestampForDashboard(completedAtUtc)}
+              </time>
+            </>
+          ) : null}
+          . A new one is being scheduled.
+        </span>
+      </div>
+      {onRetry ? (
+        <button type="button" className="app-secondary-action" onClick={onRetry}>
+          Check again
+        </button>
+      ) : null}
+    </div>
   );
 }
