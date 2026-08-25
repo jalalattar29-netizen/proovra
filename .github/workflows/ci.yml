@@ -163,22 +163,106 @@ jobs:
       # first so a broad failure surfaces in seconds rather than after the API's
       # twenty-three thousand cases.
       - name: Test — shared
-        run: pnpm --filter @proovra/shared test
+        run: |
+          set +e
+          pnpm --filter @proovra/shared test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the failing cases as ANNOTATIONS. Step logs require a
+            # token to read; annotations do not, so a red build stays
+            # diagnosable from the REST API alone — which is the whole
+            # reason this branch could not tell which test was failing.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
+              | head -40 \
+              | while IFS= read -r line; do echo "::error::@proovra/shared: $line"; done
+          fi
+          exit $rc
 
       - name: Test — ui
-        run: pnpm --filter @proovra/ui test
+        run: |
+          set +e
+          pnpm --filter @proovra/ui test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the failing cases as ANNOTATIONS. Step logs require a
+            # token to read; annotations do not, so a red build stays
+            # diagnosable from the REST API alone — which is the whole
+            # reason this branch could not tell which test was failing.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
+              | head -40 \
+              | while IFS= read -r line; do echo "::error::@proovra/ui: $line"; done
+          fi
+          exit $rc
 
       - name: Test — mobile
-        run: pnpm --filter proovra-mobile test
+        run: |
+          set +e
+          pnpm --filter proovra-mobile test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the failing cases as ANNOTATIONS. Step logs require a
+            # token to read; annotations do not, so a red build stays
+            # diagnosable from the REST API alone — which is the whole
+            # reason this branch could not tell which test was failing.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
+              | head -40 \
+              | while IFS= read -r line; do echo "::error::proovra-mobile: $line"; done
+          fi
+          exit $rc
 
       - name: Test — web
-        run: pnpm --filter proovra-web test
+        run: |
+          set +e
+          pnpm --filter proovra-web test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the failing cases as ANNOTATIONS. Step logs require a
+            # token to read; annotations do not, so a red build stays
+            # diagnosable from the REST API alone — which is the whole
+            # reason this branch could not tell which test was failing.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
+              | head -40 \
+              | while IFS= read -r line; do echo "::error::proovra-web: $line"; done
+          fi
+          exit $rc
 
       - name: Test — worker
-        run: pnpm --filter proovra-worker test
+        run: |
+          set +e
+          pnpm --filter proovra-worker test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the failing cases as ANNOTATIONS. Step logs require a
+            # token to read; annotations do not, so a red build stays
+            # diagnosable from the REST API alone — which is the whole
+            # reason this branch could not tell which test was failing.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
+              | head -40 \
+              | while IFS= read -r line; do echo "::error::proovra-worker: $line"; done
+          fi
+          exit $rc
 
       - name: Test — api
-        run: pnpm --filter proovra-api test
+        run: |
+          set +e
+          pnpm --filter proovra-api test 2>&1 | tee /tmp/test-out.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" != "0" ]; then
+            # Surface the failing cases as ANNOTATIONS. Step logs require a
+            # token to read; annotations do not, so a red build stays
+            # diagnosable from the REST API alone — which is the whole
+            # reason this branch could not tell which test was failing.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
+              | head -40 \
+              | while IFS= read -r line; do echo "::error::proovra-api: $line"; done
+          fi
+          exit $rc
 
       - name: Build Shared
         run: pnpm --filter @proovra/shared build
