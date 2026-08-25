@@ -169,12 +169,19 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" != "0" ]; then
-            # Surface the failing cases as ANNOTATIONS. Step logs require a
-            # token to read; annotations do not, so a red build stays
-            # diagnosable from the REST API alone — which is the whole
-            # reason this branch could not tell which test was failing.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
-              | head -40 \
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
               | while IFS= read -r line; do echo "::error::@proovra/shared: $line"; done
           fi
           exit $rc
@@ -186,12 +193,19 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" != "0" ]; then
-            # Surface the failing cases as ANNOTATIONS. Step logs require a
-            # token to read; annotations do not, so a red build stays
-            # diagnosable from the REST API alone — which is the whole
-            # reason this branch could not tell which test was failing.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
-              | head -40 \
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
               | while IFS= read -r line; do echo "::error::@proovra/ui: $line"; done
           fi
           exit $rc
@@ -203,12 +217,19 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" != "0" ]; then
-            # Surface the failing cases as ANNOTATIONS. Step logs require a
-            # token to read; annotations do not, so a red build stays
-            # diagnosable from the REST API alone — which is the whole
-            # reason this branch could not tell which test was failing.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
-              | head -40 \
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
               | while IFS= read -r line; do echo "::error::proovra-mobile: $line"; done
           fi
           exit $rc
@@ -220,12 +241,19 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" != "0" ]; then
-            # Surface the failing cases as ANNOTATIONS. Step logs require a
-            # token to read; annotations do not, so a red build stays
-            # diagnosable from the REST API alone — which is the whole
-            # reason this branch could not tell which test was failing.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
-              | head -40 \
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
               | while IFS= read -r line; do echo "::error::proovra-web: $line"; done
           fi
           exit $rc
@@ -237,12 +265,19 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" != "0" ]; then
-            # Surface the failing cases as ANNOTATIONS. Step logs require a
-            # token to read; annotations do not, so a red build stays
-            # diagnosable from the REST API alone — which is the whole
-            # reason this branch could not tell which test was failing.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
-              | head -40 \
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
               | while IFS= read -r line; do echo "::error::proovra-worker: $line"; done
           fi
           exit $rc
@@ -254,12 +289,19 @@ jobs:
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" != "0" ]; then
-            # Surface the failing cases as ANNOTATIONS. Step logs require a
-            # token to read; annotations do not, so a red build stays
-            # diagnosable from the REST API alone — which is the whole
-            # reason this branch could not tell which test was failing.
-            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok)" /tmp/test-out.log \
-              | head -40 \
+            # Surface the outcome as ANNOTATIONS. Step logs require a token
+            # to read; annotations do not, so a red build stays diagnosable
+            # from the REST API alone.
+            #
+            # The SUMMARY lines are emitted unconditionally, not just the
+            # failures, because the two most important cases look identical
+            # otherwise: a real test failure, and vitest exiting non-zero
+            # with every test passing (the birpc `onTaskUpdate` timeout this
+            # repository has hit before). Without the counts, a run with no
+            # FAIL lines says only 'exit code 1' and cannot be told apart
+            # from a runner flake.
+            grep -aE "^[[:space:]]*(FAIL|AssertionError|not ok|Test Files|Tests |Errors|Unhandled|✗)" /tmp/test-out.log \
+              | tail -40 \
               | while IFS= read -r line; do echo "::error::proovra-api: $line"; done
           fi
           exit $rc
