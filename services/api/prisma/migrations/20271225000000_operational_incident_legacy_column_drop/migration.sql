@@ -54,6 +54,47 @@
 -- one `20260620200000` opened and nobody ever used.
 
 -- ---------------------------------------------------------------------------
+-- 0. PRECONDITION — the tables exist, and the canonical guarantees the expand
+--    half installed are still in place.
+--
+-- Checked FIRST, before anything else is read or written. A migration whose
+-- first action is destructive has authorised nothing, which is why
+-- `scripts/verify-migration-artifact.mjs` requires the first guard to precede
+-- the first destructive statement — and it is right to measure that
+-- positionally rather than trusting the author's ordering.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'operational_incidents'
+  ) THEN
+    RAISE EXCEPTION
+      'REFUSING to drop: operational_incidents does not exist in this database.';
+  END IF;
+
+  -- The expand half must have run. Without its rebuilt unique on
+  -- (team_id, fingerprint), dropping the legacy columns would leave the writer
+  -- with no database-enforced deduplication at all.
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_index i
+      JOIN pg_class t ON t.oid = i.indrelid
+     WHERE t.relname = 'operational_incidents'
+       AND i.indisunique
+       AND (
+         SELECT array_agg(a.attname ORDER BY a.attname)
+           FROM unnest(i.indkey) AS k(attnum)
+           JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+       ) = ARRAY['fingerprint','team_id']::name[]
+  ) THEN
+    RAISE EXCEPTION
+      'REFUSING to drop: no UNIQUE index covers (team_id, fingerprint). Apply 20271224000000 first.';
+  END IF;
+END
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 1. RE-PROVE conservation, on the data as it stands NOW.
 -- ---------------------------------------------------------------------------
 DO $$

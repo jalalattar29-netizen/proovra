@@ -1111,6 +1111,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // `security_events` nor any mapping it owns. Permitted by exact name,
       // like every entry above, so the allowlist never becomes a pattern.
       "20271224000000_operational_incident_naming_convergence",
+      // The CONTRACT half of the same convergence (2026-08-25). Drops the
+      // legacy columns the expand half backfilled and proved conservation for.
+      // Separate migration because the artifact gate refuses a removal that
+      // claims to be safe before the code deploys. Also not Phase 32.7.2's
+      // naming drift: it touches neither `security_events` nor any mapping
+      // that phase owns.
+      "20271225000000_operational_incident_legacy_column_drop",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
