@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
 } from "@proovra/shared-evidence-presentation";
@@ -17,8 +18,22 @@ import {
 import { normalizeBitcoinAnchorTone } from "../src/report-v2/truth-model.js";
 import { shouldExpireCaptureDraft } from "../src/capture-draft-governance.js";
 
+/**
+ * The repository root, resolved from THIS FILE rather than hardcoded.
+ *
+ * This read `resolve("D:/digital-witness", ...segments)` — one developer's
+ * absolute Windows path. It resolved on exactly one machine and nowhere else:
+ * on the Linux CI runner it produced
+ * `/work/services/<pkg>/D:/digital-witness/...` and every case using it failed
+ * ENOENT, which is why the "Test" step was red in `ci` while passing locally.
+ *
+ * `import.meta.url` is the only anchor that is correct on every host, and it
+ * needs no knowledge of where the checkout happens to live.
+ */
+const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
+
 function readRepoFile(...segments: string[]): string {
-  return readFileSync(resolve("D:/digital-witness", ...segments), "utf8");
+  return readFileSync(resolve(REPO_ROOT, ...segments), "utf8");
 }
 
 describe("OTS labels (Phase B #9 / Phase C #4)", () => {
