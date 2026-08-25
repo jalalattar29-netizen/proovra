@@ -274,7 +274,7 @@
       "ManualPhase0ChangeInventories": 0,
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
-      "HistoricalMigrationsModifiedByPhase0": 1,
+      "HistoricalMigrationsModifiedByPhase0": 0,
       "ProductBehaviorTestsInventoried": 174
     },
     "proofFreshness": {
@@ -536,9 +536,7 @@
   },
   "auditGovernanceRef": {
     "path": "audit-output/current/audit-governance-inventory.json",
-    "problems": [
-      "HISTORICAL MIGRATION MODIFIED: services/api/prisma/migrations/20271224000000_operational_incident_naming_convergence/migration.sql"
-    ]
+    "problems": []
   },
   "checkpoint": {
     "present": true,
