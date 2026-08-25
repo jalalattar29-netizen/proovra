@@ -84,6 +84,51 @@ export type EvidenceLifecycleProjectionInput = {
 /** Kept as an alias so existing imports do not churn. */
 export type EvidenceDeleteEligibilityInput = EvidenceLifecycleProjectionInput;
 
+/**
+ * The persisted Evidence row → the projection's input, in ONE place.
+ *
+ * Every response that carries the lifecycle projection needs the same fifteen
+ * columns mapped the same way, and the mapping was written out longhand at the
+ * call site. That is how the Evidence Details page came to have no projection
+ * at all: `GET /v1/evidence/:id` had the mapping, `review-workspace` — the
+ * request the page ACTUALLY makes — did not, and nothing connected the two.
+ *
+ * Deliberately structural (`Pick`-shaped), so a route that selects fewer
+ * columns fails to compile rather than silently projecting nulls into a
+ * lifecycle verdict.
+ */
+export function toEvidenceLifecycleProjectionInput(evidence: {
+  id: string;
+  teamId?: string | null;
+  lifecycleState?: string | null;
+  archivedAt?: Date | string | null;
+  deletedAt: Date | string | null;
+  destroyedAtUtc?: Date | string | null;
+  lockedAt: Date | string | null;
+  deleteScheduledForUtc?: Date | string | null;
+  storageObjectLockMode: string | null;
+  storageObjectLockRetainUntilUtc: Date | string | null;
+  storageObjectLockLegalHoldStatus: string | null;
+  retentionUntilUtc: Date | string | null;
+}): EvidenceLifecycleProjectionInput {
+  return {
+    id: evidence.id,
+    teamId: evidence.teamId ?? null,
+    lifecycleState: evidence.lifecycleState ?? null,
+    archivedAt: evidence.archivedAt ?? null,
+    deletedAt: evidence.deletedAt ?? null,
+    destroyedAtUtc: evidence.destroyedAtUtc ?? null,
+    lockedAt: evidence.lockedAt ?? null,
+    deleteScheduledForUtc: evidence.deleteScheduledForUtc ?? null,
+    storageObjectLockMode: evidence.storageObjectLockMode ?? null,
+    storageObjectLockRetainUntilUtc:
+      evidence.storageObjectLockRetainUntilUtc ?? null,
+    storageObjectLockLegalHoldStatus:
+      evidence.storageObjectLockLegalHoldStatus ?? null,
+    retentionUntilUtc: evidence.retentionUntilUtc ?? null,
+  };
+}
+
 function toAuthorityInput(
   evidence: EvidenceLifecycleProjectionInput,
   legalHold: boolean,

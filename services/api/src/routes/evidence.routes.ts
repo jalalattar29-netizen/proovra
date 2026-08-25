@@ -166,6 +166,7 @@ import { buildEvidenceIntelligence } from "../services/evidence-intelligence.ser
 import {
   projectEvidenceLifecycle,
   projectEvidenceLifecycleSync,
+  toEvidenceLifecycleProjectionInput,
   toLegacyDeleteEligibility,
   DELETE_ELIGIBILITY_RESPONSE_FIELD,
   EVIDENCE_LIFECYCLE_RESPONSE_FIELD,
@@ -8836,11 +8837,29 @@ const timestampDigestMatches: boolean | null =
         // `verificationPackageVersion ?? 0` on both sides — symmetric, so no
         // false rejection was reachable, and also blind to the thirteen other
         // fields it shows the model.
-        const [analysisSnapshot] = await loadEvidenceAnalysisSnapshots({
-          ids: [id],
-          teamId: evidence.teamId ?? "",
-          scope: { scope: "evidence", scopeId: null },
-        });
+        //
+        // `teamId ?? ""` USED TO STAND HERE, and it made this whole response a
+        // 500 for any record with no team. `""` is not a uuid, so Postgres
+        // rejected the query outright — which meant a legacy PERSONAL record
+        // (`team_id IS NULL`) could not open its Details page AT ALL, while the
+        // Library listed it happily. A team-scoped lookup for a record with no
+        // team has no answer to give; skipping it is the honest form, and it
+        // leaves `analysisRevision` null exactly as it is for any record whose
+        // snapshot has not been taken.
+        const [analysisSnapshot] = evidence.teamId
+          ? await loadEvidenceAnalysisSnapshots({
+              ids: [id],
+              teamId: evidence.teamId,
+              scope: { scope: "evidence", scopeId: null },
+            })
+          : [];
+        // ONE hold lookup for this response, resolved before the reply is
+        // assembled so the projection and the legacy shape derived from it
+        // cannot come from two different reads of the hold tables.
+        const workspaceLifecycleProjection = await projectEvidenceLifecycle(
+          toEvidenceLifecycleProjectionInput(evidence),
+        );
+
         return reply.code(200).send(
           toJsonSafe({
             evidence: {
@@ -8870,6 +8889,28 @@ const timestampDigestMatches: boolean | null =
               primaryContentItem: content.primaryItem,
               previewPolicy: content.previewPolicy,
               evidenceIntelligence,
+              // THE LIFECYCLE VERDICT — added 2026-08-25.
+              //
+              // Evidence Details does not read `GET /v1/evidence/:id`. It reads
+              // THIS response, and this response carried no lifecycle
+              // projection, so the page's eligibility helper hit its
+              // "no projection, no legacy field" branch and reported
+              // "Record state is loading. Try again in a moment." forever —
+              // for a record the Library could trash, because the Library row
+              // DID carry the projection. One record, two surfaces, two
+              // answers.
+              //
+              // Same async projection the canonical detail response uses: the
+              // UNION legal-hold evaluator (evidence + case + workspace) rather
+              // than the list path's Object Lock column, because a detail page
+              // can afford one hold lookup and must not offer an action the
+              // write path will refuse. It fails closed.
+              [EVIDENCE_LIFECYCLE_RESPONSE_FIELD]: workspaceLifecycleProjection,
+              // The legacy shape, DERIVED from that same projection, for any
+              // client still reading it. Never computed beside it.
+              [DELETE_ELIGIBILITY_RESPONSE_FIELD]: toLegacyDeleteEligibility(
+                workspaceLifecycleProjection,
+              ),
             },
             workspaceCapabilitySnapshot,
             sourceContext,
@@ -9280,22 +9321,9 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         // lifecycle actions to offer; the browser no longer computes any of it.
         // `deleteEligibility` is the legacy shape for older clients, DERIVED
         // from this projection rather than computed beside it.
-        const lifecycleProjection = await projectEvidenceLifecycle({
-          id: evidence.id,
-          teamId: evidence.teamId ?? null,
-          lifecycleState: evidence.lifecycleState ?? null,
-          archivedAt: evidence.archivedAt ?? null,
-          deletedAt: evidence.deletedAt ?? null,
-          destroyedAtUtc: evidence.destroyedAtUtc ?? null,
-          lockedAt: evidence.lockedAt ?? null,
-          deleteScheduledForUtc: evidence.deleteScheduledForUtc ?? null,
-          storageObjectLockMode: evidence.storageObjectLockMode ?? null,
-          storageObjectLockRetainUntilUtc:
-            evidence.storageObjectLockRetainUntilUtc ?? null,
-          storageObjectLockLegalHoldStatus:
-            evidence.storageObjectLockLegalHoldStatus ?? null,
-          retentionUntilUtc: evidence.retentionUntilUtc ?? null,
-        });
+        const lifecycleProjection = await projectEvidenceLifecycle(
+          toEvidenceLifecycleProjectionInput(evidence),
+        );
         const deleteEligibility = toLegacyDeleteEligibility(lifecycleProjection);
 
         return reply.code(200).send({

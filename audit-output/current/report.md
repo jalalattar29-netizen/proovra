@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | b0a5cc5f0e6e03effdbe7a2a00438159b1192eb494693f50437ef12adba46457 |
+| engineHash    | bece7c2053a9e159956589eb05be3223a1a601b7a7d3f49eb2f26af68ddb4a38 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface

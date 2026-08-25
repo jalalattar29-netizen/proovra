@@ -96,6 +96,16 @@ test.describe("Evidence Detail — lifecycle states", () => {
       page.locator("[data-evidence-trash-helper]"),
     ).toHaveCount(0);
     await expect(page.locator("[data-evidence-tombstone]")).toHaveCount(0);
+
+    // THE REPORTED SYMPTOM, pinned as a string.
+    //
+    // The panel showed "Record state is loading. Try again in a moment." for
+    // this exact record — permanently, because the response the page reads
+    // carried no lifecycle projection and the eligibility helper refuses to
+    // guess. A loading message is only ever truthful while something is
+    // loading; once the record has rendered its controls, it is a lie about
+    // the record's state.
+    await expect(page.getByText("Record state is loading")).toHaveCount(0);
   });
 
   test("a record RETAINED UNTIL 2034 can still be moved to trash", async ({
