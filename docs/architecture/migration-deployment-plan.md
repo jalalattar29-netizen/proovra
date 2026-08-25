@@ -459,3 +459,66 @@ duplicate authority rows), then the exact release sequence:
 * `case_legal_holds` has no FK on `placed_by_user_id`, so a hold whose placing
   user is gone IS representable; the backfill leaves it in place rather than
   attributing it to someone else, and it shows up as unconverted source rows.
+
+---
+
+## 9. Workspace-scope / Operations release — the ordered deploy, and the rollback
+
+Added 2026-08-25, when the two migrations above shipped alongside the code that
+reads them.
+
+### The order, and what enforces it
+
+1. apply `20271222000000_workspace_operations_reconciliation_kind`;
+2. **let that migration's transaction commit** — PostgreSQL refuses to let a
+   value added by `ALTER TYPE … ADD VALUE` be USED in the transaction that adds
+   it, which is the whole reason it is a migration of its own;
+3. apply `20271223000000_operational_incident_scope`;
+4. **only then** deploy API and Worker;
+5. deploy Web afterward.
+
+Steps 4 and 5 used to be enforced by nothing. `db:preflight` checked the
+DATABASE_URL's shape, the migration files' contents and whether those files
+matched the schema — all properties of the REPOSITORY. A deploy that shipped
+the code first passed every one of them and then answered its first Operations
+request with `column "scope" does not exist`.
+
+`Check 4 — runtime schema requirements` now asks the connected database. The
+requirements are declared in
+`services/api/scripts/runtime-schema-requirements.mjs`: the
+`WORKSPACE_OPERATIONS` enum value, the `IncidentScope` type, the
+`operational_incidents.scope` column and the
+`operational_incidents_scope_team_status_idx` index, each carrying the
+migration that supplies it. A missing object is a FAIL naming the object, why
+the runtime needs it and which migration provides it; a catalog that cannot be
+read is also a FAIL, because "the check errored" is not "the object is there".
+A skip — non-local host, no override — is a WARN and never a PASS.
+
+The probes are read-only `pg_catalog` / `information_schema` reads and no
+driver message is ever forwarded into the operator-facing reason.
+
+### Rollback is CODE-FIRST and leaves the schema expanded
+
+Both migrations are expand-only: an added enum value, an added type, an added
+column with a default, an added index. Nothing is dropped, no type narrowed, no
+row deleted, and the `ON DELETE SET NULL` foreign key on
+`operational_incidents.team_id` is untouched.
+
+That is what makes the rollback simple: **revert API, Worker and Web to the
+previous build and leave the database as it is.** An older process runs
+unharmed against the expanded schema — it never selects `WORKSPACE_OPERATIONS`
+and never reads `scope`.
+
+Specifically, do **NOT**, as part of a normal rollback:
+
+* drop `operational_incidents.scope`. It is the only record of which incidents
+  were classified deliberately, and the classification is not recoverable from
+  `team_id` once a human has re-scoped a `LEGACY_UNSCOPED` row.
+* remove a PostgreSQL enum value. `ALTER TYPE … DROP VALUE` does not exist, and
+  the workarounds rewrite the type in place across every column that uses it.
+* drop `operational_incidents_scope_team_status_idx` on its own. It costs one
+  index and removing it only makes the older readers slower.
+
+The backward steps are recorded in `20271223000000`'s own header for a genuine
+emergency — a schema-level recovery decision, taken deliberately, not a rollback
+step anyone runs on the way past.

@@ -38,6 +38,10 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 // Phase 2.7X Stage 2 — drift catalog awareness.
 import { PROTECTED_RUNTIME_TABLES } from "./protected-runtime-tables.mjs";
+// The objects the RUNNING code requires of the database it is pointed at.
+import { RUNTIME_SCHEMA_REQUIREMENTS } from "./runtime-schema-requirements.mjs";
+
+const RUNTIME_REQUIREMENT_COUNT = RUNTIME_SCHEMA_REQUIREMENTS.length;
 
 // Resolve paths relative to THIS script, not process.cwd(), so the
 // preflight works whether invoked from the repo root or from
@@ -230,6 +234,71 @@ if (skipDrift) {
       status: "FAIL",
       detail: `drift-check exited ${rc} — see docs/operations/MIGRATION_DISCIPLINE.md`,
     });
+  }
+}
+
+// =============================================================================
+// Check 4 — runtime schema requirements (does the CONNECTED database have the
+// objects this release's readers name?)
+//
+// Checks 1–3 are all about the REPOSITORY: the URL's shape, the migration
+// files' contents, whether those files match the schema. A deploy that ships
+// the code before the migrations passes all three and then answers its first
+// Operations request with `column "scope" does not exist`. This check is the
+// one that asks the database.
+//
+// It is skipped when the drift check is skipped, and for the same reason —
+// both need a connection, and neither may open one to a non-local host without
+// the dual override. A SKIP is recorded as WARN, never as PASS: "we did not
+// look" must not read like "it is there".
+// =============================================================================
+{
+  const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } =
+    await import("./runtime-schema-requirements.mjs");
+
+  if (skipDrift || !databaseUrl) {
+    recordResult({
+      name: "Runtime schema requirements",
+      status: "WARN",
+      detail: !databaseUrl
+        ? "skipped (no DATABASE_URL)"
+        : "skipped (would require connecting to a non-local DB)",
+    });
+  } else {
+    let pool = null;
+    try {
+      const { Pool } = await import("pg");
+      pool = new Pool({ connectionString: databaseUrl, max: 1 });
+      const result = await checkRuntimeSchemaRequirements(async (sql) => {
+        const rows = await pool.query(sql);
+        return rows.rowCount > 0;
+      });
+      if (result.ok) {
+        recordResult({
+          name: "Runtime schema requirements",
+          status: "PASS",
+          detail: `all ${RUNTIME_REQUIREMENT_COUNT} required objects present`,
+        });
+      } else {
+        recordResult({
+          name: "Runtime schema requirements",
+          status: "FAIL",
+          detail: describeRuntimeSchemaFailure(result),
+        });
+      }
+    } catch {
+      // Could not even connect or probe. FAIL CLOSED, and say so in the
+      // repository's own vocabulary rather than forwarding a driver message.
+      recordResult({
+        name: "Runtime schema requirements",
+        status: "FAIL",
+        detail:
+          "could not read the database catalog — the required objects are treated as absent. " +
+          "Check DATABASE_URL and that the server is reachable, then re-run.",
+      });
+    } finally {
+      await pool?.end().catch(() => {});
+    }
   }
 }
 
