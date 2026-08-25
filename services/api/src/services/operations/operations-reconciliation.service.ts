@@ -63,6 +63,10 @@ export async function reconcileWorkspaceOperations(input: {
           successfulSources: discovery.sources.successful,
           failedSources: discovery.sources.failed,
           truncatedSources: discovery.sources.truncated,
+          // The per-source stage and bounded cause. This is what turns a bare
+          // "six sources failed" into something an operator can act on
+          // without reproducing the database locally.
+          outcomes: discovery.sources.outcomes,
           // Discovery is synchronous and self-contained: it does not hand
           // follow-on work to a queue, so there is never a continuation to
           // wait for. Stated rather than omitted so the field's meaning is

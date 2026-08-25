@@ -32,7 +32,12 @@ import { prisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import {
+  safeOperationsFailureCategory,
+  workspaceEvidenceWhere,
+  type OperationsSourceOutcome,
+  type OperationsSourceStage,
+} from "@proovra/shared-runtime";
 
 // ---------- Thresholds — every one is real platform state -----------------
 
@@ -98,6 +103,8 @@ export type WorkspaceDiscoveryResult = {
     successful: string[];
     failed: string[];
     truncated: string[];
+    /** Exactly one entry per attempted source, carrying stage and cause. */
+    outcomes: OperationsSourceOutcome[];
   };
 };
 
@@ -111,6 +118,46 @@ export async function generateIncidentsForWorkspace(
   const successful: string[] = [];
   const failedSources: string[] = [];
   const truncatedSources: string[] = [];
+  const outcomes: OperationsSourceOutcome[] = [];
+
+  /**
+   * Record one source's result.
+   *
+   * THE DEFECT THIS CLOSES. The handlers below used to be a bare
+   * `} catch { failedSources.push(id); }`: they recorded WHICH source gave way
+   * and threw the reason on the floor. Production paid for it exactly once —
+   * six sources failed, `safeFailureCategory` projected as null, and the only
+   * way to learn the cause was to reproduce the database locally.
+   *
+   * Nothing derived from the exception reaches this record except a bounded
+   * category from the shared categoriser; the message, the SQL and the row
+   * contents never leave this function.
+   */
+  const note = (
+    ids: string[],
+    outcome: OperationsSourceOutcome["outcome"],
+    stage: OperationsSourceStage | null = null,
+    err?: unknown,
+  ): void => {
+    const category = outcome === "FAILED" ? safeOperationsFailureCategory(err) : null;
+    // A schema mismatch, a permission denial and a constraint violation do not
+    // clear on their own: telling an operator to retry them wastes the one
+    // action the page offers. The transient classes DO retry usefully.
+    const retryable =
+      outcome === "FAILED" &&
+      (category === "timeout" ||
+        category === "database_unavailable" ||
+        category === "queue_unavailable");
+    for (const sourceId of ids) {
+      outcomes.push({
+        sourceId,
+        outcome,
+        stage: outcome === "FAILED" ? (stage ?? "UNKNOWN") : null,
+        category,
+        retryable,
+      });
+    }
+  };
 
   // Resolve the canonical workspace evidence scope ONCE, and thread it through
   // every evidence-derived scan below. This is the whole correction: a raw
@@ -153,18 +200,30 @@ export async function generateIncidentsForWorkspace(
     if (integrity.opened > 0 || integrity.reobserved > 0) {
       rules.push("evidence_integrity:per_record");
     }
-    if (!integrity.complete) {
+    if (integrity.rowFailures > 0) {
+      // Some records could not be turned into conditions while others could.
+      // The source is NOT successful — its picture is a floor — but the rows
+      // that DID work are recorded, which is the whole point of isolating them.
+      failedSources.push(...INTEGRITY_SOURCE_IDS);
+      note(INTEGRITY_SOURCE_IDS, "FAILED", "WRITE", integrity.firstRowError);
+    } else if (!integrity.complete) {
       // Say so rather than reporting a tidy number over a bounded read. A
       // bounded read is not a complete one, and a workspace whose integrity
       // scan hit its limit must not be describable as clear.
       rules.push("evidence_integrity:scan_incomplete");
       truncatedSources.push(...INTEGRITY_SOURCE_IDS);
+      note(INTEGRITY_SOURCE_IDS, "TRUNCATED");
     } else {
       successful.push(...INTEGRITY_SOURCE_IDS);
+      note(INTEGRITY_SOURCE_IDS, "SUCCEEDED");
     }
-  } catch {
+  } catch (err) {
     failed += 1;
     failedSources.push(...INTEGRITY_SOURCE_IDS);
+    // READ: the scan never got as far as a per-record write. This is the arm
+    // production took — the population query named a column the database did
+    // not have, so every record was invisible and `recorded` stayed 0.
+    note(INTEGRITY_SOURCE_IDS, "FAILED", "READ", err);
   }
 
   // Each entry names the REGISTERED source it covers, so the run records
@@ -201,22 +260,30 @@ export async function generateIncidentsForWorkspace(
           });
           recorded += 1;
           successful.push(sourceId);
-        } catch {
+          note([sourceId], "SUCCEEDED");
+        } catch (err) {
           // The scan SAW the condition and the write failed. The source is not
           // successful: its condition exists and is not recorded, which is
           // exactly the state that must stop a clear assertion.
           failed += 1;
           failedSources.push(sourceId);
+          // WRITE, not READ. The population was legible and the projection was
+          // formed; what gave way was persisting it. That distinction decides
+          // whether an operator looks at the database schema or at a
+          // constraint, so it is recorded rather than flattened.
+          note([sourceId], "FAILED", "WRITE", err);
         }
       } else {
         // Scanned, nothing above threshold. That IS a successful source — the
         // distinction between "looked and found nothing" and "did not look" is
         // the whole reason this accounting exists.
         successful.push(sourceId);
+        note([sourceId], "SUCCEEDED");
       }
-    } catch {
+    } catch (err) {
       failed += 1;
       failedSources.push(sourceId);
+      note([sourceId], "FAILED", "READ", err);
     }
   }
 
@@ -229,6 +296,7 @@ export async function generateIncidentsForWorkspace(
       successful,
       failed: failedSources,
       truncated: truncatedSources,
+      outcomes,
     },
   };
 }

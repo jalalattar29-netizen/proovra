@@ -117,6 +117,75 @@ export type OperationsSourceAccounting = {
   truncatedSources: string[];
   /** True when the run handed follow-on work to a queue and did not finish it. */
   continuationScheduled: boolean;
+  /**
+   * Per-source outcomes. Exactly one entry per attempted source.
+   *
+   * The four id lists above are kept because they are already public and read
+   * by shipped consumers; this is the field that carries the CAUSE.
+   */
+  outcomes: OperationsSourceOutcome[];
+};
+
+/**
+ * WHERE a source stopped. Bounded, and deliberately a closed set: an operator
+ * deciding what to do next needs to know which LAYER gave way, and a free-text
+ * stage would carry provider wording into a tenant-visible payload.
+ */
+export type OperationsSourceStage =
+  | "READ"
+  | "CLASSIFY"
+  | "PROJECT"
+  | "DEDUPE"
+  | "WRITE"
+  | "ACCOUNTING"
+  | "DEPENDENCY_UNAVAILABLE"
+  | "TIMEOUT"
+  | "UNKNOWN";
+
+export const OPERATIONS_SOURCE_STAGES: readonly OperationsSourceStage[] =
+  Object.freeze([
+    "READ",
+    "CLASSIFY",
+    "PROJECT",
+    "DEDUPE",
+    "WRITE",
+    "ACCOUNTING",
+    "DEPENDENCY_UNAVAILABLE",
+    "TIMEOUT",
+    "UNKNOWN",
+  ]);
+
+/** Exactly one of these per ATTEMPTED source. */
+export type OperationsSourceOutcomeName =
+  | "SUCCEEDED"
+  | "FAILED"
+  | "TRUNCATED"
+  | "NOT_APPLICABLE";
+
+/**
+ * One source's result, persisted on the run.
+ *
+ * THE DEFECT THIS CLOSES. The generator's per-source handler was
+ * `} catch { failedSources.push(sourceId); }` — it recorded WHICH source gave
+ * way and discarded WHY, so `safeFailureCategory` projected as null and a
+ * production workspace could report PARTIAL with no way to learn the cause
+ * from the outside. A workspace that cannot say why it is incomplete cannot be
+ * repaired without a developer, which is the state this field removes.
+ */
+export type OperationsSourceOutcome = {
+  sourceId: string;
+  outcome: OperationsSourceOutcomeName;
+  /** Present only on FAILED. */
+  stage: OperationsSourceStage | null;
+  /** Bounded category from `safeOperationsFailureCategory`. FAILED only. */
+  category: string | null;
+  /**
+   * Whether re-running the sweep could plausibly succeed without an operator
+   * changing something first. A missing column is NOT retryable — the next
+   * hundred sweeps fail identically — and saying so stops an operator burning
+   * an afternoon on a retry button.
+   */
+  retryable: boolean;
 };
 
 export function emptySourceAccounting(): OperationsSourceAccounting {
@@ -127,6 +196,7 @@ export function emptySourceAccounting(): OperationsSourceAccounting {
     failedSources: [],
     truncatedSources: [],
     continuationScheduled: false,
+    outcomes: [],
   };
 }
 
@@ -239,7 +309,18 @@ export async function reconcileWorkspaceOperationalConditions(
           // SUCCEEDED. That is the terminal state doing its job: a run that
           // could not see one of its sources did not produce a complete
           // picture, and the row must not claim it did.
-          failed: bodyResult.sources.failedSources.length,
+          // ONLY the required failures decide the run's terminal status.
+          //
+          // The wrapper records PARTIAL when this is non-zero, and
+          // `classifyOperationsReadiness` honours that status before it looks
+          // at anything else — so counting an OPTIONAL source here would pin a
+          // tenant workspace at PARTIAL for a platform sampler it does not own.
+          // The optional failure is still in `failedSources` and still carries
+          // its stage and cause in `outcomes`; it simply does not decide
+          // whether the picture this workspace depends on is complete.
+          failed: bodyResult.sources.failedSources.filter((id) =>
+            bodyResult.sources.requiredSources.includes(id),
+          ).length,
         });
         ctx.setMetadata(OPERATIONS_RUN_SOURCES_METADATA_KEY, {
           required: bodyResult.sources.requiredSources,
@@ -248,6 +329,7 @@ export async function reconcileWorkspaceOperationalConditions(
           failed: bodyResult.sources.failedSources,
           truncated: bodyResult.sources.truncatedSources,
           continuationScheduled: bodyResult.sources.continuationScheduled,
+          outcomes: bodyResult.sources.outcomes,
         });
         return bodyResult;
       },
@@ -292,6 +374,10 @@ export type WorkspaceOperationsRunSnapshot = {
   sources: OperationsSourceAccounting;
   /** Bounded category. Never a stack, never SQL. Null unless FAILED. */
   safeFailureCategory: string | null;
+  /** Bounded reason the picture is incomplete; null when it is complete. */
+  incompletenessReason: string | null;
+  /** The required source ids responsible for the incompleteness. */
+  incompleteSourceIds: string[];
   recorded: number;
 };
 
@@ -312,7 +398,46 @@ function readSourceAccounting(metadata: unknown): OperationsSourceAccounting {
     failedSources: list(obj.failed),
     truncatedSources: list(obj.truncated),
     continuationScheduled: obj.continuationScheduled === true,
+    // VALIDATED, not trusted. This bag is JSON on a shared table and older
+    // rows predate the field entirely; a decoder that believed whatever it
+    // found could project an unbounded provider string into a tenant payload,
+    // which is the one thing the bounded category exists to prevent.
+    outcomes: readOutcomes(obj.outcomes),
   };
+}
+
+function readOutcomes(value: unknown): OperationsSourceOutcome[] {
+  if (!Array.isArray(value)) return [];
+  const out: OperationsSourceOutcome[] = [];
+  for (const entry of value) {
+    if (entry == null || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const sourceId = typeof e.sourceId === "string" ? e.sourceId : null;
+    const outcome =
+      e.outcome === "SUCCEEDED" ||
+      e.outcome === "FAILED" ||
+      e.outcome === "TRUNCATED" ||
+      e.outcome === "NOT_APPLICABLE"
+        ? (e.outcome as OperationsSourceOutcomeName)
+        : null;
+    if (!sourceId || !outcome) continue;
+    const stage =
+      typeof e.stage === "string" &&
+      (OPERATIONS_SOURCE_STAGES as readonly string[]).includes(e.stage)
+        ? (e.stage as OperationsSourceStage)
+        : null;
+    out.push({
+      sourceId,
+      outcome,
+      stage: outcome === "FAILED" ? stage : null,
+      category:
+        outcome === "FAILED" && typeof e.category === "string"
+          ? e.category.slice(0, 64)
+          : null,
+      retryable: e.retryable === true,
+    });
+  }
+  return out;
 }
 
 /**
@@ -323,6 +448,69 @@ function readSourceAccounting(metadata: unknown): OperationsSourceAccounting {
  * load-bearing part of this whole section, and it should be provable by
  * enumeration rather than by fixture.
  */
+/**
+ * WHY a run is not a complete picture, in bounded words.
+ *
+ * Returns null when the run IS complete. Non-null whenever readiness is
+ * PARTIAL for a source reason, which is the guarantee the summary depends on:
+ * a workspace that says "some checks could not be completed" must be able to
+ * say which, and what kind of thing went wrong.
+ *
+ * The category is the WORST bounded category among the REQUIRED sources that
+ * failed — worst meaning the one an operator must act on first. A missing
+ * column and a transient timeout call for different actions, and reporting the
+ * timeout because it sorted first would send somebody to retry a thing that
+ * cannot succeed.
+ */
+export function operationsIncompleteness(
+  sources: OperationsSourceAccounting,
+): { reason: string; category: string; sourceIds: string[] } | null {
+  const required = new Set(sources.requiredSources);
+  const failed = sources.failedSources.filter((id) => required.has(id));
+  const truncated = sources.truncatedSources.filter((id) => required.has(id));
+  if (failed.length === 0 && truncated.length === 0) {
+    const missing = sources.requiredSources.filter(
+      (id) => !sources.successfulSources.includes(id),
+    );
+    if (missing.length === 0) return null;
+    return {
+      reason: "REQUIRED_SOURCE_NOT_ATTEMPTED",
+      category: "not_attempted",
+      sourceIds: missing,
+    };
+  }
+  if (failed.length === 0) {
+    return {
+      reason: "REQUIRED_SOURCE_TRUNCATED",
+      category: "scan_bound_reached",
+      sourceIds: truncated,
+    };
+  }
+  // Ranked by how much operator action they demand. `schema_mismatch` leads:
+  // it is the only one here that no amount of retrying will clear, and it is
+  // exactly what production hit.
+  const RANK = [
+    "schema_mismatch",
+    "constraint_violation",
+    "permission_denied",
+    "database_unavailable",
+    "queue_unavailable",
+    "timeout",
+    "unexpected_error",
+  ];
+  const byId = new Map(sources.outcomes.map((o) => [o.sourceId, o]));
+  const categories = failed
+    .map((id) => byId.get(id)?.category ?? null)
+    .filter((c): c is string => typeof c === "string");
+  const worst =
+    RANK.find((c) => categories.includes(c)) ?? categories[0] ?? "unexpected_error";
+  return {
+    reason: "REQUIRED_SOURCE_FAILED",
+    category: worst,
+    sourceIds: failed,
+  };
+}
+
 export function classifyOperationsReadiness(
   row: {
     status: prismaPkg.GovernanceReconciliationStatus;
@@ -355,8 +543,33 @@ export function classifyOperationsReadiness(
   if (row.status === prismaPkg.GovernanceReconciliationStatus.PARTIAL) {
     return "PARTIAL";
   }
-  if (row.sources.failedSources.length > 0) return "PARTIAL";
-  if (row.sources.truncatedSources.length > 0) return "PARTIAL";
+  // A failure degrades readiness only when the workspace's picture DEPENDS on
+  // that source.
+  //
+  // WHY THIS IS NOT A LOOSENING. `requiredSources` is the registry's own
+  // freshness-participating set, recorded on the run at the time it ran; a
+  // source outside it is one this workspace's picture does not depend on.
+  // Production showed the cost of conflating the two: `platform.telemetry_stale`
+  // — a PLATFORM sampler, not a tenant fact, and deliberately not
+  // freshness-participating — failed, and a tenant workspace was reported
+  // incomplete because of it. That is a false alarm on a tenant surface for a
+  // condition the tenant neither owns nor can act on.
+  //
+  // The five REQUIRED Evidence/Pipeline sources that failed alongside it stay
+  // exactly as they were: still failures, still PARTIAL, still refusing the
+  // all-clear. Nothing here reclassifies a required source to make a page
+  // green, and an optional source's failure is still recorded in `outcomes`
+  // and still listed in `failedSources` — it is visible, it simply does not
+  // speak for a picture it was never part of.
+  const required = new Set(row.sources.requiredSources);
+  const requiredFailed = row.sources.failedSources.filter((id) =>
+    required.has(id),
+  );
+  const requiredTruncated = row.sources.truncatedSources.filter((id) =>
+    required.has(id),
+  );
+  if (requiredFailed.length > 0) return "PARTIAL";
+  if (requiredTruncated.length > 0) return "PARTIAL";
 
   // Every REQUIRED source must have actually succeeded. A run that skipped a
   // required source without recording a failure is still not a complete one,
@@ -411,6 +624,7 @@ export async function latestWorkspaceOperationsRun(
   );
   const running =
     row.status === prismaPkg.GovernanceReconciliationStatus.RUNNING;
+  const incompleteness = operationsIncompleteness(sources);
 
   return {
     readiness,
@@ -423,10 +637,20 @@ export async function latestWorkspaceOperationsRun(
     sources,
     // The stored `errorSummary` is an exception message and must not reach a
     // browser. It is reduced to a bounded category here, at the boundary.
+    // A run that FAILED outright carries the run-level cause. A run that
+    // merely came back INCOMPLETE used to carry null here, which is how
+    // production could say "some checks could not be completed" and offer
+    // nothing further — the operator had no way to learn that a required
+    // source had hit a schema mismatch. Whenever readiness is PARTIAL because
+    // sources gave way, this is now non-null.
     safeFailureCategory:
       row.status === prismaPkg.GovernanceReconciliationStatus.FAILED
         ? safeOperationsFailureCategory(row.errorSummary ?? "")
-        : null,
+        : (incompleteness?.category ?? null),
+    /** WHY the picture is incomplete, bounded. Null when it is complete. */
+    incompletenessReason: incompleteness?.reason ?? null,
+    /** WHICH required sources are responsible. Ids only — never contents. */
+    incompleteSourceIds: incompleteness?.sourceIds ?? [],
     recorded: row.createdCount,
   };
 }

@@ -84,6 +84,8 @@ function snapshot(
     leaseExpiresAtUtc: null,
     sourceSnapshotAtUtc: NOW.toISOString(),
     sources,
+    incompletenessReason: null,
+    incompleteSourceIds: [],
     safeFailureCategory: null,
     recorded: 0,
   };

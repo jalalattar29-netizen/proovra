@@ -188,6 +188,18 @@ const PROOF_LABEL: Record<IntegrityClass, string> = {
 };
 
 export type SyncResult = {
+  /**
+   * Records this pass could not turn into a condition.
+   *
+   * ISOLATION, not tolerance. One conflicting or malformed row used to abort
+   * the whole loop through the source's catch, so a single bad record made all
+   * 34 invisible and the source reported a bare failure. A per-record failure
+   * is now contained to that record: the other 33 are written, and the source
+   * still reports FAILED so nothing can read the smaller number as complete.
+   */
+  rowFailures: number;
+  /** The first row error, kept ONLY so the caller can bound-categorise it. */
+  firstRowError: unknown;
   /** Conditions opened for the first time on this pass. */
   opened: number;
   /** Existing conditions whose continued failure was recorded. */
@@ -225,6 +237,8 @@ export async function syncEvidenceIntegrityConditions(
 ): Promise<SyncResult> {
   const now = input.now ?? new Date();
   const result: SyncResult = {
+    rowFailures: 0,
+    firstRowError: null,
     opened: 0,
     reobserved: 0,
     resolved: 0,
@@ -275,19 +289,34 @@ export async function syncEvidenceIntegrityConditions(
   for (const row of failing) {
     for (const integrityClass of INTEGRITY_CLASSES) {
       if (!isCurrentlyFailing(row, integrityClass)) continue;
-      const outcome = await recordIntegrityCondition(
-        {
-          evidence: row,
-          integrityClass,
-          teamId: input.teamId,
-          underLegalHold: heldEvidenceIds.has(row.id),
-          now,
-        },
-        client,
-      );
-      if (outcome === "opened") result.opened += 1;
-      else if (outcome === "reobserved") result.reobserved += 1;
-      else result.suppressedUntouched += 1;
+      try {
+        const outcome = await recordIntegrityCondition(
+          {
+            evidence: row,
+            integrityClass,
+            teamId: input.teamId,
+            underLegalHold: heldEvidenceIds.has(row.id),
+            now,
+          },
+          client,
+        );
+        if (outcome === "opened") result.opened += 1;
+        else if (outcome === "reobserved") result.reobserved += 1;
+        else result.suppressedUntouched += 1;
+      } catch (err) {
+        // ONE record, contained. A historical duplicate, a row that violates a
+        // constraint the current rules would not have created, a value the
+        // classifier cannot read — any of these used to take the other
+        // thirty-three down with it, because the only handler was the source's
+        // own catch three frames up.
+        //
+        // The error is counted and the FIRST one is kept for the caller to
+        // reduce to a bounded category. It is never logged here and never
+        // stored: it can carry a record title or a constraint name, and this
+        // value is on its way to a tenant-visible payload.
+        result.rowFailures += 1;
+        if (result.firstRowError == null) result.firstRowError = err;
+      }
     }
   }
 

@@ -112,7 +112,27 @@ export type OperationsSummary = {
    * beside them. `complete: false` means these counts are a floor, not a
    * total, and nothing may be rendered as an all-clear.
    */
+  /**
+   * @deprecated Ambiguous, and kept only because it is already public.
+   *
+   * It answers "did the incident READ return everything it found?" and says
+   * nothing about whether DISCOVERY saw everything. Production read
+   * `complete: true` beside `readiness: PARTIAL` and six failed sources —
+   * both fields correct, and together an invitation to conclude the workspace
+   * was fine. Read `readCompletelyEnumerated` for the old meaning and
+   * `reconciliationComplete` for the one consumers actually want.
+   */
   complete: boolean;
+  /** The unambiguous name for what `complete` has always meant. */
+  readCompletelyEnumerated: boolean;
+  /**
+   * THE canonical completeness field: did the last reconciliation see every
+   * source this workspace's picture depends on?
+   *
+   * False whenever a required source failed or was truncated. This is the one
+   * a consumer should gate a reassuring string on.
+   */
+  reconciliationComplete: boolean;
   mayAssertAllClear: boolean;
   /** Why the read was incomplete, when it was. Null otherwise. */
   incompleteReason: string | null;
@@ -383,8 +403,15 @@ export async function buildOperationsSummary(
     // guards against is a caller that checks three of five and forgets the
     // rest. `complete` alone used to license the all-clear; it licensed it
     // over workspaces nothing had ever scanned.
+    readCompletelyEnumerated: complete,
+    reconciliationComplete: run == null ? false : run.incompletenessReason === null,
     mayAssertAllClear: clearVerdict.clear,
-    incompleteReason: complete ? null : "SCAN_BOUND_REACHED",
+    // Two different incompletenesses, and the reconciliation one is reported
+    // FIRST because it is the one that hides conditions entirely. A bounded
+    // read that returned everything it found is a smaller problem than a
+    // discovery pass that never saw a source at all.
+    incompleteReason:
+      run?.incompletenessReason ?? (complete ? null : "SCAN_BOUND_REACHED"),
     readiness: run?.readiness ?? "NEVER_RUN",
     reconciliation: run,
     clearRefusalReason: clearVerdict.clear ? null : clearVerdict.reason,
@@ -421,6 +448,8 @@ export function unavailableSummary(
     slaUntracked: 0,
     groups: [],
     complete: false,
+    readCompletelyEnumerated: false,
+    reconciliationComplete: false,
     mayAssertAllClear: false,
     incompleteReason: reason,
     // An unreadable summary knows nothing about discovery either. NEVER_RUN
