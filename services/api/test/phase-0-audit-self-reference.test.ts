@@ -48,7 +48,20 @@ import { evaluateGovernance } from "../scripts/audit/engine/governance.mjs";
 const git = (...args: string[]) =>
   execFileSync("git", args, { cwd: REPO, encoding: "utf8", maxBuffer: 1 << 28 }) as string;
 
-const AUDIT_TIMEOUT = 240_000;
+/**
+ * Two full audit runs, plus two `git status` sweeps of the whole tree.
+ *
+ * 240s was measured on a developer machine and is not enough on a shared
+ * four-core CI runner: the case timed out there at exactly 240000ms while the
+ * work was merely slow, not stuck. A full audit is ~40s locally, and this case
+ * runs it TWICE while several other suites are competing for the same cores.
+ *
+ * Raised to 600s rather than to something unbounded, because a genuinely hung
+ * audit still has to fail. The right budget for a case that shells out to a
+ * repository-scale analyzer twice is minutes, and it has to be sized for the
+ * slowest host that runs it rather than the fastest.
+ */
+const AUDIT_TIMEOUT = 600_000;
 
 /**
  * ASYNC on purpose. A full audit takes ~40s, and `execFileSync` blocks the

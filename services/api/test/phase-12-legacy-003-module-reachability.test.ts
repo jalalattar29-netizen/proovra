@@ -58,6 +58,10 @@ const dispositions = DISPOSITIONS as Record<string, Disposition>;
 const executedRemovals = EXECUTED_REMOVALS as Record<string, Disposition>;
 
 describe("LEGACY-003 — module reachability closure", () => {
+  // 120s, not the 5s default: `evaluate()` walks and classifies every module
+  // in the service. Same reasoning as the duplicate-route guard — the work is
+  // repository-scale, so the timeout has to be too, or CI reports a walk that
+  // was merely slow as a reachability failure.
   it("the verifier passes with zero unclassified, zero connected-but-unreachable, zero removed-but-present", () => {
     const result = evaluate() as {
       ok: boolean;
@@ -72,7 +76,7 @@ describe("LEGACY-003 — module reachability closure", () => {
     expect(result.counters.UnclassifiedUnreachableProductionModules).toBe(0);
     expect(result.counters.ConnectedButUnreachable).toBe(0);
     expect(result.counters.RemovedButPresent).toBe(0);
-  });
+  }, 120_000);
 
   it("every unreachable production module carries exactly one disposition", () => {
     const result = evaluate() as { unreachable: string[] };

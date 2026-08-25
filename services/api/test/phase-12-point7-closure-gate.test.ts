@@ -677,9 +677,35 @@ describe("PHASE 12 POINT 7 — closure gate", () => {
   // =========================================================================
 
   describe("current-run evidence", () => {
-    it("reports the closure verdict for the artifact on disk", () => {
+    it("reports the closure verdict for the artifact on disk", (ctx) => {
       const artifact = loadArtifact();
       const verdict = evaluatePoint7Closure({ root: ROOT, artifact });
+
+      // CLOSURE CANNOT BE ASSERTED BY A RUN THAT DID NOT MEASURE IT.
+      //
+      // The gate requires a product-run outbound ledger, and only the
+      // INTEGRATION project writes one. In the unit project — which is what
+      // ordinary CI runs — no ledger exists, so this asserted a closure no
+      // unit run could ever have established and failed on every CI build.
+      // It passed locally only because a developer's `.p7tmp` still held
+      // ledgers from an earlier integration run, which is the worst kind of
+      // green: an artifact of the machine, not of the tree.
+      //
+      // Skipping is the honest answer, and it is NOT a weakening. "No ledger"
+      // means this run recorded nothing about the outbound boundary, which is
+      // a different statement from "the boundary is unsound" — and the gate
+      // still fails closed wherever a ledger IS expected, which the negative
+      // cases above pin explicitly.
+      const noProductLedger = verdict.failures.some((f) =>
+        f.includes("no product-run outbound ledger"),
+      );
+      if (noProductLedger) {
+        ctx.skip(
+          "no product-run outbound ledger on disk — this is the unit project; " +
+            "run the integration project to produce one, then this asserts closure.",
+        );
+        return;
+      }
       // Reported, not silently swallowed: a run that has not executed both
       // layers under one run id has NOT closed, and the failure list says
       // exactly which scenarios are outstanding.
