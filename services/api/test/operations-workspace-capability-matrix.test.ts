@@ -203,7 +203,7 @@ const CONTEXTS: Ctx[] = [
       scope: "TEAM",
       workspaceKind: "ORGANIZATION",
       role: "VIEWER",
-      plan: "BUSINESS",
+      plan: "TEAM",
       isPlatformAdmin: false,
       packageProducesOperationalConditions: PRODUCES,
       memberCount: 12,
@@ -219,7 +219,7 @@ const CONTEXTS: Ctx[] = [
       scope: "TEAM",
       workspaceKind: "ORGANIZATION",
       role: "MEMBER",
-      plan: "BUSINESS",
+      plan: "TEAM",
       isPlatformAdmin: false,
       packageProducesOperationalConditions: PRODUCES,
       memberCount: 12,
@@ -235,7 +235,7 @@ const CONTEXTS: Ctx[] = [
       scope: "TEAM",
       workspaceKind: "ORGANIZATION",
       role: "ADMIN",
-      plan: "BUSINESS",
+      plan: "TEAM",
       isPlatformAdmin: false,
       packageProducesOperationalConditions: PRODUCES,
       memberCount: 12,
@@ -355,7 +355,7 @@ const CONTEXTS: Ctx[] = [
       scope: "TEAM",
       workspaceKind: "ORGANIZATION",
       role: "MEMBER",
-      plan: "BUSINESS",
+      plan: "TEAM",
       isPlatformAdmin: true,
       packageProducesOperationalConditions: PRODUCES,
       memberCount: 12,
@@ -459,7 +459,7 @@ const CONTEXTS: Ctx[] = [
       scope: "TEAM",
       workspaceKind: "ORGANIZATION",
       role: "ADMIN",
-      plan: "BUSINESS",
+      plan: "TEAM",
       isPlatformAdmin: false,
       packageProducesOperationalConditions: PRODUCES,
       memberCount: 12,
@@ -478,7 +478,7 @@ const CONTEXTS: Ctx[] = [
       scope: "TEAM",
       workspaceKind: "ORGANIZATION",
       role: "ADMIN",
-      plan: "BUSINESS",
+      plan: "TEAM",
       isPlatformAdmin: false,
       packageProducesOperationalConditions: PRODUCES,
       memberCount: 12,
@@ -509,7 +509,9 @@ function applicableSourceIds(ctx: Ctx): string[] {
     if (s.requiredCapability === "operations.view") return true;
     if (s.requiredCapability.startsWith("evidence.")) return true;
     if (s.requiredCapability.startsWith("review.")) return true;
-    if (s.requiredCapability === "audit.read") return caps.AUDIT_VIEW === true;
+    if (s.requiredCapability === "audit.read") {
+      return caps.SECURITY_CENTER_VIEW === true;
+    }
     if (s.requiredCapability === "governance.policy.read") {
       return caps.GOVERNANCE_VIEW === true;
     }

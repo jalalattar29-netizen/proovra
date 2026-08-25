@@ -314,15 +314,17 @@ describe("Operations production signature (live PostgreSQL 16)", () => {
     await dropWriterColumn();
     const { run } = await reconcile();
 
-    const verdict = runtime.mayAssertOperationsClear
-      ? runtime.mayAssertOperationsClear({ run, unresolvedCount: 0 })
-      : null;
-    if (verdict) {
-      expect(verdict.clear).toBe(false);
-      expect(verdict.reason).toBe("PARTIAL_SOURCES");
-    }
-    // Independent of the helper's exact name: a PARTIAL run may never be
-    // described as clear, and that is the property that matters.
+    // The clear gate is asked the SAME question the summary asks it: even
+    // with a perfectly complete incident read and zero unresolved rows — the
+    // exact shape that reads as "nothing wrong here" — a run whose required
+    // sources did not all succeed may not be described as clear.
+    const verdict = runtime.mayAssertOperationsClear({
+      run,
+      incidentReadComplete: true,
+      unresolvedCount: 0,
+    });
+    expect(verdict.clear).toBe(false);
+    if (!verdict.clear) expect(verdict.reason).toBe("PARTIAL_SOURCES");
     expect(run.readiness).not.toBe("READY");
   });
 

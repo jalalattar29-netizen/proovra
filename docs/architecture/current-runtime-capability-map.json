@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7905,
+      "METHOD_ON_VALUE": 7906,
       "UNRESOLVED_IDENTIFIER": 1006
     },
     "MutationFixpointRounds": 9,
@@ -67356,8 +67356,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.create@196",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:196",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.create@228",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:228",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -67398,8 +67398,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.update@234",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:234",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.update@275",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:275",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -67440,8 +67440,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@211",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:211",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@252",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:252",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -67482,8 +67482,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@255",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:255",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@296",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:296",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
