@@ -149,8 +149,36 @@ jobs:
           fi
           echo "OK — in-process hook refused with exit 8."
 
-      - name: Test
-        run: pnpm -r test
+      # ONE STEP PER PACKAGE, not a single `pnpm -r test`.
+      #
+      # The recursive form runs the same tests, but when it fails it says only
+      # "Process completed with exit code 1". The step NAME is visible through
+      # the jobs API; the log is not, without a token. So a single step made a
+      # red build undiagnosable for anyone without log access, and that is not
+      # a hypothetical inconvenience — it is exactly the position this branch
+      # spent hours in, reproducing CI locally to guess which package was
+      # failing.
+      #
+      # Split, the failing package is named by the step itself. Ordered cheapest
+      # first so a broad failure surfaces in seconds rather than after the API's
+      # twenty-three thousand cases.
+      - name: Test — shared
+        run: pnpm --filter @proovra/shared test
+
+      - name: Test — ui
+        run: pnpm --filter @proovra/ui test
+
+      - name: Test — mobile
+        run: pnpm --filter proovra-mobile test
+
+      - name: Test — web
+        run: pnpm --filter proovra-web test
+
+      - name: Test — worker
+        run: pnpm --filter proovra-worker test
+
+      - name: Test — api
+        run: pnpm --filter proovra-api test
 
       - name: Build Shared
         run: pnpm --filter @proovra/shared build
