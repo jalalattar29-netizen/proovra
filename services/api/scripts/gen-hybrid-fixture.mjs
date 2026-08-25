@@ -240,8 +240,13 @@ for (const t of ev.filter((x) => x.blocksWrites)) {
   p(`ALTER TABLE "operational_incident_events" ALTER COLUMN "${t.legacy}" SET NOT NULL;`);
 }
 p("");
+p("-- Idempotent: the fixture is applied more than once in a single test run,");
+p("-- so the legacy constraint is dropped before it is (re-)created.");
 p(
   'ALTER TABLE "operational_incident_events" DROP CONSTRAINT IF EXISTS "operational_incident_events_incident_id_fkey";',
+);
+p(
+  'ALTER TABLE "operational_incident_events" DROP CONSTRAINT IF EXISTS "operational_incident_events_incidentId_fkey";',
 );
 p('ALTER TABLE "operational_incident_events"');
 p('  ADD CONSTRAINT "operational_incident_events_incidentId_fkey"');

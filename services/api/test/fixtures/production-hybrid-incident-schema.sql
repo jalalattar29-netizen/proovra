@@ -142,7 +142,10 @@ ALTER TABLE "operational_incident_events" ALTER COLUMN "incidentId" SET NOT NULL
 ALTER TABLE "operational_incident_events" ALTER COLUMN "eventType" SET NOT NULL;
 ALTER TABLE "operational_incident_events" ALTER COLUMN "safeMessage" SET NOT NULL;
 
+-- Idempotent: the fixture is applied more than once in a single test run,
+-- so the legacy constraint is dropped before it is (re-)created.
 ALTER TABLE "operational_incident_events" DROP CONSTRAINT IF EXISTS "operational_incident_events_incident_id_fkey";
+ALTER TABLE "operational_incident_events" DROP CONSTRAINT IF EXISTS "operational_incident_events_incidentId_fkey";
 ALTER TABLE "operational_incident_events"
   ADD CONSTRAINT "operational_incident_events_incidentId_fkey"
   FOREIGN KEY ("incidentId") REFERENCES "operational_incidents"("id") ON DELETE CASCADE;

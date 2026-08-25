@@ -304,6 +304,34 @@ describe("Operations convergence recovery, across workspace kinds (live PostgreS
     }
   });
 
+  it("the EXPAND half ALONE recovers every workspace kind — which is what the deploy actually does first", async () => {
+    // The production sequence is: apply expand, deploy code, apply contract.
+    // So the state that matters most is the one in between — legacy columns
+    // still present, nothing dropped yet — and every workspace kind has to be
+    // fully working in it. Testing only the fully-converged end state would
+    // skip the window the deployment actually spends time in.
+    await applyHybridDrift();
+    await convergeExpandOnly();
+
+    const legacyStillPresent = (await prisma.$queryRawUnsafe(
+      `SELECT count(*)::int AS n FROM information_schema.columns
+        WHERE table_schema='public'
+          AND table_name IN ('operational_incidents','operational_incident_events')
+          AND column_name ~ '[A-Z]'`,
+    )) as Array<{ n: number }>;
+    expect(legacyStillPresent[0].n).toBeGreaterThan(0);
+
+    for (const ctx of contexts) {
+      await prisma.operationalIncident.deleteMany({
+        where: scope.workspaceIncidentWhere(ctx.teamId),
+      });
+      const run = await reconcile(ctx.teamId);
+      expect(run.sources.failedSources, ctx.label).toEqual([]);
+      expect(run.readiness, ctx.label).toBe("READY");
+      expect(await incidentCount(ctx.teamId), ctx.label).toBeGreaterThan(0);
+    }
+  });
+
   it("after convergence, EVERY workspace kind records its conditions and reaches READY", async () => {
     await converge();
 
