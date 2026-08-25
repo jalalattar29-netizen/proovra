@@ -37,6 +37,10 @@ export type WriterContractResult = {
   ok: boolean;
   checkedTables: string[];
   missing: WriterContractMissing[];
+  /** Legacy duplicate columns physically present. Empty is healthy. */
+  legacy: WriterContractLegacy[];
+  /** Constraints/indexes that do not bind the canonical columns. */
+  bindings: WriterContractBinding[];
   indeterminate: string[];
 };
 
@@ -77,12 +81,42 @@ export declare function missingColumnsSql(entry: {
 
 export declare function checkOperationsWriterContract(
   dmmf: WriterDatamodel,
-  query: (sql: string) => Promise<Array<{ missing_column: string }>>,
+  // The probes return different column names (missing_column,
+  // legacy_column, or a bare existence row), so the caller supplies one
+  // generic row reader rather than a shape per probe.
+  query: (sql: string) => Promise<Array<Record<string, unknown>>>,
 ): Promise<WriterContractResult>;
 
 export declare function describeWriterContractFailure(result: {
   missing: WriterContractMissing[];
+  legacy?: WriterContractLegacy[];
+  bindings?: WriterContractBinding[];
   indeterminate: string[];
 }): string;
 
 export declare function loadDeployedDatamodel(): Promise<WriterDatamodel>;
+
+export type WriterContractLegacy = {
+  model: string;
+  table: string;
+  criticality: WriterCriticality;
+  stage: string;
+  columns: string[];
+};
+
+export type WriterContractBinding = {
+  table: string;
+  issue: string;
+};
+
+export declare function legacyColumnsFor(
+  dmmf: WriterDatamodel,
+  modelName: string,
+): { table: string; columns: string[] } | null;
+
+export declare function legacyColumnsSql(entry: {
+  table: string;
+  columns: string[];
+}): string | null;
+
+export declare function canonicalDedupeIndexSql(): string;

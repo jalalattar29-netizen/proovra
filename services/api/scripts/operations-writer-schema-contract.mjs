@@ -189,6 +189,80 @@ function quoteLiteral(value) {
 }
 
 /**
+ * THE LEGACY FAMILY — the half of the contract the first version missed.
+ *
+ * A model field carrying `@map` had, at some earlier point, no `@map`, and a
+ * Prisma client without it emits the FIELD NAME as the column name. Where such
+ * a generation ever ran against a database, the table now carries BOTH: the
+ * canonical mapped column that migrations manage, and a legacy twin named
+ * after the field.
+ *
+ * That is not cosmetic, and "every declared column is present" cannot see it:
+ *
+ *   * a legacy twin that is NOT NULL with no default cannot be satisfied by an
+ *     INSERT naming only the canonical columns, so EVERY write fails 23502 —
+ *     measured against a reproduced hybrid, with the real writer, at
+ *     `create()`;
+ *   * a UNIQUE index built on the legacy pair does not deduplicate writes made
+ *     to the canonical pair, so the writer's dedupe contract enforces nothing;
+ *   * two columns for one fact drift, and each reader gets whichever half its
+ *     own query names.
+ *
+ * So the expected legacy set is derived the same way the drift was: every
+ * field whose `dbName` differs from its `name`.
+ */
+export function legacyColumnsFor(dmmf, modelName) {
+  const model = dmmf?.datamodel?.models?.find((m) => m.name === modelName);
+  if (!model) return null;
+  const columns = (model.fields ?? [])
+    .filter((f) => f.kind === "scalar" || f.kind === "enum")
+    .filter((f) => f.relationName == null)
+    .filter((f) => f.dbName && f.dbName !== f.name)
+    .map((f) => f.name);
+  return { table: model.dbName ?? model.name, columns };
+}
+
+/**
+ * One statement per table returning any LEGACY twin that is physically
+ * present. Empty is the healthy answer.
+ */
+export function legacyColumnsSql(entry) {
+  if (entry.columns.length === 0) return null;
+  const values = entry.columns.map((c) => `(${quoteLiteral(c)})`).join(", ");
+  return `
+    SELECT c.column_name AS legacy_column
+      FROM information_schema.columns c
+      JOIN (VALUES ${values}) AS d(col) ON d.col = c.column_name
+     WHERE c.table_schema = 'public'
+       AND c.table_name = ${quoteLiteral(entry.table)}
+     ORDER BY c.column_name`;
+}
+
+/**
+ * The DEDUPE BINDING, checked directly.
+ *
+ * The single most consequential object on this table. `recordIncident`'s whole
+ * idempotency story is "the unique on (team_id, fingerprint) collapses a
+ * re-observation into an increment". If no such index exists — because the
+ * live one is on `("teamId", fingerprint)` — then two concurrent writers
+ * create two rows for one condition and nothing says so.
+ */
+export function canonicalDedupeIndexSql() {
+  return `
+    SELECT 1
+      FROM pg_index i
+      JOIN pg_class t ON t.oid = i.indrelid
+     WHERE t.relname = 'operational_incidents'
+       AND i.indisunique
+       AND (
+         SELECT array_agg(a.attname ORDER BY a.attname)
+           FROM unnest(i.indkey) AS k(attnum)
+           JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+       ) = ARRAY['fingerprint','team_id']::name[]
+     LIMIT 1`;
+}
+
+/**
  * Check the contract against a database.
  *
  * `query` is injected rather than a client being constructed here: the caller
@@ -212,6 +286,8 @@ function quoteLiteral(value) {
 export async function checkOperationsWriterContract(dmmf, query) {
   const contract = resolveWriterContract(dmmf);
   const missing = [];
+  const legacy = [];
+  const bindings = [];
   const indeterminate = [];
   const checkedTables = [];
   for (const entry of contract) {
@@ -235,11 +311,58 @@ export async function checkOperationsWriterContract(dmmf, query) {
         columns: cols,
       });
     }
+
+    // The half `missing` cannot see. A present canonical column says nothing
+    // about a legacy twin sitting beside it with its own NOT NULL.
+    const legacySpec = legacyColumnsFor(dmmf, entry.model);
+    const legacySql = legacySpec ? legacyColumnsSql(legacySpec) : null;
+    if (legacySql) {
+      try {
+        const found = await query(legacySql);
+        const legacyCols = (Array.isArray(found) ? found : [])
+          .map((r) => r?.legacy_column)
+          .filter((c) => typeof c === "string");
+        if (legacyCols.length > 0) {
+          legacy.push({
+            model: entry.model,
+            table: entry.table,
+            criticality: entry.criticality,
+            stage: entry.stage,
+            columns: legacyCols,
+          });
+        }
+      } catch {
+        indeterminate.push(`${entry.table} (legacy scan)`);
+      }
+    }
   }
+
+  // The dedupe binding, checked once and directly.
+  if (checkedTables.includes("operational_incidents")) {
+    try {
+      const found = await query(canonicalDedupeIndexSql());
+      if (!Array.isArray(found) || found.length === 0) {
+        bindings.push({
+          table: "operational_incidents",
+          issue:
+            "no UNIQUE index covers (team_id, fingerprint) — the writer's deduplication is not enforced by the database",
+        });
+      }
+    } catch {
+      indeterminate.push("operational_incidents (dedupe binding)");
+    }
+  }
+
   return {
-    ok: missing.length === 0 && indeterminate.length === 0,
+    ok:
+      missing.length === 0 &&
+      legacy.length === 0 &&
+      bindings.length === 0 &&
+      indeterminate.length === 0,
     checkedTables,
     missing,
+    legacy,
+    bindings,
     indeterminate,
   };
 }
@@ -262,17 +385,32 @@ export function describeWriterContractFailure(result) {
     );
     lines.push(`      breaks writer stage: ${m.stage} [${m.criticality}]`);
   }
+  for (const l of result.legacy ?? []) {
+    lines.push(
+      `  - ${l.table} carries ${l.columns.length} LEGACY duplicate column(s): ${l.columns.join(", ")}`,
+    );
+    lines.push(
+      `      these are earlier, un-mapped generations of fields the model now maps.`,
+    );
+    lines.push(
+      `      A legacy twin that is NOT NULL with no default makes EVERY insert fail 23502,`,
+    );
+    lines.push(`      and any index built on one enforces nothing about the canonical column.`);
+  }
+  for (const b of result.bindings ?? []) {
+    lines.push(`  - ${b.table}: ${b.issue}`);
+  }
   for (const t of result.indeterminate) {
     lines.push(`  - ${t}: contract could not be established — treated as unsatisfied`);
   }
   if (lines.length > 0) {
     lines.push(
-      "the incident writer will fail on EVERY category until the database matches the",
+      "the incident writer cannot be trusted on EVERY category until the database and the",
     );
     lines.push(
-      "deployed model. Apply the outstanding migrations before serving traffic; do not",
+      "deployed model agree. Apply the outstanding convergence migration before serving",
     );
-    lines.push("narrow the writer's reads to work around it.");
+    lines.push("traffic; do not narrow the writer's reads or writes to work around it.");
   }
   return lines.join("\n");
 }

@@ -47,6 +47,39 @@
  * the difference between them names the columns responsible.
  *
  * ---------------------------------------------------------------------------
+ * CORRECTION — WHY `missing = 0` IS NOT AGREEMENT
+ * ---------------------------------------------------------------------------
+ * The first version of this script printed "NO MODEL/DATABASE DISAGREEMENT
+ * FOUND" whenever every column the model declares was present. That verdict
+ * was wrong, and it was wrong in the case it existed to catch.
+ *
+ * A column the model does NOT declare is not inert. This repository has
+ * already measured the failure mode: `20260620200000_reviewer_ops_naming_drift
+ * _repair` records that a Prisma field without `@map` makes the client emit a
+ * quoted camelCase column while migrations manage the snake_case one, so
+ * production ends up with TWO physical columns per field — "one that
+ * migrations manage, one that the Prisma client actually reads and writes" —
+ * and reads "returned NULL even though the snake_case columns had data (and
+ * vice versa)". That migration deliberately did not drop the legacy columns,
+ * on the stated plan that "a separate cleanup migration will drop them". For
+ * the incident tables that cleanup was never written.
+ *
+ * The consequences are not cosmetic and they land squarely on the writer:
+ *
+ *   * whichever column the live UNIQUE index is built on is the one that
+ *     actually deduplicates. A unique on `("teamId", fingerprint)` does not
+ *     deduplicate a write Prisma makes against `(team_id, fingerprint)`;
+ *   * a foreign key on `"incidentId"` constrains nothing about a write to
+ *     `incident_id`;
+ *   * two columns for one fact drift apart, and each reader gets whichever
+ *     half its own query happens to name.
+ *
+ * So this script now reports CONVERGENCE rather than presence: it pairs every
+ * extra column with the canonical column it duplicates, counts the rows on
+ * which the two already disagree, and classifies every constraint and index by
+ * which family it actually enforces.
+ *
+ * ---------------------------------------------------------------------------
  * SAFETY — enforced by PostgreSQL, not by this script's good intentions
  * ---------------------------------------------------------------------------
  *   * Requires an explicit DATABASE_URL and an explicit workspace id.
@@ -285,6 +318,48 @@ head("1. SESSION IDENTITY AND POSTURE");
   }
 }
 
+// --- Migration ledger, for the historical question --------------------------
+
+head("1b. MIGRATION LEDGER");
+{
+  const r = await q(`
+    SELECT count(*)::int AS applied,
+           count(*) FILTER (WHERE finished_at IS NULL)::int AS unfinished,
+           count(*) FILTER (WHERE rolled_back_at IS NOT NULL)::int AS rolled_back,
+           min(migration_name) AS first_name,
+           max(migration_name) AS last_name
+      FROM "_prisma_migrations"`);
+  if (r.ok) {
+    for (const [k, v] of Object.entries(r.rows[0])) {
+      console.log(`  ${k.padEnd(24)}: ${v}`);
+    }
+  } else {
+    console.log("  _prisma_migrations unreadable");
+  }
+  // WHICH FAMILY CAME FIRST. `ordinal_position` is assignment order, so a
+  // legacy column with a LOWER ordinal than its canonical counterpart proves
+  // the legacy family was created first and the canonical one added later —
+  // and the reverse proves a client without `@map` appended camelCase columns
+  // to a table migrations had already created correctly. This is the fact the
+  // historical question turns on, and it is read rather than inferred.
+  const ord = await q(`
+    SELECT table_name, column_name, ordinal_position
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name IN ('operational_incidents','operational_incident_events')
+     ORDER BY table_name, ordinal_position`);
+  if (ord.ok) {
+    for (const t of ["operational_incidents", "operational_incident_events"]) {
+      const rows = ord.rows.filter((x) => x.table_name === t);
+      if (!rows.length) continue;
+      console.log(`  ${t} column order:`);
+      console.log(
+        `    ${rows.map((x) => `${x.ordinal_position}:${x.column_name}`).join("  ")}`,
+      );
+    }
+  }
+}
+
 // --- Write rejection proof --------------------------------------------------
 
 head("2. WRITE REJECTION PROOF (must be SQLSTATE 25006)");
@@ -375,6 +450,82 @@ function scalarFields(model) {
     }));
 }
 
+/** `firstSeenAtUtc` -> `first_seen_at_utc`. */
+function toSnake(name) {
+  return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+}
+
+/**
+ * Pair an EXTRA physical column with the canonical column it duplicates.
+ *
+ * WHY THIS MATTERS MORE THAN THE MISSING LIST
+ * ---------------------------------------------------------------------------
+ * An earlier pass of this probe reported "NO MODEL/DATABASE DISAGREEMENT" on
+ * the strength of `missing = 0`, and that was wrong. A column the model does
+ * not declare is not inert: this repository has already measured what happens
+ * when a Prisma field lacks `@map` and the client therefore writes a quoted
+ * camelCase column while migrations manage the snake_case one —
+ * `20260620200000_reviewer_ops_naming_drift_repair` records the symptom as
+ * "SELECTs returned NULL even though the snake_case columns had data (and
+ * vice versa)". Two physical columns per field is a SPLIT WRITE CONTRACT, and
+ * whichever one the live unique index is built on is the one that actually
+ * decides deduplication.
+ *
+ * The pairing rule is not a guess. These legacy columns are named after Prisma
+ * FIELD names, because that is exactly what a client without `@map` emits — so
+ * an exact field-name match is the primary rule, and it is exact rather than
+ * heuristic. The snake-case fallback catches a legacy column whose field has
+ * since been renamed; the `Utc` variant catches the historical
+ * `createdAtUtc` -> `created_at` rename. Anything matching none of the three
+ * is reported UNPAIRED rather than assigned a counterpart on a guess.
+ */
+function pairExtraColumn(extra, declared) {
+  const byField = declared.find((d) => d.field === extra);
+  if (byField && byField.column !== extra) {
+    return { canonical: byField.column, basis: "PRISMA_FIELD_NAME" };
+  }
+  const snake = toSnake(extra);
+  const bySnake = declared.find((d) => d.column === snake);
+  if (bySnake && bySnake.column !== extra) {
+    return { canonical: bySnake.column, basis: "SNAKE_CASE_OF_LEGACY" };
+  }
+  if (/Utc$/.test(extra)) {
+    const trimmed = toSnake(extra.replace(/Utc$/, ""));
+    const byTrim = declared.find((d) => d.column === trimmed);
+    if (byTrim) return { canonical: byTrim.column, basis: "UTC_SUFFIX_RENAME" };
+  }
+  return { canonical: null, basis: "UNPAIRED" };
+}
+
+/**
+ * Which column family does a constraint / index / foreign key actually target?
+ *
+ * The single most important classification in this script. A unique index on
+ * `("teamId", fingerprint)` does NOT deduplicate writes that Prisma makes on
+ * `(team_id, fingerprint)`; a foreign key on `"incidentId"` does not constrain
+ * a write to `incident_id`. Both can be present, both can look healthy in a
+ * catalog listing, and both can be enforcing nothing about the columns the
+ * application uses.
+ */
+function classifyDefinition(def, canonicalCols, legacyCols) {
+  // Identifiers appear BOTH quoted and bare. PostgreSQL only quotes what it
+  // must, so a legacy camelCase column is always `"lastSeenAtUtc"` while a
+  // canonical snake_case one is rendered bare as `team_id`. Matching only the
+  // quoted form therefore saw every canonical constraint as touching nothing —
+  // which read as "no canonical binding exists" and would have been exactly
+  // backwards.
+  const text = String(def);
+  const quoted = [...text.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  const bare = [...text.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)].map((m) => m[0]);
+  const seen = new Set([...quoted, ...bare]);
+  const hitsCanonical = [...canonicalCols].some((c) => seen.has(c));
+  const hitsLegacy = [...legacyCols].some((c) => seen.has(c));
+  if (hitsLegacy && hitsCanonical) return "MIXED";
+  if (hitsLegacy) return "LEGACY";
+  if (hitsCanonical) return "CANONICAL";
+  return "NEITHER";
+}
+
 head("3. MODEL vs DATABASE — writer-owned tables");
 
 for (const [modelName, criticality, usedFor] of WRITER_MODELS) {
@@ -402,7 +553,7 @@ for (const [modelName, criticality, usedFor] of WRITER_MODELS) {
   }
 
   const cols = await q(
-    `SELECT column_name, data_type, udt_name, is_nullable,
+    `SELECT column_name, ordinal_position, data_type, udt_name, is_nullable,
             column_default, character_maximum_length, numeric_precision
        FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = $1
@@ -466,7 +617,72 @@ for (const [modelName, criticality, usedFor] of WRITER_MODELS) {
       `${table}: ${missing.length} column(s) declared by the deployed model are ABSENT: ${missing.join(", ")}`,
     );
   }
-  verdict.tables.push({ table, criticality, missing, extra });
+
+  // ---------------------------------------------------------------------
+  // EVERY EXTRA COLUMN, IN FULL — and what it disagrees with.
+  //
+  // An extra column is not decoration. Where it duplicates a canonical field
+  // it is half of a split write contract, and the rows below say how far the
+  // two halves have already drifted apart. `differs` is the count that
+  // matters most: every one of those rows is a record whose two columns
+  // disagree about the same fact, and any reader is getting one of them.
+  // ---------------------------------------------------------------------
+  const canonicalCols = new Set(declared.map((d) => d.column));
+  const legacyCols = new Set(extra);
+  const pairs = [];
+  if (extra.length > 0) {
+    console.log("");
+    console.log(
+      `    LEGACY COLUMN ANALYSIS (${extra.length} extra column(s) on ${table})`,
+    );
+    console.log(
+      `    ${"ord".padEnd(6)}${"legacy column".padEnd(28)}${"type".padEnd(22)}${"null".padEnd(6)}${"default".padEnd(22)}${"pairs with".padEnd(28)}${"basis".padEnd(22)}differs  legacyOnly  canonOnly`,
+    );
+    for (const col of extra) {
+      const p = physical.get(col);
+      const type =
+        p.data_type === "USER-DEFINED"
+          ? `enum ${p.udt_name}`
+          : p.character_maximum_length
+            ? `${p.data_type}(${p.character_maximum_length})`
+            : p.data_type;
+      const pairing = pairExtraColumn(col, declared);
+      let differs = "-";
+      let legacyOnly = "-";
+      let canonOnly = "-";
+      if (pairing.canonical) {
+        // Three read-only aggregates. `IS DISTINCT FROM` rather than `<>` so
+        // a NULL on one side counts as a disagreement instead of vanishing.
+        const counts = await q(
+          `SELECT
+             count(*) FILTER (WHERE "${col}" IS DISTINCT FROM "${pairing.canonical}")            AS differs,
+             count(*) FILTER (WHERE "${col}" IS NOT NULL AND "${pairing.canonical}" IS NULL)     AS legacy_only,
+             count(*) FILTER (WHERE "${col}" IS NULL AND "${pairing.canonical}" IS NOT NULL)     AS canon_only
+           FROM "${table}"`,
+        );
+        if (counts.ok) {
+          differs = String(counts.rows[0].differs);
+          legacyOnly = String(counts.rows[0].legacy_only);
+          canonOnly = String(counts.rows[0].canon_only);
+          if (Number(counts.rows[0].differs) > 0) {
+            problem(
+              `${table}."${col}" and "${pairing.canonical}" DISAGREE on ${counts.rows[0].differs} row(s) — the write contract is split`,
+            );
+          }
+        } else {
+          differs = "ERR";
+        }
+      }
+      pairs.push({ col, canonical: pairing.canonical, basis: pairing.basis, differs });
+      console.log(
+        `    ${String(p.ordinal_position ?? "?").padEnd(6)}${col.padEnd(28)}${type.padEnd(22)}${(p.is_nullable === "YES" ? "Y" : "N").padEnd(6)}${(p.column_default ? String(p.column_default).slice(0, 20) : "-").padEnd(22)}${(pairing.canonical ?? "—").padEnd(28)}${pairing.basis.padEnd(22)}${String(differs).padEnd(9)}${String(legacyOnly).padEnd(12)}${canonOnly}`,
+      );
+    }
+    problem(
+      `${table}: ${extra.length} LEGACY column(s) the deployed model does not declare: ${extra.join(", ")}`,
+    );
+  }
+  verdict.tables.push({ table, criticality, missing, extra, pairs, legacyBound: [] });
 
   // --- enum types used by this table ---
   const enums = await q(
@@ -487,6 +703,16 @@ for (const [modelName, criticality, usedFor] of WRITER_MODELS) {
   }
 
   // --- constraints, unique indexes, foreign keys, triggers ---
+  // ---------------------------------------------------------------------
+  // WHICH COLUMN FAMILY DOES EACH CONSTRAINT / INDEX ACTUALLY ENFORCE?
+  //
+  // This is the question `missing = 0` cannot answer and the one that decides
+  // whether writes are correct. A unique index on `("teamId", fingerprint)`
+  // does not deduplicate writes Prisma makes against `(team_id, fingerprint)`,
+  // and a foreign key on `"incidentId"` constrains nothing about a write to
+  // `incident_id`. Both appear perfectly healthy in a catalog listing.
+  // ---------------------------------------------------------------------
+  const legacyBound = [];
   const cons = await q(
     `SELECT conname, contype, pg_get_constraintdef(oid) AS def
        FROM pg_constraint WHERE conrelid = to_regclass($1) ORDER BY conname`,
@@ -494,7 +720,16 @@ for (const [modelName, criticality, usedFor] of WRITER_MODELS) {
   );
   if (cons.ok) {
     for (const c of cons.rows) {
-      console.log(`    constraint ${c.contype} ${c.conname}: ${String(c.def).slice(0, 160)}`);
+      const target = classifyDefinition(c.def, canonicalCols, legacyCols);
+      if (target === "LEGACY" || target === "MIXED") {
+        legacyBound.push(`constraint ${c.conname} (${target})`);
+        problem(
+          `${table}: constraint ${c.conname} targets ${target} columns — ${String(c.def).slice(0, 120)}`,
+        );
+      }
+      console.log(
+        `    [${target.padEnd(9)}] constraint ${c.contype} ${c.conname}: ${String(c.def).slice(0, 150)}`,
+      );
     }
   }
   const idx = await q(
@@ -504,9 +739,38 @@ for (const [modelName, criticality, usedFor] of WRITER_MODELS) {
   );
   if (idx.ok) {
     for (const i of idx.rows) {
-      console.log(`    index ${i.indexname}: ${String(i.indexdef).slice(0, 170)}`);
+      // Classify only the column list, not the whole statement — the
+      // statement always contains the table name, which would otherwise
+      // colour every row the same.
+      const cols = String(i.indexdef).slice(String(i.indexdef).indexOf("("));
+      const target = classifyDefinition(cols, canonicalCols, legacyCols);
+      if (target === "LEGACY" || target === "MIXED") {
+        legacyBound.push(`index ${i.indexname} (${target})`);
+        problem(
+          `${table}: index ${i.indexname} is built on ${target} columns — ${String(i.indexdef).slice(0, 130)}`,
+        );
+      }
+      console.log(
+        `    [${target.padEnd(9)}] index ${i.indexname}: ${String(i.indexdef).slice(0, 150)}`,
+      );
     }
   }
+  // Foreign keys POINTING AT this table, whose referencing column may be
+  // legacy on the other side.
+  const inbound = await q(
+    `SELECT c.conname, c.conrelid::regclass::text AS from_table,
+            pg_get_constraintdef(c.oid) AS def
+       FROM pg_constraint c
+      WHERE c.confrelid = to_regclass($1) AND c.contype = 'f'
+      ORDER BY c.conname`,
+    [`public.${table}`],
+  );
+  if (inbound.ok && inbound.rows.length) {
+    for (const f of inbound.rows) {
+      console.log(`    inbound FK ${f.conname} on ${f.from_table}: ${String(f.def).slice(0, 150)}`);
+    }
+  }
+  verdict.tables[verdict.tables.length - 1].legacyBound = legacyBound;
   const trg = await q(
     `SELECT tgname, pg_get_triggerdef(oid) AS def
        FROM pg_trigger WHERE tgrelid = to_regclass($1) AND NOT tgisinternal`,
@@ -766,13 +1030,55 @@ console.log(`  full-width writer lookup         : ${verdict.fullWidthOk === null
 console.log(`  explicit-select writer lookup    : ${verdict.narrowOk === null ? "not run" : verdict.narrowOk ? "SUCCEEDED" : "FAILED"}`);
 for (const t of verdict.tables) {
   console.log(
-    `  ${t.table.padEnd(38)} [${t.criticality}] missing=${t.missing.length} extra=${t.extra.length}`,
+    `  ${t.table.padEnd(38)} [${t.criticality}] missing=${t.missing.length} legacy=${t.extra.length} legacy-bound objects=${(t.legacyBound ?? []).length}`,
   );
 }
+
+/**
+ * THE VERDICT, CORRECTED.
+ *
+ * An earlier pass printed "NO MODEL/DATABASE DISAGREEMENT FOUND" whenever
+ * `missing` was empty, and that sentence was wrong in the one case it most
+ * needed to be right. `missing = 0` says only that the model's columns are
+ * all present. It says nothing about columns the model does NOT declare, and
+ * a duplicate legacy column is not inert:
+ *
+ *   * whichever column the live UNIQUE index is built on is the one that
+ *     actually deduplicates, and if that is the legacy column then Prisma's
+ *     writes to the canonical column are not deduplicated at all;
+ *   * a foreign key on a legacy column constrains nothing about a write to
+ *     the canonical one;
+ *   * two columns for one fact drift, and every reader gets whichever half
+ *     its own query names.
+ *
+ * So CONVERGENCE, not presence, is what this script now reports.
+ */
+const legacyColumnCount = verdict.tables.reduce((n, t) => n + t.extra.length, 0);
+const legacyBoundCount = verdict.tables.reduce(
+  (n, t) => n + (t.legacyBound ?? []).length,
+  0,
+);
+const missingCount = verdict.tables.reduce((n, t) => n + t.missing.length, 0);
 console.log("");
-if (verdict.problems.length === 0) {
-  console.log("  NO MODEL/DATABASE DISAGREEMENT FOUND on writer-owned tables.");
+console.log(`  missing canonical columns        : ${missingCount}`);
+console.log(`  LEGACY duplicate columns         : ${legacyColumnCount}`);
+console.log(`  constraints/indexes on LEGACY    : ${legacyBoundCount}`);
+console.log("");
+if (missingCount === 0 && legacyColumnCount === 0 && legacyBoundCount === 0) {
+  console.log("  CONVERGED — the physical schema matches the deployed model exactly.");
 } else {
+  console.log("  NOT CONVERGED. The physical schema is a HYBRID of two column families.");
+  if (legacyBoundCount > 0) {
+    console.log(
+      "  At least one constraint or index enforces the LEGACY family, which means the",
+    );
+    console.log(
+      "  guarantees the writer relies on are not being applied to the columns it writes.",
+    );
+  }
+}
+if (verdict.problems.length > 0) {
+  console.log("");
   console.log("  PROBLEMS:");
   for (const p of verdict.problems) console.log(`    * ${p}`);
 }

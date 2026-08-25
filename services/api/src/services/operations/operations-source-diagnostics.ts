@@ -101,6 +101,25 @@ const PRISMA_CODE_CATEGORIES: Readonly<Record<string, string>> = {
   P2021: "schema_mismatch",
   /** Inconsistent column data — includes enum values the database lacks. */
   P2023: "schema_mismatch",
+  /**
+   * NULL CONSTRAINT VIOLATION — and it is a SCHEMA fact, not an app bug.
+   *
+   * Prisma validates the required fields of its OWN model client-side and
+   * refuses to send the query at all, so a null-constraint violation that
+   * actually reaches PostgreSQL is necessarily on a column the model does not
+   * declare. That is exactly what a legacy duplicate column does: the model
+   * writes `safe_summary`, the database also carries a `"safeSummary"` NOT
+   * NULL with no default from an earlier un-`@map`'d generation of the same
+   * field, and the INSERT cannot satisfy it.
+   *
+   * Measured, not reasoned about: against a reproduced production-hybrid
+   * schema the real `recordIncident` fails P2011 / 23502 with
+   * `null value in column "safeSummary" ... violates not-null constraint`,
+   * on the CREATE, with the lookup having succeeded. Classifying it as a
+   * constraint violation would mark it retryable, and no number of retries
+   * can make an undeclared NOT NULL column satisfiable.
+   */
+  P2011: "schema_mismatch",
   /** Timed out fetching a connection from the pool. */
   P2024: "timeout",
   /** Unique constraint failed. */
@@ -122,7 +141,12 @@ export function operationsFailureCategory(err: unknown): string {
   if (code && PRISMA_CODE_CATEGORIES[code]) return PRISMA_CODE_CATEGORIES[code];
   // A raw-query failure carries the SQLSTATE and not much else.
   const sqlState = postgresSqlState(err);
-  if (sqlState === "42703" || sqlState === "42P01" || sqlState === "42704") {
+  if (
+    sqlState === "42703" || // undefined_column
+    sqlState === "42P01" || // undefined_table
+    sqlState === "42704" || // undefined_object (enum value, type)
+    sqlState === "23502" //   not_null_violation on an undeclared column
+  ) {
     return "schema_mismatch";
   }
   if (sqlState === "42501" || sqlState === "25006") return "permission_denied";
