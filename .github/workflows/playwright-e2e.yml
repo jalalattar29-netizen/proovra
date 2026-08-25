@@ -25,7 +25,20 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        # pgvector, NOT postgres:16-alpine.
+        #
+        # `20270701000000_phase15_semantic_search` and its neighbours issue
+        # `CREATE EXTENSION vector`, which the stock alpine image does not ship,
+        # so `prisma migrate deploy` cannot complete against it. This was
+        # invisible for as long as the job died at "Initialize containers" — the
+        # MinIO service could never start — and surfaced the moment that was
+        # fixed.
+        #
+        # `schema-reproducibility.yml` has always used this image and has always
+        # passed its `migrate deploy`, so it is the proven choice rather than a
+        # guess: two workflows migrating the same tree should not disagree about
+        # what the tree needs.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: proovra
           POSTGRES_PASSWORD: proovra_password
