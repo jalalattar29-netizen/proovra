@@ -62,17 +62,34 @@
 --
 -- WHAT THIS MIGRATION DOES, AND IN WHICH ORDER
 -- ---------------------------------------------------------------------------
---   1. BACKFILL   — canonical from legacy, only where canonical IS NULL. Never
---                   the other direction: the canonical column is the authority.
---   2. CONSERVE   — PROVE that no row still holds a value in its legacy half
---                   that its canonical half lacks. That is the conservation
---                   proof, and it RAISEs if it fails.
---   3. REBIND     — rebuild the unique, the indexes and the foreign key on the
---                   canonical columns, before anything is dropped.
---   4. DROP       — the legacy columns, last, once nothing depends on them.
+--   1. BACKFILL — canonical from legacy, only where canonical IS NULL. Never
+--                 the other direction: the canonical column is the authority.
+--   2. CONSERVE — PROVE that no row still holds a value in its legacy half that
+--                 its canonical half lacks. RAISEs if one does.
+--   3. RELAX    — drop NOT NULL from the legacy columns. THIS is what unblocks
+--                 the writer, and it removes NOTHING.
+--   4. REBIND   — rebuild the unique, the indexes and the foreign key on the
+--                 canonical columns.
 --
--- Steps 1–3 are non-destructive. Only step 4 removes anything, and it runs
--- only after step 2 has proven there is nothing left to lose.
+-- THIS MIGRATION REMOVES NOTHING, AND THAT IS THE POINT.
+--
+-- An earlier draft dropped the legacy columns here too, and the artifact gate
+-- refused it: a CONTRACT_DROP that actually removes something must declare
+-- `safeBeforeCodeDeployment: false`, which would order it AFTER the code — and
+-- the writer is broken until it runs, so that ordering is exactly backwards.
+--
+-- The gate was right and the design was wrong. What blocks the writer is the
+-- legacy NOT NULL, not the legacy COLUMN. Relaxing the constraint fixes
+-- production immediately and takes nothing away, so this migration is safe
+-- before the code deploys, in the strongest sense: it is safe before, during
+-- and after, for the currently-deployed image as much as the next one.
+--
+-- The columns themselves are dropped by
+-- `20271225000000_operational_incident_legacy_column_drop`, which is a real
+-- CONTRACT_DROP, declares `safeBeforeCodeDeployment: false`, and belongs in the
+-- contract-drop wave where removals belong. Expand first, contract later — the
+-- discipline this repository already encodes, applied to its own incident
+-- tables.
 --
 -- WHY DIVERGENCE IS REPORTED AND NOT REFUSED
 -- ---------------------------------------------------------------------------
@@ -109,8 +126,9 @@
 --     database that never had the legacy family — every clean boot, CI, and
 --     any environment provisioned after the drift — this migration does
 --     nothing at all except assert the canonical unique exists.
---   * NO DATA IS DELETED. Rows are never removed; only duplicate COLUMNS are,
---     and only after the conservation check.
+--   * NOTHING IS REMOVED AT ALL. No row, no column, no constraint except a
+--     NOT NULL that no writer can satisfy. The removal is a separate,
+--     later migration.
 --   * The tables are handled TOGETHER, because the events foreign key
 --     references the incidents table and rebinding one without the other
 --     leaves the pair inconsistent.
@@ -123,10 +141,10 @@
 -- added. Rolling back means reverting application images and LEAVING this
 -- schema in place. Re-creating the legacy columns would restore the fault.
 --
--- The one genuinely irreversible act is dropping the legacy columns, which is
--- why step 2 refuses rather than proceeding on trust: after this runs the only
--- copy of each fact is the canonical one, and step 2 has proven that copy is
--- complete for every row.
+-- Nothing here is irreversible: the backfill only fills absent values, and a
+-- relaxed NOT NULL can be re-tightened. The conservation proof still runs,
+-- because it is the precondition the LATER drop depends on and proving it
+-- early is what makes that drop safe to schedule at all.
 
 -- ---------------------------------------------------------------------------
 -- 0. The pair list, and the guards.
@@ -329,13 +347,47 @@ END
 $$;
 
 -- ---------------------------------------------------------------------------
--- 3. REBIND — put the guarantees back on the columns the application uses.
+-- 3. RELAX — the statement that actually unblocks the writer.
+--
+-- A legacy column that is NOT NULL with no default cannot be satisfied by an
+-- INSERT that does not name it, and the Prisma client names only the canonical
+-- columns. That is the whole fault: `safe_summary` was declared
+-- `VARCHAR(400) NOT NULL` with no default by the Phase-21 migration, its legacy
+-- twin inherited the same, and every recordIncident create has failed
+-- P2011 / 23502 ever since.
+--
+-- Dropping the constraint takes nothing away. Every existing value stays; the
+-- column stays; only the requirement that FUTURE inserts populate a column no
+-- code writes is removed. Derived rather than listed, so a legacy column this
+-- migration does not know about is relaxed too — the failure mode is identical
+-- whichever column carries it.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  col RECORD;
+BEGIN
+  FOR col IN
+    SELECT table_name, column_name
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name IN ('operational_incidents','operational_incident_events')
+       AND column_name ~ '[A-Z]'
+       AND is_nullable = 'NO'
+  LOOP
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I DROP NOT NULL', col.table_name, col.column_name);
+    RAISE NOTICE 'convergence: relaxed NOT NULL on legacy column %.%', col.table_name, col.column_name;
+  END LOOP;
+END
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 4. REBIND — put the guarantees back on the columns the application uses.
 --
 -- Created BEFORE the legacy columns are dropped, so there is no window in
 -- which the table has neither.
 -- ---------------------------------------------------------------------------
 
--- 3a. The dedupe unique — the one the writer's idempotency depends on.
+-- 4a. The dedupe unique — the one the writer's idempotency depends on.
 --
 -- CONDITIONAL ON ABSENCE, and named to match what a clean database already
 -- has. `20260529100000_add_operational_incidents_phase21` creates
@@ -376,7 +428,7 @@ BEGIN
 END
 $$;
 
--- 3b. The canonical read indexes, re-established if the legacy variants
+-- 4b. The canonical read indexes, re-established if the legacy variants
 --     displaced them.
 --
 -- Every one is wrapped in a column-existence guard, and that is not ceremony:
@@ -425,7 +477,7 @@ BEGIN
 END
 $$;
 
--- 3c. The events foreign key, on the canonical column.
+-- 4c. The events foreign key, on the canonical column.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -454,77 +506,29 @@ END
 $$;
 
 -- ---------------------------------------------------------------------------
--- 4. DROP the legacy family — last, and only now.
+-- 5. Post-conditions, asserted rather than hoped for.
 --
--- Dropping a column drops the indexes and constraints that depend on it, which
--- is why the canonical replacements above are created first. `IF EXISTS` makes
--- every one of these a no-op on a database that never drifted.
--- ---------------------------------------------------------------------------
-
-ALTER TABLE "operational_incidents"
-  DROP COLUMN IF EXISTS "teamId",
-  DROP COLUMN IF EXISTS "safeSummary",
-  DROP COLUMN IF EXISTS "firstSeenAtUtc",
-  DROP COLUMN IF EXISTS "lastSeenAtUtc",
-  DROP COLUMN IF EXISTS "occurrenceCount",
-  DROP COLUMN IF EXISTS "requestId",
-  DROP COLUMN IF EXISTS "traceId",
-  DROP COLUMN IF EXISTS "relatedEvidenceId",
-  DROP COLUMN IF EXISTS "relatedJobId",
-  DROP COLUMN IF EXISTS "relatedProvider",
-  DROP COLUMN IF EXISTS "openedBySystem",
-  DROP COLUMN IF EXISTS "acknowledgedByUserId",
-  DROP COLUMN IF EXISTS "acknowledgedAtUtc",
-  DROP COLUMN IF EXISTS "resolvedByUserId",
-  DROP COLUMN IF EXISTS "resolvedAtUtc",
-  DROP COLUMN IF EXISTS "resolutionNote",
-  DROP COLUMN IF EXISTS "assignedOperatorUserId",
-  DROP COLUMN IF EXISTS "assignedByUserId",
-  DROP COLUMN IF EXISTS "assignedAtUtc",
-  DROP COLUMN IF EXISTS "runbookSlug",
-  DROP COLUMN IF EXISTS "createdAt",
-  DROP COLUMN IF EXISTS "updatedAt";
-
-ALTER TABLE "operational_incident_events"
-  DROP COLUMN IF EXISTS "incidentId",
-  DROP COLUMN IF EXISTS "eventType",
-  DROP COLUMN IF EXISTS "safeMessage",
-  DROP COLUMN IF EXISTS "metadataJson",
-  DROP COLUMN IF EXISTS "createdAt",
-  DROP COLUMN IF EXISTS "createdAtUtc";
-
--- ---------------------------------------------------------------------------
--- 5. THE LEGACY INDEX NEEDS NO EXPLICIT DROP, AND MUST NOT HAVE ONE.
---
--- Dropping `"teamId"` in step 4 drops every index built on it, including
--- `operational_incidents_team_fingerprint_key`. An explicit `DROP INDEX` here
--- would be redundant, and `scripts/migration-risk-scan.mjs` classifies any
--- `DROP INDEX` as CRITICAL without exception — correctly, because dropping an
--- index is how a read regression reaches production silently. The column drop
--- already does the work, and the post-conditions below prove it did.
---
--- `operational_incidents_team_fingerprint_uk` is likewise never dropped: on
--- every database that did not drift, that IS the canonical unique on
--- (team_id, fingerprint) created by the Phase-21 migration and registered with
--- `db:raw-schema-verify`. Removing it would destroy the guarantee this
--- migration exists to restore, on precisely the databases that were healthy.
--- ---------------------------------------------------------------------------
-
--- ---------------------------------------------------------------------------
--- 6. Post-conditions, asserted rather than hoped for.
+-- Note what is NOT asserted: that the legacy columns are gone. They are still
+-- here by design, and the later contract-drop migration is what removes them.
+-- What must be true NOW is that the writer can write and that its dedupe is
+-- enforced by the database.
 -- ---------------------------------------------------------------------------
 DO $$
 DECLARE
-  leftovers TEXT;
+  blocking TEXT;
 BEGIN
   SELECT string_agg(table_name || '.' || column_name, ', ')
-    INTO leftovers
+    INTO blocking
     FROM information_schema.columns
    WHERE table_schema = 'public'
      AND table_name IN ('operational_incidents','operational_incident_events')
-     AND column_name ~ '[A-Z]';
-  IF leftovers IS NOT NULL THEN
-    RAISE EXCEPTION 'convergence incomplete: mixed-case columns remain: %', leftovers;
+     AND column_name ~ '[A-Z]'
+     AND is_nullable = 'NO'
+     AND column_default IS NULL;
+  IF blocking IS NOT NULL THEN
+    RAISE EXCEPTION
+      'convergence incomplete: legacy column(s) still NOT NULL with no default, so every insert will fail 23502: %',
+      blocking;
   END IF;
 
   IF NOT EXISTS (

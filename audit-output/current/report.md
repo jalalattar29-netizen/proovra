@@ -10,7 +10,7 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
 | ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
@@ -127,7 +127,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
-| HistoricalMigrationsModifiedByPhase0       | 0     |
+| HistoricalMigrationsModifiedByPhase0       | 1     |
 | ProductBehaviorTestsInventoried            | 174   |
 
 ### Report roles
@@ -200,7 +200,7 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- HISTORICAL MIGRATION MODIFIED: services/api/prisma/migrations/20271224000000_operational_incident_naming_convergence/migration.sql
 
 ### Product closure
 

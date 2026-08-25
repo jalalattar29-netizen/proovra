@@ -128,8 +128,19 @@ const STALE_REVIEWS = 2;
  * either would pass while the real artifact drifted.
  */
 const HYBRID_FIXTURE = "test/fixtures/production-hybrid-incident-schema.sql";
-const CONVERGENCE_MIGRATION =
+/**
+ * The convergence ships as TWO migrations, and the split is load-bearing.
+ *
+ * EXPAND removes nothing and is safe before the code deploys — it is what
+ * unblocks the writer. CONTRACT drops the legacy columns and belongs after the
+ * code, because `verify-migration-artifact.mjs` refuses a removal that claims
+ * to be safe beforehand. Tests that ran only one of them would prove only half
+ * the deployment.
+ */
+const CONVERGENCE_EXPAND =
   "prisma/migrations/20271224000000_operational_incident_naming_convergence/migration.sql";
+const CONVERGENCE_CONTRACT =
+  "prisma/migrations/20271225000000_operational_incident_legacy_column_drop/migration.sql";
 
 describe("Operations production signature (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
@@ -236,9 +247,15 @@ describe("Operations production signature (live PostgreSQL 16)", () => {
     await runSqlFile(HYBRID_FIXTURE);
   }
 
-  /** Run the real convergence migration against it. */
+  /** The EXPAND half alone: unblocks the writer, removes nothing. */
+  async function convergeExpandOnly(): Promise<void> {
+    await runSqlFile(CONVERGENCE_EXPAND);
+  }
+
+  /** Both halves, in deployment order. */
   async function converge(): Promise<void> {
-    await runSqlFile(CONVERGENCE_MIGRATION);
+    await runSqlFile(CONVERGENCE_EXPAND);
+    await runSqlFile(CONVERGENCE_CONTRACT);
   }
 
   /** How many mixed-case (legacy) columns the two tables currently carry. */
@@ -710,6 +727,56 @@ describe("Operations production signature (live PostgreSQL 16)", () => {
     expect(described).toContain("operational_incidents");
     expect(described).toContain("LEGACY duplicate");
     expect(described).not.toContain("SELECT");
+  });
+
+  it("the EXPAND half ALONE unblocks the writer, with every legacy column still in place", async () => {
+    await applyHybridDrift();
+    const before = await legacyColumnCount();
+    expect(before).toBeGreaterThan(0);
+
+    await convergeExpandOnly();
+
+    // NOTHING was removed. This is the property that makes the expand half
+    // safe to apply before the code, and the reason the two halves are
+    // separate migrations at all.
+    expect(await legacyColumnCount()).toBe(before);
+
+    // And the writer works, because what blocked it was the legacy NOT NULL,
+    // not the legacy column. Production can be fixed without dropping
+    // anything, in the same deploy that ships the code.
+    await prisma.operationalIncident.deleteMany({
+      where: scope.workspaceIncidentWhere(personal.teamId),
+    });
+    const { run } = await reconcile();
+    expect(run.sources.failedSources).toEqual([]);
+    expect(run.readiness).toBe("READY");
+    expect(await incidentCount()).toBeGreaterThan(0);
+  });
+
+  it("the CONTRACT half refuses to drop while a legacy value has no canonical copy", async () => {
+    await applyHybridDrift();
+    // The expand half runs FIRST, exactly as it would in production — and the
+    // orphan is created AFTER it. That is the case the two-wave split exists
+    // to worry about: time passes between the waves, and a row written in
+    // between is precisely what the contract half must not assume away.
+    //
+    // (It also has to be this order mechanically: while the hybrid's NOT NULL
+    // is still in force, a row with a NULL canonical column cannot be
+    // inserted at all.)
+    await convergeExpandOnly();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "operational_incidents"
+         (id, team_id, scope, category, severity, status, fingerprint, title,
+          safe_summary, opened_by_system, updated_at, "runbookSlug")
+       VALUES (gen_random_uuid(), $1::uuid, 'WORKSPACE', 'REPORT', 'HIGH', 'OPEN',
+               'contract:orphan:probe', 't', 's', true, NOW(), 'legacy-only-value')`,
+      personal.teamId,
+    );
+
+    await expect(runSqlFile(CONVERGENCE_CONTRACT)).rejects.toThrow(/REFUSING to drop/);
+
+    // Nothing was dropped by the refusal.
+    expect(await legacyColumnCount()).toBeGreaterThan(0);
   });
 
   it("converged, the legacy family is gone and stays gone across a re-run", async () => {

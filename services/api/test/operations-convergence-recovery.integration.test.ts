@@ -36,8 +36,19 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { IntegrationHarness } from "./integration-harness.js";
 
 const HYBRID_FIXTURE = "test/fixtures/production-hybrid-incident-schema.sql";
-const CONVERGENCE_MIGRATION =
+/**
+ * The convergence ships as TWO migrations, and the split is load-bearing.
+ *
+ * EXPAND removes nothing and is safe before the code deploys — it is what
+ * unblocks the writer. CONTRACT drops the legacy columns and belongs after the
+ * code, because `verify-migration-artifact.mjs` refuses a removal that claims
+ * to be safe beforehand. Tests that ran only one of them would prove only half
+ * the deployment.
+ */
+const CONVERGENCE_EXPAND =
   "prisma/migrations/20271224000000_operational_incident_naming_convergence/migration.sql";
+const CONVERGENCE_CONTRACT =
+  "prisma/migrations/20271225000000_operational_incident_legacy_column_drop/migration.sql";
 
 /** The production counts, reproduced per context rather than approximated. */
 const TSA_FAILURES = 34;
@@ -136,7 +147,11 @@ describe("Operations convergence recovery, across workspace kinds (live PostgreS
   }
 
   const applyHybridDrift = () => runSqlFile(HYBRID_FIXTURE);
-  const converge = () => runSqlFile(CONVERGENCE_MIGRATION);
+  const convergeExpandOnly = () => runSqlFile(CONVERGENCE_EXPAND);
+  const converge = async () => {
+    await runSqlFile(CONVERGENCE_EXPAND);
+    await runSqlFile(CONVERGENCE_CONTRACT);
+  };
 
   async function reconcile(teamId: string) {
     await prisma.governanceReconciliationRun.deleteMany({
