@@ -36,7 +36,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build:deps": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-runtime build",
+    "build:deps": "pnpm -w run prisma:generate && pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-runtime build",
     "test:integration:prepare": "node scripts/integration-prepare.mjs",
     "test:integration:run": "vitest run --config vitest.integration.config.ts",
     "test:integration": "pnpm run test:integration:prepare && pnpm run test:integration:run",

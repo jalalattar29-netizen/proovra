@@ -50,7 +50,7 @@
     "build": "pnpm exec tsc -p tsconfig.json",
     "typecheck": "pnpm exec tsc --noEmit",
     "lint": "eslint .",
-    "build:deps": "pnpm --filter @proovra/shared build",
+    "build:deps": "pnpm -w run prisma:generate && pnpm --filter @proovra/shared build",
     "prebuild": "pnpm run build:deps",
     "pretypecheck": "pnpm run build:deps"
   },

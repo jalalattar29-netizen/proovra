@@ -144,12 +144,18 @@ jobs:
       # `services/api` `test:integration:prepare`). Both are idempotent, so the
       # later self-preparation re-runs them at no cost and neither is a second
       # copy of the build ordering.
-      - name: Build shared packages (needed by API runtime imports)
+      # `build:shared` GENERATES THE PRISMA CLIENT FIRST (2026-08-25).
+      #
+      # A separate "Generate Prisma client" step used to follow this one, and
+      # that ordering could not work on a clean checkout: `build:shared`
+      # compiles `@proovra/shared-runtime`, which imports `PrismaClient`,
+      # `Prisma` and the generated enums, so the build died with ~58
+      # "has no exported member" errors before generation ran. Generation is
+      # now the first thing `build:shared` does, through the root
+      # `prisma:generate` authority, and the step that trailed it is gone
+      # rather than duplicated.
+      - name: Build shared packages (generates Prisma client first)
         run: pnpm run build:shared
-
-      - name: Generate Prisma client
-        working-directory: services/api
-        run: pnpm prisma generate
 
       # ---------------------------------------------------------------
       # Phase 2.5C — Safety wrapper gate test.

@@ -103,6 +103,14 @@ COPY services/api/prisma services/api/prisma
 COPY services/api/prisma.config.ts services/api/prisma.config.ts
 COPY services/api/package.json services/api/package.json
 
+# BUILD ORDER — prisma:generate MUST precede @proovra/shared-runtime.
+#
+# shared-runtime imports PrismaClient, Prisma and the generated enums, so
+# compiling it without a generated client fails with ~58 "has no exported
+# member" errors. This stage lists the steps explicitly rather than calling
+# the root `build:shared` because it does not COPY every package that script
+# builds; the GENERATION COMMAND is the same one the root authority runs, and
+# a contract test asserts this ordering so the two cannot drift.
 RUN pnpm --filter @proovra/shared build
 RUN pnpm --filter @proovra/shared-billing build
 RUN pnpm --filter @proovra/shared-evidence-presentation build

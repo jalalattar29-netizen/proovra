@@ -134,10 +134,18 @@ jobs:
           pnpm run build:shared
           pnpm --filter proovra-api build
 
+      # `prisma generate` MOVED OUT of this step (2026-08-25).
+      #
+      # It ran here, after `build:shared`, and `build:shared` compiles
+      # `@proovra/shared-runtime`, which imports `PrismaClient`, `Prisma` and
+      # the generated enums. On a clean checkout there is no client yet, so the
+      # build failed with ~58 "has no exported member" errors before this step
+      # was ever reached. Generation is now the first thing `build:shared`
+      # does, through the root `prisma:generate` authority, so it cannot be
+      # ordered after its consumers again.
       - name: Run migrations + seed
         working-directory: services/api
         run: |
-          pnpm prisma generate
           pnpm prisma migrate deploy
           pnpm prisma:seed
 
