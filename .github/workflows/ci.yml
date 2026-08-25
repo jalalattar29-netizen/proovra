@@ -284,21 +284,42 @@ jobs:
 
       # The API step captures its WHOLE output and prints the tail UNFILTERED.
       #
-      # The previous form annotated only lines matching a pattern, and on the
-      # run that mattered it matched NOTHING — not even vitest's own
-      # "Test Files"/"Tests" summary. So the build said "exit code 1" and
-      # nothing else, which is indistinguishable from a runner flake and is
-      # exactly the state that must never be guessed at: an exit code with no
-      # output is not evidence of a reporter problem, it is evidence of
-      # missing evidence.
+      # An earlier form annotated only lines matching a pattern, and on the run
+      # that mattered it matched NOTHING — not even vitest's own "Test
+      # Files"/"Tests" summary. So the build said "exit code 1" and nothing
+      # else, which is indistinguishable from a runner flake and is exactly the
+      # state that must never be guessed at: an exit code with no output is not
+      # evidence of a reporter problem, it is evidence of missing evidence.
       #
-      # Unfiltered tail, duration and exit code go to the step log; the
-      # complete log is uploaded as an artifact so it survives the run.
+      # With the complete log in hand the actual cause was legible:
+      #
+      #   Test Files  724 passed (724)
+      #        Tests  22999 passed | 1 skipped (23000)
+      #       Errors  2 errors
+      #   Error: [vitest-worker]: Timeout calling "onTaskUpdate"
+      #
+      # Every test passed. Two worker→main RPC calls went unanswered for the
+      # sixty seconds birpc allows, and vitest counts an unhandled error as a
+      # failed run. That sixty seconds is a hard-coded constant inside vitest,
+      # reachable from no config option, so the only thing that can be changed
+      # is how starved the main thread gets.
+      #
+      # Which is measurable rather than a guess: one test — the audit engine's
+      # self-reference proof, which runs the whole engine twice through child
+      # processes — occupies 245 of the run's 398 seconds and saturates every
+      # core of a four-vCPU runner. Vitest's default worker count leaves the
+      # main thread competing with three workers AND those children, and its
+      # replies arrive late enough to trip the constant.
+      #
+      # So: fewer workers, and a reporter that does the least possible work per
+      # update. Nothing is skipped, no assertion is relaxed, and the full 23,000
+      # cases still run — the step just stops starving the thread that has to
+      # acknowledge them.
       - name: Test — api
         run: |
           set +e
           start=$(date +%s)
-          pnpm --filter proovra-api test > /tmp/api-test.log 2>&1
+          pnpm --filter proovra-api test -- --reporter=dot --maxWorkers=2 > /tmp/api-test.log 2>&1
           rc=$?
           set -e
           end=$(date +%s)
