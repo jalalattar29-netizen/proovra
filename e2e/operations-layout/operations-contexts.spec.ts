@@ -207,14 +207,16 @@ test.describe("personal-pro: a workbench with no ownership axis", () => {
 
     expect(p.workbench).toBe(1);
     expect(p.h1).toBe(1);
-    // FOUR cards: the two that partition work between people are absent,
-    // because there is only one person.
+    // The two that partition work between people are absent, because there
+    // is only one person. Resolved stays: closed work is not an ownership
+    // question.
     expect(p.metrics).toEqual([
       "open",
       "critical",
       "high",
       "slaBreached",
       "slaAtRisk",
+      "resolved",
     ]);
     expect(p.ownerFilter).toBe(0);
     expect(p.ownerCells).toBe(0);
@@ -286,7 +288,7 @@ for (const { context, canAssign, note } of COLLABORATIVE) {
 
       expect(p.workbench).toBe(1);
       expect(p.h1).toBe(1);
-      // SIX cards: ownership is a real axis wherever more than one operator
+      // Ownership is a real axis wherever more than one operator
       // can hold work, and that comes from the server's COUNT.
       expect(operatorCountFor(context)).toBeGreaterThan(1);
       expect(p.metrics).toEqual([
@@ -295,6 +297,7 @@ for (const { context, canAssign, note } of COLLABORATIVE) {
         "high",
         "slaBreached",
         "slaAtRisk",
+        "resolved",
         "assignedToMe",
         "unassigned",
       ]);

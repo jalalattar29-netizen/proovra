@@ -130,7 +130,9 @@ test("every summary card carries a NUMBER, never an empty caption", async ({
   const values = await page
     .locator("[data-ops-metric] .app-metric-card__value")
     .allTextContents();
-  expect(values.length).toBe(7);
+  // Eight: the seven triage slices plus Resolved. A number here rather than
+  // a length check, so a card silently disappearing still fails.
+  expect(values.length).toBe(8);
   for (const v of values) {
     expect(v.trim().length, "a card with no value is a caption for nothing").toBeGreaterThan(0);
   }
@@ -147,7 +149,7 @@ test("the summary cards share one geometry", async ({ page }) => {
         return { w: Math.round(r.width), h: Math.round(r.height) };
       }),
     );
-  expect(boxes.length).toBe(7);
+  expect(boxes.length).toBe(8);
   // Equal widths and equal heights: a strip whose cards disagree reads as a
   // rendering fault, and the eye uses the difference as meaning.
   expect(new Set(boxes.map((b) => b.w)).size).toBe(1);

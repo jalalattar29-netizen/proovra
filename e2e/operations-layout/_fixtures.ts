@@ -597,6 +597,7 @@ function summaryFor(scenario: OpsScenario, operatorCount: number) {
     acknowledged: 1,
     assignedToMe: 1,
     unassigned: 3,
+    resolved: 12,
     slaBreached: 1,
     slaAtRisk: 0,
     slaOnTrack: 3,
@@ -616,6 +617,7 @@ function summaryFor(scenario: OpsScenario, operatorCount: number) {
       acknowledged: 0,
       assignedToMe: 0,
       unassigned: 0,
+      resolved: 0,
       slaBreached: 0,
       slaAtRisk: 0,
       slaOnTrack: 0,
@@ -623,7 +625,7 @@ function summaryFor(scenario: OpsScenario, operatorCount: number) {
     };
   }
   if (scenario === "one-incident") {
-    return { ...base, open: 1, critical: 1, high: 0, warning: 0, info: 0, unassigned: 1, assignedToMe: 0, acknowledged: 0, slaBreached: 0, slaAtRisk: 0, slaOnTrack: 1, slaUntracked: 0 };
+    return { ...base, open: 1, critical: 1, high: 0, warning: 0, info: 0, unassigned: 1, assignedToMe: 0, acknowledged: 0, slaBreached: 0, slaAtRisk: 0, slaOnTrack: 1, slaUntracked: 0, resolved: 0 };
   }
   if (scenario === "hundred-plus") {
     return { ...base, open: 137, critical: 35, high: 34, warning: 34, info: 34, unassigned: 46, assignedToMe: 46, overdue: 22 };

@@ -495,7 +495,11 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                   >
                     <button
                       type="button"
-                      className="app-secondary-action"
+                      // The destructive verb reads as destructive: canonical
+                      // red TEXT on white, not a red fill. A filled red button
+                      // is the loudest thing on the panel, and this action is
+                      // recoverable — trash deletes nothing.
+                      className="app-secondary-action evidence-detail-danger-action"
                       onClick={() => {
                         if (trashDisabled) return;
                         setTrashOpen(true);

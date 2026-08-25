@@ -155,7 +155,9 @@
   display: flex;
   gap: 10px;
   align-content: start;
-  align-items: center;
+  /* start, not center: the action stack is taller than the download row, and
+     centring it against them left both floating off their own baseline. */
+  align-items: flex-start;
   flex-wrap: wrap;
   margin-top: 16px;
   padding-top: 16px;
@@ -1205,23 +1207,56 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
   unicode-bidi: isolate;
   text-align: start;
   font-variant-numeric: tabular-nums;
-}/* Icon actions sit at the LOGICAL end, so they mirror correctly in RTL. */
+}/* THE HERO ACTION STACK.
+ *
+ * Vertical, at the LOGICAL end so it mirrors correctly in RTL. Every control
+ * is the same width, the same height and the same radius, because four
+ * operations of equal standing rendered at four widths reads as a ranking
+ * nobody intended. Compact by design — these organise the record; the page's
+ * primary actions are the two downloads under the title. */
 .evidence-detail-hero-icon-actions {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   margin-inline-start: auto;
+  inline-size: 168px;
+  flex: 0 0 auto;
 }
-.evidence-detail-icon-action {
-  min-width: 40px;
-  min-height: 40px;
-  padding: 0;
-  justify-content: center;
-  border-radius: 10px;
+.evidence-detail-hero-action {
+  inline-size: 100%;
+  min-block-size: 32px;
+  padding-block: 0;
+  padding-inline: 10px;
+  gap: 8px;
+  justify-content: flex-start;
+  border-radius: 8px;
+  font-size: 12.5px;
+  white-space: nowrap;
 }
-.evidence-detail-icon-action:disabled {
+.evidence-detail-hero-action:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* NARROW: the stack goes UNDER the title rather than squeezing it.
+ *
+ * A fixed 168px column beside a wrapping title is what produces a two-word-
+ * per-line heading on a tablet, and at phone widths it is what produces
+ * horizontal overflow. Below 900px it becomes a full-width row of equal cells
+ * that wrap — same controls, same labels, no scrollbar. */
+@media (max-width: 900px) {
+  .evidence-detail-hero-icon-actions {
+    inline-size: 100%;
+    margin-inline-start: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .evidence-detail-hero-action {
+    inline-size: auto;
+    flex: 1 1 140px;
+    justify-content: center;
+  }
 }
 .evidence-detail-tabs::-webkit-scrollbar {
   display: none;
@@ -5134,4 +5169,24 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
   }
+}
+
+/* DESTRUCTIVE, NOT ALARMING.
+ *
+ * White ground, canonical red text (`--error`), the same border and the same
+ * geometry as the secondary action it extends — so it sits in line with its
+ * neighbours and only the word is red. A red FILL would make the loudest
+ * control on the panel the one that deletes nothing: trash is recoverable, and
+ * the styling should not claim otherwise.
+ *
+ * The disabled state keeps the neutral secondary treatment: a refusal is not
+ * a danger, and a greyed-out red reads as a broken button. */
+.evidence-detail-danger-action:not(:disabled) {
+  color: var(--error);
+  border-color: color-mix(in srgb, var(--error) 32%, var(--border-default));
+  background: var(--surface-card);
+}
+.evidence-detail-danger-action:not(:disabled):hover {
+  background: color-mix(in srgb, var(--error) 6%, var(--surface-card));
+  border-color: color-mix(in srgb, var(--error) 48%, var(--border-default));
 }

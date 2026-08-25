@@ -17,6 +17,24 @@
   --ops-tone-info: #64748b;
 }
 
+/* ---------- readable secondary ink for this surface ----------
+ *
+ * `--ink-muted` is #94A3B8. On a white card that is roughly 2.8:1 — below the
+ * 4.5:1 floor — and this sheet reached for it for timestamps, counts, source
+ * labels, filter captions and "Showing 25 of 28": the things a reader actually
+ * scans. The result read as pale rather than as quiet.
+ *
+ * The token is NOT changed globally; it is the right value for genuinely
+ * decorative text elsewhere. This sheet maps the muted ROLE onto the
+ * secondary ink the Operations tables already use, so the hierarchy survives
+ * (title strongest, body secondary, metadata softer) with every level still
+ * legible. No new colour is introduced — `--ink-secondary` is the existing
+ * canonical token.
+ */
+[data-phase-c-inbox] {
+  --ink-muted: var(--ink-secondary);
+}
+
 /* ---------- summary tiles ---------- */
 
 .ops-tone-tile {
@@ -168,7 +186,20 @@
 .ops-item[data-tone="high"]     { border-left-color: var(--ops-tone-high); }
 .ops-item[data-tone="warning"]  { border-left-color: var(--ops-tone-warning); }
 .ops-item[data-tone="info"]     { border-left-color: var(--ops-tone-info); }
-.ops-item[data-read="true"] { opacity: 0.7; }
+/* READ ROWS ARE NOT FADED (2026-08-25).
+ *
+ * This was `opacity: 0.7`, applied to the whole card. Most of a notification
+ * list is read, so most of the surface was rendered at 70% — title, body,
+ * timestamps, chips and the action buttons alike. Combined with the muted ink
+ * below it put the metadata under 2:1 against the card, which is what "washed
+ * out" was.
+ *
+ * Read state is already carried by the unread marker and the row's own
+ * background; it does not also need to cost legibility. The surface recedes
+ * here instead of the text. */
+.ops-item[data-read="true"] {
+  background: var(--surface-muted);
+}
 .ops-item__main { min-width: 0; flex: 1 1 auto; }
 .ops-item__title {
   font-weight: 600;

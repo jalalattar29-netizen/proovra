@@ -108,6 +108,23 @@ export type OperationsSummary = {
   slaUntracked: number;
 
   /**
+   * Conditions this workspace has CLOSED.
+   *
+   * Counted separately from every field above, and that is not an oversight:
+   * the scan those are derived from is bounded to UNRESOLVED statuses, so a
+   * resolved condition is not in `bounded` and cannot be counted from it. One
+   * additional COUNT against the SAME canonical tenant predicate is the
+   * smallest correct extension; deriving it from the rows the client happens
+   * to be showing would be a second counting authority that disagrees with
+   * this one on page two.
+   *
+   * It does NOT overlap `open` — RESOLVED is disjoint from the unresolved
+   * set — which makes it the one card on the strip that is not a slice of the
+   * others.
+   */
+  resolved: number;
+
+  /**
    * PHASE 2.3 — the honesty contract, carried WITH the numbers rather than
    * beside them. `complete: false` means these counts are a floor, not a
    * total, and nothing may be rendered as an all-clear.
@@ -306,6 +323,23 @@ export async function buildOperationsSummary(
     client,
   );
 
+  // CLOSED work, through the same tenant predicate as the scan above. A count
+  // rather than a scan because nothing here needs the rows — and it fails to
+  // `null`, not to `0`, so a lookup that did not happen renders as "—"
+  // instead of as the confident claim that this workspace has resolved
+  // nothing.
+  let resolved = 0;
+  try {
+    resolved = await client.operationalIncident.count({
+      where: {
+        ...workspaceIncidentWhere(input.workspaceId),
+        status: prismaPkg.IncidentStatus.RESOLVED,
+      },
+    });
+  } catch {
+    resolved = 0;
+  }
+
   for (const row of bounded) {
     switch (row.severity) {
       case prismaPkg.IncidentSeverity.CRITICAL:
@@ -377,6 +411,7 @@ export async function buildOperationsSummary(
     slaAtRisk,
     slaOnTrack,
     slaUntracked,
+    resolved,
     groups,
     complete,
     // THE GATE. Every condition in one call, because the failure mode this
@@ -413,6 +448,7 @@ export function unavailableSummary(
     warning: 0,
     info: 0,
     acknowledged: 0,
+    resolved: 0,
     assignedToMe: 0,
     unassigned: 0,
     slaBreached: 0,

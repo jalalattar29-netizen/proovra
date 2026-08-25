@@ -201,6 +201,8 @@ export type OperationsSummary = {
   slaAtRisk: number;
   slaOnTrack: number;
   slaUntracked: number;
+  /** Closed conditions. Counted by the same authority, disjoint from `open`. */
+  resolved: number;
   complete: boolean;
   mayAssertAllClear: boolean;
   incompleteReason: string | null;

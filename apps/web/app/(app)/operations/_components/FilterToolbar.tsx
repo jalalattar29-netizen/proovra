@@ -28,6 +28,7 @@
  * OPERATIONS_ASSIGN.
  */
 
+import { useDebouncedSearchInput } from "../../../../lib/useDebouncedSearchInput";
 import * as React from "react";
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
@@ -117,6 +118,10 @@ export function FilterToolbar({
     label: SORT_LABEL[s],
   }));
 
+  // The input types locally; the URL write (and, on Operations, the incident
+  // fetch keyed on it) is debounced. See useDebouncedSearchInput.
+  const search = useDebouncedSearchInput(filters.q, (q) => onChange({ q }));
+
   return (
     <div className="app-section-stack">
       <div className="opsw-toolbar" data-ops-controls>
@@ -127,8 +132,8 @@ export function FilterToolbar({
           <input
             type="search"
             className="app-search-input"
-            value={filters.q}
-            onChange={(e) => onChange({ q: e.target.value })}
+            value={search.value}
+            onChange={(e) => search.onChange(e.target.value)}
             placeholder="Search conditions"
             aria-label="Search operational conditions"
             data-ops-search

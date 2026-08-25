@@ -1128,6 +1128,20 @@ export function EventTimeline({
  * the route file. Every control maps to an action the route already owned; the
  * caller still owns the handlers, permissions and disabled reasons.
  */
+/**
+ * The hero action stack.
+ *
+ * These were four 40x40 icon squares with no visible text: an operator had to
+ * hover each one to learn what it did, and a chain link, a padlock, a box and
+ * a pencil are not self-evident on a record whose whole subject is custody.
+ * Each is now icon + a short label, in the canonical action primitives —
+ * `app-primary-action` for Copy link (the dark treatment), `app-secondary-action`
+ * for the rest — stacked vertically at equal width. Compact deliberately: this
+ * is a sidebar of record operations, not the page's call to action.
+ *
+ * The name is kept because every call site and the layout gate use it; what
+ * changed is the presentation, not the set of actions or their guards.
+ */
 export function EvidenceHeroIconActions({
   lockedAt,
   archivedAt,
@@ -1159,77 +1173,81 @@ export function EvidenceHeroIconActions({
       <div className="evidence-detail-hero-icon-actions">
         <button
           type="button"
-          className="app-ghost-action evidence-detail-icon-action"
+          className="app-primary-action evidence-detail-hero-action"
           onClick={onCopyShareLink}
           disabled={isIntegrityFailed || !shareUrl}
+          // The accessible name stays the FULL verb phrase; the visible label
+          // is a contiguous substring of it, so WCAG 2.5.3 (Label in Name)
+          // holds and voice control still reaches the button by what it says.
           aria-label="Copy verification link"
           title={titles.share}
           data-evidence-action="copy-verification-link"
         >
-          <Link2 size={17} strokeWidth={1.9} aria-hidden="true" />
+          <Link2 size={15} strokeWidth={1.9} aria-hidden="true" />
+          <span>Verification link</span>
         </button>
 
         {lockedAt ? (
           <button
             type="button"
-            className="app-ghost-action evidence-detail-icon-action"
+            className="app-secondary-action evidence-detail-hero-action"
             onClick={onUnlock}
             disabled={deleted}
-            aria-label="Unlock record"
             title={titles.unlock}
             data-evidence-action="unlock-record"
           >
-            <LockOpen size={17} strokeWidth={1.9} aria-hidden="true" />
+            <LockOpen size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Unlock</span>
           </button>
         ) : (
           <button
             type="button"
-            className="app-ghost-action evidence-detail-icon-action"
+            className="app-secondary-action evidence-detail-hero-action"
             onClick={onLock}
             disabled={deleted || isIntegrityFailed}
-            aria-label="Lock record"
             title={titles.lock}
             data-evidence-action="lock-record"
           >
-            <Lock size={17} strokeWidth={1.9} aria-hidden="true" />
+            <Lock size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Lock</span>
           </button>
         )}
 
         {archivedAt ? (
           <button
             type="button"
-            className="app-ghost-action evidence-detail-icon-action"
+            className="app-secondary-action evidence-detail-hero-action"
             onClick={onRestoreArchived}
             disabled={deleted}
-            aria-label="Restore archived evidence"
             title={titles.restore}
             data-evidence-action="restore-archived"
           >
-            <RotateCcw size={17} strokeWidth={1.9} aria-hidden="true" />
+            <RotateCcw size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Restore</span>
           </button>
         ) : (
           <button
             type="button"
-            className="app-ghost-action evidence-detail-icon-action"
+            className="app-secondary-action evidence-detail-hero-action"
             onClick={onArchive}
             disabled={deleted}
-            aria-label="Archive evidence"
             title={titles.archive}
             data-evidence-action="archive-evidence"
           >
-            <Archive size={17} strokeWidth={1.9} aria-hidden="true" />
+            <Archive size={15} strokeWidth={1.9} aria-hidden="true" />
+            <span>Archive</span>
           </button>
         )}
 
         <button
           type="button"
-          className="app-ghost-action evidence-detail-icon-action"
+          className="app-secondary-action evidence-detail-hero-action"
           onClick={onEditLabel}
-          aria-label="Edit label"
-          title="Edit label"
+          title="Edit the evidence name"
           data-evidence-action="edit-label"
         >
-          <Pencil size={17} strokeWidth={1.9} aria-hidden="true" />
+          <Pencil size={15} strokeWidth={1.9} aria-hidden="true" />
+          <span>Edit name</span>
         </button>
       </div>
   );

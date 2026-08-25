@@ -172,6 +172,7 @@ export type QueueMetricKey =
   | "high"
   | "slaBreached"
   | "slaAtRisk"
+  | "resolved"
   | "assignedToMe"
   | "unassigned";
 
@@ -195,6 +196,7 @@ export const QUEUE_METRIC_ORDER: readonly QueueMetricKey[] = Object.freeze([
   "high",
   "slaBreached",
   "slaAtRisk",
+  "resolved",
   "assignedToMe",
   "unassigned",
 ]);
@@ -217,25 +219,25 @@ export const QUEUE_METRIC_VOCABULARY: Readonly<
 > = Object.freeze({
   open: {
     label: "Unresolved",
-    tone: "blue",
+    tone: "slate",
     note: "Open or acknowledged.",
     collaborative: false,
   },
   critical: {
     label: "Critical",
-    tone: "red",
+    tone: "orange",
     note: "Affecting records now.",
     collaborative: false,
   },
   high: {
     label: "High",
-    tone: "orange",
+    tone: "red",
     note: "Needs an operator soon.",
     collaborative: false,
   },
   slaBreached: {
     label: "Overdue",
-    tone: "red",
+    tone: "blue",
     // Names the AUTHORITY rather than a number: the promise differs per
     // workspace and, for a historical condition, differs from today's.
     note: "Past the time this workspace committed to.",
@@ -243,8 +245,14 @@ export const QUEUE_METRIC_VOCABULARY: Readonly<
   },
   slaAtRisk: {
     label: "Due soon",
-    tone: "amber",
+    tone: "indigo",
     note: "Approaching the committed time.",
+    collaborative: false,
+  },
+  resolved: {
+    label: "Resolved",
+    tone: "green",
+    note: "Closed operational conditions.",
     collaborative: false,
   },
   assignedToMe: {

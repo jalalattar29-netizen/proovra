@@ -102,7 +102,15 @@
 }
 .opsw-summary__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  /* SIX cards. `auto-fit` with a 148px floor let six squeeze onto one row at
+     widths where each was too narrow to read; `auto-fill` with a 172px floor
+     wraps to 3+3 instead, which is legible at every width and still fits one
+     row on a wide desktop. */
+  grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
+  /* Equal rows. Once the strip wraps, a one-line note and a two-line note
+     produced cards of different heights in different rows, and the eye reads
+     that difference as meaning. */
+  grid-auto-rows: 1fr;
   gap: 10px;
   margin: 0;
   padding: 0;

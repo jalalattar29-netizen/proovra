@@ -28,6 +28,7 @@
 import * as React from "react";
 
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import { formatUserDateTime } from "../../../../lib/date";
 import { describeRelativeTime } from "../../../../lib/relative-time";
 import type { OperationsRowModel } from "../_lib/rowModel";
@@ -130,15 +131,25 @@ function SeverityBadge({ row }: { row: OperationsRowModel }) {
   );
 }
 
+/**
+ * Lifecycle status, as TEXT on the row — no capsule.
+ *
+ * `AppStatusText` is the canonical no-capsule sibling of `AppStatusBadge`, so
+ * this drops the pill without inventing a second status style. Severity above
+ * keeps its filled badge deliberately: with both columns capsuled, a row read
+ * as two competing chips and the eye had nothing to land on. Colour still
+ * carries the same meaning it did, and the label still carries it without
+ * colour.
+ */
 function StatusBadge({ row }: { row: OperationsRowModel }) {
   return (
-    <AppStatusBadge
+    <AppStatusText
       tone={row.statusTone}
       title={row.statusExplanation}
       data-ops-status={row.statusValue}
     >
       {row.statusLabel}
-    </AppStatusBadge>
+    </AppStatusText>
   );
 }
 
