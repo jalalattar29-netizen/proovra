@@ -36,6 +36,7 @@ import {
   resolveWriterContract,
   writerModelColumns,
   legacyColumnsFor,
+  legacyColumnsSql,
   canonicalDedupeIndexSql,
 } from "../scripts/operations-writer-schema-contract.mjs";
 
@@ -342,13 +343,13 @@ describe("The Operations writer schema contract", () => {
     });
   });
 
-  it("REFUSES a schema whose canonical columns are all present but whose legacy twins survive", async () => {
+  it("REFUSES a schema whose canonical columns are all present but whose legacy twins block the write", async () => {
     // The exact production shape: nothing missing, everything wrong.
     const result = await checkOperationsWriterContract(dmmf, async (sql) => {
       if (sql.includes("missing_column")) return [];
       if (sql.includes("legacy_column")) {
         return sql.includes("operational_incidents'")
-          ? [{ legacy_column: "teamId" }, { legacy_column: "runbookSlug" }]
+          ? [{ legacy_column: "safeSummary" }, { legacy_column: "runbookSlug" }]
           : [];
       }
       return [{ ok: 1 }]; // the dedupe index exists
@@ -356,13 +357,32 @@ describe("The Operations writer schema contract", () => {
     expect(result.ok).toBe(false);
     expect(result.missing).toEqual([]);
     expect(result.legacy).toHaveLength(1);
-    expect(result.legacy[0].columns).toEqual(["teamId", "runbookSlug"]);
+    expect(result.legacy[0].columns).toEqual(["safeSummary", "runbookSlug"]);
 
     const described = describeWriterContractFailure(result);
     expect(described).toContain("LEGACY duplicate");
-    expect(described).toContain("teamId");
+    expect(described).toContain("safeSummary");
     // It explains WHY a duplicate is fatal rather than merely listing it.
     expect(described).toMatch(/23502|NOT NULL/);
+  });
+
+  it("asks the database for WRITE-BLOCKING twins, not merely present ones", () => {
+    // The predicate is the whole difference between a tidiness fact and a
+    // readiness fact. An INSERT naming only the canonical columns leaves each
+    // legacy twin to its default: a nullable one takes NULL and succeeds, one
+    // that is NOT NULL with no default has nothing to take and fails 23502.
+    //
+    // Pinned as SQL because the expand migration deliberately LEAVES the
+    // columns in place after relaxing them — a contract that refused on mere
+    // presence would answer 503 for the whole life of that release.
+    const sql = legacyColumnsSql({
+      table: "operational_incidents",
+      columns: ["safeSummary", "teamId"],
+    })!;
+    expect(sql).toMatch(/is_nullable\s*=\s*'NO'/);
+    expect(sql).toMatch(/column_default\s+IS\s+NULL/);
+    expect(sql).toContain("'operational_incidents'");
+    expect(legacyColumnsSql({ table: "x", columns: [] })).toBeNull();
   });
 
   it("REFUSES a schema whose dedupe unique does not cover (team_id, fingerprint)", async () => {

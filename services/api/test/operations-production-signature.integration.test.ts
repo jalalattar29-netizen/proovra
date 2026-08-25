@@ -714,8 +714,16 @@ describe("Operations production signature (live PostgreSQL 16)", () => {
     const incidents = broken.legacy.find(
       (l: { table: string }) => l.table === "operational_incidents",
     )!;
+    // The column that actually fails the INSERT: VARCHAR(400) NOT NULL, no
+    // default, so an insert naming only the canonical columns has nothing to
+    // put in it.
     expect(incidents.columns).toContain("safeSummary");
-    expect(incidents.columns).toContain("teamId");
+    // And the twins that DO NOT block a write are deliberately not reported.
+    // `"teamId"` is present in the hybrid and is nullable, so an insert
+    // leaves it NULL and succeeds. Reporting it would make the contract refuse
+    // for the entire life of this release, whose migration relaxes the NOT
+    // NULLs and leaves every legacy column standing.
+    expect(incidents.columns).not.toContain("teamId");
     expect(incidents.criticality).toBe("MANDATORY");
     // And the dedupe binding is reported gone.
     expect(broken.bindings.map((b: { table: string }) => b.table)).toContain(

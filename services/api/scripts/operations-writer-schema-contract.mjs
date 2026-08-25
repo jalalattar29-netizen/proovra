@@ -223,8 +223,30 @@ export function legacyColumnsFor(dmmf, modelName) {
 }
 
 /**
- * One statement per table returning any LEGACY twin that is physically
- * present. Empty is the healthy answer.
+ * One statement per table returning every LEGACY twin that BLOCKS A WRITE.
+ * Empty is the healthy answer.
+ *
+ * "Blocks a write" is `NOT NULL with no default`, and the narrowing from
+ * "is present" is deliberate — it is the difference between a tidiness fact
+ * and a readiness fact, and this is the one `/readyz` answers.
+ *
+ * An INSERT that names only the canonical columns leaves every legacy twin to
+ * its default. A nullable twin takes NULL and the insert succeeds; a twin that
+ * is NOT NULL with no default has nothing to take, and PostgreSQL refuses the
+ * whole statement with 23502 — which is precisely the production failure, on
+ * `"safeSummary"`, measured with the real writer against a reproduced hybrid.
+ *
+ * Reporting mere presence would be wrong in a way that matters: the expand
+ * migration relaxes those NOT NULLs and deliberately leaves the columns in
+ * place, because dropping them is a separate release. A contract that refused
+ * on presence would answer 503 for the entire life of this release — turning
+ * a repaired writer into an unserviceable image, which is a worse outage than
+ * the one being fixed.
+ *
+ * The other two harms the legacy family causes are NOT dropped by this
+ * narrowing; they are simply not this predicate's job. A misbound UNIQUE has
+ * its own check (`canonicalDedupeIndexSql`) and remains part of `ok`, and
+ * two-columns-for-one-fact is a convergence concern the migration handles.
  */
 export function legacyColumnsSql(entry) {
   if (entry.columns.length === 0) return null;
@@ -235,6 +257,8 @@ export function legacyColumnsSql(entry) {
       JOIN (VALUES ${values}) AS d(col) ON d.col = c.column_name
      WHERE c.table_schema = 'public'
        AND c.table_name = ${quoteLiteral(entry.table)}
+       AND c.is_nullable = 'NO'
+       AND c.column_default IS NULL
      ORDER BY c.column_name`;
 }
 
@@ -387,15 +411,18 @@ export function describeWriterContractFailure(result) {
   }
   for (const l of result.legacy ?? []) {
     lines.push(
-      `  - ${l.table} carries ${l.columns.length} LEGACY duplicate column(s): ${l.columns.join(", ")}`,
+      `  - ${l.table} carries ${l.columns.length} WRITE-BLOCKING LEGACY duplicate column(s): ${l.columns.join(", ")}`,
     );
     lines.push(
       `      these are earlier, un-mapped generations of fields the model now maps.`,
     );
     lines.push(
-      `      A legacy twin that is NOT NULL with no default makes EVERY insert fail 23502,`,
+      `      Each is NOT NULL with no default, so EVERY insert naming only the canonical`,
     );
-    lines.push(`      and any index built on one enforces nothing about the canonical column.`);
+    lines.push(
+      `      columns fails 23502. Relaxing the constraint is what unblocks the writer;`,
+    );
+    lines.push(`      dropping the column is a separate, later concern.`);
   }
   for (const b of result.bindings ?? []) {
     lines.push(`  - ${b.table}: ${b.issue}`);
