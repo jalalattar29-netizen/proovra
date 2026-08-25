@@ -35,6 +35,8 @@ import {
   missingColumnsSql,
   resolveWriterContract,
   writerModelColumns,
+  legacyColumnsFor,
+  canonicalDedupeIndexSql,
 } from "../scripts/operations-writer-schema-contract.mjs";
 
 /** A Prisma-shaped error, as the client actually produces it. */
@@ -259,9 +261,17 @@ describe("The Operations writer schema contract", () => {
   });
 
   it("passes a database that satisfies the model", async () => {
-    const result = await checkOperationsWriterContract(dmmf, async () => []);
+    // The healthy answers: nothing missing, no legacy twin, and one row back
+    // from the dedupe probe meaning a unique index DOES cover the canonical
+    // pair. All three are required now — an empty answer to the third is a
+    // missing constraint, not a pass.
+    const result = await checkOperationsWriterContract(dmmf, async (sql) =>
+      sql.includes("missing_column") || sql.includes("legacy_column") ? [] : [{ ok: 1 }],
+    );
     expect(result.ok).toBe(true);
     expect(result.missing).toEqual([]);
+    expect(result.legacy).toEqual([]);
+    expect(result.bindings).toEqual([]);
     expect(result.checkedTables).toEqual([
       "operational_incidents",
       "operational_incident_events",
@@ -269,11 +279,15 @@ describe("The Operations writer schema contract", () => {
   });
 
   it("names the missing columns and the stage they break", async () => {
-    const result = await checkOperationsWriterContract(dmmf, async (sql) =>
-      sql.includes("operational_incidents'")
-        ? [{ missing_column: "runbook_slug" }]
-        : [],
-    );
+    const result = await checkOperationsWriterContract(dmmf, async (sql) => {
+      if (sql.includes("missing_column")) {
+        return sql.includes("operational_incidents'")
+          ? [{ missing_column: "runbook_slug" }]
+          : [];
+      }
+      if (sql.includes("legacy_column")) return [];
+      return [{ ok: 1 }];
+    });
     expect(result.ok).toBe(false);
     expect(result.missing).toHaveLength(1);
     expect(result.missing[0]).toMatchObject({
@@ -286,7 +300,7 @@ describe("The Operations writer schema contract", () => {
     expect(described).toContain("runbook_slug");
     expect(described).toContain("LOOKUP / CREATE / UPDATE");
     // Actionable, and carrying nothing a driver said.
-    expect(described).toContain("Apply the outstanding migrations");
+    expect(described).toContain("Apply the outstanding convergence migration");
     expect(described).not.toContain("SELECT");
   });
 
@@ -303,6 +317,75 @@ describe("The Operations writer schema contract", () => {
       "operational_incident_events",
     ]);
     expect(describeWriterContractFailure(result)).toContain("treated as unsatisfied");
+  });
+
+  // =======================================================================
+  // NEGATIVE — the checks that must FAIL when the drift returns.
+  //
+  // The first version of this contract passed on the production schema. These
+  // cases exist so that can never happen again silently: each one asserts a
+  // REFUSAL, and each would have caught the live fault.
+  // =======================================================================
+
+  it("derives the legacy family from the model's own @map annotations", () => {
+    // The legacy columns are exactly the FIELD names of fields that carry a
+    // `@map` — which is what a client without the annotation emits, and is
+    // why this is derived rather than typed out.
+    expect(legacyColumnsFor(dmmf, "OperationalIncident")).toEqual({
+      table: "operational_incidents",
+      columns: ["teamId", "runbookSlug"],
+    });
+    // A model with no mapped fields has no legacy family at all.
+    expect(legacyColumnsFor(dmmf, "OperationalIncidentEvent")).toEqual({
+      table: "operational_incident_events",
+      columns: [],
+    });
+  });
+
+  it("REFUSES a schema whose canonical columns are all present but whose legacy twins survive", async () => {
+    // The exact production shape: nothing missing, everything wrong.
+    const result = await checkOperationsWriterContract(dmmf, async (sql) => {
+      if (sql.includes("missing_column")) return [];
+      if (sql.includes("legacy_column")) {
+        return sql.includes("operational_incidents'")
+          ? [{ legacy_column: "teamId" }, { legacy_column: "runbookSlug" }]
+          : [];
+      }
+      return [{ ok: 1 }]; // the dedupe index exists
+    });
+    expect(result.ok).toBe(false);
+    expect(result.missing).toEqual([]);
+    expect(result.legacy).toHaveLength(1);
+    expect(result.legacy[0].columns).toEqual(["teamId", "runbookSlug"]);
+
+    const described = describeWriterContractFailure(result);
+    expect(described).toContain("LEGACY duplicate");
+    expect(described).toContain("teamId");
+    // It explains WHY a duplicate is fatal rather than merely listing it.
+    expect(described).toMatch(/23502|NOT NULL/);
+  });
+
+  it("REFUSES a schema whose dedupe unique does not cover (team_id, fingerprint)", async () => {
+    const result = await checkOperationsWriterContract(dmmf, async (sql) => {
+      if (sql.includes("missing_column")) return [];
+      if (sql.includes("legacy_column")) return [];
+      return []; // no unique index covers the canonical pair
+    });
+    expect(result.ok).toBe(false);
+    expect(result.missing).toEqual([]);
+    expect(result.legacy).toEqual([]);
+    expect(result.bindings).toHaveLength(1);
+    expect(result.bindings[0].table).toBe("operational_incidents");
+    expect(result.bindings[0].issue).toMatch(/deduplication is not enforced/);
+  });
+
+  it("the dedupe probe matches the canonical pair and nothing else", () => {
+    const sql = canonicalDedupeIndexSql();
+    // Column NAMES, sorted, compared as an array — so an index on
+    // ("teamId", fingerprint) cannot satisfy it however it is named.
+    expect(sql).toContain("ARRAY['fingerprint','team_id']");
+    expect(sql).toContain("indisunique");
+    expect(sql).not.toContain("teamId");
   });
 
   it("skips a model the deployed client does not declare rather than guessing its table", () => {
