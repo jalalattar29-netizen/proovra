@@ -32,7 +32,14 @@ import { prisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import {
+  reportSourceFailure,
+  toSourceFailure,
+} from "../operations/operations-source-diagnostics.js";
+import {
+  workspaceEvidenceWhere,
+  type OperationsSourceFailure,
+} from "@proovra/shared-runtime";
 
 // ---------- Thresholds — every one is real platform state -----------------
 
@@ -98,11 +105,21 @@ export type WorkspaceDiscoveryResult = {
     successful: string[];
     failed: string[];
     truncated: string[];
+    /**
+     * WHY each failed source failed. One entry per id in `failed`.
+     *
+     * The ids alone were measured to be insufficient: a production workspace
+     * reported six failed sources with no recoverable cause, because the
+     * handlers below caught with a bare `catch {}` and did not bind the error.
+     * Every handler now binds it, classifies it through one authority, and
+     * reports the operator-side detail separately.
+     */
+    failures: OperationsSourceFailure[];
   };
 };
 
 export async function generateIncidentsForWorkspace(
-  input: { teamId: string },
+  input: { teamId: string; requestId?: string | null; traceId?: string | null },
 ): Promise<WorkspaceDiscoveryResult> {
   const rules: string[] = [];
   let recorded = 0;
@@ -111,6 +128,37 @@ export async function generateIncidentsForWorkspace(
   const successful: string[] = [];
   const failedSources: string[] = [];
   const truncatedSources: string[] = [];
+  const failures: OperationsSourceFailure[] = [];
+
+  /**
+   * ONE place a source failure is recorded, so the id and the reason cannot
+   * come apart. Every handler below routes through this; none of them may
+   * push onto `failedSources` directly, and
+   * `operations-source-accounting.test.ts` pins that.
+   *
+   * `stage` matters: SCAN means the condition could not be LOOKED for, WRITE
+   * means it was found and could not be RECORDED. The second is strictly
+   * worse — there is a real, observed, unrecorded condition in the workspace —
+   * and only the second can be true while discovery is perfectly healthy,
+   * which is exactly the production signature this closes.
+   */
+  const failSource = (
+    sourceIds: string[],
+    stage: "SCAN" | "WRITE" | "UNKNOWN",
+    err: unknown,
+  ): void => {
+    failed += 1;
+    for (const sourceId of sourceIds) {
+      const failure = toSourceFailure(sourceId, stage, err);
+      failedSources.push(sourceId);
+      failures.push(failure);
+      reportSourceFailure(failure, err, {
+        workspaceId: input.teamId,
+        requestId: input.requestId ?? null,
+        traceId: input.traceId ?? null,
+      });
+    }
+  };
 
   // Resolve the canonical workspace evidence scope ONCE, and thread it through
   // every evidence-derived scan below. This is the whole correction: a raw
@@ -162,9 +210,12 @@ export async function generateIncidentsForWorkspace(
     } else {
       successful.push(...INTEGRITY_SOURCE_IDS);
     }
-  } catch {
-    failed += 1;
-    failedSources.push(...INTEGRITY_SOURCE_IDS);
+  } catch (err) {
+    // The integrity pass both scans AND writes, so its stage cannot be
+    // attributed from out here without guessing. It tags its own error with
+    // the stage it was in (`inSourceStage`), and UNKNOWN is the honest
+    // fallback for anything that reached here untagged.
+    failSource(INTEGRITY_SOURCE_IDS, "UNKNOWN", err);
   }
 
   // Each entry names the REGISTERED source it covers, so the run records
@@ -201,12 +252,15 @@ export async function generateIncidentsForWorkspace(
           });
           recorded += 1;
           successful.push(sourceId);
-        } catch {
+        } catch (err) {
           // The scan SAW the condition and the write failed. The source is not
           // successful: its condition exists and is not recorded, which is
           // exactly the state that must stop a clear assertion.
-          failed += 1;
-          failedSources.push(sourceId);
+          //
+          // This is the handler that was a bare `catch {}`, and it is the one
+          // that mattered: every source that crossed its threshold in
+          // production arrived here, lost its cause, and reported a bare id.
+          failSource([sourceId], "WRITE", err);
         }
       } else {
         // Scanned, nothing above threshold. That IS a successful source — the
@@ -214,9 +268,11 @@ export async function generateIncidentsForWorkspace(
         // the whole reason this accounting exists.
         successful.push(sourceId);
       }
-    } catch {
-      failed += 1;
-      failedSources.push(sourceId);
+    } catch (err) {
+      // The discovery query itself gave way: nothing was learned about this
+      // source, which is a different and less alarming fact than a condition
+      // that was seen and could not be recorded.
+      failSource([sourceId], "SCAN", err);
     }
   }
 
@@ -229,6 +285,7 @@ export async function generateIncidentsForWorkspace(
       successful,
       failed: failedSources,
       truncated: truncatedSources,
+      failures,
     },
   };
 }

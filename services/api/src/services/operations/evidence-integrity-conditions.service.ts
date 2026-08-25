@@ -74,6 +74,7 @@ import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { recordIncident } from "../observability/incident.service.js";
+import { inSourceStage } from "./operations-source-diagnostics.js";
 import {
   classifyIntegrityFailure,
   describeFailureClass,
@@ -247,8 +248,14 @@ export async function syncEvidenceIntegrityConditions(
   //
   // Combined under AND: the scope filter can itself be an `OR` (personal), and
   // the failure filter is a second `OR`, so they cannot share one object level.
-  const scopeWhere = await workspaceEvidenceWhere(input.teamId, client);
-  const failing = (await client.evidence.findMany({
+  // Tagged SCAN so the sweep that catches this pass can say WHICH half gave
+  // way. From out there the two are indistinguishable, and a caller that
+  // guesses would report "could not look" for a workspace whose real state is
+  // "looked, found conditions, could not record them".
+  const scopeWhere = await inSourceStage("SCAN", () =>
+    workspaceEvidenceWhere(input.teamId, client),
+  );
+  const failing = (await inSourceStage("SCAN", () => client.evidence.findMany({
     where: {
       AND: [
         scopeWhere,
@@ -259,7 +266,7 @@ export async function syncEvidenceIntegrityConditions(
     select: EVIDENCE_SELECT,
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: SCAN_BOUND + 1,
-  })) as EvidenceIntegrityRow[];
+  }))) as EvidenceIntegrityRow[];
 
   if (failing.length > SCAN_BOUND) {
     result.complete = false;
@@ -267,23 +274,30 @@ export async function syncEvidenceIntegrityConditions(
   }
 
   // Legal-hold posture, read once for the whole batch rather than per record.
-  const heldEvidenceIds = await activeLegalHoldEvidenceIds(
-    client,
-    failing.map((e) => e.id),
+  const heldEvidenceIds = await inSourceStage("SCAN", () =>
+    activeLegalHoldEvidenceIds(
+      client,
+      failing.map((e) => e.id),
+    ),
   );
 
   for (const row of failing) {
     for (const integrityClass of INTEGRITY_CLASSES) {
       if (!isCurrentlyFailing(row, integrityClass)) continue;
-      const outcome = await recordIntegrityCondition(
-        {
-          evidence: row,
-          integrityClass,
-          teamId: input.teamId,
-          underLegalHold: heldEvidenceIds.has(row.id),
-          now,
-        },
-        client,
+      // WRITE: the condition has been OBSERVED by this point. A failure
+      // here leaves a real, unrecorded condition in the workspace, which is
+      // the strictly worse of the two stages and must be reported as such.
+      const outcome = await inSourceStage("WRITE", () =>
+        recordIntegrityCondition(
+          {
+            evidence: row,
+            integrityClass,
+            teamId: input.teamId,
+            underLegalHold: heldEvidenceIds.has(row.id),
+            now,
+          },
+          client,
+        ),
       );
       if (outcome === "opened") result.opened += 1;
       else if (outcome === "reobserved") result.reobserved += 1;
@@ -299,9 +313,8 @@ export async function syncEvidenceIntegrityConditions(
   // absence from a bounded scan is not evidence of anything (Phase 2.2). Each
   // open condition's own Evidence row is re-read by id instead.
   // -------------------------------------------------------------------------
-  result.resolved = await resolveRecoveredConditions(
-    { teamId: input.teamId, scopeWhere, now },
-    client,
+  result.resolved = await inSourceStage("WRITE", () =>
+    resolveRecoveredConditions({ teamId: input.teamId, scopeWhere, now }, client),
   );
 
   return result;

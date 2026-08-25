@@ -117,6 +117,39 @@ export async function recordIncident(
   // itself and the constraint provides no exclusion at all for these rows. The
   // dedup for them is therefore explicitly at the application layer, which is
   // where it was always actually happening.
+  // ---------------------------------------------------------------------
+  // THE LOOKUP IS EXPLICITLY NARROW, AND THAT IS NOT A MICRO-OPTIMISATION.
+  //
+  // Both branches used to carry no `select`, which makes Prisma request EVERY
+  // scalar column the model declares. That turned this statement into a
+  // full-width compatibility check between the image's data model and the
+  // database, executed before any condition-specific logic ran — so ONE
+  // column the model declared and the database lacked failed the FIRST
+  // statement of every recordIncident call, identically for every category.
+  //
+  // The observed production signature was exactly that: six sources that
+  // write all failed, five sources that only read all succeeded, and the
+  // workspace showed zero conditions over a real backlog.
+  //
+  // What is selected here is precisely what the code below reads, and nothing
+  // else. It is deliberately NOT a fix for a schema disagreement — the create
+  // and update below still return full rows and would still fail against a
+  // database missing a declared column, which is correct: masking a
+  // deployment mismatch inside the writer would hide it until something
+  // worse found it. `operations-writer-schema-contract.ts` is what refuses to
+  // report Healthy in that state.
+  // ---------------------------------------------------------------------
+  const DEDUPE_SELECT = {
+    id: true,
+    status: true,
+    severity: true,
+    requestId: true,
+    traceId: true,
+    relatedEvidenceId: true,
+    relatedJobId: true,
+    relatedProvider: true,
+  } as const;
+
   const existing = input.teamId
     ? await client.operationalIncident.findUnique({
         where: {
@@ -125,10 +158,12 @@ export async function recordIncident(
             fingerprint: input.fingerprint,
           },
         },
+        select: DEDUPE_SELECT,
       })
     : await client.operationalIncident.findFirst({
         where: { teamId: null, fingerprint: input.fingerprint },
         orderBy: { firstSeenAtUtc: "asc" },
+        select: DEDUPE_SELECT,
       });
 
   let row: prismaPkg.OperationalIncident;

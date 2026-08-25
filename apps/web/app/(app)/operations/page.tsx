@@ -705,6 +705,109 @@ function OperationsWorkbench() {
 
   const refresh = React.useCallback(() => setReloadToken((n) => n + 1), []);
 
+  // ---------------------------------------------------------------------
+  // "CHECK AGAIN" — a request for a NEW CHECK, not a re-read of the old one.
+  //
+  // It used to be `refresh`, which bumped a token and re-fetched the same
+  // summary. That is not what the button says. A workspace whose last run was
+  // PARTIAL would re-read the same PARTIAL run and render the same warning,
+  // and an operator pressing it repeatedly had no way to tell that nothing
+  // was being re-examined.
+  //
+  // Now it asks the server explicitly, then polls the run's readiness until
+  // it leaves RUNNING. The poll is BOUNDED — a fixed attempt budget with a
+  // widening interval — because an unbounded poller on a run that never
+  // finishes is a browser tab quietly hammering an API during an incident.
+  // Exhausting the budget is not an error: the run may still be going, and
+  // the surface says exactly that rather than inventing a failure.
+  // ---------------------------------------------------------------------
+  const RECONCILE_POLL_ATTEMPTS = 12;
+  const RECONCILE_POLL_BASE_MS = 750;
+  const RECONCILE_POLL_MAX_MS = 4000;
+
+  const checkAgain = React.useCallback(async () => {
+    if (!teamId || refreshing) return;
+    setRefreshing(true);
+    setMutationError(null);
+    try {
+      const started = (await apiFetch(`/v1/ops/workspace-reconcile`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ teamId }),
+      })) as { refusedReason?: string | null; retryable?: boolean } | null;
+
+      // A refusal the server can name is shown as itself. It is bounded
+      // server-side vocabulary, never a message from a driver.
+      if (started?.refusedReason) {
+        setMutationError(
+          started.retryable === false
+            ? {
+                title: "This check can't run right now",
+                message:
+                  "The app and its data store don't currently match, so a new check would fail the same way. Contact whoever manages this deployment.",
+                severity: "error",
+              }
+            : {
+                title: "A new check couldn't be started",
+                message: "Nothing has changed. Try again shortly.",
+                severity: "warning",
+              },
+        );
+        refresh();
+        return;
+      }
+
+      for (let attempt = 0; attempt < RECONCILE_POLL_ATTEMPTS; attempt += 1) {
+        const wait = Math.min(
+          RECONCILE_POLL_BASE_MS * 2 ** Math.floor(attempt / 3),
+          RECONCILE_POLL_MAX_MS,
+        );
+        await new Promise((r) => setTimeout(r, wait));
+        const polled = (await apiFetch(
+          `/v1/ops/summary?teamId=${encodeURIComponent(teamId)}`,
+          { method: "GET" },
+        )) as { summary?: { readiness?: string } } | null;
+        if (polled?.summary?.readiness !== "RUNNING") break;
+      }
+    } catch (err) {
+      setMutationError(
+        toSafeUserError(err, {
+          message: "A new check could not be started.",
+        }),
+      );
+    } finally {
+      // Whatever happened, re-read once so the surface renders the run that
+      // now exists rather than the one it remembered.
+      setRefreshing(false);
+      refresh();
+    }
+  }, [teamId, refreshing, refresh]);
+
+  /**
+   * A workspace nobody has ever scanned asks for its first check, ONCE.
+   *
+   * The GET no longer starts a run — it is a read and behaves like one — so
+   * something has to ask, or a workspace whose scheduler tick has not landed
+   * yet would sit on `NEVER_RUN` while an operator watched an empty page that
+   * says nothing has looked.
+   *
+   * Guarded by a ref rather than by the readiness value, deliberately. Keying
+   * off readiness alone would re-fire every time a summary re-read returned
+   * `NEVER_RUN`, which is exactly what happens while the first run is still
+   * being claimed: start a run, re-read too early, start another. The ref
+   * makes it once per workspace per mount, and the durable lock makes a
+   * duplicate harmless even if that reasoning is wrong.
+   */
+  const autoCheckedRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!teamId) return;
+    if (summary.kind !== "ready") return;
+    if (summary.data.readiness !== "NEVER_RUN") return;
+    if (autoCheckedRef.current === teamId) return;
+    autoCheckedRef.current = teamId;
+    void checkAgain();
+  }, [teamId, summary, checkAgain]);
+
   // -------------------------------------------------------------------------
   // MUTATIONS
   //
@@ -1068,6 +1171,23 @@ function OperationsWorkbench() {
     summary.kind === "ready" ? summary.data.mayAssertAllClear : false;
 
   /**
+   * Is a PARTIAL run worth re-running?
+   *
+   * Only if EVERY recorded failure is retryable. One source that failed on a
+   * deployment/schema disagreement makes the whole run un-fixable by pressing
+   * a button, and offering the button anyway teaches operators that the
+   * button does nothing.
+   *
+   * The default when a run carries no recorded reasons — which is every run
+   * written by an image older than this one — is `true`: an unknown cause is
+   * not evidence that a retry is pointless, and withholding the control on a
+   * guess is worse than offering one that may not help.
+   */
+  const partialIsRetryable =
+    (reconciliation?.sources.sourceFailures ?? []).length === 0 ||
+    (reconciliation?.sources.sourceFailures ?? []).every((f) => f.retryable);
+
+  /**
    * The all-clear predicate, stated once.
    *
    * FIVE things must be true now. The first four are unchanged: the read
@@ -1124,20 +1244,21 @@ function OperationsWorkbench() {
       {readiness === "FAILED" ? (
         <ReconciliationFailedNotice
           category={reconciliation?.safeFailureCategory ?? null}
-          onRetry={refresh}
+          onRetry={checkAgain}
         />
       ) : readiness === "STALLED" ? (
-        <ReconciliationStalledNotice onRetry={refresh} />
+        <ReconciliationStalledNotice onRetry={checkAgain} />
       ) : readiness === "PARTIAL" ? (
         <PartialCoverageNotice
           failedCount={reconciliation?.sources.failedSources.length ?? 0}
           truncatedCount={reconciliation?.sources.truncatedSources.length ?? 0}
-          onRetry={refresh}
+          onRetry={checkAgain}
+          retryable={partialIsRetryable}
         />
       ) : readiness === "STALE" ? (
         <ReconciliationStaleNotice
           completedAtUtc={reconciliation?.completedAtUtc ?? null}
-          onRetry={refresh}
+          onRetry={checkAgain}
         />
       ) : null}
 
