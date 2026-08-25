@@ -113,6 +113,32 @@ describe("the write path refuses with the SAME reason the projection reports", (
     expect(code(LIFECYCLE_SERVICE)).toMatch(/teamId: evidence\.teamId \?\? null,/);
   });
 
+  it("no plan NAME reaches the lifecycle decision", () => {
+    // A plan is a commercial fact. Tenancy comes from the workspace and the
+    // membership; the refusal comes from the hold. The harness records a
+    // classifier that once derived workspace KIND from `plan FREE`, so this is
+    // asserted rather than assumed — and asserted on the two files that
+    // actually decide, not repo-wide, because a plan literal is legitimate in
+    // billing and entitlement code.
+    for (const [label, body] of [
+      ["the canonical authority", code(AUTHORITY)],
+      ["the lifecycle mutation service", code(LIFECYCLE_SERVICE)],
+    ] as const) {
+      for (const plan of ["FREE", "PAYG", "PRO", "ENTERPRISE"]) {
+        expect(
+          body,
+          `${label} must not branch on the plan name ${plan}`,
+        ).not.toContain(`"${plan}"`);
+      }
+      for (const token of ["entitlement", "Entitlement", "PlanType", "planType"]) {
+        expect(
+          body,
+          `${label} must not read ${token}`,
+        ).not.toContain(token);
+      }
+    }
+  });
+
   it("single and bulk archive call the same function", () => {
     // Counted on the raw source: the block-comment stripper is too blunt for a
     // 7,000-line route file (a `*/` inside a regex literal swallows the span

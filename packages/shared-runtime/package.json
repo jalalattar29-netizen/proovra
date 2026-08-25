@@ -49,7 +49,10 @@
   "scripts": {
     "build": "pnpm exec tsc -p tsconfig.json",
     "typecheck": "pnpm exec tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build:deps": "pnpm --filter @proovra/shared build",
+    "prebuild": "pnpm run build:deps",
+    "pretypecheck": "pnpm run build:deps"
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.1055.0",

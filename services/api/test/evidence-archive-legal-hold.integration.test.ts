@@ -86,6 +86,9 @@ describe("Archive under a legal hold — canonical, every scope (live PostgreSQL
   let seq = 0;
   const tag = () => `${Math.floor(performance.now() * 1000)}-${(seq += 1)}`;
 
+  /** Fixed id so the plan-invariance probe can always clean up after itself. */
+  const PLAN_PROBE_ENTITLEMENT_ID = "00000000-0000-4000-8000-0000000f0100";
+
   /**
    * A fictional record. `teamId: null` is the PERSONAL shape and is the exact
    * row the governance gate short-circuits on, so it is spelled out rather
@@ -322,6 +325,165 @@ describe("Archive under a legal hold — canonical, every scope (live PostgreSQL
       const { status, body } = await singleArchive(id, org().ownerToken);
       expect(status).toBe(409);
       expect(body.code).toBe("LEGAL_HOLD_ACTIVE");
+      await expectUntouched(id);
+    });
+  });
+
+  // =========================================================================
+  // TEAM — an OWNED workspace. Structurally distinct from ORGANIZATION, and
+  // the kind the harness comment records as having been silently produced by a
+  // plan-derived classifier fallback, so it is worth its own case rather than
+  // being assumed to behave like its neighbour.
+  // =========================================================================
+
+  describe("TEAM scope (workspaceKind OWNED)", () => {
+    /** An OWNED workspace with its own organization container and one member. */
+    async function seedOwnedWorkspace(): Promise<{
+      teamId: string;
+      organizationId: string;
+      ownerUserId: string;
+      token: string;
+    }> {
+      const owner = harness.fixtures.teamA.ownerUserId;
+      const org = await prisma.organization.create({
+        data: {
+          name: `Owned container ${tag()}`,
+          billingOwnerUserId: owner,
+          status: "ACTIVE",
+          // SYSTEM, not CUSTOMER: an OWNED workspace's organization is the
+          // internal 1:1 container every Team receives, not a governance
+          // boundary. Naming it CUSTOMER here would make this an
+          // ORGANIZATION case wearing a different label.
+          kind: "SYSTEM",
+        } as never,
+        select: { id: true },
+      });
+      const team = await prisma.team.create({
+        data: {
+          name: `Owned workspace ${tag()}`,
+          ownerUserId: owner,
+          isPersonal: false,
+          organizationId: org.id,
+          workspaceKind: "OWNED",
+        } as never,
+        select: { id: true },
+      });
+      await prisma.teamMember.create({
+        data: { teamId: team.id, userId: owner, role: "OWNER", status: "ACTIVE" } as never,
+      });
+      return {
+        teamId: team.id,
+        organizationId: org.id,
+        ownerUserId: owner,
+        token: harness.fixtures.teamA.ownerToken,
+      };
+    }
+
+    it("a held record is refused on both routes; an unheld one still archives", async () => {
+      const ws = await seedOwnedWorkspace();
+      const heldSingle = await seedRecord({
+        teamId: ws.teamId,
+        organizationId: ws.organizationId,
+        ownerUserId: ws.ownerUserId,
+      });
+      const heldBulk = await seedRecord({
+        teamId: ws.teamId,
+        organizationId: ws.organizationId,
+        ownerUserId: ws.ownerUserId,
+      });
+      const free = await seedRecord({
+        teamId: ws.teamId,
+        organizationId: ws.organizationId,
+        ownerUserId: ws.ownerUserId,
+      });
+      for (const id of [heldSingle, heldBulk]) {
+        await placeHold({
+          teamId: ws.teamId,
+          placedByUserId: ws.ownerUserId,
+          scope: "EVIDENCE",
+          evidenceId: id,
+        });
+      }
+
+      const refused = await singleArchive(heldSingle, ws.token);
+      expect(refused.status).toBe(409);
+      expect(refused.body.code).toBe("LEGAL_HOLD_ACTIVE");
+      expect((await bulkArchive([heldBulk], ws.token)).body.failedCount).toBe(1);
+      await expectUntouched(heldSingle);
+      await expectUntouched(heldBulk);
+
+      // CONTROL — the block is the hold's, not the workspace kind's.
+      expect((await singleArchive(free, ws.token)).status).toBe(200);
+      expect(await archiveEvents(free)).toBe(1);
+    });
+
+    it("the verdict does not move when the owner's PLAN changes", async () => {
+      // Tenancy and authorization are decided from membership, scope and the
+      // hold. A plan NAME is a commercial fact and must never reach the
+      // lifecycle decision — the harness records a classifier that once
+      // derived workspace kind from `plan FREE`, so the invariant is asserted
+      // rather than assumed.
+      const ws = await seedOwnedWorkspace();
+      const id = await seedRecord({
+        teamId: ws.teamId,
+        organizationId: ws.organizationId,
+        ownerUserId: ws.ownerUserId,
+      });
+      await placeHold({
+        teamId: ws.teamId,
+        placedByUserId: ws.ownerUserId,
+        scope: "EVIDENCE",
+        evidenceId: id,
+      });
+
+      const before = await prisma.entitlement.findFirst({
+        where: { userId: ws.ownerUserId },
+        select: { id: true, plan: true },
+      });
+      const verdicts: Array<{ plan: string; status: number; code?: string }> = [];
+      try {
+        for (const plan of ["FREE", "ENTERPRISE", "PRO"] as const) {
+          if (before) {
+            await prisma.entitlement.update({
+              where: { id: before.id },
+              data: { plan, active: true } as never,
+            });
+          } else {
+            await prisma.entitlement.upsert({
+              where: { id: PLAN_PROBE_ENTITLEMENT_ID },
+              create: {
+                id: PLAN_PROBE_ENTITLEMENT_ID,
+                userId: ws.ownerUserId,
+                plan,
+                active: true,
+              } as never,
+              update: { plan } as never,
+            });
+          }
+          const res = await singleArchive(id, ws.token);
+          verdicts.push({ plan, status: res.status, code: res.body.code });
+        }
+      } finally {
+        // Leave the fixture as it was found: a plan this probe set is a
+        // commercial fact other suites in this run would inherit.
+        if (before) {
+          await prisma.entitlement.update({
+            where: { id: before.id },
+            data: { plan: before.plan } as never,
+          });
+        } else {
+          await prisma.entitlement
+            .delete({ where: { id: PLAN_PROBE_ENTITLEMENT_ID } })
+            .catch(() => undefined);
+        }
+      }
+
+      expect(verdicts.map((v) => v.status)).toEqual([409, 409, 409]);
+      expect(verdicts.map((v) => v.code)).toEqual([
+        "LEGAL_HOLD_ACTIVE",
+        "LEGAL_HOLD_ACTIVE",
+        "LEGAL_HOLD_ACTIVE",
+      ]);
       await expectUntouched(id);
     });
   });

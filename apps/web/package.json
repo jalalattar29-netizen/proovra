@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "prebuild": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/ui build",
+    "prebuild": "pnpm run build:deps",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node ./scripts/run-tests.mjs",
-    "test:render": "vitest run --config vitest.render.config.ts"
+    "test:render": "vitest run --config vitest.render.config.ts",
+    "build:deps": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/ui build",
+    "pretypecheck": "pnpm run build:deps"
   },
   "dependencies": {
     "@noble/ed25519": "^3.1.0",

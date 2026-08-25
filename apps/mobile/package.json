@@ -8,7 +8,10 @@
     "dev": "expo start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"test/deep-link.contract.test.mjs\""
+    "test": "node --test \"test/deep-link.contract.test.mjs\"",
+    "build:deps": "pnpm --filter @proovra/shared build",
+    "prebuild": "pnpm run build:deps",
+    "pretypecheck": "pnpm run build:deps"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.6",

@@ -11,7 +11,7 @@
     "dev:api": "pnpm --filter proovra-api dev",
     "dev:worker": "pnpm --filter proovra-worker dev",
     "dev": "pnpm --parallel --filter proovra-api --filter proovra-worker --filter proovra-web run dev",
-    "build:shared": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/ui build",
+    "build:shared": "pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-runtime build && pnpm --filter @proovra/ui build",
     "build:web": "pnpm run build:shared && pnpm --filter proovra-web build",
     "build:api": "pnpm run build:shared && pnpm --filter proovra-api build",
     "build:worker": "pnpm run build:shared && pnpm --filter proovra-worker build",
