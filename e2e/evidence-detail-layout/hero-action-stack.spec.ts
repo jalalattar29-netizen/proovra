@@ -38,3 +38,60 @@ test("the action stack sits BESIDE the title, above the downloads", async ({ pag
   const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(over).toBeLessThanOrEqual(0);
 });
+
+test("the stack carries all five actions, with the trash one red on white", async ({ page }) => {
+  await installApi(page, "organization", {
+    lifecycle: {
+      productState: "ACTIVE",
+      canArchive: true,
+      canUnarchive: false,
+      canTrash: true,
+      canRestoreFromTrash: false,
+      trashBlockReason: null,
+      archiveBlockReason: null,
+      trashGraceUntilUtc: null,
+      appRetentionUntilUtc: null,
+      objectLockRetainUntilUtc: null,
+      effectiveRetentionUntilUtc: null,
+      objectLockCompliance: false,
+      legalHold: false,
+      destructionEligibleAtUtc: null,
+      destructionBlockReason: null,
+    },
+    archivedAt: null,
+    deletedAt: null,
+    lockedAt: null,
+  });
+  await page.goto("/evidence/11111111-1111-4111-8111-111111111111");
+  const stack = page.locator(".evidence-detail-hero-icon-actions");
+  await stack.waitFor();
+
+  const labels = await stack.locator("button span").allTextContents();
+  expect(labels).toEqual([
+    "Verification link",
+    "Lock",
+    "Archive",
+    "Move to trash",
+    "Edit name",
+  ]);
+
+  // One geometry for all five.
+  const boxes = await stack.locator("button").evaluateAll((els) =>
+    els.map((e) => {
+      const r = e.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) };
+    }),
+  );
+  expect(new Set(boxes.map((b) => b.w)).size).toBe(1);
+  expect(new Set(boxes.map((b) => b.h)).size).toBe(1);
+
+  // Red text on white — never a red fill.
+  const trash = await page
+    .locator('[data-evidence-action="header-trash"]')
+    .evaluate((e) => {
+      const s = getComputedStyle(e);
+      return { bg: s.backgroundColor, fg: s.color };
+    });
+  expect(trash.fg).toBe("rgb(220, 38, 38)");
+  expect(trash.bg).not.toBe("rgb(220, 38, 38)");
+});

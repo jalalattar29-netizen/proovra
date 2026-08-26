@@ -46,6 +46,7 @@ import {
   usePlanFeatureGate,
 } from "../../../../lib/platform-context";
 import { apiFetch } from "../../../../lib/api";
+import { getEvidenceDeletionEligibility } from "../lib/evidence-delete-eligibility";
 import { captureException } from "../../../../lib/sentry";
 import { formatUserDateTime } from "../../../../lib/date";
 import type { CaseOption } from "../lib/evidence-library-types";
@@ -963,6 +964,10 @@ function EvidenceDetailPageInner() {
     workspaceCaps?.discussionEnabled === true ||
     workspaceCaps?.discussionReadOnly === true;
   const deleted = evidence?.deletedAt != null;
+  // Lifecycle availability for the header's trash control. Read from the
+  // canonical projection on the loaded record — never computed here.
+  const headerTrashEligibility = getEvidenceDeletionEligibility(evidence);
+
   const iconActionTitle = {
     share: !shareUrl
       ? "No verification link is available for this record."
@@ -1278,6 +1283,16 @@ function EvidenceDetailPageInner() {
             onLock={() => setLockOpen(true)}
             onRestoreArchived={() => setRestoreArchivedOpen(true)}
             onArchive={() => setArchiveOpen(true)}
+            onMoveToTrash={() => setTrashOpen(true)}
+            // The SAME canonical projection the Review tab's control reads, so
+            // the two places that offer this action cannot disagree about
+            // whether it is available or about why it is not.
+            trashDisabled={!headerTrashEligibility.canMoveToTrash}
+            trashReason={
+              headerTrashEligibility.canMoveToTrash
+                ? null
+                : headerTrashEligibility.message
+            }
             onEditLabel={() => setEditingLabel(true)}
           />
 

@@ -1241,3 +1241,21 @@
 .ops-empty .app-secondary-action {
   margin-block-start: 10px;
 }
+
+/* OPEN — the row's one primary verb.
+ *
+ * Canonical dark ground with inverse text, the same treatment the Evidence
+ * header's verification link uses. "Mark as unread" and "Archive" file the
+ * message; "Open" takes you to the thing it is about, and only one of the
+ * three should read as the next step. Built on `app-secondary-action`, so
+ * geometry, radius and focus ring are unchanged and only the fill differs. */
+.ops-item__open:not(:disabled) {
+  background: var(--app-ink-heading);
+  border-color: var(--app-ink-heading);
+  color: var(--ink-inverse);
+}
+.ops-item__open:not(:disabled):hover {
+  background: #0f1626;
+  border-color: #0f1626;
+  color: var(--ink-inverse);
+}

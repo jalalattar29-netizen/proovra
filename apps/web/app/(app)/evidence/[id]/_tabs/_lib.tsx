@@ -24,6 +24,7 @@ import {
   Pencil,
   RotateCcw,
   type LucideIcon,
+  Trash2,
 } from "lucide-react";
 import { getReviewerArtifactRoleLabel } from "@proovra/shared";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
@@ -1154,6 +1155,9 @@ export function EvidenceHeroIconActions({
   onLock,
   onRestoreArchived,
   onArchive,
+  onMoveToTrash,
+  trashDisabled,
+  trashReason,
   onEditLabel,
 }: {
   lockedAt: string | null | undefined;
@@ -1167,6 +1171,11 @@ export function EvidenceHeroIconActions({
   onLock: () => void;
   onRestoreArchived: () => void;
   onArchive: () => void;
+  onMoveToTrash: () => void;
+  /** From the canonical projection. The header never decides this itself. */
+  trashDisabled: boolean;
+  /** The server's own refusal, shown on hover when the control is disabled. */
+  trashReason: string | null;
   onEditLabel: () => void;
 }) {
   return (
@@ -1238,6 +1247,27 @@ export function EvidenceHeroIconActions({
             <span>Archive</span>
           </button>
         )}
+
+        {/* MOVE TO TRASH — recoverable, and gated by the SAME projection the
+            Review tab's control reads. Disabled with the server's reason
+            rather than hidden: a control that vanishes teaches nothing, and
+            one that opens a modal only to 409 is worse. */}
+        <button
+          type="button"
+          className="app-secondary-action evidence-detail-hero-action evidence-detail-danger-action"
+          onClick={() => {
+            if (trashDisabled) return;
+            onMoveToTrash();
+          }}
+          disabled={trashDisabled}
+          aria-disabled={trashDisabled}
+          title={trashDisabled ? (trashReason ?? undefined) : "Move to trash"}
+          data-evidence-action="header-trash"
+          data-evidence-trash-disabled={trashDisabled ? "true" : "false"}
+        >
+          <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />
+          <span>Move to trash</span>
+        </button>
 
         <button
           type="button"

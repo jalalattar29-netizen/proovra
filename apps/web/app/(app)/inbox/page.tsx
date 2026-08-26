@@ -1954,8 +1954,12 @@ function InboxPageInner() {
                             /* The CANONICAL row action, the same class the
                                Intake Links row uses for "View submissions" and
                                "Open". It was `ops-link-btn`, a shape only this
-                               page knew about. */
-                            className="app-secondary-action"
+                               page knew about.
+                               `--dark` marks it as the row's ONE primary verb:
+                               Open takes you to the thing, the other two file
+                               the message. Same geometry, only the fill
+                               differs. */
+                            className="app-secondary-action ops-item__open"
                           >
                             Open
                           </Link>
