@@ -1259,6 +1259,10 @@ export async function opsRoutes(app: FastifyInstance) {
 
   function handleIncidentError(reply: FastifyReply, err: unknown): boolean {
     if (err instanceof IncidentError) {
+      // CONDITION_STILL_ACTIVE is a 409 like every other refused
+      // transition: the request was well formed and the current state of the
+      // resource is what refuses it. Named explicitly rather than left to the
+      // fallback so the mapping is a decision on the record.
       const status =
         err.code === "incident_not_found"
           ? 404

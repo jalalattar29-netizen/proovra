@@ -52,6 +52,22 @@ const CODE_MAP: Record<
   string,
   Omit<SafeUserError, "supportReference">
 > = {
+  /**
+   * The server refused to mark an operational condition resolved because its
+   * own source still reports it as failing.
+   *
+   * Given its own entry rather than falling through to the generic 409,
+   * because the generic message ("something has changed, try again") is wrong
+   * here in a way that matters: nothing has changed, retrying will not help,
+   * and there are exactly two things the operator can do instead. Saying them
+   * is the difference between a refusal and a dead end.
+   */
+  CONDITION_STILL_ACTIVE: {
+    title: "This condition is still active",
+    message:
+      "This condition is still active. Complete the remediation or suppress it with a recorded reason.",
+    severity: "warning",
+  },
   UNAUTHORIZED: {
     title: "Please sign in again",
     message: "Your session may have expired. Sign in again to continue — your evidence data has not been changed.",

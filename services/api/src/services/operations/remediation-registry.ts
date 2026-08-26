@@ -36,6 +36,7 @@
  */
 
 import type { IncidentCategory } from "@proovra/shared";
+import type { OperatorResolutionAuthority } from "@proovra/shared-runtime";
 
 // ===========================================================================
 // VOCABULARY
@@ -478,4 +479,88 @@ export function actionById(id: string): RemediationAction | null {
 /** Every category the table governs — for the coverage gate. */
 export function registeredCategories(): ReadonlyArray<string> {
   return Object.keys(CATEGORY_ENTRIES);
+}
+
+// ===========================================================================
+// WHO MAY DECLARE A CONDITION RESOLVED
+// ===========================================================================
+
+/**
+ * Resolution authority, declared per category.
+ *
+ * This answers a different question from `disposition`. Disposition says what
+ * an operator may DO about a condition; this says whether an operator may
+ * declare it OVER. They come apart: a condition can have no safe remediation
+ * at all and still be something only its source can close.
+ *
+ * SOURCE_TRUTH means exactly one thing — a deterministic, per-incident probe
+ * of the source exists, so "is this still true?" is answerable without asking
+ * a person. It is NOT a statement that the condition is important, and it is
+ * not a proxy for how the condition was discovered. A category is
+ * OPERATOR_MAY_RESOLVE until such a probe exists, because refusing an
+ * operator on a basis the server cannot actually verify would be inventing
+ * truth in the other direction.
+ *
+ * TOTAL over `IncidentCategory`: adding a category to the enum will not
+ * compile until the question has been answered for it, which is what keeps
+ * this a decision rather than an omission.
+ */
+export const OPERATOR_RESOLUTION_AUTHORITY: Readonly<
+  Record<IncidentCategory, OperatorResolutionAuthority>
+> = Object.freeze({
+  // The ONE category with a per-incident probe today: the fingerprint names
+  // the record, and the record's own `tsaStatus` / `otsStatus` says whether
+  // the proof is still missing. `resolveRecoveredConditions` already closes
+  // these from that same column, so letting an operator close one while it
+  // still reads FAILED would put the two authorities in direct contradiction
+  // — and the sweep would win, minutes later, silently.
+  EVIDENCE_INTEGRITY: "SOURCE_TRUTH",
+  // Threshold and backlog conditions. Their discovery is a workspace-wide
+  // count rather than a per-incident fact, so there is no probe that can
+  // answer "is THIS condition still true?" for one row. Declared
+  // operator-resolvable rather than refused on an unverifiable basis; a
+  // premature close is reopened by the next sweep as an explicit, named
+  // REOPEN rather than as a silent increment, which is the behaviour this
+  // correction exists to guarantee.
+  REPORT: "OPERATOR_MAY_RESOLVE",
+  PACKAGE: "OPERATOR_MAY_RESOLVE",
+  UPLOAD: "OPERATOR_MAY_RESOLVE",
+  // Event-shaped conditions: recorded when something happened, not
+  // re-observed on a schedule. Nothing but a person can say they are over.
+  IDENTITY_SECURITY: "OPERATOR_MAY_RESOLVE",
+  GOVERNANCE: "OPERATOR_MAY_RESOLVE",
+  WEBHOOK: "OPERATOR_MAY_RESOLVE",
+  COMMUNICATIONS: "OPERATOR_MAY_RESOLVE",
+  INTEGRATION: "OPERATOR_MAY_RESOLVE",
+  // Platform-infrastructure conditions. The workspace cannot fix them and
+  // cannot probe them either; acknowledging that an operator may clear the
+  // entry from their own queue is the honest reading.
+  STORAGE: "OPERATOR_MAY_RESOLVE",
+  DATABASE: "OPERATOR_MAY_RESOLVE",
+  WORKER: "OPERATOR_MAY_RESOLVE",
+  AI: "OPERATOR_MAY_RESOLVE",
+  RECONCILIATION: "OPERATOR_MAY_RESOLVE",
+});
+
+/**
+ * The resolution authority for ONE condition.
+ *
+ * Keyed the same way `entryForIncident` is keyed — category first, with the
+ * integrity classes reading through the same fingerprint parse — so a caller
+ * never has to know that evidence-integrity conditions are special.
+ *
+ * An UNREGISTERED category is SOURCE_TRUTH, which combined with an unreadable
+ * source means refused. That is the fail-closed direction: a condition whose
+ * category nobody has classified must not be closable by assertion.
+ */
+export function operatorResolutionAuthorityFor(incident: {
+  category: string;
+}): OperatorResolutionAuthority {
+  const declared = (
+    OPERATOR_RESOLUTION_AUTHORITY as Record<
+      string,
+      OperatorResolutionAuthority | undefined
+    >
+  )[incident.category];
+  return declared ?? "SOURCE_TRUTH";
 }

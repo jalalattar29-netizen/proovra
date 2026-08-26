@@ -73,6 +73,11 @@ import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import {
+  decideObservationTransition,
+  type IncidentTransitionStatus,
+} from "@proovra/shared-runtime";
+
 import { recordIncident } from "../observability/incident.service.js";
 import { inSourceStage } from "./operations-source-diagnostics.js";
 import {
@@ -345,31 +350,20 @@ async function recordIntegrityCondition(
     select: { id: true, status: true, firstSeenAtUtc: true },
   });
 
-  // SUPPRESSED stays suppressed under a CONTINUING failure. The occurrence is
-  // still written to history so the record of "this kept failing while
-  // suppressed" survives; only the status is left alone.
-  if (existing?.status === prismaPkg.IncidentStatus.SUPPRESSED) {
-    await client.operationalIncident
-      .update({
-        where: { id: existing.id },
-        data: {
-          lastSeenAtUtc: now,
-          occurrenceCount: { increment: 1 },
-        },
-      })
-      .catch(() => null);
-    await client.operationalIncidentEvent
-      .create({
-        data: {
-          incidentId: existing.id,
-          eventType: "occurrence_while_suppressed",
-          safeMessage:
-            "The record is still missing this proof. The condition remains suppressed by operator decision.",
-        },
-      })
-      .catch(() => null);
-    return "suppressed_untouched";
-  }
+  // SUPPRESSION IS NO LONGER DECIDED HERE.
+  //
+  // This branch used to intercept a suppressed condition and hand-write the
+  // occurrence itself, which made it a SECOND transition tree beside
+  // `recordIncident` — and the one place in the product where suppression
+  // survived a re-observation. Every other source reached `recordIncident`
+  // directly and had its suppression silently erased.
+  //
+  // The rule now lives in the shared transition authority, which preserves
+  // SUPPRESSED for every category and writes the same
+  // `occurrence_while_suppressed` event. Keeping this copy would mean the one
+  // source that behaved correctly was the one still bypassing the fix.
+  const wasSuppressed =
+    existing?.status === prismaPkg.IncidentStatus.SUPPRESSED;
 
   const failureClass: IntegrityFailureClass = classifyIntegrityFailure(
     failureReasonFor(evidence, integrityClass),
@@ -449,6 +443,7 @@ async function recordIntegrityCondition(
     client,
   );
 
+  if (wasSuppressed) return "suppressed_untouched";
   return created ? "opened" : "reobserved";
 }
 
@@ -522,6 +517,15 @@ async function resolveRecoveredConditions(
     if (!evidence) continue;
     if (isCurrentlyFailing(evidence, parts.integrityClass)) continue;
 
+    // The SHARED authority decides, here as in the writer. A recovery
+    // observation may close OPEN, ACKNOWLEDGED and SUPPRESSED alike: domain
+    // truth outranks both ownership and silencing.
+    const decision = decideObservationTransition({
+      currentStatus: row.status as IncidentTransitionStatus,
+      observation: "SOURCE_RECOVERED",
+    });
+    if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") continue;
+
     await client.operationalIncident.update({
       where: { id: row.id },
       data: {
@@ -532,6 +536,10 @@ async function resolveRecoveredConditions(
         resolutionNote: `Resolved from Evidence domain truth: ${
           parts.integrityClass === "tsa_failure" ? "tsaStatus" : "otsStatus"
         } is no longer FAILED.`,
+        // `acknowledgedAtUtc` / `acknowledgedByUserId` are DELIBERATELY left
+        // alone. Who took this on is part of what happened to it, and a
+        // resolution is not a reason to forget. They are cleared only by a
+        // genuine reopen, which starts a new cycle that nobody owns yet.
       },
     });
     await client.operationalIncidentEvent
@@ -552,6 +560,17 @@ async function resolveRecoveredConditions(
         },
       })
       .catch(() => null);
+
+    // CLOSE THE PROMISE. A condition resolved from domain truth discharges
+    // its SLA cycle exactly as an operator resolution does; leaving the cycle
+    // live would make a recovered condition read as still owing a commitment,
+    // and would make `openSlaCycle` decline the next genuine recurrence.
+    await import("./incident-sla-cycle.service.js")
+      .then((cycles) =>
+        cycles.closeSlaCycle({ incidentId: row.id, reason: "RESOLVED" }, client),
+      )
+      .catch(() => null);
+
     resolved += 1;
   }
   return resolved;

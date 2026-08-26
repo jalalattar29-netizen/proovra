@@ -15,6 +15,7 @@
  * No DB. Source-text + pure-helper consistency assertions.
  */
 
+import { decideObservationTransition } from "@proovra/shared-runtime";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -132,8 +133,44 @@ describe("Phase X.1 — Part A: worker canonical emitters", () => {
     );
     expect(incidentSrc).toContain("teamId_fingerprint");
     expect(incidentSrc).toContain("willReopen");
-    expect(incidentSrc).toContain("IncidentStatus.RESOLVED");
-    expect(incidentSrc).toContain("IncidentStatus.SUPPRESSED");
+
+    // WHAT THIS ASSERTS NOW, AND WHY IT IS STRONGER.
+    //
+    // It used to grep the emitter for the literals `IncidentStatus.RESOLVED`
+    // and `IncidentStatus.SUPPRESSED`, which proved only that the two names
+    // appeared in the file. They did — inside a private reopen rule that was
+    // WRONG: a suppressed condition went back to OPEN on the next observation,
+    // and the API carried its own copy of the same mistake.
+    //
+    // The literals are gone because the decision is. Both writers now read one
+    // pure authority in @proovra/shared-runtime, so what is checked here is
+    // that the emitter CONSUMES it and derives its reopen from it — and then
+    // the authority itself is asked what it decides. That is the property the
+    // original assertion was reaching for, and unlike a substring it cannot
+    // pass while the behaviour is wrong.
+    expect(incidentSrc).toContain("@proovra/shared-runtime");
+    expect(incidentSrc).toContain("decideObservationTransition");
+    expect(incidentSrc).toMatch(/willReopen\s*=\s*decisionIsReopen\(decision\)/);
+    // No second copy of the rule may reappear beside the shared one.
+    expect(incidentSrc).not.toMatch(
+      /existing\.status === prismaPkg\.IncidentStatus\.(RESOLVED|SUPPRESSED)\s*\|\|/,
+    );
+
+    // A RESOLVED condition observed active again reopens; a SUPPRESSED one
+    // does NOT. Both answers come from the authority the emitter just imported.
+    expect(
+      decideObservationTransition({
+        currentStatus: "RESOLVED",
+        observation: "SOURCE_ACTIVE",
+        previousResolutionOrigin: "SOURCE_RECOVERY",
+      }),
+    ).toBe("REOPEN_SOURCE_RECURRENCE");
+    expect(
+      decideObservationTransition({
+        currentStatus: "SUPPRESSED",
+        observation: "SOURCE_ACTIVE",
+      }),
+    ).toBe("PRESERVE_SUPPRESSED");
     expect(incidentSrc).toContain("severity");
   });
 });

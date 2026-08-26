@@ -19,8 +19,56 @@
 
 import * as prismaPkg from "@prisma/client";
 
+import {
+  decideObservationTransition,
+  decisionIsReopen,
+  reopenReasonFor,
+  type IncidentTransitionStatus,
+  type ResolutionOrigin,
+} from "@proovra/shared-runtime";
+
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
+
+/**
+ * Which event types record a resolution, and what each one means.
+ *
+ * Deliberately the SAME table the API keeps, because it describes the same
+ * rows. It is duplicated as data rather than imported because the API service
+ * is not a Worker dependency; the DECISION that reads it is shared, which is
+ * the part that was drifting.
+ */
+const RESOLUTION_EVENT_ORIGINS: Readonly<Record<string, ResolutionOrigin>> =
+  Object.freeze({
+    resolved_by_domain_truth: "SOURCE_RECOVERY",
+    resolved: "OPERATOR",
+  });
+
+/**
+ * Where the most recent resolution of this condition came from.
+ *
+ * Never inferred from `resolvedAtUtc` or the note — both paths write those.
+ * An unreadable or silent history is LEGACY_UNKNOWN, which reopens with the
+ * conservative reason rather than claiming a recurrence.
+ */
+async function readWorkerResolutionOrigin(
+  incidentId: string,
+): Promise<ResolutionOrigin> {
+  try {
+    const latest = await prisma.operationalIncidentEvent.findFirst({
+      where: {
+        incidentId,
+        eventType: { in: Object.keys(RESOLUTION_EVENT_ORIGINS) },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { eventType: true },
+    });
+    if (!latest) return "LEGACY_UNKNOWN";
+    return RESOLUTION_EVENT_ORIGINS[latest.eventType] ?? "LEGACY_UNKNOWN";
+  } catch {
+    return "LEGACY_UNKNOWN";
+  }
+}
 
 // Phase IA-reliability — accept every IncidentCategory enum value so
 // the worker-side bridge can land report / package / OTS / intake /
@@ -262,30 +310,47 @@ export async function recordWorkerIncident(
       }
       return row;
     }
-    // Re-fire — escalate severity but never de-escalate; reopen if
-    // RESOLVED / SUPPRESSED.
+    // Re-fire — escalate severity but never de-escalate. WHAT THE
+    // OBSERVATION MAY DO TO THE STATUS IS NOT DECIDED HERE.
+    //
+    // This writer carried its own copy of the reopen rule, and it was the
+    // same wrong copy the API carried: RESOLVED and SUPPRESSED both went
+    // straight back to OPEN, recorded as an increment. Two copies of a rule
+    // are how a fix in one keeps failing in the other, so the decision now
+    // comes from `@proovra/shared-runtime` — the same function, the same
+    // facts, the same answer as the API.
     const existingSeverity = existing.severity as RecordWorkerIncidentInput["severity"];
     const nextSeverity =
       SEVERITY_RANK[input.severity] > SEVERITY_RANK[existingSeverity]
         ? input.severity
         : existingSeverity;
-    const willReopen =
-      existing.status === prismaPkg.IncidentStatus.RESOLVED ||
-      existing.status === prismaPkg.IncidentStatus.SUPPRESSED;
+    const previousResolutionOrigin =
+      existing.status === prismaPkg.IncidentStatus.RESOLVED
+        ? await readWorkerResolutionOrigin(existing.id)
+        : null;
+    const decision = decideObservationTransition({
+      currentStatus: existing.status as IncidentTransitionStatus,
+      observation: "SOURCE_ACTIVE",
+      previousResolutionOrigin,
+    });
+    const willReopen = decisionIsReopen(decision);
+    const reopenReason = reopenReasonFor(decision);
     const row = await prisma.operationalIncident.update({
       where: { id: existing.id },
       data: {
         lastSeenAtUtc: new Date(),
         occurrenceCount: { increment: 1 },
         severity: severityToPrismaEnum(nextSeverity),
-        status: willReopen
-          ? prismaPkg.IncidentStatus.OPEN
-          : existing.status,
         ...(willReopen
           ? {
+              status: prismaPkg.IncidentStatus.OPEN,
               resolvedAtUtc: null,
               resolvedByUserId: null,
               resolutionNote: null,
+              // Current cycle only; the history keeps every `acknowledged`
+              // event from the cycle that just ended.
+              acknowledgedAtUtc: null,
+              acknowledgedByUserId: null,
             }
           : {}),
         relatedEvidenceId:
@@ -296,9 +361,23 @@ export async function recordWorkerIncident(
       await prisma.operationalIncidentEvent.create({
         data: {
           incidentId: row.id,
-          eventType: willReopen ? "reopened" : "increment",
+          eventType: willReopen
+            ? "reopened"
+            : decision === "PRESERVE_SUPPRESSED"
+              ? "occurrence_while_suppressed"
+              : "increment",
           safeMessage: safeSummary,
-          metadataJson: sanitisedMetadata,
+          metadataJson: (reopenReason
+            ? {
+                ...(sanitisedMetadata &&
+                typeof sanitisedMetadata === "object" &&
+                !Array.isArray(sanitisedMetadata)
+                  ? sanitisedMetadata
+                  : {}),
+                reopenReason,
+                decision,
+              }
+            : sanitisedMetadata) as typeof sanitisedMetadata,
         },
       });
     } catch {

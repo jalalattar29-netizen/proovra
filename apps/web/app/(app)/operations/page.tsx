@@ -836,6 +836,13 @@ function OperationsWorkbench() {
         setMutationError(
           toSafeUserError(err, { message: "That action could not be applied." }),
         );
+        // A REFUSED transition re-reads too, and that is the point of doing it
+        // here rather than only on success. The server can decline a resolve
+        // whose condition is still active; the row must then show what the
+        // server actually holds, not the state the operator asked for. Nothing
+        // is applied optimistically, so this is a re-read and never a rollback
+        // of a local guess.
+        refresh();
       } finally {
         setBusy(false);
         setPendingId(null);

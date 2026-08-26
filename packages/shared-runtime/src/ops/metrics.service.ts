@@ -63,6 +63,9 @@ export const COUNTER_NAMES = [
   // alert provider, webhook handlers, and the request lifecycle.
   "operational_incident_opened",
   "operational_incident_increment",
+  // A reopen is not an increment, and the metric must not say it is: the
+  // whole point of the correction is that the two are different events.
+  "operational_incident_reopened",
   "operational_incident_acknowledged",
   "operational_incident_resolved",
   "operational_incident_suppressed",

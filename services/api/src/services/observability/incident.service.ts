@@ -33,6 +33,18 @@ import {
   isValidIncidentFingerprint,
 } from "@proovra/shared";
 
+import {
+  CONDITION_STILL_ACTIVE,
+  decideManualResolution,
+  decideObservationTransition,
+  decisionIsReopen,
+  reopenReasonFor,
+  type IncidentTransitionDecision,
+  type IncidentTransitionStatus,
+  type ResolutionOrigin,
+  type SourceObservation,
+} from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   scopeForWorkspaceId,
@@ -49,13 +61,75 @@ import { safeJsonSnapshot } from "./redact.js";
 export type IncidentErrorCode =
   | "incident_not_found"
   | "invalid_fingerprint"
-  | "invalid_status_transition";
+  | "invalid_status_transition"
+  /**
+   * An operator tried to declare a condition resolved while its own source
+   * still says it is failing. Refused rather than accepted-and-silently-undone:
+   * the sweep would have reopened it minutes later, and a status that flips
+   * back on its own teaches operators that the button does not mean anything.
+   */
+  | typeof CONDITION_STILL_ACTIVE;
 
 export class IncidentError extends Error {
   readonly code: IncidentErrorCode;
   constructor(code: IncidentErrorCode) {
     super(code);
     this.code = code;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// DURABLE RESOLUTION PROVENANCE
+// -----------------------------------------------------------------------------
+
+/**
+ * The event types that record a resolution, and what each one means.
+ *
+ * Provenance is read from the EVENT HISTORY and from nothing else. Neither
+ * `resolvedAtUtc`, nor `resolvedByUserId`, nor the note, nor elapsed time can
+ * distinguish "the source recovered" from "a person said it was fine": the
+ * first two are written by both paths and the last is written by neither.
+ */
+export const RESOLUTION_EVENT_ORIGINS: Readonly<Record<string, ResolutionOrigin>> =
+  Object.freeze({
+    /** Written by `resolveRecoveredConditions` from the record's own status. */
+    resolved_by_domain_truth: "SOURCE_RECOVERY",
+    /** Written by `transitionIncident` when an operator resolved it. */
+    resolved: "OPERATOR",
+  });
+
+/** The canonical event type for a reopen. Never an `increment`. */
+export const REOPENED_EVENT = "reopened";
+/** The canonical event type for a still-failing suppressed condition. */
+export const OCCURRENCE_WHILE_SUPPRESSED_EVENT = "occurrence_while_suppressed";
+
+/**
+ * Where the MOST RECENT resolution of this condition came from.
+ *
+ * Returns `LEGACY_UNKNOWN` when the history holds no resolution event — which
+ * is the honest answer for every row resolved before this vocabulary existed,
+ * and for any row whose event write was lost. It is never upgraded to
+ * SOURCE_RECOVERY by guesswork: that would launder a premature operator close
+ * into a recurrence and erase the distinction this function exists to make.
+ */
+export async function readResolutionOrigin(
+  incidentId: string,
+  client: PrismaClient,
+): Promise<ResolutionOrigin> {
+  try {
+    const latest = await client.operationalIncidentEvent.findFirst({
+      where: {
+        incidentId,
+        eventType: { in: Object.keys(RESOLUTION_EVENT_ORIGINS) },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { eventType: true },
+    });
+    if (!latest) return "LEGACY_UNKNOWN";
+    return RESOLUTION_EVENT_ORIGINS[latest.eventType] ?? "LEGACY_UNKNOWN";
+  } catch {
+    // The history is unreadable. That is ambiguity, not a recurrence.
+    return "LEGACY_UNKNOWN";
   }
 }
 
@@ -169,6 +243,8 @@ export async function recordIncident(
   let row: prismaPkg.OperationalIncident;
   let created: boolean;
   let existingStatusBeforeWrite: prismaPkg.IncidentStatus | null = null;
+  /** What the shared authority decided. A create is not a decision it makes. */
+  let decision: IncidentTransitionDecision = "OBSERVATION_ONLY";
   if (!existing) {
     row = await client.operationalIncident.create({
       data: {
@@ -196,6 +272,35 @@ export async function recordIncident(
     created = true;
     bump("operational_incident_opened");
   } else {
+    // ---------------------------------------------------------------------
+    // ONE AUTHORITY DECIDES WHAT AN OBSERVATION MAY DO.
+    //
+    // This branch used to reopen RESOLVED and SUPPRESSED rows unconditionally
+    // and record the result as an `increment`. That destroyed the resolver
+    // identity and the operator note, and left no event saying a reopen had
+    // happened — so a genuine recurrence and a silently-erased decision were
+    // indistinguishable afterwards.
+    //
+    // The rule now lives in `@proovra/shared-runtime`, which the Worker writer
+    // consumes too. This service still owns every read and write; what it no
+    // longer owns is a second copy of the rule.
+    // ---------------------------------------------------------------------
+    // Provenance is read ONLY when it can matter — a RESOLVED row facing an
+    // active observation — so an ordinary re-fire costs no extra query.
+    const previousResolutionOrigin =
+      existing.status === prismaPkg.IncidentStatus.RESOLVED
+        ? await readResolutionOrigin(existing.id, client)
+        : null;
+    decision = decideObservationTransition({
+      currentStatus: existing.status as IncidentTransitionStatus,
+      // Every call to `recordIncident` IS an active observation: it is called
+      // because a source saw the condition. Recovery is observed elsewhere,
+      // by `resolveRecoveredConditions`, from the domain own truth.
+      observation: "SOURCE_ACTIVE" satisfies SourceObservation,
+      previousResolutionOrigin,
+    });
+    const reopening = decisionIsReopen(decision);
+
     const data: Record<string, unknown> = {
       lastSeenAtUtc: new Date(),
       occurrenceCount: { increment: 1 },
@@ -213,36 +318,70 @@ export async function recordIncident(
         severityRank(input.severity) > severityRank(existing.severity as IncidentSeverity)
           ? (input.severity as prismaPkg.IncidentSeverity)
           : existing.severity,
-      // If the existing row was RESOLVED / SUPPRESSED, reopen.
-      status:
-        existing.status === prismaPkg.IncidentStatus.RESOLVED ||
-        existing.status === prismaPkg.IncidentStatus.SUPPRESSED
-          ? prismaPkg.IncidentStatus.OPEN
-          : existing.status,
-      ...(existing.status === prismaPkg.IncidentStatus.RESOLVED ||
-      existing.status === prismaPkg.IncidentStatus.SUPPRESSED
-        ? { resolvedAtUtc: null, resolvedByUserId: null, resolutionNote: null }
+      // STATUS IS WRITTEN ONLY BY A REOPEN. OBSERVATION_ONLY,
+      // PRESERVE_ACKNOWLEDGED and PRESERVE_SUPPRESSED all leave it alone,
+      // which is the whole correction: an observation records that the
+      // condition is still true and says nothing about who owns it or who
+      // silenced it.
+      ...(reopening
+        ? {
+            status: prismaPkg.IncidentStatus.OPEN,
+            resolvedAtUtc: null,
+            resolvedByUserId: null,
+            resolutionNote: null,
+            // CURRENT-CYCLE acknowledgement only. The `acknowledged` events
+            // from the previous cycle stay in the history untouched: the row
+            // says nobody owns THIS occurrence, and the history still says
+            // who owned the last one.
+            acknowledgedAtUtc: null,
+            acknowledgedByUserId: null,
+          }
         : {}),
     };
-    // Captured BEFORE the write: the update sets status to OPEN, so after it
-    // there is no way to tell a reopen from an increment.
+    // Captured BEFORE the write, so anything downstream reads the state the
+    // decision was made against rather than the state it produced.
     existingStatusBeforeWrite = existing.status;
     row = await client.operationalIncident.update({
       where: { id: existing.id },
       data,
     });
     created = false;
-    bump("operational_incident_increment");
+    bump(
+      reopening
+        ? "operational_incident_reopened"
+        : "operational_incident_increment",
+    );
   }
 
   // Persist the event-history row.
+  //
+  // THE EVENT NAMES THE TRANSITION. A reopen arriving in the history as an
+  // `increment` is the defect this correction removes: an operator reading the
+  // timeline could not tell that their resolution had been undone, or why.
+  const eventType = created
+    ? "opened"
+    : decisionIsReopen(decision)
+      ? REOPENED_EVENT
+      : decision === "PRESERVE_SUPPRESSED"
+        ? OCCURRENCE_WHILE_SUPPRESSED_EVENT
+        : "increment";
+  const reopenReason = reopenReasonFor(decision);
   try {
     await client.operationalIncidentEvent.create({
       data: {
         incidentId: row.id,
-        eventType: created ? "opened" : "increment",
-        safeMessage: safeSummary,
-        metadataJson: sanitisedMetadata as prismaPkg.Prisma.InputJsonValue | undefined,
+        eventType,
+        safeMessage:
+          decision === "PRESERVE_SUPPRESSED"
+            ? "The condition is still true. It remains suppressed by operator decision."
+            : reopenReason === "SOURCE_RECURRENCE"
+              ? "The source reported this condition again after it had recovered. Reopened as a new operational cycle; the previous cycle history is unchanged."
+              : reopenReason === "ACTIVE_SOURCE_AFTER_LEGACY_MANUAL_RESOLUTION"
+                ? "The source still reports this condition, and the previous resolution was not a recorded source recovery. Reopened once, explicitly; the previous resolution and its note remain in the history."
+                : safeSummary,
+        metadataJson: (reopenReason
+          ? { ...(sanitisedMetadata ?? {}), reopenReason, decision }
+          : sanitisedMetadata) as prismaPkg.Prisma.InputJsonValue | undefined,
       },
     });
   } catch {
@@ -265,23 +404,33 @@ export async function recordIncident(
    * swallows its own — an SLA bookkeeping fault must not lose the observation
    * of the condition itself.
    */
-  // Only a RESOLVED condition recurring is a new qualification.
+  // A REOPEN is a new qualification; nothing else is.
   //
-  // A SUPPRESSED one is deliberately excluded: suppression silences
-  // notification without stopping the clock, so its cycle is still LIVE and
-  // `openSlaCycle` would decline anyway. Naming it here would suggest a new
-  // promise begins when a silenced condition re-fires, and it does not — the
-  // original promise was never discharged.
-  const reopened =
-    !created && existingStatusBeforeWrite === prismaPkg.IncidentStatus.RESOLVED;
+  // A suppressed condition re-firing is deliberately excluded: suppression
+  // silences notification without stopping the clock, so its cycle is still
+  // LIVE and `openSlaCycle` would decline anyway. Naming it here would suggest
+  // a new promise begins when a silenced condition re-fires, and it does not —
+  // the original promise was never discharged.
+  const reopened = !created && decisionIsReopen(decision);
+  // Read once so the captured pre-write status is not an unused binding; the
+  // decision above is what the SLA follows.
+  void existingStatusBeforeWrite;
   // A workspace-less condition gets no cycle: an SLA promise is a promise BY
   // a workspace, and one with no tenant has nobody to have made it.
   const cycleTeamId = row.teamId ?? input.teamId ?? null;
   if ((created || reopened) && cycleTeamId) {
     try {
-      const { openSlaCycle } = await import(
+      const { openSlaCycle, closeSlaCycle } = await import(
         "../operations/incident-sla-cycle.service.js"
       );
+      // A reopen closes whatever cycle is still live before starting the new
+      // one. `openSlaCycle` declines while a live cycle exists, so without this
+      // a legacy row whose resolution never closed its cycle would reopen with
+      // no new promise at all — the reopen would be recorded and the
+      // commitment would silently still be the old one.
+      if (reopened) {
+        await closeSlaCycle({ incidentId: row.id, reason: "REOPENED" }, client);
+      }
       await openSlaCycle(
         {
           teamId: cycleTeamId,
@@ -457,6 +606,46 @@ export async function assignIncident(
   return updated;
 }
 
+/**
+ * IS THIS CONDITION STILL TRUE, RIGHT NOW?
+ *
+ * Only for conditions the registry declares SOURCE_TRUTH — the ones with a
+ * deterministic, per-incident probe. Everything else returns null, which the
+ * shared authority reads as "no probe was made" and which only matters for
+ * SOURCE_TRUTH conditions anyway.
+ *
+ * The probe is the SAME column `resolveRecoveredConditions` reads. That is the
+ * point: if the sweep would reopen a condition seconds after an operator
+ * closed it, the close is refused up front instead of being accepted and
+ * silently undone.
+ *
+ * A record that cannot be read returns null and is therefore refused. "We
+ * could not check" is not "it is fine".
+ */
+async function probeSourceActivity(
+  incident: { category: string; fingerprint: string },
+  client: PrismaClient,
+): Promise<SourceObservation | null> {
+  if (incident.category !== "EVIDENCE_INTEGRITY") return null;
+  try {
+    const integrity = await import(
+      "../operations/evidence-integrity-conditions.service.js"
+    );
+    const parts = integrity.parseIntegrityFingerprint(incident.fingerprint);
+    if (!parts) return null;
+    const record = await client.evidence.findUnique({
+      where: { id: parts.evidenceId },
+      select: { tsaStatus: true, otsStatus: true },
+    });
+    if (!record) return null;
+    return integrity.isCurrentlyFailing(record, parts.integrityClass)
+      ? "SOURCE_ACTIVE"
+      : "SOURCE_RECOVERED";
+  } catch {
+    return null;
+  }
+}
+
 async function transitionIncident(
   input: { incidentId: string; teamId: string } & IncidentActorContext,
   next: prismaPkg.IncidentStatus,
@@ -475,6 +664,42 @@ async function transitionIncident(
   ) {
     throw new IncidentError("invalid_status_transition");
   }
+
+  // ---------------------------------------------------------------------
+  // AN OPERATOR MAY NOT DECLARE AN ACTIVE DETERMINISTIC CONDITION RESOLVED.
+  //
+  // Accepting it was worse than refusing it: the row read RESOLVED until the
+  // next sweep, which reopened it with no explanation, and the operator
+  // learned that the button does not mean anything. The refusal happens
+  // BEFORE any write, so a refused resolve leaves status, timestamps, note,
+  // events and SLA cycles exactly as they were.
+  //
+  // Which conditions this applies to is declared in the canonical remediation
+  // registry, never derived here from a category list, a severity or a plan.
+  // ---------------------------------------------------------------------
+  if (next === prismaPkg.IncidentStatus.RESOLVED) {
+    const { operatorResolutionAuthorityFor } = await import(
+      "../operations/remediation-registry.js"
+    );
+    const authority = operatorResolutionAuthorityFor({
+      category: existing.category,
+    });
+    const verdict = decideManualResolution({
+      currentStatus: existing.status as IncidentTransitionStatus,
+      authority,
+      observation:
+        authority === "SOURCE_TRUTH"
+          ? await probeSourceActivity(
+              { category: existing.category, fingerprint: existing.fingerprint },
+              client,
+            )
+          : null,
+    });
+    if (verdict === "REFUSE_MANUAL_RESOLUTION") {
+      throw new IncidentError(CONDITION_STILL_ACTIVE);
+    }
+  }
+
   const data: Record<string, unknown> = { status: next };
   if (next === prismaPkg.IncidentStatus.ACKNOWLEDGED) {
     data.acknowledgedAtUtc = new Date();

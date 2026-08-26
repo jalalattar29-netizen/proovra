@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1223
-ROUTE_ATTRIBUTED_REACHABLE                  1103
+TerminalWriters                             1221
+ROUTE_ATTRIBUTED_REACHABLE                  1101
 JOB_ATTRIBUTED_REACHABLE                     106
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
