@@ -58,6 +58,12 @@
  * that may never have happened.
  */
 
+import type {
+  NotApplicableDisposition,
+  ResolutionAuthority,
+  SourceActivity,
+} from "./ops/source-lifecycle.js";
+
 /** The lifecycle states a condition can hold. */
 export const INCIDENT_TRANSITION_STATUSES = [
   "OPEN",
@@ -90,12 +96,21 @@ export type ResolutionOrigin =
   | "OPERATOR"
   | "LEGACY_UNKNOWN";
 
-/** Whether the product lets an operator declare this condition resolved. */
-export type OperatorResolutionAuthority =
-  /** The source own truth decides. An operator may not claim otherwise. */
-  | "SOURCE_TRUTH"
-  /** Declared operator-resolvable by the canonical registry. */
-  | "OPERATOR_MAY_RESOLVE";
+/**
+ * WHETHER THE PRODUCT LETS AN OPERATOR DECLARE THIS CONDITION RESOLVED.
+ *
+ * The vocabulary is now the canonical source lifecycle contract's, re-exported
+ * here so callers that already import this module do not have to learn a
+ * second import path for the same idea.
+ *
+ * It used to be a two-member type declared HERE and decided per
+ * `IncidentCategory` in the API's remediation registry. Both of those are
+ * gone: authority is a property of the SOURCE, and the third member —
+ * NO_DIRECT_RESOLUTION — exists because "an operator may not close this AND
+ * nothing can observe its recovery" is a real state the two-member vocabulary
+ * could only express by lying in one direction.
+ */
+export type { ResolutionAuthority } from "./ops/source-lifecycle.js";
 
 /** The bounded decision vocabulary. Nothing else is a valid answer. */
 export const INCIDENT_TRANSITION_DECISIONS = [
@@ -105,7 +120,21 @@ export const INCIDENT_TRANSITION_DECISIONS = [
   "AUTO_RESOLVE_SOURCE_RECOVERY",
   "REOPEN_SOURCE_RECURRENCE",
   "REOPEN_LEGACY_ACTIVE_SOURCE",
+  /** The source itself still reports the condition. */
   "REFUSE_MANUAL_RESOLUTION",
+  /**
+   * The source could not be READ. Distinct from the refusal above and
+   * deliberately so: "still failing" and "we could not check" are different
+   * facts, an operator is owed the difference, and collapsing them would make
+   * a transient database fault indistinguishable from a real active condition.
+   */
+  "REFUSE_ACTIVITY_UNKNOWN",
+  /**
+   * Nobody in this workspace can truthfully declare this condition over, and
+   * no probe exists that could. There is no Resolve control for these at all;
+   * this is what refuses one that arrives anyway.
+   */
+  "REFUSE_NO_DIRECT_RESOLUTION",
 ] as const;
 export type IncidentTransitionDecision =
   (typeof INCIDENT_TRANSITION_DECISIONS)[number];
@@ -132,22 +161,37 @@ export type ObservationFacts = {
 export type ManualResolutionFacts = {
   currentStatus: IncidentTransitionStatus;
   /**
-   * What the canonical registry declares about this condition. Never a plan
-   * name, never a workspace name, never a category list rebuilt at the call
-   * site.
-   */
-  authority: OperatorResolutionAuthority;
-  /**
-   * What the source says right now, for a SOURCE_TRUTH condition.
+   * What the canonical SOURCE contract declares about this condition.
    *
-   * `null` means NO OBSERVATION WAS MADE — the probe could not read the
-   * subject at all, most often because the record the condition names no
-   * longer exists. That is not the same as "the source says it is still
-   * failing", and it must not be treated as one: a condition whose subject is
-   * gone can never be observed active again, so refusing it would leave it
-   * permanently unclosable by anyone.
+   * Resolved from the condition's own source — fingerprint first — and never
+   * from a plan name, a workspace name, a severity or a category list rebuilt
+   * at the call site. Declaring it per category is the defect this replaced:
+   * four sources write category WORKER, so a category-level rule was a rule
+   * about a set nobody had enumerated.
    */
-  observation?: SourceObservation | null;
+  authority: ResolutionAuthority;
+  /**
+   * What the source says RIGHT NOW, for a SOURCE_TRUTH condition.
+   *
+   * Four states, all of them real and none of them collapsible:
+   *
+   *   ACTIVE          the condition is still true. Refused.
+   *   RECOVERED       positively observed to be over. Allowed.
+   *   UNKNOWN         the probe could not read the source. Refused, with its
+   *                   own code, because "we could not check" is not "it is
+   *                   fine" — and it is not "it is still broken" either.
+   *   NOT_APPLICABLE  the subject the condition names cannot be identified at
+   *                   all, most often a record that has been deleted. What
+   *                   that permits is declared per source, because a subject
+   *                   that is gone can never be observed active again and
+   *                   refusing would leave the condition unclosable forever.
+   */
+  activity?: SourceActivity | null;
+  /**
+   * What this source says NOT_APPLICABLE permits. Required whenever `activity`
+   * can be NOT_APPLICABLE; the conservative REFUSE is assumed when absent.
+   */
+  notApplicableDisposition?: NotApplicableDisposition;
 };
 
 /**
@@ -168,8 +212,21 @@ export function decisionChangesStatus(
     case "PRESERVE_ACKNOWLEDGED":
     case "PRESERVE_SUPPRESSED":
     case "REFUSE_MANUAL_RESOLUTION":
+    case "REFUSE_ACTIVITY_UNKNOWN":
+    case "REFUSE_NO_DIRECT_RESOLUTION":
       return false;
   }
+}
+
+/** True for every decision that declines a manual resolution. */
+export function decisionRefusesManualResolution(
+  decision: IncidentTransitionDecision,
+): boolean {
+  return (
+    decision === "REFUSE_MANUAL_RESOLUTION" ||
+    decision === "REFUSE_ACTIVITY_UNKNOWN" ||
+    decision === "REFUSE_NO_DIRECT_RESOLUTION"
+  );
 }
 
 /** True for the two decisions that begin a NEW operational cycle. */
@@ -237,24 +294,118 @@ export function decideObservationTransition(
 export function decideManualResolution(
   facts: ManualResolutionFacts,
 ): IncidentTransitionDecision {
-  if (facts.authority === "OPERATOR_MAY_RESOLVE") return "OBSERVATION_ONLY";
-  // SOURCE_TRUTH: the refusal is grounded in a POSITIVE observation that the
-  // condition is still true, and in nothing else.
-  //
-  // The rule this replaces refused on anything that was not a proven recovery,
-  // which swept in the case where no observation could be made at all. That
-  // was over-broad in a way that mattered: a condition whose subject has been
-  // deleted can never be observed active again, so no sweep would ever reopen
-  // it — and refusing the operator too left it permanently unclosable, which
-  // is not a safer answer, it is a stuck queue.
-  //
-  // The property the refusal exists for is unchanged: while the source ITSELF
-  // still reports the condition, an operator may not declare it over, because
-  // the next sweep would contradict them.
-  return facts.observation === "SOURCE_ACTIVE"
-    ? "REFUSE_MANUAL_RESOLUTION"
-    : "OBSERVATION_ONLY";
+  // NO_DIRECT_RESOLUTION: refused on the CONTRACT, before any probe is
+  // consulted, because there is nothing to consult. The workspace cannot
+  // observe this source's recovery and must not assert it; the projection does
+  // not offer a Resolve control, and this is what answers one that arrives
+  // from a stale tab or a direct API call anyway.
+  if (facts.authority === "NO_DIRECT_RESOLUTION") {
+    return "REFUSE_NO_DIRECT_RESOLUTION";
+  }
+
+  // OPERATOR_DECISION: the condition records something that HAPPENED and its
+  // completion is a human conclusion. No probe exists and none is asked for —
+  // asking would be inventing a technical fact to gate a judgement.
+  if (facts.authority === "OPERATOR_DECISION") return "OBSERVATION_ONLY";
+
+  // SOURCE_TRUTH: the source decides, and the four probe answers are four
+  // different decisions.
+  switch (facts.activity) {
+    case "RECOVERED":
+      // The ONLY answer that permits a source-truth resolution.
+      return "OBSERVATION_ONLY";
+    case "ACTIVE":
+      // While the source ITSELF still reports the condition, an operator may
+      // not declare it over: the next sweep would contradict them, minutes
+      // later and silently.
+      return "REFUSE_MANUAL_RESOLUTION";
+    case "NOT_APPLICABLE":
+      // The subject cannot be identified. Whether that is closable is a
+      // property of the SOURCE — a deleted evidence record can never be
+      // observed active again and must stay closable; a workspace-level count
+      // cannot become unidentifiable, so NOT_APPLICABLE there means the probe
+      // is wrong and must resolve nothing.
+      return facts.notApplicableDisposition === "ALLOW_OPERATOR_CLOSE"
+        ? "OBSERVATION_ONLY"
+        : "REFUSE_ACTIVITY_UNKNOWN";
+    case "UNKNOWN":
+    case null:
+    case undefined:
+    default:
+      // FAIL CLOSED. A missing observation is not a recovery. This is the
+      // branch that turns a database fault into a refusal instead of into a
+      // false all-clear.
+      return "REFUSE_ACTIVITY_UNKNOWN";
+  }
 }
 
 /** The stable domain error code a refused manual resolution carries. */
 export const CONDITION_STILL_ACTIVE = "CONDITION_STILL_ACTIVE" as const;
+
+/**
+ * The stable domain error code for a probe that could not read its source.
+ *
+ * A SEPARATE code from `CONDITION_STILL_ACTIVE` on purpose. The operator did
+ * not do anything wrong and the condition is not necessarily still true — the
+ * platform simply could not check, and the honest thing to tell them is
+ * exactly that rather than an assertion the server cannot back.
+ */
+export const CONDITION_ACTIVITY_UNKNOWN = "CONDITION_ACTIVITY_UNKNOWN" as const;
+
+/**
+ * The stable domain error code for a condition nobody may directly resolve.
+ *
+ * Reached only by a request the projection never offered.
+ */
+export const CONDITION_NOT_DIRECTLY_RESOLVABLE =
+  "CONDITION_NOT_DIRECTLY_RESOLVABLE" as const;
+
+/** The refusal code one refusing decision carries, or null when it allows. */
+export function manualResolutionErrorCode(
+  decision: IncidentTransitionDecision,
+):
+  | typeof CONDITION_STILL_ACTIVE
+  | typeof CONDITION_ACTIVITY_UNKNOWN
+  | typeof CONDITION_NOT_DIRECTLY_RESOLVABLE
+  | null {
+  if (decision === "REFUSE_MANUAL_RESOLUTION") return CONDITION_STILL_ACTIVE;
+  if (decision === "REFUSE_ACTIVITY_UNKNOWN") return CONDITION_ACTIVITY_UNKNOWN;
+  if (decision === "REFUSE_NO_DIRECT_RESOLUTION") {
+    return CONDITION_NOT_DIRECTLY_RESOLVABLE;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// DURABLE RESOLUTION PROVENANCE — ONE TABLE, BOTH HOSTS
+// ---------------------------------------------------------------------------
+
+/**
+ * The event types that record a resolution, and what each one means.
+ *
+ * It lived TWICE — once in the API's incident service and once in the Worker's
+ * emitter — as "duplicated as data rather than imported". Both copies describe
+ * the SAME rows in the SAME table, so the duplication had nothing to recommend
+ * it beyond the import boundary that no longer exists: the decision that reads
+ * this table is already here.
+ *
+ * Provenance is read from the EVENT HISTORY and from nothing else. Neither
+ * `resolvedAtUtc`, nor `resolvedByUserId`, nor the note, nor elapsed time can
+ * distinguish "the source recovered" from "a person said it was fine": the
+ * first two are written by both paths and the last is written by neither.
+ */
+export const RESOLUTION_EVENT_ORIGINS: Readonly<
+  Record<string, ResolutionOrigin>
+> = Object.freeze({
+  /** Written by a recovery sweep from the source's own observable truth. */
+  resolved_by_domain_truth: "SOURCE_RECOVERY",
+  /** Written by `transitionIncident` when an operator resolved it. */
+  resolved: "OPERATOR",
+});
+
+/** The canonical event type for a reopen. Never an `increment`. */
+export const REOPENED_EVENT = "reopened";
+/** The canonical event type for a still-failing suppressed condition. */
+export const OCCURRENCE_WHILE_SUPPRESSED_EVENT = "occurrence_while_suppressed";
+/** The canonical event type for a resolution the SOURCE decided. */
+export const RESOLVED_BY_DOMAIN_TRUTH_EVENT = "resolved_by_domain_truth";

@@ -72,6 +72,14 @@ export type GroupableCondition = {
   assignedOperatorUserId: string | null;
   /** The persisted machine-readable failure reason, when the domain has one. */
   failureReasonCode?: string | null;
+  /**
+   * The condition's current aggregate value, for a source that carries one.
+   *
+   * Present ONLY for AGGREGATE conditions, where one condition stands for many
+   * records. It is what makes `affectedRecordCount` below answerable for a
+   * group whose member count is 1 and whose real population is 26.
+   */
+  metricCurrentValue?: number | null;
 };
 
 /** A record inside a group. Bounded, and never carrying provider error text. */
@@ -107,8 +115,33 @@ export type OperationsConditionGroup = {
   category: IncidentCategory;
   /** The one sentence that describes the whole group. */
   title: string;
-  /** How many CONDITIONS — and therefore how many records — are in it. */
-  affectedCount: number;
+  /**
+   * HOW MANY CONDITIONS ARE IN THE GROUP.
+   *
+   * Renamed from `affectedCount`, which was true for per-record groups and
+   * false for every other kind — and the false case was the one that mattered.
+   * A report-backlog group has exactly ONE member and stands for twenty-six
+   * evidence records, so a field called `affectedCount` returning 1 sat beside
+   * a title claiming 26 with nothing to say they were different quantities.
+   *
+   * This is the number the CONSERVATION property is about: the sum of
+   * `conditionCount` across groups equals the number of input conditions.
+   */
+  conditionCount: number;
+  /**
+   * HOW MANY REAL RECORDS THE GROUP STANDS FOR, or null when unknowable.
+   *
+   * A different question, answered differently per cardinality:
+   *
+   *   PER_RECORD  each condition IS one record, so it equals conditionCount;
+   *   AGGREGATE   the members' current metric values, summed — the honest
+   *               answer to "how many records are behind this";
+   *   otherwise   null, and the surface says nothing rather than printing the
+   *               member count under a name that would claim more.
+   *
+   * NULL IS A REAL ANSWER and must render as an absence, never as zero.
+   */
+  affectedRecordCount: number | null;
   /** Highest severity present, so the group sorts by its worst member. */
   severity: string;
   /** Earliest first-seen across members: how long this has been true. */
@@ -124,7 +157,7 @@ export type OperationsConditionGroup = {
    *
    * Bounded because a group can contain every record in a workspace and an
    * unbounded expansion is a denial of service aimed at the operator's own
-   * browser. `affectedCount` is the full number; this is a page of it, and
+   * browser. `conditionCount` is the full number; this is a page of it, and
    * `hasMoreAffected` says so rather than letting the shorter list read as the
    * total.
    */
@@ -197,7 +230,7 @@ function titleFor(category: IncidentCategory, dimension: string, count: number):
  *
  * CONSERVATION, which the tests pin:
  *   * every input condition appears in exactly one group;
- *   * the sum of `affectedCount` equals the number of input conditions;
+ *   * the sum of `conditionCount` equals the number of input conditions;
  *   * no condition is dropped for having an unrecognised fingerprint —
  *     it falls into its category's default group rather than vanishing.
  */
@@ -256,11 +289,26 @@ export function projectConditionGroups(
       return a.firstSeenAtUtc.getTime() - b.firstSeenAtUtc.getTime();
     });
 
+    // THE SECOND NUMBER, computed only where it can be computed.
+    //
+    // Per-record conditions ARE their records. Aggregate conditions carry a
+    // live metric, and the sum of those metrics is the real population — the
+    // number that used to be frozen in a title while a field called
+    // `affectedCount` said 1 beside it. Everything else gets null, which the
+    // surface renders as an absence rather than as a zero.
+    const metricTotal = members.reduce<number | null>((sum, m) => {
+      if (typeof m.metricCurrentValue !== "number") return sum;
+      return (sum ?? 0) + m.metricCurrentValue;
+    }, null);
+    const affectedRecordCount =
+      category === "EVIDENCE_INTEGRITY" ? members.length : metricTotal;
+
     groups.push({
       groupKey,
       category,
       title: derivedTitle,
-      affectedCount: members.length,
+      conditionCount: members.length,
+      affectedRecordCount,
       severity: worst.severity,
       firstSeenAtUtc: firstSeen.toISOString(),
       lastSeenAtUtc: lastSeen.toISOString(),
@@ -300,11 +348,18 @@ export function projectConditionGroups(
 }
 
 /**
- * Total conditions represented by a set of groups.
+ * Total CONDITIONS represented by a set of groups.
  *
  * Exists so conservation is CHECKABLE at any boundary that consumes groups,
  * rather than being a property somebody has to remember to preserve.
+ *
+ * Deliberately NOT the affected-record total. Conservation is a statement
+ * about conditions — every input appears in exactly one group — and summing a
+ * quantity that is null for some groups and a live metric for others would not
+ * conserve anything.
  */
-export function totalAffected(groups: readonly OperationsConditionGroup[]): number {
-  return groups.reduce((sum, g) => sum + g.affectedCount, 0);
+export function totalConditions(
+  groups: readonly OperationsConditionGroup[],
+): number {
+  return groups.reduce((sum, g) => sum + g.conditionCount, 0);
 }

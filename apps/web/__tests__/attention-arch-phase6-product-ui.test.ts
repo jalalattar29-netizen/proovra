@@ -174,13 +174,40 @@ test("each action renders only with its own capability AND its own state", () =>
     ROW_MODEL,
     /canAcknowledge: ctx\.capabilities\.canAcknowledge && isOpen/,
   );
+  // RESOLVE CARRIES A THIRD PREDICATE, AND IT LEADS.
+  //
+  // Capability and state are not enough for this one, and that gap was a
+  // measured defect: Resolve was offered on every unresolved condition to any
+  // capability holder, including the SOURCE_TRUTH conditions the server
+  // refuses and the platform conditions nobody can truthfully close. Those
+  // controls could only ever produce a 409.
+  //
+  // The SOURCE contract is the only one of the three the browser cannot know
+  // on its own, so the server projects it per row and this reads it first.
   assert.match(
     ROW_MODEL,
-    /canResolve: ctx\.capabilities\.canResolve && isUnresolved/,
+    /canResolve:\s*\n?\s*i\.lifecycle\?\.manualResolution === true &&\s*\n?\s*ctx\.capabilities\.canResolve &&\s*\n?\s*isUnresolved/,
   );
   assert.match(
     ROW_MODEL,
     /canSuppress: ctx\.capabilities\.canSuppress && isUnresolved/,
+  );
+});
+
+test("the Resolve gate fails CLOSED when the server sends no source contract", () => {
+  // An older server's response has no `lifecycle`, and the browser must read
+  // that as "no Resolve" rather than falling back to the capability. A control
+  // that should not be there is a worse error than one briefly missing: the
+  // first teaches an operator that the button does not mean anything.
+  //
+  // `=== true` is what makes that true of `undefined`; a truthiness check
+  // would behave identically today and silently stop when the field became
+  // optional in some other shape.
+  const ROW_MODEL = read("app/(app)/operations/_lib/rowModel.ts");
+  assert.match(ROW_MODEL, /i\.lifecycle\?\.manualResolution === true/);
+  assert.ok(
+    !/i\.lifecycle\?\.manualResolution \?\?/.test(ROW_MODEL),
+    "the Resolve gate must not default a missing contract to permissive",
   );
 });
 

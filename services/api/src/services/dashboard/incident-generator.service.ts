@@ -1,61 +1,60 @@
 /**
  * Phase 32.8C — Operations Control Plane: Incident Generator.
  *
- * Scans real operational state (existing tables, no fabricated data) and
- * deterministically generates `OperationalIncident` rows when concrete
- * thresholds are crossed. Routes incident creation through the existing
- * `recordIncident` upsert which:
- *   - Dedups on `(teamId, fingerprint)` so the same condition collapses
- *     into one incident with `occurrenceCount` ticked on re-fire.
- *   - Escalates severity on re-fire if the new severity rank is higher.
- *   - Reopens RESOLVED/SUPPRESSED rows on fresh occurrence.
+ * Observes real operational state (existing tables, no fabricated data) and
+ * deterministically opens, refreshes and RESOLVES `OperationalIncident` rows
+ * from what it sees. Incident writes go through the existing `recordIncident`
+ * upsert, which dedups on `(teamId, fingerprint)`, and through
+ * `resolveConditionFromSourceRecovery`, which closes a condition its source
+ * says is over.
  *
- * Hard rules:
+ * WHAT MOVED, AND WHY
+ * -------------------
+ * The per-rule scanners that used to live here are gone. Each was a private
+ * count that only discovery could run, which is precisely why an operator
+ * could declare a report backlog resolved while all 26 records were still
+ * above the threshold: nothing outside this file could ask the question.
+ *
+ * Every count, threshold and comparison now lives with its SOURCE, in
+ * `operations-source-probes.ts`, and five callers share it — discovery, the
+ * manual-resolution gate, recovery detection, recurrence detection and the
+ * metric a row displays. This file CONSUMES that observation and owns the
+ * accounting around it.
+ *
+ * Hard rules, unchanged:
  *   - Every fingerprint corresponds to a REAL condition observed in the
  *     workspace's existing tables. NO fabricated incidents.
- *   - Generator failures NEVER block evidence / report / package /
- *     verify core flows. Every scan + write is wrapped in try/catch.
+ *   - Generator failures NEVER block evidence / report / package / verify
+ *     core flows.
  *   - Bounded counts, bounded summaries, no raw payloads exposed.
  *   - This is the DASHBOARD-READ generator. It runs lazily; the worker
- *     remains the authoritative path for incidents that originate
- *     deep in the pipeline (e.g., worker.health_start_failed).
+ *     remains the authoritative path for incidents that originate deep in the
+ *     pipeline (e.g., worker.health_start_failed).
  */
-
-import {
-  type IncidentCategory,
-  type IncidentSeverity,
-} from "@proovra/shared";
 
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
-import { recordIncident } from "../observability/incident.service.js";
-import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import {
+  markConditionObservationStale,
+  recordIncident,
+  resolveConditionFromSourceRecovery,
+} from "../observability/incident.service.js";
 import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
+import {
+  aggregateFingerprint,
+  aggregateSpecs,
+  observeAggregate,
+} from "../operations/operations-source-probes.js";
 import {
   reportSourceFailure,
   toSourceFailure,
 } from "../operations/operations-source-diagnostics.js";
 import {
+  buildConditionMetric,
   workspaceEvidenceWhere,
   type OperationsSourceFailure,
 } from "@proovra/shared-runtime";
-
-// ---------- Thresholds — every one is real platform state -----------------
-
-const REPORT_BACKLOG_HIGH = 20;
-const REPORT_BACKLOG_CRITICAL = 100;
-const PACKAGE_BACKLOG_HIGH = 20;
-const PACKAGE_BACKLOG_CRITICAL = 100;
-const STALE_REVIEW_HOURS = 72;
-const STALE_REVIEW_HIGH_COUNT = 5;
-const RETRY_STORM_OCCURRENCE_THRESHOLD = 5;
-const TELEMETRY_STALE_MINUTES = 30;
-const WORKER_HEARTBEAT_STALE_MINUTES = 15;
-const UNSIGNED_FINALIZED_AGED_DAYS = 14;
-const UNSIGNED_FINALIZED_HIGH_COUNT = 5;
-const COORDINATION_STALE_DAYS = 21;
-const COORDINATION_STALE_HIGH_COUNT = 10;
 
 type GenerationContext = {
   teamId: string;
@@ -71,15 +70,6 @@ type GenerationContext = {
    * keeps its strict filter and nothing leaks across tenants.
    */
   evidenceWhere: Prisma.EvidenceWhereInput;
-};
-
-type Generated = {
-  fingerprint: string;
-  category: IncidentCategory;
-  severity: IncidentSeverity;
-  title: string;
-  safeSummary: string;
-  runbookSlug?: string | null;
 };
 
 /**
@@ -218,61 +208,115 @@ export async function generateIncidentsForWorkspace(
     failSource(INTEGRITY_SOURCE_IDS, "UNKNOWN", err);
   }
 
-  // Each entry names the REGISTERED source it covers, so the run records
-  // which sources it completed rather than only how many failed. Per-source
-  // isolation is the load-bearing property: one broken scan marks ITS source
-  // failed and the sweep continues, and a broken source can never fabricate a
-  // clear result because its id is absent from `successful`.
-  const RULES: Array<[string, () => Promise<Generated | null>]> = [
-    ["pipeline.report_backlog", () => scanReportBacklog(ctx)],
-    ["pipeline.package_backlog", () => scanPackageBacklog(ctx)],
-    ["review.stale_workflows", () => scanStaleReviews(ctx)],
-    ["queue.retry_storm", () => scanRetryStorms(ctx)],
-    ["platform.telemetry_stale", () => scanStaleTelemetry(ctx)],
-    ["platform.worker_heartbeat_stale", () => scanWorkerHeartbeatStaleness(ctx)],
-    ["pipeline.signed_without_report_aged", () => scanUnsignedFinalizedAged(ctx)],
-    ["coordination.backlog_stale", () => scanCoordinationBacklogStale(ctx)],
-  ];
+  // -------------------------------------------------------------------------
+  // THE AGGREGATE SOURCES.
+  //
+  // The scanners that used to live in this file are gone. Each of them was a
+  // private count that only discovery could run, which is exactly why an
+  // operator could declare a backlog resolved: nothing else in the product
+  // could ask whether the backlog was still there.
+  //
+  // The count now lives with its source, in `operations-source-probes.ts`, and
+  // this loop CONSUMES it. Same predicate, same threshold, same comparison, in
+  // discovery and in the resolve path and in the metric the row displays.
+  //
+  // Per-source isolation is still the load-bearing property: one broken
+  // observation marks ITS source failed and the sweep continues, and a broken
+  // source can never fabricate a clear result because its id is absent from
+  // `successful`.
+  // -------------------------------------------------------------------------
+  const probeCtxBase = {
+    teamId: ctx.teamId,
+    client: prisma,
+    now: new Date(),
+    evidenceWhere: ctx.evidenceWhere,
+  };
 
-  for (const [sourceId, rule] of RULES) {
+  for (const spec of aggregateSpecs()) {
+    const sourceId = spec.sourceId;
     attempted.push(sourceId);
-    try {
-      const result = await rule();
-      if (result) {
-        rules.push(result.fingerprint);
-        try {
-          await recordIncident({
-            teamId: ctx.teamId,
-            category: result.category,
-            severity: result.severity,
-            fingerprint: result.fingerprint,
-            title: result.title,
-            safeSummary: result.safeSummary,
-            runbookSlug: result.runbookSlug ?? null,
-          });
-          recorded += 1;
-          successful.push(sourceId);
-        } catch (err) {
-          // The scan SAW the condition and the write failed. The source is not
-          // successful: its condition exists and is not recorded, which is
-          // exactly the state that must stop a clear assertion.
-          //
-          // This is the handler that was a bare `catch {}`, and it is the one
-          // that mattered: every source that crossed its threshold in
-          // production arrived here, lost its cause, and reported a bare id.
-          failSource([sourceId], "WRITE", err);
-        }
-      } else {
-        // Scanned, nothing above threshold. That IS a successful source — the
-        // distinction between "looked and found nothing" and "did not look" is
-        // the whole reason this accounting exists.
+    const fingerprint = aggregateFingerprint(spec, ctx.teamId);
+    const observation = await observeAggregate(spec, {
+      ...probeCtxBase,
+      fingerprint,
+    });
+
+    if (observation.activity === "UNKNOWN") {
+      // The source could not be READ. Nothing is learned, nothing is written
+      // about whether the condition holds, and any metric already on the row
+      // is flagged rather than replaced — a stale number that says it is stale
+      // is honest; a zero would say "recovered", which is the one thing we do
+      // not know.
+      await markConditionObservationStale({ teamId: ctx.teamId, fingerprint });
+      failSource(
+        [sourceId],
+        "SCAN",
+        new Error(`${sourceId}: source could not be observed`),
+      );
+      continue;
+    }
+
+    if (observation.activity === "ACTIVE") {
+      rules.push(fingerprint);
+      try {
+        await recordIncident({
+          teamId: ctx.teamId,
+          category: spec.category,
+          severity: observation.severity ?? "WARNING",
+          fingerprint,
+          // STABLE AND COUNT-FREE. The number is in the metric, where it can
+          // be refreshed; a title carrying "(26)" was written once and then
+          // frozen for the life of the condition.
+          title: spec.stableTitle,
+          safeSummary: spec.describe({ value: observation.currentValue ?? 0 }),
+          runbookSlug: spec.runbookSlug,
+          metric: buildConditionMetric({
+            currentValue: observation.currentValue ?? 0,
+            thresholdValue: observation.thresholdValue ?? spec.thresholdValue,
+            criticalThresholdValue: observation.criticalThresholdValue,
+            unit: spec.unit,
+            observedAtUtc: observation.observedAtUtc,
+            truncated: observation.truncated,
+            affectedEntityType: spec.affectedEntityType,
+          }),
+        });
+        recorded += 1;
         successful.push(sourceId);
+      } catch (err) {
+        // The scan SAW the condition and the write failed. The source is not
+        // successful: its condition exists and is not recorded, which is
+        // exactly the state that must stop a clear assertion.
+        failSource([sourceId], "WRITE", err);
       }
+      continue;
+    }
+
+    // RECOVERED. Below threshold, positively observed — which is a different
+    // fact from "discovery did not re-record it", and the difference is why
+    // threshold conditions used to stay OPEN forever after a workspace fixed
+    // them. Resolving is idempotent: an already-resolved condition is left
+    // untouched by the shared transition authority.
+    try {
+      await resolveConditionFromSourceRecovery({
+        teamId: ctx.teamId,
+        fingerprint,
+        safeMessage: `${spec.stableTitle}: the source is below its threshold of ${spec.thresholdValue} ${spec.unit}. Resolved from positive observation, not from absence in a scan.`,
+        metric: buildConditionMetric({
+          currentValue: observation.currentValue ?? 0,
+          thresholdValue: observation.thresholdValue ?? spec.thresholdValue,
+          criticalThresholdValue: observation.criticalThresholdValue,
+          unit: spec.unit,
+          observedAtUtc: observation.observedAtUtc,
+          truncated: observation.truncated,
+          affectedEntityType: spec.affectedEntityType,
+        }),
+      });
+      // Looked, and found the condition no longer true. That IS a successful
+      // source — the distinction between "looked and found nothing" and "did
+      // not look" is the whole reason this accounting exists.
+      successful.push(sourceId);
     } catch (err) {
-      // The discovery query itself gave way: nothing was learned about this
-      // source, which is a different and less alarming fact than a condition
-      // that was seen and could not be recorded.
-      failSource([sourceId], "SCAN", err);
+      failSource([sourceId], "WRITE", err);
     }
   }
 
@@ -287,247 +331,5 @@ export async function generateIncidentsForWorkspace(
       truncated: truncatedSources,
       failures,
     },
-  };
-}
-
-// ---------- Per-rule scanners ---------------------------------------------
-
-async function scanReportBacklog(
-  ctx: GenerationContext,
-): Promise<Generated | null> {
-  const backlog = await prisma.evidence.count({
-    where: {
-      AND: [ctx.evidenceWhere, { status: "SIGNED", latestReportVersion: null }],
-    },
-  });
-  if (backlog < REPORT_BACKLOG_HIGH) return null;
-  const severity: IncidentSeverity =
-    backlog >= REPORT_BACKLOG_CRITICAL ? "CRITICAL" : "HIGH";
-  return {
-    fingerprint: `dashboard:pipeline:report_backlog:${ctx.teamId}`,
-    category: "REPORT" as IncidentCategory,
-    severity,
-    title: `Report backlog above threshold (${backlog})`,
-    safeSummary: `${backlog} signed evidence rows have no generated report. Threshold: HIGH at ${REPORT_BACKLOG_HIGH}, CRITICAL at ${REPORT_BACKLOG_CRITICAL}. Source: Evidence(status=SIGNED, latestReportVersion=null).`,
-    runbookSlug: "report-pipeline",
-  };
-}
-
-async function scanPackageBacklog(
-  ctx: GenerationContext,
-): Promise<Generated | null> {
-  const backlog = await prisma.evidence.count({
-    where: {
-      AND: [
-        ctx.evidenceWhere,
-        { status: "REPORTED", verificationPackageVersion: null },
-      ],
-    },
-  });
-  if (backlog < PACKAGE_BACKLOG_HIGH) return null;
-  const severity: IncidentSeverity =
-    backlog >= PACKAGE_BACKLOG_CRITICAL ? "CRITICAL" : "HIGH";
-  return {
-    fingerprint: `dashboard:pipeline:package_backlog:${ctx.teamId}`,
-    category: "PACKAGE" as IncidentCategory,
-    severity,
-    title: `Verification package backlog above threshold (${backlog})`,
-    safeSummary: `${backlog} reported evidence rows have no verification package. Threshold: HIGH at ${PACKAGE_BACKLOG_HIGH}, CRITICAL at ${PACKAGE_BACKLOG_CRITICAL}. Source: Evidence(status=REPORTED, verificationPackageVersion=null).`,
-    runbookSlug: "package-pipeline",
-  };
-}
-
-async function scanStaleReviews(
-  ctx: GenerationContext,
-): Promise<Generated | null> {
-  const since = new Date(
-    Date.now() - STALE_REVIEW_HOURS * 60 * 60 * 1000,
-  );
-  const stale = await prisma.evidenceReviewWorkflow.count({
-    where: {
-      // WORKSPACE-SCOPE CONVERGENCE — scoped through the Evidence the workflow
-      // belongs to, not through the workflow's own `team_id`.
-      //
-      // PROVEN, not assumed: `EvidenceReviewWorkflow.team_id` is nullable AND
-      // its writer (`reviewer-workflow.service.ts`) stores
-      // `params.teamId ?? null`, so every workflow created without an explicit
-      // workspace lands with a NULL that no strict predicate can see. The
-      // model has no owner column either, so the NULL arm could not be
-      // owner-bound even if it were added. The Evidence row IS the ownership
-      // authority here — the relation is `@unique` — so reading through it is
-      // both correct and one authority fewer.
-      evidence: ctx.evidenceWhere,
-      status: { in: ["ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
-      updatedAt: { lt: since },
-    },
-  });
-  if (stale < STALE_REVIEW_HIGH_COUNT) return null;
-  return {
-    fingerprint: `dashboard:review:stale_assignments:${ctx.teamId}`,
-    category: "WORKER" as IncidentCategory,
-    severity: stale >= STALE_REVIEW_HIGH_COUNT * 3 ? "HIGH" : "WARNING",
-    title: `Stale reviewer assignments (${stale})`,
-    safeSummary: `${stale} assigned/in-review/needs-info review workflows have not been touched in ${STALE_REVIEW_HOURS}h+. Source: EvidenceReviewWorkflow.updatedAt.`,
-    runbookSlug: "reviewer-ops",
-  };
-}
-
-async function scanRetryStorms(
-  ctx: GenerationContext,
-): Promise<Generated | null> {
-  // Re-derive from existing OperationalIncident rows so a retry storm
-  // surfaces here even when the worker-side recorder is not the trigger.
-  const stormCount = await prisma.operationalIncident.count({
-    where: {
-      // WORKSPACE-SCOPE CONVERGENCE — was
-      // `OR: [{ teamId: ctx.teamId }, { teamId: null }]`. A retry storm in a
-      // DELETED workspace would have counted toward this one's threshold,
-      // because deleting a workspace rewrites its incidents' team_id to NULL.
-      ...workspaceIncidentWhere(ctx.teamId),
-      status: { in: ["OPEN", "ACKNOWLEDGED"] },
-      occurrenceCount: { gte: RETRY_STORM_OCCURRENCE_THRESHOLD },
-    },
-  });
-  if (stormCount === 0) return null;
-  return {
-    fingerprint: `dashboard:reliability:retry_storms:${ctx.teamId}`,
-    category: "WORKER" as IncidentCategory,
-    severity: stormCount >= 3 ? "HIGH" : "WARNING",
-    title: `Retry storm pattern detected (${stormCount} repeat incidents)`,
-    safeSummary: `${stormCount} active incidents are recurring with occurrenceCount >= ${RETRY_STORM_OCCURRENCE_THRESHOLD}. Source: OperationalIncident.occurrenceCount.`,
-    runbookSlug: "retry-storm",
-  };
-}
-
-async function scanStaleTelemetry(
-  ctx: GenerationContext,
-): Promise<Generated | null> {
-  // QueueTelemetrySnapshot is workspace-scoped (teamId nullable). A
-  // freshest sample older than the threshold flags telemetry as stale.
-  const recent = await prisma.queueTelemetrySnapshot.findFirst({
-    where: { teamId: ctx.teamId },
-    orderBy: { sampledAtUtc: "desc" },
-    select: { sampledAtUtc: true },
-  });
-  if (!recent) return null; // healthy_empty — no rows yet is not a problem
-  const ageMinutes =
-    (Date.now() - recent.sampledAtUtc.getTime()) / 60_000;
-  if (ageMinutes < TELEMETRY_STALE_MINUTES) return null;
-  return {
-    fingerprint: `dashboard:telemetry:queue_stale:${ctx.teamId}`,
-    category: "WORKER" as IncidentCategory,
-    severity: ageMinutes > TELEMETRY_STALE_MINUTES * 4 ? "HIGH" : "WARNING",
-    title: `Queue telemetry sampler delayed (${Math.round(ageMinutes)}m)`,
-    safeSummary: `Latest QueueTelemetrySnapshot row for this workspace is ${Math.round(ageMinutes)} minutes old. Worker remains operational; the sampler may be delayed or paused. Threshold: ${TELEMETRY_STALE_MINUTES} minutes.`,
-    runbookSlug: "telemetry-sampler",
-  };
-}
-
-async function scanWorkerHeartbeatStaleness(
-  _ctx: GenerationContext,
-): Promise<Generated | null> {
-  // WorkerTelemetrySnapshot is process-global (no team scope). Scan the
-  // freshest row per workerKind = WORKER and report if it's older than
-  // the threshold.
-  const recent = await prisma.workerTelemetrySnapshot.findFirst({
-    where: { workerKind: "WORKER" },
-    orderBy: { heartbeatAtUtc: "desc" },
-    select: { heartbeatAtUtc: true, status: true },
-  });
-  if (!recent) return null;
-  const ageMinutes =
-    (Date.now() - recent.heartbeatAtUtc.getTime()) / 60_000;
-  if (ageMinutes < WORKER_HEARTBEAT_STALE_MINUTES) return null;
-  // Note: this is a global condition; we attach it to the team for
-  // dashboard visibility but the fingerprint is workspace-scoped so
-  // every workspace surfaces the condition independently.
-  return {
-    fingerprint: `dashboard:worker:heartbeat_stale:${_ctx.teamId}`,
-    category: "WORKER" as IncidentCategory,
-    severity:
-      ageMinutes > WORKER_HEARTBEAT_STALE_MINUTES * 4 ? "CRITICAL" : "HIGH",
-    title: `Worker heartbeat stale (${Math.round(ageMinutes)}m)`,
-    safeSummary: `Last persisted worker heartbeat is ${Math.round(ageMinutes)} minutes old (status=${recent.status}). Threshold: ${WORKER_HEARTBEAT_STALE_MINUTES} minutes. The worker process or its DB connection may be down.`,
-    runbookSlug: "worker-heartbeat",
-  };
-}
-
-async function scanUnsignedFinalizedAged(
-  ctx: GenerationContext,
-): Promise<Generated | null> {
-  // "Unsigned finalized" = status UPLOADED (upload complete, signing
-  // pending) where createdAt is older than the cutoff. We use createdAt
-  // as the age signal because the Evidence model does not record a
-  // separate finalization timestamp — the status transition is the
-  // signal.
-  const cutoff = new Date(
-    Date.now() - UNSIGNED_FINALIZED_AGED_DAYS * 24 * 60 * 60 * 1000,
-  );
-  const aged = await prisma.evidence.count({
-    where: {
-      AND: [ctx.evidenceWhere, { status: "UPLOADED", createdAt: { lt: cutoff } }],
-    },
-  });
-  if (aged < UNSIGNED_FINALIZED_HIGH_COUNT) return null;
-  return {
-    fingerprint: `dashboard:integrity:unsigned_aged:${ctx.teamId}`,
-    category: "GOVERNANCE" as IncidentCategory,
-    severity: aged >= UNSIGNED_FINALIZED_HIGH_COUNT * 3 ? "HIGH" : "WARNING",
-    title: `Unsigned evidence aged > ${UNSIGNED_FINALIZED_AGED_DAYS}d (${aged})`,
-    safeSummary: `${aged} evidence rows are status=UPLOADED but unsigned and older than ${UNSIGNED_FINALIZED_AGED_DAYS} days. Source: Evidence(status=UPLOADED, createdAt < cutoff). Threshold: HIGH at ${UNSIGNED_FINALIZED_HIGH_COUNT}.`,
-    runbookSlug: "signing-pipeline",
-  };
-}
-
-async function scanCoordinationBacklogStale(
-  ctx: GenerationContext,
-): Promise<Generated | null> {
-  const cutoff = new Date(
-    Date.now() - COORDINATION_STALE_DAYS * 24 * 60 * 60 * 1000,
-  );
-  // Unresolved reviewer comments + annotations + case comments older
-  // than the cutoff. Each query is wrapped — a single failure degrades
-  // that count to 0 without breaking the rule.
-  const [staleComments, staleAnnotations, staleCaseComments] = await Promise.all([
-    prisma.evidenceReviewerComment
-      .count({
-        where: {
-          // Scoped through the SAME canonical evidence filter: a comment on a
-          // personal workspace's legacy NULL-team record must still count.
-          evidence: ctx.evidenceWhere,
-          resolvedAtUtc: null,
-          createdAt: { lt: cutoff },
-        },
-      })
-      .catch(() => 0),
-    prisma.evidenceAnnotation
-      .count({
-        where: {
-          evidence: ctx.evidenceWhere,
-          resolvedAtUtc: null,
-          createdAt: { lt: cutoff },
-        },
-      })
-      .catch(() => 0),
-    prisma.caseComment
-      .count({
-        where: {
-          teamId: ctx.teamId,
-          resolvedAtUtc: null,
-          createdAt: { lt: cutoff },
-        },
-      })
-      .catch(() => 0),
-  ]);
-  const total = staleComments + staleAnnotations + staleCaseComments;
-  if (total < COORDINATION_STALE_HIGH_COUNT) return null;
-  return {
-    fingerprint: `dashboard:coordination:stale_backlog:${ctx.teamId}`,
-    category: "GOVERNANCE" as IncidentCategory,
-    severity:
-      total >= COORDINATION_STALE_HIGH_COUNT * 3 ? "HIGH" : "WARNING",
-    title: `Coordination backlog stale > ${COORDINATION_STALE_DAYS}d (${total} items)`,
-    safeSummary: `${staleComments} reviewer comments, ${staleAnnotations} annotations, ${staleCaseComments} case comments unresolved for more than ${COORDINATION_STALE_DAYS} days. Threshold: HIGH at ${COORDINATION_STALE_HIGH_COUNT}.`,
-    runbookSlug: "coordination-backlog",
   };
 }

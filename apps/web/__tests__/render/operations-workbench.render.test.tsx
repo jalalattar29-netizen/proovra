@@ -160,10 +160,66 @@ type IncidentOver = {
   lastSeenHoursAgo?: number;
   occurrences?: number;
   evidenceId?: string | null;
+  /**
+   * The SOURCE contract the server projected for this condition.
+   *
+   * The default is `OPERATOR_DECISION`, because every pre-existing case in
+   * this file is about the ACTION MACHINERY — does pressing Resolve reach the
+   * server, does a 409 open the right dialog, does focus return — and those
+   * cases need a row that offers the control. The cases that are about the
+   * contract itself override it explicitly and by name.
+   */
+  lifecycle?: Partial<{
+    sourceId: string;
+    sourceMatch: string;
+    resolutionAuthority: string;
+    audience: string;
+    cardinality: string;
+    recoveryPolicy: string;
+    manualResolution: boolean;
+  }> | null;
+  /** The live aggregate value, for the sources that carry one. */
+  metric?: {
+    currentValue: number;
+    previousValue?: number | null;
+    delta?: number | null;
+    thresholdValue: number;
+    criticalThresholdValue?: number | null;
+    unit: string;
+    observedAtUtc?: string;
+    stale?: boolean;
+    truncated?: boolean;
+    affectedEntityType?: string | null;
+  } | null;
 };
 
 function incident(over: IncidentOver) {
   return {
+    lifecycle:
+      over.lifecycle === null
+        ? undefined
+        : {
+            sourceId: "intake.delivery_failed",
+            sourceMatch: "CATEGORY_RESIDUAL",
+            resolutionAuthority: "OPERATOR_DECISION",
+            audience: "TENANT_ACTIONABLE",
+            cardinality: "EVENT",
+            recoveryPolicy: "OPERATOR_CLOSES",
+            manualResolution: true,
+            ...(over.lifecycle ?? {}),
+          },
+    metric: over.metric
+      ? {
+          previousValue: null,
+          delta: null,
+          criticalThresholdValue: null,
+          observedAtUtc: HOURS_AGO(0.1),
+          stale: false,
+          truncated: false,
+          affectedEntityType: null,
+          ...over.metric,
+        }
+      : null,
     // Absent by default: most conditions carry no recorded promise, and a
     // fixture that always supplied one would hide the untracked case.
     sla: undefined as IncidentSla | undefined,
@@ -1643,5 +1699,512 @@ describe("Operations — reconciliation state is visible, and gates the all-clea
         `rendered the all-clear under ${readiness}`,
       ).toBeNull();
     }
+  });
+});
+
+// ===========================================================================
+// THE SOURCE CONTRACT DECIDES WHICH ACTIONS ARE OFFERED
+// ===========================================================================
+//
+// Resolve used to be offered on EVERY unresolved condition to any capability
+// holder. That was a client-side derivation of a server-side rule, and it was
+// wrong for two whole classes of condition:
+//
+//   SOURCE_TRUTH          the server refuses it — recovery closes these — so
+//                         the control could only ever produce a 409;
+//   NO_DIRECT_RESOLUTION  nobody in the workspace can truthfully close it.
+//
+// The projection now carries the decision per row and the browser renders it.
+// These cases hold that the three authorities produce three different rows,
+// that remediation and assignment are UNAFFECTED by any of it, and that the
+// row and the inspector agree — they used to decide independently.
+
+describe("Operations — Resolve is offered by the SOURCE contract, not by capability alone", () => {
+  /**
+   * Open the row's action menu, then read what it offers.
+   *
+   * The menu is rendered at document level, not inside the row, so the reader
+   * opens it first and queries globally — the same shape the pre-existing
+   * action cases in this file use.
+   */
+  async function actionsFor(id: string): Promise<Set<string>> {
+    const trigger = within(
+      q(`[data-ops-row="${id}"]`) as HTMLElement,
+    ).getByRole("button", { name: /Actions for/ });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+    await settle();
+    return new Set(
+      qa("[data-ops-row-action]").map(
+        (el) => el.getAttribute("data-ops-row-action") as string,
+      ),
+    );
+  }
+
+  beforeEach(() => {
+    detailReply = () => ({
+      incident: { ...incident({ id: "x" }), timeline: [], timelineComplete: true },
+      remediation: {
+        disposition: "READ_ONLY_GUIDANCE",
+        actions: [],
+        deepLink: null,
+        guidance: null,
+        unsafeReason: null,
+      },
+    });
+  });
+
+  it("hides Resolve for a SOURCE_TRUTH condition, for a full-capability admin", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-source-truth",
+          title: "Report generation backlog",
+          category: "REPORT",
+          lifecycle: {
+            sourceId: "pipeline.report_backlog",
+            sourceMatch: "FINGERPRINT",
+            resolutionAuthority: "SOURCE_TRUTH",
+            cardinality: "AGGREGATE",
+            recoveryPolicy: "PROBE_AUTO_RESOLVE",
+            manualResolution: false,
+          },
+          metric: { currentValue: 26, thresholdValue: 20, unit: "records" },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    const actions = await actionsFor("i-source-truth");
+    // The capability IS held — this is not a permission story.
+    expect(actions.has("resolve")).toBe(false);
+    // …and everything the operator CAN honestly do is still there.
+    expect(actions.has("acknowledge")).toBe(true);
+    expect(actions.has("suppress")).toBe(true);
+  });
+
+  it("hides Resolve for a NO_DIRECT_RESOLUTION condition", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-platform",
+          title: "Background processing fault",
+          category: "WORKER",
+          lifecycle: {
+            sourceId: "job.background_failure",
+            resolutionAuthority: "NO_DIRECT_RESOLUTION",
+            audience: "TENANT_ADVISORY",
+            recoveryPolicy: "NO_RECOVERY_SIGNAL",
+            manualResolution: false,
+          },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    const actions = await actionsFor("i-platform");
+    expect(actions.has("resolve")).toBe(false);
+    expect(actions.has("acknowledge")).toBe(true);
+  });
+
+  it("shows Resolve for an OPERATOR_DECISION condition, and only with the capability", async () => {
+    const rows = () =>
+      list([
+        incident({
+          id: "i-operator",
+          title: "Intake delivery failed",
+          category: "UPLOAD",
+          lifecycle: {
+            sourceId: "intake.delivery_failed",
+            resolutionAuthority: "OPERATOR_DECISION",
+            manualResolution: true,
+          },
+        }),
+      ]);
+    incidentsReply = rows;
+    await mount(envelope(TEAM_ADMIN));
+    expect((await actionsFor("i-operator")).has("resolve")).toBe(true);
+
+    // The SAME condition, for a caller without the mutation capability.
+    incidentsReply = rows;
+    await mount(envelope(VIEWER));
+    // A viewer has no action menu at all, so there is nothing to open.
+    expect(qa("[data-ops-row-action]")).toHaveLength(0);
+  });
+
+  it("an older server that sends no lifecycle gets NO Resolve control", async () => {
+    // Fail closed. A control that should not be there is a worse error than
+    // one briefly missing, because the first teaches an operator that the
+    // button does not mean anything.
+    incidentsReply = () => list([incident({ id: "i-legacy", lifecycle: null })]);
+    await mount(envelope(TEAM_ADMIN));
+    const actions = await actionsFor("i-legacy");
+    expect(actions.has("resolve")).toBe(false);
+    expect(actions.has("acknowledge")).toBe(true);
+  });
+
+  it("the inspector and the row agree — one projection, not two", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-source-truth",
+          title: "Report generation backlog",
+          category: "REPORT",
+          lifecycle: {
+            sourceId: "pipeline.report_backlog",
+            resolutionAuthority: "SOURCE_TRUTH",
+            manualResolution: false,
+          },
+          metric: { currentValue: 26, thresholdValue: 20, unit: "records" },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(q('[data-ops-row="i-source-truth"] [data-ops-open]')!);
+    });
+    await settle();
+    const inspector = q("[data-ops-inspector]") as HTMLElement;
+    expect(inspector).not.toBeNull();
+    expect(inspector.querySelector('[data-ops-action="resolve"]')).toBeNull();
+    // Acknowledge and Suppress survive — the contract removes ONE action.
+    expect(
+      inspector.querySelector('[data-ops-action="acknowledge"]'),
+    ).not.toBeNull();
+    expect(inspector.querySelector('[data-ops-action="suppress"]')).not.toBeNull();
+    // And the absence is EXPLAINED rather than left as a gap an operator
+    // would go looking for a permission to fill.
+    const note = inspector.querySelector("[data-ops-resolution-note]");
+    expect(note).not.toBeNull();
+    expect(note!.textContent).toMatch(/closes itself when its source recovers/i);
+  });
+
+  it("remediation is projected independently of Resolve", async () => {
+    // The conflation this closure removed: a real remediation on a condition
+    // nobody may declare over. Pressing the button is allowed; calling the
+    // backlog gone is not.
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-source-truth",
+          category: "REPORT",
+          lifecycle: {
+            sourceId: "pipeline.report_backlog",
+            resolutionAuthority: "SOURCE_TRUTH",
+            manualResolution: false,
+          },
+        }),
+      ]);
+    detailReply = () => ({
+      incident: {
+        ...incident({ id: "i-source-truth" }),
+        timeline: [],
+        timelineComplete: true,
+      },
+      remediation: {
+        disposition: "DIRECT_REMEDIATION",
+        actions: [
+          {
+            actionId: "report.regenerate_artifacts",
+            label: "Regenerate report & verification package",
+            description: "Re-runs the artifact pipeline for this record.",
+            confirm: true,
+            async: true,
+          },
+        ],
+        deepLink: null,
+        guidance: null,
+        unsafeReason: null,
+      },
+    });
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(q('[data-ops-row="i-source-truth"] [data-ops-open]')!);
+    });
+    await settle();
+    const inspector = q("[data-ops-inspector]") as HTMLElement;
+    expect(inspector.querySelector('[data-ops-action="resolve"]')).toBeNull();
+    expect(
+      inspector.querySelector(
+        '[data-ops-remediate="report.regenerate_artifacts"]',
+      ),
+    ).not.toBeNull();
+  });
+});
+
+// ===========================================================================
+// THE METRIC AND THE OCCURRENCE COUNT ARE DIFFERENT NUMBERS
+// ===========================================================================
+
+describe("Operations — the current value is live, labelled, and not the occurrence count", () => {
+  it("renders the affected count, its unit and its threshold, beside a count-free title", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-backlog",
+          title: "Report generation backlog",
+          category: "REPORT",
+          occurrences: 4,
+          lifecycle: {
+            sourceId: "pipeline.report_backlog",
+            resolutionAuthority: "SOURCE_TRUTH",
+            cardinality: "AGGREGATE",
+            manualResolution: false,
+          },
+          metric: {
+            currentValue: 26,
+            previousValue: 30,
+            delta: -4,
+            thresholdValue: 20,
+            criticalThresholdValue: 100,
+            unit: "records",
+          },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    const row = q('[data-ops-row="i-backlog"]') as HTMLElement;
+    // THE TITLE CARRIES NO NUMBER. It used to read "(26)" and never change.
+    expect(row.textContent).toContain("Report generation backlog");
+    expect(
+      row.querySelector(".opsw-condition__title")!.textContent,
+    ).not.toMatch(/\d/);
+    // THE VALUE IS ITS OWN, LABELLED FACT.
+    const value = row.querySelector("[data-ops-metric-value]") as HTMLElement;
+    expect(value).not.toBeNull();
+    expect(value.getAttribute("data-ops-metric-value")).toBe("26");
+    expect(value.textContent).toBe("26 affected records");
+    expect(row.textContent).toContain("threshold 20");
+    // …and the OCCURRENCE count is a different number, said differently.
+    expect(row.textContent).toContain("4 occurrences");
+  });
+
+  it("says so when the last observation failed, instead of showing a stale value as current", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-stale",
+          title: "Report generation backlog",
+          category: "REPORT",
+          lifecycle: {
+            sourceId: "pipeline.report_backlog",
+            resolutionAuthority: "SOURCE_TRUTH",
+            manualResolution: false,
+          },
+          metric: {
+            currentValue: 26,
+            thresholdValue: 20,
+            unit: "records",
+            stale: true,
+          },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    const row = q('[data-ops-row="i-stale"]') as HTMLElement;
+    expect(row.querySelector('[data-ops-metric-stale="true"]')).not.toBeNull();
+    expect(row.textContent).toMatch(/last confirmed/i);
+    // The value is still shown — it was true when it was read. It is not
+    // replaced with a zero, which would render as recovery.
+    expect(row.textContent).toContain("26 affected records");
+  });
+
+  it("bounds a five-figure Enterprise value in the row and keeps the exact one in the inspector", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-enterprise",
+          title: "Report generation backlog",
+          category: "REPORT",
+          lifecycle: {
+            sourceId: "pipeline.report_backlog",
+            resolutionAuthority: "SOURCE_TRUTH",
+            manualResolution: false,
+          },
+          metric: {
+            currentValue: 41338,
+            thresholdValue: 20,
+            criticalThresholdValue: 100,
+            unit: "records",
+          },
+        }),
+      ]);
+    detailReply = () => ({
+      incident: {
+        ...incident({ id: "i-enterprise" }),
+        timeline: [],
+        timelineComplete: true,
+      },
+      remediation: {
+        disposition: "READ_ONLY_GUIDANCE",
+        actions: [],
+        deepLink: null,
+        guidance: null,
+        unsafeReason: null,
+      },
+    });
+    await mount(envelope(TEAM_ADMIN));
+    const row = q('[data-ops-row="i-enterprise"]') as HTMLElement;
+    // A floor, not an exact figure that would be wrong by the time it is read.
+    expect(row.textContent).toContain("2,000+ affected records");
+    expect(row.textContent).not.toContain("41,338");
+
+    await act(async () => {
+      fireEvent.click(q('[data-ops-row="i-enterprise"] [data-ops-open]')!);
+    });
+    await settle();
+    const inspector = q("[data-ops-inspector]") as HTMLElement;
+    const exact = inspector.querySelector("[data-ops-metric-exact]");
+    expect(exact).not.toBeNull();
+    expect(exact!.getAttribute("data-ops-metric-exact")).toBe("41338");
+    expect(exact!.textContent).toContain("41,338");
+  });
+
+  it("a source with no metric renders no metric, rather than a zero", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-record",
+          lifecycle: {
+            sourceId: "evidence_integrity.tsa_failed",
+            resolutionAuthority: "SOURCE_TRUTH",
+            cardinality: "PER_RECORD",
+            manualResolution: false,
+          },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    const row = q('[data-ops-row="i-record"]') as HTMLElement;
+    expect(row.querySelector("[data-ops-metric-value]")).toBeNull();
+    expect(row.textContent).not.toContain("affected records");
+  });
+});
+
+// ===========================================================================
+// THE THREE REFUSALS REACH THE OPERATOR, AND SAY DIFFERENT THINGS
+// ===========================================================================
+
+describe("Operations — a stale client's Resolve is refused with the right sentence", () => {
+  /** A row that DOES offer Resolve, so the refusal can be reached at all. */
+  const resolvable = () =>
+    list([
+      incident({
+        id: "i-operator",
+        category: "UPLOAD",
+        lifecycle: {
+          sourceId: "intake.delivery_failed",
+          resolutionAuthority: "OPERATOR_DECISION",
+          manualResolution: true,
+        },
+      }),
+    ]);
+
+  it.each([
+    [
+      "CONDITION_STILL_ACTIVE",
+      "ops-condition-still-active",
+      /still being reported by its source/i,
+    ],
+    [
+      "CONDITION_ACTIVITY_UNKNOWN",
+      "ops-condition-activity-unknown",
+      /could not confirm that the underlying condition has recovered/i,
+    ],
+    [
+      "CONDITION_NOT_DIRECTLY_RESOLVABLE",
+      "ops-condition-not-directly-resolvable",
+      /owned by the surface that reported it/i,
+    ],
+  ])("%s opens its OWN notice", async (code, testId, copy) => {
+    incidentsReply = resolvable;
+    mutationReply = () => apiCodeFailure(409, code);
+    await mount(envelope(TEAM_ADMIN));
+    const trigger = within(
+      q('[data-ops-row="i-operator"]') as HTMLElement,
+    ).getByRole("button", { name: /Actions for/ });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+    await settle();
+    const control = q('[data-ops-row-action="resolve"]') as HTMLElement;
+    expect(control, `no Resolve control to press for ${code}`).not.toBeNull();
+    control.focus();
+    await act(async () => {
+      fireEvent.click(control);
+    });
+    await settleTimers();
+    const dialog = q(`[data-confirm-action-modal="${testId}"]`) as HTMLElement;
+    expect(dialog, `${code} did not open its notice`).not.toBeNull();
+    expect(dialog.textContent).toMatch(copy);
+    // No provider name, no SQL, no identifier — the three things a refusal
+    // must never carry into a browser.
+    expect(dialog.textContent).not.toMatch(/select |prisma|postgres|relation/i);
+  });
+});
+
+// ===========================================================================
+// THE TOUCHED CONTROLS DO NOT OVERFLOW, AND DO NOT ASSUME A DIRECTION
+// ===========================================================================
+//
+// jsdom applies no layout, so "does it overflow" cannot be measured here and
+// asserting it would be theatre. What CAN be held is the two structural
+// properties that decide the answer, and both of them are things a future edit
+// could quietly remove:
+//
+//   * the new metric spans are children of the WRAPPING meta container, so a
+//     long value reflows instead of widening the row;
+//   * the stylesheet uses logical properties only, so the row reads correctly
+//     in an RTL locale rather than putting the threshold on the wrong side.
+
+describe("Operations — the metric and the resolution note are layout-safe", () => {
+  it("the metric spans sit inside the wrapping condition meta line", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-wrap",
+          title: "Report generation backlog",
+          category: "REPORT",
+          lifecycle: {
+            sourceId: "pipeline.report_backlog",
+            resolutionAuthority: "SOURCE_TRUTH",
+            manualResolution: false,
+          },
+          metric: {
+            currentValue: 41338,
+            thresholdValue: 20,
+            unit: "records",
+            stale: true,
+          },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    const row = q('[data-ops-row="i-wrap"]') as HTMLElement;
+    const meta = row.querySelector(".opsw-condition__meta") as HTMLElement;
+    expect(meta).not.toBeNull();
+    // Every added element is INSIDE the wrapping container. A metric rendered
+    // as a sibling of the title would be a fixed-width row on a phone.
+    for (const cls of [
+      ".opsw-condition__metric",
+      ".opsw-condition__threshold",
+      ".opsw-condition__metric-stale",
+    ]) {
+      const el = row.querySelector(cls);
+      expect(el, `${cls} is missing`).not.toBeNull();
+      expect(meta.contains(el), `${cls} escaped the wrapping meta line`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("the Operations stylesheet declares no physical left/right properties", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    // Resolved from the runner's root rather than from `import.meta.url`: this
+    // suite runs under jsdom, where the module URL is not a file: URL.
+    const css = readFileSync(
+      resolve(process.cwd(), "app/(app)/operations/operations.css"),
+      "utf8",
+    );
+    // `margin-left`, `padding-right`, `border-left`, `text-align: left` and
+    // friends all pin a layout to one reading direction. The route already
+    // used logical properties throughout; this keeps it that way.
+    const physical =
+      /(^|[\s;{])(margin|padding|border)-(left|right)\s*:|(^|[\s;{])(left|right)\s*:\s*(?!auto)|text-align\s*:\s*(left|right)/gm;
+    const hits = css.match(physical) ?? [];
+    expect(hits, `physical direction properties: ${hits.join(", ")}`).toEqual([]);
   });
 });

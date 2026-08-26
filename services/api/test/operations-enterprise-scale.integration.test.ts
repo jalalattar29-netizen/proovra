@@ -16,7 +16,7 @@
  *   * a truncated run may never be described as clear;
  *   * the queue is paginated and one page is bounded whatever the total;
  *   * grouping collapses per-record conditions into actionable groups whose
- *     `affectedCount` is the FULL number, not the page size;
+ *     `conditionCount` is the FULL number, not the page size;
  *   * concurrent reconciliation produces one run and no duplicate conditions;
  *   * concurrent writers of the SAME condition converge on one row;
  *   * none of the above changes with the plan — the query implementation is
@@ -138,7 +138,7 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
     expect(perRecord).toBe(2000);
   });
 
-  it("groups per-record conditions into actionable groups whose affectedCount is the FULL number", async () => {
+  it("groups per-record conditions into actionable groups whose conditionCount is the FULL number", async () => {
     const all = await prisma.operationalIncident.findMany({
       where: {
         ...scope.workspaceIncidentWhere(ws.teamId),
@@ -151,14 +151,14 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
     // Conservation: grouping is a PRESENTATION projection over the same rows,
     // never a merge. Two thousand records that each failed to be timestamped
     // stay two thousand conditions.
-    const summed = groups.reduce((n, g) => n + g.affectedCount, 0);
+    const summed = groups.reduce((n, g) => n + g.conditionCount, 0);
     expect(summed).toBe(all.length);
 
     // And an operator gets a handful of rows to act on rather than 2000.
     expect(groups.length).toBeLessThan(all.length);
     for (const g of groups) {
       // The sample is a PAGE of the group; the count is the whole of it.
-      expect(g.affectedCount).toBeGreaterThanOrEqual(1);
+      expect(g.conditionCount).toBeGreaterThanOrEqual(1);
     }
   });
 

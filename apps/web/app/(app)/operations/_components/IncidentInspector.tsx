@@ -384,6 +384,80 @@ export function IncidentInspector({
           {/* ---------------------------------------------------------- */}
           {/* When                                                        */}
           {/* ---------------------------------------------------------- */}
+          {/* ---------------------------------------------------------- */}
+          {/* HOW MUCH — the EXACT current value, and what it is measured  */}
+          {/* against.                                                     */}
+          {/*                                                              */}
+          {/* The queue row bounds this for display (a five-figure          */}
+          {/* Enterprise backlog renders as a floor); the inspector shows   */}
+          {/* the authorized exact figure, because this is where somebody   */}
+          {/* has stopped to look at one condition.                         */}
+          {/*                                                              */}
+          {/* Deliberately a SEPARATE section from "When", whose "Times     */}
+          {/* seen" is a different number entirely. Twenty-six affected     */}
+          {/* records and four observations are both true about one row.    */}
+          {/* ---------------------------------------------------------- */}
+          {row.metric ? (
+            <section className="opsw-drawer__section" data-ops-metric-section>
+              <h3 className="opsw-drawer__section-title">How much</h3>
+              <dl className="opsw-facts">
+                <Fact term="Affected now">
+                  <span data-ops-metric-exact={row.metric.currentValue}>
+                    {row.metric.currentValue.toLocaleString("en-US")}{" "}
+                    {row.metric.unit}
+                  </span>
+                  {row.metric.truncated ? (
+                    <span className="opsw-muted">
+                      {" "}
+                      (at least — the read was bounded)
+                    </span>
+                  ) : null}
+                </Fact>
+                <Fact term="Threshold">
+                  {row.metric.thresholdValue.toLocaleString("en-US")}
+                  {row.metric.criticalThresholdValue != null ? (
+                    <span className="opsw-muted">
+                      {" "}
+                      (critical at{" "}
+                      {row.metric.criticalThresholdValue.toLocaleString(
+                        "en-US",
+                      )}
+                      )
+                    </span>
+                  ) : null}
+                </Fact>
+                {row.metric.previousValue != null ? (
+                  <Fact term="Previous observation">
+                    {row.metric.previousValue.toLocaleString("en-US")}
+                    {row.metric.delta != null ? (
+                      <span className="opsw-muted">
+                        {" "}
+                        ({row.metric.delta >= 0 ? "+" : ""}
+                        {row.metric.delta.toLocaleString("en-US")})
+                      </span>
+                    ) : null}
+                  </Fact>
+                ) : null}
+                <Fact term="Observed">
+                  {formatUserDateTime(row.metric.observedAtUtc)}{" "}
+                  <span className="opsw-muted">
+                    ({describeRelativeTime(row.metric.observedAtUtc)})
+                  </span>
+                  {/* A value whose last observation FAILED says so. Silence
+                      here would present the last successful read as current,
+                      which is the one thing a health surface must never do. */}
+                  {row.metric.stale ? (
+                    <span className="opsw-muted" data-ops-metric-stale="true">
+                      {" "}
+                      — the most recent check could not reach this source, so
+                      this is the last confirmed value.
+                    </span>
+                  ) : null}
+                </Fact>
+              </dl>
+            </section>
+          ) : null}
+
           <section className="opsw-drawer__section">
             <h3 className="opsw-drawer__section-title">When</h3>
             <dl className="opsw-facts">
@@ -535,6 +609,20 @@ export function IncidentInspector({
             </section>
           ) : null}
         </div>
+
+        {/* ------------------------------------------------------------ */}
+        {/* WHY THERE IS NO RESOLVE CONTROL, when there is none.           */}
+        {/*                                                                */}
+        {/* Written out rather than left as an absence. A missing button    */}
+        {/* reads as a missing permission, and an operator who goes looking */}
+        {/* for the permission that would restore it will not find one:     */}
+        {/* the source itself decides when these conditions are over.       */}
+        {/* ------------------------------------------------------------ */}
+        {row.resolutionNote ? (
+          <p className="opsw-drawer__note" data-ops-resolution-note>
+            {row.resolutionNote}
+          </p>
+        ) : null}
 
         {/* ------------------------------------------------------------ */}
         {/* Actions                                                       */}

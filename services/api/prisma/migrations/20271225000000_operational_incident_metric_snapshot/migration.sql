@@ -1,0 +1,29 @@
+-- OPERATIONS LIFECYCLE CLOSURE — the current aggregate value, structured.
+--
+-- WHY
+-- ---
+-- The number an aggregate condition is ABOUT lived in `title`:
+--
+--     'Report backlog above threshold (26)'
+--
+-- and `recordIncident` never rewrote the title on re-observation, so 26 was
+-- written once and then frozen. A workspace that worked its backlog down to 22
+-- kept reading 26 for as long as the condition existed. The value also could
+-- not be compared with the grouped queue's own count, which counts INCIDENTS,
+-- so a row could show "26" beside an affected count of 1 with nothing to say
+-- the two were different quantities.
+--
+-- SHAPE
+-- -----
+-- One nullable jsonb column holding a `ConditionMetricSnapshot`: current
+-- value, previous value, threshold, critical threshold, unit, observation
+-- time, stale flag, truncated flag. Written and read as one snapshot, never
+-- filtered or sorted on in SQL, and decoded strictly in application code.
+--
+-- EXPAND-ONLY AND SAFE TO APPLY BEFORE THE IMAGE THAT USES IT.
+-- Nullable with no default and no backfill: every existing row keeps NULL,
+-- which decodes to "no metric" and renders as it always did. No index is added
+-- because nothing queries by it. Rolling back the image leaves an unread
+-- column, not a broken one.
+ALTER TABLE "public"."operational_incidents"
+  ADD COLUMN IF NOT EXISTS "metric_snapshot" JSONB;

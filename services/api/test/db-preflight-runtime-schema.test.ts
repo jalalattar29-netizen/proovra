@@ -64,6 +64,7 @@ function databaseWith(present: {
   incidentScopeType?: boolean;
   scopeColumn?: boolean;
   scopeIndex?: boolean;
+  metricSnapshotColumn?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -71,6 +72,13 @@ function databaseWith(present: {
     if (sql.includes("column_name = 'scope'")) return present.scopeColumn === true;
     if (sql.includes("operational_incidents_scope_team_status_idx")) {
       return present.scopeIndex === true;
+    }
+    // OPERATIONS LIFECYCLE CLOSURE — the current-value column. An aggregate
+    // condition's number lives here, refreshed on every observation; without
+    // it the number returns to the title, where the writer never rewrote it
+    // and a backlog of 26 stayed 26 for the life of the condition.
+    if (sql.includes("column_name = 'metric_snapshot'")) {
+      return present.metricSnapshotColumn === true;
     }
     throw new Error(`unrecognised probe:\n${sql}`);
   };
@@ -81,6 +89,7 @@ const FULLY_MIGRATED = {
   incidentScopeType: true,
   scopeColumn: true,
   scopeIndex: true,
+  metricSnapshotColumn: true,
 };
 
 describe("runtime schema requirements", () => {
@@ -132,7 +141,12 @@ describe("runtime schema requirements", () => {
     // cannot claim its run.
     const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
     const result = await checkRuntimeSchemaRequirements(
-      databaseWith({ incidentScopeType: true, scopeColumn: true, scopeIndex: true }),
+      databaseWith({
+        incidentScopeType: true,
+        scopeColumn: true,
+        scopeIndex: true,
+        metricSnapshotColumn: true,
+      }),
     );
     expect(result.ok).toBe(false);
     expect(result.missing.map((m) => m.id)).toEqual([
@@ -144,7 +158,11 @@ describe("runtime schema requirements", () => {
   });
 
   it("a probe that THROWS fails closed and never surfaces the raw error", async () => {
-    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const {
+      checkRuntimeSchemaRequirements,
+      describeRuntimeSchemaFailure,
+      RUNTIME_SCHEMA_REQUIREMENTS,
+    } = await load();
     const secret =
       'password authentication failed for user "proovra" at 10.0.0.7:5432';
     const result = await checkRuntimeSchemaRequirements(async () => {
@@ -152,7 +170,7 @@ describe("runtime schema requirements", () => {
     });
 
     expect(result.ok, "an unreadable catalog is not a healthy one").toBe(false);
-    expect(result.indeterminate.length).toBe(4);
+    expect(result.indeterminate.length).toBe(RUNTIME_SCHEMA_REQUIREMENTS.length);
 
     const reason = describeRuntimeSchemaFailure(result);
     expect(reason).toContain("treated as absent");

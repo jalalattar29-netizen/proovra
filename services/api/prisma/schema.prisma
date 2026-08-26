@@ -6776,6 +6776,26 @@ model OperationalIncident {
   // canonical slug; the UI renders the full link.
   runbookSlug String? @map("runbook_slug") @db.VarChar(64)
 
+  /// THE CURRENT AGGREGATE VALUE, structured, refreshed on every observation.
+  ///
+  /// The number an aggregate condition is ABOUT used to live in `title`
+  /// — "Report backlog above threshold (26)" — and `recordIncident` never
+  /// rewrote the title on re-observation, so 26 was written once and frozen. A
+  /// workspace that worked its backlog down to 22 kept reading 26 for as long
+  /// as the condition existed.
+  ///
+  /// NULL for every condition whose source declares `metricContract: NONE`,
+  /// which is most of them: a per-record integrity failure is not a number.
+  /// The shape is decoded STRICTLY by `decodeConditionMetric` — anything that
+  /// is not exactly a `ConditionMetricSnapshot` reads as no metric, because a
+  /// half-read value rendered as a fact is worse than no value at all.
+  ///
+  /// Json rather than eight columns because it is written and read as ONE
+  /// snapshot, always together, and never filtered or sorted on in SQL. The
+  /// type safety lives in the codec, which is the single place that can be
+  /// wrong.
+  metricSnapshot Json? @map("metric_snapshot")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

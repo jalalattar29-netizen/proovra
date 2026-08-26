@@ -1111,6 +1111,15 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // `security_events` nor any mapping it owns. Permitted by exact name,
       // like every entry above, so the allowlist never becomes a pattern.
       "20271224000000_operational_incident_naming_convergence",
+      // OPERATIONS LIFECYCLE CLOSURE (2026-08-26). One nullable jsonb column,
+      // `operational_incidents.metric_snapshot`, holding the current aggregate
+      // value of a threshold condition — the number that used to be frozen in
+      // the condition's title and never refreshed.
+      //
+      // It touches neither `security_events` nor any mapping Phase 32.7.2
+      // owns. Permitted by exact name, like every entry above, so the
+      // allowlist never becomes a pattern.
+      "20271225000000_operational_incident_metric_snapshot",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

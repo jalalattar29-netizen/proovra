@@ -24,7 +24,7 @@
  *      the repair did not quietly narrow what is looked for;
  *   4. a second sweep opens no duplicates, which is the property the legacy
  *      unique index was silently failing to provide;
- *   5. grouping conserves: summed `affectedCount` equals the condition count;
+ *   5. grouping conserves: summed `conditionCount` equals the condition count;
  *   6. readiness reaches READY with `failedSources` empty;
  *   7. and `mayAssertAllClear` stays FALSE while unresolved conditions exist —
  *      because "the check completed" and "there is nothing wrong" are
@@ -398,7 +398,7 @@ describe("Operations convergence recovery, across workspace kinds (live PostgreS
     }
   });
 
-  it("grouping conserves, and affectedCount is the full number", async () => {
+  it("grouping conserves, and conditionCount is the full number", async () => {
     await converge();
     for (const ctx of contexts) {
       await reconcile(ctx.teamId);
@@ -411,7 +411,7 @@ describe("Operations convergence recovery, across workspace kinds (live PostgreS
       });
       const groups = grouping.projectConditionGroups(all as never);
       expect(
-        groups.reduce((n, g) => n + g.affectedCount, 0),
+        groups.reduce((n, g) => n + g.conditionCount, 0),
         ctx.label,
       ).toBe(all.length);
       expect(groups.length, ctx.label).toBeLessThan(all.length);

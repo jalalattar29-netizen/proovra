@@ -68,6 +68,38 @@ const CODE_MAP: Record<
       "This condition is still active. Complete the remediation or suppress it with a recorded reason.",
     severity: "warning",
   },
+  /**
+   * The probe could not READ the source, so the server does not know whether
+   * the condition is over.
+   *
+   * A separate entry from the one above, and the separation is the whole
+   * point. "Still active" is an assertion; this is an admission, and telling
+   * an operator their condition is still failing when the platform simply
+   * could not check would be inventing a fact to avoid an awkward sentence.
+   *
+   * No provider name, no database identifier, no stack. The operator learns
+   * exactly two things: nothing was changed, and checking again later is the
+   * next step.
+   */
+  CONDITION_ACTIVITY_UNKNOWN: {
+    title: "Condition status could not be verified",
+    message:
+      "PROOVRA could not confirm that the underlying condition has recovered. No status was changed. Check again after the source becomes available.",
+    severity: "warning",
+  },
+  /**
+   * The condition's source declares that nobody may close it directly.
+   *
+   * Reached only from a stale tab or a direct API call — the queue offers no
+   * Resolve control for these — so the message explains the rule rather than
+   * suggesting a retry that would be refused identically.
+   */
+  CONDITION_NOT_DIRECTLY_RESOLVABLE: {
+    title: "This condition cannot be resolved here",
+    message:
+      "This condition is owned by the surface that reported it and closes when that surface recovers. You can still acknowledge it, assign it, or suppress it with a recorded reason.",
+    severity: "warning",
+  },
   UNAUTHORIZED: {
     title: "Please sign in again",
     message: "Your session may have expired. Sign in again to continue — your evidence data has not been changed.",

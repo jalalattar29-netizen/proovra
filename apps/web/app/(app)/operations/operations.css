@@ -348,6 +348,32 @@
   color: var(--ink-secondary);
 }
 
+/* THE CURRENT VALUE.
+   Emphasised because it is the number the operator triages on, and set apart
+   from the occurrence count beside it — the two used to be rendered
+   identically and mean entirely different things. `tabular-nums` keeps a
+   column of counts aligned as they change between reads. */
+.opsw-condition__metric {
+  color: var(--ink-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.opsw-condition__threshold {
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* A value whose last observation failed. Muted and italic rather than red:
+   nothing is wrong with the WORKSPACE, the platform simply could not check,
+   and dressing that as an alert would compete with the severity beside it. */
+.opsw-condition__metric-stale {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+.opsw-condition__metric[data-ops-metric-stale="true"] {
+  color: var(--ink-secondary);
+  font-weight: 500;
+}
+
 .opsw-owner {
   font: var(--font-meta);
   color: var(--ink-secondary);
@@ -533,6 +559,19 @@
   padding: 14px 22px;
   border-block-start: 1px solid var(--border-subtle);
   background: var(--surface-card);
+}
+
+/* WHY THERE IS NO RESOLVE CONTROL.
+   Sits directly above the action row, so the sentence and the absence it
+   explains are read together. Deliberately quiet: it is an explanation, not a
+   warning, and a coloured panel here would read as a new problem. */
+.opsw-drawer__note {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 12px 22px 0;
+  font: var(--font-meta);
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
 }
 
 .opsw-summary-text {

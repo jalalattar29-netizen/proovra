@@ -82,6 +82,29 @@ export type Incident = {
   acknowledgedAtUtc: string | null;
   resolvedAtUtc: string | null;
   /**
+   * WHICH SOURCE OWNS THIS CONDITION, AND WHAT THAT SOURCE PERMITS.
+   *
+   * Resolved on the SERVER from the condition's own fingerprint and projected
+   * per row. The browser renders the decision and never makes one: it has no
+   * input that would let it, which is the only way a client-side action gate
+   * stays honest.
+   *
+   * Optional on the wire so an older server's response still renders. Absent
+   * is treated as "no manual resolution offered" by `toRowModel`, which is the
+   * fail-closed direction — a Resolve control that should not have been there
+   * is worse than one that is briefly missing.
+   */
+  lifecycle?: IncidentLifecycle;
+  /**
+   * THE CURRENT AGGREGATE VALUE, for a source that carries one.
+   *
+   * A DIFFERENT QUANTITY from `occurrenceCount` and from a group's member
+   * count. Rendered with its own label for exactly that reason: 26 affected
+   * records, 4 observations and 1 condition are three true numbers about one
+   * row, and a surface that prints them interchangeably is lying.
+   */
+  metric?: ConditionMetric | null;
+  /**
    * The condition's posture against the workspace's OWN published SLA.
    *
    * Absent when the workspace's commitment could not be resolved — in which
@@ -89,6 +112,44 @@ export type Incident = {
    * against a default nobody agreed to.
    */
   sla?: IncidentSla;
+};
+
+/**
+ * The source contract, as projected.
+ *
+ * `manualResolution` is the PROJECTION answer — may a Resolve control be
+ * offered — and is deliberately not the same question the server asks when the
+ * request arrives. A SOURCE_TRUTH condition is never offered Resolve because
+ * its recovery closes it automatically; if a stale tab posts one anyway, the
+ * server refuses it against a live probe.
+ */
+export type IncidentLifecycle = {
+  sourceId: string;
+  /** FINGERPRINT, CATEGORY_RESIDUAL or UNREGISTERED. */
+  sourceMatch: string;
+  /** SOURCE_TRUTH, OPERATOR_DECISION or NO_DIRECT_RESOLUTION. */
+  resolutionAuthority: string;
+  /** TENANT_ACTIONABLE, TENANT_ADVISORY or PLATFORM_INTERNAL. */
+  audience: string;
+  /** PER_RECORD, AGGREGATE or EVENT. */
+  cardinality: string;
+  recoveryPolicy: string;
+  manualResolution: boolean;
+};
+
+/** The structured current value. Mirrors `ConditionMetricSnapshot`. */
+export type ConditionMetric = {
+  currentValue: number;
+  previousValue: number | null;
+  delta: number | null;
+  thresholdValue: number;
+  criticalThresholdValue: number | null;
+  unit: string;
+  observedAtUtc: string;
+  /** True when the last observation FAILED and these are the previous values. */
+  stale: boolean;
+  truncated: boolean;
+  affectedEntityType: string | null;
 };
 
 /**

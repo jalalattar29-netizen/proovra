@@ -41,6 +41,8 @@ const MIGRATION = readApi(
   "prisma/migrations/20260627100000_phase328c_control_plane_closure/migration.sql",
 );
 const GENERATOR = readApi("src/services/dashboard/incident-generator.service.ts");
+/** The ONE observation authority per source — counts, thresholds, identities. */
+const PROBES = readApi("src/services/operations/operations-source-probes.ts");
 const CORRELATION = readApi(
   "src/services/dashboard/incident-correlation.service.ts",
 );
@@ -154,12 +156,30 @@ describe("Phase 32.8C control plane — incident generator", () => {
     expect(GENERATOR).toMatch(/await\s+recordIncident\(/);
   });
 
+  // -------------------------------------------------------------------------
+  // THE RULES MOVED, AND THE THREE ASSERTIONS BELOW MOVED WITH THEM.
+  //
+  // Each per-rule scanner used to be a private function in the generator, so
+  // the count, the threshold and the fingerprint were things only DISCOVERY
+  // could reach. That is precisely why an operator could declare a report
+  // backlog resolved while 26 records were still above the threshold: the
+  // resolve path had no way to ask.
+  //
+  // The observation now lives with its SOURCE, in `operations-source-probes`,
+  // and five callers share it. These assertions therefore read that module —
+  // they are the same claims about the same code, pointed at where the code
+  // now is, plus one new claim that the generator still consumes it.
+  // -------------------------------------------------------------------------
   it("every rule reads from real existing tables — no fabricated data", () => {
-    expect(GENERATOR).toMatch(/prisma\.evidence\.count/);
-    expect(GENERATOR).toMatch(/prisma\.evidenceReviewWorkflow\.count/);
-    expect(GENERATOR).toMatch(/prisma\.operationalIncident\.count/);
-    expect(GENERATOR).toMatch(/prisma\.queueTelemetrySnapshot\.findFirst/);
-    expect(GENERATOR).toMatch(/prisma\.workerTelemetrySnapshot\.findFirst/);
+    expect(PROBES).toMatch(/client\.evidence\.count/);
+    expect(PROBES).toMatch(/client\.evidenceReviewWorkflow\.count/);
+    expect(PROBES).toMatch(/client\.operationalIncident\.count/);
+    expect(PROBES).toMatch(/client\.queueTelemetrySnapshot\.findFirst/);
+    expect(PROBES).toMatch(/client\.workerTelemetrySnapshot\.findFirst/);
+    // …and the generator observes through that module rather than counting
+    // anything itself. A second count here would be the defect again.
+    expect(GENERATOR).toMatch(/observeAggregate\(spec,/);
+    expect(GENERATOR).not.toMatch(/prisma\.\w+\.count\(/);
   });
 
   it("every threshold is a named constant (deterministic, no magic numbers in fingerprints)", () => {
@@ -175,7 +195,7 @@ describe("Phase 32.8C control plane — incident generator", () => {
       "UNSIGNED_FINALIZED_AGED_DAYS",
       "COORDINATION_STALE_DAYS",
     ]) {
-      expect(GENERATOR).toContain(k);
+      expect(PROBES).toContain(k);
     }
   });
 
@@ -185,11 +205,26 @@ describe("Phase 32.8C control plane — incident generator", () => {
   });
 
   it("fingerprints are stable per (workspace, rule) for idempotent dedup", () => {
-    // Every fingerprint embeds `:${ctx.teamId}` so the existing
-    // unique(teamId, fingerprint) constraint collapses repeats.
-    const fpLines = GENERATOR.match(/fingerprint:\s*`[^`]*\$\{ctx\.teamId\}`/g);
-    expect(fpLines).not.toBeNull();
-    expect(fpLines!.length).toBeGreaterThanOrEqual(6);
+    // Every aggregate fingerprint is `<prefix>:<teamId>`, so the existing
+    // unique(teamId, fingerprint) constraint collapses repeats — and it is
+    // built in exactly ONE place, so the sweep, the resolve path and the
+    // recovery sweep address the same row by construction rather than by six
+    // template literals happening to agree.
+    expect(PROBES).toMatch(/return `\$\{spec\.fingerprintPrefix\}:\$\{teamId\}`/);
+    const prefixes = PROBES.match(/fingerprintPrefix:\s*"[^"]+"/g);
+    expect(prefixes).not.toBeNull();
+    expect(prefixes!.length).toBeGreaterThanOrEqual(6);
+    // Distinct: two sources sharing a prefix would share a condition.
+    expect(new Set(prefixes).size).toBe(prefixes!.length);
+  });
+
+  it("titles carry no count, so a value cannot freeze in one", () => {
+    // The defect: `Report backlog above threshold (26)` was written on create
+    // and never rewritten, so 26 stayed true-looking for the life of the
+    // condition. Titles are stable now and the value lives in the metric.
+    const titles = PROBES.match(/stableTitle:\s*"[^"]+"/g) ?? [];
+    expect(titles.length).toBeGreaterThanOrEqual(6);
+    for (const t of titles) expect(t).not.toMatch(/\d/);
   });
 
   it("never projects raw bytes / signed URLs / storage keys", () => {

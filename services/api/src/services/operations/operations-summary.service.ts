@@ -48,6 +48,7 @@ import {
   type OperationsConditionGroup,
 } from "./operations-grouping.service.js";
 import {
+  decodeConditionMetric,
   latestWorkspaceOperationsRun,
   mayAssertOperationsClear,
   type ClearRefusalReason,
@@ -153,8 +154,10 @@ export type OperationsSummary = {
    * 34 Evidence records that each failed to be timestamped are 34 conditions,
    * and they stay 34 conditions — this is a PRESENTATION projection over the
    * same rows the counters above were computed from, never a merge. Each group
-   * reports `affectedCount` and a bounded sample; per-record drill-down and
-   * per-record lifecycle are unchanged.
+   * reports `conditionCount` (how many conditions it holds) and, where it can
+   * be answered, `affectedRecordCount` (how many real records they stand for)
+   * plus a bounded sample; per-record drill-down and per-record lifecycle are
+   * unchanged.
    */
   groups: OperationsConditionGroup[];
   readiness: OperationsReadiness;
@@ -239,6 +242,7 @@ export async function buildOperationsSummary(
     occurrenceCount: number;
     relatedEvidenceId: string | null;
     assignedOperatorUserId: string | null;
+    metricSnapshot: prismaPkg.Prisma.JsonValue | null;
   }>;
   try {
     rows = await client.operationalIncident.findMany({
@@ -257,7 +261,7 @@ export async function buildOperationsSummary(
         // WORKSPACE-SCOPE CONVERGENCE (§11) — the grouped queue projection is
         // built from THIS scan, not a second one. Conservation with `open` is
         // then true by construction rather than by two queries agreeing: the
-        // sum of every group's affectedCount IS the number of rows counted
+        // sum of every group's conditionCount IS the number of rows counted
         // above, because it is the same array.
         category: true,
         fingerprint: true,
@@ -270,6 +274,11 @@ export async function buildOperationsSummary(
         occurrenceCount: true,
         relatedEvidenceId: true,
         assignedOperatorUserId: true,
+        // The live aggregate value, so a group can report how many RECORDS it
+        // stands for and not only how many conditions it holds. Without it a
+        // report-backlog group reads "1" beside a condition covering 26
+        // records, which is the ambiguity this closure removes.
+        metricSnapshot: true,
       },
       // The bound is deliberately larger than any plausible real backlog, so
       // hitting it means something is wrong rather than that a workspace is
@@ -387,8 +396,20 @@ export async function buildOperationsSummary(
   }
 
   // Built from `bounded` — the same array every counter above was derived
-  // from — so `totalAffected(groups) === open` holds without a second read.
-  const groups = projectConditionGroups(bounded);
+  // from — so `totalConditions(groups) === open` holds without a second read.
+  //
+  // The metric is decoded here rather than inside the projection so that
+  // projection stays PURE: same input, same output, no codec, no clock. A
+  // condition whose source declares no metric decodes to null and contributes
+  // nothing to `affectedRecordCount`, which is what leaves that field null
+  // rather than falsely zero.
+  const groups = projectConditionGroups(
+    bounded.map((row) => ({
+      ...row,
+      metricCurrentValue:
+        decodeConditionMetric(row.metricSnapshot)?.currentValue ?? null,
+    })),
+  );
 
   const clearVerdict = mayAssertOperationsClear({
     run,

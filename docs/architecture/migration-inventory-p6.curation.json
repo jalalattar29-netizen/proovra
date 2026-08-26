@@ -2886,6 +2886,16 @@
       "removalCondition": "NEVER removed. Idempotent, so it is a no-op on databases that never drifted (every clean boot and CI), where it only asserts the canonical unique exists.",
       "rollbackDisposition": "Nothing to roll back: the backfill only fills absent values and a relaxed NOT NULL can be re-tightened. An older image is unaffected — every shipped Prisma client since @map reads and writes only the canonical columns.",
       "ownerAction": "Apply BEFORE deploying API and Worker. Until it runs, recordIncident fails on every category and the workspace records no operational conditions at all."
+    },
+    "20271225000000_operational_incident_metric_snapshot": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "evidence": "OPERATIONS LIFECYCLE CLOSURE — one nullable jsonb column, operational_incidents.metric_snapshot, holding the current aggregate value of a threshold condition. It exists because that value used to live in `title` ('Report backlog above threshold (26)') and the writer never rewrote the title on re-observation, so 26 was written once and then frozen: a workspace that worked its backlog down to 22 kept reading 26 for the life of the condition. A single ADD COLUMN IF NOT EXISTS, nullable, no default, no index, no constraint, no type change and no row rewritten; destructiveStatements is empty. NO BACKFILL — a metric is an OBSERVATION, and inventing one for a historical row would assert a count nobody measured; existing rows keep NULL, which decodes to 'no metric' and renders exactly as they render today. Safe BEFORE the code: an older build never selects the column. Safe AFTER a rollback too: the column is simply unread.",
+      "removalCondition": "NEVER removed while any aggregate Operations source declares a metricContract other than NONE. Dropping it would return the current value to the title, which is the defect it was added to close.",
+      "rollbackDisposition": "Nothing to roll back. An image without the column's writer leaves it NULL; an image without the column's reader ignores it. No other column, index or constraint is touched.",
+      "ownerAction": "Apply with the release. Until it runs, aggregate conditions record no current value and their rows show the stable title with no number — degraded, never wrong."
     }
   }
 }

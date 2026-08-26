@@ -230,13 +230,50 @@ function Age({ row }: { row: OperationsRowModel }) {
   );
 }
 
-/** The condition itself: what happened, to what, from where. */
+/**
+ * The condition itself: what happened, to what, from where, and HOW MUCH.
+ *
+ * The title is stable and count-free. It used to carry the number — "Report
+ * backlog above threshold (26)" — and the writer never refreshed it, so 26 was
+ * true once and then simply sat there for the life of the condition.
+ *
+ * The number now comes from the metric the server refreshes on every
+ * observation, and it is labelled "affected" so it cannot be read as the
+ * occurrence count beside it or as a group's member count. A metric whose last
+ * observation FAILED says so rather than presenting stale values as current.
+ */
 function Condition({ row }: { row: OperationsRowModel }) {
   return (
     <div className="opsw-condition">
       <span className="app-table__primary opsw-condition__title">{row.title}</span>
       <span className="opsw-condition__meta">
         <span className="opsw-condition__source">{row.categoryLabel}</span>
+        {row.metric ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <span
+              className="opsw-condition__metric"
+              data-ops-metric-value={row.metric.currentValue}
+              data-ops-metric-unit={row.metric.unit}
+              data-ops-metric-stale={row.metric.stale ? "true" : "false"}
+              title={`Observed ${formatUserDateTime(row.metric.observedAtUtc)}`}
+            >
+              {row.metric.label}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="opsw-condition__threshold">
+              {row.metric.thresholdLabel}
+            </span>
+            {row.metric.stale ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="opsw-condition__metric-stale">
+                  last confirmed {describeRelativeTime(row.metric.observedAtUtc)}
+                </span>
+              </>
+            ) : null}
+          </>
+        ) : null}
         {row.affectedLabel ? (
           <>
             <span aria-hidden="true">·</span>

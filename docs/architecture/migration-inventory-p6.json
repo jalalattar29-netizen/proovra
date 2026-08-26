@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 245,
-    "classifiedMigrations": 245,
+    "filesystemMigrations": 246,
+    "classifiedMigrations": 246,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 245,
+    "productionSnapshotUnknown": 246,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 245,
-    "classifiedMigrations": 245,
+    "filesystemMigrations": 246,
+    "classifiedMigrations": 246,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 245,
+    "productionSnapshotUnknown": 246,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 29,
+      "EXPAND": 30,
       "BACKFILL": 17,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 37,
+      "SAFE_TO_APPLY_NOW": 38,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 245
+    "ProductionMigrationStateUnknown": 246
   },
   "gateFailures": [],
   "migrations": [
@@ -19342,8 +19342,71 @@
       "evidence": "The EXPAND half of the operational-incident naming convergence, and it removes nothing. Production carries BOTH column families on operational_incidents / operational_incident_events: the canonical snake_case columns migrations manage, and a legacy camelCase family named after Prisma FIELD names, produced when those fields carried no @map — the mechanism 20260620200000_reviewer_ops_naming_drift_repair documented on other tables while explicitly deferring the cleanup (\"a separate cleanup migration will drop them\"), which was never written for these. Measured against a reproduced hybrid, the real recordIncident fails P2011 / 23502 (null value in column \"safeSummary\") at create() while the LOOKUP succeeds — six Operations sources failed, zero conditions recorded, every read surface healthy. This migration backfills canonical-from-legacy where canonical IS NULL, PROVES no row holds a legacy value its canonical column lacks, DROPS the legacy NOT NULLs that were failing every insert, and rebuilds the unique/indexes/FK on canonical columns."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271225000000_operational_incident_metric_snapshot",
       "order": 244,
+      "sqlPresent": true,
+      "byteLength": 1384,
+      "checksumSha256": "f0d596dbd56b4f80774cebd94b59942463fead6cc320ff5def1f35a9b4db255c",
+      "checksumSha256Raw": "f0d596dbd56b4f80774cebd94b59942463fead6cc320ff5def1f35a9b4db255c",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "operational_incidents"
+        ],
+        "addedColumns": [
+          "metric_snapshot"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260529100000_add_operational_incidents_phase21"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "Nothing to roll back. An image without the column's writer leaves it NULL; an image without the column's reader ignores it. No other column, index or constraint is touched.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": "Apply with the release. Until it runs, aggregate conditions record no current value and their rows show the stable title with no number — degraded, never wrong.",
+      "removalCondition": "NEVER removed while any aggregate Operations source declares a metricContract other than NONE. Dropping it would return the current value to the title, which is the defect it was added to close.",
+      "evidence": "OPERATIONS LIFECYCLE CLOSURE — one nullable jsonb column, operational_incidents.metric_snapshot, holding the current aggregate value of a threshold condition. It exists because that value used to live in `title` ('Report backlog above threshold (26)') and the writer never rewrote the title on re-observation, so 26 was written once and then frozen: a workspace that worked its backlog down to 22 kept reading 26 for the life of the condition. A single ADD COLUMN IF NOT EXISTS, nullable, no default, no index, no constraint, no type change and no row rewritten; destructiveStatements is empty. NO BACKFILL — a metric is an OBSERVATION, and inventing one for a historical row would assert a count nobody measured; existing rows keep NULL, which decodes to 'no metric' and renders exactly as they render today. Safe BEFORE the code: an older build never selects the column. Safe AFTER a rollback too: the column is simply unread."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 245,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

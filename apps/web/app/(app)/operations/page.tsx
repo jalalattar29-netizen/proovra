@@ -850,33 +850,65 @@ function OperationsWorkbench() {
         refresh();
       } catch (err) {
         // ---------------------------------------------------------------
-        // ONE REFUSAL GETS A DIALOG, AND ONLY ONE.
+        // THE SOURCE-CONTRACT REFUSALS GET A DIALOG. NOTHING ELSE DOES.
         //
-        // "This condition is still active" is not a transport problem or a
-        // permission problem — it is an answer to what the operator just
-        // asked, and the previous presentation put it in a banner at the top
-        // of the page, far from the row they pressed. On a long queue that
-        // banner is off-screen entirely, so the visible outcome of pressing
-        // Resolve was: nothing happened. An operator reading that concludes
-        // the action worked.
+        // These are not transport problems or permission problems — they are
+        // answers to what the operator just asked, and the previous
+        // presentation put them in a banner at the top of the page, far from
+        // the row they pressed. On a long queue that banner is off-screen
+        // entirely, so the visible outcome of pressing Resolve was: nothing
+        // happened. An operator reading that concludes the action worked.
         //
-        // A modal is the correct weight here precisely because it interrupts:
-        // the refusal is about the row in front of them and it changes what
-        // they should do next. Every OTHER failure keeps the existing safe
-        // banner — this is a targeted correction, not a new error strategy.
+        // A modal is the correct weight precisely because it interrupts: the
+        // refusal is about the row in front of them and it changes what they
+        // should do next. Every OTHER failure keeps the existing safe banner —
+        // this is a targeted correction, not a new error strategy.
+        //
+        // THREE CODES, THREE SENTENCES. They are three different facts:
+        //
+        //   STILL_ACTIVE       the source says the condition holds
+        //   ACTIVITY_UNKNOWN   the source could not be read at all
+        //   NOT_DIRECTLY_RESOLVABLE  nobody may close this one by hand
+        //
+        // Collapsing them into one message would tell an operator their
+        // condition is still failing when the platform merely could not check,
+        // which is inventing a fact to avoid an awkward sentence.
         // ---------------------------------------------------------------
         const code =
           err && typeof err === "object"
             ? String((err as { code?: unknown }).code ?? "")
             : "";
-        if (code === "CONDITION_STILL_ACTIVE") {
+        const REFUSAL_NOTICES: Record<
+          string,
+          { title: string; description: string; testId: string }
+        > = {
+          CONDITION_STILL_ACTIVE: {
+            title: "Condition is still active",
+            description:
+              "This condition is still being reported by its source. Complete the required remediation, or suppress it with a recorded reason if notifications should stop.",
+            testId: "ops-condition-still-active",
+          },
+          CONDITION_ACTIVITY_UNKNOWN: {
+            title: "Condition status could not be verified",
+            description:
+              "PROOVRA could not confirm that the underlying condition has recovered. No status was changed. Check again after the source becomes available.",
+            testId: "ops-condition-activity-unknown",
+          },
+          CONDITION_NOT_DIRECTLY_RESOLVABLE: {
+            title: "This condition cannot be resolved here",
+            description:
+              "This condition is owned by the surface that reported it and closes when that surface recovers. You can still acknowledge it, assign it, or suppress it with a recorded reason.",
+            testId: "ops-condition-not-directly-resolvable",
+          },
+        };
+        const notice = REFUSAL_NOTICES[code];
+        if (notice) {
           // The server refused and wrote NOTHING. The re-read below is what
           // puts the row back to its real status; the dialog only explains.
           refresh();
           await confirm({
-            title: "Condition is still active",
-            description:
-              "This condition is still being reported by its source. Complete the required remediation, or suppress it with a recorded reason if notifications should stop.",
+            title: notice.title,
+            description: notice.description,
             // "Close" and not "Dismiss": dismiss, suppress and resolve are
             // three different things an operator can do to a condition, and
             // two of them mutate it. A button that only shuts a dialog must
@@ -884,7 +916,7 @@ function OperationsWorkbench() {
             confirmLabel: "Close",
             tone: "warning",
             noticeOnly: true,
-            testId: "ops-condition-still-active",
+            testId: notice.testId,
           });
           // The pressed control is disabled while the transition is in
           // flight, and a disabled element cannot take focus. Released here,

@@ -78,6 +78,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "the scope-discriminated incident readers scan (scope, team_id, status)",
     suppliedBy: "20271223000000_operational_incident_scope",
   },
+  {
+    id: "operational_incidents.metric_snapshot",
+    kind: "column",
+    detail: 'column public."operational_incidents"."metric_snapshot" must exist',
+    requiredBy:
+      "aggregate conditions carry their CURRENT value here, refreshed on every observation. The writer selects it to compute previousValue and delta, and the queue reads it; without the column the number returns to the title, where recordIncident never rewrote it and a backlog of 26 stayed 26 for the life of the condition",
+    suppliedBy: "20271225000000_operational_incident_metric_snapshot",
+  },
 ]);
 
 /**
@@ -110,6 +118,13 @@ const PROBES = Object.freeze({
      WHERE schemaname = 'public'
        AND tablename = 'operational_incidents'
        AND indexname = 'operational_incidents_scope_team_status_idx'
+     LIMIT 1`,
+  "operational_incidents.metric_snapshot": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'operational_incidents'
+       AND column_name = 'metric_snapshot'
      LIMIT 1`,
 });
 

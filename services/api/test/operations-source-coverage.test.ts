@@ -44,6 +44,8 @@ function read(rel: string): string {
 const INTEGRITY = read("../src/services/operations/evidence-integrity-conditions.service.ts");
 const CORRELATION = read("../src/services/operations/evidence-integrity-correlation.ts");
 const GENERATOR = read("../src/services/dashboard/incident-generator.service.ts");
+/** The ONE observation authority per source: counts, thresholds, identities. */
+const PROBES = read("../src/services/operations/operations-source-probes.ts");
 const INCIDENT_SERVICE = read("../src/services/observability/incident.service.ts");
 const OPS_ROUTES = read("../src/routes/ops.routes.ts");
 const SCHEMA = read("../prisma/schema.prisma");
@@ -68,7 +70,21 @@ type Source = {
   name: string;
   /** The module that OPENS the condition. */
   writer: string;
-  /** A literal that must be present in that writer. */
+  /**
+   * Where the condition's IDENTITY is declared, when that is not the writer.
+   *
+   * The two came apart when the per-rule scanners moved out of the generator.
+   * Each of them was a private count that only discovery could run, which is
+   * why an operator could declare a backlog resolved: nothing else in the
+   * product could ask whether the backlog was still there. The count, the
+   * threshold and the fingerprint prefix now live with the SOURCE, in
+   * `operations-source-probes.ts`, and the generator consumes them.
+   *
+   * `writer` still means "the module that opens the condition" and is still
+   * the generator; this names the module the fingerprint literal must be in.
+   */
+  identityOwner?: string;
+  /** A literal that must be present in that module. */
   evidence: string;
   category: string;
   fingerprint: Fingerprint;
@@ -103,7 +119,8 @@ const SOURCES: readonly Source[] = [
   {
     name: "Report generation backlog",
     writer: "incident-generator.service.ts",
-    evidence: "dashboard:pipeline:report_backlog:",
+    identityOwner: "operations/operations-source-probes.ts",
+    evidence: "dashboard:pipeline:report_backlog",
     category: "REPORT",
     fingerprint: "PER_WORKSPACE",
     severity: "threshold on queue depth",
@@ -113,7 +130,8 @@ const SOURCES: readonly Source[] = [
   {
     name: "Verification package backlog",
     writer: "incident-generator.service.ts",
-    evidence: "dashboard:pipeline:package_backlog:",
+    identityOwner: "operations/operations-source-probes.ts",
+    evidence: "dashboard:pipeline:package_backlog",
     category: "PACKAGE",
     fingerprint: "PER_WORKSPACE",
     severity: "threshold on queue depth",
@@ -123,7 +141,8 @@ const SOURCES: readonly Source[] = [
   {
     name: "Review & Sign stale assignments",
     writer: "incident-generator.service.ts",
-    evidence: "dashboard:review:stale_assignments:",
+    identityOwner: "operations/operations-source-probes.ts",
+    evidence: "dashboard:review:stale_assignments",
     category: "WORKER",
     fingerprint: "PER_WORKSPACE",
     severity: "threshold on stale count",
@@ -133,7 +152,8 @@ const SOURCES: readonly Source[] = [
   {
     name: "Retry storms",
     writer: "incident-generator.service.ts",
-    evidence: "dashboard:reliability:retry_storms:",
+    identityOwner: "operations/operations-source-probes.ts",
+    evidence: "dashboard:reliability:retry_storms",
     category: "WORKER",
     fingerprint: "PER_WORKSPACE",
     severity: "threshold on retry rate",
@@ -143,7 +163,8 @@ const SOURCES: readonly Source[] = [
   {
     name: "Stale queue telemetry",
     writer: "incident-generator.service.ts",
-    evidence: "dashboard:telemetry:queue_stale:",
+    identityOwner: "operations/operations-source-probes.ts",
+    evidence: "dashboard:telemetry:queue_stale",
     category: "WORKER",
     fingerprint: "PER_WORKSPACE",
     severity: "threshold on staleness",
@@ -153,7 +174,8 @@ const SOURCES: readonly Source[] = [
   {
     name: "Worker heartbeat staleness",
     writer: "incident-generator.service.ts",
-    evidence: "dashboard:worker:heartbeat_stale:",
+    identityOwner: "operations/operations-source-probes.ts",
+    evidence: "dashboard:worker:heartbeat_stale",
     category: "WORKER",
     fingerprint: "PER_WORKSPACE",
     severity: "threshold on heartbeat age",
@@ -163,7 +185,8 @@ const SOURCES: readonly Source[] = [
   {
     name: "Finalized but unsigned, aged",
     writer: "incident-generator.service.ts",
-    evidence: "dashboard:integrity:unsigned_aged:",
+    identityOwner: "operations/operations-source-probes.ts",
+    evidence: "dashboard:integrity:unsigned_aged",
     category: "GOVERNANCE",
     fingerprint: "PER_WORKSPACE",
     severity: "threshold on age",
@@ -173,7 +196,8 @@ const SOURCES: readonly Source[] = [
   {
     name: "Coordination backlog stale",
     writer: "incident-generator.service.ts",
-    evidence: "dashboard:coordination:stale_backlog:",
+    identityOwner: "operations/operations-source-probes.ts",
+    evidence: "dashboard:coordination:stale_backlog",
     category: "GOVERNANCE",
     fingerprint: "PER_WORKSPACE",
     severity: "threshold on backlog age",
@@ -239,15 +263,32 @@ const SOURCES: readonly Source[] = [
 const WRITER_SOURCE: Record<string, string> = {
   "evidence-integrity-conditions.service.ts": INTEGRITY,
   "incident-generator.service.ts": GENERATOR,
+  "operations/operations-source-probes.ts": PROBES,
 };
 
+/** Where a source's fingerprint literal must be: its identity owner. */
+function identityModuleOf(s: Source): string {
+  return s.identityOwner ?? s.writer;
+}
+
 describe("source coverage — every declared source is real", () => {
-  it.each(SOURCES.filter((s) => WRITER_SOURCE[s.writer]))(
-    "$name is written by $writer",
-    ({ writer, evidence }) => {
-      expect(WRITER_SOURCE[writer]).toContain(evidence);
+  it.each(SOURCES.filter((s) => WRITER_SOURCE[identityModuleOf(s)]))(
+    "$name declares its identity in $identityOwner",
+    (s) => {
+      expect(WRITER_SOURCE[identityModuleOf(s)]).toContain(s.evidence);
     },
   );
+
+  it("every aggregate source is still OPENED by the generator", () => {
+    // The identity moved; the writer did not. This is the half that would
+    // otherwise go unchecked once `identityOwner` started absorbing the
+    // fingerprint assertions — a source whose prefix is declared and whose
+    // sweep no longer runs it would look perfectly healthy above.
+    for (const s of SOURCES.filter((x) => x.identityOwner)) {
+      expect(GENERATOR, s.name).toContain("aggregateSpecs()");
+      expect(GENERATOR, s.name).toContain("recordIncident(");
+    }
+  });
 
   it("every source whose writer is not inlined above still exists on disk", () => {
     for (const s of SOURCES) {
@@ -334,12 +375,28 @@ describe("fingerprint strategy is a deliberate property of each source", () => {
 
   it("per-workspace sources key on the WORKSPACE, so a backlog is one fact", () => {
     for (const s of SOURCES.filter((x) => x.fingerprint === "PER_WORKSPACE")) {
-      if (!WRITER_SOURCE[s.writer]) continue;
-      expect(WRITER_SOURCE[s.writer]).toContain(s.evidence);
-      // `${ctx.teamId}` or `${_ctx.teamId}` terminates the key.
-      expect(WRITER_SOURCE[s.writer]).toMatch(
-        new RegExp(`${s.evidence.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\$\\{_?ctx\\.teamId\\}`),
-      );
+      const module = WRITER_SOURCE[identityModuleOf(s)];
+      if (!module) continue;
+      expect(module, s.name).toContain(s.evidence);
+    }
+    // The workspace id terminates the key, and it is appended in exactly ONE
+    // place. Eight interpolated template literals became one function, which
+    // is what lets the resolve path, the recovery sweep and the sweep itself
+    // address the SAME row — a second copy of this template is how they would
+    // stop agreeing.
+    expect(PROBES).toMatch(
+      /return `\$\{spec\.fingerprintPrefix\}:\$\{teamId\}`/,
+    );
+    // …and the sweep uses that function rather than rebuilding the string.
+    expect(GENERATOR).toContain("aggregateFingerprint(spec, ctx.teamId)");
+  });
+
+  it("no aggregate fingerprint is built anywhere but the one function", () => {
+    // A literal `dashboard:` prefix followed by an interpolation is the shape
+    // the eight scanners used. It must not reappear: a second construction
+    // site would address a different row than the one the resolve path probes.
+    for (const module of [GENERATOR, INCIDENT_SERVICE, INTEGRITY]) {
+      expect(module).not.toMatch(/`dashboard:[^`]*\$\{/);
     }
   });
 

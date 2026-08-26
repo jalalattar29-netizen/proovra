@@ -34,14 +34,29 @@ import {
 } from "@proovra/shared";
 
 import {
+  buildConditionMetric,
+  CONDITION_ACTIVITY_UNKNOWN,
+  CONDITION_NOT_DIRECTLY_RESOLVABLE,
   CONDITION_STILL_ACTIVE,
   decideManualResolution,
   decideObservationTransition,
   decisionIsReopen,
+  decodeConditionMetric,
+  manualResolutionErrorCode,
+  markConditionMetricStale,
+  offersManualResolution,
+  OCCURRENCE_WHILE_SUPPRESSED_EVENT,
+  REOPENED_EVENT,
   reopenReasonFor,
+  resolveConditionSource,
+  RESOLUTION_EVENT_ORIGINS as SHARED_RESOLUTION_EVENT_ORIGINS,
+  RESOLVED_BY_DOMAIN_TRUTH_EVENT,
+  sourceCarriesMetric,
+  type ConditionMetricSnapshot,
   type IncidentTransitionDecision,
   type IncidentTransitionStatus,
   type ResolutionOrigin,
+  type SourceActivity,
   type SourceObservation,
 } from "@proovra/shared-runtime";
 
@@ -68,7 +83,23 @@ export type IncidentErrorCode =
    * the sweep would have reopened it minutes later, and a status that flips
    * back on its own teaches operators that the button does not mean anything.
    */
-  | typeof CONDITION_STILL_ACTIVE;
+  | typeof CONDITION_STILL_ACTIVE
+  /**
+   * The probe could not read the source at all.
+   *
+   * A DIFFERENT answer from the one above, and deliberately so. The operator
+   * did nothing wrong and the condition is not necessarily still true — the
+   * platform could not check, and saying "still active" would be asserting
+   * something the server does not know. Nothing is written either way.
+   */
+  | typeof CONDITION_ACTIVITY_UNKNOWN
+  /**
+   * The condition's source declares that nobody may directly resolve it: the
+   * workspace cannot truthfully say it recovered and no safe probe exists.
+   * The projection offers no Resolve control for these; this answers a request
+   * that arrived from a stale client or a direct API call anyway.
+   */
+  | typeof CONDITION_NOT_DIRECTLY_RESOLVABLE;
 
 export class IncidentError extends Error {
   readonly code: IncidentErrorCode;
@@ -85,23 +116,25 @@ export class IncidentError extends Error {
 /**
  * The event types that record a resolution, and what each one means.
  *
+ * THE TABLE MOVED. It lived here AND in the Worker's emitter, as two frozen
+ * object literals describing the same rows of the same table — the second one
+ * annotated "duplicated as data rather than imported". The decision that reads
+ * it was already shared, so the data had no reason not to be: it now lives in
+ * `@proovra/shared-runtime` beside `decideObservationTransition`, and both
+ * hosts import THAT.
+ *
+ * Re-exported under the long-standing local names so existing readers and the
+ * suites that pin them keep working, with no second definition anywhere.
+ *
  * Provenance is read from the EVENT HISTORY and from nothing else. Neither
  * `resolvedAtUtc`, nor `resolvedByUserId`, nor the note, nor elapsed time can
  * distinguish "the source recovered" from "a person said it was fine": the
  * first two are written by both paths and the last is written by neither.
  */
 export const RESOLUTION_EVENT_ORIGINS: Readonly<Record<string, ResolutionOrigin>> =
-  Object.freeze({
-    /** Written by `resolveRecoveredConditions` from the record's own status. */
-    resolved_by_domain_truth: "SOURCE_RECOVERY",
-    /** Written by `transitionIncident` when an operator resolved it. */
-    resolved: "OPERATOR",
-  });
+  SHARED_RESOLUTION_EVENT_ORIGINS;
 
-/** The canonical event type for a reopen. Never an `increment`. */
-export const REOPENED_EVENT = "reopened";
-/** The canonical event type for a still-failing suppressed condition. */
-export const OCCURRENCE_WHILE_SUPPRESSED_EVENT = "occurrence_while_suppressed";
+export { REOPENED_EVENT, OCCURRENCE_WHILE_SUPPRESSED_EVENT };
 
 /**
  * Where the MOST RECENT resolution of this condition came from.
@@ -151,6 +184,20 @@ export type RecordIncidentInput = {
   relatedProvider?: string | null;
   runbookSlug?: string | null;
   metadata?: Record<string, unknown> | null;
+  /**
+   * THE CURRENT AGGREGATE VALUE, for a source whose contract declares one.
+   *
+   * Supplied by the observation that found the condition, and REWRITTEN on the
+   * row every time. The number used to live in `title` — "Report backlog above
+   * threshold (26)" — which this writer never refreshed, so a workspace that
+   * worked its backlog down to 22 kept reading 26 indefinitely.
+   *
+   * `undefined` means this source has no metric and the column is left alone.
+   * `null` means the observation FAILED, and the previous snapshot is kept and
+   * flagged stale rather than being replaced with a zero that would read as
+   * recovery.
+   */
+  metric?: ConditionMetricSnapshot | null;
 };
 
 export type RecordIncidentResult = {
@@ -222,6 +269,11 @@ export async function recordIncident(
     relatedEvidenceId: true,
     relatedJobId: true,
     relatedProvider: true,
+    // The PREVIOUS snapshot, so a refreshed metric can carry a real
+    // `previousValue` and `delta` rather than having them recomputed by
+    // whoever renders it — and so a failed observation can keep the last
+    // values it successfully read instead of zeroing them.
+    metricSnapshot: true,
   } as const;
 
   const existing = input.teamId
@@ -267,6 +319,14 @@ export async function recordIncident(
         relatedProvider: input.relatedProvider?.slice(0, 64) ?? null,
         runbookSlug: input.runbookSlug?.slice(0, 64) ?? null,
         openedBySystem: true,
+        // `undefined` leaves the column at its NULL default, which is correct
+        // for every source whose contract declares no metric.
+        metricSnapshot:
+          input.metric === undefined
+            ? undefined
+            : ((input.metric ?? undefined) as
+                | prismaPkg.Prisma.InputJsonValue
+                | undefined),
       },
     });
     created = true;
@@ -301,9 +361,55 @@ export async function recordIncident(
     });
     const reopening = decisionIsReopen(decision);
 
+    // ---------------------------------------------------------------------
+    // THE CURRENT VALUE IS REWRITTEN. THE IDENTITY IS NOT.
+    //
+    // `title` and `safeSummary` used to be written once, on create, and never
+    // touched again. That was invisible while titles described a condition,
+    // and became a defect the moment they contained a NUMBER: 26 was true when
+    // the condition opened and then simply sat there.
+    //
+    // Titles are now stable and count-free, so refreshing them is cheap and
+    // has no downside — a corrected description reaches existing rows instead
+    // of applying only to workspaces unlucky enough to hit the condition
+    // later. The number lives in `metricSnapshot` and is refreshed here.
+    //
+    // `fingerprint` is NOT among these. It is the identity, it is count-free,
+    // and rewriting it would turn one condition with a history into two.
+    // ---------------------------------------------------------------------
+    const previousMetric = decodeConditionMetric(existing.metricSnapshot);
+    const nextMetric =
+      input.metric === undefined
+        ? undefined
+        : input.metric === null
+          ? // The observation FAILED. Keep the last values that were actually
+            // observed and flag them; never replace them with zero, which
+            // would read as recovery, and never drop them, which would read as
+            // "this condition has no metric".
+            markConditionMetricStale(previousMetric)
+          : buildConditionMetric({
+              currentValue: input.metric.currentValue,
+              thresholdValue: input.metric.thresholdValue,
+              criticalThresholdValue: input.metric.criticalThresholdValue,
+              unit: input.metric.unit,
+              observedAtUtc: new Date(input.metric.observedAtUtc),
+              truncated: input.metric.truncated,
+              affectedEntityType: input.metric.affectedEntityType,
+              previous: previousMetric,
+            });
+
     const data: Record<string, unknown> = {
       lastSeenAtUtc: new Date(),
       occurrenceCount: { increment: 1 },
+      title: safeTitle,
+      safeSummary,
+      runbookSlug: input.runbookSlug?.slice(0, 64) ?? undefined,
+      ...(nextMetric === undefined
+        ? {}
+        : {
+            metricSnapshot: (nextMetric ??
+              prismaPkg.Prisma.DbNull) as prismaPkg.Prisma.InputJsonValue,
+          }),
       // Update the "latest" correlation hints so operators always see
       // the freshest context. Older context is preserved in the
       // OperationalIncidentEvent history.
@@ -312,12 +418,28 @@ export async function recordIncident(
       relatedEvidenceId: input.relatedEvidenceId ?? existing.relatedEvidenceId,
       relatedJobId: input.relatedJobId?.slice(0, 128) ?? existing.relatedJobId,
       relatedProvider: input.relatedProvider?.slice(0, 64) ?? existing.relatedProvider,
-      // Severity can escalate on re-fire (e.g. WARNING → HIGH after
-      // burst). Never de-escalates automatically.
+      // -------------------------------------------------------------------
+      // SEVERITY: RECALCULATED FOR A METRIC, ESCALATE-ONLY FOR AN EVENT.
+      //
+      // An event-shaped condition keeps the escalate-only rule it has always
+      // had: a burst that reached HIGH does not become WARNING again because
+      // the next occurrence happened to be quieter, and the worst thing that
+      // happened is part of what happened.
+      //
+      // A condition whose severity is a FUNCTION of a live value is different.
+      // Its posture is computed from `currentValue` against the source's own
+      // thresholds, so a backlog that falls from 140 to 40 is genuinely HIGH
+      // now, not CRITICAL-because-it-once-was. Leaving it latched would be the
+      // frozen-count defect a second time, in a second column — and the value
+      // beside it would say 40 while the badge said CRITICAL.
+      // -------------------------------------------------------------------
       severity:
-        severityRank(input.severity) > severityRank(existing.severity as IncidentSeverity)
+        input.metric != null
           ? (input.severity as prismaPkg.IncidentSeverity)
-          : existing.severity,
+          : severityRank(input.severity) >
+              severityRank(existing.severity as IncidentSeverity)
+            ? (input.severity as prismaPkg.IncidentSeverity)
+            : existing.severity,
       // STATUS IS WRITTEN ONLY BY A REOPEN. OBSERVATION_ONLY,
       // PRESERVE_ACKNOWLEDGED and PRESERVE_SUPPRESSED all leave it alone,
       // which is the whole correction: an observation records that the
@@ -468,6 +590,161 @@ function severityRank(s: IncidentSeverity): number {
 }
 
 // -----------------------------------------------------------------------------
+// SOURCE RECOVERY — a condition that stopped being true closes itself
+// -----------------------------------------------------------------------------
+
+/**
+ * RESOLVE ONE CONDITION BECAUSE ITS SOURCE RECOVERED.
+ *
+ * Threshold conditions had NO recovery path at all. Only per-record integrity
+ * conditions were ever auto-resolved, so a report backlog that a workspace
+ * worked all the way down to zero stayed OPEN — because the only thing that
+ * could close it was an operator pressing a button the source contradicted.
+ * Discovery simply stopped re-recording it, and a condition nobody re-records
+ * looks exactly like a condition nobody has got to yet.
+ *
+ * The transition goes through the SHARED authority, so recovery behaves here
+ * exactly as it does for an integrity condition: it closes OPEN, ACKNOWLEDGED
+ * and SUPPRESSED alike, because domain truth outranks both ownership and
+ * silencing, and leaving a suppressed-but-fixed condition suppressed would
+ * make the next genuine failure read as a continuation of the old one.
+ *
+ * Idempotent. A condition already RESOLVED is left exactly as it is — no
+ * second event, no second cycle close — because `decideObservationTransition`
+ * answers OBSERVATION_ONLY for it.
+ *
+ * `acknowledgedAtUtc` / `acknowledgedByUserId` are DELIBERATELY untouched. Who
+ * took this on is part of what happened to it, and a resolution is not a
+ * reason to forget; only a genuine reopen clears them, and it starts a new
+ * cycle that nobody owns yet.
+ */
+export async function resolveConditionFromSourceRecovery(
+  input: {
+    teamId: string;
+    fingerprint: string;
+    /** Operator-safe. Says what was observed, never how it was queried. */
+    safeMessage: string;
+    /** The value that was observed, for the metric snapshot and the event. */
+    metric?: ConditionMetricSnapshot | null;
+    now?: Date;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ resolved: boolean }> {
+  const now = input.now ?? new Date();
+  const existing = await client.operationalIncident.findFirst({
+    where: { ...workspaceIncidentWhere(input.teamId), fingerprint: input.fingerprint },
+    select: { id: true, status: true, metricSnapshot: true, severity: true },
+  });
+  if (!existing) return { resolved: false };
+
+  const decision = decideObservationTransition({
+    currentStatus: existing.status as IncidentTransitionStatus,
+    observation: "SOURCE_RECOVERED" satisfies SourceObservation,
+  });
+  if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") return { resolved: false };
+
+  // The recovered value is recorded too — a resolved backlog reads "0 records"
+  // rather than keeping whatever number it was carrying when it was last
+  // above the line.
+  const previousMetric = decodeConditionMetric(existing.metricSnapshot);
+  const nextMetric =
+    input.metric == null
+      ? undefined
+      : buildConditionMetric({
+          currentValue: input.metric.currentValue,
+          thresholdValue: input.metric.thresholdValue,
+          criticalThresholdValue: input.metric.criticalThresholdValue,
+          unit: input.metric.unit,
+          observedAtUtc: new Date(input.metric.observedAtUtc),
+          truncated: input.metric.truncated,
+          affectedEntityType: input.metric.affectedEntityType,
+          previous: previousMetric,
+        });
+
+  await client.operationalIncident.update({
+    where: { id: existing.id },
+    data: {
+      status: prismaPkg.IncidentStatus.RESOLVED,
+      resolvedAtUtc: now,
+      // No human resolver is fabricated for a domain-truth resolution.
+      resolvedByUserId: null,
+      resolutionNote: clipSafeSummary(input.safeMessage),
+      ...(nextMetric === undefined
+        ? {}
+        : { metricSnapshot: nextMetric as prismaPkg.Prisma.InputJsonValue }),
+    },
+  });
+
+  await client.operationalIncidentEvent
+    .create({
+      data: {
+        incidentId: existing.id,
+        // The SAME event type the integrity resolver writes, because it is the
+        // same fact. `readResolutionOrigin` reads it as SOURCE_RECOVERY, so a
+        // later recurrence reopens as a genuine recurrence rather than as the
+        // conservative legacy reopen.
+        eventType: RESOLVED_BY_DOMAIN_TRUTH_EVENT,
+        safeMessage: clipSafeSummary(input.safeMessage),
+        metadataJson: {
+          previousStatus: existing.status,
+          currentValue: input.metric?.currentValue ?? null,
+          thresholdValue: input.metric?.thresholdValue ?? null,
+        } as prismaPkg.Prisma.InputJsonValue,
+      },
+    })
+    .catch(() => null);
+
+  // CLOSE THE PROMISE. A condition resolved from source truth discharges its
+  // SLA cycle exactly as an operator resolution does; leaving the cycle live
+  // would make a recovered condition read as still owing a commitment, and
+  // would make `openSlaCycle` decline the next genuine recurrence.
+  await import("../operations/incident-sla-cycle.service.js")
+    .then((cycles) =>
+      cycles.closeSlaCycle({ incidentId: existing.id, reason: "RESOLVED" }, client),
+    )
+    .catch(() => null);
+
+  bump("operational_incident_resolved");
+  return { resolved: true };
+}
+
+/**
+ * FLAG A CONDITION'S METRIC AS STALE, because its observation failed.
+ *
+ * The values stay. They were true when they were read, and the honest thing to
+ * say about a read that did not happen is that it did not happen — not zero,
+ * which would render as recovery, and not absence, which would render as a
+ * condition that never had a number.
+ *
+ * Writes NOTHING when the row carries no metric, and nothing when it is
+ * already flagged: this runs on every failed sweep and must not churn rows.
+ */
+export async function markConditionObservationStale(
+  input: { teamId: string; fingerprint: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  try {
+    const existing = await client.operationalIncident.findFirst({
+      where: {
+        ...workspaceIncidentWhere(input.teamId),
+        fingerprint: input.fingerprint,
+      },
+      select: { id: true, metricSnapshot: true },
+    });
+    if (!existing) return;
+    const previous = decodeConditionMetric(existing.metricSnapshot);
+    const stale = markConditionMetricStale(previous);
+    if (!stale || stale === previous) return;
+    await client.operationalIncident.update({
+      where: { id: existing.id },
+      data: { metricSnapshot: stale as prismaPkg.Prisma.InputJsonValue },
+    });
+  } catch {
+    /* best-effort; a bookkeeping flag must never lose a sweep */
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Operator actions
 // -----------------------------------------------------------------------------
 
@@ -607,42 +884,40 @@ export async function assignIncident(
 }
 
 /**
- * IS THIS CONDITION STILL TRUE, RIGHT NOW?
+ * WHAT DOES THIS CONDITION'S OWN SOURCE SAY, RIGHT NOW?
  *
- * Only for conditions the registry declares SOURCE_TRUTH — the ones with a
- * deterministic, per-incident probe. Everything else returns null, which the
- * shared authority reads as "no probe was made" and which only matters for
- * SOURCE_TRUTH conditions anyway.
+ * Routed through the canonical contract: the condition's source is resolved
+ * from its FINGERPRINT first (category cannot do this job — four sources write
+ * WORKER and three unrelated writers put conditions under REPORT), and the
+ * source's declared `activityProbeKey` selects the observation.
  *
- * The probe is the SAME column `resolveRecoveredConditions` reads. That is the
- * point: if the sweep would reopen a condition seconds after an operator
- * closed it, the close is refused up front instead of being accepted and
- * silently undone.
+ * The probe is the SAME observation discovery uses. That is the point: if the
+ * sweep would reopen a condition seconds after an operator closed it, the
+ * close is refused up front instead of being accepted and silently undone.
  *
- * A record that cannot be read returns null and is therefore refused. "We
- * could not check" is not "it is fine".
+ * A source that cannot be read answers UNKNOWN, which refuses. "We could not
+ * check" is not "it is fine".
  */
-async function probeSourceActivity(
-  incident: { category: string; fingerprint: string },
+export async function probeConditionActivity(
+  incident: { category: string; fingerprint: string; teamId: string },
   client: PrismaClient,
-): Promise<SourceObservation | null> {
-  if (incident.category !== "EVIDENCE_INTEGRITY") return null;
+): Promise<SourceActivity> {
   try {
-    const integrity = await import(
-      "../operations/evidence-integrity-conditions.service.js"
-    );
-    const parts = integrity.parseIntegrityFingerprint(incident.fingerprint);
-    if (!parts) return null;
-    const record = await client.evidence.findUnique({
-      where: { id: parts.evidenceId },
-      select: { tsaStatus: true, otsStatus: true },
+    const { lifecycle } = resolveConditionSource(incident);
+    if (lifecycle.activityProbeKey === "NONE") return "UNKNOWN";
+    const probes = await import("../operations/operations-source-probes.js");
+    const ctx = await probes.buildProbeContext({
+      teamId: incident.teamId,
+      fingerprint: incident.fingerprint,
+      client,
     });
-    if (!record) return null;
-    return integrity.isCurrentlyFailing(record, parts.integrityClass)
-      ? "SOURCE_ACTIVE"
-      : "SOURCE_RECOVERED";
+    const observation = await probes.probeSource(
+      lifecycle.activityProbeKey,
+      ctx,
+    );
+    return observation.activity;
   } catch {
-    return null;
+    return "UNKNOWN";
   }
 }
 
@@ -666,38 +941,50 @@ async function transitionIncident(
   }
 
   // ---------------------------------------------------------------------
-  // AN OPERATOR MAY NOT DECLARE AN ACTIVE DETERMINISTIC CONDITION RESOLVED.
+  // THE SOURCE OWNS ITS OWN RESOLUTION.
   //
-  // Accepting it was worse than refusing it: the row read RESOLVED until the
-  // next sweep, which reopened it with no explanation, and the operator
-  // learned that the button does not mean anything. The refusal happens
-  // BEFORE any write, so a refused resolve leaves status, timestamps, note,
-  // events and SLA cycles exactly as they were.
+  // Accepting a resolution the source contradicts was worse than refusing it:
+  // the row read RESOLVED until the next sweep, which reopened it with no
+  // explanation, and the operator learned that the button does not mean
+  // anything. The refusal happens BEFORE any write, so a refused resolve
+  // leaves status, timestamps, note, events and SLA cycles exactly as they
+  // were.
   //
-  // Which conditions this applies to is declared in the canonical remediation
-  // registry, never derived here from a category list, a severity or a plan.
+  // Which conditions this applies to is declared by the condition's own
+  // SOURCE — resolved from its fingerprint through the canonical lifecycle
+  // contract — and never derived here from a category list, a severity or a
+  // plan name. The category-keyed version of this rule is exactly what let a
+  // 26-record report backlog be declared over while all 26 records were still
+  // above the threshold.
+  //
+  // The probe runs ONLY for SOURCE_TRUTH. An OPERATOR_DECISION condition is
+  // not probed, because asking a technical question to gate a human judgement
+  // would be inventing a fact; a NO_DIRECT_RESOLUTION condition is not probed
+  // either, because the contract already refuses it.
   // ---------------------------------------------------------------------
   if (next === prismaPkg.IncidentStatus.RESOLVED) {
-    const { operatorResolutionAuthorityFor } = await import(
-      "../operations/remediation-registry.js"
-    );
-    const authority = operatorResolutionAuthorityFor({
+    const { lifecycle } = resolveConditionSource({
       category: existing.category,
+      fingerprint: existing.fingerprint,
     });
     const verdict = decideManualResolution({
       currentStatus: existing.status as IncidentTransitionStatus,
-      authority,
-      observation:
-        authority === "SOURCE_TRUTH"
-          ? await probeSourceActivity(
-              { category: existing.category, fingerprint: existing.fingerprint },
+      authority: lifecycle.resolutionAuthority,
+      activity:
+        lifecycle.resolutionAuthority === "SOURCE_TRUTH"
+          ? await probeConditionActivity(
+              {
+                category: existing.category,
+                fingerprint: existing.fingerprint,
+                teamId: input.teamId,
+              },
               client,
             )
           : null,
+      notApplicableDisposition: lifecycle.notApplicableDisposition,
     });
-    if (verdict === "REFUSE_MANUAL_RESOLUTION") {
-      throw new IncidentError(CONDITION_STILL_ACTIVE);
-    }
+    const refusal = manualResolutionErrorCode(verdict);
+    if (refusal) throw new IncidentError(refusal);
   }
 
   const data: Record<string, unknown> = { status: next };
@@ -1067,6 +1354,41 @@ export type IncidentProjection = {
   acknowledgedAtUtc: string | null;
   resolvedAtUtc: string | null;
   /**
+   * THE CONDITION'S OWN SOURCE, AND WHAT THAT SOURCE PERMITS.
+   *
+   * Projected SERVER-side so the browser renders a decision rather than making
+   * one. Before this, three UI components each decided independently whether
+   * to offer Resolve, from a capability alone — so a capability-holding
+   * operator was offered the control on every condition in the queue,
+   * including the ones the server would refuse.
+   *
+   * `manualResolution` is the PROJECTION question ("may a Resolve control be
+   * offered?") and is deliberately not the same as the server's per-request
+   * answer: a stale tab is not an authority, and every attempt is re-validated
+   * against a live probe regardless of what was projected.
+   */
+  lifecycle: {
+    sourceId: string;
+    /** FINGERPRINT, CATEGORY_RESIDUAL or UNREGISTERED. */
+    sourceMatch: string;
+    resolutionAuthority: string;
+    audience: string;
+    cardinality: string;
+    recoveryPolicy: string;
+    /** True only for OPERATOR_DECISION. */
+    manualResolution: boolean;
+  };
+  /**
+   * THE CURRENT AGGREGATE VALUE, or null when this source carries none.
+   *
+   * A DIFFERENT QUANTITY from `occurrenceCount` and from a group's member
+   * count, and the reason they are separate fields with separate names: 26
+   * affected evidence records, 4 observations of the condition, and 1 incident
+   * in the group are three true numbers about one row, and rendering any of
+   * them as another is how a queue lies.
+   */
+  metric: ConditionMetricSnapshot | null;
+  /**
    * CLOSURE PASS (2026-08-22) — the CURRENT owner, exposed so the console can
    * render it. It was persisted and never projected, which is why the
    * assignment feature was invisible: the capability existed, the write path
@@ -1084,8 +1406,27 @@ export type IncidentProjection = {
 export function projectIncident(
   i: prismaPkg.OperationalIncident,
 ): IncidentProjection {
+  const { lifecycle, match } = resolveConditionSource({
+    category: i.category,
+    fingerprint: i.fingerprint,
+  });
   return {
     id: i.id,
+    lifecycle: {
+      sourceId: lifecycle.sourceId,
+      sourceMatch: match,
+      resolutionAuthority: lifecycle.resolutionAuthority,
+      audience: lifecycle.audience,
+      cardinality: lifecycle.cardinality,
+      recoveryPolicy: lifecycle.recoveryPolicy,
+      manualResolution: offersManualResolution(lifecycle),
+    },
+    // A source that declares no metric never projects one, even if a row
+    // somehow carries a snapshot: the contract decides what a row means, not
+    // the presence of a column value.
+    metric: sourceCarriesMetric(lifecycle)
+      ? decodeConditionMetric(i.metricSnapshot)
+      : null,
     category: i.category,
     severity: i.severity,
     status: i.status,

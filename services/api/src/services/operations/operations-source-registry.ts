@@ -1,5 +1,5 @@
 /**
- * THE OPERATIONS SOURCE REGISTRY.
+ * THE OPERATIONS SOURCE REGISTRY — DISCOVERY ACCOUNTING.
  *
  * WHAT IT IS FOR
  * --------------
@@ -13,59 +13,60 @@
  * required source did not succeed", and that sentence has no meaning without a
  * declared set of required sources. This registry is that set.
  *
- * IT IS ALSO THE ANTI-DISAPPEARANCE RULE
- * --------------------------------------
- * Every source carries an explicit `disposition`. A source whose conditions
- * nobody can act on is not omitted — it is recorded as
+ * WHAT MOVED, AND WHY
+ * -------------------
+ * The LIFECYCLE half of each source — who may resolve it, what probe answers
+ * that question, how it recovers, how it recurs, what suppression means for
+ * it, who it is for, whether it carries a number — now lives in
+ * `@proovra/shared-runtime`'s `OPERATIONS_SOURCE_LIFECYCLES`.
+ *
+ * It had to move because BOTH hosts write operational conditions, and a
+ * lifecycle contract only one of them could read is the same shape of defect
+ * the transition authority already fixed once. It is not COPIED here: the
+ * fields below that used to be declared twice — `disposition`,
+ * `requiredCapability`, `remediationCategory` — are DERIVED from that contract,
+ * so there is no second place for them to drift.
+ *
+ * What stays here is the part that is genuinely about DISCOVERY: which model
+ * the sweep reads, under which workspace-scope authority, what its query asks,
+ * and whether a failure to complete it makes the workspace's picture
+ * incomplete.
+ *
+ * IT IS ALSO STILL THE ANTI-DISAPPEARANCE RULE
+ * --------------------------------------------
+ * Every source carries an explicit disposition — now via the shared contract.
+ * A source whose conditions nobody can act on is not omitted; it is recorded as
  * `NO_SAFE_REMEDIATION_AUTHORITY` or `GUIDANCE_ONLY`, by name, so the absence
  * of a button is a decision on the record rather than an oversight nobody can
- * see. `verify-operations-source-registry.mjs` fails the build if a registered
- * incident category has no source, or a source has no disposition.
- *
- * RELATIONSHIP TO THE REMEDIATION REGISTRY
- * ----------------------------------------
- * `remediation-registry.ts` answers "given a condition that EXISTS, what may
- * an operator do about it?" — keyed by incident category and fingerprint
- * class. This file answers "what does discovery LOOK AT, and is that look
- * required for the picture to be complete?" They are different questions about
- * the same conditions, and the dispositions here are stated in the wider
- * vocabulary the convergence brief asked for, with `remediationCategory`
- * naming the row in the other registry that owns the action. Neither file
- * copies the other's answer.
+ * see.
  */
 
 import type { IncidentCategory } from "@proovra/shared";
+import {
+  lifecycleForSourceId,
+  OPERATIONS_SOURCE_LIFECYCLES,
+  type OperationsSourceLifecycle,
+  type SourceRemediationDisposition,
+} from "@proovra/shared-runtime";
 
 /**
  * What Operations can do about the conditions a source produces.
  *
- * Wider than `RemediationDisposition` because it also has to describe sources
- * whose conditions are not managed incidents at all — a per-user notification,
- * a specialised console — and "this source produces nothing actionable" has to
- * be sayable about those too.
+ * The vocabulary now lives with the lifecycle contract. Re-exported under its
+ * long-standing local names so every existing reader keeps working and there
+ * is still exactly one definition.
  */
-export const SOURCE_DISPOSITIONS = [
-  /** Becomes an OperationalIncident with assignment, SLA and acknowledgement. */
+export const SOURCE_DISPOSITIONS: readonly SourceRemediationDisposition[] = [
   "MANAGED_INCIDENT",
-  /** Reaches the person, never the shared queue. */
   "NOTIFICATION_ONLY",
-  /** Owned by a purpose-built console (queues, signers, recovery). */
   "SPECIALIZED_SURFACE",
-  /** Operations links to the surface that owns the fix. */
   "SAFE_DEEP_LINK",
-  /** A real, domain-authorized action may be executed from Operations. */
   "SAFE_REMEDIATION",
-  /** Explanation only. There is nothing to press and we say so. */
   "GUIDANCE_ONLY",
-  /**
-   * A remediation is imaginable and CANNOT be built safely. Recorded by name
-   * so the refusal is auditable rather than looking like an omission.
-   */
   "NO_SAFE_REMEDIATION_AUTHORITY",
-  /** Not reachable in this product configuration. */
   "NOT_APPLICABLE",
 ] as const;
-export type SourceDisposition = (typeof SOURCE_DISPOSITIONS)[number];
+export type SourceDisposition = SourceRemediationDisposition;
 
 /** Which workspace-scope authority bounds the source's discovery query. */
 export type SourceScopeAuthority =
@@ -82,7 +83,8 @@ export type SourceScopeAuthority =
   /** Platform-wide telemetry with no tenant column at all. */
   | "PLATFORM_TELEMETRY";
 
-export type OperationsSource = {
+/** The discovery half of a source. The lifecycle half is the shared contract. */
+type OperationsSourceDiscovery = {
   /** Stable id. Persisted in run metadata; never renamed casually. */
   readonly id: string;
   /** The model or subsystem the condition is observed in. */
@@ -94,16 +96,6 @@ export type OperationsSource = {
   readonly fingerprint: string;
   /** What makes the condition stop being true. */
   readonly resolution: string;
-  /** What happens when it becomes true again after resolving. */
-  readonly reopen: "REOPEN_SAME_FINGERPRINT" | "NEW_CONDITION" | "NOT_APPLICABLE";
-  /** Which canonical permission a viewer needs to see it. */
-  readonly requiredCapability: string;
-  readonly disposition: SourceDisposition;
-  /**
-   * The `remediation-registry` row that owns the ACTION, when there is one.
-   * Null when the disposition is not an actionable one.
-   */
-  readonly remediationCategory: IncidentCategory | null;
   /**
    * Does a failure of this source make the workspace picture incomplete?
    *
@@ -122,12 +114,34 @@ export type OperationsSource = {
 };
 
 /**
- * The registry.
+ * A source, whole: its discovery accounting joined to its lifecycle contract.
+ *
+ * `disposition`, `requiredCapability`, `remediationCategory` and `reopen` are
+ * DERIVED from the shared contract rather than declared again here. That is
+ * the point — they were the three fields that could disagree with the
+ * lifecycle, and now they cannot.
+ */
+export type OperationsSource = OperationsSourceDiscovery & {
+  /** The full canonical lifecycle contract for this source. */
+  readonly lifecycle: OperationsSourceLifecycle;
+  /** Derived: what may be DONE about it. Never read as resolution authority. */
+  readonly disposition: SourceDisposition;
+  /** Derived: which canonical permission a viewer needs to see it. */
+  readonly requiredCapability: string;
+  /** Derived: the incident category its conditions carry. */
+  readonly remediationCategory: IncidentCategory;
+  /** Derived: what happens when it becomes true again after resolving. */
+  readonly reopen: OperationsSourceLifecycle["recurrencePolicy"];
+};
+
+/**
+ * The discovery rows.
  *
  * Ordered by how a triaging operator would read them: provability first,
- * then the artifact pipeline, then coordination, then platform health.
+ * then the artifact pipeline, then coordination, then platform health, and
+ * finally the sources the sweep deliberately does NOT read.
  */
-export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
+const DISCOVERY: readonly OperationsSourceDiscovery[] = [
   {
     id: "evidence_integrity.tsa_failed",
     owner: "Evidence.tsaStatus",
@@ -135,14 +149,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "Evidence in workspace scope with tsaStatus = FAILED",
     fingerprint: "one condition per (Evidence, tsa_failure)",
     resolution: "the record's tsaStatus leaves FAILED",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "evidence.read",
-    // A timestamp proves a record existed at a moment. Re-contacting the
-    // authority now would mint a token whose genTime is LATER than the
-    // evidence it certifies, which is not a repair — it is a different and
-    // weaker claim wearing the original's name.
-    disposition: "NO_SAFE_REMEDIATION_AUTHORITY",
-    remediationCategory: "EVIDENCE_INTEGRITY",
     freshnessParticipating: true,
     surfaces: { home: true, notifications: true, operations: true },
   },
@@ -153,12 +159,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "Evidence in workspace scope with otsStatus = FAILED",
     fingerprint: "one condition per (Evidence, ots_failure)",
     resolution: "otsStatus reaches ANCHORED or UPGRADED",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "evidence.publish_verify",
-    // Unlike TSA, an OTS anchor is a calendar commitment that can legitimately
-    // be re-attempted: retrying does not restate when the record existed.
-    disposition: "SAFE_REMEDIATION",
-    remediationCategory: "EVIDENCE_INTEGRITY",
     freshnessParticipating: true,
     surfaces: { home: true, notifications: true, operations: true },
   },
@@ -167,12 +167,11 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     owner: "Evidence.otsStatus",
     scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
     discovery: "Evidence in workspace scope pending an OTS upgrade past its window",
-    fingerprint: "one condition per (Evidence, ots_pending)",
+    // REGISTERED AND CURRENTLY SILENT, and the shared contract says so by
+    // name: `syncEvidenceIntegrityConditions` iterates the two FAILED classes
+    // only, so no persisted condition carries this source's identity today.
+    fingerprint: "reserved: no condition currently carries this identity",
     resolution: "otsStatus reaches ANCHORED or UPGRADED",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "evidence.publish_verify",
-    disposition: "SAFE_REMEDIATION",
-    remediationCategory: "EVIDENCE_INTEGRITY",
     freshnessParticipating: true,
     surfaces: { home: true, notifications: true, operations: true },
   },
@@ -183,10 +182,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "count of SIGNED evidence in workspace scope with no report",
     fingerprint: "one workspace-level condition, threshold-triggered",
     resolution: "the backlog falls below the HIGH threshold",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "evidence.generate_report",
-    disposition: "SAFE_REMEDIATION",
-    remediationCategory: "REPORT",
     freshnessParticipating: true,
     surfaces: { home: true, notifications: false, operations: true },
   },
@@ -197,10 +192,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "count of REPORTED evidence in workspace scope with no package",
     fingerprint: "one workspace-level condition, threshold-triggered",
     resolution: "the backlog falls below the HIGH threshold",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "evidence.generate_report",
-    disposition: "SAFE_REMEDIATION",
-    remediationCategory: "PACKAGE",
     freshnessParticipating: true,
     surfaces: { home: true, notifications: false, operations: true },
   },
@@ -208,13 +199,14 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     id: "pipeline.signed_without_report_aged",
     owner: "Evidence.status",
     scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
-    discovery: "SIGNED evidence in workspace scope older than the unsigned-aged window",
+    // STATED FROM THE SCANNER, not from the source id. `scanUnsignedFinalizedAged`
+    // counts `status = UPLOADED` past the window — upload complete, signing
+    // still pending — which is a different population from SIGNED. The prose
+    // here used to say SIGNED and the code has always said UPLOADED; the code
+    // is the authority and this line now matches it.
+    discovery: "UPLOADED evidence in workspace scope older than the unsigned-aged window",
     fingerprint: "one workspace-level condition, threshold-triggered",
     resolution: "the aged set empties",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "evidence.generate_report",
-    disposition: "SAFE_REMEDIATION",
-    remediationCategory: "REPORT",
     freshnessParticipating: true,
     surfaces: { home: true, notifications: false, operations: true },
   },
@@ -229,10 +221,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "open review workflows on in-scope evidence, untouched past the window",
     fingerprint: "one workspace-level condition, threshold-triggered",
     resolution: "the stale set empties",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "review.queue.read",
-    disposition: "SAFE_DEEP_LINK",
-    remediationCategory: "GOVERNANCE",
     freshnessParticipating: true,
     surfaces: { home: true, notifications: true, operations: true },
   },
@@ -246,10 +234,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "unresolved comments and annotations older than the coordination window",
     fingerprint: "one workspace-level condition, threshold-triggered",
     resolution: "the unresolved set falls below threshold",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "evidence.read",
-    disposition: "SAFE_DEEP_LINK",
-    remediationCategory: "GOVERNANCE",
     freshnessParticipating: true,
     surfaces: { home: true, notifications: true, operations: true },
   },
@@ -260,10 +244,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "unresolved conditions in this workspace above the re-fire threshold",
     fingerprint: "one workspace-level condition, threshold-triggered",
     resolution: "no unresolved condition remains above the threshold",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "operations.view",
-    disposition: "GUIDANCE_ONLY",
-    remediationCategory: "RECONCILIATION",
     freshnessParticipating: true,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -274,12 +254,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "no telemetry snapshot inside the staleness window",
     fingerprint: "one condition, platform-wide observation surfaced per workspace",
     resolution: "a fresh snapshot lands",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "operations.view",
-    // The tenant cannot fix platform telemetry, and offering a control that
-    // pretends otherwise is worse than saying nothing.
-    disposition: "GUIDANCE_ONLY",
-    remediationCategory: "WORKER",
     // NOT freshness-participating: this is a statement about the PLATFORM, not
     // about whether this tenant has unresolved work. Letting it mark a
     // workspace PARTIAL would make every tenant un-clearable during a
@@ -294,10 +268,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "no worker heartbeat inside the staleness window",
     fingerprint: "one condition, platform-wide observation surfaced per workspace",
     resolution: "a heartbeat lands",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "operations.view",
-    disposition: "GUIDANCE_ONLY",
-    remediationCategory: "WORKER",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -316,10 +286,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "written directly by the intake domain when a delivery fails",
     fingerprint: "one condition per failed delivery",
     resolution: "the delivery succeeds or the link is closed",
-    reopen: "NEW_CONDITION",
-    requiredCapability: "evidence.read",
-    disposition: "SAFE_DEEP_LINK",
-    remediationCategory: "UPLOAD",
     // Written by its own domain at the moment of failure, not found by a
     // sweep. Requiring the sweep to attempt it would mean declaring a source
     // this run does not read, which is exactly the kind of claim the
@@ -333,11 +299,7 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     scopeAuthority: "STRICT_WORKSPACE_COLUMN",
     discovery: "written by the delivery authority on provider failure",
     fingerprint: "one condition per (provider, failure class)",
-    resolution: "a subsequent delivery succeeds",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "operations.view",
-    disposition: "SAFE_DEEP_LINK",
-    remediationCategory: "COMMUNICATIONS",
+    resolution: "an operator concludes the message has been handled",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: true, operations: true },
   },
@@ -347,11 +309,7 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     scopeAuthority: "STRICT_WORKSPACE_COLUMN",
     discovery: "written by the webhook dispatcher on signature or delivery failure",
     fingerprint: "one condition per destination",
-    resolution: "a subsequent delivery succeeds",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "integration.webhook.manage",
-    disposition: "SAFE_DEEP_LINK",
-    remediationCategory: "WEBHOOK",
+    resolution: "an operator concludes the destination is healthy",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: true, operations: true },
   },
@@ -362,13 +320,9 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "owned by the Search reconciliation authority and its readiness projection",
     fingerprint: "one condition per workspace index",
     resolution: "a SEARCH_INDEX run completes READY",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "evidence.read",
     // Search has its own readiness surface with its own run authority. Copying
     // its state into an incident would be a second answer to a question that
     // already has one.
-    disposition: "SPECIALIZED_SURFACE",
-    remediationCategory: "RECONCILIATION",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -379,10 +333,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "owned by the queue console and its replay-safety authority",
     fingerprint: "one condition per (queue, failure class)",
     resolution: "the queue drains or the job is replayed",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "operations.view",
-    disposition: "SPECIALIZED_SURFACE",
-    remediationCategory: "WORKER",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -393,10 +343,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "written by the integration domain on configuration rejection",
     fingerprint: "one condition per integration",
     resolution: "the configuration is corrected",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "integration.webhook.manage",
-    disposition: "SAFE_DEEP_LINK",
-    remediationCategory: "INTEGRATION",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: true, operations: true },
   },
@@ -406,11 +352,7 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     scopeAuthority: "STRICT_WORKSPACE_COLUMN",
     discovery: "written by the security-event authority",
     fingerprint: "one condition per (event class, window)",
-    resolution: "the condition ages out of its window",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "audit.read",
-    disposition: "SAFE_DEEP_LINK",
-    remediationCategory: "IDENTITY_SECURITY",
+    resolution: "an operator records the workspace's conclusion",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: true, operations: true },
   },
@@ -420,11 +362,7 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     scopeAuthority: "STRICT_WORKSPACE_COLUMN",
     discovery: "written by the governance reconciliation families",
     fingerprint: "one condition per (family, workspace)",
-    resolution: "a subsequent run of that family succeeds",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "governance.policy.read",
-    disposition: "SAFE_DEEP_LINK",
-    remediationCategory: "GOVERNANCE",
+    resolution: "an operator records the workspace's conclusion",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -435,10 +373,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "written by the storage health path",
     fingerprint: "one condition per failure class",
     resolution: "storage recovers",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "operations.view",
-    disposition: "GUIDANCE_ONLY",
-    remediationCategory: "STORAGE",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -449,10 +383,6 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "written by the AI runtime on budget or provider failure",
     fingerprint: "one condition per failure class",
     resolution: "the provider recovers or the budget resets",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "operations.view",
-    disposition: "GUIDANCE_ONLY",
-    remediationCategory: "AI",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -463,14 +393,58 @@ export const OPERATIONS_SOURCES: readonly OperationsSource[] = [
     discovery: "written by the health path on database failure",
     fingerprint: "one condition per failure class",
     resolution: "the database recovers",
-    reopen: "REOPEN_SAME_FINGERPRINT",
-    requiredCapability: "operations.view",
-    disposition: "GUIDANCE_ONLY",
-    remediationCategory: "DATABASE",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
 ] as const;
+
+/**
+ * THE JOIN, AND THE TOTALITY CHECK THAT MAKES IT SAFE.
+ *
+ * A discovery row with no lifecycle contract throws at module load rather than
+ * producing a source with an undefined authority. That is deliberately a hard
+ * failure and not a filtered-out row: a source that silently disappeared from
+ * this list would take its `freshnessParticipating` flag with it, and a run
+ * that no longer required a source it used to require would report itself
+ * complete over a workspace it had stopped looking at.
+ */
+export const OPERATIONS_SOURCES: readonly OperationsSource[] = Object.freeze(
+  DISCOVERY.map((row): OperationsSource => {
+    const lifecycle = lifecycleForSourceId(row.id);
+    if (!lifecycle) {
+      throw new Error(
+        `operations source "${row.id}" has no lifecycle contract in OPERATIONS_SOURCE_LIFECYCLES`,
+      );
+    }
+    return Object.freeze({
+      ...row,
+      lifecycle,
+      disposition: lifecycle.remediationDisposition,
+      requiredCapability: lifecycle.requiredCapability,
+      remediationCategory: lifecycle.category,
+      reopen: lifecycle.recurrencePolicy,
+    });
+  }),
+);
+
+/**
+ * The reverse totality check: a lifecycle contract with no discovery row.
+ *
+ * Read at module load for the same reason. The two lists describe the same
+ * twenty-two sources from two angles, and a source present in one and absent
+ * from the other is a gap in whichever surface reads the shorter list.
+ */
+{
+  const discovered = new Set(DISCOVERY.map((s) => s.id));
+  const orphans = OPERATIONS_SOURCE_LIFECYCLES.filter(
+    (l) => !discovered.has(l.sourceId),
+  ).map((l) => l.sourceId);
+  if (orphans.length > 0) {
+    throw new Error(
+      `lifecycle contracts with no discovery row: ${orphans.join(", ")}`,
+    );
+  }
+}
 
 /** Every source id, for accounting and for the closure gate. */
 export function allSourceIds(): string[] {
@@ -496,8 +470,6 @@ export function sourceById(id: string): OperationsSource | null {
 /** Every incident category some registered source can produce. */
 export function coveredIncidentCategories(): IncidentCategory[] {
   const out = new Set<IncidentCategory>();
-  for (const s of OPERATIONS_SOURCES) {
-    if (s.remediationCategory) out.add(s.remediationCategory);
-  }
+  for (const s of OPERATIONS_SOURCES) out.add(s.remediationCategory);
   return [...out];
 }

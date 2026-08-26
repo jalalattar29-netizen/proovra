@@ -36,7 +36,6 @@
  */
 
 import type { IncidentCategory } from "@proovra/shared";
-import type { OperatorResolutionAuthority } from "@proovra/shared-runtime";
 
 // ===========================================================================
 // VOCABULARY
@@ -482,85 +481,36 @@ export function registeredCategories(): ReadonlyArray<string> {
 }
 
 // ===========================================================================
-// WHO MAY DECLARE A CONDITION RESOLVED
+// WHO MAY DECLARE A CONDITION RESOLVED — NOT HERE, AND NOT BY CATEGORY
 // ===========================================================================
 
 /**
- * Resolution authority, declared per category.
+ * THIS FILE NO LONGER ANSWERS THAT QUESTION, AND THAT IS THE CORRECTION.
  *
- * This answers a different question from `disposition`. Disposition says what
- * an operator may DO about a condition; this says whether an operator may
- * declare it OVER. They come apart: a condition can have no safe remediation
- * at all and still be something only its source can close.
+ * `OPERATOR_RESOLUTION_AUTHORITY` used to live here: a `Record` keyed by
+ * `IncidentCategory` deciding whether an operator could declare a condition
+ * over. It was total over the enum, which made it look complete, and it was
+ * wrong in a way totality could not catch — there are fourteen categories and
+ * twenty-two SOURCES, four of which write category WORKER and three of which
+ * write REPORT. A rule stated per category was a rule about a set nobody had
+ * enumerated.
  *
- * SOURCE_TRUTH means exactly one thing — a deterministic, per-incident probe
- * of the source exists, so "is this still true?" is answerable without asking
- * a person. It is NOT a statement that the condition is important, and it is
- * not a proxy for how the condition was discovered. A category is
- * OPERATOR_MAY_RESOLVE until such a probe exists, because refusing an
- * operator on a basis the server cannot actually verify would be inventing
- * truth in the other direction.
+ * What it cost: `pipeline.report_backlog` inherited
+ * `REPORT -> OPERATOR_MAY_RESOLVE` and an operator could close
+ * "Report backlog above threshold (26)" while all twenty-six records were
+ * still above the threshold.
  *
- * TOTAL over `IncidentCategory`: adding a category to the enum will not
- * compile until the question has been answered for it, which is what keeps
- * this a decision rather than an omission.
+ * Resolution authority is now declared per SOURCE in
+ * `@proovra/shared-runtime`'s `OPERATIONS_SOURCE_LIFECYCLES` and resolved for
+ * a condition by `resolveConditionSource`, which reads the FINGERPRINT first.
+ * There is no compatibility shim here: a derived export would be a second name
+ * for the authority and therefore a second thing to keep in step.
+ *
+ * What this file still owns is unchanged and deliberately separate:
+ * `disposition` says what an operator may DO about a condition. The two come
+ * apart in both directions — the report backlog has a real remediation AND is
+ * source-truth; a TSA failure has no safe remediation AND is source-truth —
+ * and reading one as the other is the conflation the closure removed.
  */
-export const OPERATOR_RESOLUTION_AUTHORITY: Readonly<
-  Record<IncidentCategory, OperatorResolutionAuthority>
-> = Object.freeze({
-  // The ONE category with a per-incident probe today: the fingerprint names
-  // the record, and the record's own `tsaStatus` / `otsStatus` says whether
-  // the proof is still missing. `resolveRecoveredConditions` already closes
-  // these from that same column, so letting an operator close one while it
-  // still reads FAILED would put the two authorities in direct contradiction
-  // — and the sweep would win, minutes later, silently.
-  EVIDENCE_INTEGRITY: "SOURCE_TRUTH",
-  // Threshold and backlog conditions. Their discovery is a workspace-wide
-  // count rather than a per-incident fact, so there is no probe that can
-  // answer "is THIS condition still true?" for one row. Declared
-  // operator-resolvable rather than refused on an unverifiable basis; a
-  // premature close is reopened by the next sweep as an explicit, named
-  // REOPEN rather than as a silent increment, which is the behaviour this
-  // correction exists to guarantee.
-  REPORT: "OPERATOR_MAY_RESOLVE",
-  PACKAGE: "OPERATOR_MAY_RESOLVE",
-  UPLOAD: "OPERATOR_MAY_RESOLVE",
-  // Event-shaped conditions: recorded when something happened, not
-  // re-observed on a schedule. Nothing but a person can say they are over.
-  IDENTITY_SECURITY: "OPERATOR_MAY_RESOLVE",
-  GOVERNANCE: "OPERATOR_MAY_RESOLVE",
-  WEBHOOK: "OPERATOR_MAY_RESOLVE",
-  COMMUNICATIONS: "OPERATOR_MAY_RESOLVE",
-  INTEGRATION: "OPERATOR_MAY_RESOLVE",
-  // Platform-infrastructure conditions. The workspace cannot fix them and
-  // cannot probe them either; acknowledging that an operator may clear the
-  // entry from their own queue is the honest reading.
-  STORAGE: "OPERATOR_MAY_RESOLVE",
-  DATABASE: "OPERATOR_MAY_RESOLVE",
-  WORKER: "OPERATOR_MAY_RESOLVE",
-  AI: "OPERATOR_MAY_RESOLVE",
-  RECONCILIATION: "OPERATOR_MAY_RESOLVE",
-});
-
-/**
- * The resolution authority for ONE condition.
- *
- * Keyed the same way `entryForIncident` is keyed — category first, with the
- * integrity classes reading through the same fingerprint parse — so a caller
- * never has to know that evidence-integrity conditions are special.
- *
- * An UNREGISTERED category is SOURCE_TRUTH, which combined with an unreadable
- * source means refused. That is the fail-closed direction: a condition whose
- * category nobody has classified must not be closable by assertion.
- */
-export function operatorResolutionAuthorityFor(incident: {
-  category: string;
-}): OperatorResolutionAuthority {
-  const declared = (
-    OPERATOR_RESOLUTION_AUTHORITY as Record<
-      string,
-      OperatorResolutionAuthority | undefined
-    >
-  )[incident.category];
-  return declared ?? "SOURCE_TRUTH";
-}
+export const RESOLUTION_AUTHORITY_OWNER =
+  "@proovra/shared-runtime -> OPERATIONS_SOURCE_LIFECYCLES" as const;

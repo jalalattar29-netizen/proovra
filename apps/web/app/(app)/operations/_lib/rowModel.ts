@@ -52,7 +52,59 @@ export type OperationsRowModel = {
 
   firstSeenAtUtc: string;
   lastSeenAtUtc: string;
+  /**
+   * HOW MANY TIMES THE CONDITION WAS OBSERVED.
+   *
+   * NOT how many records it affects. The two used to be rendered as if they
+   * were interchangeable, and on an aggregate condition they are as far apart
+   * as numbers get: 4 observations of a backlog of 26.
+   */
   occurrenceCount: number;
+
+  /**
+   * THE CURRENT AGGREGATE VALUE, already formatted, or null.
+   *
+   * Bounded for display — a five-figure Enterprise backlog renders as a floor
+   * rather than an exact number that will be wrong by the time it is read —
+   * with the exact value still available in the Inspector and the API.
+   */
+  metric: {
+    /** e.g. "26 affected records" — the value AND what it counts. */
+    label: string;
+    /** e.g. "threshold 20" */
+    thresholdLabel: string;
+    /**
+     * The EXACT values, unbounded.
+     *
+     * The queue row renders `label`, which is capped; the inspector renders
+     * these, because that is where somebody has stopped to look at one
+     * condition and the last three digits might matter to them.
+     */
+    currentValue: number;
+    thresholdValue: number;
+    criticalThresholdValue: number | null;
+    previousValue: number | null;
+    delta: number | null;
+    unit: string;
+    observedAtUtc: string;
+    /**
+     * True when the last observation FAILED and these are the previous values.
+     * The row SAYS SO rather than presenting them as current, because a number
+     * that is quietly out of date is worse than one that admits it.
+     */
+    stale: boolean;
+    truncated: boolean;
+  } | null;
+
+  /**
+   * WHY THIS ROW HAS NO RESOLVE CONTROL, when it has none.
+   *
+   * Rendered as plain guidance rather than as a disabled button. A disabled
+   * control invites the reader to look for the permission that would enable
+   * it; there is no such permission here, and saying so is shorter and true.
+   * Null when Resolve IS offered.
+   */
+  resolutionNote: string | null;
 
   owner: OwnerDisplay;
   /**
@@ -110,6 +162,63 @@ function affectedFor(i: Incident): {
   if (i.relatedJobId) return { label: "Background job", href: null };
   if (i.relatedProvider) return { label: i.relatedProvider, href: null };
   return { label: null, href: null };
+}
+
+/**
+ * A bounded rendering of the current value.
+ *
+ * Enterprise workspaces carry five-figure backlogs, and a queue row is not the
+ * place for an exact five-figure number: it is wrong by the time it is read,
+ * it makes every row a different width, and nobody acts on the last three
+ * digits. Above the cap the value is presented as a floor and the exact figure
+ * stays in the Inspector and the API.
+ */
+const METRIC_DISPLAY_CAP = 2000;
+
+function formatMetricValue(value: number): string {
+  if (value > METRIC_DISPLAY_CAP) {
+    return `${METRIC_DISPLAY_CAP.toLocaleString("en-US")}+`;
+  }
+  return value.toLocaleString("en-US");
+}
+
+function metricFor(i: Incident): OperationsRowModel["metric"] {
+  const m = i.metric;
+  if (!m) return null;
+  return {
+    // "affected" is doing real work in this string. It names the quantity, so
+    // it cannot be misread as an observation count or a group member count —
+    // the three numbers this surface used to render identically.
+    label: `${formatMetricValue(m.currentValue)} affected ${m.unit}`,
+    thresholdLabel: `threshold ${m.thresholdValue.toLocaleString("en-US")}`,
+    currentValue: m.currentValue,
+    thresholdValue: m.thresholdValue,
+    criticalThresholdValue: m.criticalThresholdValue,
+    previousValue: m.previousValue,
+    delta: m.delta,
+    unit: m.unit,
+    observedAtUtc: m.observedAtUtc,
+    stale: m.stale === true,
+    truncated: m.truncated === true,
+  };
+}
+
+/**
+ * What to say instead of a Resolve control.
+ *
+ * Derived from the SOURCE contract the server projected, so the sentence and
+ * the missing button have the same cause. Nothing here is inferred from a
+ * category, a severity or a capability.
+ */
+function resolutionNoteFor(i: Incident): string | null {
+  const authority = i.lifecycle?.resolutionAuthority;
+  if (authority === "SOURCE_TRUTH") {
+    return "This condition closes itself when its source recovers. It cannot be marked resolved by hand.";
+  }
+  if (authority === "NO_DIRECT_RESOLUTION") {
+    return "This condition is owned by a surface outside this workspace. It cannot be marked resolved here.";
+  }
+  return null;
 }
 
 function ownerFor(
@@ -179,6 +288,8 @@ export function buildRowModel(
     firstSeenAtUtc: i.firstSeenAtUtc,
     lastSeenAtUtc: i.lastSeenAtUtc,
     occurrenceCount: i.occurrenceCount,
+    metric: metricFor(i),
+    resolutionNote: resolutionNoteFor(i),
 
     owner: ownerFor(i, ctx.viewerUserId, ctx.operatorLabels),
     assignedOperatorUserId: i.assignedOperatorUserId,
@@ -204,7 +315,24 @@ export function buildRowModel(
     // server would refuse it, and a control whose only outcome is a 409 is a
     // control that teaches people to distrust the surface.
     canAcknowledge: ctx.capabilities.canAcknowledge && isOpen,
-    canResolve: ctx.capabilities.canResolve && isUnresolved,
+    // -------------------------------------------------------------------
+    // SOURCE CONTRACT, THEN STATE, THEN PERMISSION.
+    //
+    // The contract leads because it is the only one of the three the browser
+    // cannot know on its own — and because it was the missing one. Resolve
+    // used to be offered on every unresolved condition to any capability
+    // holder, including the SOURCE_TRUTH conditions the server refuses and
+    // the platform conditions nobody can truthfully close. Every one of those
+    // buttons could only ever produce a 409.
+    //
+    // Absent lifecycle means an older server, and it reads as NO. That is the
+    // fail-closed direction: a Resolve control that should not be there is a
+    // worse error than one briefly missing.
+    // -------------------------------------------------------------------
+    canResolve:
+      i.lifecycle?.manualResolution === true &&
+      ctx.capabilities.canResolve &&
+      isUnresolved,
     canSuppress: ctx.capabilities.canSuppress && isUnresolved,
     canAssign: ctx.capabilities.canAssign && isUnresolved,
   };

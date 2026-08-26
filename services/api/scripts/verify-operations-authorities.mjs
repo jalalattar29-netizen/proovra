@@ -180,14 +180,23 @@ check("zero unused scope helpers", () => {
   return `${exported.length} helpers, all consumed`;
 });
 
+/**
+ * The canonical lifecycle contract, as text.
+ *
+ * The two checks below moved from the API registry to this file when the
+ * lifecycle half of each source moved there. They read the CONTRACT because
+ * that is now where the answers are declared; the registry's copies were
+ * removed precisely so there is nothing there left to check.
+ */
+const LIFECYCLE_CONTRACT_PATH =
+  "packages/shared-runtime/src/ops/source-lifecycle.ts";
+
 check("zero silent source categories", () => {
-  // Every incident category some authority can write must appear in the source
-  // registry with a stated disposition. A category that exists, is written,
-  // and appears nowhere in the registry would look — to anyone reading it —
-  // like a source nobody had thought about.
-  const registry = read(
-    "services/api/src/services/operations/operations-source-registry.ts",
-  );
+  // Every incident category some authority can write must be claimed by a
+  // registered source. A category that exists, is written, and appears nowhere
+  // in the contract would look — to anyone reading it — like a source nobody
+  // had thought about.
+  const contract = read(LIFECYCLE_CONTRACT_PATH);
   const observability = read("packages/shared/src/observability.ts");
   const block = observability.match(
     /export const INCIDENT_CATEGORIES = \[([\s\S]*?)\] as const;/,
@@ -195,7 +204,7 @@ check("zero silent source categories", () => {
   if (!block) throw new Error("could not read INCIDENT_CATEGORIES");
   const categories = [...block[1].matchAll(/"([A-Z_]+)"/g)].map((m) => m[1]);
   const missing = categories.filter(
-    (c) => !new RegExp(`remediationCategory:\\s*"${c}"`).test(registry),
+    (c) => !new RegExp(`^\\s+category:\\s*"${c}",`, "m").test(contract),
   );
   if (missing.length > 0) {
     throw new Error(
@@ -205,17 +214,68 @@ check("zero silent source categories", () => {
   return `${categories.length} categories, all covered`;
 });
 
-check("every registered source declares a disposition", () => {
-  const registry = read(
-    "services/api/src/services/operations/operations-source-registry.ts",
+check("every registered source declares every lifecycle field", () => {
+  // TOTALITY, counted. The type makes every field required, so this cannot
+  // fail while the tree compiles — which is the point of stating it here as
+  // well: a field quietly made optional to unblock a new source would show up
+  // as a count mismatch before anyone noticed the semantics had loosened.
+  const contract = read(LIFECYCLE_CONTRACT_PATH);
+  const body = contract.slice(
+    contract.indexOf("OPERATIONS_SOURCE_LIFECYCLES"),
+    contract.indexOf("UNREGISTERED_CONDITION_LIFECYCLE"),
   );
-  const ids = [...registry.matchAll(/^\s{4}id:\s*"([^"]+)"/gm)].length;
-  const dispositions = [...registry.matchAll(/^\s{4}disposition:\s*"/gm)].length;
-  if (ids === 0) throw new Error("registry has no sources");
-  if (ids !== dispositions) {
-    throw new Error(`${ids} sources but ${dispositions} dispositions`);
+  const count = (field) =>
+    [...body.matchAll(new RegExp(`^\\s+${field}:`, "gm"))].length;
+  const sources = count("sourceId");
+  if (sources === 0) throw new Error("contract has no sources");
+  const REQUIRED = [
+    "category",
+    "identity",
+    "resolutionAuthority",
+    "activityProbeKey",
+    "recoveryPolicy",
+    "recurrencePolicy",
+    "suppressionPolicy",
+    "remediationDisposition",
+    "requiredCapability",
+    "audience",
+    "cardinality",
+    "workspaceApplicability",
+    "metricContract",
+    "drillDownContract",
+    "notApplicableDisposition",
+    "rationale",
+  ];
+  for (const field of REQUIRED) {
+    if (count(field) !== sources) {
+      throw new Error(
+        `${sources} sources but ${count(field)} declarations of "${field}"`,
+      );
+    }
   }
-  return `${ids} sources, ${dispositions} dispositions`;
+  return `${sources} sources x ${REQUIRED.length + 1} declared fields`;
+});
+
+check("resolution authority is declared per SOURCE, never per category", () => {
+  // The defect this whole closure removed: `OPERATOR_RESOLUTION_AUTHORITY`, a
+  // Record keyed by IncidentCategory, deciding whether an operator could
+  // declare a condition over. Four sources write category WORKER, so it was a
+  // rule about a set nobody had enumerated — and it let a 26-record report
+  // backlog be closed while all 26 records were still above the threshold.
+  //
+  // Not "no such map" as a style preference: any second policy map keyed by
+  // category is the same defect wearing a different name.
+  for (const rel of tracked("services/api/src", "apps/web", "packages")) {
+    if (!/\.(ts|tsx)$/.test(rel)) continue;
+    const src = readCode(rel);
+    if (/OPERATOR_RESOLUTION_AUTHORITY/.test(src)) {
+      throw new Error(`${rel} still references OPERATOR_RESOLUTION_AUTHORITY`);
+    }
+    if (/Record<\s*IncidentCategory\s*,\s*ResolutionAuthority\s*>/.test(src)) {
+      throw new Error(`${rel} declares resolution authority per category`);
+    }
+  }
+  return "no category-keyed resolution policy anywhere in the tree";
 });
 
 check("zero TSA retry or restamp paths in Operations", () => {

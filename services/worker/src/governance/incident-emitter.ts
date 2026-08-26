@@ -22,7 +22,11 @@ import * as prismaPkg from "@prisma/client";
 import {
   decideObservationTransition,
   decisionIsReopen,
+  OCCURRENCE_WHILE_SUPPRESSED_EVENT,
+  REOPENED_EVENT,
   reopenReasonFor,
+  resolveConditionSource,
+  RESOLUTION_EVENT_ORIGINS,
   type IncidentTransitionStatus,
   type ResolutionOrigin,
 } from "@proovra/shared-runtime";
@@ -31,18 +35,20 @@ import { prisma } from "../db.js";
 import { logger } from "../logger.js";
 
 /**
- * Which event types record a resolution, and what each one means.
+ * THE RESOLUTION-PROVENANCE TABLE IS NO LONGER COPIED HERE.
  *
- * Deliberately the SAME table the API keeps, because it describes the same
- * rows. It is duplicated as data rather than imported because the API service
- * is not a Worker dependency; the DECISION that reads it is shared, which is
- * the part that was drifting.
+ * It used to be a frozen literal in this file AND a frozen literal in the
+ * API's incident service — two copies describing the same rows of the same
+ * table, the second one annotated "duplicated as data rather than imported".
+ * The DECISION that reads it was already shared; the data now is too, and both
+ * hosts import `RESOLUTION_EVENT_ORIGINS` from `@proovra/shared-runtime`
+ * alongside `decideObservationTransition`.
+ *
+ * The same move applies to the event-type names below: `reopened` and
+ * `occurrence_while_suppressed` were string literals in both writers, so a
+ * rename in one would have silently stopped the other's history from being
+ * readable by `readResolutionOrigin`.
  */
-const RESOLUTION_EVENT_ORIGINS: Readonly<Record<string, ResolutionOrigin>> =
-  Object.freeze({
-    resolved_by_domain_truth: "SOURCE_RECOVERY",
-    resolved: "OPERATOR",
-  });
 
 /**
  * Where the most recent resolution of this condition came from.
@@ -328,6 +334,18 @@ export async function recordWorkerIncident(
       existing.status === prismaPkg.IncidentStatus.RESOLVED
         ? await readWorkerResolutionOrigin(existing.id)
         : null;
+    // THE SAME CONTRACT THE API RESOLVES.
+    //
+    // Fingerprint first, exactly as the resolve path does, so both processes
+    // agree about which source owns this row and therefore about what may be
+    // done to it. The worker never resolves a condition, so it consults the
+    // contract for its SUPPRESSION and RECURRENCE semantics only — and both of
+    // those already flow through `decideObservationTransition` below. Reading
+    // it here is what makes that agreement checkable rather than asserted.
+    const { lifecycle } = resolveConditionSource({
+      category: input.category,
+      fingerprint,
+    });
     const decision = decideObservationTransition({
       currentStatus: existing.status as IncidentTransitionStatus,
       observation: "SOURCE_ACTIVE",
@@ -362,9 +380,9 @@ export async function recordWorkerIncident(
         data: {
           incidentId: row.id,
           eventType: willReopen
-            ? "reopened"
+            ? REOPENED_EVENT
             : decision === "PRESERVE_SUPPRESSED"
-              ? "occurrence_while_suppressed"
+              ? OCCURRENCE_WHILE_SUPPRESSED_EVENT
               : "increment",
           safeMessage: safeSummary,
           metadataJson: (reopenReason
@@ -376,6 +394,10 @@ export async function recordWorkerIncident(
                   : {}),
                 reopenReason,
                 decision,
+                // Which source's contract governed this transition. Recorded
+                // so a reopen written by the Worker and one written by the API
+                // are comparable in the history rather than only in prose.
+                sourceId: lifecycle.sourceId,
               }
             : sanitisedMetadata) as typeof sanitisedMetadata,
         },

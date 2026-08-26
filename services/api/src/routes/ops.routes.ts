@@ -1259,10 +1259,18 @@ export async function opsRoutes(app: FastifyInstance) {
 
   function handleIncidentError(reply: FastifyReply, err: unknown): boolean {
     if (err instanceof IncidentError) {
-      // CONDITION_STILL_ACTIVE is a 409 like every other refused
+      // Every source-contract refusal is a 409 like any other refused
       // transition: the request was well formed and the current state of the
-      // resource is what refuses it. Named explicitly rather than left to the
-      // fallback so the mapping is a decision on the record.
+      // resource is what refuses it.
+      //
+      //   CONDITION_STILL_ACTIVE             the source says it is still true
+      //   CONDITION_ACTIVITY_UNKNOWN         the source could not be read
+      //   CONDITION_NOT_DIRECTLY_RESOLVABLE  nobody may close this one
+      //
+      // Three codes and not one, because they are three different facts and
+      // the operator is owed the difference — "we could not check" must never
+      // be presented as "it is still broken". Named explicitly rather than
+      // left to the fallback so the mapping is a decision on the record.
       const status =
         err.code === "incident_not_found"
           ? 404
