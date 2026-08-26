@@ -1242,20 +1242,15 @@
   margin-block-start: 10px;
 }
 
-/* OPEN — the row's one primary verb.
+/* THE ROW'S TWO FILLED VERBS use CANONICAL CLASSES, not local overrides.
  *
- * Canonical dark ground with inverse text, the same treatment the Evidence
- * header's verification link uses. "Mark as unread" and "Archive" file the
- * message; "Open" takes you to the thing it is about, and only one of the
- * three should read as the next step. Built on `app-secondary-action`, so
- * geometry, radius and focus ring are unchanged and only the fill differs. */
-.ops-item__open:not(:disabled) {
-  background: var(--app-ink-heading);
-  border-color: var(--app-ink-heading);
-  color: var(--ink-inverse);
-}
-.ops-item__open:not(:disabled):hover {
-  background: #0f1626;
-  border-color: #0f1626;
-  color: var(--ink-inverse);
-}
+ *   Open                  `app-primary-action`            — canonical purple
+ *   Mark as read/unread   `app-secondary-action--filled`  — canonical dark
+ *   Archive               plain `app-secondary-action`    — unchanged
+ *
+ * Local rules stood here setting the fills by hand. They had to restate
+ * `color` on every :hover, because `.app-secondary-action:hover:not(:disabled)`
+ * sets `color: var(--app-ink-heading)` at equal specificity and would
+ * otherwise turn a white label dark on a dark fill. Both canonical variants
+ * already handle that, and all three share one geometry, radius and focus
+ * ring — so there is nothing left for this sheet to say about them. */

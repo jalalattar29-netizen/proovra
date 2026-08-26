@@ -1959,7 +1959,7 @@ function InboxPageInner() {
                                Open takes you to the thing, the other two file
                                the message. Same geometry, only the fill
                                differs. */
-                            className="app-secondary-action ops-item__open"
+                            className="app-primary-action ops-item__open"
                           >
                             Open
                           </Link>
@@ -1967,7 +1967,7 @@ function InboxPageInner() {
                             (item.isRead ? (
                               <button
                                 type="button"
-                                className="app-secondary-action"
+                                className="app-secondary-action app-secondary-action--filled"
                                 data-action="mark-unread"
                                 data-inbox-item-key={item.itemKey}
                                 onClick={() => void markUnread(item)}
@@ -1980,7 +1980,7 @@ function InboxPageInner() {
                             ) : (
                               <button
                                 type="button"
-                                className="app-secondary-action"
+                                className="app-secondary-action app-secondary-action--filled"
                                 data-action="mark-read"
                                 data-inbox-item-key={item.itemKey}
                                 onClick={() => void markRead(item)}

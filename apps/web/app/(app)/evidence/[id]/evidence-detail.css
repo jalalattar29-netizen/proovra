@@ -5211,21 +5211,16 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   border-color: color-mix(in srgb, var(--error) 48%, var(--border-default));
 }
 
-/* THE ONE FILLED CONTROL IN THE STACK.
+/* The stack's ONE filled control is `app-secondary-action--filled`, the
+ * canonical neutral-solid variant — same geometry as its outlined neighbours,
+ * white label, and a hover that darkens the FILL while keeping the text white.
  *
- * Canonical dark ground (`--app-ink-heading`, the heading navy) with inverse
- * text — not the purple `app-primary-action`, which belongs to the record's
- * primary OUTPUT (Download Report PDF) below. Sharing a colour with that
- * button would claim equal standing for copying a link.
+ * A bespoke `--dark` modifier stood here and set only the background on
+ * hover, so `.app-secondary-action:hover:not(:disabled)`'s
+ * `color: var(--app-ink-heading)` still applied and the label went dark on a
+ * dark fill. The canonical variant already solved that; re-solving it locally
+ * was the bug.
  *
- * Built on `app-secondary-action` so geometry, radius and focus ring are
- * identical to its three neighbours; only the fill differs. */
-.evidence-detail-hero-action--dark:not(:disabled) {
-  background: var(--app-ink-heading);
-  border-color: var(--app-ink-heading);
-  color: var(--ink-inverse);
-}
-.evidence-detail-hero-action--dark:not(:disabled):hover {
-  background: #0f1626;
-  border-color: #0f1626;
-}
+ * Deliberately NOT `app-primary-action`: purple belongs to the record's
+ * primary OUTPUT (Download Report PDF) below, and sharing it would claim equal
+ * standing for copying a link. */

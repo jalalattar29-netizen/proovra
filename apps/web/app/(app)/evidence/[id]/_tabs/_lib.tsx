@@ -1182,7 +1182,7 @@ export function EvidenceHeroIconActions({
       <div className="evidence-detail-hero-icon-actions">
         <button
           type="button"
-          className="app-secondary-action evidence-detail-hero-action evidence-detail-hero-action--dark"
+          className="app-secondary-action app-secondary-action--filled evidence-detail-hero-action"
           onClick={onCopyShareLink}
           disabled={isIntegrityFailed || !shareUrl}
           // The accessible name stays the FULL verb phrase; the visible label

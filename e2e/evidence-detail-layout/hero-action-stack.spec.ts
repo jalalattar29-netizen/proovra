@@ -31,7 +31,7 @@ test("the action stack sits BESIDE the title, above the downloads", async ({ pag
     return { bg: s.backgroundColor, fg: s.color };
   });
   expect(c.bg).toBe("rgb(23, 32, 51)");
-  expect(c.fg).toBe("rgb(248, 250, 252)");
+  expect(c.fg).toBe("rgb(255, 255, 255)");
 
   // No horizontal overflow at phone width.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -94,4 +94,30 @@ test("the stack carries all five actions, with the trash one red on white", asyn
     });
   expect(trash.fg).toBe("rgb(220, 38, 38)");
   expect(trash.bg).not.toBe("rgb(220, 38, 38)");
+});
+
+test("the verification link keeps white text on hover and focus", async ({ page }) => {
+  await installApi(page, "organization", {});
+  await page.goto("/evidence/11111111-1111-4111-8111-111111111111");
+  const btn = page.locator('[data-evidence-action="copy-verification-link"]');
+  await btn.waitFor();
+
+  const read = () => btn.evaluate((e) => {
+    const s = getComputedStyle(e);
+    return { bg: s.backgroundColor, fg: s.color };
+  });
+
+  expect((await read()).fg).toBe("rgb(255, 255, 255)");
+  await btn.hover();
+  // Confirm :hover actually engaged before believing what we read.
+  const hovered = await btn.evaluate((e) => e.matches(":hover"));
+  expect(hovered, "hover did not engage").toBe(true);
+  const h = await read();
+  expect(h.fg, "the label must not go dark on hover").toBe("rgb(255, 255, 255)");
+  // NOT the dark heading ink — that is exactly the regression: the base
+  // `.app-secondary-action:hover` sets `color: var(--app-ink-heading)`, and a
+  // filled control that does not override it renders dark-on-dark.
+  expect(h.fg).not.toBe("rgb(23, 32, 51)");
+  await btn.focus();
+  expect((await read()).fg).toBe("rgb(255, 255, 255)");
 });
