@@ -140,9 +140,12 @@ export type ManualResolutionFacts = {
   /**
    * What the source says right now, for a SOURCE_TRUTH condition.
    *
-   * `null` means the source could not be read. That is not permission: a
-   * condition whose truth is unknown is refused, because "we could not check"
-   * and "it is fine" are different sentences.
+   * `null` means NO OBSERVATION WAS MADE — the probe could not read the
+   * subject at all, most often because the record the condition names no
+   * longer exists. That is not the same as "the source says it is still
+   * failing", and it must not be treated as one: a condition whose subject is
+   * gone can never be observed active again, so refusing it would leave it
+   * permanently unclosable by anyone.
    */
   observation?: SourceObservation | null;
 };
@@ -235,13 +238,22 @@ export function decideManualResolution(
   facts: ManualResolutionFacts,
 ): IncidentTransitionDecision {
   if (facts.authority === "OPERATOR_MAY_RESOLVE") return "OBSERVATION_ONLY";
-  // SOURCE_TRUTH: only the source own recovery closes it. An unreadable
-  // source is refused rather than waved through — that is the direction it is
-  // safe to be wrong in, because the operator can still suppress with a
-  // recorded reason and nothing is lost.
-  return facts.observation === "SOURCE_RECOVERED"
-    ? "OBSERVATION_ONLY"
-    : "REFUSE_MANUAL_RESOLUTION";
+  // SOURCE_TRUTH: the refusal is grounded in a POSITIVE observation that the
+  // condition is still true, and in nothing else.
+  //
+  // The rule this replaces refused on anything that was not a proven recovery,
+  // which swept in the case where no observation could be made at all. That
+  // was over-broad in a way that mattered: a condition whose subject has been
+  // deleted can never be observed active again, so no sweep would ever reopen
+  // it — and refusing the operator too left it permanently unclosable, which
+  // is not a safer answer, it is a stuck queue.
+  //
+  // The property the refusal exists for is unchanged: while the source ITSELF
+  // still reports the condition, an operator may not declare it over, because
+  // the next sweep would contradict them.
+  return facts.observation === "SOURCE_ACTIVE"
+    ? "REFUSE_MANUAL_RESOLUTION"
+    : "OBSERVATION_ONLY";
 }
 
 /** The stable domain error code a refused manual resolution carries. */

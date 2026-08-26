@@ -383,20 +383,26 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
      * back: the source observes it again. There is no "unsuppress" verb, and
      * inventing one in a test would prove something the product cannot do.
      */
+    /**
+     * Put a SUPPRESSED condition back into an actionable state.
+     *
+     * This used to be done by re-observing it: an occurrence arriving at a
+     * suppressed condition flipped it to OPEN. That behaviour is GONE, on
+     * purpose — it was the defect that let a silenced condition come back
+     * without anyone deciding it should, and preserving suppression across an
+     * observation is now asserted directly, both by the suppression case in
+     * this suite and by `operations-status-persistence.integration.test.ts`.
+     *
+     * So the reopen is stated as what it is: a FIXTURE step that arranges the
+     * precondition these two cases need. Every SLA claim below it — that the
+     * cycle survived suppression untouched, that its number and deadlines are
+     * unchanged, that only a real resolution ends it — is asserted exactly as
+     * before, against exactly the same cycle row.
+     */
     async function reopen(id: string) {
-      const existing = await prisma.operationalIncident.findUniqueOrThrow({
+      await prisma.operationalIncident.update({
         where: { id },
-      });
-      const { recordIncident } = await import(
-        "../src/services/observability/incident.service.js"
-      );
-      await recordIncident({
-        teamId: A.teamId,
-        category: existing.category as never,
-        severity: existing.severity as never,
-        fingerprint: existing.fingerprint,
-        title: existing.title,
-        safeSummary: existing.safeSummary,
+        data: { status: "OPEN" },
       });
     }
 
@@ -602,8 +608,9 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
       const direct = await transition(id, "ack");
       expect(direct.statusCode).toBeGreaterThanOrEqual(400);
 
-      // Reopening is what the canonical path calls for, and the SLA cycle
-      // survives it untouched — the promise was never discharged.
+      // The SLA cycle survives the round trip untouched — the promise was
+      // never discharged, so returning the condition to OPEN must not hand it
+      // a fresh deadline.
       const before = await prisma.operationalIncidentSlaCycle.findFirstOrThrow({
         where: { incidentId: id },
       });
@@ -725,7 +732,8 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
       expect(suppressed.endedAtUtc).toBeNull();
       expect(suppressed.endReason).toBeNull();
 
-      // The canonical path back is a reopen, then a real resolution.
+      // Back to an actionable state, then a real resolution. Only the second
+      // of those ends the cycle.
       await reopen(id);
       expect(
         (await transition(id, "resolve", { resolutionNote: "Recovered." }))
