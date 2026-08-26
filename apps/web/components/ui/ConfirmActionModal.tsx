@@ -75,6 +75,24 @@ export interface ConfirmActionOptions {
    * tests can find the modal.
    */
   testId?: string;
+  /**
+   * NOTICE MODE — the dialog reports something rather than asking a question.
+   *
+   * A confirmation dialog offers two answers because the caller needs one. A
+   * notice has no question to answer: the work has already happened (or been
+   * refused) and the only thing left is to read it and carry on. Rendering a
+   * "Cancel" beside a "Confirm" there invites the reader to believe one of the
+   * buttons undoes something, which is the exact confusion a refusal notice
+   * must not create.
+   *
+   * So notice mode collapses the footer to ONE action and adds a close icon in
+   * the header. It is opt-in and additive: every existing caller keeps two
+   * buttons and no icon, unchanged.
+   *
+   * The resolved promise is `false` in every case, because nothing was
+   * confirmed. Callers in this mode should ignore the result.
+   */
+  noticeOnly?: boolean;
 }
 
 interface ConfirmActionRequest extends ConfirmActionOptions {
@@ -158,6 +176,7 @@ function ConfirmActionModal({
     tone = "neutral",
     requireConfirmText,
     testId,
+    noticeOnly = false,
   } = request;
 
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -357,6 +376,45 @@ function ConfirmActionModal({
           >
             {title}
           </h2>
+          {noticeOnly ? (
+            // A NAMED close control, not a bare glyph. Screen-reader users get
+            // "Close" and nothing else to interpret; the ✕ is decorative and
+            // hidden from the accessibility tree so it is not read as "times".
+            <button
+              type="button"
+              data-confirm-action-close="true"
+              aria-label="Close"
+              onClick={() => close(false)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 30,
+                height: 30,
+                marginInlineStart: 4,
+                marginInlineEnd: -6,
+                flexShrink: 0,
+                borderRadius: 8,
+                border: "1px solid transparent",
+                background: "transparent",
+                color: "#667085",
+                cursor: "pointer",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          ) : null}
         </header>
 
         <div
@@ -427,6 +485,7 @@ function ConfirmActionModal({
             gap: 8,
           }}
         >
+          {noticeOnly ? null : (
           <button
             type="button"
             data-confirm-action-cancel="true"
@@ -445,13 +504,14 @@ function ConfirmActionModal({
           >
             {cancelLabel}
           </button>
+          )}
           <button
             type="button"
             data-confirm-action-submit="true"
             data-confirm-action-tone={tone}
-            onClick={() => void handleConfirm()}
-            disabled={confirmDisabled}
-            aria-disabled={confirmDisabled}
+            onClick={() => (noticeOnly ? close(false) : void handleConfirm())}
+            disabled={noticeOnly ? false : confirmDisabled}
+            aria-disabled={noticeOnly ? false : confirmDisabled}
             style={{
               padding: "8px 14px",
               borderRadius: 999,
@@ -459,13 +519,13 @@ function ConfirmActionModal({
               background: accent.bg,
               color: accent.color,
               boxShadow: accent.shadow,
-              cursor: confirmDisabled ? "not-allowed" : "pointer",
-              opacity: confirmDisabled ? 0.55 : 1,
+              cursor: !noticeOnly && confirmDisabled ? "not-allowed" : "pointer",
+              opacity: !noticeOnly && confirmDisabled ? 0.55 : 1,
               fontSize: 13,
               fontWeight: 700,
             }}
           >
-            {busy ? "Working…" : confirmLabel}
+            {!noticeOnly && busy ? "Working…" : confirmLabel}
           </button>
         </footer>
       </div>

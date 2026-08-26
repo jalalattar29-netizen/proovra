@@ -77,6 +77,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { PageShell } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
@@ -350,6 +351,12 @@ function OperationsWorkbench() {
   const [bulkOutcome, setBulkOutcome] = React.useState<string | null>(null);
   const [mutationError, setMutationError] =
     React.useState<SafeUserError | null>(null);
+
+  /**
+   * The canonical accessible dialog, mounted once at the root layer. Used
+   * here for exactly one refusal; every other failure keeps the banner.
+   */
+  const { confirm } = useConfirmAction();
 
   /**
    * Every in-flight read carries the token it was started under.
@@ -819,6 +826,15 @@ function OperationsWorkbench() {
   const runTransition = React.useCallback(
     async (incidentId: string, action: "ack" | "resolve" | "suppress") => {
       if (!teamId || busy) return;
+      // The control the operator actually pressed, captured BEFORE anything
+      // disables it. The transition sets `busy`, which disables the row and
+      // inspector actions, and a disabled element loses focus to the document
+      // body — so by the time a refusal comes back there is nothing for the
+      // dialog to hand focus back to. Captured here, restored below.
+      const trigger =
+        typeof document !== "undefined"
+          ? (document.activeElement as HTMLElement | null)
+          : null;
       setBusy(true);
       setPendingId(incidentId);
       setMutationError(null);
@@ -833,6 +849,70 @@ function OperationsWorkbench() {
         );
         refresh();
       } catch (err) {
+        // ---------------------------------------------------------------
+        // ONE REFUSAL GETS A DIALOG, AND ONLY ONE.
+        //
+        // "This condition is still active" is not a transport problem or a
+        // permission problem — it is an answer to what the operator just
+        // asked, and the previous presentation put it in a banner at the top
+        // of the page, far from the row they pressed. On a long queue that
+        // banner is off-screen entirely, so the visible outcome of pressing
+        // Resolve was: nothing happened. An operator reading that concludes
+        // the action worked.
+        //
+        // A modal is the correct weight here precisely because it interrupts:
+        // the refusal is about the row in front of them and it changes what
+        // they should do next. Every OTHER failure keeps the existing safe
+        // banner — this is a targeted correction, not a new error strategy.
+        // ---------------------------------------------------------------
+        const code =
+          err && typeof err === "object"
+            ? String((err as { code?: unknown }).code ?? "")
+            : "";
+        if (code === "CONDITION_STILL_ACTIVE") {
+          // The server refused and wrote NOTHING. The re-read below is what
+          // puts the row back to its real status; the dialog only explains.
+          refresh();
+          await confirm({
+            title: "Condition is still active",
+            description:
+              "This condition is still being reported by its source. Complete the required remediation, or suppress it with a recorded reason if notifications should stop.",
+            // "Close" and not "Dismiss": dismiss, suppress and resolve are
+            // three different things an operator can do to a condition, and
+            // two of them mutate it. A button that only shuts a dialog must
+            // not borrow the name of one that changes the record.
+            confirmLabel: "Close",
+            tone: "warning",
+            noticeOnly: true,
+            testId: "ops-condition-still-active",
+          });
+          // The pressed control is disabled while the transition is in
+          // flight, and a disabled element cannot take focus. Released here,
+          // before the restore below, so there is something to return to.
+          // The `finally` clears them again; both are idempotent.
+          setBusy(false);
+          setPendingId(null);
+          // AFTER the dialog has finished unmounting, not before.
+          //
+          // The dialog restores focus to whatever held it when it opened, and
+          // by then the pressed control was disabled by `busy` — so its idea
+          // of "previous" is the drawer or the body. Deferring by one task
+          // lets that restore happen first and then puts focus where the
+          // operator actually was.
+          await new Promise<void>((done) => {
+            setTimeout(() => {
+              if (trigger && document.body.contains(trigger)) {
+                try {
+                  trigger.focus();
+                } catch {
+                  /* the control went with a re-render; nothing to restore */
+                }
+              }
+              done();
+            }, 0);
+          });
+          return;
+        }
         setMutationError(
           toSafeUserError(err, { message: "That action could not be applied." }),
         );
@@ -848,7 +928,7 @@ function OperationsWorkbench() {
         setPendingId(null);
       }
     },
-    [teamId, busy, refresh],
+    [teamId, busy, refresh, confirm],
   );
 
   const assign = React.useCallback(

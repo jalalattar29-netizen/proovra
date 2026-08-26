@@ -66,6 +66,22 @@ function apiFailure(statusCode: number): Error {
   return err;
 }
 
+/**
+ * The same rejection, carrying the server's canonical error CODE.
+ *
+ * `apiFetch` puts `error.code` on the thrown Error, and the page branches on
+ * that rather than on the status: 409 covers several different refusals and
+ * only one of them is a notice about the condition itself.
+ */
+function apiCodeFailure(statusCode: number, code: string): Error {
+  const err = apiFailure(statusCode) as Error & {
+    statusCode: number;
+    code: string;
+  };
+  err.code = code;
+  return err;
+}
+
 vi.mock("../../lib/api", () => ({
   apiFetch: async (path: string, init?: { method?: string; body?: string }) => {
     const method = init?.method ?? "GET";
@@ -294,6 +310,14 @@ async function settle() {
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
+  });
+}
+
+/** Flush a macrotask too — the deferred focus restore lands on one. */
+async function settleTimers() {
+  await settle();
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
   });
 }
 
@@ -979,6 +1003,207 @@ describe("Operations — acting on a condition", () => {
       teamId: WS,
       assigneeUserId: ME,
     });
+  });
+
+  // =========================================================================
+  // CONDITION_STILL_ACTIVE — the refusal an operator must not be able to miss
+  // =========================================================================
+  //
+  // The server refuses a Resolve whose condition its own source still reports.
+  // That refusal used to land in the page-level banner at the top of the
+  // queue — off-screen on any real backlog — so the visible outcome of
+  // pressing Resolve was nothing at all, which reads as success.
+  //
+  // These cases hold the correction AND its boundary: this one code opens the
+  // dialog, every other failure keeps the banner, and nothing about the
+  // condition changes either way.
+
+  /** The dialog the page opens for this refusal, or null. */
+  const noticeDialog = () =>
+    q('[data-confirm-action-modal="ops-condition-still-active"]') as
+      | HTMLElement
+      | null;
+
+  async function resolveFromRow(id: string) {
+    await openMenu(id);
+    const control = document.querySelector(
+      '[data-ops-row-action="resolve"]',
+    ) as HTMLElement;
+    control.focus();
+    await act(async () => {
+      fireEvent.click(control);
+    });
+    await settle();
+    return control;
+  }
+
+  it("a still-active condition opens the dialog instead of the page banner", async () => {
+    mutationReply = () => apiCodeFailure(409, "CONDITION_STILL_ACTIVE");
+    await mount(envelope(TEAM_ADMIN));
+    await resolveFromRow("i-crit");
+
+    const dialog = noticeDialog();
+    expect(dialog).not.toBeNull();
+    expect(dialog!.getAttribute("role")).toBe("dialog");
+    expect(dialog!.getAttribute("aria-modal")).toBe("true");
+
+    const titleId = dialog!.getAttribute("aria-labelledby");
+    expect(titleId).toBeTruthy();
+    expect(document.getElementById(titleId!)?.textContent).toBe(
+      "Condition is still active",
+    );
+    const describedBy = dialog!.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)?.textContent).toBe(
+      "This condition is still being reported by its source. Complete the required remediation, or suppress it with a recorded reason if notifications should stop.",
+    );
+
+    // ONE footer action, named Close. Not "Dismiss": dismiss, suppress and
+    // resolve are three different things an operator can do to a condition,
+    // and two of them mutate it.
+    const submit = dialog!.querySelector(
+      "[data-confirm-action-submit]",
+    ) as HTMLElement;
+    expect(submit.textContent).toBe("Close");
+    expect(submit.getAttribute("aria-disabled")).toBe("false");
+    expect(dialog!.querySelector("[data-confirm-action-cancel]")).toBeNull();
+
+    // A close icon with an accessible name, distinct from the footer action.
+    const icon = dialog!.querySelector(
+      "[data-confirm-action-close]",
+    ) as HTMLElement;
+    expect(icon).not.toBeNull();
+    expect(icon.getAttribute("aria-label")).toBe("Close");
+
+    // THE OLD PRESENTATION IS ABSENT for this code.
+    expect(q("[data-ops-mutation-error]")).toBeNull();
+  });
+
+  it("the condition keeps the status the SERVER returned, never RESOLVED", async () => {
+    mutationReply = () => apiCodeFailure(409, "CONDITION_STILL_ACTIVE");
+    incidentsReply = () =>
+      list([
+        incident({ id: "i-open", status: "OPEN" }),
+        incident({ id: "i-ack", status: "ACKNOWLEDGED" }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    await resolveFromRow("i-open");
+
+    expect(noticeDialog()).not.toBeNull();
+    // Both rows still present, in the status the read returned. Nothing was
+    // applied optimistically, and the refusal re-read rather than guessed.
+    expect(rowIds()).toEqual(["i-open", "i-ack"]);
+    const status = (id: string) =>
+      (q(`[data-ops-row="${id}"]`) as HTMLElement).textContent ?? "";
+    expect(status("i-open")).not.toContain("Resolved");
+    expect(status("i-ack")).not.toContain("Resolved");
+  });
+
+  it("closing the dialog mutates nothing and returns focus into the row that opened it", async () => {
+    mutationReply = () => apiCodeFailure(409, "CONDITION_STILL_ACTIVE");
+    await mount(envelope(TEAM_ADMIN));
+    await resolveFromRow("i-crit");
+
+    const postsBefore = posts().length;
+    const dialog = noticeDialog()!;
+    await act(async () => {
+      fireEvent.click(
+        dialog.querySelector("[data-confirm-action-submit]") as HTMLElement,
+      );
+    });
+    await settleTimers();
+
+    expect(noticeDialog()).toBeNull();
+    // NOT ONE further request. Close closes; it does not suppress, dismiss or
+    // resolve anything.
+    expect(posts().length).toBe(postsBefore);
+
+    // FOCUS LANDS BACK IN THE ROW THE OPERATOR ACTED ON.
+    //
+    // Asserted as the row's menu TRIGGER rather than the Resolve item,
+    // because the item is a menu child that the menu unmounts when it closes:
+    // there is no element left to focus. The trigger is the durable control
+    // that owns it, and the keyboard user resumes exactly where they were —
+    // one keystroke from the same menu. The Inspector case below, where the
+    // Resolve button persists, restores that button itself.
+    const active = document.activeElement as HTMLElement;
+    expect(q('[data-ops-row="i-crit"]')!.contains(active)).toBe(true);
+    expect(active.getAttribute("aria-haspopup")).toBe("menu");
+  });
+
+  it("Escape closes it, and it still mutates nothing", async () => {
+    mutationReply = () => apiCodeFailure(409, "CONDITION_STILL_ACTIVE");
+    await mount(envelope(TEAM_ADMIN));
+    await resolveFromRow("i-crit");
+    const postsBefore = posts().length;
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+    await settle();
+
+    expect(noticeDialog()).toBeNull();
+    expect(posts().length).toBe(postsBefore);
+  });
+
+  it("the same refusal from the INSPECTOR opens the same dialog", async () => {
+    mutationReply = () => apiCodeFailure(409, "CONDITION_STILL_ACTIVE");
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(q('[data-ops-open="i-crit"]') as HTMLElement);
+    });
+    await settle();
+
+    const control = document.querySelector(
+      '[data-ops-action="resolve"]',
+    ) as HTMLElement;
+    expect(control).not.toBeNull();
+    control.focus();
+    await act(async () => {
+      fireEvent.click(control);
+    });
+    await settle();
+
+    expect(noticeDialog()).not.toBeNull();
+    expect(q("[data-ops-mutation-error]")).toBeNull();
+
+    // The Inspector's Resolve button survives the round trip, so focus is
+    // restored to THAT control — the one the operator pressed.
+    const dialog = noticeDialog()!;
+    await act(async () => {
+      fireEvent.click(
+        dialog.querySelector("[data-confirm-action-submit]") as HTMLElement,
+      );
+    });
+    await settleTimers();
+    expect(document.activeElement).toBe(control);
+  });
+
+  it("there is no BULK Resolve, so the dialog has no third entry point to cover", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(
+        document.querySelector('[data-ops-row-mark="i-crit"]') as HTMLElement,
+      );
+    });
+    await settle();
+    const bar = q("[data-ops-bulk-toolbar]") as HTMLElement;
+    expect(bar).not.toBeNull();
+    // Stated rather than assumed: if a bulk Resolve is ever added, this fails
+    // and whoever adds it has to route it through the same dialog.
+    expect(bar.querySelector('[data-ops-bulk-action="resolve"]')).toBeNull();
+  });
+
+  it("a DIFFERENT error code keeps the existing banner and opens no dialog", async () => {
+    mutationReply = () => apiCodeFailure(409, "INVALID_STATUS_TRANSITION");
+    await mount(envelope(TEAM_ADMIN));
+    await resolveFromRow("i-crit");
+
+    expect(noticeDialog()).toBeNull();
+    const err = q("[data-ops-mutation-error]") as HTMLElement;
+    expect(err).not.toBeNull();
+    expect(err.getAttribute("role")).toBe("alert");
+    expect(err.textContent).not.toContain("request failed");
   });
 
   it("the bulk toolbar appears only after a selection, and fans out to the canonical runner", async () => {
