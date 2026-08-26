@@ -30,7 +30,8 @@ import {
   type WorkspaceEvidenceScope,
 } from "@proovra/shared-runtime";
 
-export type SectionStatus = "ok" | "degraded" | "unavailable";
+/** `skipped` = the caller did not ask for it. NOT a failure. */
+export type SectionStatus = "ok" | "degraded" | "unavailable" | "skipped";
 
 export type ReportLifecycle =
   | "not_requested"
@@ -128,6 +129,11 @@ export type ReportsArtifactsEnvelope = {
       status: SectionStatus;
       items: ArtifactRow[];
       nextCursor: string | null;
+      /**
+       * Rows matching the CURRENT query across the whole workspace — not the
+       * length of this page. Null only when the list itself failed.
+       */
+      total: number | null;
     };
   };
 };
@@ -206,6 +212,12 @@ export async function listWorkspaceArtifacts(input: {
   lifecycleFilter?: ReportLifecycleFilter;
   search?: string | null;
   caseId?: string | null;
+  /**
+   * Compute the workspace summary. Defaults to true so existing callers are
+   * unchanged; the Reports page passes false for every request after the
+   * first, because a filter cannot move a workspace total.
+   */
+  includeSummary?: boolean;
 }): Promise<ReportsArtifactsEnvelope> {
   const limit = Math.min(
     Math.max(input.limit ?? DEFAULT_LIMIT, 1),
@@ -229,10 +241,26 @@ export async function listWorkspaceArtifacts(input: {
   const scope: WorkspaceEvidenceScope = await workspaceEvidenceWhere(input.teamId, prisma);
 
   // ----------- Summary counts (workspace-level) -----------
+  //
+  // SKIPPABLE, and that is the performance fix.
+  //
+  // These are WORKSPACE totals: six aggregate counts over the whole
+  // population, unaffected by the page, the search or the lifecycle filter.
+  // They were recomputed on EVERY list request, so each filter click and each
+  // debounced keystroke paid for six aggregations it could not change — which
+  // is what made changing a filter feel like a page load.
+  //
+  // The caller fetches them once per workspace and asks for
+  // `includeSummary: false` on every subsequent list query. The section is
+  // then reported `skipped`, which the client distinguishes from
+  // `unavailable`: one means "you did not ask", the other means "it failed".
   let summary: ReportsArtifactsEnvelope["sections"]["summary"] = {
     status: "unavailable",
     data: null,
   };
+  if (input.includeSummary === false) {
+    summary = { status: "skipped", data: null };
+  } else {
   try {
     const [
       reportsReady,
@@ -313,12 +341,14 @@ export async function listWorkspaceArtifacts(input: {
   } catch {
     summary = { status: "unavailable", data: null };
   }
+  }
 
   // ----------- Artifact rows -----------
   let artifacts: ReportsArtifactsEnvelope["sections"]["artifacts"] = {
     status: "unavailable",
     items: [],
     nextCursor: null,
+    total: null,
   };
   try {
     // Typed as a Prisma filter rather than `Record<string, unknown>` so the
@@ -331,6 +361,12 @@ export async function listWorkspaceArtifacts(input: {
       status: { in: ["SIGNED", "REPORTED"] },
     };
     if (input.caseId) whereBase.caseLinks = { some: { caseId: input.caseId } };
+    // The filter narrows the QUERY, so pagination, the total and the page all
+    // describe the same population.
+    const lifecycleClause = lifecycleWhere(input.lifecycleFilter ?? "all");
+    if (lifecycleClause) {
+      (whereBase.AND as Prisma.EvidenceWhereInput[]).push(lifecycleClause);
+    }
     if (input.search && input.search.trim()) {
       // SEARCH THE FIELDS THE TITLE CASCADE READS, not `title` alone.
       //
@@ -404,6 +440,17 @@ export async function listWorkspaceArtifacts(input: {
       },
     });
 
+    // THE TOTAL FOR THIS QUERY.
+    //
+    // `Artifacts · 25` was the length of the page, so a workspace with 278
+    // reports advertised 25 of them and offered no way to reach the rest. The
+    // count runs against the SAME `whereBase` the page came from — including
+    // the search and the lifecycle clause — so the header, the pagination and
+    // the rows all describe one population.
+    const total = await prisma.evidence.count({
+      where: cursorFilter ? { AND: [whereBase] } : whereBase,
+    });
+
     const hasMore = rows.length > limit;
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
@@ -418,7 +465,7 @@ export async function listWorkspaceArtifacts(input: {
         : null;
 
     if (pageRows.length === 0) {
-      artifacts = { status: "ok", items: [], nextCursor: null };
+      artifacts = { status: "ok", items: [], nextCursor: null, total };
     } else {
       const evidenceIds = pageRows.map((r) => r.id);
       const [reportRows, packageRows] = await Promise.all([
@@ -502,19 +549,15 @@ export async function listWorkspaceArtifacts(input: {
         };
       });
 
-      // Lifecycle-filter is applied AFTER row hydration so the cursor
-      // remains stable across filter changes (the filter only narrows
-      // visible rows from the bounded slice).
-      const filtered = filterByLifecycle(items, input.lifecycleFilter ?? "all");
-
       artifacts = {
         status: "ok",
-        items: filtered,
+        items,
         nextCursor,
+        total,
       };
     }
   } catch {
-    artifacts = { status: "unavailable", items: [], nextCursor: null };
+    artifacts = { status: "unavailable", items: [], nextCursor: null, total: null };
   }
 
   return {
@@ -522,6 +565,55 @@ export async function listWorkspaceArtifacts(input: {
     workspace: { id: input.teamId, role: input.role },
     sections: { summary, artifacts },
   };
+}
+
+/**
+ * THE LIFECYCLE FILTER, AS A DATABASE PREDICATE.
+ *
+ * It used to run in `filterByLifecycle` AFTER pagination, over the 25 rows the
+ * page had already fetched. So "Report pending" searched 25 of 278 records: it
+ * returned whichever of the newest 25 happened to be pending, called that the
+ * answer, and reported a count derived from the same slice. The filter was not
+ * slow — it was looking at 9% of the data.
+ *
+ * The derivations these mirror are `deriveReportState` / `derivePackageState`
+ * above, and the mirror is exact BECAUSE the surrounding `whereBase` already
+ * pins `status IN (SIGNED, REPORTED)`: within that population "pending" is
+ * precisely "no artifact row exists", so `none: {}` is the whole predicate and
+ * `not_requested` is unreachable.
+ *
+ * BLOCKED is the one that cannot be a relation test — it lives in the
+ * `verificationPackageMetadata` JSON — so it is expressed as a JSON path
+ * filter against the same column `readPackageBlocked` reads.
+ */
+function lifecycleWhere(
+  filter: ReportLifecycleFilter,
+): Prisma.EvidenceWhereInput | null {
+  switch (filter) {
+    case "all":
+      return null;
+    case "report_ready":
+      return { reports: { some: {} } };
+    case "report_pending":
+      return { reports: { none: {} } };
+    case "report_failed":
+      // No persisted failure state exists for a report; the derivation can
+      // never return it inside this population. Kept total, matching nothing,
+      // rather than silently widening to everything.
+      return { id: { in: [] } };
+    case "package_ready":
+      return { verificationPackages: { some: {} } };
+    case "package_pending":
+      return {
+        verificationPackages: { none: {} },
+        NOT: { verificationPackageMetadata: { path: ["blocked"], equals: true } },
+      };
+    case "package_blocked":
+      return {
+        verificationPackages: { none: {} },
+        verificationPackageMetadata: { path: ["blocked"], equals: true },
+      };
+  }
 }
 
 function filterByLifecycle(

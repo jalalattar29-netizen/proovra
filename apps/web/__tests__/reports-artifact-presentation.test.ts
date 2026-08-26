@@ -258,12 +258,17 @@ test("the user-scoped fallback fires ONLY on the unfiltered view", () => {
   );
 });
 
-test("a workspace summary survives a list query that could not produce one", () => {
-  // The counters are workspace totals. A list request that changed does not
-  // make six correct numbers wrong, so a failed summary section must not blank
-  // the ones already on screen.
-  assert.match(INDEX, /const previousSummary =\s*\n\s*prev\.status === "ready" \? prev\.envelope\.sections\.summary : null;/);
-  assert.match(INDEX, /summary: previousSummary/);
+test("the summary is fetched independently of the list", () => {
+  // Stronger than merging it out of the list response: the counters have their
+  // OWN request and their OWN state, so a list query cannot blank them and a
+  // list refresh cannot delay them. Six workspace aggregations that no filter,
+  // search or page can change are no longer recomputed per keystroke — which
+  // is what made changing a filter feel like a page load.
+  assert.match(INDEX, /const loadSummary = useCallback/);
+  assert.match(INDEX, /const \[summarySection, setSummarySection\] = useState</);
+  assert.match(INDEX, /\{summarySection\.status === "ok" && summarySection\.data \? \(/);
+  // …and the LIST asks the server to skip them.
+  assert.match(INDEX, /summary: "0",/);
 });
 
 test("search and lifecycle both reach the server, and compose", () => {
@@ -272,7 +277,7 @@ test("search and lifecycle both reach the server, and compose", () => {
   // other.
   assert.match(INDEX, /lifecycle: currentFilter,/);
   assert.match(INDEX, /params\.set\("search", trimmed\.slice\(0, 80\)\)/);
-  assert.match(INDEX, /void reload\(filter, search\)/);
+  assert.match(INDEX, /void reload\(filter, search, cursor\)/);
 });
 
 test("SERVER: search matches every field the title cascade displays", () => {
@@ -283,7 +288,11 @@ test("SERVER: search matches every field the title cascade displays", () => {
     AGGREGATOR.indexOf("// Cursor —"),
   );
   for (const field of ["title", "displayFileName", "originalFileName"]) {
-    assert.match(block, new RegExp(`\{ ${field}: like \}`), `search must cover ${field}`);
+    assert.match(
+      block,
+      new RegExp("[{] " + field + ": like [}]"),
+      `search must cover ${field}`,
+    );
   }
   assert.match(block, /whereBase\.OR = \[/);
 });
@@ -373,4 +382,129 @@ test("the summary value uses the page's own type system", () => {
   assert.match(CSS, /\.rpt-metric__label \{[\s\S]{0,160}font-family: inherit;/);
   // Roomier cards, still not huge.
   assert.match(CSS, /minmax\(196px, 1fr\)/);
+});
+
+// ---------------------------------------------------------------------------
+// Pagination, totals, and the 25-row cap
+// ---------------------------------------------------------------------------
+
+const ROUTES = read("services/api/src/routes/case-workspace.routes.ts");
+
+test("the list exposes a TOTAL, counted on the same predicate as the page", () => {
+  // `Artifacts · 25` was `items.length` — the page size announced as if it
+  // were the answer, on a workspace with 278 reports.
+  assert.match(AGGREGATOR, /const total = await prisma\.evidence\.count\(\{/);
+  assert.match(TYPES, /\n {6}total: number \| null;/);
+  assert.match(INDEX, /sections\.artifacts\.total \?\? sections\.artifacts\.items\.length/);
+  // NEVER derived from the rows.
+  assert.doesNotMatch(INDEX, /title=\{`Artifacts · \$\{sections\.artifacts\.items\.length\}`\}/);
+});
+
+test("a 25-row page can describe a larger total", () => {
+  // The page size is named once and the page count derives from the server's
+  // total, so 278 renders as 25 rows across 12 pages rather than as 25.
+  assert.match(INDEX, /const REPORTS_PAGE_SIZE = 25;/);
+  assert.match(
+    INDEX,
+    /Math\.max\(1, Math\.ceil\(sections\.artifacts\.total \/ REPORTS_PAGE_SIZE\)\)/,
+  );
+});
+
+test("Next reaches different records, and Previous comes back", () => {
+  // Cursor pagination: the stack is the history. Next pushes the server's own
+  // `nextCursor`, Previous pops — so page 2 is a different query, not a
+  // client-side slice of the same 25 rows.
+  assert.match(INDEX, /const \[cursors, setCursors\] = useState<string\[\]>\(\[\]\)/);
+  assert.match(INDEX, /setCursors\(\(c\) => \[\.\.\.c, next\]\)/);
+  assert.match(INDEX, /setCursors\(\(c\) => c\.slice\(0, -1\)\)/);
+  assert.match(INDEX, /params\.set\("cursor", currentCursor\)/);
+  // Both ends are truthfully disabled.
+  assert.match(INDEX, /disabled=\{page <= 1 \|\| refreshing\}/);
+  assert.match(INDEX, /disabled=\{!sections\.artifacts\.nextCursor \|\| refreshing\}/);
+});
+
+test("the lifecycle filter is a QUERY predicate, not a post-pagination slice", () => {
+  // THE CAP BUG. `filterByLifecycle(items, …)` ran over the 25 rows already
+  // fetched, so "Report pending" searched 9% of a 278-record workspace and
+  // reported a count from that slice.
+  assert.match(AGGREGATOR, /function lifecycleWhere\(/);
+  assert.match(AGGREGATOR, /\(whereBase\.AND as Prisma\.EvidenceWhereInput\[\]\)\.push\(lifecycleClause\)/);
+  assert.doesNotMatch(
+    code(AGGREGATOR),
+    /const filtered = filterByLifecycle\(items,/,
+    "the filter must not run after pagination",
+  );
+});
+
+test("every filter maps to a predicate over the full dataset", () => {
+  const block = AGGREGATOR.slice(
+    AGGREGATOR.indexOf("function lifecycleWhere("),
+    AGGREGATOR.indexOf("function filterByLifecycle("),
+  );
+  const cases: Array<[string, RegExp]> = [
+    ["all", /case "all":\s*\n\s*return null;/],
+    ["report_ready", /reports: \{ some: \{\} \}/],
+    ["report_pending", /reports: \{ none: \{\} \}/],
+    ["package_ready", /verificationPackages: \{ some: \{\} \}/],
+    ["package_blocked", /verificationPackageMetadata: \{ path: \["blocked"\], equals: true \}/],
+  ];
+  for (const [key, re] of cases) {
+    assert.match(block, re, `${key} has no full-dataset predicate`);
+  }
+  // Pending is "no package AND not blocked" — the two are disjoint.
+  assert.match(block, /NOT: \{ verificationPackageMetadata: \{ path: \["blocked"\], equals: true \} \}/);
+});
+
+test("changing filter or search resets to page 1", () => {
+  // A cursor names a position in ONE ordered result set; carrying it into a
+  // different query points at a row that may not be in it.
+  assert.match(INDEX, /const changeFilter = useCallback\(\(next: LifecycleFilter\) => \{\s*\n\s*setFilter\(next\);\s*\n\s*setCursors\(\[\]\);/);
+  assert.match(INDEX, /const changeSearch = useCallback\(\(next: string\) => \{\s*\n\s*setSearch\(next\);\s*\n\s*setCursors\(\[\]\);/);
+  assert.match(INDEX, /onChange=\{changeSearch\}/);
+  assert.match(INDEX, /onClick=\{\(\) => changeFilter\(key\)\}/);
+});
+
+test("the list asks the server to skip the workspace aggregations", () => {
+  // THE PERFORMANCE FIX. Six aggregate counts a filter cannot change were
+  // recomputed on every list request.
+  assert.match(AGGREGATOR, /if \(input\.includeSummary === false\) \{/);
+  assert.match(AGGREGATOR, /summary = \{ status: "skipped", data: null \};/);
+  assert.match(ROUTES, /summary: z\.enum\(\["0", "1"\]\)\.optional\(\)/);
+  assert.match(ROUTES, /includeSummary: query\.summary !== "0"/);
+});
+
+test("a stale response cannot overwrite a newer query", () => {
+  // Three quick filter clicks start three requests; without this the slowest
+  // wins and the list shows a filter the operator already left.
+  assert.match(INDEX, /const generation = \(listGeneration\.current \+= 1\)/);
+  assert.match(INDEX, /listAbort\.current\?\.abort\(\)/);
+  assert.match(INDEX, /const isCurrent = \(\) => generation === listGeneration\.current/);
+  assert.match(INDEX, /signal: controller\.signal/);
+  assert.match(INDEX, /if \(!isCurrent\(\)\) return;/);
+  assert.match(INDEX, /"AbortError"/);
+});
+
+test("the empty state distinguishes no data from no matches", () => {
+  assert.match(INDEX, /const filtered = filter !== "all" \|\| search\.trim\(\)\.length > 0;/);
+  assert.match(INDEX, /"No reports match your search\."/);
+  assert.match(INDEX, /"No reports match this filter\."/);
+  assert.match(INDEX, /"No reports yet"/);
+  assert.match(INDEX, /data-reports-empty-kind=\{filtered \? "no_match" : "no_data"\}/);
+});
+
+test("the empty-state CTA is canonical purple, and the coral CTA is gone", () => {
+  const empty = INDEX.slice(INDEX.indexOf("function ReportsEmptyState"));
+  assert.match(empty, /className="app-primary-action"/);
+  // The inline coral treatment: `--btn-primary-bg` is the login/marketing CTA.
+  assert.doesNotMatch(code(empty), /--btn-primary-bg/);
+  assert.doesNotMatch(code(empty), /cc-quick-action/);
+  // …and it is offered only where "open evidence" answers the sentence above.
+  assert.match(empty, /!filtered \? \(/);
+});
+
+test("the coral CTA token keeps its legitimate consumers", () => {
+  // The goal was to stop USING it on Reports, not to delete a token other
+  // surfaces own.
+  const BUTTON = read("apps/web/components/ui/Button.tsx");
+  assert.match(BUTTON, /--btn-primary-bg/);
 });

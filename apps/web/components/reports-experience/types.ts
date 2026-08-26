@@ -4,7 +4,8 @@
  * Mirrors the envelope returned by `/v1/reports/artifacts`.
  */
 
-export type SectionStatus = "ok" | "degraded" | "unavailable";
+/** `skipped` = the caller did not ask for it. NOT a failure. */
+export type SectionStatus = "ok" | "degraded" | "unavailable" | "skipped";
 
 export type ReportLifecycle =
   | "not_requested"
@@ -79,6 +80,11 @@ export type ReportsArtifactsEnvelope = {
       status: SectionStatus;
       items: ArtifactRow[];
       nextCursor: string | null;
+      /**
+       * Rows matching the CURRENT query across the whole workspace — not the
+       * length of this page. Null only when the list itself failed.
+       */
+      total: number | null;
     };
   };
 };

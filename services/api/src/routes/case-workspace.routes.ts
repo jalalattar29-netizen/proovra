@@ -217,6 +217,8 @@ const ArtifactsQuery = z.object({
     .optional(),
   search: z.string().min(1).max(80).optional(),
   caseId: z.string().uuid().optional(),
+  /** `0` skips the six workspace aggregations a filter cannot change. */
+  summary: z.enum(["0", "1"]).optional(),
 });
 
 export async function caseWorkspaceRoutes(app: FastifyInstance) {
@@ -1211,6 +1213,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         lifecycleFilter: query.lifecycle ?? "all",
         search: query.search ?? null,
         caseId: query.caseId ?? null,
+        includeSummary: query.summary !== "0",
       });
       return reply.code(200).send(envelope);
     },

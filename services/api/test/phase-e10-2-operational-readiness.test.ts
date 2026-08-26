@@ -365,8 +365,18 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // `caseLinks` select — one query, no N+1. Sanctioned, audited growth —
       // the pin moves to the current size so it keeps catching UNAUDITED
       // drift.
+      // Rebaselined 2026-08-26 (SCALABLE REPORTS). `filterByLifecycle` ran
+      // AFTER pagination, over the 25 rows already fetched, so "Report
+      // pending" searched 9% of a 278-record workspace and reported a count
+      // from that slice. It is now `lifecycleWhere`, a predicate on the query,
+      // alongside a `count` on the same predicate so the header states the
+      // real total; and the six workspace aggregations became skippable
+      // (`includeSummary`) because a filter cannot change them and recomputing
+      // them per keystroke is what made the page feel like it reloaded.
+      // Sanctioned, audited growth — the pin moves so it keeps catching
+      // UNAUDITED drift.
       rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 18555,
+        expected: 22464,
       },
     ];
     for (const { rel, expected } of PINS) {

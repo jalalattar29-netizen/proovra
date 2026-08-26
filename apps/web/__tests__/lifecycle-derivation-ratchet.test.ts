@@ -262,6 +262,15 @@ const ALLOWED_OFFENDERS: ReadonlyArray<{
     reason:
       "Trust-decision-consistency service reads latestReportVersion to compare snapshot vs live state. Operational consistency check, not a verdict derivation.",
   },
+  // The Reports lifecycle FILTER. The same existence question the page has
+  // always answered — it just moved from a post-pagination array filter into
+  // the query, so "Package ready" searches the whole workspace instead of the
+  // 25 rows already fetched.
+  {
+    fileSubstring: "services/api/src/services/reports/reports-aggregator.service.ts",
+    reason:
+      "The Reports lifecycle filter uses verificationPackages: { some: {} } as the correct EXISTENCE check for 'a package has been generated'. It labels the row 'Package ready' and never claims the package is cryptographically verified — integrity is reported separately, from verificationStatus. Mirrors derivePackageState in the same file, which this predicate exists to keep in step with.",
+  },
 ];
 
 function offenderIsAllowed(o: Offender): boolean {

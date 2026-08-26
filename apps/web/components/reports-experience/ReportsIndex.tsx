@@ -89,6 +89,9 @@ const SUMMARY_METRICS = [
   tone: string;
 }>;
 
+/** The server default. Named so the pager and the page agree on one number. */
+const REPORTS_PAGE_SIZE = 25;
+
 type LoadState =
   | { status: "loading" }
   | { status: "ready"; envelope: ReportsArtifactsEnvelope }
@@ -184,6 +187,9 @@ async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> 
           status: "ok",
           items,
           nextCursor: envelope.nextCursor,
+          // The user-scoped route is a bootstrap fallback with no total; the
+          // header then falls back to the page length rather than inventing one.
+          total: null,
         },
       },
     };
@@ -205,9 +211,69 @@ export function ReportsIndex() {
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [search, setSearch] = useState("");
 
+  /**
+   * CURSOR PAGINATION, as a stack.
+   *
+   * The aggregator pages by an opaque (createdAt, id) cursor, so there is no
+   * offset to jump to a numbered page. `cursors[n]` is the cursor that OPENS
+   * page n+1; Previous pops, Next pushes the `nextCursor` the server returned.
+   * Page 1 is always `null`, so it needs no entry.
+   */
+  const [cursors, setCursors] = useState<string[]>([]);
+  const page = cursors.length + 1;
+
+  /**
+   * STALE-RESPONSE GUARD.
+   *
+   * Clicking three filters quickly starts three requests, and without this the
+   * slowest one wins whichever order they land in — the list then shows a
+   * filter the operator has already moved off. Each request takes a
+   * generation; only the newest may write state. The in-flight request is also
+   * aborted, so the browser stops work nobody is waiting for.
+   */
+  const listGeneration = useRef(0);
+  const listAbort = useRef<AbortController | null>(null);
+
+  /**
+   * THE SUMMARY, fetched on its own.
+   *
+   * Six workspace aggregations that no filter, search or page can change. They
+   * used to ride along with every list request, so a filter click paid for
+   * them — that is what made changing a filter feel like a page load. One
+   * request per workspace now, with its own state, so a list failure cannot
+   * blank it and a list refresh cannot delay it.
+   */
+  const [summarySection, setSummarySection] = useState<
+    ReportsArtifactsEnvelope["sections"]["summary"]
+  >({ status: "unavailable", data: null });
+
+  const loadSummary = useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const envelope = (await apiFetch(
+        `/v1/reports/artifacts?teamId=${encodeURIComponent(workspaceId)}&limit=1`,
+        { method: "GET" },
+      )) as ReportsArtifactsEnvelope;
+      setSummarySection(envelope.sections.summary);
+    } catch {
+      // Its own failure, reported in its own section. The list is unaffected.
+      setSummarySection({ status: "unavailable", data: null });
+    }
+  }, [workspaceId]);
+
   const reload = useCallback(
-    async (currentFilter: LifecycleFilter, currentSearch: string) => {
+    async (
+      currentFilter: LifecycleFilter,
+      currentSearch: string,
+      currentCursor: string | null,
+    ) => {
       if (!workspaceId) return;
+      // Newest request wins, and the one it replaces is cancelled.
+      const generation = (listGeneration.current += 1);
+      listAbort.current?.abort();
+      const controller = new AbortController();
+      listAbort.current = controller;
+      const isCurrent = () => generation === listGeneration.current;
       // ONLY the FIRST load shows the skeleton.
       //
       // This set `{ status: "loading" }` unconditionally, and the render
@@ -226,14 +292,20 @@ export function ReportsIndex() {
       const params = new URLSearchParams({
         teamId: workspaceId,
         lifecycle: currentFilter,
+        // THE PERFORMANCE FIX. The six workspace aggregations cannot be
+        // changed by a filter, a search or a page, so the list does not ask
+        // for them; they are fetched once, by `loadSummary`.
+        summary: "0",
       });
       const trimmed = currentSearch.trim();
       if (trimmed) params.set("search", trimmed.slice(0, 80));
+      if (currentCursor) params.set("cursor", currentCursor);
       try {
         const envelope = (await apiFetch(
           `/v1/reports/artifacts?${params.toString()}`,
-          { method: "GET" },
+          { method: "GET", signal: controller.signal },
         )) as ReportsArtifactsEnvelope;
+        if (!isCurrent()) return;
         // Phase IA-self-serve-regression-fix — workspace-scoped
         // aggregator returned 200 but with zero artifacts. For
         // self-serve PERSONAL workspace users that's a known false
@@ -265,31 +337,17 @@ export function ReportsIndex() {
           envelope.sections.artifacts.items.length === 0
         ) {
           const recovered = await tryUserScopedReports();
-          if (recovered) {
+          if (recovered && isCurrent()) {
             setState({ status: "ready", envelope: recovered });
             return;
           }
         }
-        // THE SUMMARY IS A WORKSPACE TOTAL, so it survives a list query that
-        // could not produce one. Without this a response whose summary section
-        // failed would blank six counters that were correct a moment ago and
-        // are still correct — the list changed, the workspace did not.
-        setState((prev) => {
-          const previousSummary =
-            prev.status === "ready" ? prev.envelope.sections.summary : null;
-          const incoming = envelope.sections.summary;
-          if (incoming.status === "ok" || !previousSummary || previousSummary.status !== "ok") {
-            return { status: "ready", envelope };
-          }
-          return {
-            status: "ready",
-            envelope: {
-              ...envelope,
-              sections: { ...envelope.sections, summary: previousSummary },
-            },
-          };
-        });
+        // The list owns the list. The summary has its own state and its own
+        // request, so nothing here can blank it.
+        setState({ status: "ready", envelope });
       } catch (err) {
+        // An aborted request is a request we replaced on purpose.
+        if ((err as { name?: string })?.name === "AbortError" || !isCurrent()) return;
         const e = err as { message?: string; statusCode?: number };
         // Phase IA-self-serve-regression-fix — 404 from the
         // workspace-scoped aggregator means "you are not a
@@ -298,7 +356,7 @@ export function ReportsIndex() {
         // to the user-scoped list instead of surfacing the error.
         if (e.statusCode === 404) {
           const recovered = await tryUserScopedReports();
-          if (recovered) {
+          if (recovered && isCurrent()) {
             setState({ status: "ready", envelope: recovered });
             return;
           }
@@ -314,7 +372,7 @@ export function ReportsIndex() {
           });
         }
       } finally {
-        setRefreshing(false);
+        if (isCurrent()) setRefreshing(false);
       }
     },
     [workspaceId],
@@ -355,19 +413,38 @@ export function ReportsIndex() {
       return;
     }
     const q = queryRef.current;
-    void q.reload(q.filter, q.search);
+    setCursors([]);
+    void q.reload(q.filter, q.search, null);
+    void loadSummary();
     // Reload when the workspace switches (or provider state resolves).
-  }, [ctxStateName, ctxErrorCode, ctxMessage, workspaceId]);
+  }, [ctxStateName, ctxErrorCode, ctxMessage, workspaceId, loadSummary]);
 
-  // Trigger a server re-query when the filter changes (server already
-  // honors the `lifecycle` param). Search is debounced client-side.
+  // THE LIST QUERY. Filter, search and page all describe one request, so one
+  // effect owns it. Search keeps its short existing debounce; a filter click
+  // and a page turn fire immediately, because there is nothing to wait for.
   useEffect(() => {
     if (!workspaceId) return;
+    const cursor = cursors.length > 0 ? cursors[cursors.length - 1] : null;
     const t = setTimeout(() => {
-      void reload(filter, search);
+      void reload(filter, search, cursor);
     }, search ? 250 : 0);
     return () => clearTimeout(t);
-  }, [filter, search, reload, workspaceId]);
+  }, [filter, search, cursors, reload, workspaceId]);
+
+  // FILTER AND SEARCH RESET THE PAGE.
+  //
+  // A cursor describes a position in one ordered result set; carrying it into
+  // a different query points at a row that may not be in it. Both changes send
+  // the operator to page 1 of the new query, which is also the only page whose
+  // existence is guaranteed.
+  const changeFilter = useCallback((next: LifecycleFilter) => {
+    setFilter(next);
+    setCursors([]);
+  }, []);
+  const changeSearch = useCallback((next: string) => {
+    setSearch(next);
+    setCursors([]);
+  }, []);
 
   if (state.status === "loading") {
     return <ReportsLoading />;
@@ -384,6 +461,12 @@ export function ReportsIndex() {
 
   const { envelope } = state;
   const { sections } = envelope;
+  // Pages of PAGE_SIZE over the server total. Null when the server could not
+  // give a total — the pager then shows the page number without a false "of N".
+  const pageCount =
+    sections.artifacts.total != null
+      ? Math.max(1, Math.ceil(sections.artifacts.total / REPORTS_PAGE_SIZE))
+      : null;
 
   const lifecycleFilters: Array<[LifecycleFilter, string]> = [
     ["all", "All"],
@@ -443,7 +526,7 @@ export function ReportsIndex() {
       <ContextualHelp surface="reports" collapsedByDefault />
 
       {/* Operational summary */}
-      {sections.summary.status === "ok" && sections.summary.data ? (
+      {summarySection.status === "ok" && summarySection.data ? (
         <PageSection title="Operational summary" data-reports-summary>
           <ul className="rpt-summary__grid" data-reports-summary-grid>
             {SUMMARY_METRICS.map((m) => (
@@ -453,11 +536,11 @@ export function ReportsIndex() {
                   data-rpt-tone={m.tone}
                   data-reports-summary-key={m.key}
                   data-reports-summary-value={String(
-                    sections.summary.data![m.field],
+                    summarySection.data![m.field],
                   )}
                 >
                   <span className="app-metric-card__value rpt-metric__value">
-                    {sections.summary.data![m.field]}
+                    {summarySection.data![m.field]}
                   </span>
                   <span className="app-metric-card__label rpt-metric__label">
                     {m.label}
@@ -472,7 +555,7 @@ export function ReportsIndex() {
           <Card variant="status" tone="neutral">
             <span
               className="cc-section-note"
-              data-cc-section-status={sections.summary.status}
+              data-cc-section-status={summarySection.status}
               style={{ color: "var(--ink-secondary, #475569)", fontSize: 13.5 }}
             >
               Summary is temporarily unavailable. The artifact list below remains
@@ -489,7 +572,7 @@ export function ReportsIndex() {
             label="Search by evidence title"
             placeholder="Search by evidence title"
             value={search}
-            onChange={setSearch}
+            onChange={changeSearch}
             data-reports-search-input
           />
           <div
@@ -505,7 +588,7 @@ export function ReportsIndex() {
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  onClick={() => setFilter(key)}
+                  onClick={() => changeFilter(key)}
                   data-reports-filter={key}
                   className={`cases-filter-chip${active ? " is-active" : ""}`}
                 >
@@ -519,7 +602,12 @@ export function ReportsIndex() {
 
       {/* Artifact list */}
       <PageSection
-        title={`Artifacts · ${sections.artifacts.items.length}`}
+        /* THE TOTAL for the current query, from the server. It read
+           `items.length` — always 25 on a workspace with 278 reports, which
+           announced the page size as if it were the answer. */
+        title={`Artifacts · ${
+          sections.artifacts.total ?? sections.artifacts.items.length
+        }`}
         data-reports-list
         data-reports-refreshing={refreshing ? "true" : "false"}
       >
@@ -534,7 +622,7 @@ export function ReportsIndex() {
             </span>
           </Card>
         ) : sections.artifacts.items.length === 0 ? (
-          <ReportsEmptyState filter={filter} />
+          <ReportsEmptyState filter={filter} search={search} />
         ) : (
           <ul className="rpt-list" data-reports-list-items>
               {sections.artifacts.items.map((row) => (
@@ -546,18 +634,43 @@ export function ReportsIndex() {
             ))}
           </ul>
         )}
-        {sections.artifacts.nextCursor ? (
-          <div
-            className="cc-section-foot"
-            style={{
-              marginTop: 12,
-              fontSize: 12.5,
-              color: "var(--ink-muted, #94a3b8)",
-            }}
+        {/* REAL PAGINATION, replacing the note that told an operator to go
+            somewhere else. Previous/Next over the cursor stack, with the page
+            count derived from the server's own total — never from
+            `rows.length`. Both controls are truthfully disabled at the ends. */}
+        {sections.artifacts.status === "ok" &&
+        (page > 1 || sections.artifacts.nextCursor) ? (
+          <nav
+            className="rpt-pagination"
+            aria-label="Pagination"
+            data-reports-pagination
           >
-            More artifacts available — refine filters or open the evidence
-            library for a full paginated view.
-          </div>
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => setCursors((c) => c.slice(0, -1))}
+              disabled={page <= 1 || refreshing}
+              data-reports-prev-page
+            >
+              Previous
+            </button>
+            <span className="rpt-pagination__status" aria-live="polite">
+              Page {page}
+              {pageCount !== null ? ` of ${pageCount}` : ""}
+            </span>
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={() => {
+                const next = sections.artifacts.nextCursor;
+                if (next) setCursors((c) => [...c, next]);
+              }}
+              disabled={!sections.artifacts.nextCursor || refreshing}
+              data-reports-next-page
+            >
+              Next
+            </button>
+          </nav>
         ) : null}
       </PageSection>
 
@@ -1056,44 +1169,60 @@ function packageLabel(state: PackageLifecycle): string {
   }
 }
 
-function ReportsEmptyState({ filter }: { filter: LifecycleFilter }) {
-  // Canonical Reports empty state. (2026-07-20) The per-persona empty
-  // state variants were removed with the workspace-persona feature.
-  const state = {
-    title: "No reports yet",
-    body:
-      "Reports are generated from signed evidence. Capture or upload evidence to make a report available.",
-    primaryCtaLabel: "Open evidence",
-    primaryCtaHref: "/evidence",
-  };
+/**
+ * THE EMPTY STATE, aware of what was asked.
+ *
+ * It said "No reports yet" under every condition — including a workspace with
+ * 278 reports where the operator had selected "Report pending". That reads as
+ * "you have none", which was false; the truthful statement is that nothing
+ * matches the query.
+ *
+ * The CTA is offered only where it makes sense. "Open evidence" answers "you
+ * have no reports yet"; it does not answer "this filter matched nothing", and
+ * a button that does not follow from the sentence above it is noise.
+ */
+function ReportsEmptyState({
+  filter,
+  search,
+}: {
+  filter: LifecycleFilter;
+  search: string;
+}) {
+  const filtered = filter !== "all" || search.trim().length > 0;
+  const title = !filtered
+    ? "No reports yet"
+    : search.trim().length > 0
+      ? "No reports match your search."
+      : "No reports match this filter.";
+  const body = !filtered
+    ? "Reports are generated from signed evidence. Capture or upload evidence to make a report available."
+    : "Adjust the filter or the search to widen the query.";
+
   return (
-    <div className="cases-empty" data-reports-empty={filter}>
+    <div
+      className="cases-empty"
+      data-reports-empty={filter}
+      data-reports-empty-kind={filtered ? "no_match" : "no_data"}
+    >
       <EmptyState
         framed
-        title={state.title}
-        purpose={state.body}
+        title={title}
+        purpose={body}
         action={
-          <Link
-            href={state.primaryCtaHref}
-            className="cc-quick-action"
-            data-reports-empty-state-cta
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 42,
-              padding: "0 18px",
-              fontSize: 14,
-              fontWeight: 650,
-              borderRadius: 12,
-              textDecoration: "none",
-              background: "var(--btn-primary-bg)",
-              color: "var(--btn-primary-color)",
-              border: "1px solid var(--btn-primary-border)",
-              boxShadow: "var(--btn-primary-shadow)",
-            }}
-          >
-            {state.primaryCtaLabel}
-          </Link>
+          !filtered ? (
+            <Link
+              href="/evidence"
+              /* CANONICAL PURPLE. This carried `--btn-primary-bg` inline — the
+                 coral-to-pink login CTA — as eight lines of hand-written
+                 geometry. `app-primary-action` is the redesigned app's purple
+                 action, with its own hover and focus ring. The token itself is
+                 untouched; this surface stops borrowing it. */
+              className="app-primary-action"
+              data-reports-empty-state-cta
+            >
+              Open evidence
+            </Link>
+          ) : null
         }
       />
     </div>

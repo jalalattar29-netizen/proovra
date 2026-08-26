@@ -242,3 +242,27 @@
 .rpt-row__action {
   white-space: nowrap;
 }
+
+/* ---------- pagination ---------- */
+
+.rpt-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-block-start: 14px;
+}
+.rpt-pagination__status {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  /* Centred and full-width rather than compressed: two buttons and a status
+     line pushed to the right edge is where the overflow starts on a phone. */
+  .rpt-pagination {
+    justify-content: space-between;
+  }
+}
