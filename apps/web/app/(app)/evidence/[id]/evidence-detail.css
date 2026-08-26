@@ -75,11 +75,27 @@
 
 .evidence-detail-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 246px;
-  gap: 34px;
+  /* Two tracks: the title block, and the record's action stack beside it.
+     Everything after the header row — eligibility badges, the two downloads —
+     spans both, so the downloads stay UNDER the header rather than beside the
+     actions. */
+  grid-template-columns: minmax(0, 1fr) 176px;
+  gap: 12px 28px;
   align-items: start;
   padding: 2px 0 22px;
   border-bottom: 1px solid var(--detail-line);
+}
+.evidence-detail-hero-main {
+  grid-column: 1;
+  grid-row: 1;
+}
+.evidence-detail-hero > .evidence-detail-hero-icon-actions {
+  grid-column: 2;
+  grid-row: 1;
+}
+.evidence-detail-hero > .evidence-detail-eligibility-row,
+.evidence-detail-hero > .evidence-detail-hero-actions {
+  grid-column: 1 / -1;
 }
 
 .evidence-detail-hero-main {
@@ -1219,9 +1235,7 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
-  margin-inline-start: auto;
-  inline-size: 168px;
-  flex: 0 0 auto;
+  inline-size: 100%;
 }
 .evidence-detail-hero-action {
   inline-size: 100%;
@@ -1246,9 +1260,15 @@ details[open] > .ta-accordion-summary .ta-accordion-chevron {
  * horizontal overflow. Below 900px it becomes a full-width row of equal cells
  * that wrap — same controls, same labels, no scrollbar. */
 @media (max-width: 900px) {
+  .evidence-detail-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .evidence-detail-hero > .evidence-detail-hero-icon-actions {
+    grid-column: 1;
+    grid-row: auto;
+  }
   .evidence-detail-hero-icon-actions {
     inline-size: 100%;
-    margin-inline-start: 0;
     flex-direction: row;
     flex-wrap: wrap;
   }
@@ -5189,4 +5209,23 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .evidence-detail-danger-action:not(:disabled):hover {
   background: color-mix(in srgb, var(--error) 6%, var(--surface-card));
   border-color: color-mix(in srgb, var(--error) 48%, var(--border-default));
+}
+
+/* THE ONE FILLED CONTROL IN THE STACK.
+ *
+ * Canonical dark ground (`--app-ink-heading`, the heading navy) with inverse
+ * text — not the purple `app-primary-action`, which belongs to the record's
+ * primary OUTPUT (Download Report PDF) below. Sharing a colour with that
+ * button would claim equal standing for copying a link.
+ *
+ * Built on `app-secondary-action` so geometry, radius and focus ring are
+ * identical to its three neighbours; only the fill differs. */
+.evidence-detail-hero-action--dark:not(:disabled) {
+  background: var(--app-ink-heading);
+  border-color: var(--app-ink-heading);
+  color: var(--ink-inverse);
+}
+.evidence-detail-hero-action--dark:not(:disabled):hover {
+  background: #0f1626;
+  border-color: #0f1626;
 }

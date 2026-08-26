@@ -1256,6 +1256,31 @@ function EvidenceDetailPageInner() {
             <div className="evidence-detail-boundary">{workspace.legalBoundary}</div>
           </div>
 
+          {/* THE RECORD'S OPERATIONS, beside the title — not beside the
+              downloads.
+              These sat inside the download toolbar, which put "Edit name" and
+              "Lock" on the same line as the record's two primary outputs and
+              read as one undifferentiated row of six. They belong to the
+              header: they act on the record identified above them. The two
+              downloads stay below, where the primary outputs belong. */}
+          <EvidenceHeroIconActions
+            lockedAt={evidence.lockedAt}
+            archivedAt={evidence.archivedAt}
+            deleted={deleted}
+            shareUrl={shareUrl}
+            isIntegrityFailed={isIntegrityFailed}
+            titles={iconActionTitle}
+            onCopyShareLink={() => void copyShareLink()}
+            onUnlock={() => {
+              setUnlockReasonDraft("");
+              setUnlockOpen(true);
+            }}
+            onLock={() => setLockOpen(true)}
+            onRestoreArchived={() => setRestoreArchivedOpen(true)}
+            onArchive={() => setArchiveOpen(true)}
+            onEditLabel={() => setEditingLabel(true)}
+          />
+
           {workspace.reviewWorkflow?.teamId ? (
             <div className="evidence-detail-eligibility-row">
               <ExportPackageEligibilityBadge
@@ -1332,23 +1357,6 @@ function EvidenceDetailPageInner() {
               </p>
             ) : null}
 
-            <EvidenceHeroIconActions
-              lockedAt={evidence.lockedAt}
-              archivedAt={evidence.archivedAt}
-              deleted={deleted}
-              shareUrl={shareUrl}
-              isIntegrityFailed={isIntegrityFailed}
-              titles={iconActionTitle}
-              onCopyShareLink={() => void copyShareLink()}
-              onUnlock={() => {
-                setUnlockReasonDraft("");
-                setUnlockOpen(true);
-              }}
-              onLock={() => setLockOpen(true)}
-              onRestoreArchived={() => setRestoreArchivedOpen(true)}
-              onArchive={() => setArchiveOpen(true)}
-              onEditLabel={() => setEditingLabel(true)}
-            />
           </div>
         </section>
 

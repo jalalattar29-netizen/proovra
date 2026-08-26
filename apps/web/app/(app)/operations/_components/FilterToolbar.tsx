@@ -240,8 +240,17 @@ export function FilterToolbar({
               { value: "BREACHED", label: "Overdue" },
               { value: "AT_RISK", label: "Due soon" },
               { value: "ON_TRACK", label: "On time" },
-              { value: "ACKNOWLEDGED", label: "Owned" },
-              { value: "RESOLVED", label: "Resolved" },
+              /* "Owned" (ACKNOWLEDGED) and "Resolved" USED TO SIT HERE, and
+                 neither is a time commitment.
+                 They are lifecycle states that the SLA projection also reports
+                 — ownership belongs to the owner filter, resolution to the
+                 Status filter and the Resolved summary card. Offering
+                 "Resolved" here was worse than redundant: the queue's default
+                 status scope is unresolved work, so selecting it narrowed an
+                 already-unresolved list to the resolved ones and returned
+                 nothing, which reads as "there are none" rather than as a
+                 filter asking the wrong axis. This dropdown now offers only
+                 states a commitment can actually be in. */
               { value: "UNTRACKED_LEGACY", label: "No SLA recorded" },
               { value: "NOT_APPLICABLE", label: "No SLA applies" },
             ]}

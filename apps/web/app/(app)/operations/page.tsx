@@ -1056,7 +1056,9 @@ function OperationsWorkbench() {
       ? "slaBreached"
       : filters.sla === "AT_RISK"
         ? "slaAtRisk"
-        : filters.severity === "CRITICAL" && filters.status === "OPEN"
+        : filters.status === "RESOLVED"
+          ? "resolved"
+          : filters.severity === "CRITICAL" && filters.status === "OPEN"
       ? "critical"
       : filters.severity === "HIGH" && filters.status === "OPEN"
         ? "high"
@@ -1076,6 +1078,11 @@ function OperationsWorkbench() {
       else if (key === "slaAtRisk") applyFilters({ ...base, sla: "AT_RISK" });
       else if (key === "critical") applyFilters({ ...base, severity: "CRITICAL" });
       else if (key === "high") applyFilters({ ...base, severity: "HIGH" });
+      // RESOLVED is a STATUS, not an SLA posture — and the default view is
+      // unresolved work, so the card has to move the status axis or it filters
+      // to nothing. Same `applyFilters`, same URL, same reset semantics as
+      // every other card.
+      else if (key === "resolved") applyFilters({ ...base, status: "RESOLVED" });
       else if (key === "assignedToMe") applyFilters({ ...base, owner: "me" });
       else if (key === "unassigned") applyFilters({ ...base, owner: "unassigned" });
       else applyFilters(base);

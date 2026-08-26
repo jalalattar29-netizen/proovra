@@ -197,8 +197,18 @@
  * Read state is already carried by the unread marker and the row's own
  * background; it does not also need to cost legibility. The surface recedes
  * here instead of the text. */
-.ops-item[data-read="true"] {
-  background: var(--surface-muted);
+/* Read rows keep the WHITE card surface (`--surface-card`, from `.ops-item`
+ * above) — the same clean panel the Operations surfaces use.
+ *
+ * This briefly carried `--surface-muted` when the blanket `opacity: 0.7` was
+ * removed, and that traded one washed-out look for another: most of a
+ * notification list is read, so most of the list rendered grey.
+ *
+ * Read state is signalled by EMPHASISING the unread instead — a stronger
+ * border on the rows that still want attention. Nothing is dimmed to say that
+ * something else matters. */
+.ops-item[data-read="false"] {
+  border-color: var(--border-strong);
 }
 .ops-item__main { min-width: 0; flex: 1 1 auto; }
 .ops-item__title {
