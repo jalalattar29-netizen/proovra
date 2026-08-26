@@ -178,9 +178,21 @@ function Activity({ row }: { row: OperationsRowModel }) {
       <span className="opsw-activity__last" title={formatUserDateTime(row.lastSeenAtUtc)}>
         {describeRelativeTime(row.lastSeenAtUtc)}
       </span>
+      {/*
+        WHAT THE NUMBER IS.
+
+        This read "26 occurrences", which names nothing: an occurrence of what,
+        counted how? It is how many times the reconciliation sweep looked at
+        this condition's source and found the condition still true — and the
+        page carries two other numbers ("26 affected records", "26 conditions")
+        that are also 26-shaped and mean entirely different things.
+
+        "Observed in N checks" says which of the three this is, in the same
+        words the Inspector uses.
+      */}
       {row.occurrenceCount > 1 ? (
         <span className="opsw-activity__count" data-ops-occurrences={row.occurrenceCount}>
-          {row.occurrenceCount} occurrences
+          Observed in {row.occurrenceCount.toLocaleString("en-US")} checks
         </span>
       ) : null}
     </span>

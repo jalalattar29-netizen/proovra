@@ -14,13 +14,26 @@
  * The source looked covered. Every totality check passed. Nothing wrote it.
  *
  * ---------------------------------------------------------------------------
- * THE WINDOW IS THE WORKER'S OWN
+ * THE WINDOW IS NOT THE RETRY BUDGET — AND THAT IS THE CORRECTION
  * ---------------------------------------------------------------------------
- * Discovery uses `isOtsPendingAged`, which is the same arithmetic over the
- * same `OTS_GLOBAL_BUDGET_DAYS` the Worker uses to decide it has spent the
- * anchoring budget. A second threshold would produce a workspace whose
- * Operations page calls a record fine while the processor has already stopped
- * trying — which is the class of disagreement this programme exists to close.
+ * When the ghost was given a producer, its threshold was the Worker's
+ * thirty-day `OTS_GLOBAL_BUDGET_DAYS`, on the reasoning that one window keeps
+ * the two hosts from disagreeing.
+ *
+ * That bound two different questions together. The budget answers HOW LONG THE
+ * PLATFORM MAY KEEP TRYING; the condition answers WHEN AN OPERATOR SHOULD BE
+ * TOLD. Sharing one number produced a surface with no useful middle: a proof
+ * stuck for a week was invisible, and the moment it became visible was the
+ * moment the Worker gave up on it — information arriving exactly too late to
+ * be worth having.
+ *
+ * There are two windows now, each named for its own question. The retry budget
+ * is untouched at thirty days and nothing here changes when the processor
+ * stops, retries or gives up. The OPERATIONS aging policy is a separate,
+ * server-owned ladder: nothing under a day, WARNING to three days, HIGH beyond
+ * — and never CRITICAL, because the record's RFC3161 timestamp is unaffected
+ * and a missing second proof must not rank beside a record that cannot be
+ * timestamped at all.
  *
  * ---------------------------------------------------------------------------
  * WHAT IS PROVEN NOT TO HAPPEN
@@ -35,11 +48,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
-/** Comfortably past the 30-day global budget. */
-const AGED_DAYS = 45;
-/** Comfortably inside it. */
-const FRESH_DAYS = 2;
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** Inside the operations warning window: a proof that is simply working. */
+const FRESH_HOURS = 6;
+/** Past the warning boundary and short of the high one. */
+const WARNING_HOURS = 36;
+/** Past the high boundary. Also the default "aged" fixture. */
+const AGED_HOURS = 96;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
@@ -119,13 +135,13 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
    * The age is expressed the way the shared predicate reads it: no anchor has
    * ever been pinned, so `createdAt` is the first-attempt instant.
    */
-  async function pendingRecord(ageDays: number): Promise<{ evidenceId: string }> {
+  async function pendingRecord(ageHours: number): Promise<{ evidenceId: string }> {
     const row = await prisma.evidence.create({
       data: {
         teamId: team.teamId,
         organizationId: team.organizationId,
         ownerUserId: team.ownerUserId,
-        title: `ots-pending-${ageDays}d-${Math.random().toString(36).slice(2, 10)}`,
+        title: `ots-pending-${ageHours}h-${Math.random().toString(36).slice(2, 10)}`,
         type: "PHOTO",
         status: "SIGNED",
         // The proof is trying. Not FAILED — that is a different condition with
@@ -133,7 +149,7 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
         // prevent.
         otsStatus: "PENDING",
         otsAnchoredAtUtc: null,
-        createdAt: new Date(Date.now() - ageDays * DAY_MS),
+        createdAt: new Date(Date.now() - ageHours * HOUR_MS),
       } as never,
       select: { id: true },
     });
@@ -205,16 +221,16 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
   // =========================================================================
 
   it("a record pending INSIDE the window opens NO condition", async () => {
-    const { evidenceId } = await pendingRecord(FRESH_DAYS);
+    const { evidenceId } = await pendingRecord(FRESH_HOURS);
     await reconcile();
-    // Two days into a thirty-day budget is a proof that is working, not a
-    // condition. Opening one would put every recently-captured record in the
-    // queue.
+    // Six hours in. Anchoring routinely takes hours, so a condition here
+    // would put every recently-captured record in the queue and teach an
+    // operator to ignore the source.
     expect(await conditionFor(evidenceId)).toBeNull();
   }, 300_000);
 
   it("a record pending BEYOND the window opens exactly one condition", async () => {
-    const { evidenceId } = await pendingRecord(AGED_DAYS);
+    const { evidenceId } = await pendingRecord(AGED_HOURS);
     await reconcile();
 
     const condition = await conditionFor(evidenceId);
@@ -223,10 +239,12 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
     expect(condition!.sourceId).toBe("evidence_integrity.ots_pending_aged");
     expect(condition!.status).toBe("OPEN");
     expect(condition!.relatedEvidenceId).toBe(evidenceId);
-    // WARNING, not HIGH: the record's own trusted timestamp is unaffected, and
-    // ranking it beside a record that cannot be timestamped at all would make
-    // the queue's worst rows harder to find.
-    expect(condition!.severity).toBe("WARNING");
+    // HIGH at this age — the fixture is four days old, past the high
+    // boundary — and never CRITICAL: the record's own trusted timestamp is
+    // unaffected, and ranking a missing second proof beside a record that
+    // cannot be timestamped at all would make the queue's worst rows harder to
+    // find.
+    expect(condition!.severity).toBe("HIGH");
 
     // ONE condition, and no FAILED sibling — the record has not failed.
     expect(
@@ -240,17 +258,17 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
     ).toBe(0);
   }, 300_000);
 
-  it("the shared predicate is the SAME one the Worker gives up on", async () => {
+  it("the shared predicate is the ONE the discovery, probe and sweep all read", async () => {
     // Not a re-implementation: the exact function, over the exact columns.
     const aged = {
       otsStatus: "PENDING",
       otsAnchoredAtUtc: null,
-      createdAt: new Date(Date.now() - AGED_DAYS * DAY_MS),
+      createdAt: new Date(Date.now() - AGED_HOURS * HOUR_MS),
     };
     const fresh = {
       otsStatus: "PENDING",
       otsAnchoredAtUtc: null,
-      createdAt: new Date(Date.now() - FRESH_DAYS * DAY_MS),
+      createdAt: new Date(Date.now() - FRESH_HOURS * HOUR_MS),
     };
     expect(authority.isOtsPendingAged(aged, new Date())).toBe(true);
     expect(authority.isOtsPendingAged(fresh, new Date())).toBe(false);
@@ -265,11 +283,97 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
   }, 300_000);
 
   // =========================================================================
+  // =========================================================================
+  // 1b. THE SEVERITY LADDER, AND ITS INDEPENDENCE FROM THE RETRY BUDGET
+  // =========================================================================
+
+  it("24-72 HOURS READS WARNING", async () => {
+    const { evidenceId } = await pendingRecord(WARNING_HOURS);
+    await reconcile();
+    const condition = await conditionFor(evidenceId);
+    expect(condition).not.toBeNull();
+    expect(condition!.severity).toBe("WARNING");
+    expect(condition!.sourceId).toBe("evidence_integrity.ots_pending_aged");
+  }, 300_000);
+
+  it("BEYOND 72 HOURS READS HIGH, AND NEVER CRITICAL", async () => {
+    const { evidenceId } = await pendingRecord(AGED_HOURS);
+    await reconcile();
+    const condition = await conditionFor(evidenceId);
+    expect(condition!.severity).toBe("HIGH");
+    expect(condition!.severity).not.toBe("CRITICAL");
+  }, 300_000);
+
+  it("the severity is RECOMPUTED as a record ages, not frozen at open", async () => {
+    // Opened at 36 hours, so WARNING.
+    const { evidenceId } = await pendingRecord(WARNING_HOURS);
+    await reconcile();
+    expect((await conditionFor(evidenceId))!.severity).toBe("WARNING");
+
+    // The same record, now four days old. A severity computed once and kept
+    // would leave this reading WARNING forever — which is the frozen-value
+    // defect one field across from the one in the title.
+    await prisma.evidence.update({
+      where: { id: evidenceId },
+      data: { createdAt: new Date(Date.now() - AGED_HOURS * HOUR_MS) },
+    });
+    await reconcile();
+    expect((await conditionFor(evidenceId))!.severity).toBe("HIGH");
+  }, 300_000);
+
+  it("THE OPERATIONS WINDOW AND THE RETRY BUDGET ARE DIFFERENT NUMBERS", async () => {
+    // The whole point of the separation, stated as arithmetic over the two
+    // canonical authorities rather than as two constants a reader has to go
+    // and compare.
+    const policy = authority.readOtsOperationsAgingPolicy();
+    expect(policy.warningHours).toBe(24);
+    expect(policy.highHours).toBe(72);
+    // The retry budget is UNTOUCHED, and it is far longer.
+    expect(authority.readOtsGlobalBudgetDays()).toBe(30);
+    expect(policy.highHours).toBeLessThan(
+      authority.readOtsGlobalBudgetDays() * 24,
+    );
+
+    // A three-day-old pending proof is an operations condition and is NOWHERE
+    // NEAR the retry budget: the platform is still trying, and the operator
+    // has been told. Under the old shared window both of those were false.
+    const threeDays = {
+      otsStatus: "PENDING",
+      otsAnchoredAtUtc: null,
+      createdAt: new Date(Date.now() - 3 * DAY_MS),
+    };
+    expect(authority.isOtsPendingAged(threeDays, new Date())).toBe(true);
+    expect(
+      authority.isOtsGlobalBudgetExhausted({
+        firstAttemptAtUtc: threeDays.createdAt,
+        nowUtc: new Date(),
+      }),
+    ).toBe(false);
+    expect(
+      authority.otsPendingOperationalPosture(threeDays, new Date()),
+    ).toBe("HIGH");
+  }, 300_000);
+
+  it("every workspace kind reads the SAME ladder — no plan branch exists", async () => {
+    // The policy takes a workspace nowhere. A per-plan severity would have to
+    // be passed one, and it cannot be.
+    expect(authority.readOtsOperationsAgingPolicy.length).toBe(0);
+    const at30h = {
+      otsStatus: "PENDING",
+      otsAnchoredAtUtc: null,
+      createdAt: new Date(Date.now() - 30 * HOUR_MS),
+    };
+    expect(authority.otsPendingOperationalPosture(at30h, new Date())).toBe(
+      "WARNING",
+    );
+  }, 300_000);
+
+
   // 2. RECOVERY AND RECURRENCE
   // =========================================================================
 
   it("anchoring resolves the SAME condition from source truth", async () => {
-    const { evidenceId } = await pendingRecord(AGED_DAYS);
+    const { evidenceId } = await pendingRecord(AGED_HOURS);
     await reconcile();
     const opened = await conditionFor(evidenceId);
     expect(opened!.status).toBe("OPEN");
@@ -290,7 +394,7 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
   }, 300_000);
 
   it("becoming aged-pending again reopens the SAME incident", async () => {
-    const { evidenceId } = await pendingRecord(AGED_DAYS);
+    const { evidenceId } = await pendingRecord(AGED_HOURS);
     await reconcile();
     const opened = await conditionFor(evidenceId);
 
@@ -340,7 +444,7 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
   }, 300_000);
 
   it("the Worker giving up hands over: this resolves, its FAILED sibling is free to open", async () => {
-    const { evidenceId } = await pendingRecord(AGED_DAYS);
+    const { evidenceId } = await pendingRecord(AGED_HOURS);
     await reconcile();
     const opened = await conditionFor(evidenceId);
     expect(opened!.status).toBe("OPEN");
@@ -378,7 +482,7 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
   // =========================================================================
 
   it("manual Resolve while still aged is refused and writes NOTHING", async () => {
-    const { evidenceId } = await pendingRecord(AGED_DAYS);
+    const { evidenceId } = await pendingRecord(AGED_HOURS);
     await reconcile();
     const before = await conditionFor(evidenceId);
     const eventsBefore = await eventTypes(before!.id);
@@ -412,7 +516,7 @@ describe("Aged-pending OTS conditions (live PostgreSQL 16)", () => {
   // =========================================================================
 
   it("a full reconciliation over an aged record mutates NO proof field", async () => {
-    const { evidenceId } = await pendingRecord(AGED_DAYS);
+    const { evidenceId } = await pendingRecord(AGED_HOURS);
     const before = await prisma.evidence.findUniqueOrThrow({
       where: { id: evidenceId },
       select: PROOF_SELECT,

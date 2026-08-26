@@ -150,6 +150,7 @@ import type {
   OperationsSummary,
   SourceState,
   IncidentGroup,
+  IncidentGroupTotals,
   AffectedRecord,
 } from "./_lib/types";
 import type { QueueMetricKey } from "./_lib/vocabulary";
@@ -342,6 +343,18 @@ function OperationsWorkbench() {
   // replaces. "All conditions" is one toggle away and reaches the same rows.
   const [grouped, setGrouped] = React.useState(true);
   const [groups, setGroups] = React.useState<IncidentGroup[]>([]);
+  /**
+   * THE HEADLINE TOTALS, AS THE SERVER COMPUTED THEM.
+   *
+   * The header read `${rows.length} conditions` in every mode, so a grouped
+   * queue showing five rows was captioned "38 conditions" and the two numbers
+   * on one screen had no stated relationship. Both are true; they answer
+   * different questions; the header now says which is which and takes both
+   * from the response that produced the list it sits above.
+   */
+  const [groupTotals, setGroupTotals] = React.useState<IncidentGroupTotals | null>(
+    null,
+  );
   const [groupsLoading, setGroupsLoading] = React.useState(false);
   const [openGroupKey, setOpenGroupKey] = React.useState<string | null>(null);
   /**
@@ -382,7 +395,21 @@ function OperationsWorkbench() {
     })
       .then((res) => {
         if (seq !== groupsSeq.current) return;
-        setGroups(((res as { groups?: IncidentGroup[] }).groups ?? []).slice());
+        const payload = res as {
+          groups?: IncidentGroup[];
+          totals?: IncidentGroupTotals;
+        };
+        const next = (payload.groups ?? []).slice();
+        setGroups(next);
+        // An older server sends no totals. Derived from the payload rather
+        // than left null, because a header with a group count and no condition
+        // count is worse than one computed from the same rows on screen.
+        setGroupTotals(
+          payload.totals ?? {
+            groups: next.length,
+            conditions: next.reduce((sum, g) => sum + g.conditionCount, 0),
+          },
+        );
       })
       .catch(() => {
         if (seq !== groupsSeq.current) return;
@@ -390,6 +417,7 @@ function OperationsWorkbench() {
         // The flat list is still there, and an empty grouped view with a
         // visible toggle is honest; a previous workspace's groups would not be.
         setGroups([]);
+        setGroupTotals(null);
       })
       .finally(() => {
         if (seq === groupsSeq.current) setGroupsLoading(false);
@@ -1566,10 +1594,30 @@ function OperationsWorkbench() {
             showOwnerFilter={collaborative}
             operators={operators}
             busy={busy}
+            /*
+              THE COUNT DESCRIBES THE SURFACE THAT IS ON SCREEN.
+
+              It used to read `${rows.length} conditions` unconditionally —
+              the FLAT list's length — so a grouped queue of five rows was
+              captioned "38 conditions" and nothing said the two numbers were
+              about different things. Grouped mode states both, in the order
+              the eye needs them: how many rows are below, and how many
+              conditions those rows account for.
+            */
             resultSummary={
-              rows.length === 1
-                ? "1 condition"
-                : `${rows.length}${nextCursor ? "+" : ""} conditions`
+              grouped
+                ? `${(groupTotals?.groups ?? groups.length).toLocaleString("en-US")} ${
+                    (groupTotals?.groups ?? groups.length) === 1
+                      ? "group"
+                      : "groups"
+                  } · ${(groupTotals?.conditions ?? 0).toLocaleString("en-US")} ${
+                    (groupTotals?.conditions ?? 0) === 1
+                      ? "condition"
+                      : "conditions"
+                  }`
+                : rows.length === 1
+                  ? "1 condition"
+                  : `${rows.length}${nextCursor ? "+" : ""} conditions`
             }
           />
 

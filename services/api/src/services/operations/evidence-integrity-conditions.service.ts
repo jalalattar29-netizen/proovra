@@ -74,6 +74,9 @@ import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../../db.js";
 import {
   isOtsPendingAged,
+  otsPendingAgeHours,
+  otsPendingOperationalPosture,
+  readOtsOperationsAgingPolicy,
   OTS_PENDING_STATUSES,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
@@ -550,9 +553,13 @@ async function recordIntegrityCondition(
  *     point its FAILED sibling opens. Collapsing the two would make that
  *     handover look like a single condition quietly changing meaning.
  *
- * Severity does not escalate with age here the way a FAILED proof's does. The
- * record has ALREADY exceeded the window by the time this opens, so age past
- * that point is not new information — it is the same fact, longer.
+ * SEVERITY COMES FROM THE OPERATIONS AGING POLICY, not from the retry budget.
+ * A pending anchor reads WARNING once it passes the warning boundary and HIGH
+ * once it passes the high one, and it is recomputed on every observation so a
+ * condition that has since aged into HIGH does not keep the posture it opened
+ * with. It never reads CRITICAL: the record's RFC3161 timestamp is unaffected
+ * and independent, so a missing second proof must not rank beside a record
+ * that cannot be timestamped at all.
  *
  * READ-ONLY with respect to the proof. This function contacts no calendar
  * server and writes nothing to the Evidence row; it records an operational
@@ -569,6 +576,9 @@ async function recordOtsPendingAgedCondition(
 ): Promise<RecordOutcome> {
   const { evidence, teamId } = args;
   const fingerprint = otsPendingAgedFingerprint(evidence.id);
+  const policy = readOtsOperationsAgingPolicy();
+  const posture = otsPendingOperationalPosture(evidence, args.now, policy);
+  const ageHours = otsPendingAgeHours(evidence, args.now);
 
   const existing = await client.operationalIncident.findUnique({
     where: { teamId_fingerprint: { teamId, fingerprint } as never },
@@ -586,23 +596,28 @@ async function recordOtsPendingAgedCondition(
       sourceId: "evidence_integrity.ots_pending_aged",
       teamId,
       category: EVIDENCE_INTEGRITY_CATEGORY,
-      // WARNING and not HIGH. The record IS provable — its RFC3161 timestamp
-      // is unaffected — and what is missing is the secondary public-chain
-      // anchor. Ranking it beside a record that cannot be timestamped at all
-      // would make the queue's worst rows harder to find.
-      severity: "WARNING" as IncidentSeverity,
+      // From the canonical aging policy, recomputed on every observation.
+      // WARNING past the warning boundary, HIGH past the high one, and never
+      // CRITICAL — see the policy for why a pending anchor cannot reach it.
+      severity: (posture === "HIGH" ? "HIGH" : "WARNING") as IncidentSeverity,
       fingerprint,
       title: `Blockchain anchoring still pending for ${recordLabel}`,
       safeSummary:
-        "This record's OpenTimestamps anchor has not settled within the platform's anchoring window. " +
+        "This record's OpenTimestamps anchor has not settled within the workspace's anchoring window " +
+        `(warning after ${policy.warningHours}h, high after ${policy.highHours}h). ` +
         "The record's own trusted timestamp is unaffected and the record remains valid evidence; " +
-        "the public-chain anchor is a second, independent proof that is still outstanding.",
+        "the public-chain anchor is a second, independent proof that is still outstanding. " +
+        "The platform continues its own anchoring attempts on their existing schedule; nothing here retries, re-anchors or alters a proof.",
       relatedEvidenceId: evidence.id,
       runbookSlug: "ots-anchoring",
       metadata: {
         integrityClass: OTS_PENDING_AGED_CLASS,
         otsStatus: evidence.otsStatus,
         underLegalHold: args.underLegalHold,
+        // The AGE, not the retry budget. Recorded so the two windows stay
+        // visibly distinct in the row's own metadata.
+        pendingAgeHours: ageHours,
+        agingPosture: posture,
       },
     },
     client,

@@ -317,12 +317,15 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     id: "search.indexing_failure",
     owner: "EvidenceSearchDocument / GovernanceReconciliationRun(SEARCH_INDEX)",
     scopeAuthority: "STRICT_WORKSPACE_COLUMN",
-    discovery: "owned by the Search reconciliation authority and its readiness projection",
+    discovery: "the workspace's newest TERMINAL SEARCH_INDEX run has status FAILED or PARTIAL",
     fingerprint: "one condition per workspace index",
-    resolution: "a SEARCH_INDEX run completes READY",
-    // Search has its own readiness surface with its own run authority. Copying
-    // its state into an incident would be a second answer to a question that
-    // already has one.
+    resolution: "a later SEARCH_INDEX run for the workspace SUCCEEDS",
+    // Advisory, like the telemetry sampler: nothing evidential depends on the
+    // search index, so a workspace whose index is behind still has a complete
+    // and truthful picture of its records. It is therefore not part of the
+    // freshness contract that decides whether the sweep may be called
+    // complete — being unable to read the run table does not make the
+    // workspace's EVIDENCE picture partial.
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -526,7 +529,7 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
     discovery: "written when the reconciler finds a record's immutable copy has drifted",
     fingerprint: "one condition per (outcome, Evidence)",
-    resolution: "an operator records the governance investigation outcome",
+    resolution: "the newest ImmutableStorageCheck for the record reports OK, or a different drift class",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: true, operations: true },
   },

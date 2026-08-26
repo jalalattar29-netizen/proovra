@@ -325,7 +325,9 @@ export const SORT_LABEL: Readonly<Record<SortValue, string>> = Object.freeze({
   recent: "Most recent activity",
   severity: "Most severe first",
   oldest: "Oldest first",
-  occurrences: "Most occurrences",
+  // The same phrase the queue row and the Inspector use. "Most occurrences"
+  // named nothing; this says which of the row's three numbers it sorts by.
+  occurrences: "Most source observations",
 });
 
 // ---------------------------------------------------------------------------

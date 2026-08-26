@@ -794,6 +794,142 @@ async function observeReviewWorkflowOpen(
   }
 }
 
+/**
+ * IS THE IMMUTABLE-STORAGE DRIFT THIS CONDITION NAMES STILL THERE?
+ *
+ * ---------------------------------------------------------------------------
+ * THE AUTHORITY, AND WHY IT IS SAFE TO READ
+ * ---------------------------------------------------------------------------
+ * `immutable_storage_checks` is APPEND-ONLY and is written by the
+ * reconciliation worker on every record it examines, drift or not. Each row
+ * carries the team, the evidence, the verdict and the instant. The newest row
+ * for one record is therefore a durable statement of what the comparison last
+ * found — and reading it is a SELECT.
+ *
+ * THIS PROBE MAKES NO STORAGE CALL. No head-object, no bucket read, no
+ * provider contact, no retention or legal-hold write. It cannot re-run the
+ * comparison and does not try; it reads the verdict the reconciler already
+ * recorded. An operator who believes the drift is fixed runs the reconciler,
+ * and the next sweep closes the condition from that verdict.
+ *
+ * ---------------------------------------------------------------------------
+ * THE FINGERPRINT NAMES A SPECIFIC DRIFT
+ * ---------------------------------------------------------------------------
+ * `immutable_storage_drift:<OUTCOME>:<evidenceId>` — the outcome is part of
+ * the identity, so MISSING_LOCK and RETENTION_MISMATCH on one record are two
+ * conditions with two lifecycles. The probe answers about the one it was
+ * asked: a newest verdict of some OTHER drift class means the named drift is
+ * no longer what the reconciler sees, and the new class has its own condition,
+ * opened by the same sweep that recorded the verdict.
+ *
+ * ---------------------------------------------------------------------------
+ * EVERY UNCERTAIN ANSWER FAILS CLOSED
+ * ---------------------------------------------------------------------------
+ * No check row at all, a probe the storage layer could not answer
+ * (STORAGE_UNAVAILABLE), or a read that threw are all UNKNOWN — "we could not
+ * check" — and UNKNOWN refuses a manual resolution and resolves nothing. Only
+ * a record that no longer exists in the workspace is NOT_APPLICABLE, because a
+ * record that is gone can never be observed again and refusing forever would
+ * leave a row nobody could ever clear.
+ */
+const IMMUTABLE_DRIFT_OUTCOMES: readonly string[] = [
+  "MISSING_LOCK",
+  "RETENTION_MISMATCH",
+  "LEGAL_HOLD_MISMATCH",
+  "COMPLIANCE_MODE_MISMATCH",
+];
+
+async function observeImmutableDrift(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    // `immutable_storage_drift:<OUTCOME>:<evidenceId>`
+    const namedOutcome = fingerprintSegment(ctx.fingerprint, 1);
+    const evidenceId = identifiableSubject(
+      fingerprintSegment(ctx.fingerprint, 2),
+    );
+    if (!evidenceId || !namedOutcome) {
+      return { ...base, activity: "NOT_APPLICABLE" };
+    }
+    // The record must still exist AND belong to this workspace. A fingerprint
+    // is not an authorization.
+    const record = await ctx.client.evidence.findFirst({
+      where: { AND: [{ id: evidenceId }, ctx.evidenceWhere] },
+      select: { id: true },
+    });
+    if (!record) return { ...base, activity: "NOT_APPLICABLE" };
+
+    const latest = await ctx.client.immutableStorageCheck.findFirst({
+      where: { evidenceId, teamId: ctx.teamId },
+      orderBy: [{ checkedAtUtc: "desc" }, { id: "desc" }],
+      select: { outcome: true },
+    });
+    // The record exists and the reconciler has never reached it — or its rows
+    // are gone. Nothing has been observed, so nothing is proven either way.
+    if (!latest) return { ...base, activity: "UNKNOWN" };
+
+    const outcome = String(latest.outcome);
+    if (outcome === "OK") return { ...base, activity: "RECOVERED" };
+    if (outcome === namedOutcome) return { ...base, activity: "ACTIVE" };
+    if (IMMUTABLE_DRIFT_OUTCOMES.includes(outcome)) {
+      // A DIFFERENT drift class is what the reconciler now sees. The one this
+      // condition names is no longer current, and the new one is carried by
+      // its own condition rather than by quietly redefining this row.
+      return { ...base, activity: "RECOVERED" };
+    }
+    // STORAGE_UNAVAILABLE, EVIDENCE_NOT_FOUND, or a verdict this build does
+    // not know. The comparison did not complete, so it proved nothing.
+    return { ...base, activity: "UNKNOWN" };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
+/**
+ * IS SEARCH-INDEX RECONCILIATION STILL FAILING FOR THIS WORKSPACE?
+ *
+ * The worker's reconciler claims ONE WORKSPACE AT A TIME through the shared
+ * governance-run authority, so every workspace has its own
+ * `GovernanceReconciliationRun` rows with `kind = SEARCH_INDEX`, its own
+ * terminal status and its own history. This reads the newest TERMINAL one.
+ *
+ * RUNNING rows are skipped rather than treated as either answer: a run in
+ * flight has not concluded anything, and reading it as recovery would close a
+ * condition on the strength of work that may be about to fail.
+ *
+ * A workspace with no terminal run is UNKNOWN, not recovered. "The reconciler
+ * has never finished here" is precisely the state that must not read as
+ * healthy.
+ */
+const SEARCH_RUN_FAILING: readonly string[] = ["FAILED", "PARTIAL"];
+
+async function observeSearchIndexRun(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const run = await ctx.client.governanceReconciliationRun.findFirst({
+      where: {
+        teamId: ctx.teamId,
+        kind: "SEARCH_INDEX",
+        status: { in: ["SUCCEEDED", "FAILED", "PARTIAL"] },
+      },
+      orderBy: [{ startedAtUtc: "desc" }, { id: "desc" }],
+      select: { status: true },
+    });
+    if (!run) return { ...base, activity: "UNKNOWN" };
+    return {
+      ...base,
+      activity: SEARCH_RUN_FAILING.includes(String(run.status))
+        ? "ACTIVE"
+        : "RECOVERED",
+    };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
 // ===========================================================================
 // THE EXHAUSTIVE PROBE MAP
 // ===========================================================================
@@ -836,6 +972,13 @@ const PROBE_HANDLERS: Readonly<
 
   // `review-escalation:<reason>:<workflowId>` — the workflow's own status.
   "review.workflow_open": (ctx) => observeReviewWorkflowOpen(ctx),
+
+  // `immutable_storage_drift:<OUTCOME>:<evidenceId>` — the newest append-only
+  // reconciliation verdict for that record. A read, never a storage call.
+  "storage.immutable_reconciliation_state": (ctx) => observeImmutableDrift(ctx),
+
+  // The workspace's newest TERMINAL SEARCH_INDEX reconciliation run.
+  "search.index_run_state": (ctx) => observeSearchIndexRun(ctx),
 
   "pipeline.report_backlog_count": (ctx) =>
     observeAggregateByKey("pipeline.report_backlog_count", ctx),

@@ -61,7 +61,17 @@ describe("§11 — conservation", () => {
     const groups = projectConditionGroups(thirtyFourTsaFailures());
     expect(groups).toHaveLength(1);
     expect(groups[0].conditionCount).toBe(34);
-    expect(groups[0].title).toContain("34 records");
+    // THE COUNT IS NOT IN THE TITLE. It used to be — "…failed for 34 records" —
+    // and this assertion pinned it there. A title is written once and a count
+    // changes, so the number lived in a string nothing could refresh, appeared
+    // twice in the same row under two different labels, and disagreed with the
+    // member count on every aggregate group. The label is the source
+    // contract's now, count-free by a load-time invariant, and the two numbers
+    // are separate fields below.
+    expect(groups[0].title).toBe("Trusted timestamping failed");
+    expect(groups[0].title).not.toMatch(/[0-9]/);
+    expect(groups[0].affectedRecordCount).toBe(34);
+    expect(groups[0].affectedUnit).toBe("records");
   });
 
   it("the sum of conditionCount always equals the number of input conditions", () => {
@@ -257,7 +267,18 @@ describe("§7.3 — condition count and affected-record count are different fiel
         category: "REPORT",
         fingerprint: "dashboard:pipeline:report_backlog:t1",
         title: "Report generation backlog",
-        metricCurrentValue: 26,
+        metric: {
+          currentValue: 26,
+          previousValue: null,
+          delta: null,
+          thresholdValue: 20,
+          criticalThresholdValue: 60,
+          unit: "records" as const,
+          observedAtUtc: new Date().toISOString(),
+          stale: false,
+          truncated: false,
+          affectedEntityType: "evidence",
+        },
       }),
     ]);
     expect(groups).toHaveLength(1);
@@ -289,7 +310,18 @@ describe("§7.3 — condition count and affected-record count are different fiel
         id: "backlog",
         category: "REPORT",
         fingerprint: "dashboard:pipeline:report_backlog:t1",
-        metricCurrentValue: 26,
+        metric: {
+          currentValue: 26,
+          previousValue: null,
+          delta: null,
+          thresholdValue: 20,
+          criticalThresholdValue: 60,
+          unit: "records" as const,
+          observedAtUtc: new Date().toISOString(),
+          stale: false,
+          truncated: false,
+          affectedEntityType: "evidence",
+        },
       }),
       condition({
         id: "sec-1",

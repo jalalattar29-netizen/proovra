@@ -78,6 +78,13 @@ const WRITERS: readonly Writer[] = [
     authority: "decideObservationTransition — the SAME pure function",
   },
   {
+    module: "../src/services/operations/source-truth-recovery.service.ts",
+    host: "API",
+    writesStatus: true,
+    authority:
+      "decideObservationTransition — recovery proven by the source's own probe",
+  },
+  {
     module: "../src/services/ops/operational-seed.service.ts",
     host: "API",
     // A bounded `deleteMany` over ids the seed itself created. It removes

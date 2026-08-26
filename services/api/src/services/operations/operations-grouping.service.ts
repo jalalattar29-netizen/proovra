@@ -55,10 +55,12 @@ import {
   type IntegrityFailureClass,
 } from "./evidence-integrity-severity.js";
 import {
+  conditionDisplayLabel,
   lifecycleForSourceId,
   offersManualResolution,
   resolveConditionSource,
   UNREGISTERED_CONDITION_LIFECYCLE,
+  type ConditionMetricSnapshot,
 } from "@proovra/shared-runtime";
 
 /** One condition, as the projection needs to see it. */
@@ -78,13 +80,16 @@ export type GroupableCondition = {
   /** The persisted machine-readable failure reason, when the domain has one. */
   failureReasonCode?: string | null;
   /**
-   * The condition's current aggregate value, for a source that carries one.
+   * The condition's current metric snapshot, for a source that carries one.
    *
-   * Present ONLY for AGGREGATE conditions, where one condition stands for many
-   * records. It is what makes `affectedRecordCount` below answerable for a
-   * group whose member count is 1 and whose real population is 26.
+   * THE WHOLE SNAPSHOT, not just its value. The value alone was enough to
+   * answer "how many", and it was the reason a group could not answer
+   * "how many of WHAT, and compared with what" — so a telemetry condition
+   * whose value is 902 MINUTES was summed into a field called
+   * `affectedRecordCount` and rendered as nine hundred and two affected
+   * records. The unit and the threshold travel with the number now.
    */
-  metricCurrentValue?: number | null;
+  metric?: ConditionMetricSnapshot | null;
   /**
    * The condition's DECLARED source, when the row carries one.
    *
@@ -150,15 +155,51 @@ export type OperationsConditionGroup = {
    *
    * A different question, answered differently per cardinality:
    *
-   *   PER_RECORD  each condition IS one record, so it equals conditionCount;
-   *   AGGREGATE   the members' current metric values, summed — the honest
-   *               answer to "how many records are behind this";
-   *   otherwise   null, and the surface says nothing rather than printing the
-   *               member count under a name that would claim more.
+   *   PER_RECORD           each condition IS one record, so it equals
+   *                        conditionCount;
+   *   AGGREGATE_THRESHOLD  the members' current metric values, summed — the
+   *                        honest answer to "how many things are behind this";
+   *   otherwise            null.
+   *
+   * AN AGE IS NOT A POPULATION. The previous rule was "everything that is not
+   * EVIDENCE_INTEGRITY uses the summed metric", which swept in the two
+   * AGE_THRESHOLD sources, whose value is a number of MINUTES. A sampler
+   * fifteen hours behind was rendered as "902 affected records". Cardinality
+   * and metric contract decide this now, and an age-based group answers null
+   * here and carries `durationSeconds` instead.
    *
    * NULL IS A REAL ANSWER and must render as an absence, never as zero.
    */
   affectedRecordCount: number | null;
+  /**
+   * WHAT THE AFFECTED COUNT COUNTS. Null whenever that count is null.
+   *
+   * The retry-storm source counts CONDITIONS, not records: thirty-six
+   * repeatedly-observed conditions is a true sentence and "36 affected
+   * records" is not. The unit travels with the number so no renderer has to
+   * assume one.
+   */
+  affectedUnit: string | null;
+  /**
+   * HOW MANY TIMES THE SOURCE WAS OBSERVED TO STILL BE TRUE.
+   *
+   * The members' occurrence counts, summed. A THIRD quantity, distinct from
+   * both numbers above: four re-observations of one backlog of twenty-six
+   * records is 4, 1 and 26, and the queue used to render all three the same
+   * way. Rendered as "observed in N checks" and never as "occurrences", which
+   * named nothing.
+   */
+  observations: number;
+  /**
+   * HOW OLD THE AGE-BASED MEASUREMENT IS, in seconds, or null.
+   *
+   * Present only for an AGE_THRESHOLD source, where the metric's value IS an
+   * elapsed time. Carried in seconds — a unit — so the browser can render
+   * "15h 2m" rather than the raw "902m" that used to sit inside a title.
+   */
+  durationSeconds: number | null;
+  /** The instant the group's metric was last successfully observed, or null. */
+  lastObservedAtUtc: string | null;
   /** Highest severity present, so the group sorts by its worst member. */
   severity: string;
   /** Earliest first-seen across members: how long this has been true. */
@@ -204,8 +245,25 @@ export type OperationsConditionGroup = {
    * the actions the SOURCE permits.
    */
   availableActions: string[];
-  /** The group's current aggregate value, when its source carries one. */
-  metric: { currentValue: number; unit: string } | null;
+  /**
+   * THE GROUP'S CURRENT METRIC, whole.
+   *
+   * It used to be `{ currentValue, unit: "records" }` with the unit HARD-CODED,
+   * so every aggregate group claimed to be counting records — including the
+   * one counting minutes and the one counting conditions. The unit and the
+   * thresholds are the source's now, and `stale` says when the last
+   * observation failed so the values are not presented as current.
+   */
+  metric: {
+    currentValue: number;
+    unit: string;
+    thresholdValue: number;
+    criticalThresholdValue: number | null;
+    observedAtUtc: string;
+    stale: boolean;
+    /** NONE, AGGREGATE_THRESHOLD or AGE_THRESHOLD. What the value MEANS. */
+    contract: string;
+  } | null;
 };
 
 /**
@@ -254,55 +312,36 @@ function groupDimensionFor(condition: GroupableCondition): string {
 }
 
 /**
- * The one sentence that describes a whole group.
+ * THE ONE SENTENCE THAT DESCRIBES A WHOLE GROUP — WITHOUT A COUNT IN IT.
  *
- * KEYED ON THE SOURCE ID, which is the grouping dimension now. It used to be
- * keyed on `category + integrityClass`, parsed back out of the fingerprint —
- * so it produced a title for exactly two groups and an empty string for every
- * other, and the group then fell back to its first member's title. A
- * report-generation group of forty read as one record's failure.
+ * ---------------------------------------------------------------------------
+ * WHAT WAS HERE, AND WHY IT WENT
+ * ---------------------------------------------------------------------------
+ * A table of eight builders, each producing a sentence with the member count
+ * baked into it: "Trusted timestamping failed for 34 records". Two problems,
+ * one visible and one not.
  *
- * A source with no sentence here still falls back to its first member's title,
- * which is correct rather than merely tolerable: a group of one IS its
- * condition, and a group whose members all say the same thing says it once.
+ * The visible one: the count then appeared TWICE in the same row, once inside
+ * the title and once in a labelled field beside it, and the two were different
+ * quantities whenever the group was aggregate — a title saying 26 next to a
+ * member count of 1.
+ *
+ * The invisible one: the table was a SECOND naming authority. It covered eight
+ * of the thirty-five sources; every other group fell back to its first
+ * member's stored title, so a report-generation group of forty read as one
+ * record's failure. And it could disagree with the label the flat list used
+ * for the very same source.
+ *
+ * There is now one name per source, declared with the source, count-free, and
+ * enforced count-free by a load-time invariant. This function reads it.
  */
-const GROUP_TITLES: Readonly<Record<string, (count: number) => string>> =
-  Object.freeze({
-    "evidence_integrity.tsa_failed": (n) =>
-      n === 1
-        ? "Trusted timestamping failed for 1 record"
-        : `Trusted timestamping failed for ${n} records`,
-    "evidence_integrity.ots_failed": (n) =>
-      n === 1
-        ? "Blockchain anchoring failed for 1 record"
-        : `Blockchain anchoring failed for ${n} records`,
-    "evidence_integrity.ots_pending_aged": (n) =>
-      n === 1
-        ? "Blockchain anchoring still pending for 1 record"
-        : `Blockchain anchoring still pending for ${n} records`,
-    "evidence_integrity.ots_budget_exhausted": (n) =>
-      n === 1
-        ? "Blockchain anchoring gave up on 1 record"
-        : `Blockchain anchoring gave up on ${n} records`,
-    "pipeline.report_generation_failed": (n) =>
-      n === 1
-        ? "Report generation failed for 1 record"
-        : `Report generation failed for ${n} records`,
-    "pipeline.package_generation_denied": (n) =>
-      n === 1
-        ? "Verification package denied for 1 record"
-        : `Verification package denied for ${n} records`,
-    "storage.immutable_drift": (n) =>
-      n === 1
-        ? "Immutable storage drift on 1 record"
-        : `Immutable storage drift on ${n} records`,
-    "review.escalation": (n) =>
-      n === 1 ? "1 review escalated" : `${n} reviews escalated`,
-  });
-
-function titleFor(sourceId: string, count: number): string {
-  const build = GROUP_TITLES[sourceId];
-  return build ? build(count) : "";
+function titleForGroup(
+  members: readonly GroupableCondition[],
+  resolved: ReturnType<typeof resolveConditionSource>,
+): string {
+  // An unregistered source has no declared label; its members' stored titles
+  // are the only description that exists, and a group of them says it once.
+  return conditionDisplayLabel(resolved, members[0].title);
 }
 
 /**
@@ -341,7 +380,14 @@ export function projectConditionGroups(
     const sourceId = groupKey;
     const lifecycle = lifecycleForSourceId(sourceId) ?? UNREGISTERED_CONDITION_LIFECYCLE;
     const category = members[0].category;
-    const dimension = sourceId;
+    // Resolved once more for the LABEL. Every member of a group resolves to
+    // the same source by construction — that is what made the group — so the
+    // first member's resolution is the group's.
+    const resolved = resolveConditionSource({
+      sourceId: members[0].sourceId,
+      category: members[0].category,
+      fingerprint: members[0].fingerprint,
+    });
 
     let worst = members[0];
     let firstSeen = members[0].firstSeenAtUtc;
@@ -365,13 +411,16 @@ export function projectConditionGroups(
       classCounts.set(cls, (classCounts.get(cls) ?? 0) + 1);
     }
 
-    // A single-member group is rendered as the condition itself: its own
-    // title, not a manufactured "1 record" heading, which would make one
-    // problem read like a summary of several.
-    const derivedTitle =
-      members.length === 1
-        ? members[0].title
-        : titleFor(sourceId, members.length) || members[0].title;
+    // THE SAME SENTENCE WHETHER THE GROUP HOLDS ONE MEMBER OR FIVE THOUSAND.
+    //
+    // There used to be a special case here: a group of one rendered its
+    // member's stored title instead of the group heading, on the reasoning
+    // that "a group of one IS its condition". That was true of the OLD
+    // headings, which counted — "…for 1 record" reads like a summary of
+    // several. It is not true of a count-free label, and keeping the special
+    // case would have meant a source's row changing its wording the moment a
+    // second condition appeared, and changing back when it recovered.
+    const derivedTitle = titleForGroup(members, resolved);
 
     const sorted = [...members].sort((a, b) => {
       const bySeverity = severityRank(b.severity) - severityRank(a.severity);
@@ -379,19 +428,72 @@ export function projectConditionGroups(
       return a.firstSeenAtUtc.getTime() - b.firstSeenAtUtc.getTime();
     });
 
-    // THE SECOND NUMBER, computed only where it can be computed.
+    // -------------------------------------------------------------------
+    // THE THREE NUMBERS, EACH COMPUTED ONLY WHERE IT MEANS SOMETHING.
+    // -------------------------------------------------------------------
+    // A group can carry up to three quantities and they are routinely
+    // different: for a report backlog they are 1 CONDITION, 26 AFFECTED
+    // RECORDS and 4 OBSERVATIONS. Rendering any of them under another's name
+    // is how a queue lies, so each is computed separately or not at all.
     //
-    // Per-record conditions ARE their records. Aggregate conditions carry a
-    // live metric, and the sum of those metrics is the real population — the
-    // number that used to be frozen in a title while a field called
-    // `affectedCount` said 1 beside it. Everything else gets null, which the
-    // surface renders as an absence rather than as a zero.
-    const metricTotal = members.reduce<number | null>((sum, m) => {
-      if (typeof m.metricCurrentValue !== "number") return sum;
-      return (sum ?? 0) + m.metricCurrentValue;
-    }, null);
+    // `metricContract` decides which apply, because the source is the only
+    // thing that knows what its number counts. The previous rule — "every
+    // category except EVIDENCE_INTEGRITY sums the metric into
+    // affectedRecordCount" — swept in the two AGE_THRESHOLD sources, whose
+    // value is minutes, and reported an elapsed time as a population.
+    const withMetric = members.filter(
+      (m): m is GroupableCondition & { metric: ConditionMetricSnapshot } =>
+        m.metric != null,
+    );
+    // The freshest observation represents the group's unit and thresholds.
+    // For every aggregate source in the product a group has exactly one
+    // member — the fingerprint is the workspace — so this is a single row in
+    // practice; summing the VALUE anyway keeps the projection total if that
+    // ever stops being true, while a summed THRESHOLD would be meaningless.
+    const representative = withMetric.reduce<ConditionMetricSnapshot | null>(
+      (best, m) =>
+        best == null || m.metric.observedAtUtc > best.observedAtUtc
+          ? m.metric
+          : best,
+      null,
+    );
+    const metricTotal =
+      withMetric.length === 0
+        ? null
+        : withMetric.reduce((sum, m) => sum + m.metric.currentValue, 0);
+
+    const contract = lifecycle.metricContract;
+    const observations = members.reduce(
+      (sum, m) => sum + (Number.isFinite(m.occurrenceCount) ? m.occurrenceCount : 0),
+      0,
+    );
+
+    // PER_RECORD: each condition IS one record, and that is true of every
+    // per-record source rather than of one category. AGGREGATE_THRESHOLD: the
+    // counted population, in its OWN unit — the retry-storm source counts
+    // conditions, not records. Anything else: null, rendered as an absence.
     const affectedRecordCount =
-      category === "EVIDENCE_INTEGRITY" ? members.length : metricTotal;
+      lifecycle.cardinality === "PER_RECORD"
+        ? members.length
+        : contract === "AGGREGATE_THRESHOLD"
+          ? metricTotal
+          : null;
+    const affectedUnit =
+      affectedRecordCount == null
+        ? null
+        : lifecycle.cardinality === "PER_RECORD"
+          ? "records"
+          : (representative?.unit ?? "records");
+
+    // AN AGE, EXPRESSED AS A DURATION. The AGE_THRESHOLD sources measure in
+    // whole minutes; seconds is the unit a renderer can turn into "15h 2m"
+    // without knowing which source it came from.
+    const durationSeconds =
+      contract === "AGE_THRESHOLD" &&
+      representative != null &&
+      representative.unit === "minutes"
+        ? Math.max(0, Math.round(metricTotal ?? 0) * 60)
+        : null;
 
     // The group's posture, from its members. A group with one open member is
     // open: an operator who has acknowledged nine of ten records has not dealt
@@ -424,13 +526,26 @@ export function projectConditionGroups(
       statusPosture,
       availableActions,
       metric:
-        metricTotal != null && lifecycle.metricContract !== "NONE"
-          ? { currentValue: metricTotal, unit: "records" }
+        metricTotal != null && representative != null && contract !== "NONE"
+          ? {
+              currentValue: metricTotal,
+              // THE SOURCE'S UNIT, not a hard-coded "records".
+              unit: representative.unit,
+              thresholdValue: representative.thresholdValue,
+              criticalThresholdValue: representative.criticalThresholdValue,
+              observedAtUtc: representative.observedAtUtc,
+              stale: representative.stale,
+              contract,
+            }
           : null,
       category,
       title: derivedTitle,
       conditionCount: members.length,
       affectedRecordCount,
+      affectedUnit,
+      observations,
+      durationSeconds,
+      lastObservedAtUtc: representative?.observedAtUtc ?? null,
       severity: worst.severity,
       firstSeenAtUtc: firstSeen.toISOString(),
       lastSeenAtUtc: lastSeen.toISOString(),

@@ -473,7 +473,14 @@ export function IncidentInspector({
                   ({describeRelativeTime(row.lastSeenAtUtc)})
                 </span>
               </Fact>
-              <Fact term="Times seen">{row.occurrenceCount}</Fact>
+              {/*
+                THE SAME WORDS THE QUEUE ROW USES. "Times seen" here and
+                "26 occurrences" there were two names for one number on two
+                halves of one screen.
+              */}
+              <Fact term="Source observations">
+                Observed in {row.occurrenceCount.toLocaleString("en-US")} checks
+              </Fact>
               {/* The commitment, beside the instants it is measured from —
                   so the reader sees the promise and the verdict together
                   rather than a bare word like "Overdue". */}

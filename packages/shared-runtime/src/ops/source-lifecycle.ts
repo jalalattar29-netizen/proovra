@@ -321,6 +321,10 @@ export const ACTIVITY_PROBE_KEYS = [
   "queue.retry_storm_count",
   "platform.telemetry_age",
   "platform.worker_heartbeat_age",
+  /** The append-only `ImmutableStorageCheck` verdict for one record. */
+  "storage.immutable_reconciliation_state",
+  /** The workspace's latest terminal SEARCH_INDEX reconciliation run. */
+  "search.index_run_state",
 ] as const;
 export type ActivityProbeKey = (typeof ACTIVITY_PROBE_KEYS)[number];
 
@@ -359,6 +363,42 @@ export type OperationsSourceLifecycle = {
   readonly sourceId: string;
   /** The incident category conditions from this source carry. */
   readonly category: IncidentCategory;
+  /**
+   * THE COUNT-FREE SENTENCE EVERY SURFACE RENDERS FOR THIS SOURCE.
+   *
+   * ---------------------------------------------------------------------
+   * WHY THE TITLE COULD NOT STAY THE AUTHORITY
+   * ---------------------------------------------------------------------
+   * Titles were written once, at the moment the condition opened, and never
+   * rewritten. Several carried the value they were about:
+   *
+   *     "Report backlog above threshold (26)"
+   *     "Queue telemetry sampler delayed (902m)"
+   *     "Retry storm pattern detected (36 repeat incidents)"
+   *
+   * so a workspace that worked its backlog down to 22 kept reading 26 for as
+   * long as the condition existed, and `902m` was an elapsed time rendered as
+   * an identity. Worse, the number was frozen INSIDE a string, where nothing
+   * could tell it was a number — which is how one row came to show a title
+   * claiming 26 beside a member count of 1, both unlabelled.
+   *
+   * The value now lives in the metric snapshot, refreshed on every
+   * observation. This is what the row is CALLED, and it never changes, so it
+   * can be a property of the source rather than a copy on every row.
+   *
+   * ---------------------------------------------------------------------
+   * IT ALSO REPAIRS THE ROWS ALREADY IN PRODUCTION
+   * ---------------------------------------------------------------------
+   * Rows written before the stable titles shipped still carry their
+   * count-bearing text in `operational_incidents.title`. Projection reads
+   * THIS label for any row whose source is known, so those rows display
+   * correctly immediately — with no migration, no rewrite of a historical
+   * event payload, and no regex picking numbers back out of old strings.
+   *
+   * The stored title is left exactly as written. It is what the row said when
+   * it was created, and that is a fact about the past.
+   */
+  readonly displayLabel: string;
   /**
    * The production modules that EMIT this source, by repo-relative path.
    *
@@ -419,6 +459,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "evidence_integrity.tsa_failed",
       category: "EVIDENCE_INTEGRITY",
+      displayLabel: "Trusted timestamping failed",
       producers: [
         "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       ],
@@ -451,6 +492,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "evidence_integrity.ots_failed",
       category: "EVIDENCE_INTEGRITY",
+      displayLabel: "Blockchain anchoring failed",
       producers: [
         "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       ],
@@ -478,6 +520,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "evidence_integrity.ots_pending_aged",
       category: "EVIDENCE_INTEGRITY",
+      displayLabel: "Blockchain anchoring still pending",
       // NO LONGER A GHOST. It sat here for a release with a probe, a threshold
       // and no producer: `syncEvidenceIntegrityConditions` iterated the two
       // FAILED classes only, so the source looked covered and observed
@@ -508,6 +551,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "evidence_integrity.ots_budget_exhausted",
       category: "WORKER",
+      displayLabel: "Blockchain anchoring abandoned",
       producers: ["services/worker/src/ots-upgrade.processor.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "OTS" }],
@@ -538,6 +582,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "pipeline.report_backlog",
       category: "REPORT",
+      displayLabel: "Report generation backlog",
       producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -567,6 +612,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "pipeline.package_backlog",
       category: "PACKAGE",
+      displayLabel: "Verification package backlog",
       producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -592,6 +638,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "pipeline.signed_without_report_aged",
       category: "GOVERNANCE",
+      displayLabel: "Uploaded evidence awaiting signing",
       producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -617,6 +664,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "pipeline.report_generation_failed",
       category: "REPORT",
+      displayLabel: "Report generation failed",
       producers: ["services/worker/src/processor.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "REPORT" }],
@@ -645,6 +693,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "pipeline.package_generation_denied",
       category: "GOVERNANCE",
+      displayLabel: "Verification package denied",
       producers: ["services/worker/src/governance/package-eligibility-gate.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "worker_package_gate" }],
@@ -675,6 +724,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "review.stale_workflows",
       category: "WORKER",
+      displayLabel: "Stale review workflows",
       producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -700,6 +750,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "review.escalation",
       category: "GOVERNANCE",
+      displayLabel: "Review escalated",
       producers: ["services/api/src/services/reviewer-ops/escalation-engine.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "review-escalation" }],
@@ -726,6 +777,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "review.escalation_storm",
       category: "GOVERNANCE",
+      displayLabel: "Review escalations surging",
       producers: [
         "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
       ],
@@ -755,6 +807,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "coordination.backlog_stale",
       category: "GOVERNANCE",
+      displayLabel: "Coordination backlog",
       producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -780,6 +833,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "queue.retry_storm",
       category: "WORKER",
+      displayLabel: "Queue retry storm",
       producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -816,6 +870,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "platform.telemetry_stale",
       category: "WORKER",
+      displayLabel: "Queue telemetry sampler delayed",
       producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -845,6 +900,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "platform.worker_heartbeat_stale",
       category: "WORKER",
+      displayLabel: "Worker heartbeat stale",
       producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -892,6 +948,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "intake.delivery_failed",
       category: "UPLOAD",
+      displayLabel: "Intake delivery failed",
       producers: ["services/api/src/services/security/security-event.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "upload:security_event" }],
@@ -915,6 +972,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "communications.provider_failure",
       category: "COMMUNICATIONS",
+      displayLabel: "Communications provider failure",
       producers: ["services/api/src/services/security/security-event.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -940,6 +998,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "webhook.security_failure",
       category: "WEBHOOK",
+      displayLabel: "Webhook security event",
       producers: ["services/api/src/services/security/security-event.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "webhook:security_event" }],
@@ -963,6 +1022,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "identity.security_condition",
       category: "IDENTITY_SECURITY",
+      displayLabel: "Identity security condition",
       producers: ["services/api/src/services/security/security-event.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -988,6 +1048,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "governance.policy_condition",
       category: "GOVERNANCE",
+      displayLabel: "Governance policy condition",
       producers: ["services/api/src/services/security/security-event.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "governance:security_event" }],
@@ -1011,6 +1072,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "security.unclassified_signal",
       category: "WORKER",
+      displayLabel: "Unclassified security signal",
       producers: ["services/api/src/services/security/security-event.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "worker:security_event" }],
@@ -1041,6 +1103,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "identity.idp_outage",
       category: "IDENTITY_SECURITY",
+      displayLabel: "Identity provider outage",
       producers: [
         "services/api/src/services/access-control/sso-hardening.service.ts",
       ],
@@ -1071,6 +1134,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "identity.runtime_block",
       category: "IDENTITY_SECURITY",
+      displayLabel: "Sign-in blocked by runtime risk",
       producers: [
         "services/api/src/services/access-control/adaptive-runtime-gate.service.ts",
       ],
@@ -1098,6 +1162,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "identity.high_risk_session_surge",
       category: "IDENTITY_SECURITY",
+      displayLabel: "High-risk session surge",
       producers: ["services/api/src/services/access-control/runtime-risk.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -1129,6 +1194,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "governance.destruction_executed",
       category: "GOVERNANCE",
+      displayLabel: "Evidence destruction executed",
       producers: [
         "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       ],
@@ -1157,6 +1223,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "governance.notification_escalated",
       category: "GOVERNANCE",
+      displayLabel: "Governance notification escalated",
       producers: ["services/worker/src/governance/notification-emitter.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
@@ -1182,6 +1249,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "storage.immutable_drift",
       category: "GOVERNANCE",
+      displayLabel: "Immutable storage drift",
       producers: [
         "services/worker/src/governance/immutable-storage-reconciliation.worker.ts",
       ],
@@ -1189,14 +1257,29 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       legacyFingerprints: [
         { kind: "PREFIX", prefix: "immutable_storage_drift" },
       ],
-      // A reconciliation compared what immutable storage holds against what it
-      // should hold and found a difference on one record. Re-checking means
-      // re-reading object storage, which is the reconciler's job on its own
-      // schedule and not something a resolve request may trigger. Closure is
-      // the governance investigation's recorded outcome.
-      resolutionAuthority: "OPERATOR_DECISION",
-      activityProbeKey: "NONE",
-      recoveryPolicy: "OPERATOR_CLOSES",
+      // -------------------------------------------------------------------
+      // THIS WAS `OPERATOR_DECISION`, AND THAT WAS THE DEFECT.
+      // -------------------------------------------------------------------
+      // The reasoning was that re-checking means re-reading object storage,
+      // which the reconciler owns, so closure had to be a human conclusion.
+      // The first half is true and the second does not follow. It made an
+      // IMMUTABLE-STORAGE INTEGRITY DRIFT closable by typing a sentence — on
+      // an evidence platform, the one category of finding that must never be
+      // dismissible by assertion.
+      //
+      // And the premise was wrong about the product it was describing. The
+      // reconciler does not merely re-read storage; it PERSISTS every verdict
+      // as an append-only `ImmutableStorageCheck` row, keyed by team and
+      // evidence. That table is a canonical, workspace-bound, already-durable
+      // record of what the comparison last found, and reading the newest row
+      // for one record is a probe: read-only, no object-storage call, no
+      // provider contact, no mutation of anything.
+      //
+      // So the drift closes when the RECONCILER says the record is OK, and
+      // not before. An operator who believes it is fixed runs the reconciler.
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "storage.immutable_reconciliation_state",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "GUIDANCE_ONLY",
@@ -1207,13 +1290,14 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
-      requiresResolutionNote: true,
+      requiresResolutionNote: false,
       rationale:
-        "The drift verdict comes from an object-storage comparison the reconciler owns; a resolve path may not re-run it, so closure is the recorded governance investigation and the reconciler reopens if drift persists.",
+        "The reconciler persists every verdict as an append-only ImmutableStorageCheck row, so the newest row for the record is a read-only canonical answer to whether the drift is still there; nobody may declare an integrity drift over by writing a note.",
     },
     {
       sourceId: "platform.operational_seed",
       category: "GOVERNANCE",
+      displayLabel: "Seeded demonstration condition",
       producers: ["services/api/src/services/ops/operational-seed.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "seed" }],
@@ -1238,6 +1322,54 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       rationale:
         "A seeded demo condition with no underlying fault; closure is an operator dismissing the demo, recorded like any other conclusion.",
     },
+    {
+      sourceId: "search.indexing_failure",
+      displayLabel: "Search index reconciliation failing",
+      category: "RECONCILIATION",
+      producers: [
+        "services/api/src/services/operations/search-index-conditions.service.ts",
+      ],
+      // -------------------------------------------------------------------
+      // NO LONGER A GAP ON THE ROADMAP.
+      // -------------------------------------------------------------------
+      // This sat NOT_YET_DISCOVERED on the stated grounds that index health is
+      // owned by "the SEARCH_INDEX run authority and its own readiness
+      // projection". That authority turned out to be exactly what a producer
+      // needs: `GovernanceReconciliationRun` rows carry `kind = SEARCH_INDEX`
+      // AND a `team_id`, and the worker's reconciler claims one workspace at a
+      // time, so each workspace has its own terminal run with its own status.
+      //
+      // Workspace-scoped, durable, terminal, and already written. Reading the
+      // newest one is a probe; there was nothing left to build but the read.
+      discoveryState: "ACTIVE",
+      // Brand new. No row in production predates the `source_id` column for
+      // this source, so there is no legacy shape to trace and the migration's
+      // backfill table is unchanged.
+      legacyFingerprints: [],
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "search.index_run_state",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SPECIALIZED_SURFACE",
+      requiredCapability: "evidence.read",
+      // The workspace's own search is degraded and the workspace cannot
+      // repair the reconciler. Advisory, therefore, and with no Resolve
+      // control — the next successful run closes it.
+      audience: "TENANT_ADVISORY",
+      cardinality: "AGGREGATE",
+      workspaceApplicability: "ALL_WORKSPACES",
+      // The run row counts scanned and failed documents, but those are counts
+      // of ONE run's work rather than a standing population measured against a
+      // threshold, and presenting them as "affected records" would claim a
+      // population nobody measured.
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
+      rationale:
+        "Each workspace has its own terminal SEARCH_INDEX reconciliation run, so whether indexing is currently failing for this workspace is a durable fact the newest run states, not a judgement.",
+    },
     // =======================================================================
     // REGISTERED, WITH NO PRODUCER TODAY.
     //
@@ -1249,15 +1381,30 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "integration.configuration_failure",
       category: "INTEGRATION",
+      displayLabel: "Integration configuration invalid",
       producers: [],
       discoveryState: "NOT_YET_DISCOVERED",
       legacyFingerprints: [],
       // NOT OPERATOR_DECISION. An invalid integration configuration is an
       // ACTIVE state, and the rule is explicit: prefer SOURCE_TRUTH if the
       // canonical validation authority can safely re-check it, otherwise
-      // NO_DIRECT_RESOLUTION. No such re-check exists today, and a Settings
-      // deep link is not a reason to let somebody declare the configuration
-      // fixed.
+      // NO_DIRECT_RESOLUTION. A Settings deep link is not a reason to let
+      // somebody declare the configuration fixed.
+      //
+      // WHAT WAS LOOKED FOR, AND WHAT WAS FOUND. The integration models this
+      // product has are `WebhookEndpoint` (status, failureCount),
+      // `AutomationWebhookDestination` (enabled, consecutiveFailureCount,
+      // autoDisabledAt, disabledReason) and `LifecycleWebhookEndpoint`. Every
+      // one of those columns records DELIVERY HEALTH — how the last attempts
+      // went — and none records whether the CONFIGURATION is valid. There is
+      // no stored validation verdict, no test-connection result and no
+      // `validated_at`, so re-enabling a destination resets a counter rather
+      // than proving anything about the configuration.
+      //
+      // Delivery health is a real condition and it already has a source:
+      // `webhook.security_failure`. Reusing that state to answer a question it
+      // does not answer would be the category defect one level down, so this
+      // stays registered, unemitted, and fail-closed.
       resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
       recoveryPolicy: "NO_RECOVERY_SIGNAL",
@@ -1276,33 +1423,9 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
         "A configuration that remains invalid is an active state; no canonical integration-validation authority can re-check it from a resolve path, so nobody may declare it corrected.",
     },
     {
-      sourceId: "search.indexing_failure",
-      category: "RECONCILIATION",
-      producers: [],
-      discoveryState: "NOT_YET_DISCOVERED",
-      legacyFingerprints: [],
-      resolutionAuthority: "NO_DIRECT_RESOLUTION",
-      activityProbeKey: "NONE",
-      recoveryPolicy: "NO_RECOVERY_SIGNAL",
-      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
-      suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "SPECIALIZED_SURFACE",
-      requiredCapability: "evidence.read",
-      // Workspace-scoped index health: it affects this tenant's search, and
-      // the tenant cannot repair it.
-      audience: "TENANT_ADVISORY",
-      cardinality: "AGGREGATE",
-      workspaceApplicability: "ALL_WORKSPACES",
-      metricContract: "NONE",
-      drillDownContract: "SOURCE_SURFACE",
-      notApplicableDisposition: "REFUSE",
-      requiresResolutionNote: false,
-      rationale:
-        "Index health is owned by the SEARCH_INDEX run authority and its own readiness projection; a Resolve here would be a workspace overruling a surface it cannot read.",
-    },
-    {
       sourceId: "job.background_failure",
       category: "WORKER",
+      displayLabel: "Background job failure",
       producers: [],
       discoveryState: "NOT_YET_DISCOVERED",
       legacyFingerprints: [],
@@ -1328,6 +1451,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "storage.condition",
       category: "STORAGE",
+      displayLabel: "Object storage condition",
       producers: [],
       discoveryState: "NOT_YET_DISCOVERED",
       legacyFingerprints: [],
@@ -1351,6 +1475,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "database.condition",
       category: "DATABASE",
+      displayLabel: "Database condition",
       producers: [],
       discoveryState: "NOT_YET_DISCOVERED",
       legacyFingerprints: [],
@@ -1374,6 +1499,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     {
       sourceId: "ai.condition",
       category: "AI",
+      displayLabel: "AI service condition",
       producers: [],
       discoveryState: "NOT_YET_DISCOVERED",
       legacyFingerprints: [],
@@ -1423,6 +1549,7 @@ export const UNREGISTERED_CONDITION_LIFECYCLE: OperationsSourceLifecycle =
     // Carried by the caller; the actual incident's category is what the
     // remediation registry keys on, and this row asserts nothing about it.
     category: "RECONCILIATION",
+    displayLabel: "Unrecognised operational condition",
     producers: [],
     discoveryState: "NOT_YET_DISCOVERED" as const,
     legacyFingerprints: [],
@@ -1489,6 +1616,20 @@ export const UNREGISTERED_CONDITION_DIAGNOSTIC =
     }
     if (s.discoveryState === "NOT_YET_DISCOVERED" && s.producers.length > 0) {
       throw new Error(`${s.sourceId}: NOT_YET_DISCOVERED but names a producer`);
+    }
+    // THE LABEL MUST NOT CONTAIN A NUMBER.
+    //
+    // The whole point of moving the value out of the title is that a title is
+    // written once and a value changes. A digit here is a value that has been
+    // put back where nothing can refresh it — which is how "Report backlog
+    // above threshold (26)" outlived the backlog it described by months.
+    if (s.displayLabel.trim().length === 0) {
+      throw new Error(`${s.sourceId}: empty display label`);
+    }
+    if (/[0-9]/.test(s.displayLabel)) {
+      throw new Error(
+        `${s.sourceId}: display label carries a count (${s.displayLabel})`,
+      );
     }
     // Only a tenant-actionable source may offer any mutation-shaped action.
     if (s.audience !== "TENANT_ACTIONABLE" && s.resolutionAuthority === "OPERATOR_DECISION") {
@@ -1655,6 +1796,34 @@ export function offersManualResolution(
   lifecycle: OperationsSourceLifecycle,
 ): boolean {
   return lifecycle.resolutionAuthority === "OPERATOR_DECISION";
+}
+
+/**
+ * THE LABEL A SURFACE RENDERS FOR ONE CONDITION.
+ *
+ * The count-free sentence from the condition's own source contract, with the
+ * STORED title as the fallback for a condition no source claims.
+ *
+ * That fallback is deliberate and is not a hole. An unregistered row's stored
+ * title is the only description of it that exists; substituting a generic
+ * placeholder would replace a specific sentence somebody wrote with a vaguer
+ * one, which is a loss and not a safety property. What matters for safety is
+ * the LIFECYCLE, and an unregistered condition's lifecycle already fails
+ * closed regardless of what it is called.
+ *
+ * NOTHING IS PARSED. No regex picks the number back out of a legacy title, no
+ * heuristic strips a trailing parenthesis, and no stored string is rewritten.
+ * A legacy row displays its source's label because its source is KNOWN — from
+ * the declared `source_id`, or from the one legacy fingerprint pattern that
+ * means exactly one source — and the title column keeps saying whatever it
+ * said on the day the row was written.
+ */
+export function conditionDisplayLabel(
+  resolved: ResolvedConditionSource,
+  storedTitle: string,
+): string {
+  if (resolved.match === "UNREGISTERED") return storedTitle;
+  return resolved.lifecycle.displayLabel;
 }
 
 /**

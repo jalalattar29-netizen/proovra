@@ -156,6 +156,15 @@ const COMPUTED_EMITTERS: Record<string, { pattern: RegExp; module: string }> = {
         "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
       pattern: /"(evidence_integrity\.[a-z_]+)"/g,
     },
+  // The search-index producer names its source ONCE, as an exported constant,
+  // because the probe, the recovery sweep and the discovery step all refer to
+  // the same id, and three copies of one string is how they come apart. The
+  // constant's own declaration is the enumerable set this gate reads.
+  "services/api/src/services/operations/search-index-conditions.service.ts": {
+    module:
+      "services/api/src/services/operations/search-index-conditions.service.ts",
+    pattern: /SEARCH_INDEX_SOURCE_ID = "([^"]+)"/g,
+  },
 };
 
 function computedSourceIdsFor(module: string): string[] {

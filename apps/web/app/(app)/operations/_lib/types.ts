@@ -135,6 +135,19 @@ export type IncidentLifecycle = {
   cardinality: string;
   recoveryPolicy: string;
   manualResolution: boolean;
+  /** True when this source's Resolve must carry a written conclusion. */
+  requiresResolutionNote?: boolean;
+  /** ACTIVE, NOT_YET_DISCOVERED or DISABLED. */
+  discoveryState?: string;
+  /**
+   * NONE, AGGREGATE_THRESHOLD or AGE_THRESHOLD.
+   *
+   * What the metric's number MEANS. An AGE_THRESHOLD value is minutes elapsed
+   * and must render as a span; an AGGREGATE_THRESHOLD value is a counted
+   * population. Rendering the first as the second is how "902m" reached a
+   * user-facing title.
+   */
+  metricContract?: string;
 };
 
 /**
@@ -152,7 +165,27 @@ export type IncidentGroup = {
   category: string;
   title: string;
   conditionCount: number;
+  /**
+   * HOW MANY REAL THINGS THE GROUP STANDS FOR, or null when unknowable.
+   *
+   * Null is a real answer and renders as an ABSENCE. A zero here would say the
+   * group affects nothing, which is the opposite of "we cannot say".
+   */
   affectedRecordCount: number | null;
+  /**
+   * WHAT THAT COUNT COUNTS — "records", "conditions", "workflows", "items".
+   *
+   * The unit used to be assumed to be records by the renderer, so the
+   * retry-storm group, whose members are CONDITIONS, said "36 affected
+   * records" about thirty-six repeatedly-observed conditions.
+   */
+  affectedUnit: string | null;
+  /** Re-observations of the source, summed. Never the affected count. */
+  observations: number;
+  /** An age-based metric expressed as a span, or null. Never a raw "902m". */
+  durationSeconds: number | null;
+  /** When the metric was last successfully observed, or null. */
+  lastObservedAtUtc: string | null;
   /** Highest severity present, so the group sorts by its worst member. */
   severity: string;
   /** OPEN if any member is open, and so on. Never "resolved" while one is not. */
@@ -166,7 +199,22 @@ export type IncidentGroup = {
   hasMoreAffected: boolean;
   /** The actions the SOURCE permits, before capability is applied. */
   availableActions: string[];
-  metric: { currentValue: number; unit: string } | null;
+  metric: {
+    currentValue: number;
+    unit: string;
+    thresholdValue: number;
+    criticalThresholdValue: number | null;
+    observedAtUtc: string;
+    stale: boolean;
+    /** NONE, AGGREGATE_THRESHOLD or AGE_THRESHOLD. What the value MEANS. */
+    contract: string;
+  } | null;
+};
+
+/** The two headline totals for the grouped surface, computed server-side. */
+export type IncidentGroupTotals = {
+  groups: number;
+  conditions: number;
 };
 
 /** One member of a group, as the drill-down returns it. Bounded. */

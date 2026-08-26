@@ -7,7 +7,7 @@ export * from "./canonical-events.js";
 export * from "./source-lifecycle.js";
 // The structured current-value snapshot that replaced counts frozen in titles.
 export * from "./condition-metric.js";
-// THE one OTS anchoring-age window. It decided when the Worker gives up; it now
-// also decides when a still-pending proof becomes an operational condition, so
-// the two readings cannot disagree.
+// THE OTS anchoring-age authority. TWO windows, deliberately: the Worker's
+// thirty-day retry budget, and the separate Operations aging policy that
+// decides when a still-pending proof becomes a condition an operator sees.
 export * from "./ots-aging.js";

@@ -194,6 +194,8 @@ type IncidentOver = {
     cardinality: string;
     recoveryPolicy: string;
     manualResolution: boolean;
+    /** NONE, AGGREGATE_THRESHOLD or AGE_THRESHOLD. What the number MEANS. */
+    metricContract: string;
   }> | null;
   /** The live aggregate value, for the sources that carry one. */
   metric?: {
@@ -2004,8 +2006,51 @@ describe("Operations — the current value is live, labelled, and not the occurr
     expect(value.getAttribute("data-ops-metric-value")).toBe("26");
     expect(value.textContent).toBe("26 affected records");
     expect(row.textContent).toContain("threshold 20");
-    // …and the OCCURRENCE count is a different number, said differently.
-    expect(row.textContent).toContain("4 occurrences");
+    // …and the OBSERVATION count is a different number, said in words that
+    // name it. "4 occurrences" named nothing — an occurrence of what, counted
+    // how — while sitting one span away from "26 affected records", which is
+    // also a 26-shaped number about the same row.
+    expect(row.textContent).toContain("Observed in 4 checks");
+    expect(row.textContent).not.toContain("occurrences");
+  });
+
+  it("AN AGE-BASED CONDITION READS AS A SPAN IN THE FLAT ROW TOO", async () => {
+    // The grouped surface is not the only place a minute count reached a
+    // person. The flat row handed every metric to one formatter, so a sampler
+    // fifteen hours behind read "902 affected minutes" beside "threshold 15".
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-telemetry",
+          title: "Queue telemetry sampler delayed",
+          category: "WORKER",
+          occurrences: 3,
+          lifecycle: {
+            sourceId: "platform.telemetry_stale",
+            resolutionAuthority: "SOURCE_TRUTH",
+            cardinality: "AGGREGATE",
+            manualResolution: false,
+            metricContract: "AGE_THRESHOLD",
+          },
+          metric: {
+            currentValue: 902,
+            previousValue: null,
+            delta: null,
+            thresholdValue: 15,
+            criticalThresholdValue: 60,
+            unit: "minutes",
+          },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN));
+    const row = q('[data-ops-row="i-telemetry"]') as HTMLElement;
+    expect(row.textContent).toContain("last sample 15h 2m ago");
+    expect(row.textContent).toContain("window 15m");
+    expect(row.textContent).not.toContain("affected minutes");
+    expect(row.textContent).not.toContain("902");
+    expect(
+      row.querySelector(".opsw-condition__title")!.textContent,
+    ).not.toMatch(/[0-9]/);
   });
 
   it("says so when the last observation failed, instead of showing a stale value as current", async () => {
@@ -2257,9 +2302,15 @@ function group(over: Partial<IncidentGroup> & { groupKey: string }): IncidentGro
   return {
     sourceId: over.sourceId ?? "evidence_integrity.tsa_failed",
     category: "EVIDENCE_INTEGRITY",
-    title: "Trusted timestamping failed for 5000 records",
+    // COUNT-FREE. The server sends the source contract's own label now; a
+    // fixture carrying "…for 5000 records" would be pinning the defect.
+    title: "Trusted timestamping failed",
     conditionCount: 5000,
     affectedRecordCount: 5000,
+    affectedUnit: "records",
+    observations: 5000,
+    durationSeconds: null,
+    lastObservedAtUtc: null,
     severity: "CRITICAL",
     statusPosture: "OPEN",
     firstSeenAtUtc: HOURS_AGO(30),
@@ -2301,10 +2352,21 @@ describe("Operations — the grouped queue is the default", () => {
           title: "Report generation backlog",
           conditionCount: 1,
           affectedRecordCount: 26,
+          affectedUnit: "records",
+          observations: 4,
           severity: "HIGH",
-          metric: { currentValue: 26, unit: "records" },
+          metric: {
+            currentValue: 26,
+            unit: "records",
+            thresholdValue: 20,
+            criticalThresholdValue: 60,
+            observedAtUtc: HOURS_AGO(1),
+            stale: false,
+            contract: "AGGREGATE_THRESHOLD",
+          },
         }),
       ],
+      totals: { groups: 2, conditions: 5001 },
       conservation: { conditions: 5001, grouped: 5001 },
       completeness: { complete: true, mayAssertAllClear: true },
     });
@@ -2325,16 +2387,176 @@ describe("Operations — the grouped queue is the default", () => {
     ).toEqual(["evidence_integrity.tsa_failed", "pipeline.report_backlog"]);
   });
 
-  it("says the two counts SEPARATELY, and never as one number", async () => {
+  it("LEADS WITH THE QUANTITY AN OPERATOR ACTS ON, and its threshold", async () => {
     await mount(envelope(TEAM_ADMIN), "grouped");
     const backlog = q('[data-ops-group="pipeline.report_backlog"]') as HTMLElement;
-    // ONE condition, TWENTY-SIX records. The whole reason both fields exist.
-    expect(backlog.querySelector("[data-ops-group-conditions]")!.textContent).toBe(
-      "1 condition",
-    );
+    // ONE condition, TWENTY-SIX records. Both are true and only one of them is
+    // what an operator does something about, so the row shows that one and the
+    // exact condition count lives in the Inspector.
     expect(
       backlog.querySelector("[data-ops-group-affected]")!.textContent,
     ).toContain("26 affected records");
+    // The THRESHOLD, separately — "26" is not actionable without it, and it
+    // used to be visible only inside the condition's own summary paragraph.
+    expect(backlog.textContent).toContain("threshold 20");
+    // The row does NOT also print "1 condition" beside it: two counts said
+    // side by side under near-identical labels read as a contradiction.
+    expect(backlog.querySelector("[data-ops-group-conditions]")).toBeNull();
+  });
+
+  it("A GROUP WHOSE COUNTS AGREE SAYS THE NUMBER ONCE", async () => {
+    // The exact shape production rendered: "34 conditions - 34 affected
+    // records", one fact printed twice under two labels, on the row where the
+    // two numbers are always equal because each condition IS one record.
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const tsa = q(
+      '[data-ops-group="evidence_integrity.tsa_failed"]',
+    ) as HTMLElement;
+    expect(tsa.querySelector("[data-ops-group-affected]")).not.toBeNull();
+    expect(tsa.querySelector("[data-ops-group-conditions]")).toBeNull();
+  });
+
+  it("THE HEADER SAYS HOW MANY GROUPS AND HOW MANY CONDITIONS", async () => {
+    // It used to read "38 conditions" over a list of five rows — the FLAT
+    // list's length, rendered regardless of which surface was on screen, with
+    // nothing to say how the two numbers were related.
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(document.body.textContent).toContain("2 groups");
+    expect(document.body.textContent).toContain("5,001 conditions");
+  });
+
+  it("AN AGE RENDERS AS A SPAN, NEVER AS A RAW MINUTE COUNT", async () => {
+    groupsReply = () => ({
+      groups: [
+        group({
+          groupKey: "platform.telemetry_stale",
+          sourceId: "platform.telemetry_stale",
+          category: "WORKER",
+          title: "Queue telemetry sampler delayed",
+          conditionCount: 1,
+          affectedRecordCount: null,
+          affectedUnit: null,
+          observations: 3,
+          // 902 minutes. It reached operators as "(902m)" inside the title,
+          // and as "902 affected records" in the metadata beside it.
+          durationSeconds: 902 * 60,
+          lastObservedAtUtc: HOURS_AGO(1),
+          severity: "WARNING",
+          metric: {
+            currentValue: 902,
+            unit: "minutes",
+            thresholdValue: 15,
+            criticalThresholdValue: 60,
+            observedAtUtc: HOURS_AGO(1),
+            stale: false,
+            contract: "AGE_THRESHOLD",
+          },
+        }),
+      ],
+      totals: { groups: 1, conditions: 1 },
+      conservation: { conditions: 1, grouped: 1 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const row = q('[data-ops-group="platform.telemetry_stale"]') as HTMLElement;
+    expect(row.textContent).toContain("Last telemetry sample 15h 2m ago");
+    expect(row.textContent).not.toContain("902");
+    // An age is NOT a population: nothing on this row claims affected records.
+    expect(row.querySelector("[data-ops-group-affected]")).toBeNull();
+    // ...and the title carries no number at all.
+    expect(row.querySelector(".opsw-group__title")!.textContent).not.toMatch(
+      /[0-9]/,
+    );
+  });
+
+  it("A RETRY STORM COUNTS CONDITIONS, AND SAYS SO", async () => {
+    groupsReply = () => ({
+      groups: [
+        group({
+          groupKey: "queue.retry_storm",
+          sourceId: "queue.retry_storm",
+          category: "WORKER",
+          title: "Queue retry storm",
+          conditionCount: 1,
+          affectedRecordCount: 36,
+          // The unit is the SOURCE's. Hard-coding "records" — which both
+          // halves of the stack used to do — described thirty-six recurring
+          // conditions as thirty-six affected evidence records.
+          affectedUnit: "conditions",
+          observations: 7,
+          severity: "HIGH",
+          metric: {
+            currentValue: 36,
+            unit: "conditions",
+            thresholdValue: 1,
+            criticalThresholdValue: 3,
+            observedAtUtc: HOURS_AGO(1),
+            stale: false,
+            contract: "AGGREGATE_THRESHOLD",
+          },
+        }),
+      ],
+      totals: { groups: 1, conditions: 1 },
+      conservation: { conditions: 1, grouped: 1 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const row = q('[data-ops-group="queue.retry_storm"]') as HTMLElement;
+    expect(row.textContent).toContain("36 repeatedly observed conditions");
+    expect(row.textContent).not.toContain("36 affected records");
+    expect(
+      row
+        .querySelector("[data-ops-group-affected]")!
+        .getAttribute("data-ops-group-affected-unit"),
+    ).toBe("conditions");
+  });
+
+  it("GROUPED STATUS IS COLOURED TEXT, NOT A SECOND CAPSULE", async () => {
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    for (const key of [
+      "evidence_integrity.tsa_failed",
+      "pipeline.report_backlog",
+    ]) {
+      const row = q('[data-ops-group="' + key + '"]') as HTMLElement;
+      const status = row.querySelector("[data-ops-group-status]") as HTMLElement;
+      expect(status, key + " lost its status").not.toBeNull();
+      // The shared text primitive, whose own rule declares no background, no
+      // border and no shadow — and which the flat table already uses, so there
+      // is no grouped-only status style to drift from it.
+      expect(status.classList.contains("app-status-text")).toBe(true);
+      expect(status.classList.contains("app-status-badge")).toBe(false);
+      // THE LABEL SURVIVES. Removing the capsule must not remove the word.
+      expect(status.textContent!.trim().length).toBeGreaterThan(0);
+      // The tone still arrives, so colour still carries the meaning it did.
+      expect(status.getAttribute("data-tone")).toBeTruthy();
+      // The SEVERITY keeps its filled capsule: one mark to scan a queue by.
+      const severity = row.querySelector(
+        "[data-ops-group-severity]",
+      ) as HTMLElement;
+      expect(severity.classList.contains("app-status-badge")).toBe(true);
+    }
+  });
+
+  it("every status posture renders as text with its own tone", async () => {
+    for (const posture of ["OPEN", "ACKNOWLEDGED", "RESOLVED", "SUPPRESSED"]) {
+      groupsReply = () => ({
+        groups: [
+          group({
+            groupKey: "evidence_integrity.tsa_failed",
+            statusPosture: posture,
+          }),
+        ],
+        totals: { groups: 1, conditions: 5000 },
+        conservation: { conditions: 5000, grouped: 5000 },
+        completeness: { complete: true, mayAssertAllClear: true },
+      });
+      await mount(envelope(TEAM_ADMIN), "grouped");
+      const status = q("[data-ops-group-status]") as HTMLElement;
+      expect(status.getAttribute("data-ops-group-status"), posture).toBe(posture);
+      expect(status.classList.contains("app-status-text"), posture).toBe(true);
+      expect(status.getAttribute("data-tone"), posture).toBeTruthy();
+      expect(status.textContent!.trim().length, posture).toBeGreaterThan(0);
+    }
   });
 
   it("bounds a five-figure count in the row and keeps the exact one in the panel", async () => {
@@ -2343,8 +2565,8 @@ describe("Operations — the grouped queue is the default", () => {
       '[data-ops-group="evidence_integrity.tsa_failed"]',
     ) as HTMLElement;
     // A floor, not an exact figure that will be wrong by the time it is read.
-    expect(tsa.textContent).toContain("2,000+ conditions");
-    expect(tsa.textContent).not.toContain("5,000 conditions");
+    expect(tsa.textContent).toContain("2,000+ affected records");
+    expect(tsa.textContent).not.toContain("5,000 affected records");
 
     await act(async () => {
       fireEvent.click(
@@ -2577,19 +2799,42 @@ describe("Operations — the grouped surface is layout- and direction-safe", () 
   it("every count and label sits inside a WRAPPING container", async () => {
     groupsReply = () => ({
       groups: [
+        // The WIDEST row the surface can produce: an aggregate group carries a
+        // count, a unit, a threshold, a staleness caveat, an owner tally, a
+        // status and a relative time on one line. If anything reflows badly on
+        // a phone, it is this one.
         group({
-          groupKey: "evidence_integrity.tsa_failed",
+          groupKey: "pipeline.report_backlog",
+          sourceId: "pipeline.report_backlog",
+          category: "REPORT",
+          title: "Report generation backlog",
+          conditionCount: 1,
+          affectedRecordCount: 26,
+          affectedUnit: "records",
+          observations: 4,
+          assignedCount: 1,
+          severity: "HIGH",
+          metric: {
+            currentValue: 26,
+            unit: "records",
+            thresholdValue: 20,
+            criticalThresholdValue: 60,
+            observedAtUtc: HOURS_AGO(2),
+            stale: true,
+            contract: "AGGREGATE_THRESHOLD",
+          },
           failureGroups: [
             { failureClass: "PROVIDER_TIMEOUT", label: "Provider timeout", count: 30 },
             { failureClass: "IMPRINT_MISMATCH", label: "Imprint mismatch", count: 4 },
           ],
         }),
       ],
-      conservation: { conditions: 5000, grouped: 5000 },
+      totals: { groups: 1, conditions: 1 },
+      conservation: { conditions: 1, grouped: 1 },
       completeness: { complete: true, mayAssertAllClear: true },
     });
     await mount(envelope(TEAM_ADMIN), "grouped");
-    const row = q('[data-ops-group="evidence_integrity.tsa_failed"]') as HTMLElement;
+    const row = q('[data-ops-group="pipeline.report_backlog"]') as HTMLElement;
     const meta = row.querySelector(".opsw-group__meta") as HTMLElement;
     expect(meta).not.toBeNull();
     // jsdom applies no layout, so overflow cannot be MEASURED here and
@@ -2598,8 +2843,11 @@ describe("Operations — the grouped surface is layout- and direction-safe", () 
     // meta line, so a long label reflows on a phone instead of widening the
     // row.
     for (const sel of [
-      "[data-ops-group-conditions]",
       "[data-ops-group-affected]",
+      "[data-ops-group-threshold]",
+      "[data-ops-group-metric-stale]",
+      "[data-ops-group-status]",
+      ".opsw-group__owned",
       ".opsw-group__activity",
     ]) {
       const el = row.querySelector(sel);

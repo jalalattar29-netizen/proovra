@@ -39,3 +39,40 @@ export function describeRelativeTime(
   if (days < 30) return past ? `${days}d ago` : `in ${days}d`;
   return formatUserDate(iso);
 }
+
+/**
+ * AN ELAPSED SPAN, IN WORDS.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS IS NOT `describeRelativeTime`
+ * ---------------------------------------------------------------------------
+ * That function turns an INSTANT into "how long ago". This turns a MEASURED
+ * DURATION into words. They look similar and they are not interchangeable: a
+ * source that reports "the last telemetry sample is 902 minutes old" has given
+ * a number, not a timestamp, and the number is what the threshold is compared
+ * against. Converting it back into an instant so it could be re-subtracted
+ * would introduce a second, slightly different clock reading and make the
+ * displayed age disagree with the one the server thresholded.
+ *
+ * The literal `902m` was reaching operators inside a condition title. Nobody
+ * reads fifteen hours out of nine hundred and two minutes on the way past.
+ *
+ * Two units, never three. "15h 2m" is legible; "15h 2m 30s" is a stopwatch,
+ * and the precision is false anyway — the underlying sample is a whole number
+ * of minutes.
+ */
+export function describeDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return "—";
+  const total = Math.floor(seconds);
+  if (total < 60) return "under a minute";
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  if (hours < 24) {
+    return restMinutes === 0 ? `${hours}h` : `${hours}h ${restMinutes}m`;
+  }
+  const days = Math.floor(hours / 24);
+  const restHours = hours % 24;
+  return restHours === 0 ? `${days}d` : `${days}d ${restHours}h`;
+}

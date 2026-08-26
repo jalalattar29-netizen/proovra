@@ -32,7 +32,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
-import { describeRelativeTime } from "../../../../lib/relative-time";
+import { describeDuration, describeRelativeTime } from "../../../../lib/relative-time";
 import { formatUserDateTime } from "../../../../lib/date";
 import type {
   AffectedRecord,
@@ -162,9 +162,62 @@ export function GroupInspector({
               </div>
               {group.affectedRecordCount != null ? (
                 <div className="opsw-fact">
-                  <dt>Affected {group.metric?.unit ?? "records"}</dt>
+                  {/* The SOURCE's unit. The retry-storm group counts
+                      conditions, and calling those records would send an
+                      operator looking for evidence that does not exist. */}
+                  <dt>Affected {group.affectedUnit ?? "records"}</dt>
                   <dd data-ops-group-exact-affected={group.affectedRecordCount}>
                     {group.affectedRecordCount.toLocaleString("en-US")}
+                  </dd>
+                </div>
+              ) : null}
+              {group.metric && group.metric.contract === "AGGREGATE_THRESHOLD" ? (
+                <div className="opsw-fact">
+                  {/* SEPARATE from the count, because "26" is not actionable
+                      without the number it is measured against. */}
+                  <dt>Threshold</dt>
+                  <dd data-ops-group-exact-threshold={group.metric.thresholdValue}>
+                    {group.metric.thresholdValue.toLocaleString("en-US")}
+                    {group.metric.criticalThresholdValue != null ? (
+                      <span className="opsw-muted">
+                        {" "}
+                        (critical at{" "}
+                        {group.metric.criticalThresholdValue.toLocaleString("en-US")})
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              ) : null}
+              {group.durationSeconds != null ? (
+                <div className="opsw-fact">
+                  {/* An elapsed span, in words. The raw "902m" this replaces
+                      was a number nobody reads fifteen hours out of. */}
+                  <dt>Elapsed</dt>
+                  <dd data-ops-group-exact-duration={group.durationSeconds}>
+                    {describeDuration(group.durationSeconds)}
+                  </dd>
+                </div>
+              ) : null}
+              {/*
+                THE THIRD NUMBER, kept out of the queue row and named here.
+
+                How many times the sweep looked and found the condition still
+                true — not how many things are affected, and not how many
+                conditions the group holds.
+              */}
+              <div className="opsw-fact">
+                <dt>Source observations</dt>
+                <dd data-ops-group-observations={group.observations}>
+                  Observed in {group.observations.toLocaleString("en-US")} checks
+                </dd>
+              </div>
+              {group.metric?.stale ? (
+                <div className="opsw-fact">
+                  <dt>Metric freshness</dt>
+                  <dd data-ops-group-metric-stale="true">
+                    Last confirmed {formatUserDateTime(group.metric.observedAtUtc)}.
+                    The most recent attempt to read this source did not
+                    complete, so the values above are the last ones observed.
                   </dd>
                 </div>
               ) : null}

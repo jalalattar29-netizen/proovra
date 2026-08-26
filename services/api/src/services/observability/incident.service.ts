@@ -37,6 +37,7 @@ import {
   buildConditionMetric,
   CONDITION_ACTIVITY_UNKNOWN,
   CONDITION_NOT_DIRECTLY_RESOLVABLE,
+  conditionDisplayLabel,
   CONDITION_STILL_ACTIVE,
   RESOLUTION_NOTE_REQUIRED,
   decideManualResolution,
@@ -1464,6 +1465,16 @@ export type IncidentProjection = {
     requiresResolutionNote: boolean;
     /** ACTIVE, NOT_YET_DISCOVERED or DISABLED. */
     discoveryState: string;
+    /**
+     * NONE, AGGREGATE_THRESHOLD or AGE_THRESHOLD.
+     *
+     * What the metric's number MEANS, projected so the browser can render an
+     * age as a duration and a population as a count. Without it a telemetry
+     * condition whose value is 902 minutes was rendered by the same code path
+     * as a backlog of 902 records, and the surface said "902 affected
+     * records" about a sampler that was fifteen hours late.
+     */
+    metricContract: string;
   };
   /**
    * THE CURRENT AGGREGATE VALUE, or null when this source carries none.
@@ -1511,6 +1522,7 @@ export function projectIncident(
       /** True when this source's Resolve must carry a written conclusion. */
       requiresResolutionNote: lifecycle.requiresResolutionNote,
       discoveryState: lifecycle.discoveryState,
+      metricContract: lifecycle.metricContract,
     },
     // A source that declares no metric never projects one, even if a row
     // somehow carries a snapshot: the contract decides what a row means, not
@@ -1521,7 +1533,21 @@ export function projectIncident(
     category: i.category,
     severity: i.severity,
     status: i.status,
-    title: i.title,
+    // -------------------------------------------------------------------
+    // THE LABEL IS THE SOURCE'S, NOT THE COLUMN'S.
+    // -------------------------------------------------------------------
+    // `title` was written once, when the condition opened, and several
+    // writers put the value inside it — "Report backlog above threshold (26)",
+    // "Queue telemetry sampler delayed (902m)". Nothing refreshed those
+    // strings, so the numbers were true for one instant and then simply sat
+    // there, and no reader could tell they were numbers at all.
+    //
+    // Every row whose source is KNOWN now renders that source's count-free
+    // label. The rows already in production are repaired by this read: no
+    // migration, no rewrite of a stored title, no regex picking digits out of
+    // old text. A condition no source claims keeps its stored title, because
+    // that sentence is the only description of it that exists.
+    title: conditionDisplayLabel({ lifecycle, match, diagnostic: null }, i.title),
     safeSummary: i.safeSummary,
     fingerprint: i.fingerprint,
     occurrenceCount: i.occurrenceCount,

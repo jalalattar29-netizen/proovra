@@ -41,6 +41,8 @@ import {
   resolveConditionFromSourceRecovery,
 } from "../observability/incident.service.js";
 import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
+import { syncSearchIndexConditions } from "../operations/search-index-conditions.service.js";
+import { sweepSourceTruthRecoveries } from "../operations/source-truth-recovery.service.js";
 import {
   aggregateFingerprint,
   aggregateSpecs,
@@ -321,6 +323,69 @@ export async function generateIncidentsForWorkspace(
       successful.push(sourceId);
     } catch (err) {
       failSource([sourceId], "WRITE", err);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // SEARCH INDEX RECONCILIATION — one workspace-level advisory condition.
+  //
+  // Registered for a release with no producer at all, on the reasoning that
+  // index health belonged to the Search run authority. It did, and that
+  // authority writes a terminal `GovernanceReconciliationRun` PER WORKSPACE,
+  // which is exactly what a producer needs. Reading it is the producer.
+  // -------------------------------------------------------------------------
+  {
+    const sourceId = "search.indexing_failure";
+    attempted.push(sourceId);
+    try {
+      const outcome = await syncSearchIndexConditions({ teamId: ctx.teamId });
+      if (outcome.active) {
+        recorded += 1;
+        rules.push("search:index_reconciliation");
+      }
+      // A COMPLETED READ, INCLUDING THE ONE THAT FOUND NO RUN.
+      //
+      // "The reconciler has not concluded anything for this workspace yet" is
+      // an ANSWER the run table gave, not a failure to reach it — and most
+      // workspaces are in exactly that state, so treating it as a source
+      // failure would log an error per workspace per sweep and mean nothing.
+      //
+      // The distinction still exists where it decides something: the PROBE
+      // answers UNKNOWN for the same state, so an absent run can never close
+      // an open condition. Discovery opens none and closes none, which is the
+      // correct behaviour for an absence.
+      if (outcome.unknown) rules.push("search:index_never_reconciled");
+      successful.push(sourceId);
+    } catch (err) {
+      failSource([sourceId], "UNKNOWN", err);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // IMMUTABLE STORAGE DRIFT — recovery only.
+  //
+  // The Worker's reconciler OPENS these and never closed them, which was
+  // survivable only because the source used to be operator-closable. It is
+  // source truth now, so something has to read the reconciler's newest verdict
+  // and close the conditions it has cleared — otherwise a source with no
+  // Resolve control and no recovery sweep would be a permanently stuck row,
+  // which is the failure this reclassification is accused of causing and must
+  // not actually cause.
+  //
+  // DISCOVERY IS NOT THE PRODUCER HERE. This opens nothing; the reconciler
+  // remains the only writer that raises an immutable-drift condition.
+  // -------------------------------------------------------------------------
+  {
+    const sourceId = "storage.immutable_drift";
+    attempted.push(sourceId);
+    try {
+      await sweepSourceTruthRecoveries({
+        teamId: ctx.teamId,
+        sourceId,
+      });
+      successful.push(sourceId);
+    } catch (err) {
+      failSource([sourceId], "SCAN", err);
     }
   }
 

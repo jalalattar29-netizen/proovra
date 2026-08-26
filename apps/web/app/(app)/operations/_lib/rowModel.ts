@@ -9,6 +9,7 @@
  */
 
 import type { AppTone } from "../../../../components/app-primitives/AppStatusBadge";
+import { describeDuration } from "../../../../lib/relative-time";
 
 import type { Incident, OperationsCapabilities, SlaPosture } from "./types";
 import {
@@ -182,15 +183,37 @@ function formatMetricValue(value: number): string {
   return value.toLocaleString("en-US");
 }
 
+/**
+ * AN AGE IS NOT A POPULATION, ON THIS SURFACE EITHER.
+ *
+ * The two AGE_THRESHOLD sources measure in whole MINUTES, and this row model
+ * used to hand every metric to one formatter — so a telemetry sampler fifteen
+ * hours behind read "902 affected minutes", beside a threshold of "15". Both
+ * numbers were true, neither was legible, and "affected" was the wrong word
+ * for an elapsed time in the first place.
+ *
+ * The source's own `metricContract` decides. Absent — an older server — falls
+ * through to the counted rendering, which is what every source but two is.
+ */
+function isAgeMetric(i: Incident): boolean {
+  return i.lifecycle?.metricContract === "AGE_THRESHOLD" &&
+    i.metric?.unit === "minutes";
+}
+
 function metricFor(i: Incident): OperationsRowModel["metric"] {
   const m = i.metric;
   if (!m) return null;
+  const age = isAgeMetric(i);
   return {
     // "affected" is doing real work in this string. It names the quantity, so
     // it cannot be misread as an observation count or a group member count —
     // the three numbers this surface used to render identically.
-    label: `${formatMetricValue(m.currentValue)} affected ${m.unit}`,
-    thresholdLabel: `threshold ${m.thresholdValue.toLocaleString("en-US")}`,
+    label: age
+      ? `last sample ${describeDuration(m.currentValue * 60)} ago`
+      : `${formatMetricValue(m.currentValue)} affected ${m.unit}`,
+    thresholdLabel: age
+      ? `window ${describeDuration(m.thresholdValue * 60)}`
+      : `threshold ${m.thresholdValue.toLocaleString("en-US")}`,
     currentValue: m.currentValue,
     thresholdValue: m.thresholdValue,
     criticalThresholdValue: m.criticalThresholdValue,

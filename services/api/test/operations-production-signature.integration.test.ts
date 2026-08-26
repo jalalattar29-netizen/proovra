@@ -111,6 +111,25 @@ const EXPECTED_SUCCEEDED = [
   "platform.worker_heartbeat_stale",
   "queue.retry_storm",
   "review.stale_workflows",
+  // -------------------------------------------------------------------------
+  // TWO SOURCES THE SWEEP DID NOT VISIT WHEN THIS SIGNATURE WAS CAPTURED.
+  // -------------------------------------------------------------------------
+  // Neither reads the incident schema the hybrid fixture breaks, which is why
+  // both succeed in the BROKEN state as well as the fixed one — and why they
+  // belong in this list rather than in EXPECTED_FAILED.
+  //
+  //   search.indexing_failure   registered with no producer for a release.
+  //                             It reads the workspace's own terminal
+  //                             SEARCH_INDEX reconciliation run, and a
+  //                             workspace with no run yet is a completed read
+  //                             that opens nothing.
+  //   storage.immutable_drift   discovery does not OPEN these — the Worker's
+  //                             reconciler does — but the source is source
+  //                             truth now, so the sweep reads the newest
+  //                             reconciliation verdict and closes the ones it
+  //                             has cleared.
+  "search.indexing_failure",
+  "storage.immutable_drift",
 ];
 
 /** The production counts, reproduced rather than approximated. */

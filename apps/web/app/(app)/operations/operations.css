@@ -934,19 +934,48 @@
   color: var(--ink-secondary);
 }
 .opsw-group__conditions,
-.opsw-group__affected {
+.opsw-group__affected,
+.opsw-group__age,
+.opsw-group__threshold {
   font-variant-numeric: tabular-nums;
 }
-/* The affected-record count is the number an operator triages on, so it gets
-   the emphasis; the condition count sits beside it, deliberately quieter, and
-   the two are never rendered under one label. */
-.opsw-group__affected {
+/* The leading quantity — affected things, or an elapsed span for an age-based
+   source — is what an operator triages on, so it carries the emphasis. The
+   threshold beside it is deliberately quieter: it is the fixed number the
+   changing one is measured against, and two emphasised numbers side by side
+   would be the ambiguity this pass removes. */
+.opsw-group__affected,
+.opsw-group__age {
   color: var(--ink-primary);
   font-weight: 600;
 }
+.opsw-group__threshold,
 .opsw-group__owned,
 .opsw-group__activity {
   color: var(--ink-muted);
+}
+/* A metric whose last observation failed. Amber because it is a caveat on the
+   number beside it, not a severity of its own. */
+.opsw-group__stale {
+  color: var(--warning-ink);
+}
+
+/* ---- GROUPED STATUS: COLOURED TEXT, NO CAPSULE ------------------------
+ *
+ * The row already carries one filled capsule — the severity — and that is the
+ * mark an operator scans a queue by. A second capsule beside it made every row
+ * two competing chips with nothing for the eye to land on, and the meaning of
+ * "which one matters" had to be learned rather than seen.
+ *
+ * The status keeps its word and its semantic colour and loses the box. The
+ * shared `.app-status-text` primitive already paints exactly this — the flat
+ * table adopted it for the same reason — so there is no grouped-only status
+ * style here to drift from it. What follows is spacing, and nothing else:
+ * anything that re-declared a background, border or shadow would be a second
+ * status style, which is the thing being removed.
+ */
+.opsw-group__meta .app-status-text {
+  white-space: nowrap;
 }
 
 .opsw-group__classes {

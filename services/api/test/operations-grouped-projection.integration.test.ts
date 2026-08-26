@@ -209,7 +209,14 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
     expect(tsa.conditionCount).toBe(SCALE);
     // Per-record: each condition IS one record, so the two counts agree here.
     expect(tsa.affectedRecordCount).toBe(SCALE);
-    expect(tsa.title).toContain("5000 records");
+    expect(tsa.affectedUnit).toBe("records");
+    // THE COUNT IS NOT IN THE TITLE — it used to read "…for 5000 records", and
+    // this assertion pinned it there. A heading that carries the number says
+    // it twice on a row that already carries it as a labelled field, and on an
+    // aggregate group the two are different quantities. The label is the
+    // source contract's now, count-free by a load-time invariant.
+    expect(tsa.title).toBe("Trusted timestamping failed");
+    expect(tsa.title).not.toMatch(/[0-9]/);
     // The WORST member decides the group's severity — an operator scanning a
     // list must not have a CRITICAL hidden behind 4,999 warnings.
     expect(tsa.severity).toBe("CRITICAL");
@@ -435,7 +442,18 @@ describe("Grouped Operations projection at scale (live PostgreSQL 16)", () => {
         relatedEvidenceId: null,
         assignedOperatorUserId: null,
         sourceId: "pipeline.report_backlog",
-        metricCurrentValue: 26,
+        metric: {
+          currentValue: 26,
+          previousValue: null,
+          delta: null,
+          thresholdValue: 20,
+          criticalThresholdValue: 60,
+          unit: "records" as const,
+          observedAtUtc: new Date().toISOString(),
+          stale: false,
+          truncated: false,
+          affectedEntityType: "evidence",
+        },
       },
     ]);
     expect(single).toHaveLength(1);

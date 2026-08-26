@@ -1256,13 +1256,32 @@ export async function opsRoutes(app: FastifyInstance) {
           relatedEvidenceId: row.relatedEvidenceId,
           assignedOperatorUserId: row.assignedOperatorUserId,
           sourceId: row.sourceId,
-          metricCurrentValue:
-            decodeConditionMetric(row.metricSnapshot)?.currentValue ?? null,
+          // THE WHOLE SNAPSHOT. Only the value used to travel, so the group
+          // had a number and no unit and no threshold — and rendered every
+          // one of them as "affected records".
+          metric: decodeConditionMetric(row.metricSnapshot),
         })),
       );
 
       return reply.code(200).send({
         groups,
+        /**
+         * THE TWO HEADLINE TOTALS, COMPUTED SERVER-SIDE.
+         *
+         * The page header used to read "38 conditions" while showing five
+         * groups, because it was counting the FLAT list's rows regardless of
+         * which surface was on screen. Both numbers are true and they answer
+         * different questions, so both are sent and the header says which is
+         * which: "5 groups · 38 conditions".
+         *
+         * Sent rather than derived in the browser so the header cannot
+         * disagree with the list it sits above — the conservation property
+         * below is a statement about THESE numbers.
+         */
+        totals: {
+          groups: groups.length,
+          conditions: totalConditions(groups),
+        },
         /**
          * CONSERVATION, stated in the response.
          *
