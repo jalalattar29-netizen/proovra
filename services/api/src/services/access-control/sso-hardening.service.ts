@@ -349,6 +349,7 @@ export async function noteSsoFailure(
     });
     try {
       await recordIncident({
+        sourceId: "identity.idp_outage",
         teamId: row.teamId,
         category: "IDENTITY_SECURITY",
         severity: "HIGH",

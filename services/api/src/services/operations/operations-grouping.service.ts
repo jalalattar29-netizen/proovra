@@ -54,7 +54,12 @@ import {
   describeFailureClass,
   type IntegrityFailureClass,
 } from "./evidence-integrity-severity.js";
-import { parseIntegrityFingerprint } from "./evidence-integrity-conditions.service.js";
+import {
+  lifecycleForSourceId,
+  offersManualResolution,
+  resolveConditionSource,
+  UNREGISTERED_CONDITION_LIFECYCLE,
+} from "@proovra/shared-runtime";
 
 /** One condition, as the projection needs to see it. */
 export type GroupableCondition = {
@@ -80,6 +85,16 @@ export type GroupableCondition = {
    * group whose member count is 1 and whose real population is 26.
    */
   metricCurrentValue?: number | null;
+  /**
+   * The condition's DECLARED source, when the row carries one.
+   *
+   * This is the grouping dimension now. It used to be
+   * `category + parseIntegrityFingerprint(...)`, which grouped the two
+   * integrity classes correctly and collapsed every other category into one
+   * "default" bucket — so a report-generation failure, a package denial and a
+   * governance escalation all became one group called GOVERNANCE.
+   */
+  sourceId?: string | null;
 };
 
 /** A record inside a group. Bounded, and never carrying provider error text. */
@@ -112,6 +127,8 @@ export type OperationsConditionGroup = {
    * expanded across a refresh.
    */
   groupKey: string;
+  /** The registered source every member belongs to. The grouping dimension. */
+  sourceId: string;
   category: IncidentCategory;
   /** The one sentence that describes the whole group. */
   title: string;
@@ -163,6 +180,32 @@ export type OperationsConditionGroup = {
    */
   affectedSample: AffectedRecord[];
   hasMoreAffected: boolean;
+  /**
+   * The most recent activity across the group's members.
+   *
+   * What an operator sorts a long queue by: "is this still happening?" is
+   * answered by the LATEST member, not by the group's oldest.
+   */
+  latestActivityAtUtc: string;
+  /**
+   * The group's overall lifecycle posture.
+   *
+   * OPEN if any member is open; ACKNOWLEDGED if every unresolved member is
+   * owned; SUPPRESSED if every one is silenced. A group is not "resolved"
+   * while one member still is not.
+   */
+  statusPosture: string;
+  /**
+   * WHAT MAY BE DONE TO THE WHOLE GROUP, from the source contract.
+   *
+   * The same projection a single row gets, applied once per group — so a
+   * grouped queue cannot offer an action the individual conditions inside it
+   * would refuse. Capability is applied by the ROUTE on top of this; these are
+   * the actions the SOURCE permits.
+   */
+  availableActions: string[];
+  /** The group's current aggregate value, when its source carries one. */
+  metric: { currentValue: number; unit: string } | null;
 };
 
 /**
@@ -198,27 +241,68 @@ function severityRank(s: string): number {
  * of the list uniform rather than special-casing the renderer.
  */
 function groupDimensionFor(condition: GroupableCondition): string {
-  if (condition.category === "EVIDENCE_INTEGRITY") {
-    const parsed = parseIntegrityFingerprint(condition.fingerprint);
-    if (parsed) return parsed.integrityClass;
-  }
-  return "default";
+  // THE SOURCE IS THE DIMENSION. Resolved through the canonical authority —
+  // declared id first, legacy fingerprint second — so a row written before
+  // `source_id` existed lands in the same group as its modern twin instead of
+  // in a "default" bucket beside three unrelated conditions.
+  const { lifecycle } = resolveConditionSource({
+    sourceId: condition.sourceId,
+    category: condition.category,
+    fingerprint: condition.fingerprint,
+  });
+  return lifecycle.sourceId;
 }
 
-function titleFor(category: IncidentCategory, dimension: string, count: number): string {
-  if (category === "EVIDENCE_INTEGRITY") {
-    if (dimension === "tsa_failure") {
-      return count === 1
+/**
+ * The one sentence that describes a whole group.
+ *
+ * KEYED ON THE SOURCE ID, which is the grouping dimension now. It used to be
+ * keyed on `category + integrityClass`, parsed back out of the fingerprint —
+ * so it produced a title for exactly two groups and an empty string for every
+ * other, and the group then fell back to its first member's title. A
+ * report-generation group of forty read as one record's failure.
+ *
+ * A source with no sentence here still falls back to its first member's title,
+ * which is correct rather than merely tolerable: a group of one IS its
+ * condition, and a group whose members all say the same thing says it once.
+ */
+const GROUP_TITLES: Readonly<Record<string, (count: number) => string>> =
+  Object.freeze({
+    "evidence_integrity.tsa_failed": (n) =>
+      n === 1
         ? "Trusted timestamping failed for 1 record"
-        : `Trusted timestamping failed for ${count} records`;
-    }
-    if (dimension === "ots_failure") {
-      return count === 1
+        : `Trusted timestamping failed for ${n} records`,
+    "evidence_integrity.ots_failed": (n) =>
+      n === 1
         ? "Blockchain anchoring failed for 1 record"
-        : `Blockchain anchoring failed for ${count} records`;
-    }
-  }
-  return "";
+        : `Blockchain anchoring failed for ${n} records`,
+    "evidence_integrity.ots_pending_aged": (n) =>
+      n === 1
+        ? "Blockchain anchoring still pending for 1 record"
+        : `Blockchain anchoring still pending for ${n} records`,
+    "evidence_integrity.ots_budget_exhausted": (n) =>
+      n === 1
+        ? "Blockchain anchoring gave up on 1 record"
+        : `Blockchain anchoring gave up on ${n} records`,
+    "pipeline.report_generation_failed": (n) =>
+      n === 1
+        ? "Report generation failed for 1 record"
+        : `Report generation failed for ${n} records`,
+    "pipeline.package_generation_denied": (n) =>
+      n === 1
+        ? "Verification package denied for 1 record"
+        : `Verification package denied for ${n} records`,
+    "storage.immutable_drift": (n) =>
+      n === 1
+        ? "Immutable storage drift on 1 record"
+        : `Immutable storage drift on ${n} records`,
+    "review.escalation": (n) =>
+      n === 1 ? "1 review escalated" : `${n} reviews escalated`,
+  });
+
+function titleFor(sourceId: string, count: number): string {
+  const build = GROUP_TITLES[sourceId];
+  return build ? build(count) : "";
 }
 
 /**
@@ -242,8 +326,11 @@ export function projectConditionGroups(
   const buckets = new Map<string, GroupableCondition[]>();
 
   for (const condition of conditions) {
-    const dimension = groupDimensionFor(condition);
-    const key = `${condition.category}:${dimension}`;
+    // The source id IS the key. It used to be `${category}:${dimension}`,
+    // parsed back apart with `split(":")` — which a source id like
+    // `pipeline.report_backlog` survives and `upload:security_event` would
+    // not. Keying on the id directly removes the round trip entirely.
+    const key = groupDimensionFor(condition);
     const bucket = buckets.get(key);
     if (bucket) bucket.push(condition);
     else buckets.set(key, [condition]);
@@ -251,7 +338,10 @@ export function projectConditionGroups(
 
   const groups: OperationsConditionGroup[] = [];
   for (const [groupKey, members] of buckets) {
-    const [category, dimension] = groupKey.split(":") as [IncidentCategory, string];
+    const sourceId = groupKey;
+    const lifecycle = lifecycleForSourceId(sourceId) ?? UNREGISTERED_CONDITION_LIFECYCLE;
+    const category = members[0].category;
+    const dimension = sourceId;
 
     let worst = members[0];
     let firstSeen = members[0].firstSeenAtUtc;
@@ -281,7 +371,7 @@ export function projectConditionGroups(
     const derivedTitle =
       members.length === 1
         ? members[0].title
-        : titleFor(category, dimension, members.length) || members[0].title;
+        : titleFor(sourceId, members.length) || members[0].title;
 
     const sorted = [...members].sort((a, b) => {
       const bySeverity = severityRank(b.severity) - severityRank(a.severity);
@@ -303,8 +393,40 @@ export function projectConditionGroups(
     const affectedRecordCount =
       category === "EVIDENCE_INTEGRITY" ? members.length : metricTotal;
 
+    // The group's posture, from its members. A group with one open member is
+    // open: an operator who has acknowledged nine of ten records has not dealt
+    // with the tenth, and a group that claimed otherwise would hide it.
+    const statuses = new Set(members.map((m) => m.status));
+    const statusPosture = statuses.has("OPEN")
+      ? "OPEN"
+      : statuses.has("ACKNOWLEDGED")
+        ? "ACKNOWLEDGED"
+        : statuses.has("SUPPRESSED")
+          ? "SUPPRESSED"
+          : "RESOLVED";
+
+    // The actions the SOURCE permits. Capability is layered on by the route;
+    // this is what the contract allows before anyone's permissions are read.
+    // Resolve is deliberately absent for everything but OPERATOR_DECISION, and
+    // there is no bulk Resolve at all — recovery closes source-truth
+    // conditions, so a bulk control would be unsafe and unnecessary.
+    const availableActions = [
+      "acknowledge",
+      "assign",
+      "suppress",
+      ...(offersManualResolution(lifecycle) ? ["resolve"] : []),
+    ];
+
     groups.push({
       groupKey,
+      sourceId,
+      latestActivityAtUtc: lastSeen.toISOString(),
+      statusPosture,
+      availableActions,
+      metric:
+        metricTotal != null && lifecycle.metricContract !== "NONE"
+          ? { currentValue: metricTotal, unit: "records" }
+          : null,
       category,
       title: derivedTitle,
       conditionCount: members.length,

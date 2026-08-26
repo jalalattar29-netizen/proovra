@@ -104,6 +104,8 @@ import {
 import { IncidentInspector } from "./_components/IncidentInspector";
 import { SavedViews } from "./_components/SavedViews";
 import { IncidentSurface } from "./_components/IncidentSurface";
+import { GroupSurface } from "./_components/GroupSurface";
+import { GroupInspector } from "./_components/GroupInspector";
 import { QueueSummary } from "./_components/QueueSummary";
 import type { RestrictedReason } from "./_components/States";
 import {
@@ -147,6 +149,8 @@ import type {
   OperationsCapabilities,
   OperationsSummary,
   SourceState,
+  IncidentGroup,
+  AffectedRecord,
 } from "./_lib/types";
 import type { QueueMetricKey } from "./_lib/vocabulary";
 
@@ -323,6 +327,133 @@ function OperationsWorkbench() {
   const [selfUserId, setSelfUserId] = React.useState<string | null>(null);
 
   const [openId, setOpenId] = React.useState<string | null>(null);
+
+  // ==========================================================================
+  // THE GROUPED QUEUE
+  // ==========================================================================
+  //
+  // The DEFAULT. A workspace with five thousand records whose timestamping
+  // failed had five thousand top-level rows, all saying the same sentence, and
+  // the one genuinely different condition sat at position 3,847. The server
+  // has computed these groups for a release and nothing rendered them.
+  //
+  // Not an Enterprise mode: every workspace kind renders this, and a group of
+  // one shows its own condition's title and reads exactly like the row it
+  // replaces. "All conditions" is one toggle away and reaches the same rows.
+  const [grouped, setGrouped] = React.useState(true);
+  const [groups, setGroups] = React.useState<IncidentGroup[]>([]);
+  const [groupsLoading, setGroupsLoading] = React.useState(false);
+  const [openGroupKey, setOpenGroupKey] = React.useState<string | null>(null);
+  /**
+   * THE GROUPED READ'S OWN SEQUENCE.
+   *
+   * Deliberately NOT the queue's. They are two independent reads that resolve
+   * in whatever order the network gives them, and sharing one counter means
+   * the second to finish invalidates the first — the grouped response would
+   * arrive, be discarded because the flat list had since bumped the counter,
+   * and the page would render an empty grouped queue over real conditions.
+   */
+  const groupsSeq = React.useRef(0);
+
+  /** The drill-down's accumulated pages for the OPEN group. */
+  const [affected, setAffected] = React.useState<AffectedRecord[]>([]);
+  const [affectedCursor, setAffectedCursor] = React.useState<string | null>(null);
+  const [affectedHasMore, setAffectedHasMore] = React.useState(false);
+  const [affectedLoading, setAffectedLoading] = React.useState(false);
+  const [affectedError, setAffectedError] = React.useState<string | null>(null);
+  const affectedSeq = React.useRef(0);
+
+  React.useEffect(() => {
+    if (!teamId || !grouped) return;
+    const seq = ++groupsSeq.current;
+    setGroupsLoading(true);
+    // The SAME filters the flat list sends. A grouped view that ignored the
+    // operator's filters would be showing a different queue under the same
+    // heading.
+    const params = new URLSearchParams({ teamId });
+    if (filters.status) params.set("status", filters.status);
+    if (filters.severity) params.set("severity", filters.severity);
+    if (filters.category) params.set("category", filters.category);
+    if (filters.owner) params.set("owner", filters.owner);
+    if (filters.sla) params.set("sla", filters.sla);
+    if (filters.q) params.set("q", filters.q);
+    void apiFetch(`/v1/ops/incident-groups?${params.toString()}`, {
+      method: "GET",
+    })
+      .then((res) => {
+        if (seq !== groupsSeq.current) return;
+        setGroups(((res as { groups?: IncidentGroup[] }).groups ?? []).slice());
+      })
+      .catch(() => {
+        if (seq !== groupsSeq.current) return;
+        // A failed grouped read leaves the groups EMPTY rather than stale.
+        // The flat list is still there, and an empty grouped view with a
+        // visible toggle is honest; a previous workspace's groups would not be.
+        setGroups([]);
+      })
+      .finally(() => {
+        if (seq === groupsSeq.current) setGroupsLoading(false);
+      });
+  }, [teamId, grouped, filters, reloadToken]);
+
+  /** Load one page of the open group's members. */
+  const loadAffected = React.useCallback(
+    (groupKey: string, cursor: string | null) => {
+      if (!teamId) return;
+      const seq = ++affectedSeq.current;
+      setAffectedLoading(true);
+      setAffectedError(null);
+      const params = new URLSearchParams({ teamId });
+      if (cursor) params.set("cursor", cursor);
+      void apiFetch(
+        `/v1/ops/incident-groups/${encodeURIComponent(groupKey)}/affected?${params.toString()}`,
+        { method: "GET" },
+      )
+        .then((res) => {
+          if (seq !== affectedSeq.current) return;
+          const v = res as {
+            records?: AffectedRecord[];
+            pagination?: { nextCursor: string | null };
+          };
+          // APPEND, never replace: the operator is paging through one group
+          // and the rows they have already read must not vanish under them.
+          setAffected((prev) =>
+            cursor ? [...prev, ...(v.records ?? [])] : (v.records ?? []),
+          );
+          setAffectedCursor(v.pagination?.nextCursor ?? null);
+          setAffectedHasMore((v.pagination?.nextCursor ?? null) !== null);
+        })
+        .catch((err) => {
+          if (seq !== affectedSeq.current) return;
+          // Bounded and already-safe. The raw transport error never reaches
+          // the panel.
+          setAffectedError(
+            toSafeUserError(err, {
+              message: "Those records could not be loaded.",
+            }).message,
+          );
+        })
+        .finally(() => {
+          if (seq === affectedSeq.current) setAffectedLoading(false);
+        });
+    },
+    [teamId],
+  );
+
+  // Opening a group starts its drill-down from the first page, and closing one
+  // clears it so the next group cannot inherit the previous one's records.
+  React.useEffect(() => {
+    setAffected([]);
+    setAffectedCursor(null);
+    setAffectedHasMore(false);
+    setAffectedError(null);
+    if (openGroupKey) loadAffected(openGroupKey, null);
+  }, [openGroupKey, loadAffected]);
+
+  const openGroup = openGroupKey
+    ? (groups.find((g) => g.groupKey === openGroupKey) ?? null)
+    : null;
+
   const [detail, setDetail] =
     React.useState<SourceState<IncidentDetail>>(LOADING);
 
@@ -1442,6 +1573,42 @@ function OperationsWorkbench() {
             }
           />
 
+          {/*
+            GROUPED / ALL CONDITIONS.
+
+            One control, not a plan fork. Grouping is the default because a
+            long queue of identical rows is unreadable; the flat list is
+            still here because a grouped view that could not be left would
+            have HIDDEN the individual conditions, which is the defect the
+            per-record fingerprints exist to prevent.
+          */}
+          <div className="opsw-view-toggle" data-ops-view-toggle>
+            <button
+              type="button"
+              className={grouped ? "app-primary-action" : "app-secondary-action"}
+              aria-pressed={grouped}
+              onClick={() => {
+                setGrouped(true);
+                setOpenId(null);
+              }}
+              data-ops-view="grouped"
+            >
+              Grouped
+            </button>
+            <button
+              type="button"
+              className={grouped ? "app-secondary-action" : "app-primary-action"}
+              aria-pressed={!grouped}
+              onClick={() => {
+                setGrouped(false);
+                setOpenGroupKey(null);
+              }}
+              data-ops-view="flat"
+            >
+              All conditions
+            </button>
+          </div>
+
           <BulkToolbar
             count={markedIds.size}
             capabilities={capabilities}
@@ -1461,7 +1628,27 @@ function OperationsWorkbench() {
             outcome={bulkOutcome}
           />
 
-          {rows.length === 0 ? (
+          {/*
+            EMPTINESS IS DECIDED BY THE SURFACE BEING SHOWN.
+
+            `rows` is the FLAT list. Reading it in grouped mode would let a
+            grouped queue render an empty state over real groups whenever the
+            two reads disagreed — a bounded flat page that returned nothing
+            while the grouped read returned two sources would have shown
+            "Workspace operations are clear" over five thousand conditions,
+            which is the exact class of false all-clear this programme exists
+            to remove.
+          */}
+          {grouped && groupsLoading && groups.length === 0 ? (
+            // LOADING IS NOT EMPTY.
+            //
+            // Without this the first paint of a grouped queue renders the
+            // empty branch — and when the workspace is otherwise clear, that
+            // branch is "Workspace operations are clear". A false all-clear
+            // that lasts one frame is still a false all-clear, and it is the
+            // one this whole programme exists to remove.
+            <PreparingState />
+          ) : (grouped ? groups.length : rows.length) === 0 ? (
             mayAssertClear ? (
               <ClearState />
             ) : readiness === "NEVER_RUN" && !anyFilterActive(filters) ? (
@@ -1472,6 +1659,17 @@ function OperationsWorkbench() {
             ) : (
               <NoMatchState onClear={clearFilters} />
             )
+          ) : grouped ? (
+            // THE DEFAULT. One row per source rather than one per record: a
+            // workspace with five thousand failed timestamps had five thousand
+            // identical rows and nowhere to look. Every workspace kind renders
+            // this — a group of one shows its own condition's title and reads
+            // exactly like the row it replaces.
+            <GroupSurface
+              groups={groups}
+              openGroupKey={openGroupKey}
+              onOpen={setOpenGroupKey}
+            />
           ) : (
             <IncidentSurface
               rows={rows}
@@ -1510,6 +1708,28 @@ function OperationsWorkbench() {
       ) : null}
 
       <StepUpModal control={stepUp} />
+
+      {openGroup ? (
+        <GroupInspector
+          group={openGroup}
+          records={affected}
+          loading={affectedLoading}
+          error={affectedError}
+          hasMore={affectedHasMore}
+          onLoadMore={() =>
+            openGroupKey ? loadAffected(openGroupKey, affectedCursor) : undefined
+          }
+          onClose={() => setOpenGroupKey(null)}
+          // Server-projected capability: a link the reader cannot follow is
+          // withheld rather than rendered and refused.
+          // Reaching this page already required `operations.view`, which is
+          // what the shell gates the incident read on. The link goes to the
+          // Evidence detail page, which enforces its own read on arrival — so
+          // this offers it to a reader who is already an authorized operator
+          // of this workspace and lets the destination be the authority.
+          canOpenRecords
+        />
+      ) : null}
 
       {openRow ? (
         <IncidentInspector

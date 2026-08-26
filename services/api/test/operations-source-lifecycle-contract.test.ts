@@ -52,14 +52,16 @@ const TEAM = "11111111-1111-4111-8111-111111111111";
 // ===========================================================================
 
 describe("§13.1 — the contract is total, and there is no default", () => {
-  it("prints the 22-source classification table, ungrouped", () => {
+  it("prints the full source classification table, ungrouped", () => {
     const rows = OPERATIONS_SOURCE_LIFECYCLES.map((s) => ({
       source: s.sourceId,
       authority: s.resolutionAuthority,
       probe: s.activityProbeKey,
       audience: s.audience,
       cardinality: s.cardinality,
+      discovery: s.discoveryState,
       manualResolve: offersManualResolution(s) ? "OFFERED" : "NOT OFFERED",
+      note: s.requiresResolutionNote ? "REQUIRED" : "-",
       recovery: s.recoveryPolicy,
       remediation: s.remediationDisposition,
       metric: s.metricContract,
@@ -67,7 +69,13 @@ describe("§13.1 — the contract is total, and there is no default", () => {
     }));
     // eslint-disable-next-line no-console -- the table IS the deliverable
     console.table(rows);
-    expect(rows).toHaveLength(22);
+    // NOT a fixed count. It grew from 22 to 35 because thirteen real
+    // production emitters were writing conditions no registered source
+    // claimed, and forcing semantically different conditions into an existing
+    // row to preserve a number would have been the category defect again, one
+    // level down. What is pinned is the PROPERTY: every emitter is registered,
+    // which `operations-emitter-totality.test.ts` holds.
+    expect(rows.length).toBeGreaterThanOrEqual(35);
   });
 
   it.each(OPERATIONS_SOURCE_LIFECYCLES.map((s) => [s.sourceId, s] as const))(
@@ -78,7 +86,9 @@ describe("§13.1 — the contract is total, and there is no default", () => {
       // being guarded against is a field made optional to unblock a new source
       // — which compiles fine and quietly reintroduces a default.
       expect(s.category, "category").toBeTruthy();
-      expect(s.identity?.kind, "identity").toBeTruthy();
+      expect(s.discoveryState, "discoveryState").toBeTruthy();
+      expect(Array.isArray(s.legacyFingerprints), "legacyFingerprints").toBe(true);
+      expect(Array.isArray(s.producers), "producers").toBe(true);
       expect(s.resolutionAuthority, "resolutionAuthority").toBeTruthy();
       expect(ACTIVITY_PROBE_KEYS, "activityProbeKey").toContain(
         s.activityProbeKey,
@@ -192,7 +202,21 @@ describe("§13.1 — the contract is total, and there is no default", () => {
 // 2. IDENTITY — fingerprint first, category never alone
 // ===========================================================================
 
-describe("§2 — a condition resolves to its source by FINGERPRINT", () => {
+describe("§2 — a condition resolves to its source by DECLARED id", () => {
+  it("a declared sourceId wins, and the fingerprint is not consulted", () => {
+    // The correction: identity is DECLARED, not inferred. A row carrying a
+    // source id resolves to that source even when its fingerprint looks like
+    // another's — which is what stops a writer's chosen string from being
+    // load-bearing policy.
+    const r = resolveConditionSource({
+      sourceId: "pipeline.report_backlog",
+      category: "EVIDENCE_INTEGRITY",
+      fingerprint: "tsa_failure:abc12345",
+    });
+    expect(r.match).toBe("DECLARED");
+    expect(r.lifecycle.sourceId).toBe("pipeline.report_backlog");
+  });
+
   it.each(
     aggregateSpecs().map((s) => [s.sourceId, aggregateFingerprint(s, TEAM)] as const),
   )("%s is matched by its own fingerprint, not by its category", (id, fp) => {
@@ -201,7 +225,8 @@ describe("§2 — a condition resolves to its source by FINGERPRINT", () => {
       category: spec.category,
       fingerprint: fp,
     });
-    expect(resolved.match).toBe("FINGERPRINT");
+    // A row written BEFORE `source_id` existed. One pattern, one source.
+    expect(resolved.match).toBe("LEGACY_FINGERPRINT");
     expect(resolved.lifecycle.sourceId).toBe(id);
   });
 
@@ -233,6 +258,13 @@ describe("§2 — a condition resolves to its source by FINGERPRINT", () => {
         fingerprint: "ots_failure:abc",
       }).lifecycle.sourceId,
     ).toBe("evidence_integrity.ots_failed");
+    // …and the third class, which used to have no producer at all.
+    expect(
+      resolveConditionSource({
+        category: "EVIDENCE_INTEGRITY",
+        fingerprint: "ots_pending_aged:abc",
+      }).lifecycle.sourceId,
+    ).toBe("evidence_integrity.ots_pending_aged");
   });
 
   it("a prefix cannot be matched by a longer neighbour", () => {
@@ -246,46 +278,86 @@ describe("§2 — a condition resolves to its source by FINGERPRINT", () => {
     expect(r.lifecycle.sourceId).not.toBe("pipeline.report_backlog");
   });
 
-  it("a domain-written condition under a shared category is UNREGISTERED, not the sweep's", () => {
-    // `evidence-health.service.ts` and the Worker's report processor write
-    // per-record REPORT failures with their own fingerprints. Handing them the
-    // backlog-count probe would refuse a resolution on a number that has
-    // nothing to do with them.
+  it("an unidentifiable condition FAILS CLOSED — never OPERATOR_DECISION", () => {
+    // THE DEFECT THIS REPLACES. The unregistered contract used to be
+    // OPERATOR_DECISION, so a condition the system could not identify was the
+    // most closable kind there is: not knowing what something was made it
+    // MORE resolvable.
     const r = resolveConditionSource({
       category: "REPORT",
-      fingerprint: "evidence:report_failed:some-evidence-id",
+      fingerprint: "something:nobody:registered",
     });
     expect(r.match).toBe("UNREGISTERED");
     expect(r.lifecycle).toBe(UNREGISTERED_CONDITION_LIFECYCLE);
-    // Event-shaped, so a person closes it. Not SOURCE_TRUTH, which with no
-    // probe would refuse forever and leave the queue permanently stuck.
-    expect(r.lifecycle.resolutionAuthority).toBe("OPERATOR_DECISION");
+    expect(r.lifecycle.resolutionAuthority).toBe("NO_DIRECT_RESOLUTION");
+    expect(offersManualResolution(r.lifecycle)).toBe(false);
+    // …and it names itself, so the gap reaches the people who can register it.
+    expect(r.diagnostic).toBe("UNREGISTERED_CONDITION_SOURCE");
   });
 
-  it.each([
-    ["UPLOAD", "intake.delivery_failed"],
-    ["COMMUNICATIONS", "communications.provider_failure"],
-    ["WEBHOOK", "webhook.security_failure"],
-    ["INTEGRATION", "integration.configuration_failure"],
-    ["IDENTITY_SECURITY", "identity.security_condition"],
-    ["STORAGE", "storage.condition"],
-    ["AI", "ai.condition"],
-    ["DATABASE", "database.condition"],
-    ["RECONCILIATION", "search.indexing_failure"],
-  ])("a residual %s condition belongs to %s", (category, sourceId) => {
-    const r = resolveConditionSource({
-      category,
-      fingerprint: "some:domain:written:fingerprint",
-    });
-    expect(r.match).toBe("CATEGORY_RESIDUAL");
-    expect(r.lifecycle.sourceId).toBe(sourceId);
+  it("an UNKNOWN sourceId fails closed exactly like an absent one", () => {
+    for (const sourceId of [undefined, null, "", "totally.made_up"]) {
+      const r = resolveConditionSource({
+        sourceId,
+        category: "WORKER",
+        fingerprint: "nothing:matches:this",
+      });
+      expect(r.lifecycle.resolutionAuthority, String(sourceId)).toBe(
+        "NO_DIRECT_RESOLUTION",
+      );
+      expect(r.match, String(sourceId)).toBe("UNREGISTERED");
+    }
   });
 
-  it("no two sources claim the same residual category", () => {
-    const claimed = OPERATIONS_SOURCE_LIFECYCLES.filter(
-      (s) => s.identity.kind === "CATEGORY_RESIDUAL",
-    ).map((s) =>
-      s.identity.kind === "CATEGORY_RESIDUAL" ? s.identity.category : "",
+  it("CATEGORY IS NEVER CONSULTED — not even as a last resort", () => {
+    // Every category, with a fingerprint nothing claims. If category were
+    // still a fallback, at least one of these would resolve to a real source.
+    for (const category of [
+      "UPLOAD",
+      "REPORT",
+      "PACKAGE",
+      "WEBHOOK",
+      "COMMUNICATIONS",
+      "IDENTITY_SECURITY",
+      "GOVERNANCE",
+      "STORAGE",
+      "AI",
+      "INTEGRATION",
+      "DATABASE",
+      "WORKER",
+      "RECONCILIATION",
+      "EVIDENCE_INTEGRITY",
+    ]) {
+      const r = resolveConditionSource({
+        category,
+        fingerprint: "unclaimed_prefix_xyz:subject",
+      });
+      expect(r.match, category).toBe("UNREGISTERED");
+    }
+  });
+
+  it("no source anywhere in the registry falls back to OPERATOR_DECISION", () => {
+    // OPERATOR_DECISION is only ever reached by an explicit, per-source
+    // declaration with a required written conclusion — never as a default.
+    for (const s of OPERATIONS_SOURCE_LIFECYCLES) {
+      if (s.resolutionAuthority !== "OPERATOR_DECISION") continue;
+      expect(s.requiresResolutionNote, s.sourceId).toBe(true);
+      expect(s.audience, s.sourceId).toBe("TENANT_ACTIONABLE");
+      expect(s.rationale.length, s.sourceId).toBeGreaterThan(30);
+    }
+    expect(UNREGISTERED_CONDITION_LIFECYCLE.resolutionAuthority).not.toBe(
+      "OPERATOR_DECISION",
+    );
+  });
+
+  it("no two sources claim the same legacy fingerprint pattern", () => {
+    // The registry throws at load if they do — a backfill that had to GUESS
+    // which of two sources a fingerprint meant would be guessing a lifecycle.
+    // Stated here so the property is where a reader looks for it.
+    const claimed = OPERATIONS_SOURCE_LIFECYCLES.flatMap((s) =>
+      s.legacyFingerprints.map((p) =>
+        p.kind === "PREFIX" ? `P:${p.prefix}` : `E:${p.fingerprint}`,
+      ),
     );
     expect(new Set(claimed).size).toBe(claimed.length);
   });

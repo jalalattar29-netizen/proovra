@@ -24,6 +24,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { platformInternalSourceIds } from "@proovra/shared-runtime";
 import type { Prisma } from "@prisma/client";
 
 export type IncidentScopeName = prismaPkg.IncidentScope;
@@ -90,7 +91,88 @@ export function workspaceIncidentWhere(
   return {
     scope: prismaPkg.IncidentScope.WORKSPACE,
     teamId: workspaceId,
+    ...platformInternalExclusion(),
   };
+}
+
+/**
+ * THE PLATFORM-INTERNAL EXCLUSION.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT IT REMOVES, AND WHY IT HAS TO
+ * ---------------------------------------------------------------------------
+ * Some conditions describe ONE global component and are written once per
+ * workspace. `platform.worker_heartbeat_stale` is the measured case: its
+ * scanner reads `WorkerTelemetrySnapshot WHERE workerKind = 'WORKER'` with no
+ * tenant predicate at all — a single process-wide heartbeat — and then writes
+ * a per-workspace fingerprint. One dead worker therefore opened one identical
+ * CRITICAL condition in every workspace on the platform, each one counted in
+ * that tenant's queue, each one blocking that tenant's all-clear, for a fault
+ * none of them owned and none of them could fix.
+ *
+ * The audience field says which sources are like that, and this turns it into
+ * a predicate. They remain fully available on the platform observability
+ * surface, which is where one global fault belongs exactly once.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY IT IS IN THE SCOPE AUTHORITY AND NOT AT EACH CALL SITE
+ * ---------------------------------------------------------------------------
+ * Because every tenant read already goes through here. A surface that
+ * remembered to apply it would be a surface that could forget — and the list
+ * (queue, summary, counters, groups, readiness, bulk selection, saved views)
+ * is long enough that one of them would.
+ *
+ * NOT a `sourceId` NULL exclusion: a legacy row with no source id is still
+ * that workspace's own condition and stays visible. Only rows explicitly
+ * declared PLATFORM_INTERNAL are withheld.
+ *
+ * NO INDEX IS NEEDED. `(scope, team_id, status)` already selects the workspace
+ * page; this is a filter over that small result, not a scan predicate.
+ */
+export function platformInternalExclusion(): Prisma.OperationalIncidentWhereInput {
+  const hidden = platformInternalSourceIds();
+  if (hidden.length === 0) return {};
+  // UNDER `AND`, and that is not cosmetic. Every caller composes this
+  // predicate by object SPREAD, so a key the caller also sets would silently
+  // overwrite this one — the tenant read would keep working and quietly stop
+  // excluding anything. `NOT` was exactly that collision: the retry-storm
+  // probe sets its own. No caller sets `AND`, and
+  // `operations-source-identity.test.ts` fails the build if one starts.
+  //
+  // The inner predicate keeps NULL-source rows VISIBLE: a legacy row is still
+  // that workspace's own condition. `sourceId: { notIn }` alone would drop
+  // them, because SQL `NOT IN` is never true for NULL.
+  return {
+    AND: [{ OR: [{ sourceId: null }, { sourceId: { notIn: hidden } }] }],
+  };
+}
+
+/**
+ * COMPOSE THE TENANT PREDICATE WITH A CALLER'S OWN BOOLEAN PREDICATE.
+ *
+ * Every other caller spreads `workspaceIncidentWhere` into an object whose
+ * remaining keys are plain column filters, and a spread is safe there. A caller
+ * that needs its OWN `AND` / `OR` / `NOT` must use this instead: object
+ * spread would let the later key win, the query would still run, and the tenant
+ * scope or the platform-internal exclusion would quietly stop applying.
+ *
+ * Nesting both sides under one `AND` makes that impossible to express.
+ */
+export function workspaceIncidentWhereWith(
+  workspaceId: string,
+  ...extra: Prisma.OperationalIncidentWhereInput[]
+): Prisma.OperationalIncidentWhereInput {
+  return { AND: [workspaceIncidentWhere(workspaceId), ...extra] };
+}
+
+/**
+ * The platform-internal conditions ALONE, for the platform surface.
+ *
+ * The other half of the same decision: what a tenant may not see, a platform
+ * operator must — and exactly once, not once per workspace.
+ */
+export function platformInternalIncidentWhere(): Prisma.OperationalIncidentWhereInput {
+  return { sourceId: { in: platformInternalSourceIds() } };
 }
 
 /**

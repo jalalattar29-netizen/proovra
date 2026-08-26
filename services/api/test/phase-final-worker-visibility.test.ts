@@ -72,10 +72,38 @@ describe("Phase Final-Worker-Visibility — OTS upgrade attempt budget", () => {
   });
 
   it("the global attempt budget helpers are wired (env-overridable, default 30 days)", () => {
+    // THE HELPERS MOVED, AND THE PROPERTY DID NOT.
+    //
+    // They lived here, where they decide when the processor STOPS
+    // re-enqueueing. The API now needs the same window for a second reading of
+    // the same fact — when does a record still PENDING become an operational
+    // condition an operator should see — and a second threshold would produce
+    // a workspace whose Operations page calls a record fine while this
+    // processor has already given up on it.
+    //
+    // So the number and the predicate live in `@proovra/shared-runtime` and
+    // both hosts import them. The processor still uses them, which is what
+    // these first two assertions hold; the declaration is asserted where it
+    // now is.
     expect(otsProc).toMatch(/getOtsGlobalBudgetMs/);
     expect(otsProc).toMatch(/isOtsGlobalBudgetExhausted/);
-    expect(otsProc).toMatch(/OTS_GLOBAL_BUDGET_DAYS_DEFAULT\s*=\s*30/);
-    expect(otsProc).toMatch(/process\.env\.OTS_GLOBAL_BUDGET_DAYS/);
+    expect(otsProc).toMatch(/@proovra\/shared-runtime/);
+
+    const shared = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../packages/shared-runtime/src/ops/ots-aging.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    expect(shared).toMatch(/OTS_GLOBAL_BUDGET_DAYS_DEFAULT\s*=\s*30/);
+    expect(shared).toMatch(/process\.env\.OTS_GLOBAL_BUDGET_DAYS/);
+    // …and there is exactly ONE declaration of it, which is the point of the
+    // move: the Worker's give-up decision and the API's aged-pending
+    // observation read the same number or they are not reading the same fact.
+    expect(otsProc).not.toMatch(/OTS_GLOBAL_BUDGET_DAYS_DEFAULT\s*=\s*\d/);
   });
 
   it("the processor checks the budget before re-enqueueing on PENDING", () => {

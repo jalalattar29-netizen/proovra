@@ -260,6 +260,10 @@ export async function generateIncidentsForWorkspace(
       rules.push(fingerprint);
       try {
         await recordIncident({
+          // The spec IS the source. Eight aggregate sources, eight contracts,
+          // and the loop carries the id rather than the reader inferring it
+          // from a fingerprint prefix.
+          sourceId: spec.sourceId,
           teamId: ctx.teamId,
           category: spec.category,
           severity: observation.severity ?? "WARNING",

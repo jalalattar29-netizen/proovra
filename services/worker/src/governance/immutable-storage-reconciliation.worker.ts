@@ -295,6 +295,7 @@ async function raiseGovernanceIncident(
   // contract. The inline `operationalIncident.upsert` logic that
   // lived here is gone.
   const row = await recordWorkerIncident({
+    sourceId: "storage.immutable_drift",
     teamId,
     category: "GOVERNANCE",
     severity: "HIGH",

@@ -226,6 +226,7 @@ export async function emitWorkerGovernanceNotification(
   ) {
     try {
       const incident = await recordWorkerIncident({
+        sourceId: "governance.notification_escalated",
         teamId: input.teamId,
         category: "GOVERNANCE",
         severity: finalSeverity,

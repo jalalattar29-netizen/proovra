@@ -193,6 +193,7 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
     const fingerprint = `ent:scale:concurrent:${ws.teamId}`;
     const write = () =>
       incidents.recordIncident({
+        sourceId: "pipeline.report_backlog",
         teamId: ws.teamId,
         category: "REPORT",
         severity: "HIGH",

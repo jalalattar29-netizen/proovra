@@ -82,23 +82,39 @@ function now(): Date {
  */
 export const OTS_FOLLOWUP_JOB_PREFIX = "ots-upgrade-";
 
-const OTS_GLOBAL_BUDGET_DAYS_DEFAULT = 30;
+/**
+ * THE GLOBAL ANCHORING BUDGET MOVED, AND NOTHING ABOUT IT CHANGED.
+ *
+ * It used to be declared here, where it decides when this processor STOPS
+ * re-enqueueing. The API now needs the same window for a different reading of
+ * the same fact — when does a record still PENDING become an operational
+ * condition an operator should see — and a second threshold for the second
+ * reading would produce a workspace whose Operations page calls a record fine
+ * while this processor has already given up on it.
+ *
+ * So the number and the predicate live in `@proovra/shared-runtime` and both
+ * hosts import them. Re-exported under their existing names so every caller
+ * here, and the contract test that pins them, is untouched.
+ */
+import {
+  getOtsGlobalBudgetMs,
+  isOtsGlobalBudgetExhausted,
+  OTS_GLOBAL_BUDGET_DAYS_DEFAULT,
+  readOtsGlobalBudgetDays,
+} from "@proovra/shared-runtime";
 
-function readOtsGlobalBudgetDays(): number {
-  const raw = process.env.OTS_GLOBAL_BUDGET_DAYS;
-  if (!raw) return OTS_GLOBAL_BUDGET_DAYS_DEFAULT;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : OTS_GLOBAL_BUDGET_DAYS_DEFAULT;
-}
+export {
+  getOtsGlobalBudgetMs,
+  isOtsGlobalBudgetExhausted,
+  OTS_GLOBAL_BUDGET_DAYS_DEFAULT,
+  readOtsGlobalBudgetDays,
+};
 
 /**
  * Returns the upper bound for re-enqueue attempts before the global
  * budget gives up. Exported so callers (operations queue UI) can
  * surface the same number in the "stuck OTS" label.
  */
-export function getOtsGlobalBudgetMs(): number {
-  return readOtsGlobalBudgetDays() * 24 * 60 * 60 * 1000;
-}
 
 /**
  * Decide whether a piece of evidence has exceeded the global budget.
@@ -110,17 +126,6 @@ export function getOtsGlobalBudgetMs(): number {
  *
  * Exported for the contract test.
  */
-export function isOtsGlobalBudgetExhausted(params: {
-  firstAttemptAtUtc: Date | null;
-  nowUtc: Date;
-  budgetMs?: number;
-}): boolean {
-  if (!params.firstAttemptAtUtc) return false;
-  const budget = params.budgetMs ?? getOtsGlobalBudgetMs();
-  return (
-    params.nowUtc.getTime() - params.firstAttemptAtUtc.getTime() > budget
-  );
-}
 
 /**
  * PHASE 12 — POINT 5.
@@ -550,6 +555,7 @@ export async function processOtsUpgrade(job: Job<unknown>) {
           // to P1.
           try {
             await recordWorkerIncident({
+              sourceId: "evidence_integrity.ots_budget_exhausted",
               teamId: evidence.teamId ?? null,
               category: "WORKER",
               severity: "CRITICAL",

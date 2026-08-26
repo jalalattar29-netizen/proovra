@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 246,
-    "classifiedMigrations": 246,
+    "filesystemMigrations": 247,
+    "classifiedMigrations": 247,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 246,
+    "productionSnapshotUnknown": 247,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 246,
-    "classifiedMigrations": 246,
+    "filesystemMigrations": 247,
+    "classifiedMigrations": 247,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 246,
+    "productionSnapshotUnknown": 247,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
       "EXPAND": 30,
-      "BACKFILL": 17,
+      "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 38,
+      "SAFE_TO_APPLY_NOW": 39,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 246
+    "ProductionMigrationStateUnknown": 247
   },
   "gateFailures": [],
   "migrations": [
@@ -19349,7 +19349,7 @@
       "checksumSha256": "f0d596dbd56b4f80774cebd94b59942463fead6cc320ff5def1f35a9b4db255c",
       "checksumSha256Raw": "f0d596dbd56b4f80774cebd94b59942463fead6cc320ff5def1f35a9b4db255c",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -19405,8 +19405,75 @@
       "evidence": "OPERATIONS LIFECYCLE CLOSURE — one nullable jsonb column, operational_incidents.metric_snapshot, holding the current aggregate value of a threshold condition. It exists because that value used to live in `title` ('Report backlog above threshold (26)') and the writer never rewrote the title on re-observation, so 26 was written once and then frozen: a workspace that worked its backlog down to 22 kept reading 26 for the life of the condition. A single ADD COLUMN IF NOT EXISTS, nullable, no default, no index, no constraint, no type change and no row rewritten; destructiveStatements is empty. NO BACKFILL — a metric is an OBSERVATION, and inventing one for a historical row would assert a count nobody measured; existing rows keep NULL, which decodes to 'no metric' and renders exactly as they render today. Safe BEFORE the code: an older build never selects the column. Safe AFTER a rollback too: the column is simply unread."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271226000000_operational_incident_source_identity",
       "order": 245,
+      "sqlPresent": true,
+      "byteLength": 6101,
+      "checksumSha256": "f174c7ed631cd36d4a6df353508d8c94ce3585a16a7e134bb20ca9aefede72a7",
+      "checksumSha256Raw": "f174c7ed631cd36d4a6df353508d8c94ce3585a16a7e134bb20ca9aefede72a7",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "BACKFILL",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): operational_incidents",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "operational_incidents"
+        ],
+        "addedColumns": [
+          "source_id"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "operational_incidents"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "operational_incidents"
+      ],
+      "dependencies": [
+        "20260529100000_add_operational_incidents_phase21"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "readinessCommand": "DATABASE_URL=$P6_TARGET node services/api/scripts/operations-source-identity-readiness.mjs",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "Nothing to reverse. An image without the writer leaves the column NULL on new rows and those rows fail closed; an image without the reader ignores it. The backfill is deliberately NOT reversed on rollback — a stamped source id is a true statement about a row whichever image is running.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": "Apply BEFORE deploying API and Worker. NOT NULL is deliberately a LATER deployment, after the backfill has been observed in production; new writes are enforced by the typed writer signature rather than by the database.",
+      "removalCondition": "NEVER removed while lifecycle authority is per-source. Dropping it would return authority to fingerprint inference, which is the defect it was added to close.",
+      "evidence": "OPERATIONS SOURCE TOTALITY — one nullable VARCHAR(120) column, operational_incidents.source_id, plus a deterministic backfill over 29 unambiguous fingerprint prefixes. A condition's lifecycle — who may resolve it, which probe answers 'is it still true', how it recovers and recurs, who it is for — was derived from category (14 values for 35 sources) and then from fingerprint, which covered the 11 shapes the discovery sweep writes and left 15 other production emitters in both hosts falling through to an 'unregistered' contract that was OPERATOR_DECISION: a condition the system could not identify was the most closable kind there is. The ADD COLUMN is nullable with no default, no index and no constraint. The backfill is one UPDATE per prefix, guarded by source_id IS NULL so re-running is a no-op, anchored on the separator so report_backlog_v2 cannot inherit report_backlog, and derived from the exact legacyFingerprints declarations in packages/shared-runtime/src/ops/source-lifecycle.ts — operations-source-identity.test.ts fails the build if the migration and that registry disagree. NO HISTORY IS REWRITTEN: it touches one previously-absent column on the incident row and reads neither operational_incident_events nor operational_incident_sla_cycles, so no status, resolution, note, actor, occurrence count or SLA cycle changes. Anything matching no prefix stays NULL and fails closed at runtime to NO_DIRECT_RESOLUTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 246,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

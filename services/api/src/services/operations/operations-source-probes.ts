@@ -47,6 +47,7 @@ import type { PrismaClient, Prisma } from "@prisma/client";
 
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 import {
+  isOtsPendingAged,
   workspaceEvidenceWhere,
   type ActivityProbeKey,
   type ConditionMetricUnit,
@@ -54,7 +55,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 
 // ===========================================================================
 // THRESHOLDS — every one is real platform state
@@ -380,19 +381,27 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
       `Active conditions in this workspace are recurring with occurrenceCount >= ${RETRY_STORM_OCCURRENCE_THRESHOLD}. Source: OperationalIncident.occurrenceCount.`,
     count: async (ctx) => ({
       value: await ctx.client.operationalIncident.count({
-        where: {
-          // The scope discriminator AND the workspace id. A retry storm in a
-          // DELETED workspace must not count toward this one's threshold —
-          // deleting a workspace rewrites its incidents' team_id to NULL.
-          ...workspaceIncidentWhere(ctx.teamId),
+        // COMPOSED, not spread. The scope authority carries its own boolean
+        // predicate now — the platform-internal exclusion — and this count
+        // carries one too. A spread would let one silently overwrite the
+        // other, and the query would keep working while a tenant read stopped
+        // being scoped.
+        where: workspaceIncidentWhereWith(ctx.teamId, {
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
           occurrenceCount: { gte: RETRY_STORM_OCCURRENCE_THRESHOLD },
           // The storm condition must not count ITSELF. Without this a storm
           // that re-fires five times keeps its own threshold met forever and
           // can never recover, which is a condition that is true because it
           // exists.
-          NOT: { fingerprint: { startsWith: "dashboard:reliability:retry_storms:" } },
-        },
+          //
+          // Expressed as a nested `AND` rather than a sibling `NOT`: the
+          // spread above now carries its own boolean predicate, and a
+          // top-level key set on both sides would silently discard one of
+          // them.
+          NOT: {
+            fingerprint: { startsWith: "dashboard:reliability:retry_storms:" },
+          },
+        }),
       }),
     }),
   },
@@ -563,6 +572,10 @@ async function observeIntegrity(
     const integrity = await import("./evidence-integrity-conditions.service.js");
     const parts = integrity.parseIntegrityFingerprint(ctx.fingerprint);
     if (!parts) return { ...base, activity: "NOT_APPLICABLE" };
+    // A subject id that cannot name a row is NOT_APPLICABLE, not UNKNOWN.
+    if (!identifiableSubject(parts.evidenceId)) {
+      return { ...base, activity: "NOT_APPLICABLE" };
+    }
     if (
       (which === "tsa" && parts.integrityClass !== "tsa_failure") ||
       (which === "ots" && parts.integrityClass !== "ots_failure")
@@ -580,6 +593,199 @@ async function observeIntegrity(
     return {
       ...base,
       activity: integrity.isCurrentlyFailing(record, parts.integrityClass)
+        ? "ACTIVE"
+        : "RECOVERED",
+    };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
+/**
+ * The subject id a per-record fingerprint names, or null.
+ *
+ * Every per-record fingerprint in the product is `<class>:<subjectId>` — the
+ * integrity classes, the OTS budget bridge (`OTS:<id>:REASON`), the report
+ * bridge (`REPORT:<id>:CLASS`), the package gate
+ * (`worker_package_gate:<team>:<id>:OUTCOME`), the escalation engine
+ * (`review-escalation:<reason>:<workflowId>`) and the IdP outage
+ * (`idp-outage:<connectionId>`). Parsed here, once, rather than by five
+ * probes each doing their own `split(":")`.
+ */
+function fingerprintSegment(fingerprint: string, index: number): string | null {
+  const parts = fingerprint.split(":");
+  const value = parts[index];
+  return value && value.length > 0 ? value : null;
+}
+
+/**
+ * CAN THIS STRING NAME A ROW AT ALL?
+ *
+ * Every per-record subject — Evidence, SsoConnection, EvidenceReviewWorkflow —
+ * has a `uuid` primary key. A fingerprint segment that is not a UUID therefore
+ * names NO row that could ever exist, and asking the database about it does not
+ * return null: PostgreSQL rejects the comparison and Prisma throws.
+ *
+ * That distinction is the whole reason this guard exists. A throw would be
+ * caught below and answered UNKNOWN — "we could not check" — which is the
+ * fail-closed answer and, here, the WRONG one: nothing could ever check it,
+ * because the subject is unidentifiable rather than unreachable. The honest
+ * answer is NOT_APPLICABLE, and what that permits is then decided by the
+ * source's own `notApplicableDisposition` instead of by a driver error.
+ *
+ * Getting this backwards leaves a condition nobody can ever close: the probe
+ * would answer UNKNOWN on every future attempt, for the same reason, forever.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function identifiableSubject(value: string | null): string | null {
+  if (!value) return null;
+  return UUID_RE.test(value) ? value : null;
+}
+
+/**
+ * IS THIS RECORD STILL AN AGED-PENDING OTS PROOF?
+ *
+ * Reads the record's own `otsStatus`, `otsAnchoredAtUtc` and `createdAt` and
+ * hands them to the SHARED predicate — the same one the Worker uses to decide
+ * it has spent the global anchoring budget. There is exactly one window in the
+ * product, and this is a read of it.
+ *
+ * IT CONTACTS NOTHING. No calendar server, no TSA authority, no OTS provider.
+ * Observing that a proof is aged does not retry it, re-anchor it or touch the
+ * Evidence row; the only writes any caller makes from this answer are to
+ * OperationalIncident and its satellites.
+ */
+async function observeOtsPendingAged(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const integrity = await import("./evidence-integrity-conditions.service.js");
+    const evidenceId = identifiableSubject(
+      integrity.parseOtsPendingAgedFingerprint(ctx.fingerprint),
+    );
+    if (!evidenceId) return { ...base, activity: "NOT_APPLICABLE" };
+    const record = await ctx.client.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { otsStatus: true, otsAnchoredAtUtc: true, createdAt: true },
+    });
+    // The record is gone. It can never be observed aged again, so it must stay
+    // closable rather than becoming a permanent row nobody can clear.
+    if (!record) return { ...base, activity: "NOT_APPLICABLE" };
+    return {
+      ...base,
+      activity: isOtsPendingAged(record, ctx.now) ? "ACTIVE" : "RECOVERED",
+    };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
+/**
+ * Does the record the condition names now HAVE the artifact it lacked?
+ *
+ * The recovery signal for the two pipeline bridges. A report job that failed
+ * and a package the gate denied are both statements about one record's
+ * artifacts, and the record's own column answers whether the artifact exists
+ * now — which is the only thing either condition was ever about.
+ *
+ * `segment` is where the evidence id sits in that writer's fingerprint.
+ */
+async function observeEvidenceArtifact(
+  ctx: ProbeContext,
+  which: "report" | "package",
+  segment: number,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const evidenceId = identifiableSubject(
+      fingerprintSegment(ctx.fingerprint, segment),
+    );
+    if (!evidenceId) return { ...base, activity: "NOT_APPLICABLE" };
+    const record = await ctx.client.evidence.findFirst({
+      // Bound to the workspace as well as the id: a fingerprint is not an
+      // authorization, and a probe that read across tenants would be the one
+      // place this closure could leak.
+      where: { AND: [{ id: evidenceId }, ctx.evidenceWhere] },
+      select: { latestReportVersion: true, verificationPackageVersion: true },
+    });
+    if (!record) return { ...base, activity: "NOT_APPLICABLE" };
+    const present =
+      which === "report"
+        ? record.latestReportVersion != null
+        : record.verificationPackageVersion != null;
+    return { ...base, activity: present ? "RECOVERED" : "ACTIVE" };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
+/**
+ * IS THIS IDENTITY PROVIDER STILL IN OUTAGE?
+ *
+ * `SsoConnection.outageDetectedAtUtc` is stamped when consecutive callback
+ * failures cross the threshold and cleared back to NULL by `noteSsoSuccess` on
+ * the first successful callback. That is a genuine canonical recovery signal,
+ * and the fingerprint names the connection, so the probe is bound to exactly
+ * the subject the condition is about.
+ */
+async function observeIdpOutage(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const connectionId = identifiableSubject(
+      fingerprintSegment(ctx.fingerprint, 1),
+    );
+    if (!connectionId) return { ...base, activity: "NOT_APPLICABLE" };
+    const row = await ctx.client.ssoConnection.findFirst({
+      // Workspace-bound: the connection must belong to the workspace whose
+      // operator is asking.
+      where: { id: connectionId, teamId: ctx.teamId },
+      select: { outageDetectedAtUtc: true },
+    });
+    if (!row) return { ...base, activity: "NOT_APPLICABLE" };
+    return {
+      ...base,
+      activity: row.outageDetectedAtUtc != null ? "ACTIVE" : "RECOVERED",
+    };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
+/**
+ * IS THE ESCALATED REVIEW WORKFLOW STILL OPEN?
+ *
+ * `review-escalation:<reason>:<workflowId>` names one workflow, and its own
+ * status column says whether the review it escalated is still outstanding. An
+ * escalation on a workflow that has since completed is over, and the workflow
+ * is what says so.
+ */
+const OPEN_REVIEW_STATUSES = ["ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] as const;
+
+async function observeReviewWorkflowOpen(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const workflowId = identifiableSubject(
+      fingerprintSegment(ctx.fingerprint, 2),
+    );
+    if (!workflowId) return { ...base, activity: "NOT_APPLICABLE" };
+    const row = await ctx.client.evidenceReviewWorkflow.findFirst({
+      // Scoped through the Evidence the workflow belongs to, NOT the
+      // workflow's own nullable `team_id` — the same authority the stale-review
+      // count uses, for the same reason.
+      where: { id: workflowId, evidence: ctx.evidenceWhere },
+      select: { status: true },
+    });
+    if (!row) return { ...base, activity: "NOT_APPLICABLE" };
+    return {
+      ...base,
+      activity: (OPEN_REVIEW_STATUSES as readonly string[]).includes(row.status)
         ? "ACTIVE"
         : "RECOVERED",
     };
@@ -614,10 +820,22 @@ const PROBE_HANDLERS: Readonly<
 
   "evidence.tsa_status": (ctx) => observeIntegrity(ctx, "tsa"),
   "evidence.ots_status": (ctx) => observeIntegrity(ctx, "ots"),
-  // The pending-aged source is registered and currently writes no conditions,
-  // so nothing routes here today. It reads the same column its failed sibling
-  // does, which is what the contract claims, so the claim is not empty.
-  "evidence.ots_pending_age": (ctx) => observeIntegrity(ctx, "ots"),
+  // NO LONGER A CLAIM WITH NOTHING BEHIND IT. Discovery opens these now, and
+  // this reads the SAME shared window the Worker uses to give up anchoring.
+  "evidence.ots_pending_aged": (ctx) => observeOtsPendingAged(ctx),
+
+  // `REPORT:<evidenceId>:<errorClass>` and
+  // `worker_package_gate:<team>:<evidenceId>:<outcome>` — the artifact the
+  // failed job did not produce either exists now or does not.
+  "evidence.report_present": (ctx) => observeEvidenceArtifact(ctx, "report", 1),
+  "evidence.package_present": (ctx) =>
+    observeEvidenceArtifact(ctx, "package", 2),
+
+  // `idp-outage:<connectionId>` — cleared to NULL by the first success.
+  "identity.idp_outage_state": (ctx) => observeIdpOutage(ctx),
+
+  // `review-escalation:<reason>:<workflowId>` — the workflow's own status.
+  "review.workflow_open": (ctx) => observeReviewWorkflowOpen(ctx),
 
   "pipeline.report_backlog_count": (ctx) =>
     observeAggregateByKey("pipeline.report_backlog_count", ctx),

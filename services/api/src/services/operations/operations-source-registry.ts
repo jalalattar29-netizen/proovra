@@ -396,6 +396,150 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
+  // -------------------------------------------------------------------------
+  // WRITTEN BY THEIR OWN DOMAIN, AT THE MOMENT IT HAPPENS.
+  //
+  // Thirteen production emitters — three access-control services, the
+  // security-event bridge's default branch, the destruction reviewer, two
+  // reviewer-ops engines, the operational seeder and five Worker emitters —
+  // were writing conditions this accounting had never heard of. They were not
+  // MISSING from the sweep; they are not the sweep's to find. Each is written
+  // by the domain that observes the fault, at the instant it observes it.
+  //
+  // None of them is `freshnessParticipating`: requiring the sweep to attempt a
+  // source it does not read would be declaring a coverage claim the run cannot
+  // honour, which is exactly what this accounting exists to prevent.
+  // -------------------------------------------------------------------------
+  {
+    id: "evidence_integrity.ots_budget_exhausted",
+    owner: "Evidence.otsStatus (worker OTS processor)",
+    scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
+    discovery: "written by the OTS processor when the global anchoring budget is spent",
+    fingerprint: "one condition per (Evidence, budget exhaustion)",
+    resolution: "otsStatus leaves FAILED",
+    freshnessParticipating: false,
+    surfaces: { home: true, notifications: true, operations: true },
+  },
+  {
+    id: "pipeline.report_generation_failed",
+    owner: "Evidence.latestReportVersion (worker report processor)",
+    scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
+    discovery: "written by the report processor when generation fails or exhausts retries",
+    fingerprint: "one condition per (Evidence, error class)",
+    resolution: "the record gains a report",
+    freshnessParticipating: false,
+    surfaces: { home: true, notifications: true, operations: true },
+  },
+  {
+    id: "pipeline.package_generation_denied",
+    owner: "Evidence.verificationPackageVersion (worker package gate)",
+    scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
+    discovery: "written by the package-eligibility gate when it refuses to build",
+    fingerprint: "one condition per (workspace, Evidence, denial outcome)",
+    resolution: "the record gains a verification package",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "review.escalation",
+    owner: "EvidenceReviewWorkflow.status",
+    scopeAuthority: "EVIDENCE_RELATION_SCOPE",
+    discovery: "written by the escalation engine on a HIGH/CRITICAL escalation",
+    fingerprint: "one condition per (reason, workflow)",
+    resolution: "the workflow leaves its open statuses",
+    freshnessParticipating: false,
+    surfaces: { home: true, notifications: true, operations: true },
+  },
+  {
+    id: "review.escalation_storm",
+    owner: "reviewer reconcile sweep",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written by the reviewer reconcile when one sweep crosses the storm threshold",
+    fingerprint: "one condition per (workspace, day)",
+    resolution: "an operator records a conclusion about workload",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "security.unclassified_signal",
+    owner: "SecurityEvent (unmapped event types)",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "the security-event bridge's DEFAULT branch — an event type no mapping claims",
+    fingerprint: "one condition per (worker category, event type)",
+    resolution: "an operator records the investigation outcome",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "identity.idp_outage",
+    owner: "SsoConnection.outageDetectedAtUtc",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written by SSO hardening when consecutive callback failures cross the threshold",
+    fingerprint: "one condition per SSO connection",
+    resolution: "the first successful callback clears outageDetectedAtUtc",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "identity.runtime_block",
+    owner: "adaptive runtime gate",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written when adaptive auth BLOCKS an action",
+    fingerprint: "one condition per (workspace, action, hour)",
+    resolution: "an operator records the investigation outcome",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "identity.high_risk_session_surge",
+    owner: "runtime risk recompute",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written when one recompute sweep sees the high-risk session threshold crossed",
+    fingerprint: "one condition per (workspace, dedup window)",
+    resolution: "an operator records the investigation outcome",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "governance.destruction_executed",
+    owner: "DestructionReview",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written at the moment a destruction review is executed",
+    fingerprint: "one condition per destruction review",
+    resolution: "an operator acknowledges the record; the destruction is irreversible",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "governance.notification_escalated",
+    owner: "GovernanceNotification",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written by the worker notification emitter on a HIGH/CRITICAL fan-out",
+    fingerprint: "one condition per (kind, dedupe key)",
+    resolution: "an operator records the follow-up",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "storage.immutable_drift",
+    owner: "immutable storage reconciliation",
+    scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
+    discovery: "written when the reconciler finds a record's immutable copy has drifted",
+    fingerprint: "one condition per (outcome, Evidence)",
+    resolution: "an operator records the governance investigation outcome",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    id: "platform.operational_seed",
+    owner: "operational seeding flow",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written by the demo/staging seeder, tagged with its seed run",
+    fingerprint: "one condition per (seed run, scenario)",
+    resolution: "an operator dismisses the demo row",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: false, operations: true },
+  },
 ] as const;
 
 /**

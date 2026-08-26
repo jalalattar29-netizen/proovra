@@ -114,6 +114,7 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
   async function emitProviderOutage(teamId: string, records: number) {
     for (let i = 0; i < records; i += 1) {
       await recordIncident({
+        sourceId: "evidence_integrity.tsa_failed",
         teamId,
         category: "EVIDENCE_INTEGRITY",
         severity: "HIGH",
@@ -129,6 +130,7 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
   async function emitBacklog(teamId: string, observations: number) {
     for (let i = 0; i < observations; i += 1) {
       await recordIncident({
+        sourceId: "pipeline.report_backlog",
         teamId,
         category: "REPORT",
         severity: "WARNING",

@@ -332,6 +332,7 @@ export async function createEscalation(
   if (severity === "HIGH" || severity === "CRITICAL") {
     try {
       const inc = await recordIncident({
+        sourceId: "review.escalation",
         teamId: input.teamId,
         category: "GOVERNANCE",
         severity: severity === "CRITICAL" ? "CRITICAL" : "HIGH",

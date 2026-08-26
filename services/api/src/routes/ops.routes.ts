@@ -70,6 +70,17 @@ import {
   type RemediationPermission,
 } from "../services/operations/remediation-registry.js";
 import { executeRemediation } from "../services/operations/remediation-executor.js";
+import {
+  projectConditionGroups,
+  totalConditions,
+} from "../services/operations/operations-grouping.service.js";
+import {
+  listGroupAffectedRecords,
+  AFFECTED_PAGE_DEFAULT,
+  AFFECTED_PAGE_MAX,
+  GROUPED_SCAN_LIMIT,
+} from "../services/operations/operations-group-drilldown.service.js";
+import { decodeConditionMetric } from "@proovra/shared-runtime";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   createOperationsSavedView,
@@ -1141,6 +1152,200 @@ export async function opsRoutes(app: FastifyInstance) {
           complete: page.complete,
           mayAssertAllClear: page.complete,
         },
+      });
+    },
+  );
+
+
+  // ==========================================================================
+  // THE GROUPED QUEUE, AND THE DRILL-DOWN UNDERNEATH IT
+  // ==========================================================================
+  //
+  // `projectConditionGroups` has existed and been conserved-by-test for a
+  // release, and NOTHING SERVED IT. No route returned groups and no surface
+  // rendered them, so a workspace with five thousand per-record integrity
+  // conditions got five thousand top-level rows — a queue nobody can triage,
+  // and the exact flood the grouping was written to prevent.
+  //
+  // These two routes expose the projection that already existed. They add no
+  // second grouping engine: the first calls `projectConditionGroups`, and the
+  // second pages the members of one group it produced.
+
+  const GroupsQuery = z.object({
+    teamId: z.string().uuid(),
+    status: z
+      .enum(INCIDENT_STATUSES as unknown as [string, ...string[]])
+      .optional(),
+    severity: z
+      .enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]])
+      .optional(),
+    category: z
+      .enum(INCIDENT_CATEGORIES as unknown as [string, ...string[]])
+      .optional(),
+    owner: z
+      .union([
+        z.literal("any"),
+        z.literal("me"),
+        z.literal("unassigned"),
+        z.string().uuid(),
+      ])
+      .optional(),
+    sla: z.enum(SLA_POSTURES as unknown as [string, ...string[]]).optional(),
+    q: z.string().trim().max(120).optional(),
+  });
+
+  /**
+   * GET /v1/ops/incident-groups — the queue, collapsed by source.
+   *
+   * The SAME filters the flat list accepts, applied to the SAME rows, before
+   * the SAME projection groups them. A group is not a different set of
+   * conditions; it is the set the operator asked for, presented once per
+   * source instead of once per record.
+   *
+   * BOUNDED BY CONSTRUCTION. The read is capped, the response carries one row
+   * per source rather than one per condition, and each group's inline
+   * `affectedSample` is a handful — the members are paged by the drill-down
+   * below. There is no request shape that returns five thousand records.
+   */
+  app.get(
+    "/v1/ops/incident-groups",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = GroupsQuery.parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+
+      const owner =
+        q.owner === undefined || q.owner === "any"
+          ? ({ kind: "ANY" } as const)
+          : q.owner === "unassigned"
+            ? ({ kind: "UNASSIGNED" } as const)
+            : q.owner === "me"
+              ? ({ kind: "USER", userId: actor.userId } as const)
+              : ({ kind: "USER", userId: q.owner } as const);
+
+      const now = new Date();
+      // The grouping is a PRESENTATION over the conditions the filters
+      // selected, so it reads them through the same service the flat list
+      // does — one authority, one scope, one set of filters.
+      const page = await listIncidents({
+        teamId: q.teamId,
+        sla: q.sla ?? null,
+        now,
+        status: q.status as never,
+        severity: q.severity as never,
+        category: q.category as never,
+        owner,
+        q: q.q,
+        limit: GROUPED_SCAN_LIMIT,
+        cursor: null,
+      });
+
+      const groups = projectConditionGroups(
+        page.incidents.map((row) => ({
+          id: row.id,
+          category: row.category as never,
+          fingerprint: row.fingerprint,
+          severity: row.severity,
+          status: row.status,
+          title: row.title,
+          safeSummary: row.safeSummary,
+          firstSeenAtUtc: row.firstSeenAtUtc,
+          lastSeenAtUtc: row.lastSeenAtUtc,
+          occurrenceCount: row.occurrenceCount,
+          relatedEvidenceId: row.relatedEvidenceId,
+          assignedOperatorUserId: row.assignedOperatorUserId,
+          sourceId: row.sourceId,
+          metricCurrentValue:
+            decodeConditionMetric(row.metricSnapshot)?.currentValue ?? null,
+        })),
+      );
+
+      return reply.code(200).send({
+        groups,
+        /**
+         * CONSERVATION, stated in the response.
+         *
+         * The sum of every group's `conditionCount` is the number of rows this
+         * read returned. A surface that showed groups and a total that did not
+         * add up would be two numbers nobody could reconcile.
+         */
+        conservation: {
+          conditions: page.incidents.length,
+          grouped: totalConditions(groups),
+        },
+        /**
+         * `complete: false` means the bounded read did not reach the end, so
+         * the GROUPS are a floor and nothing may conclude "all clear" from
+         * them. Carried with the data rather than inferred at each call site.
+         */
+        completeness: {
+          complete: page.complete,
+          mayAssertAllClear: page.complete,
+        },
+        sla: {
+          postures: [...SLA_POSTURES],
+          attentionPostures: [...SLA_ATTENTION_POSTURES],
+        },
+      });
+    },
+  );
+
+  /**
+   * GET /v1/ops/incident-groups/:groupKey/affected — the members, paged.
+   *
+   * The drill-down. A group says "TSA timestamping failed for 5,000 records";
+   * this is how an operator reaches record 4,312 without the queue having
+   * rendered all five thousand.
+   *
+   * ANTI-ENUMERATION. The group key is not a resource id — it is the source id
+   * every member declares — so a caller cannot probe for groups that exist in
+   * another workspace: the query is scoped to THEIR workspace first and the
+   * key is a filter within it. An unknown key and another tenant's key are the
+   * same empty page.
+   *
+   * KEYSET PAGINATION on `(firstSeenAtUtc, id)`, which is total: two rows can
+   * share an instant and cannot share an id, so a page boundary can never
+   * repeat or skip a record.
+   */
+  const AffectedQuery = z.object({
+    teamId: z.string().uuid(),
+    status: z
+      .enum(INCIDENT_STATUSES as unknown as [string, ...string[]])
+      .optional(),
+    severity: z
+      .enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]])
+      .optional(),
+    limit: z.coerce.number().int().min(1).max(AFFECTED_PAGE_MAX).optional(),
+    cursor: z.string().uuid().optional(),
+  });
+
+  app.get(
+    "/v1/ops/incident-groups/:groupKey/affected",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { groupKey } = z
+        .object({ groupKey: z.string().min(1).max(120) })
+        .parse(req.params);
+      const q = AffectedQuery.parse(req.query ?? {});
+      const actor = await requireOpsActor(req, reply, q.teamId);
+      if (!actor) return;
+
+      const limit = q.limit ?? AFFECTED_PAGE_DEFAULT;
+      const rows = await listGroupAffectedRecords({
+        teamId: q.teamId,
+        sourceId: groupKey,
+        status: q.status ?? null,
+        severity: q.severity ?? null,
+        limit,
+        cursor: q.cursor ?? null,
+      });
+
+      return reply.code(200).send({
+        groupKey,
+        records: rows.records,
+        pagination: { nextCursor: rows.nextCursor, returned: rows.records.length },
+        completeness: { complete: rows.nextCursor === null },
       });
     },
   );

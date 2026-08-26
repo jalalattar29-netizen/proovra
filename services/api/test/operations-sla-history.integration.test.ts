@@ -98,6 +98,7 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
       "../src/services/observability/incident.service.js"
     );
     const result = await recordIncident({
+      sourceId: "evidence_integrity.ots_failed",
       teamId: input.teamId,
       category: "EVIDENCE_INTEGRITY",
       severity: (input.severity ?? "HIGH") as never,
@@ -466,6 +467,7 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
         where: { id },
       });
       await recordIncident({
+        sourceId: "pipeline.report_backlog",
         teamId: A.teamId,
         category: existing.category as never,
         severity: existing.severity as never,
@@ -576,6 +578,7 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
         "../src/services/observability/incident.service.js"
       );
       await recordIncident({
+        sourceId: "pipeline.report_backlog",
         teamId: A.teamId,
         category: existing.category as never,
         severity: existing.severity as never,

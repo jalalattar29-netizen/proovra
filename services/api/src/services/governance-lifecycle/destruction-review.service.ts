@@ -768,6 +768,7 @@ async function executeApprovedReview(
   try {
     await recordIncident(
       {
+        sourceId: "governance.destruction_executed",
         teamId: input.teamId,
         category: "GOVERNANCE",
         severity: "HIGH",

@@ -71,6 +71,10 @@ export const COUNTER_NAMES = [
   "operational_incident_suppressed",
   // Phase 32.8C control plane — incident assignment lifecycle.
   "operational_incident_assigned",
+  // A condition whose source no registry entry claims. It should be zero in
+  // production — the emitter-totality gate refuses a build that would raise
+  // it — so any value at all names a source somebody shipped unregistered.
+  "operational_incident_unregistered_source",
   // Operations remediation — one bump per ACCEPTED request. Deliberately not
   // per completion: this module cannot know whether the queued job succeeded,
   // and a counter that implied it could would be the same false-completion

@@ -419,6 +419,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
 
   it("recordIncident stamps WORKSPACE for a workspace write and never for a null one", async () => {
     const withTeam = await incidents.recordIncident({
+      sourceId: "pipeline.report_backlog",
       teamId: teamA.teamId,
       category: "REPORT",
       severity: "WARNING",
@@ -429,6 +430,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     expect(withTeam.incident.scope).toBe("WORKSPACE");
 
     const withoutTeam = await incidents.recordIncident({
+      sourceId: "pipeline.report_backlog",
       teamId: null,
       category: "REPORT",
       severity: "WARNING",
@@ -454,6 +456,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
 
   it("suppression silences the condition without resolving it or touching the source", async () => {
     const created = await incidents.recordIncident({
+      sourceId: "pipeline.report_backlog",
       teamId: teamA.teamId,
       category: "REPORT",
       severity: "HIGH",
@@ -491,6 +494,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
   it("a re-observed condition ticks its occurrence rather than creating a twin", async () => {
     const fingerprint = `reopen-probe:${randomUUID()}`;
     const first = await incidents.recordIncident({
+      sourceId: "pipeline.report_backlog",
       teamId: teamA.teamId,
       category: "PACKAGE",
       severity: "WARNING",
@@ -499,6 +503,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
       safeSummary: "First observation.",
     });
     const second = await incidents.recordIncident({
+      sourceId: "pipeline.report_backlog",
       teamId: teamA.teamId,
       category: "PACKAGE",
       severity: "WARNING",

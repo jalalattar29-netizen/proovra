@@ -480,6 +480,7 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
     created.teamIds.add(ctx.teamId);
     const fingerprint = `identity:probe:${Math.random().toString(36).slice(2, 10)}`;
     const first = await incidents.recordIncident({
+      sourceId: "pipeline.report_backlog",
       teamId: ctx.teamId,
       category: "IDENTITY_SECURITY",
       severity: "HIGH",
@@ -496,6 +497,7 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
     // The very observation that used to erase it. This source never had the
     // private guard evidence-integrity carried, which is why it is here.
     await incidents.recordIncident({
+      sourceId: "pipeline.report_backlog",
       teamId: ctx.teamId,
       category: "IDENTITY_SECURITY",
       severity: "HIGH",

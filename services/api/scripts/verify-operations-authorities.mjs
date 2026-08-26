@@ -230,7 +230,16 @@ check("every registered source declares every lifecycle field", () => {
   if (sources === 0) throw new Error("contract has no sources");
   const REQUIRED = [
     "category",
-    "identity",
+    // `identity` became `legacyFingerprints` + `producers` +
+    // `discoveryState` when lifecycle identity stopped being INFERRED from a
+    // fingerprint and started being DECLARED by the writer. The old field
+    // encoded three separate facts — which fingerprint shape a source used to
+    // write, whether anything writes it now, and which module does — and
+    // fifteen production emitters fell through it precisely because it could
+    // only express the first.
+    "producers",
+    "discoveryState",
+    "legacyFingerprints",
     "resolutionAuthority",
     "activityProbeKey",
     "recoveryPolicy",
@@ -244,6 +253,10 @@ check("every registered source declares every lifecycle field", () => {
     "metricContract",
     "drillDownContract",
     "notApplicableDisposition",
+    // A source that lets a person close it must say whether the conclusion is
+    // written down. Counted here so a field quietly made optional to unblock
+    // a new source shows up before anyone notices the semantics loosened.
+    "requiresResolutionNote",
     "rationale",
   ];
   for (const field of REQUIRED) {

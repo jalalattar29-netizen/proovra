@@ -25,9 +25,11 @@ import {
   OCCURRENCE_WHILE_SUPPRESSED_EVENT,
   REOPENED_EVENT,
   reopenReasonFor,
+  isRegisteredOperationsSource,
   resolveConditionSource,
   RESOLUTION_EVENT_ORIGINS,
   type IncidentTransitionStatus,
+  type OperationsSourceId,
   type ResolutionOrigin,
 } from "@proovra/shared-runtime";
 
@@ -81,6 +83,15 @@ async function readWorkerResolutionOrigin(
 // integration / reconciliation failures that previously vanished into
 // BullMQ DLQs without ever surfacing in /v1/me/inbox.
 export type RecordWorkerIncidentInput = {
+  /**
+   * WHICH REGISTERED OPERATIONS SOURCE THIS CONDITION COMES FROM.
+   *
+   * REQUIRED, exactly as in the API writer, and for the same reason: five
+   * Worker emitters were writing conditions no registered source claimed, so
+   * they resolved to a contract that let an operator close a record's failed
+   * report while the record still had no report.
+   */
+  sourceId: OperationsSourceId;
   teamId?: string | null;
   category:
     | "UPLOAD"
@@ -294,6 +305,8 @@ export async function recordWorkerIncident(
           category: categoryToPrismaEnum(input.category),
           severity: severityToPrismaEnum(input.severity),
           status: prismaPkg.IncidentStatus.OPEN,
+          // The declared source, persisted, so no reader infers it.
+          sourceId: input.sourceId,
           fingerprint,
           title,
           safeSummary,
@@ -342,10 +355,27 @@ export async function recordWorkerIncident(
     // contract for its SUPPRESSION and RECURRENCE semantics only — and both of
     // those already flow through `decideObservationTransition` below. Reading
     // it here is what makes that agreement checkable rather than asserted.
-    const { lifecycle } = resolveConditionSource({
+    const { lifecycle, diagnostic } = resolveConditionSource({
+      sourceId: input.sourceId,
       category: input.category,
       fingerprint,
     });
+    if (diagnostic) {
+      // Bounded and safe to log: the id the writer passed, the category, and
+      // the workspace's own id. Never the fingerprint, the title, the queue
+      // name or a provider — an unregistered source is a development fault,
+      // and its diagnostic must not become a leak.
+      logger.warn(
+        {
+          diagnostic,
+          sourceId: String(input.sourceId).slice(0, 120),
+          category: input.category,
+          workspaceId: teamId,
+          writer: "worker.recordWorkerIncident",
+        },
+        "operations.unregistered_condition_source",
+      );
+    }
     const decision = decideObservationTransition({
       currentStatus: existing.status as IncidentTransitionStatus,
       observation: "SOURCE_ACTIVE",

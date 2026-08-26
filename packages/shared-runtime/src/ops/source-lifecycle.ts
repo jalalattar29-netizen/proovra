@@ -5,24 +5,42 @@
  * WHAT WENT WRONG, AND WHY THIS FILE EXISTS
  * ---------------------------------------------------------------------------
  * Resolution authority used to be declared per `IncidentCategory`. There are
- * fourteen categories and twenty-two Operations SOURCES, and the mapping is
- * neither one-to-one nor close to it: four different sources write category
- * WORKER, and three unrelated writers put conditions under REPORT. So a rule
- * stated per category was a rule stated about a set nobody had enumerated.
+ * fourteen categories and far more Operations SOURCES, and the mapping is
+ * neither one-to-one nor close to it: four sources write category WORKER, and
+ * six unrelated writers put conditions under GOVERNANCE. So a rule stated per
+ * category was a rule stated about a set nobody had enumerated.
  *
  * The measured consequence: `pipeline.report_backlog` inherited
  * `REPORT -> OPERATOR_MAY_RESOLVE`, so an operator could declare
  *
  *     "Report backlog above threshold (26)"
  *
- * RESOLVED while all twenty-six records were still above the threshold. The
- * next sweep reopened it — correctly, and minutes later — so the workspace
- * displayed a false all-clear for up to one reconciliation interval, and the
- * operator learned that the button does not mean anything.
+ * RESOLVED while all twenty-six records were still above the threshold.
  *
- * Authority is a property of the SOURCE, because the question it answers —
- * "can this condition's own source tell us whether it is still true?" — is a
- * question about the source and about nothing else.
+ * ---------------------------------------------------------------------------
+ * WHAT WENT WRONG THE SECOND TIME, AND WHY THIS FILE CHANGED AGAIN
+ * ---------------------------------------------------------------------------
+ * The first correction resolved a condition's source from its FINGERPRINT.
+ * That was better than category and still an inference: it worked for the
+ * eleven sources whose fingerprints the sweep writes, and every OTHER
+ * production emitter — fifteen of them, in both hosts — fell through to a
+ * category residual or to an "unregistered" contract.
+ *
+ * And that unregistered contract was `OPERATOR_DECISION`. So a condition the
+ * system could not identify AT ALL was operator-resolvable, which is the exact
+ * inversion of the fail-closed rule the whole correction exists to establish.
+ *
+ * Two things changed:
+ *
+ *   1. IDENTITY IS DECLARED, NOT INFERRED. Every writer passes a typed
+ *      `sourceId`, persisted on the row. Fingerprints remain the DEDUPLICATION
+ *      identity and are no longer the lifecycle authority. The fingerprint
+ *      table below survives only to map rows written before the column
+ *      existed, and only where one fingerprint means exactly one source.
+ *
+ *   2. UNKNOWN FAILS CLOSED. A missing, unknown or ambiguous source is
+ *      `NO_DIRECT_RESOLUTION` with activity `UNKNOWN`. Nothing anywhere falls
+ *      back to `OPERATOR_DECISION`.
  *
  * ---------------------------------------------------------------------------
  * WHAT IS DELIBERATELY SEPARATE
@@ -35,17 +53,16 @@
  *
  * They come apart in both directions, which is why conflating them was a
  * defect rather than a shortcut. `pipeline.report_backlog` has a real
- * remediation (regenerate the artifacts) AND is source-truth: pressing the
- * button is allowed, calling the backlog gone is not. `tsa_failed` has NO safe
- * remediation at all and is also source-truth. Nothing may read
- * `SAFE_REMEDIATION` as implying `OPERATOR_DECISION`.
+ * remediation AND is source-truth: pressing the button is allowed, calling the
+ * backlog gone is not. `tsa_failed` has NO safe remediation at all and is also
+ * source-truth. Nothing may read `SAFE_REMEDIATION` as implying
+ * `OPERATOR_DECISION`.
  *
  * ---------------------------------------------------------------------------
  * WHY IT LIVES IN shared-runtime
  * ---------------------------------------------------------------------------
- * Both hosts write operational conditions — the API's `recordIncident` and the
- * Worker's `recordWorkerIncident`. A lifecycle contract that lived in one of
- * them would be a contract the other could not consult, which is exactly how
+ * Both hosts write operational conditions. A lifecycle contract that lived in
+ * one of them would be a contract the other could not consult, which is how
  * the transition rule drifted before `incident-transition-authority.ts`
  * brought it here.
  *
@@ -70,14 +87,16 @@ import type { IncidentCategory } from "@proovra/shared";
  *   operator may not contradict an active source.
  *
  * OPERATOR_DECISION
- *   Resolution is a human operational conclusion, not a technical fact — the
- *   condition records something that HAPPENED, and whether the workspace is
- *   done with it is a judgement. Never used merely because no probe exists.
+ *   The condition records something that HAPPENED and cannot become untrue,
+ *   and closing it is a human conclusion about the investigation — not a
+ *   technical fact. Never used because a probe is merely missing, and always
+ *   paired with `requiresResolutionNote`.
  *
  * NO_DIRECT_RESOLUTION
  *   The workspace cannot truthfully declare the condition recovered and the
  *   platform has no safe probe. There is no Resolve action at all: only
- *   acknowledge, assign, suppress, and whatever safe remediation exists.
+ *   acknowledge, assign, suppress, and whatever safe remediation exists. This
+ *   is also the answer for every unknown and ambiguous condition.
  */
 export const RESOLUTION_AUTHORITIES = [
   "SOURCE_TRUTH",
@@ -112,14 +131,16 @@ export const OPERATIONS_AUDIENCES = [
   /** The workspace has a safe action, remediation, assignment or workflow. */
   "TENANT_ACTIONABLE",
   /**
-   * The condition affects the workspace and the workspace cannot repair the
+   * The condition affects THIS workspace and the workspace cannot repair the
    * component. Shown as bounded health information, never with a Resolve
    * control that would pretend otherwise.
    */
   "TENANT_ADVISORY",
   /**
-   * Internal platform telemetry with nothing actionable for the tenant. It
-   * belongs on the platform observability surface, not in a tenant queue.
+   * GLOBAL infrastructure telemetry. Not tenant-specific, nothing a tenant can
+   * do, and — critically — the SAME platform fault would otherwise be
+   * duplicated into every workspace's queue, counts and readiness. It belongs
+   * on the platform observability surface and nowhere else.
    */
   "PLATFORM_INTERNAL",
 ] as const;
@@ -140,7 +161,7 @@ export type SourceCardinality = (typeof SOURCE_CARDINALITIES)[number];
 export const SOURCE_RECOVERY_POLICIES = [
   /** A probe observes recovery and the condition resolves itself. */
   "PROBE_AUTO_RESOLVE",
-  /** No probe. A person decides the work is finished. */
+  /** No probe. A person concludes the investigation is finished. */
   "OPERATOR_CLOSES",
   /** Neither. The condition is carried until its own surface clears it. */
   "NO_RECOVERY_SIGNAL",
@@ -169,9 +190,8 @@ export type SourceSuppressionPolicy =
 /**
  * What Operations is prepared to DO about conditions from this source.
  *
- * The same vocabulary the API source registry has always used, moved here so
- * remediation and resolution are declared side by side and the difference
- * between them is impossible to miss.
+ * Declared beside resolution authority so the difference between them is
+ * impossible to miss.
  */
 export const REMEDIATION_DISPOSITIONS = [
   /** Becomes an OperationalIncident with assignment, SLA and acknowledgement. */
@@ -249,6 +269,29 @@ export type NotApplicableDisposition =
   (typeof NOT_APPLICABLE_DISPOSITIONS)[number];
 
 /**
+ * IS THIS SOURCE ACTUALLY PRODUCING CONDITIONS?
+ *
+ * A registered source with no producer used to be indistinguishable from a
+ * working one — `evidence_integrity.ots_pending_aged` sat in the registry with
+ * a probe and a threshold for an entire release while discovery iterated only
+ * the two FAILED classes, so it looked covered and observed nothing.
+ *
+ * ACTIVE               a production emitter writes it, and the totality gate
+ *                      requires that emitter to exist;
+ * NOT_YET_DISCOVERED   registered, deliberately, with NO producer today. It is
+ *                      recorded rather than deleted so the condition it
+ *                      describes is on the roadmap instead of forgotten — and
+ *                      it may NEVER be reported as production-complete;
+ * DISABLED             a producer exists in the tree and is switched off.
+ */
+export const SOURCE_DISCOVERY_STATES = [
+  "ACTIVE",
+  "NOT_YET_DISCOVERED",
+  "DISABLED",
+] as const;
+export type SourceDiscoveryState = (typeof SOURCE_DISCOVERY_STATES)[number];
+
+/**
  * THE PROBE KEYS.
  *
  * One key per deterministic observation the product can actually make. The
@@ -265,7 +308,11 @@ export const ACTIVITY_PROBE_KEYS = [
   "NONE",
   "evidence.tsa_status",
   "evidence.ots_status",
-  "evidence.ots_pending_age",
+  "evidence.ots_pending_aged",
+  "evidence.report_present",
+  "evidence.package_present",
+  "identity.idp_outage_state",
+  "review.workflow_open",
   "pipeline.report_backlog_count",
   "pipeline.package_backlog_count",
   "pipeline.signed_without_report_aged_count",
@@ -278,44 +325,51 @@ export const ACTIVITY_PROBE_KEYS = [
 export type ActivityProbeKey = (typeof ACTIVITY_PROBE_KEYS)[number];
 
 // ===========================================================================
-// CONDITION IDENTITY — WHICH SOURCE OWNS A GIVEN CONDITION
+// LEGACY FINGERPRINT IDENTITY
 // ===========================================================================
 
 /**
- * How a persisted condition is traced back to the source that owns it.
+ * How a row written BEFORE `source_id` existed is traced to its source.
  *
- * FINGERPRINT FIRST, CATEGORY NEVER ALONE. Category cannot do this job: four
- * sources write WORKER and three unrelated writers put conditions under
- * REPORT, so a category lookup would hand `pipeline.report_backlog`'s
- * backlog-count probe to a per-record report-generation failure and refuse a
- * resolution on a number that has nothing to do with it.
+ * This is a backfill and legacy-read aid, NOT the lifecycle authority. Every
+ * new write carries an explicit `sourceId`; these patterns exist so the rows
+ * already in production resolve to the same contract their writer would now
+ * declare, and so the migration's backfill and the runtime agree by
+ * construction rather than by two lists happening to match.
  *
- * FINGERPRINT_PREFIX     the sweep's own workspace-level fingerprints, which
- *                        are `<prefix>:<teamId>` and therefore matched on the
- *                        prefix and not on the whole string;
- * FINGERPRINT_CLASS      the per-record integrity fingerprints, `<class>:<id>`;
- * CATEGORY_RESIDUAL      a source that writes its own conditions from its own
- *                        domain and OWNS its category outright — claimed only
- *                        where no sweep source shares that category identity;
- * NOT_DISCOVERED         registered, and currently producing no conditions.
+ * A pattern is declared ONLY where one fingerprint shape means exactly one
+ * source. Anything ambiguous is deliberately absent, and an ambiguous legacy
+ * row therefore fails closed to NO_DIRECT_RESOLUTION rather than being guessed
+ * into a contract that might let somebody close it.
+ *
+ * PREFIX  matched as `<prefix>:…` — the separator is part of the match, so a
+ *         future `report_backlog_v2` cannot inherit `report_backlog`;
+ * EXACT   the whole fingerprint.
  */
-export type SourceConditionIdentity =
-  | { readonly kind: "FINGERPRINT_PREFIX"; readonly prefix: string }
-  | { readonly kind: "FINGERPRINT_CLASS"; readonly className: string }
-  | { readonly kind: "CATEGORY_RESIDUAL"; readonly category: IncidentCategory }
-  | { readonly kind: "NOT_DISCOVERED" };
+export type LegacyFingerprintPattern =
+  | { readonly kind: "PREFIX"; readonly prefix: string }
+  | { readonly kind: "EXACT"; readonly fingerprint: string };
 
 // ===========================================================================
 // THE CONTRACT
 // ===========================================================================
 
 export type OperationsSourceLifecycle = {
-  /** Stable source id. The same id the discovery accounting records. */
+  /** Stable source id. Persisted on every new row and passed by every writer. */
   readonly sourceId: string;
   /** The incident category conditions from this source carry. */
   readonly category: IncidentCategory;
-  /** How a persisted condition is traced back to this source. */
-  readonly identity: SourceConditionIdentity;
+  /**
+   * The production modules that EMIT this source, by repo-relative path.
+   *
+   * The totality gate reads this: an ACTIVE source with no producer in the
+   * tree fails, and a producer that passes a source id absent from this
+   * registry fails. Empty is legal only for NOT_YET_DISCOVERED.
+   */
+  readonly producers: readonly string[];
+  readonly discoveryState: SourceDiscoveryState;
+  /** Legacy fingerprint shapes, for rows written before `source_id`. */
+  readonly legacyFingerprints: readonly LegacyFingerprintPattern[];
   readonly resolutionAuthority: ResolutionAuthority;
   /** The observation that backs a SOURCE_TRUTH claim. `NONE` otherwise. */
   readonly activityProbeKey: ActivityProbeKey;
@@ -332,26 +386,44 @@ export type OperationsSourceLifecycle = {
   readonly metricContract: SourceMetricContract;
   readonly drillDownContract: SourceDrillDownContract;
   readonly notApplicableDisposition: NotApplicableDisposition;
+  /**
+   * Must an OPERATOR_DECISION resolution carry a note?
+   *
+   * True for every OPERATOR_DECISION source, enforced by a check below rather
+   * than by remembering: the whole meaning of that authority is "a person
+   * concluded something", and a conclusion nobody wrote down is
+   * indistinguishable from a click.
+   */
+  readonly requiresResolutionNote: boolean;
   /** Why this authority, in one sentence, for the person who reads the row. */
   readonly rationale: string;
 };
 
 /**
- * THE TWENTY-TWO SOURCES, UNGROUPED.
+ * THE REGISTERED SOURCES, UNGROUPED.
  *
  * Every field is required by the type, so a new source cannot compile without
  * an answer to every lifecycle question. There is no default and no fallback
  * to `OPERATOR_DECISION`: an undecided source does not build.
+ *
+ * The count is not a target. It grew from 22 to 35 because thirteen real
+ * production emitters were writing conditions no registered source claimed,
+ * and forcing semantically different conditions into an existing row to
+ * preserve a number would have been the category defect again, one level down.
  */
 export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] =
   Object.freeze([
-    // -----------------------------------------------------------------------
+    // =======================================================================
     // PROVABILITY — per record, one condition per record per failure class.
-    // -----------------------------------------------------------------------
+    // =======================================================================
     {
       sourceId: "evidence_integrity.tsa_failed",
       category: "EVIDENCE_INTEGRITY",
-      identity: { kind: "FINGERPRINT_CLASS", className: "tsa_failure" },
+      producers: [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "tsa_failure" }],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "evidence.tsa_status",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -360,8 +432,8 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       // A timestamp proves a record existed at a moment. Re-contacting the
       // authority now would mint a token whose genTime is LATER than the
       // evidence it certifies — a different and weaker claim wearing the
-      // original's name. There is no safe remediation, and there is also no
-      // operator resolution: the record's own column decides.
+      // original's name. No safe remediation, and no operator resolution
+      // either: the record's own column decides.
       remediationDisposition: "NO_SAFE_REMEDIATION_AUTHORITY",
       requiredCapability: "evidence.read",
       audience: "TENANT_ACTIONABLE",
@@ -372,13 +444,18 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       // The record can be deleted. A condition whose record is gone can never
       // be observed active again, so it must remain closable.
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
       rationale:
         "Evidence.tsaStatus is a deterministic per-record column, and the recovery sweep already closes these from it.",
     },
     {
       sourceId: "evidence_integrity.ots_failed",
       category: "EVIDENCE_INTEGRITY",
-      identity: { kind: "FINGERPRINT_CLASS", className: "ots_failure" },
+      producers: [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "ots_failure" }],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "evidence.ots_status",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -386,7 +463,6 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       // Unlike TSA, an OTS anchor is a calendar commitment that can honestly
       // be re-attempted: retrying does not restate WHEN the record existed.
-      // A real remediation, and still not a licence to declare it over.
       remediationDisposition: "SAFE_REMEDIATION",
       requiredCapability: "evidence.publish_verify",
       audience: "TENANT_ACTIONABLE",
@@ -395,20 +471,25 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "NONE",
       drillDownContract: "NONE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
       rationale:
         "Evidence.otsStatus is a deterministic per-record column read by the same recovery sweep.",
     },
     {
       sourceId: "evidence_integrity.ots_pending_aged",
       category: "EVIDENCE_INTEGRITY",
-      // REGISTERED AND CURRENTLY SILENT. `syncEvidenceIntegrityConditions`
-      // iterates the two FAILED classes only, so no persisted condition
-      // carries this source's identity today. Recorded as NOT_DISCOVERED
-      // rather than given a fingerprint it does not write, because a claimed
-      // identity that matches nothing is worse than an admitted silence.
-      identity: { kind: "NOT_DISCOVERED" },
+      // NO LONGER A GHOST. It sat here for a release with a probe, a threshold
+      // and no producer: `syncEvidenceIntegrityConditions` iterated the two
+      // FAILED classes only, so the source looked covered and observed
+      // nothing. Discovery now opens it from the SAME canonical OTS global
+      // budget the Worker uses to give up.
+      producers: [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "ots_pending_aged" }],
       resolutionAuthority: "SOURCE_TRUTH",
-      activityProbeKey: "evidence.ots_pending_age",
+      activityProbeKey: "evidence.ots_pending_aged",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
@@ -420,20 +501,49 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "NONE",
       drillDownContract: "NONE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
       rationale:
-        "The pending-upgrade window is read from Evidence.otsStatus, the same deterministic column its failed sibling uses.",
+        "A record still PENDING past the canonical OTS global budget is a deterministic read of otsStatus and the record's own age; the same predicate answers recovery.",
     },
-    // -----------------------------------------------------------------------
-    // THE ARTIFACT PIPELINE — one workspace-level condition over a count.
-    // -----------------------------------------------------------------------
+    {
+      sourceId: "evidence_integrity.ots_budget_exhausted",
+      category: "WORKER",
+      producers: ["services/worker/src/ots-upgrade.processor.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "OTS" }],
+      // TERMINAL BY DESIGN — the processor stops re-enqueueing — but not
+      // unobservable: it writes otsStatus FAILED, which is the same column its
+      // sibling reads, and which changes if the proof is ever re-anchored
+      // through the explicit user-authorized remediation.
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "evidence.ots_status",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_REMEDIATION",
+      requiredCapability: "evidence.publish_verify",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "The processor writes otsStatus=FAILED when the global anchoring budget is spent; that column is the recovery signal and nothing else is.",
+    },
+    // =======================================================================
+    // THE ARTIFACT PIPELINE — workspace-level counts, and per-record failures.
+    // =======================================================================
     {
       sourceId: "pipeline.report_backlog",
       category: "REPORT",
-      identity: {
-        kind: "FINGERPRINT_PREFIX",
-        prefix: "dashboard:pipeline:report_backlog",
-      },
-      // THE DEFECT THIS CLOSES. Inherited OPERATOR_MAY_RESOLVE from category
+      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "dashboard:pipeline:report_backlog" },
+      ],
+      // THE ORIGINAL DEFECT. Inherited OPERATOR_MAY_RESOLVE from category
       // REPORT and let an operator declare a 26-record backlog over while all
       // 26 records were still above the threshold.
       resolutionAuthority: "SOURCE_TRUTH",
@@ -450,16 +560,18 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       drillDownContract: "AFFECTED_RECORDS",
       // A workspace-level count cannot become unidentifiable.
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
         "The count of SIGNED evidence with no report is re-countable on demand, so whether the backlog is still above threshold is a fact and not a judgement.",
     },
     {
       sourceId: "pipeline.package_backlog",
       category: "PACKAGE",
-      identity: {
-        kind: "FINGERPRINT_PREFIX",
-        prefix: "dashboard:pipeline:package_backlog",
-      },
+      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "dashboard:pipeline:package_backlog" },
+      ],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "pipeline.package_backlog_count",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -473,16 +585,18 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
         "The count of REPORTED evidence with no verification package is re-countable on demand.",
     },
     {
       sourceId: "pipeline.signed_without_report_aged",
       category: "GOVERNANCE",
-      identity: {
-        kind: "FINGERPRINT_PREFIX",
-        prefix: "dashboard:integrity:unsigned_aged",
-      },
+      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "dashboard:integrity:unsigned_aged" },
+      ],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "pipeline.signed_without_report_aged_count",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -496,19 +610,76 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
         "The aged uploaded-but-unsigned set is a re-countable population measured against a fixed window.",
     },
-    // -----------------------------------------------------------------------
-    // COORDINATION — human work, counted, but still a countable fact.
-    // -----------------------------------------------------------------------
+    {
+      sourceId: "pipeline.report_generation_failed",
+      category: "REPORT",
+      producers: ["services/worker/src/processor.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "REPORT" }],
+      // ACTIVE STATE, not an event. The condition says "this record has no
+      // report"; the record either has one now or it does not, and that is a
+      // column read. It was falling through to the unregistered contract,
+      // which made it operator-resolvable while the record still had no
+      // report.
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "evidence.report_present",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_REMEDIATION",
+      requiredCapability: "evidence.generate_report",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "Evidence.latestReportVersion answers whether the report the job failed to produce now exists.",
+    },
+    {
+      sourceId: "pipeline.package_generation_denied",
+      category: "GOVERNANCE",
+      producers: ["services/worker/src/governance/package-eligibility-gate.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "worker_package_gate" }],
+      // The gate refused to build a package for one record. Whether that
+      // record now HAS a package is a column read, and it is the only honest
+      // recovery signal — the governance state that caused the denial is the
+      // Worker's to evaluate, not the resolve path's.
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "evidence.package_present",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_REMEDIATION",
+      requiredCapability: "evidence.generate_report",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "Evidence.verificationPackageVersion answers whether the package the gate denied now exists.",
+    },
+    // =======================================================================
+    // COORDINATION — human work, counted, and still a countable fact.
+    // =======================================================================
     {
       sourceId: "review.stale_workflows",
       category: "WORKER",
-      identity: {
-        kind: "FINGERPRINT_PREFIX",
-        prefix: "dashboard:review:stale_assignments",
-      },
+      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "dashboard:review:stale_assignments" },
+      ],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "review.stale_workflow_count",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -522,16 +693,73 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
-        "Whether untouched review workflows still exist past the window is a count, not an opinion — the workflows either moved or they did not.",
+        "Whether untouched review workflows still exist past the window is a count — the workflows either moved or they did not.",
+    },
+    {
+      sourceId: "review.escalation",
+      category: "GOVERNANCE",
+      producers: ["services/api/src/services/reviewer-ops/escalation-engine.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "review-escalation" }],
+      // ACTIVE STATE. The fingerprint names one workflow, and that workflow's
+      // own status says whether it is still open. An escalation on a workflow
+      // that has since completed is over, and the workflow says so.
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "review.workflow_open",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "review.queue.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "The fingerprint names one EvidenceReviewWorkflow, and its status column says whether the escalated review is still open.",
+    },
+    {
+      sourceId: "review.escalation_storm",
+      category: "GOVERNANCE",
+      producers: [
+        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "reviewer:escalation_storm" }],
+      // A statement about ONE PAST SWEEP, keyed by date: "this reconcile
+      // created N escalations". Nothing can make that untrue, and there is no
+      // later state to read. Closing it means an operator looked at workload
+      // distribution and concluded.
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "NEW_CONDITION",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "review.queue.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "The fingerprint is keyed by DATE and records what one sweep did; no later state can contradict it, so closure is the operator's written conclusion about workload.",
     },
     {
       sourceId: "coordination.backlog_stale",
       category: "GOVERNANCE",
-      identity: {
-        kind: "FINGERPRINT_PREFIX",
-        prefix: "dashboard:coordination:stale_backlog",
-      },
+      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "dashboard:coordination:stale_backlog" },
+      ],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "coordination.stale_backlog_count",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -545,16 +773,18 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
         "Unresolved comments and annotations past the window are counted from their own resolvedAtUtc columns.",
     },
     {
       sourceId: "queue.retry_storm",
       category: "WORKER",
-      identity: {
-        kind: "FINGERPRINT_PREFIX",
-        prefix: "dashboard:reliability:retry_storms",
-      },
+      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "dashboard:reliability:retry_storms" },
+      ],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "queue.retry_storm_count",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -570,19 +800,27 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "AFFECTED_RECORDS",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
         "The storm is defined as a count of this workspace's own re-firing conditions, which is re-countable at any moment.",
     },
-    // -----------------------------------------------------------------------
-    // PLATFORM HEALTH — true about the platform, shown to the tenant.
-    // -----------------------------------------------------------------------
+    // =======================================================================
+    // PLATFORM HEALTH.
+    //
+    // Two different things wear similar names, and the audience split is the
+    // whole point: a workspace-bound sampler delay is this tenant's business,
+    // and a global worker heartbeat is not — the second was being duplicated
+    // into every tenant's queue, counts and readiness as if each workspace had
+    // its own broken worker.
+    // =======================================================================
     {
       sourceId: "platform.telemetry_stale",
       category: "WORKER",
-      identity: {
-        kind: "FINGERPRINT_PREFIX",
-        prefix: "dashboard:telemetry:queue_stale",
-      },
+      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "dashboard:telemetry:queue_stale" },
+      ],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "platform.telemetry_age",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -590,24 +828,28 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "GUIDANCE_ONLY",
       requiredCapability: "operations.view",
-      // The tenant cannot restart the sampler. Advisory, and therefore never
-      // carrying a Resolve control that would pretend they could.
+      // WORKSPACE-BOUND: the scanner reads QueueTelemetrySnapshot WHERE
+      // teamId = this workspace, so a stale sampler here is a fact about THIS
+      // tenant's queue visibility. The tenant cannot restart the sampler, so
+      // advisory — but they are entitled to know their own telemetry is dark.
       audience: "TENANT_ADVISORY",
       cardinality: "AGGREGATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "AGE_THRESHOLD",
       drillDownContract: "NONE",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
-        "The age of the freshest telemetry snapshot is a clock reading, so recovery is observed rather than asserted.",
+        "The age of THIS workspace's freshest telemetry snapshot is a clock reading, so recovery is observed rather than asserted.",
     },
     {
       sourceId: "platform.worker_heartbeat_stale",
       category: "WORKER",
-      identity: {
-        kind: "FINGERPRINT_PREFIX",
-        prefix: "dashboard:worker:heartbeat_stale",
-      },
+      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "dashboard:worker:heartbeat_stale" },
+      ],
       resolutionAuthority: "SOURCE_TRUTH",
       activityProbeKey: "platform.worker_heartbeat_age",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
@@ -615,35 +857,48 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "GUIDANCE_ONLY",
       requiredCapability: "operations.view",
-      audience: "TENANT_ADVISORY",
+      // GLOBAL. The scanner reads WorkerTelemetrySnapshot WHERE
+      // workerKind = 'WORKER' with NO tenant predicate — one process-wide
+      // heartbeat — and then writes a per-workspace fingerprint, so ONE dead
+      // worker opened one identical condition in every workspace on the
+      // platform, each counted, each blocking that tenant's all-clear. It is
+      // platform telemetry and belongs on the platform surface.
+      audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "AGE_THRESHOLD",
       drillDownContract: "NONE",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
-        "The age of the last persisted heartbeat is a clock reading against a fixed window.",
+        "The heartbeat read carries no tenant predicate: it is one global fact, and duplicating it per workspace made every tenant un-clearable for a fault none of them owned.",
     },
-    // -----------------------------------------------------------------------
-    // DOMAIN-WRITTEN CONDITIONS.
+    // =======================================================================
+    // THE SECURITY-EVENT BRIDGE.
     //
-    // These are not found by the sweep. Their own domain writes them at the
-    // moment something happens, and each one owns its category outright — no
-    // sweep source shares a category identity with any of them, so a residual
-    // category match is unambiguous rather than a guess.
-    // -----------------------------------------------------------------------
+    // ONE writer — `security-event.service.ts` — maps a SecurityEvent type to
+    // a category and emits `<category>:security_event:<eventType>`. Each
+    // category branch is a different operational domain, so each is its own
+    // source; what they share is their SHAPE: an immutable record that a class
+    // of security event was observed. Nothing later can make one untrue, and
+    // there is no live subject to probe — the fingerprint names an event
+    // CLASS, not a destination, a provider or a connection.
+    //
+    // So they are OPERATOR_DECISION, and every one of them requires a written
+    // conclusion. Not because a probe is missing — that would be the banned
+    // reasoning — but because "we investigated this signal and it is dealt
+    // with" is genuinely the only thing closure can mean here.
+    // =======================================================================
     {
       sourceId: "intake.delivery_failed",
       category: "UPLOAD",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "UPLOAD" },
-      // EVENT-SHAPED. A delivery that failed at 14:02 failed; nothing can make
-      // that untrue later, so there is no state to probe. Whether the
-      // workspace is finished with it — re-sent, chased, written off — is a
-      // human conclusion, which is what OPERATOR_DECISION means.
+      producers: ["services/api/src/services/security/security-event.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "upload:security_event" }],
       resolutionAuthority: "OPERATOR_DECISION",
       activityProbeKey: "NONE",
       recoveryPolicy: "OPERATOR_CLOSES",
-      recurrencePolicy: "NEW_CONDITION",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "SAFE_DEEP_LINK",
       requiredCapability: "evidence.read",
@@ -653,13 +908,18 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
       rationale:
-        "A failed intake delivery is a past event with a real workspace follow-up, and its completion is a person's conclusion rather than a column.",
+        "The SecurityEvent bridge records that a class of stuck/failed upload was observed; the fingerprint names the event class and no delivery, so there is no live subject to probe and closure is the recorded investigation outcome.",
     },
     {
       sourceId: "communications.provider_failure",
       category: "COMMUNICATIONS",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "COMMUNICATIONS" },
+      producers: ["services/api/src/services/security/security-event.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "communications:security_event" },
+      ],
       resolutionAuthority: "OPERATOR_DECISION",
       activityProbeKey: "NONE",
       recoveryPolicy: "OPERATOR_CLOSES",
@@ -673,13 +933,16 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
       rationale:
-        "A delivery attempt that failed is a recorded attempt; the workspace decides whether the message has since been handled.",
+        "The fingerprint is `communications:security_event:<eventType>` — an event class, not a provider or destination — so no bounded provider-health probe can be bound to THIS condition's identity; closure is the operator's recorded confirmation that delivery resumed.",
     },
     {
       sourceId: "webhook.security_failure",
       category: "WEBHOOK",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "WEBHOOK" },
+      producers: ["services/api/src/services/security/security-event.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "webhook:security_event" }],
       resolutionAuthority: "OPERATOR_DECISION",
       activityProbeKey: "NONE",
       recoveryPolicy: "OPERATOR_CLOSES",
@@ -693,37 +956,22 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
       rationale:
-        "A signature or delivery failure on a destination is a past attempt the integrations surface owns; closing it is the operator's conclusion about that destination.",
-    },
-    {
-      sourceId: "integration.configuration_failure",
-      category: "INTEGRATION",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "INTEGRATION" },
-      resolutionAuthority: "OPERATOR_DECISION",
-      activityProbeKey: "NONE",
-      recoveryPolicy: "OPERATOR_CLOSES",
-      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
-      suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "SAFE_DEEP_LINK",
-      requiredCapability: "integration.webhook.manage",
-      audience: "TENANT_ACTIONABLE",
-      cardinality: "EVENT",
-      workspaceApplicability: "ALL_WORKSPACES",
-      metricContract: "NONE",
-      drillDownContract: "SOURCE_SURFACE",
-      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
-      rationale:
-        "The workspace owns its own integration configuration, so whether it has been corrected is exactly the kind of thing its operators know and the platform does not.",
+        "This writer emits the IMMUTABLE half — an invalid-signature burst was observed — keyed by event class. The ACTIVE half (a destination whose autoDisabledAt is set) is owned by the integrations surface and is not what this condition names.",
     },
     {
       sourceId: "identity.security_condition",
       category: "IDENTITY_SECURITY",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "IDENTITY_SECURITY" },
+      producers: ["services/api/src/services/security/security-event.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "identity_security:security_event" },
+      ],
       resolutionAuthority: "OPERATOR_DECISION",
       activityProbeKey: "NONE",
       recoveryPolicy: "OPERATOR_CLOSES",
-      recurrencePolicy: "NEW_CONDITION",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "SAFE_DEEP_LINK",
       requiredCapability: "audit.read",
@@ -733,13 +981,16 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
       rationale:
-        "A security event happened; Security Center adjudicates it, and Operations records the workspace's conclusion rather than inventing a second verdict.",
+        "A security event happened and its SecurityEvent row is immutable; Security Center adjudicates it, and Operations records the workspace's written conclusion rather than inventing a second verdict.",
     },
     {
       sourceId: "governance.policy_condition",
       category: "GOVERNANCE",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "GOVERNANCE" },
+      producers: ["services/api/src/services/security/security-event.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "governance:security_event" }],
       resolutionAuthority: "OPERATOR_DECISION",
       activityProbeKey: "NONE",
       recoveryPolicy: "OPERATOR_CLOSES",
@@ -753,17 +1004,283 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
       rationale:
-        "A governance family reported a discrepancy on one run; whether the workspace has dealt with it is a governance conclusion made on the governance surface.",
+        "A governance or publication security signal was recorded; it names an event class rather than a policy row, so no governance authority can re-check THIS condition and closure is the recorded review outcome.",
+    },
+    {
+      sourceId: "security.unclassified_signal",
+      category: "WORKER",
+      producers: ["services/api/src/services/security/security-event.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "worker:security_event" }],
+      // The bridge's DEFAULT branch: an event type none of the mappings above
+      // claim. Registered by name rather than left to a residual, because an
+      // unmapped security signal reaching a tenant queue with no contract is
+      // precisely the hole this closure removes.
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "GUIDANCE_ONLY",
+      requiredCapability: "audit.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "An immutable SecurityEvent whose type the bridge does not classify; closure is the operator's recorded investigation, and the absence of a mapping is visible rather than silent.",
+    },
+    // =======================================================================
+    // IDENTITY — three writers, three shapes, and only one of them is a state.
+    // =======================================================================
+    {
+      sourceId: "identity.idp_outage",
+      category: "IDENTITY_SECURITY",
+      producers: [
+        "services/api/src/services/access-control/sso-hardening.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "idp-outage" }],
+      // THE ONE ACTIVE STATE among the identity writers, and it has a genuine
+      // canonical recovery signal: `noteSsoSuccess` clears
+      // `SsoConnection.outageDetectedAtUtc` back to NULL on the first
+      // successful callback. The fingerprint names the connection, so the
+      // probe is bound to exactly the subject the condition is about.
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "identity.idp_outage_state",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "audit.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "SsoConnection.outageDetectedAtUtc is stamped on outage and cleared to NULL by the first successful callback — a canonical recovery signal bound to the connection the fingerprint names.",
+    },
+    {
+      sourceId: "identity.runtime_block",
+      category: "IDENTITY_SECURITY",
+      producers: [
+        "services/api/src/services/access-control/adaptive-runtime-gate.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "runtime-block" }],
+      // Keyed by (team, action, HOUR). It records that adaptive auth blocked
+      // an attempt during that hour. The hour is over; nothing can change it.
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "NEW_CONDITION",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "audit.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "The fingerprint buckets by HOUR: it records a block that happened inside a window that has closed, so closure is the operator's written conclusion about that block.",
+    },
+    {
+      sourceId: "identity.high_risk_session_surge",
+      category: "IDENTITY_SECURITY",
+      producers: ["services/api/src/services/access-control/runtime-risk.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "runtime-high-risk-sessions" },
+      ],
+      // "One sweep saw N sessions at HIGH+ risk", bucketed by dedup window.
+      // The sessions it counted may since have been revoked or expired; the
+      // observation itself is finished.
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "NEW_CONDITION",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "audit.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "A completed recompute sweep's count, bucketed by dedup window; the sessions counted are not the condition's subject and closure is the recorded investigation.",
+    },
+    // =======================================================================
+    // GOVERNANCE AND STORAGE — written by their own domains, at the moment.
+    // =======================================================================
+    {
+      sourceId: "governance.destruction_executed",
+      category: "GOVERNANCE",
+      producers: [
+        "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "destruction_executed" }],
+      // A destruction HAPPENED, and a certificate hash records it. This is the
+      // most immutable thing in the product: the bytes are gone. Closure is an
+      // operator acknowledging the record, never a claim that it is undone.
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "NEW_CONDITION",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "GUIDANCE_ONLY",
+      requiredCapability: "governance.policy.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "An executed destruction with a certificate hash: irreversible by construction, so the only meaning closure can carry is an operator's recorded acknowledgement.",
+    },
+    {
+      sourceId: "governance.notification_escalated",
+      category: "GOVERNANCE",
+      producers: ["services/worker/src/governance/notification-emitter.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "governance_notification" },
+      ],
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "governance.policy.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "A HIGH/CRITICAL governance notification was raised and deduped by its own key; the notification is the record, and closure is the operator's written follow-up.",
+    },
+    {
+      sourceId: "storage.immutable_drift",
+      category: "GOVERNANCE",
+      producers: [
+        "services/worker/src/governance/immutable-storage-reconciliation.worker.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [
+        { kind: "PREFIX", prefix: "immutable_storage_drift" },
+      ],
+      // A reconciliation compared what immutable storage holds against what it
+      // should hold and found a difference on one record. Re-checking means
+      // re-reading object storage, which is the reconciler's job on its own
+      // schedule and not something a resolve request may trigger. Closure is
+      // the governance investigation's recorded outcome.
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "GUIDANCE_ONLY",
+      requiredCapability: "governance.policy.read",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "The drift verdict comes from an object-storage comparison the reconciler owns; a resolve path may not re-run it, so closure is the recorded governance investigation and the reconciler reopens if drift persists.",
+    },
+    {
+      sourceId: "platform.operational_seed",
+      category: "GOVERNANCE",
+      producers: ["services/api/src/services/ops/operational-seed.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [{ kind: "PREFIX", prefix: "seed" }],
+      // A demo/staging scenario row, tagged with its seed run so the seed's
+      // own cleanup can delete it. Registered rather than left unclassified,
+      // because an unregistered row in a tenant queue is the hole this
+      // closure removes — including a harmless one.
+      resolutionAuthority: "OPERATOR_DECISION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "OPERATOR_CLOSES",
+      recurrencePolicy: "NEW_CONDITION",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "GUIDANCE_ONLY",
+      requiredCapability: "operations.view",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: true,
+      rationale:
+        "A seeded demo condition with no underlying fault; closure is an operator dismissing the demo, recorded like any other conclusion.",
+    },
+    // =======================================================================
+    // REGISTERED, WITH NO PRODUCER TODAY.
+    //
+    // Each of these describes a condition the product can imagine and does not
+    // currently emit. They are recorded rather than deleted so the gap is on
+    // the record — and their discovery state says so by name, so nothing can
+    // report them as production-complete. Every one fails closed.
+    // =======================================================================
+    {
+      sourceId: "integration.configuration_failure",
+      category: "INTEGRATION",
+      producers: [],
+      discoveryState: "NOT_YET_DISCOVERED",
+      legacyFingerprints: [],
+      // NOT OPERATOR_DECISION. An invalid integration configuration is an
+      // ACTIVE state, and the rule is explicit: prefer SOURCE_TRUTH if the
+      // canonical validation authority can safely re-check it, otherwise
+      // NO_DIRECT_RESOLUTION. No such re-check exists today, and a Settings
+      // deep link is not a reason to let somebody declare the configuration
+      // fixed.
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "integration.webhook.manage",
+      audience: "TENANT_ADVISORY",
+      cardinality: "EVENT",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
+      rationale:
+        "A configuration that remains invalid is an active state; no canonical integration-validation authority can re-check it from a resolve path, so nobody may declare it corrected.",
     },
     {
       sourceId: "search.indexing_failure",
       category: "RECONCILIATION",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "RECONCILIATION" },
-      // The Search readiness authority owns whether the index is healthy. The
-      // workspace cannot see that state from here and must not assert it, and
-      // Operations must not become a second answer to a question that already
-      // has one.
+      producers: [],
+      discoveryState: "NOT_YET_DISCOVERED",
+      legacyFingerprints: [],
       resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
       recoveryPolicy: "NO_RECOVERY_SIGNAL",
@@ -771,21 +1288,24 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "SPECIALIZED_SURFACE",
       requiredCapability: "evidence.read",
+      // Workspace-scoped index health: it affects this tenant's search, and
+      // the tenant cannot repair it.
       audience: "TENANT_ADVISORY",
       cardinality: "AGGREGATE",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
         "Index health is owned by the SEARCH_INDEX run authority and its own readiness projection; a Resolve here would be a workspace overruling a surface it cannot read.",
     },
     {
       sourceId: "job.background_failure",
       category: "WORKER",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "WORKER" },
-      // Platform queue state. The tenant cannot drain a queue, cannot replay a
-      // job from here, and cannot know that the queue recovered.
+      producers: [],
+      discoveryState: "NOT_YET_DISCOVERED",
+      legacyFingerprints: [],
       resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
       recoveryPolicy: "NO_RECOVERY_SIGNAL",
@@ -793,19 +1313,24 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "SPECIALIZED_SURFACE",
       requiredCapability: "operations.view",
-      audience: "TENANT_ADVISORY",
+      // Queue health is process-wide. If it is ever emitted, one drained queue
+      // must not appear as a separate problem in every tenant's list.
+      audience: "PLATFORM_INTERNAL",
       cardinality: "EVENT",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
-        "The queue console and its replay-safety authority own background job state; the workspace has no read that would let it declare the queue well.",
+        "BullMQ queue state is global and owned by the queue console and its replay-safety authority; no workspace can observe or declare its recovery.",
     },
     {
       sourceId: "storage.condition",
       category: "STORAGE",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "STORAGE" },
+      producers: [],
+      discoveryState: "NOT_YET_DISCOVERED",
+      legacyFingerprints: [],
       resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
       recoveryPolicy: "NO_RECOVERY_SIGNAL",
@@ -813,39 +1338,22 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "GUIDANCE_ONLY",
       requiredCapability: "operations.view",
-      audience: "TENANT_ADVISORY",
+      audience: "PLATFORM_INTERNAL",
       cardinality: "EVENT",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
-        "Object storage is platform infrastructure; a workspace declaring it recovered would be asserting something it has no way to observe.",
-    },
-    {
-      sourceId: "ai.condition",
-      category: "AI",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "AI" },
-      resolutionAuthority: "NO_DIRECT_RESOLUTION",
-      activityProbeKey: "NONE",
-      recoveryPolicy: "NO_RECOVERY_SIGNAL",
-      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
-      suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "GUIDANCE_ONLY",
-      requiredCapability: "operations.view",
-      audience: "TENANT_ADVISORY",
-      cardinality: "EVENT",
-      workspaceApplicability: "PLATFORM_OBSERVED",
-      metricContract: "NONE",
-      drillDownContract: "NONE",
-      notApplicableDisposition: "REFUSE",
-      rationale:
-        "Provider availability and budget are platform state; nothing evidential depends on the step, and the workspace cannot observe the provider's recovery.",
+        "Object storage is one global component; a bucket fault is not a per-tenant condition and must not be counted once per workspace.",
     },
     {
       sourceId: "database.condition",
       category: "DATABASE",
-      identity: { kind: "CATEGORY_RESIDUAL", category: "DATABASE" },
+      producers: [],
+      discoveryState: "NOT_YET_DISCOVERED",
+      legacyFingerprints: [],
       resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
       recoveryPolicy: "NO_RECOVERY_SIGNAL",
@@ -853,59 +1361,156 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "GUIDANCE_ONLY",
       requiredCapability: "operations.view",
-      audience: "TENANT_ADVISORY",
+      audience: "PLATFORM_INTERNAL",
       cardinality: "EVENT",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
       drillDownContract: "NONE",
       notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
-        "A database fault is platform infrastructure and needs no workspace action; there is nothing here a tenant could truthfully close.",
+        "One PostgreSQL instance serves every workspace; a database fault is a platform fact and duplicating it per tenant would say a hundred things went wrong when one did.",
+    },
+    {
+      sourceId: "ai.condition",
+      category: "AI",
+      producers: [],
+      discoveryState: "NOT_YET_DISCOVERED",
+      legacyFingerprints: [],
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "GUIDANCE_ONLY",
+      requiredCapability: "operations.view",
+      audience: "PLATFORM_INTERNAL",
+      cardinality: "EVENT",
+      workspaceApplicability: "PLATFORM_OBSERVED",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
+      rationale:
+        "Provider availability and the global AI budget are platform state; nothing evidential depends on the step and no workspace can observe the provider's recovery.",
     },
   ] as const satisfies readonly OperationsSourceLifecycle[]);
 
 /**
- * THE CONTRACT FOR A CONDITION NO REGISTERED SOURCE CLAIMS.
+ * THE FAIL-CLOSED CONTRACT FOR A CONDITION NO REGISTERED SOURCE CLAIMS.
  *
- * Not a fallback that hides a gap — a stated decision about a real population.
- * `EVIDENCE_INTEGRITY`, `REPORT` and `PACKAGE` are each written by more than
- * one authority: the sweep's own conditions carry canonical fingerprints and
- * resolve to their sources exactly, while `evidence-health.service.ts`, the
- * Worker's report processor and the inbox writer produce PER-RECORD failures
- * under the same categories with fingerprints of their own.
+ * ---------------------------------------------------------------------------
+ * THIS USED TO BE `OPERATOR_DECISION`, AND THAT WAS THE DEFECT
+ * ---------------------------------------------------------------------------
+ * The reasoning was that an unidentifiable condition is probably a per-record
+ * domain failure, those are event-shaped, and a stuck queue is worse than a
+ * permissive close. Every step of that is a guess about a row the system has
+ * just admitted it cannot identify — and the conclusion was that NOT KNOWING
+ * WHAT SOMETHING IS made it MORE closable, which inverts the rule the whole
+ * correction exists to establish.
  *
- * Those are event-shaped: a job failed, and whether the workspace is finished
- * with it is a person's conclusion. So the contract is OPERATOR_DECISION with
- * the resolve capability and a recorded note — not SOURCE_TRUTH, which with no
- * probe would refuse forever and leave the queue permanently stuck.
+ * It is now NO_DIRECT_RESOLUTION with activity UNKNOWN. An operator can
+ * acknowledge it, assign it, and suppress it with a recorded reason. They
+ * cannot declare it over, because nothing in the system knows what "over"
+ * would mean for it.
  *
- * What it is NOT is a way back to category-derived policy: a condition that
- * DOES match a registered source never reaches this, and the sources owning
- * these categories' aggregate conditions are matched by fingerprint first.
+ * A stuck row is a real cost and it is the RIGHT cost: the fix is to register
+ * the source, which the totality gate now requires before an emitter can ship.
  */
 export const UNREGISTERED_CONDITION_LIFECYCLE: OperationsSourceLifecycle =
   Object.freeze({
     sourceId: "unregistered.condition" as const,
-    // Carried by the caller; the category of the actual incident is what the
+    // Carried by the caller; the actual incident's category is what the
     // remediation registry keys on, and this row asserts nothing about it.
     category: "RECONCILIATION",
-    identity: { kind: "NOT_DISCOVERED" } as const,
-    resolutionAuthority: "OPERATOR_DECISION",
+    producers: [],
+    discoveryState: "NOT_YET_DISCOVERED" as const,
+    legacyFingerprints: [],
+    resolutionAuthority: "NO_DIRECT_RESOLUTION",
     activityProbeKey: "NONE",
-    recoveryPolicy: "OPERATOR_CLOSES",
+    recoveryPolicy: "NO_RECOVERY_SIGNAL",
     recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
     suppressionPolicy: "SUPPRESSION_PERSISTS",
     remediationDisposition: "GUIDANCE_ONLY",
     requiredCapability: "operations.view",
-    audience: "TENANT_ACTIONABLE",
+    // Conservative: the workspace is told the condition exists and is given no
+    // control that would claim more than the platform knows.
+    audience: "TENANT_ADVISORY",
     cardinality: "EVENT",
     workspaceApplicability: "ALL_WORKSPACES",
     metricContract: "NONE",
     drillDownContract: "NONE",
-    notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+    notApplicableDisposition: "REFUSE",
+    requiresResolutionNote: false,
     rationale:
-      "A per-record domain failure written under a shared category by an authority with no registered source row; event-shaped, so a person closes it.",
+      "No registered source claims this condition, so nothing knows what recovery would mean for it; it fails closed rather than becoming closable by assertion.",
   });
+
+/** The bounded diagnostic an unregistered condition emits. Never user-facing. */
+export const UNREGISTERED_CONDITION_DIAGNOSTIC =
+  "UNREGISTERED_CONDITION_SOURCE" as const;
+
+// ===========================================================================
+// LOAD-TIME INVARIANTS
+// ===========================================================================
+
+/**
+ * Properties the TYPE cannot express, checked once at module load.
+ *
+ * A throw here is deliberate and is not a runtime risk: it can only fire on a
+ * registry a developer just edited, and it fires in every process that imports
+ * the module — including the build. The alternative is a silent contradiction
+ * that reaches production, which is what every one of these exists to stop.
+ */
+{
+  const ids = OPERATIONS_SOURCE_LIFECYCLES.map((s) => s.sourceId);
+  const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+  if (dupes.length > 0) {
+    throw new Error(`duplicate operations source ids: ${dupes.join(", ")}`);
+  }
+  for (const s of OPERATIONS_SOURCE_LIFECYCLES) {
+    // SOURCE_TRUTH must name the observation that backs the claim.
+    if (s.resolutionAuthority === "SOURCE_TRUTH" && s.activityProbeKey === "NONE") {
+      throw new Error(`${s.sourceId}: SOURCE_TRUTH with no probe`);
+    }
+    if (s.resolutionAuthority !== "SOURCE_TRUTH" && s.activityProbeKey !== "NONE") {
+      throw new Error(`${s.sourceId}: declares a probe it does not use`);
+    }
+    // A human conclusion nobody wrote down is indistinguishable from a click.
+    if (s.resolutionAuthority === "OPERATOR_DECISION" && !s.requiresResolutionNote) {
+      throw new Error(`${s.sourceId}: OPERATOR_DECISION without a required note`);
+    }
+    if (s.resolutionAuthority !== "OPERATOR_DECISION" && s.requiresResolutionNote) {
+      throw new Error(`${s.sourceId}: requires a note it can never collect`);
+    }
+    // An ACTIVE source with no producer is the ghost this closure removed.
+    if (s.discoveryState === "ACTIVE" && s.producers.length === 0) {
+      throw new Error(`${s.sourceId}: ACTIVE with no declared producer`);
+    }
+    if (s.discoveryState === "NOT_YET_DISCOVERED" && s.producers.length > 0) {
+      throw new Error(`${s.sourceId}: NOT_YET_DISCOVERED but names a producer`);
+    }
+    // Only a tenant-actionable source may offer any mutation-shaped action.
+    if (s.audience !== "TENANT_ACTIONABLE" && s.resolutionAuthority === "OPERATOR_DECISION") {
+      throw new Error(`${s.sourceId}: non-actionable audience offers Resolve`);
+    }
+  }
+  // One legacy fingerprint pattern may belong to exactly one source, or the
+  // backfill would have to guess — and a guessed source is a guessed lifecycle.
+  const seen = new Map<string, string>();
+  for (const s of OPERATIONS_SOURCE_LIFECYCLES) {
+    for (const p of s.legacyFingerprints) {
+      const key = p.kind === "PREFIX" ? `P:${p.prefix}` : `E:${p.fingerprint}`;
+      const other = seen.get(key);
+      if (other) {
+        throw new Error(
+          `legacy fingerprint ${key} claimed by both ${other} and ${s.sourceId}`,
+        );
+      }
+      seen.set(key, s.sourceId);
+    }
+  }
+}
 
 // ===========================================================================
 // LOOKUPS
@@ -920,69 +1525,109 @@ export function operationsSourceIds(): string[] {
   return OPERATIONS_SOURCE_LIFECYCLES.map((s) => s.sourceId);
 }
 
+/** The source ids a production emitter may legitimately pass. */
+export function activeOperationsSourceIds(): string[] {
+  return OPERATIONS_SOURCE_LIFECYCLES.filter(
+    (s) => s.discoveryState === "ACTIVE",
+  ).map((s) => s.sourceId);
+}
+
+/**
+ * The typed source id a writer must pass.
+ *
+ * A plain `string` here would let a typo compile, and a typo would resolve to
+ * no contract and fail closed — safe, and invisible until somebody noticed a
+ * queue nobody could clear.
+ */
+export type OperationsSourceId = string & { readonly __opsSource?: never };
+
 /** The contract for one source id, or null when it is not registered. */
 export function lifecycleForSourceId(
-  sourceId: string,
+  sourceId: string | null | undefined,
 ): OperationsSourceLifecycle | null {
+  if (!sourceId) return null;
   return BY_ID.get(sourceId) ?? null;
+}
+
+/** True when this id names a registered source. For the writer-side guard. */
+export function isRegisteredOperationsSource(sourceId: string): boolean {
+  return BY_ID.has(sourceId);
 }
 
 /** How a condition was traced to its source. Reported, never inferred twice. */
 export type SourceMatchKind =
-  | "FINGERPRINT"
-  | "CATEGORY_RESIDUAL"
+  /** The row carries an explicit, registered `source_id`. */
+  | "DECLARED"
+  /** Written before the column existed; one legacy fingerprint pattern matched. */
+  | "LEGACY_FINGERPRINT"
+  /** Nothing identified it. Fails closed. */
   | "UNREGISTERED";
 
 export type ResolvedConditionSource = {
   readonly lifecycle: OperationsSourceLifecycle;
   readonly match: SourceMatchKind;
+  /** Set only for UNREGISTERED. A bounded internal diagnostic, never shown. */
+  readonly diagnostic: typeof UNREGISTERED_CONDITION_DIAGNOSTIC | null;
 };
 
 /**
  * WHICH SOURCE OWNS THIS CONDITION.
  *
- * Fingerprint first, category second, and the two are not interchangeable —
- * the whole defect was treating the second as if it were the first.
+ * DECLARED first, legacy fingerprint second, fail closed third. Category is
+ * not consulted at any point — it was the first inference this closure
+ * removed, and re-admitting it as a third fallback would put it back.
  *
- * Pure. Both hosts call it, and the API's probe map is keyed by the
- * `activityProbeKey` of whatever it returns.
+ * Pure. Both hosts call it.
  */
 export function resolveConditionSource(condition: {
-  category: string;
-  fingerprint: string;
+  sourceId?: string | null;
+  category?: string;
+  fingerprint?: string;
 }): ResolvedConditionSource {
+  // 1. The row says what it is.
+  const declared = lifecycleForSourceId(condition.sourceId);
+  if (declared) {
+    return { lifecycle: declared, match: "DECLARED", diagnostic: null };
+  }
+
+  // 2. Written before `source_id`. One pattern, one source, or nothing.
   const fingerprint = condition.fingerprint ?? "";
-  const colon = fingerprint.indexOf(":");
-  const head = colon > 0 ? fingerprint.slice(0, colon) : "";
-
-  for (const lifecycle of OPERATIONS_SOURCE_LIFECYCLES) {
-    const identity = lifecycle.identity;
-    if (identity.kind === "FINGERPRINT_CLASS") {
-      // `<class>:<subjectId>` — the head alone, so a subject id containing a
-      // colon cannot change which source owns the condition.
-      if (head !== "" && head === identity.className) {
-        return { lifecycle, match: "FINGERPRINT" };
-      }
-    } else if (identity.kind === "FINGERPRINT_PREFIX") {
-      // `<prefix>:<teamId>` — anchored with the separator so
-      // `dashboard:pipeline:report_backlog_v2` cannot match
-      // `dashboard:pipeline:report_backlog`.
-      if (fingerprint.startsWith(`${identity.prefix}:`)) {
-        return { lifecycle, match: "FINGERPRINT" };
+  if (fingerprint) {
+    for (const lifecycle of OPERATIONS_SOURCE_LIFECYCLES) {
+      for (const p of lifecycle.legacyFingerprints) {
+        if (p.kind === "EXACT" && fingerprint === p.fingerprint) {
+          return { lifecycle, match: "LEGACY_FINGERPRINT", diagnostic: null };
+        }
+        // The separator is part of the match, so `report_backlog_v2` cannot
+        // inherit `report_backlog`.
+        if (p.kind === "PREFIX" && fingerprint.startsWith(`${p.prefix}:`)) {
+          return { lifecycle, match: "LEGACY_FINGERPRINT", diagnostic: null };
+        }
       }
     }
   }
 
-  for (const lifecycle of OPERATIONS_SOURCE_LIFECYCLES) {
-    if (
-      lifecycle.identity.kind === "CATEGORY_RESIDUAL" &&
-      lifecycle.identity.category === condition.category
-    ) {
-      return { lifecycle, match: "CATEGORY_RESIDUAL" };
-    }
-  }
+  // 3. Nothing knows what this is. It does not become closable because of it.
+  return {
+    lifecycle: UNREGISTERED_CONDITION_LIFECYCLE,
+    match: "UNREGISTERED",
+    diagnostic: UNREGISTERED_CONDITION_DIAGNOSTIC,
+  };
+}
 
-  return { lifecycle: UNREGISTERED_CONDITION_LIFECYCLE, match: "UNREGISTERED" };
+/**
+ * The source a LEGACY row should be backfilled to, or null.
+ *
+ * The migration's backfill and the runtime read the same table through this
+ * one function, so a row the backfill stamps and a row it leaves NULL resolve
+ * identically — which is what makes the backfill an optimisation rather than a
+ * second opinion.
+ */
+export function backfillSourceIdForFingerprint(
+  fingerprint: string,
+): string | null {
+  const r = resolveConditionSource({ fingerprint });
+  return r.match === "LEGACY_FINGERPRINT" ? r.lifecycle.sourceId : null;
 }
 
 /**
@@ -1010,4 +1655,25 @@ export function offersManualResolution(
   lifecycle: OperationsSourceLifecycle,
 ): boolean {
   return lifecycle.resolutionAuthority === "OPERATOR_DECISION";
+}
+
+/**
+ * Is this condition the tenant's business at all?
+ *
+ * PLATFORM_INTERNAL conditions are excluded from every tenant surface — list,
+ * summary, groups, counts, readiness — because they describe ONE global
+ * component and were being written once per workspace. A dead worker is not a
+ * hundred problems.
+ */
+export function isTenantVisibleAudience(
+  lifecycle: OperationsSourceLifecycle,
+): boolean {
+  return lifecycle.audience !== "PLATFORM_INTERNAL";
+}
+
+/** Every source id whose conditions must never reach a tenant surface. */
+export function platformInternalSourceIds(): string[] {
+  return OPERATIONS_SOURCE_LIFECYCLES.filter(
+    (s) => s.audience === "PLATFORM_INTERNAL",
+  ).map((s) => s.sourceId);
 }

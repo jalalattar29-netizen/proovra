@@ -164,6 +164,25 @@ const ALLOWED_OFFENDERS: ReadonlyArray<{
     fileSubstring: "packages/shared/src/trust-decision.ts",
     reason: "Canonical source of trust-decision verdict labels.",
   },
+  // OPERATIONS SOURCE PROBES — an existence check, not a verification claim.
+  //
+  // The two conditions this reads for are `pipeline.report_generation_failed`
+  // and `pipeline.package_generation_denied`: a Worker job failed to produce
+  // an artifact for one record, and the condition asks ONE question — does
+  // that artifact exist now?
+  //
+  // That is the opposite of the derivation this ratchet exists to stop.
+  // `latestReportVersion != null` is NOT read here as "this record is
+  // verified", "this record is trustworthy" or "this record's package is
+  // valid"; it is read as "the report the job did not write has since been
+  // written", which is the only honest recovery signal either condition has.
+  // Reading a richer verdict would be worse, not better: it would make an
+  // operational queue depend on a trust judgement it has no business making.
+  {
+    fileSubstring: "services/api/src/services/operations/operations-source-probes.ts",
+    reason:
+      "Recovery probes for the two pipeline-failure conditions. Reads artifact PRESENCE to answer 'did the job's output eventually appear', never as a verified/trustworthy proxy — the probe's answer feeds OperationalIncident lifecycle only and no evidence-facing claim.",
+  },
   // Library summary count predicate. The comment at
   // services/api/src/routes/evidence.routes.ts:6305-6314 explicitly
   // documents that `verificationPackages: { some: {} }` is the correct

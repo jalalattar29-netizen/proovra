@@ -137,6 +137,51 @@ export type IncidentLifecycle = {
   manualResolution: boolean;
 };
 
+/**
+ * ONE GROUP OF THE COLLAPSED QUEUE. Mirrors `OperationsConditionGroup`.
+ *
+ * The two counts are DIFFERENT QUANTITIES and are named so. `conditionCount`
+ * is how many incidents the group holds; `affectedRecordCount` is how many
+ * real records they stand for, and is null when that cannot be answered — a
+ * zero there would be a claim, and the wrong one.
+ */
+export type IncidentGroup = {
+  groupKey: string;
+  /** The registered source every member declares. The grouping dimension. */
+  sourceId: string;
+  category: string;
+  title: string;
+  conditionCount: number;
+  affectedRecordCount: number | null;
+  /** Highest severity present, so the group sorts by its worst member. */
+  severity: string;
+  /** OPEN if any member is open, and so on. Never "resolved" while one is not. */
+  statusPosture: string;
+  firstSeenAtUtc: string;
+  lastSeenAtUtc: string;
+  latestActivityAtUtc: string;
+  assignedCount: number;
+  failureGroups: Array<{ failureClass: string; label: string; count: number }>;
+  affectedSample: AffectedRecord[];
+  hasMoreAffected: boolean;
+  /** The actions the SOURCE permits, before capability is applied. */
+  availableActions: string[];
+  metric: { currentValue: number; unit: string } | null;
+};
+
+/** One member of a group, as the drill-down returns it. Bounded. */
+export type AffectedRecord = {
+  conditionId: string;
+  evidenceId: string | null;
+  title: string;
+  severity: string;
+  status: string;
+  firstSeenAtUtc: string;
+  lastSeenAtUtc: string;
+  occurrenceCount: number;
+  assignedOperatorUserId: string | null;
+};
+
 /** The structured current value. Mirrors `ConditionMetricSnapshot`. */
 export type ConditionMetric = {
   currentValue: number;

@@ -6796,6 +6796,32 @@ model OperationalIncident {
   /// wrong.
   metricSnapshot Json? @map("metric_snapshot")
 
+  /// WHICH OPERATIONS SOURCE OWNS THIS CONDITION — declared, never inferred.
+  ///
+  /// Lifecycle authority used to be derived from `category` (fourteen values
+  /// for thirty-five sources) and then from `fingerprint` (which covered the
+  /// eleven shapes the sweep writes and left fifteen other production emitters
+  /// falling through to an "unregistered" contract that was, wrongly,
+  /// operator-resolvable).
+  ///
+  /// Every writer now passes a typed `OperationsSourceId` from
+  /// `OPERATIONS_SOURCE_LIFECYCLES`, and that id decides resolution authority,
+  /// probe, recovery, recurrence, suppression, audience and remediation.
+  /// `fingerprint` remains the DEDUPLICATION identity and is no longer read as
+  /// lifecycle authority.
+  ///
+  /// NULLABLE, and deliberately so for one release: rows written before this
+  /// column existed carry NULL, the migration backfills only the fingerprint
+  /// shapes that mean exactly one source, and anything ambiguous stays NULL and
+  /// resolves at runtime to NO_DIRECT_RESOLUTION. A NOT NULL constraint here
+  /// would have to be a second deployment, after the backfill has been observed
+  /// in production — new writes are already enforced by the typed writer.
+  ///
+  /// A plain VarChar rather than a database enum: the TypeScript registry is
+  /// the compile-time authority, and a PostgreSQL enum would be a second one
+  /// that has to be migrated in lockstep every time a source is added.
+  sourceId String? @map("source_id") @db.VarChar(120)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

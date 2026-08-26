@@ -218,13 +218,20 @@ async function maybeAutoCreateIncident(
   } catch {
     return;
   }
-  const { category, runbookSlug } = mapEventTypeToIncident(input.eventType);
+  const { category, runbookSlug, sourceId } = mapEventTypeToIncident(
+    input.eventType,
+  );
   const fingerprint = `${category.toLowerCase()}:security_event:${input.eventType}`;
   const title = `Security signal: ${input.eventType}`;
   const safeSummary = buildSafeSummaryFromDetails(input);
   try {
     await incident.recordIncident(
       {
+        // ONE bridge, six domains. The branch that already picks the category
+        // picks the source too, so the two cannot come apart — a mapping that
+        // returned a category without a source is what left these conditions
+        // unregistered.
+        sourceId,
         teamId: input.teamId ?? null,
         category,
         severity: input.severity === "HIGH" ? "HIGH" : "WARNING",
@@ -242,7 +249,20 @@ async function maybeAutoCreateIncident(
   }
 }
 
+/**
+ * WHICH DOMAIN — AND THEREFORE WHICH SOURCE — THIS SECURITY EVENT BELONGS TO.
+ *
+ * The category was already decided here. The SOURCE now comes from the same
+ * branch rather than from a fingerprint parse downstream, because these six
+ * families were the largest block of production emitters whose conditions no
+ * registered source claimed: an operator could close a webhook-signature burst
+ * on the strength of the system not knowing what it was.
+ *
+ * Every returned source id is registered and ACTIVE, and the totality gate
+ * fails the build if one is not.
+ */
 function mapEventTypeToIncident(eventType: string): {
+  sourceId: string;
   category:
     | "UPLOAD"
     | "REPORT"
@@ -260,13 +280,25 @@ function mapEventTypeToIncident(eventType: string): {
   runbookSlug: string | null;
 } {
   if (eventType.startsWith("communication_webhook_invalid_signature")) {
-    return { category: "WEBHOOK", runbookSlug: "webhook-invalid-signature-burst" };
+    return {
+      sourceId: "webhook.security_failure",
+      category: "WEBHOOK",
+      runbookSlug: "webhook-invalid-signature-burst",
+    };
   }
   if (eventType.startsWith("communication_")) {
-    return { category: "COMMUNICATIONS", runbookSlug: "twilio-outage" };
+    return {
+      sourceId: "communications.provider_failure",
+      category: "COMMUNICATIONS",
+      runbookSlug: "twilio-outage",
+    };
   }
   if (eventType.startsWith("verification_")) {
-    return { category: "COMMUNICATIONS", runbookSlug: "twilio-outage" };
+    return {
+      sourceId: "communications.provider_failure",
+      category: "COMMUNICATIONS",
+      runbookSlug: "twilio-outage",
+    };
   }
   if (
     eventType.startsWith("step_up_") ||
@@ -278,21 +310,49 @@ function mapEventTypeToIncident(eventType: string): {
     eventType.startsWith("contributor_risk") ||
     eventType.startsWith("impossible_travel")
   ) {
-    return { category: "IDENTITY_SECURITY", runbookSlug: "suspicious-login-burst" };
+    return {
+      sourceId: "identity.security_condition",
+      category: "IDENTITY_SECURITY",
+      runbookSlug: "suspicious-login-burst",
+    };
   }
   if (eventType.startsWith("upload_")) {
-    return { category: "UPLOAD", runbookSlug: "stuck-upload" };
+    return {
+      sourceId: "intake.delivery_failed",
+      category: "UPLOAD",
+      runbookSlug: "stuck-upload",
+    };
   }
   if (eventType.startsWith("webhook_") || eventType.startsWith("webhook")) {
-    return { category: "WEBHOOK", runbookSlug: "webhook-invalid-signature-burst" };
+    return {
+      sourceId: "webhook.security_failure",
+      category: "WEBHOOK",
+      runbookSlug: "webhook-invalid-signature-burst",
+    };
   }
   if (eventType.startsWith("governance_") || eventType.startsWith("publication_")) {
-    return { category: "GOVERNANCE", runbookSlug: null };
+    return {
+      sourceId: "governance.policy_condition",
+      category: "GOVERNANCE",
+      runbookSlug: null,
+    };
   }
   if (eventType.startsWith("permission_denied")) {
-    return { category: "IDENTITY_SECURITY", runbookSlug: null };
+    return {
+      sourceId: "identity.security_condition",
+      category: "IDENTITY_SECURITY",
+      runbookSlug: null,
+    };
   }
-  return { category: "WORKER", runbookSlug: null };
+  // THE DEFAULT BRANCH IS REGISTERED TOO. An event type none of the mappings
+  // above claims still reaches a tenant queue, and an unclassified condition
+  // with no contract is exactly the hole this closure removes — including the
+  // one nobody thought about.
+  return {
+    sourceId: "security.unclassified_signal",
+    category: "WORKER",
+    runbookSlug: null,
+  };
 }
 
 function buildSafeSummaryFromDetails(input: EmitSecurityEventInput): string {

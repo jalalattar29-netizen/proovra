@@ -4641,6 +4641,7 @@ async function recordReportFailureIncident(input: {
     const fingerprint = `REPORT:${input.evidenceId}:${errorClass}`;
     const evidenceLabel = ev?.title ? ev.title.slice(0, 80) : input.evidenceId.slice(0, 8);
     await recordWorkerIncident({
+      sourceId: "pipeline.report_generation_failed",
       teamId: ev?.teamId ?? null,
       category: "REPORT",
       severity: input.severity,

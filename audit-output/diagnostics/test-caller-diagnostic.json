@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "346ddf2519f99eb93876ba10067f855971da8e482080731bbf9e7e2d1eafe9a2",
+  "capabilityRouteInventoryHash": "03b6b4d39d13415ab76c9d0548fe0ce8f9fb8ee2aa4142061596a67d261297e5",
   "totals": {
-    "routes": 1098,
+    "routes": 1100,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -2202,6 +2202,18 @@
     },
     {
       "routeId": "GET /v1/ops/health",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/ops/incident-groups",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/ops/incident-groups/:groupKey/affected",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6670,5 +6682,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "d4b35f964fe6413d7a46377753f736a412e001e4598c7c39f4c1ea7b827841db"
+  "contentHash": "a20ae013c06329c427e55601cd12ba8a392bf735137fcc26f6a0c155b0501cc1"
 }

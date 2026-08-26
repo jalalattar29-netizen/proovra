@@ -72,7 +72,11 @@ import * as prismaPkg from "@prisma/client";
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import {
+  isOtsPendingAged,
+  OTS_PENDING_STATUSES,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 import {
   decideObservationTransition,
   type IncidentTransitionStatus,
@@ -116,6 +120,28 @@ export function integrityConditionFingerprint(
   return `${integrityClass}:${evidenceId}`;
 }
 
+/**
+ * THE AGED-PENDING fingerprint. A DIFFERENT class from the two FAILED ones,
+ * deliberately: a proof that is still trying and a proof that gave up are
+ * different operational conditions with different remediations, and collapsing
+ * them would make a record recovering from one look like the other.
+ */
+export const OTS_PENDING_AGED_CLASS = "ots_pending_aged" as const;
+
+export function otsPendingAgedFingerprint(evidenceId: string): string {
+  return `${OTS_PENDING_AGED_CLASS}:${evidenceId}`;
+}
+
+/** The evidence id an aged-pending fingerprint names, or null. */
+export function parseOtsPendingAgedFingerprint(
+  fingerprint: string,
+): string | null {
+  const prefix = `${OTS_PENDING_AGED_CLASS}:`;
+  if (!fingerprint.startsWith(prefix)) return null;
+  const evidenceId = fingerprint.slice(prefix.length);
+  return /^[A-Za-z0-9-]{8,64}$/.test(evidenceId) ? evidenceId : null;
+}
+
 /** Parse a fingerprint back into its two parts, or null if it is not ours. */
 export function parseIntegrityFingerprint(
   fingerprint: string,
@@ -139,6 +165,9 @@ type EvidenceIntegrityRow = {
   otsStatus: string | null;
   otsFailureReason: string | null;
   otsUpgradedAtUtc: Date | null;
+  /** The earliest pinned anchor, when one exists. Read-only, for aging. */
+  otsAnchoredAtUtc: Date | null;
+  createdAt: Date;
   updatedAt: Date;
   /**
    * CLOSURE PASS (2026-08-22) — the POSITIVE correlator, when one exists.
@@ -160,6 +189,8 @@ const EVIDENCE_SELECT = {
   otsStatus: true,
   otsFailureReason: true,
   otsUpgradedAtUtc: true,
+  otsAnchoredAtUtc: true,
+  createdAt: true,
   updatedAt: true,
   integrityCorrelationId: true,
 } as const;
@@ -265,7 +296,17 @@ export async function syncEvidenceIntegrityConditions(
       AND: [
         scopeWhere,
         { deletedAt: null },
-        { OR: [{ tsaStatus: FAILED }, { otsStatus: FAILED }] },
+        {
+          OR: [
+            { tsaStatus: FAILED },
+            { otsStatus: FAILED },
+            // AGED-PENDING. Selected broadly here — every record still in a
+            // trying state — and narrowed by the SHARED age predicate below,
+            // because the window is configurable and a SQL cutoff computed
+            // here would be a second copy of it.
+            { otsStatus: { in: [...OTS_PENDING_STATUSES] } },
+          ],
+        },
       ],
     },
     select: EVIDENCE_SELECT,
@@ -308,6 +349,39 @@ export async function syncEvidenceIntegrityConditions(
       else if (outcome === "reobserved") result.reobserved += 1;
       else result.suppressedUntouched += 1;
     }
+
+    // -----------------------------------------------------------------------
+    // AGED-PENDING — a proof still trying, past the canonical window.
+    //
+    // `evidence_integrity.ots_pending_aged` sat in the registry for a release
+    // with a probe, a threshold and NO PRODUCER: this loop iterated the two
+    // FAILED classes only, so the source looked covered and observed nothing.
+    // A record that had been trying to anchor for months was invisible until
+    // the Worker finally marked it FAILED.
+    //
+    // The predicate is the SHARED one — the same arithmetic over the same
+    // global budget the Worker uses to decide it has given up — so the
+    // Operations page and the Worker cannot disagree about which records are
+    // out of time.
+    //
+    // READ-ONLY. Nothing here contacts a calendar server, retries an anchor,
+    // replaces a proof or writes to the Evidence row.
+    if (isOtsPendingAged(row, now)) {
+      const outcome = await inSourceStage("WRITE", () =>
+        recordOtsPendingAgedCondition(
+          {
+            evidence: row,
+            teamId: input.teamId,
+            underLegalHold: heldEvidenceIds.has(row.id),
+            now,
+          },
+          client,
+        ),
+      );
+      if (outcome === "opened") result.opened += 1;
+      else if (outcome === "reobserved") result.reobserved += 1;
+      else result.suppressedUntouched += 1;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -320,6 +394,15 @@ export async function syncEvidenceIntegrityConditions(
   // -------------------------------------------------------------------------
   result.resolved = await inSourceStage("WRITE", () =>
     resolveRecoveredConditions({ teamId: input.teamId, scopeWhere, now }, client),
+  );
+  // The aged-pending family has its own recovery predicate — a proof that
+  // anchored, or that the Worker moved to FAILED — so it has its own resolver
+  // rather than a branch inside the one above.
+  result.resolved += await inSourceStage("WRITE", () =>
+    resolveRecoveredOtsPendingAged(
+      { teamId: input.teamId, scopeWhere, now },
+      client,
+    ),
   );
 
   return result;
@@ -419,6 +502,11 @@ async function recordIntegrityCondition(
 
   const { created } = await recordIncident(
     {
+      // The class IS the source: two integrity failures, two contracts.
+      sourceId:
+        integrityClass === "tsa_failure"
+          ? "evidence_integrity.tsa_failed"
+          : "evidence_integrity.ots_failed",
       teamId,
       category: EVIDENCE_INTEGRITY_CATEGORY,
       severity,
@@ -446,6 +534,204 @@ async function recordIntegrityCondition(
   if (wasSuppressed) return "suppressed_untouched";
   return created ? "opened" : "reobserved";
 }
+
+/**
+ * OPEN OR RE-OBSERVE AN AGED-PENDING OTS CONDITION.
+ *
+ * A record whose OpenTimestamps proof is still trying, past the canonical
+ * global anchoring budget. Deliberately its own condition class rather than a
+ * variant of `ots_failure`:
+ *
+ *   * they mean different things — one is "still trying, too long", the other
+ *     is "the platform gave up" — and an operator triaging them does different
+ *     work;
+ *   * they recover differently. Aged-pending recovers when the proof anchors
+ *     OR when the Worker gives up and moves the record to FAILED, at which
+ *     point its FAILED sibling opens. Collapsing the two would make that
+ *     handover look like a single condition quietly changing meaning.
+ *
+ * Severity does not escalate with age here the way a FAILED proof's does. The
+ * record has ALREADY exceeded the window by the time this opens, so age past
+ * that point is not new information — it is the same fact, longer.
+ *
+ * READ-ONLY with respect to the proof. This function contacts no calendar
+ * server and writes nothing to the Evidence row; it records an operational
+ * condition and nothing else.
+ */
+async function recordOtsPendingAgedCondition(
+  args: {
+    evidence: EvidenceIntegrityRow;
+    teamId: string;
+    underLegalHold: boolean;
+    now: Date;
+  },
+  client: PrismaClient,
+): Promise<RecordOutcome> {
+  const { evidence, teamId } = args;
+  const fingerprint = otsPendingAgedFingerprint(evidence.id);
+
+  const existing = await client.operationalIncident.findUnique({
+    where: { teamId_fingerprint: { teamId, fingerprint } as never },
+    select: { id: true, status: true },
+  });
+  const wasSuppressed =
+    existing?.status === prismaPkg.IncidentStatus.SUPPRESSED;
+
+  const recordLabel = evidence.title?.trim()
+    ? `"${evidence.title.trim().slice(0, 80)}"`
+    : `record ${evidence.id.slice(0, 8)}`;
+
+  const { created } = await recordIncident(
+    {
+      sourceId: "evidence_integrity.ots_pending_aged",
+      teamId,
+      category: EVIDENCE_INTEGRITY_CATEGORY,
+      // WARNING and not HIGH. The record IS provable — its RFC3161 timestamp
+      // is unaffected — and what is missing is the secondary public-chain
+      // anchor. Ranking it beside a record that cannot be timestamped at all
+      // would make the queue's worst rows harder to find.
+      severity: "WARNING" as IncidentSeverity,
+      fingerprint,
+      title: `Blockchain anchoring still pending for ${recordLabel}`,
+      safeSummary:
+        "This record's OpenTimestamps anchor has not settled within the platform's anchoring window. " +
+        "The record's own trusted timestamp is unaffected and the record remains valid evidence; " +
+        "the public-chain anchor is a second, independent proof that is still outstanding.",
+      relatedEvidenceId: evidence.id,
+      runbookSlug: "ots-anchoring",
+      metadata: {
+        integrityClass: OTS_PENDING_AGED_CLASS,
+        otsStatus: evidence.otsStatus,
+        underLegalHold: args.underLegalHold,
+      },
+    },
+    client,
+  );
+
+  if (wasSuppressed) return "suppressed_untouched";
+  return created ? "opened" : "reobserved";
+}
+
+/**
+ * Resolve aged-pending conditions whose record no longer qualifies.
+ *
+ * Positive evidence only, and through the SAME shared predicate discovery
+ * used: a record that has since anchored, or that the Worker has moved to
+ * FAILED, is no longer an aged-pending condition and the row says so. A record
+ * that cannot be read leaves the condition open — "we could not check" is not
+ * "it is fine".
+ *
+ * The handover to `ots_failure` is deliberate and visible: when the Worker
+ * gives up, this condition resolves from source truth and its FAILED sibling
+ * opens on the next pass, so the timeline shows one condition ending and
+ * another beginning rather than one silently changing meaning.
+ */
+async function resolveRecoveredOtsPendingAged(
+  args: {
+    teamId: string;
+    scopeWhere: prismaPkg.Prisma.EvidenceWhereInput;
+    now: Date;
+  },
+  client: PrismaClient,
+): Promise<number> {
+  const open = await client.operationalIncident.findMany({
+    where: {
+      teamId: args.teamId,
+      category: EVIDENCE_INTEGRITY_CATEGORY as prismaPkg.IncidentCategory,
+      fingerprint: { startsWith: `${OTS_PENDING_AGED_CLASS}:` },
+      status: {
+        in: [
+          prismaPkg.IncidentStatus.OPEN,
+          prismaPkg.IncidentStatus.ACKNOWLEDGED,
+          // Domain truth outranks a suppression: a silenced condition whose
+          // record actually anchored IS over, and leaving it suppressed-but-
+          // settled would make the next genuine delay read as a continuation.
+          prismaPkg.IncidentStatus.SUPPRESSED,
+        ],
+      },
+    },
+    select: { id: true, fingerprint: true, status: true },
+    orderBy: [{ lastSeenAtUtc: "desc" }, { id: "desc" }],
+  });
+  if (open.length === 0) return 0;
+
+  const parsed = open
+    .map((row) => ({ row, evidenceId: parseOtsPendingAgedFingerprint(row.fingerprint) }))
+    .filter(
+      (e): e is { row: (typeof open)[number]; evidenceId: string } =>
+        e.evidenceId != null,
+    );
+  if (parsed.length === 0) return 0;
+
+  const rows = await client.evidence.findMany({
+    where: {
+      AND: [
+        { id: { in: [...new Set(parsed.map((e) => e.evidenceId))] } },
+        args.scopeWhere,
+      ],
+    },
+    select: {
+      id: true,
+      otsStatus: true,
+      otsAnchoredAtUtc: true,
+      createdAt: true,
+    },
+  });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  let resolved = 0;
+  for (const { row, evidenceId } of parsed) {
+    const evidence = byId.get(evidenceId);
+    // Unreadable or gone: NOT proof of recovery. Leave it open.
+    if (!evidence) continue;
+    if (isOtsPendingAged(evidence, args.now)) continue;
+
+    const decision = decideObservationTransition({
+      currentStatus: row.status as IncidentTransitionStatus,
+      observation: "SOURCE_RECOVERED",
+    });
+    if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") continue;
+
+    await client.operationalIncident.update({
+      where: { id: row.id },
+      data: {
+        status: prismaPkg.IncidentStatus.RESOLVED,
+        resolvedAtUtc: args.now,
+        // No human resolver is fabricated for a domain-truth resolution.
+        resolvedByUserId: null,
+        resolutionNote:
+          "Resolved from Evidence domain truth: the record is no longer an aged-pending OpenTimestamps anchor.",
+        // `acknowledgedAtUtc` / `acknowledgedByUserId` are DELIBERATELY left
+        // alone. Who took this on is part of what happened to it.
+      },
+    });
+    await client.operationalIncidentEvent
+      .create({
+        data: {
+          incidentId: row.id,
+          eventType: "resolved_by_domain_truth",
+          safeMessage:
+            "The record's OpenTimestamps status left the aged-pending window. Resolved from positive domain evidence, not from absence in a scan.",
+          metadataJson: {
+            integrityClass: OTS_PENDING_AGED_CLASS,
+            observedStatus: evidence.otsStatus,
+            previousStatus: row.status,
+          } as prismaPkg.Prisma.InputJsonValue,
+        },
+      })
+      .catch(() => null);
+
+    await import("./incident-sla-cycle.service.js")
+      .then((cycles) =>
+        cycles.closeSlaCycle({ incidentId: row.id, reason: "RESOLVED" }, client),
+      )
+      .catch(() => null);
+
+    resolved += 1;
+  }
+  return resolved;
+}
+
 
 /**
  * Resolve conditions whose record has RECOVERED.

@@ -39,7 +39,10 @@ import { QUEUE_METRIC_ORDER } from "../../app/(app)/operations/_lib/vocabulary";
 // shaped by hand. A hand-written block drifts from the server projection
 // silently; borrowing the real type means a change to the contract breaks the
 // fixture at COMPILE time, which is where it should break.
-import type { IncidentSla } from "../../app/(app)/operations/_lib/types";
+import type {
+  IncidentGroup,
+  IncidentSla,
+} from "../../app/(app)/operations/_lib/types";
 
 // ---------------------------------------------------------------------------
 // Seams
@@ -53,6 +56,16 @@ let incidentsReply: (path: string) => Reply = () => ({});
 let detailReply: () => Reply = () => ({});
 let operatorsReply: () => Reply = () => ({ operators: [], selfUserId: null });
 let mutationReply: (path: string) => Reply = () => ({ ok: true });
+/** The grouped queue, and one group's paged members. */
+let groupsReply: () => Reply = () => ({
+  groups: [],
+  conservation: { conditions: 0, grouped: 0 },
+  completeness: { complete: true, mayAssertAllClear: true },
+});
+let affectedReply: () => Reply = () => ({
+  records: [],
+  pagination: { nextCursor: null, returned: 0 },
+});
 let replaced: string[] = [];
 
 /**
@@ -91,6 +104,10 @@ vi.mock("../../lib/api", () => ({
       return r;
     };
     if (path.startsWith("/v1/ops/summary")) return pick(summaryReply());
+    if (path.includes("/v1/ops/incident-groups/") && path.includes("/affected")) {
+      return pick(affectedReply());
+    }
+    if (path.startsWith("/v1/ops/incident-groups?")) return pick(groupsReply());
     if (path.startsWith("/v1/ops/assignable-operators")) {
       return pick(operatorsReply());
     }
@@ -377,7 +394,15 @@ async function settleTimers() {
   });
 }
 
-async function mount(env: unknown) {
+/**
+ * Mount the page.
+ *
+ * The grouped queue is the DEFAULT now, and the pre-existing cases in this
+ * file are all about the FLAT surface — the table, the row menus, the
+ * inspector. `view` lets a case say which surface it is about instead of
+ * every one of them learning to press a toggle.
+ */
+async function mount(env: unknown, view: "grouped" | "flat" = "flat") {
   cleanup();
   const utils = render(
     <PlatformContextProvider testEnvelope={env as never}>
@@ -389,6 +414,15 @@ async function mount(env: unknown) {
     </PlatformContextProvider>,
   );
   await settle();
+  if (view === "flat") {
+    const toggle = document.querySelector('[data-ops-view="flat"]');
+    if (toggle) {
+      await act(async () => {
+        fireEvent.click(toggle as HTMLElement);
+      });
+      await settle();
+    }
+  }
   return utils;
 }
 
@@ -2206,5 +2240,393 @@ describe("Operations — the metric and the resolution note are layout-safe", ()
       /(^|[\s;{])(margin|padding|border)-(left|right)\s*:|(^|[\s;{])(left|right)\s*:\s*(?!auto)|text-align\s*:\s*(left|right)/gm;
     const hits = css.match(physical) ?? [];
     expect(hits, `physical direction properties: ${hits.join(", ")}`).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// THE GROUPED QUEUE, RENDERED
+// ===========================================================================
+//
+// The server computed groups for a release and nothing rendered them, so a
+// workspace with five thousand identical rows had five thousand rows. These
+// cases hold the correction and its two honesty properties: the counts are
+// two DIFFERENT numbers said differently, and every individual condition is
+// still reachable through the drill-down.
+
+function group(over: Partial<IncidentGroup> & { groupKey: string }): IncidentGroup {
+  return {
+    sourceId: over.sourceId ?? "evidence_integrity.tsa_failed",
+    category: "EVIDENCE_INTEGRITY",
+    title: "Trusted timestamping failed for 5000 records",
+    conditionCount: 5000,
+    affectedRecordCount: 5000,
+    severity: "CRITICAL",
+    statusPosture: "OPEN",
+    firstSeenAtUtc: HOURS_AGO(30),
+    lastSeenAtUtc: HOURS_AGO(1),
+    latestActivityAtUtc: HOURS_AGO(1),
+    assignedCount: 0,
+    failureGroups: [],
+    affectedSample: [],
+    hasMoreAffected: true,
+    availableActions: ["acknowledge", "assign", "suppress"],
+    metric: null,
+    ...over,
+  };
+}
+
+function affectedRecord(id: string, evidenceId: string | null = null) {
+  return {
+    conditionId: id,
+    evidenceId,
+    title: "Trusted timestamp failed",
+    severity: "HIGH",
+    status: "OPEN",
+    firstSeenAtUtc: HOURS_AGO(3),
+    lastSeenAtUtc: HOURS_AGO(1),
+    occurrenceCount: 1,
+    assignedOperatorUserId: null,
+  };
+}
+
+describe("Operations — the grouped queue is the default", () => {
+  beforeEach(() => {
+    groupsReply = () => ({
+      groups: [
+        group({ groupKey: "evidence_integrity.tsa_failed" }),
+        group({
+          groupKey: "pipeline.report_backlog",
+          sourceId: "pipeline.report_backlog",
+          category: "REPORT",
+          title: "Report generation backlog",
+          conditionCount: 1,
+          affectedRecordCount: 26,
+          severity: "HIGH",
+          metric: { currentValue: 26, unit: "records" },
+        }),
+      ],
+      conservation: { conditions: 5001, grouped: 5001 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    affectedReply = () => ({
+      records: [affectedRecord("c-1", "99999999-9999-4999-8999-999999999999")],
+      pagination: { nextCursor: "c-1", returned: 1 },
+      completeness: { complete: false },
+    });
+  });
+
+  it("renders one row per SOURCE, not one per condition", async () => {
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const groups = qa("[data-ops-group]");
+    // TWO rows for 5,001 conditions. The flood is the defect; this is the fix.
+    expect(groups).toHaveLength(2);
+    expect(
+      groups.map((g) => g.getAttribute("data-ops-group-source")),
+    ).toEqual(["evidence_integrity.tsa_failed", "pipeline.report_backlog"]);
+  });
+
+  it("says the two counts SEPARATELY, and never as one number", async () => {
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const backlog = q('[data-ops-group="pipeline.report_backlog"]') as HTMLElement;
+    // ONE condition, TWENTY-SIX records. The whole reason both fields exist.
+    expect(backlog.querySelector("[data-ops-group-conditions]")!.textContent).toBe(
+      "1 condition",
+    );
+    expect(
+      backlog.querySelector("[data-ops-group-affected]")!.textContent,
+    ).toContain("26 affected records");
+  });
+
+  it("bounds a five-figure count in the row and keeps the exact one in the panel", async () => {
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const tsa = q(
+      '[data-ops-group="evidence_integrity.tsa_failed"]',
+    ) as HTMLElement;
+    // A floor, not an exact figure that will be wrong by the time it is read.
+    expect(tsa.textContent).toContain("2,000+ conditions");
+    expect(tsa.textContent).not.toContain("5,000 conditions");
+
+    await act(async () => {
+      fireEvent.click(
+        q('[data-ops-group-open-button="evidence_integrity.tsa_failed"]')!,
+      );
+    });
+    await settle();
+    const panel = q("[data-ops-group-inspector]") as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(
+      panel.querySelector("[data-ops-group-exact-conditions]")!.textContent,
+    ).toContain("5,000");
+  });
+
+  it("opening a group loads its affected records", async () => {
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    await act(async () => {
+      fireEvent.click(
+        q('[data-ops-group-open-button="evidence_integrity.tsa_failed"]')!,
+      );
+    });
+    await settle();
+
+    // The drill-down was requested, scoped to the workspace and the group.
+    const drill = requestLog.filter((r) =>
+      r.path.includes("/incident-groups/") && r.path.includes("/affected"),
+    );
+    expect(drill.length).toBeGreaterThanOrEqual(1);
+    expect(drill[0].path).toContain(
+      encodeURIComponent("evidence_integrity.tsa_failed"),
+    );
+    expect(drill[0].path).toContain(`teamId=${WS}`);
+
+    expect(q("[data-ops-affected-row='c-1']")).not.toBeNull();
+    // …and a record an authorized operator may open.
+    expect(q("[data-ops-affected-link]")).not.toBeNull();
+    // More to come, so the control to fetch it is offered.
+    expect(q("[data-ops-affected-more]")).not.toBeNull();
+  });
+
+  it("paging the drill-down APPENDS rather than replacing", async () => {
+    let page = 0;
+    affectedReply = () => {
+      page += 1;
+      return page === 1
+        ? {
+            records: [affectedRecord("c-1")],
+            pagination: { nextCursor: "c-1", returned: 1 },
+          }
+        : {
+            records: [affectedRecord("c-2")],
+            pagination: { nextCursor: null, returned: 1 },
+          };
+    };
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    await act(async () => {
+      fireEvent.click(
+        q('[data-ops-group-open-button="evidence_integrity.tsa_failed"]')!,
+      );
+    });
+    await settle();
+    await act(async () => {
+      fireEvent.click(q("[data-ops-affected-more]")!);
+    });
+    await settle();
+
+    // The rows an operator has already read must not vanish under them.
+    expect(q("[data-ops-affected-row='c-1']")).not.toBeNull();
+    expect(q("[data-ops-affected-row='c-2']")).not.toBeNull();
+    // …and the end of the list withdraws the control.
+    expect(q("[data-ops-affected-more]")).toBeNull();
+  });
+
+  it("a failed drill-down shows a bounded message, never the raw error", async () => {
+    affectedReply = () => apiFailure(500);
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    await act(async () => {
+      fireEvent.click(
+        q('[data-ops-group-open-button="evidence_integrity.tsa_failed"]')!,
+      );
+    });
+    await settle();
+    const err = q("[data-ops-affected-error]") as HTMLElement;
+    expect(err).not.toBeNull();
+    expect(err.textContent).not.toMatch(/500|prisma|postgres|select /i);
+  });
+
+  it("the flat list is one toggle away, and reaches the same conditions", async () => {
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(qa("[data-ops-group]").length).toBe(2);
+    await act(async () => {
+      fireEvent.click(q('[data-ops-view="flat"]')!);
+    });
+    await settle();
+    // A grouped view that could not be left would have HIDDEN the individual
+    // conditions, which is the defect per-record fingerprints exist to
+    // prevent.
+    expect(qa("[data-ops-group]").length).toBe(0);
+    expect(qa("[data-ops-row]").length).toBeGreaterThan(0);
+  });
+
+  it("Personal and Enterprise render the SAME grouped surface", async () => {
+    for (const caps of [PERSONAL_PRO, TEAM_ADMIN]) {
+      cleanup();
+      await mount(envelope(caps), "grouped");
+      expect(qa("[data-ops-group]").length).toBe(2);
+      // No plan fork: the same component, the same two rows, the same counts.
+      expect(
+        q('[data-ops-group="pipeline.report_backlog"]')!.textContent,
+      ).toContain("26 affected records");
+    }
+  });
+
+  it("no group offers a bulk Resolve", async () => {
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    await act(async () => {
+      fireEvent.click(
+        q('[data-ops-group-open-button="evidence_integrity.tsa_failed"]')!,
+      );
+    });
+    await settle();
+    const panel = q("[data-ops-group-inspector]") as HTMLElement;
+    // Source-truth conditions close themselves when the source recovers, so a
+    // control that closed five thousand of them by hand would be both unsafe
+    // and unnecessary.
+    expect(panel.textContent).not.toMatch(/\bResolve\b/);
+  });
+});
+
+// ===========================================================================
+// AN UNREGISTERED CONDITION OFFERS NOTHING IT CANNOT HONOUR
+// ===========================================================================
+
+describe("Operations — an unregistered condition has no Resolve", () => {
+  it("hides Resolve for a condition whose source nothing claims", async () => {
+    incidentsReply = () =>
+      list([
+        incident({
+          id: "i-unknown",
+          title: "A condition nobody registered",
+          lifecycle: {
+            sourceId: "unregistered.condition",
+            sourceMatch: "UNREGISTERED",
+            resolutionAuthority: "NO_DIRECT_RESOLUTION",
+            audience: "TENANT_ADVISORY",
+            recoveryPolicy: "NO_RECOVERY_SIGNAL",
+            manualResolution: false,
+          },
+        }),
+      ]);
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    await act(async () => {
+      fireEvent.click(q('[data-ops-view="flat"]')!);
+    });
+    await settle();
+    const trigger = within(
+      q('[data-ops-row="i-unknown"]') as HTMLElement,
+    ).getByRole("button", { name: /Actions for/ });
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+    await settle();
+    const actions = new Set(
+      qa("[data-ops-row-action]").map((el) =>
+        el.getAttribute("data-ops-row-action"),
+      ),
+    );
+    // Nothing knows what "over" would mean for this condition…
+    expect(actions.has("resolve")).toBe(false);
+    // …and everything an operator CAN honestly do survives.
+    expect(actions.has("acknowledge")).toBe(true);
+    expect(actions.has("suppress")).toBe(true);
+  });
+});
+
+describe("Operations — grouped is the PRODUCT default", () => {
+  it("a fresh mount renders groups with no toggle pressed", async () => {
+    // The `mount` helper above defaults to the FLAT surface because that is
+    // what sixty pre-existing cases are about — the table, the row menus, the
+    // condition inspector — and teaching every one of them to press a toggle
+    // would be churn that proves nothing.
+    //
+    // The PRODUCT's default is the opposite, and it is asserted here, once,
+    // without the helper: a workspace with five thousand identical rows and no
+    // grouping is the defect, so grouping cannot be something an operator has
+    // to find.
+    groupsReply = () => ({
+      groups: [group({ groupKey: "evidence_integrity.tsa_failed" })],
+      conservation: { conditions: 5000, grouped: 5000 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    cleanup();
+    render(
+      <PlatformContextProvider testEnvelope={envelope(TEAM_ADMIN) as never}>
+        <ToastProvider>
+          <ConfirmActionProvider>
+            <OperationsPage />
+          </ConfirmActionProvider>
+        </ToastProvider>
+      </PlatformContextProvider>,
+    );
+    await settle();
+
+    expect(qa("[data-ops-group]").length).toBe(1);
+    expect(qa("[data-ops-row]").length).toBe(0);
+    // …and the toggle says so, so a screen reader is told which view is live.
+    expect(
+      q('[data-ops-view="grouped"]')!.getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("the grouped queue never renders an all-clear over real groups", async () => {
+    // The flat list is a BOUNDED read and the grouped read is its own. A
+    // grouped surface that decided emptiness from the flat rows would show
+    // "Workspace operations are clear" whenever the two disagreed — a false
+    // all-clear produced by asking the wrong list.
+    incidentsReply = () => list([]);
+    groupsReply = () => ({
+      groups: [group({ groupKey: "evidence_integrity.tsa_failed" })],
+      conservation: { conditions: 5000, grouped: 5000 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(q('[data-ops-empty="clear"]')).toBeNull();
+    expect(qa("[data-ops-group]").length).toBe(1);
+  });
+});
+
+describe("Operations — the grouped surface is layout- and direction-safe", () => {
+  it("every count and label sits inside a WRAPPING container", async () => {
+    groupsReply = () => ({
+      groups: [
+        group({
+          groupKey: "evidence_integrity.tsa_failed",
+          failureGroups: [
+            { failureClass: "PROVIDER_TIMEOUT", label: "Provider timeout", count: 30 },
+            { failureClass: "IMPRINT_MISMATCH", label: "Imprint mismatch", count: 4 },
+          ],
+        }),
+      ],
+      conservation: { conditions: 5000, grouped: 5000 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const row = q('[data-ops-group="evidence_integrity.tsa_failed"]') as HTMLElement;
+    const meta = row.querySelector(".opsw-group__meta") as HTMLElement;
+    expect(meta).not.toBeNull();
+    // jsdom applies no layout, so overflow cannot be MEASURED here and
+    // asserting it would be theatre. What can be held is the structural
+    // property that decides the answer: every count is inside the wrapping
+    // meta line, so a long label reflows on a phone instead of widening the
+    // row.
+    for (const sel of [
+      "[data-ops-group-conditions]",
+      "[data-ops-group-affected]",
+      ".opsw-group__activity",
+    ]) {
+      const el = row.querySelector(sel);
+      expect(el, `${sel} is missing`).not.toBeNull();
+      expect(meta.contains(el), `${sel} escaped the wrapping meta line`).toBe(true);
+    }
+  });
+
+  it("the grouped stylesheet declares no physical left/right properties", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    // Resolved from the runner's root: this suite runs under jsdom, where the
+    // module URL is not a file: URL.
+    const css = readFileSync(
+      resolve(process.cwd(), "app/(app)/operations/operations.css"),
+      "utf8",
+    );
+    // `margin-left`, `padding-right`, `text-align: left` and friends pin a
+    // layout to one reading direction. The route used logical properties
+    // throughout before this change and still does after it.
+    const physical =
+      /(^|[\s;{])(margin|padding|border)-(left|right)\s*:|(^|[\s;{])(left|right)\s*:\s*(?!auto)|text-align\s*:\s*(left|right)/gm;
+    const hits = css.match(physical) ?? [];
+    expect(hits, `physical direction properties: ${hits.join(", ")}`).toEqual([]);
+    // …and the new rules are actually present, so this is not a vacuous pass
+    // over a stylesheet that never gained them.
+    expect(css).toContain(".opsw-group__meta");
+    expect(css).toContain(".opsw-affected__meta");
   });
 });

@@ -108,6 +108,8 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
     minutesAgo?: number;
     occurrences?: number;
     summary?: string;
+    /** The declared Operations source. Defaults to an operator-resolvable one. */
+    sourceId?: string;
   };
 
   let seq = 0;
@@ -118,6 +120,16 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
     return prisma.operationalIncident.create({
       data: {
         teamId: over.teamId,
+        // A DECLARED source, because identity is declared now and a row
+        // without one fails closed to NO_DIRECT_RESOLUTION — correctly, and
+        // this fixture is not what that rule is about.
+        //
+        // The default is an OPERATOR_DECISION source: most cases in this file
+        // exercise the TRANSITION machinery — acknowledge, resolve, suppress,
+        // assign, SLA cycles, history — and need a condition a person is
+        // allowed to close. The fail-closed and source-truth refusals have
+        // their own fixtures, which declare their own sources.
+        sourceId: over.sourceId ?? "identity.security_condition",
         category: (over.category ?? "EVIDENCE_INTEGRITY") as never,
         severity: (over.severity ?? "HIGH") as never,
         status: (over.status ?? "OPEN") as never,

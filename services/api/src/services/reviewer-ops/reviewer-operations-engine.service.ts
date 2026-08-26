@@ -1351,6 +1351,7 @@ async function runReconcileInner(
       try {
         await recordIncident(
           {
+            sourceId: "review.escalation_storm",
             teamId: input.teamId,
             category: "GOVERNANCE",
             severity: "HIGH",

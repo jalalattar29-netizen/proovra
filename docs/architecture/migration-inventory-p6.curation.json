@@ -2896,6 +2896,17 @@
       "removalCondition": "NEVER removed while any aggregate Operations source declares a metricContract other than NONE. Dropping it would return the current value to the title, which is the defect it was added to close.",
       "rollbackDisposition": "Nothing to roll back. An image without the column's writer leaves it NULL; an image without the column's reader ignores it. No other column, index or constraint is touched.",
       "ownerAction": "Apply with the release. Until it runs, aggregate conditions record no current value and their rows show the stable title with no number — degraded, never wrong."
+    },
+    "20271226000000_operational_incident_source_identity": {
+      "classification": "BACKFILL",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "evidence": "OPERATIONS SOURCE TOTALITY — one nullable VARCHAR(120) column, operational_incidents.source_id, plus a deterministic backfill over 29 unambiguous fingerprint prefixes. A condition's lifecycle — who may resolve it, which probe answers 'is it still true', how it recovers and recurs, who it is for — was derived from category (14 values for 35 sources) and then from fingerprint, which covered the 11 shapes the discovery sweep writes and left 15 other production emitters in both hosts falling through to an 'unregistered' contract that was OPERATOR_DECISION: a condition the system could not identify was the most closable kind there is. The ADD COLUMN is nullable with no default, no index and no constraint. The backfill is one UPDATE per prefix, guarded by source_id IS NULL so re-running is a no-op, anchored on the separator so report_backlog_v2 cannot inherit report_backlog, and derived from the exact legacyFingerprints declarations in packages/shared-runtime/src/ops/source-lifecycle.ts — operations-source-identity.test.ts fails the build if the migration and that registry disagree. NO HISTORY IS REWRITTEN: it touches one previously-absent column on the incident row and reads neither operational_incident_events nor operational_incident_sla_cycles, so no status, resolution, note, actor, occurrence count or SLA cycle changes. Anything matching no prefix stays NULL and fails closed at runtime to NO_DIRECT_RESOLUTION.",
+      "removalCondition": "NEVER removed while lifecycle authority is per-source. Dropping it would return authority to fingerprint inference, which is the defect it was added to close.",
+      "rollbackDisposition": "Nothing to reverse. An image without the writer leaves the column NULL on new rows and those rows fail closed; an image without the reader ignores it. The backfill is deliberately NOT reversed on rollback — a stamped source id is a true statement about a row whichever image is running.",
+      "readinessCommand": "DATABASE_URL=$P6_TARGET node services/api/scripts/operations-source-identity-readiness.mjs",
+      "ownerAction": "Apply BEFORE deploying API and Worker. NOT NULL is deliberately a LATER deployment, after the backfill has been observed in production; new writes are enforced by the typed writer signature rather than by the database."
     }
   }
 }

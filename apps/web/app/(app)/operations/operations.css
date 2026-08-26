@@ -850,3 +850,157 @@
   font: var(--font-meta);
   color: var(--ink-secondary);
 }
+
+/* ==========================================================================
+   THE GROUPED QUEUE
+   ==========================================================================
+   One row per SOURCE instead of one per record. Built on the same tokens and
+   the same logical properties as the flat table, so the two views read as one
+   surface rather than two — an operator toggling between them should see the
+   same queue arranged differently, not a different product. */
+
+.opsw-view-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-end: 12px;
+}
+
+.opsw-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opsw-group {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-card);
+}
+.opsw-group[data-ops-group-open="true"] {
+  border-color: var(--border-strong);
+}
+
+/* The whole row is the control. A group has exactly one thing you can do to
+   it — open it — so a separate affordance inside a clickable row would be two
+   targets for one action. */
+.opsw-group__open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  inline-size: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: none;
+  text-align: start;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.opsw-group__open:hover {
+  background: var(--surface-hover);
+}
+.opsw-group__open:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.opsw-group__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.opsw-group__title {
+  overflow-wrap: anywhere;
+}
+
+/* WRAPPING, so a long source label and two counts reflow on a phone instead
+   of widening the row. Every count is `tabular-nums` so a column of groups
+   stays aligned as the numbers change between reads. */
+.opsw-group__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+}
+.opsw-group__source {
+  color: var(--ink-secondary);
+}
+.opsw-group__conditions,
+.opsw-group__affected {
+  font-variant-numeric: tabular-nums;
+}
+/* The affected-record count is the number an operator triages on, so it gets
+   the emphasis; the condition count sits beside it, deliberately quieter, and
+   the two are never rendered under one label. */
+.opsw-group__affected {
+  color: var(--ink-primary);
+  font-weight: 600;
+}
+.opsw-group__owned,
+.opsw-group__activity {
+  color: var(--ink-muted);
+}
+
+.opsw-group__classes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+}
+.opsw-group__class {
+  padding: 1px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   THE AFFECTED-RECORD DRILL-DOWN
+   ========================================================================== */
+
+.opsw-affected {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.opsw-affected__row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-block-end: 10px;
+  border-block-end: 1px solid var(--border-subtle);
+}
+.opsw-affected__row:last-child {
+  border-block-end: 0;
+  padding-block-end: 0;
+}
+.opsw-affected__title {
+  color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+.opsw-affected__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+}
+.opsw-affected__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-link);
+}

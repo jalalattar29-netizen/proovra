@@ -166,6 +166,7 @@ export async function runtimeRiskRecomputeSweep(
   if (highRiskCount >= HIGH_RISK_INCIDENT_DEFAULT_THRESHOLD) {
     try {
       await recordIncident({
+        sourceId: "identity.high_risk_session_surge",
         teamId: input.teamId,
         category: "IDENTITY_SECURITY",
         severity: "HIGH",

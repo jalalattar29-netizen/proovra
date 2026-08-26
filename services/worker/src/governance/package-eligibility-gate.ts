@@ -252,6 +252,7 @@ async function emitDenial(
   //    recording errors; the deny outcome is what protects production.
   try {
     await recordWorkerIncident({
+      sourceId: "pipeline.package_generation_denied",
       teamId: input.teamId,
       category: "GOVERNANCE",
       severity: denial.outcome === "GOVERNANCE_STATE_UNAVAILABLE" ? "HIGH" : "WARNING",

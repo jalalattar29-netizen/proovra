@@ -196,6 +196,7 @@ export async function runtimeAdaptiveGate(
       // spawn dozens of incidents.
       try {
         await recordIncident({
+          sourceId: "identity.runtime_block",
           teamId: input.teamId,
           category: "IDENTITY_SECURITY",
           severity: "HIGH",

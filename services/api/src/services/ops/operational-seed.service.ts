@@ -635,6 +635,7 @@ export async function runOperationalSeed(
     try {
       const incident = await recordIncident(
         {
+          sourceId: "platform.operational_seed",
           teamId: input.teamId,
           category: "GOVERNANCE",
           severity: input.scenario === "escalation_storm" ? "HIGH" : "WARNING",

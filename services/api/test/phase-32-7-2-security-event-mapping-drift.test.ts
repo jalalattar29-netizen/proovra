@@ -1120,6 +1120,18 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // owns. Permitted by exact name, like every entry above, so the
       // allowlist never becomes a pattern.
       "20271225000000_operational_incident_metric_snapshot",
+      // OPERATIONS SOURCE TOTALITY (2026-08-26). One nullable VARCHAR plus a
+      // deterministic backfill over unambiguous fingerprint prefixes, giving
+      // every condition a DECLARED source instead of an inferred one.
+      //
+      // Worth being explicit about the overlap: this closure DOES change
+      // `security-event.service.ts` — the branch that already returned a
+      // category now returns a source id beside it, because that bridge was
+      // the largest block of emitters whose conditions no source claimed. But
+      // the MIGRATION touches `operational_incidents` alone. No
+      // `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20271226000000_operational_incident_source_identity",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

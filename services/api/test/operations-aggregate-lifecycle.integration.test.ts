@@ -766,6 +766,9 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
     const fp = probes.aggregateFingerprint(spec, team.teamId);
     created.teamIds.add(team.teamId);
     const { incident } = await incidents.recordIncident({
+      // The SPEC's own source. Declared, not inferred — which is the whole
+      // reason this case can assert what it asserts below.
+      sourceId: spec.sourceId,
       teamId: team.teamId,
       category: spec.category,
       severity: "WARNING",
@@ -798,12 +801,24 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
     const fp = backlogFingerprint(team.teamId);
     // ONE contract, consulted by id — the Worker's emitter imports exactly
     // this function from exactly this package.
+    //
+    // Both halves are asserted: a DECLARED id is the modern path every writer
+    // now takes, and the fingerprint is the LEGACY path that keeps rows
+    // written before `source_id` existed resolving to the same contract.
+    const declared = authority.resolveConditionSource({
+      sourceId: "pipeline.report_backlog",
+      category: "REPORT",
+      fingerprint: fp,
+    });
+    expect(declared.lifecycle.sourceId).toBe("pipeline.report_backlog");
+    expect(declared.match).toBe("DECLARED");
+
     const api = authority.resolveConditionSource({
       category: "REPORT",
       fingerprint: fp,
     });
     expect(api.lifecycle.sourceId).toBe("pipeline.report_backlog");
-    expect(api.match).toBe("FINGERPRINT");
+    expect(api.match).toBe("LEGACY_FINGERPRINT");
 
     // …and the transition decision is the same pure function for both hosts.
     for (const status of ["OPEN", "ACKNOWLEDGED", "SUPPRESSED", "RESOLVED"] as const) {

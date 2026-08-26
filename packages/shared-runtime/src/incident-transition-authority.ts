@@ -135,6 +135,13 @@ export const INCIDENT_TRANSITION_DECISIONS = [
    * this is what refuses one that arrives anyway.
    */
   "REFUSE_NO_DIRECT_RESOLUTION",
+  /**
+   * An OPERATOR_DECISION source was closed without the written conclusion its
+   * contract requires. Refused rather than accepted with an empty note: the
+   * note IS the resolution for these, and a blank one leaves the timeline
+   * saying a person decided something and not what.
+   */
+  "REFUSE_RESOLUTION_NOTE_REQUIRED",
 ] as const;
 export type IncidentTransitionDecision =
   (typeof INCIDENT_TRANSITION_DECISIONS)[number];
@@ -192,6 +199,18 @@ export type ManualResolutionFacts = {
    * can be NOT_APPLICABLE; the conservative REFUSE is assumed when absent.
    */
   notApplicableDisposition?: NotApplicableDisposition;
+  /**
+   * Does this source's contract require a written conclusion?
+   *
+   * True for every OPERATOR_DECISION source. That authority means "a person
+   * concluded something", and a conclusion nobody wrote down is
+   * indistinguishable from a click — so the note is part of the contract
+   * rather than a form-level nicety, and it is enforced here where the
+   * decision is made rather than at each of the call sites.
+   */
+  requiresResolutionNote?: boolean;
+  /** Whether the caller actually supplied a non-empty note. */
+  hasResolutionNote?: boolean;
 };
 
 /**
@@ -214,6 +233,7 @@ export function decisionChangesStatus(
     case "REFUSE_MANUAL_RESOLUTION":
     case "REFUSE_ACTIVITY_UNKNOWN":
     case "REFUSE_NO_DIRECT_RESOLUTION":
+    case "REFUSE_RESOLUTION_NOTE_REQUIRED":
       return false;
   }
 }
@@ -225,7 +245,8 @@ export function decisionRefusesManualResolution(
   return (
     decision === "REFUSE_MANUAL_RESOLUTION" ||
     decision === "REFUSE_ACTIVITY_UNKNOWN" ||
-    decision === "REFUSE_NO_DIRECT_RESOLUTION"
+    decision === "REFUSE_NO_DIRECT_RESOLUTION" ||
+    decision === "REFUSE_RESOLUTION_NOTE_REQUIRED"
   );
 }
 
@@ -306,7 +327,17 @@ export function decideManualResolution(
   // OPERATOR_DECISION: the condition records something that HAPPENED and its
   // completion is a human conclusion. No probe exists and none is asked for —
   // asking would be inventing a technical fact to gate a judgement.
-  if (facts.authority === "OPERATOR_DECISION") return "OBSERVATION_ONLY";
+  //
+  // But the conclusion must be WRITTEN. This authority is the only one that
+  // lets a person close a condition on their own say-so, and a say-so with no
+  // sentence attached leaves the next reader of the timeline exactly as
+  // uninformed as an unexplained status flip would.
+  if (facts.authority === "OPERATOR_DECISION") {
+    if (facts.requiresResolutionNote && !facts.hasResolutionNote) {
+      return "REFUSE_RESOLUTION_NOTE_REQUIRED";
+    }
+    return "OBSERVATION_ONLY";
+  }
 
   // SOURCE_TRUTH: the source decides, and the four probe answers are four
   // different decisions.
@@ -360,6 +391,14 @@ export const CONDITION_ACTIVITY_UNKNOWN = "CONDITION_ACTIVITY_UNKNOWN" as const;
 export const CONDITION_NOT_DIRECTLY_RESOLVABLE =
   "CONDITION_NOT_DIRECTLY_RESOLVABLE" as const;
 
+/**
+ * The stable domain error code for a missing required resolution note.
+ *
+ * Its own code because it is the one refusal the operator can act on
+ * immediately: write the sentence and press the button again.
+ */
+export const RESOLUTION_NOTE_REQUIRED = "RESOLUTION_NOTE_REQUIRED" as const;
+
 /** The refusal code one refusing decision carries, or null when it allows. */
 export function manualResolutionErrorCode(
   decision: IncidentTransitionDecision,
@@ -367,11 +406,15 @@ export function manualResolutionErrorCode(
   | typeof CONDITION_STILL_ACTIVE
   | typeof CONDITION_ACTIVITY_UNKNOWN
   | typeof CONDITION_NOT_DIRECTLY_RESOLVABLE
+  | typeof RESOLUTION_NOTE_REQUIRED
   | null {
   if (decision === "REFUSE_MANUAL_RESOLUTION") return CONDITION_STILL_ACTIVE;
   if (decision === "REFUSE_ACTIVITY_UNKNOWN") return CONDITION_ACTIVITY_UNKNOWN;
   if (decision === "REFUSE_NO_DIRECT_RESOLUTION") {
     return CONDITION_NOT_DIRECTLY_RESOLVABLE;
+  }
+  if (decision === "REFUSE_RESOLUTION_NOTE_REQUIRED") {
+    return RESOLUTION_NOTE_REQUIRED;
   }
   return null;
 }

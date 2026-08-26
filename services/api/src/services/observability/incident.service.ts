@@ -38,6 +38,7 @@ import {
   CONDITION_ACTIVITY_UNKNOWN,
   CONDITION_NOT_DIRECTLY_RESOLVABLE,
   CONDITION_STILL_ACTIVE,
+  RESOLUTION_NOTE_REQUIRED,
   decideManualResolution,
   decideObservationTransition,
   decisionIsReopen,
@@ -48,6 +49,7 @@ import {
   OCCURRENCE_WHILE_SUPPRESSED_EVENT,
   REOPENED_EVENT,
   reopenReasonFor,
+  isRegisteredOperationsSource,
   resolveConditionSource,
   RESOLUTION_EVENT_ORIGINS as SHARED_RESOLUTION_EVENT_ORIGINS,
   RESOLVED_BY_DOMAIN_TRUTH_EVENT,
@@ -55,6 +57,7 @@ import {
   type ConditionMetricSnapshot,
   type IncidentTransitionDecision,
   type IncidentTransitionStatus,
+  type OperationsSourceId,
   type ResolutionOrigin,
   type SourceActivity,
   type SourceObservation,
@@ -67,6 +70,7 @@ import {
 } from "./incident-scope.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
+import { reportUnregisteredConditionSource } from "../operations/unregistered-condition-diagnostic.js";
 import { safeJsonSnapshot } from "./redact.js";
 
 // -----------------------------------------------------------------------------
@@ -99,7 +103,12 @@ export type IncidentErrorCode =
    * The projection offers no Resolve control for these; this answers a request
    * that arrived from a stale client or a direct API call anyway.
    */
-  | typeof CONDITION_NOT_DIRECTLY_RESOLVABLE;
+  | typeof CONDITION_NOT_DIRECTLY_RESOLVABLE
+  /**
+   * An OPERATOR_DECISION condition was closed with no written conclusion.
+   * The one refusal an operator can act on immediately.
+   */
+  | typeof RESOLUTION_NOTE_REQUIRED;
 
 export class IncidentError extends Error {
   readonly code: IncidentErrorCode;
@@ -172,6 +181,23 @@ export async function readResolutionOrigin(
 
 export type RecordIncidentInput = {
   teamId?: string | null;
+  /**
+   * WHICH REGISTERED OPERATIONS SOURCE THIS CONDITION COMES FROM.
+   *
+   * REQUIRED, and required is the whole correction. Lifecycle authority used
+   * to be derived from `category` and then from `fingerprint`; the second
+   * covered the eleven shapes the discovery sweep writes and left fifteen
+   * other production emitters — in both hosts — resolving to an
+   * "unregistered" contract that let an operator close a condition the system
+   * could not even identify.
+   *
+   * The id must name a row in `OPERATIONS_SOURCE_LIFECYCLES`. An unregistered
+   * id is not rejected at the write — losing an observed condition is worse
+   * than recording an unclassified one — but it fails closed at every read:
+   * NO_DIRECT_RESOLUTION, activity UNKNOWN, no Resolve control, and a bounded
+   * internal diagnostic so the gap is visible rather than silent.
+   */
+  sourceId: OperationsSourceId;
   category: IncidentCategory;
   severity: IncidentSeverity;
   fingerprint: string;
@@ -269,12 +295,29 @@ export async function recordIncident(
     relatedEvidenceId: true,
     relatedJobId: true,
     relatedProvider: true,
+    sourceId: true,
     // The PREVIOUS snapshot, so a refreshed metric can carry a real
     // `previousValue` and `delta` rather than having them recomputed by
     // whoever renders it — and so a failed observation can keep the last
     // values it successfully read instead of zeroing them.
     metricSnapshot: true,
   } as const;
+
+  // AN UNREGISTERED SOURCE IS RECORDED, NOT REFUSED.
+  //
+  // Losing an OBSERVED condition is strictly worse than carrying an
+  // unclassified one: the first is a real fault nobody can see, the second is
+  // a real fault that fails closed and names itself in a diagnostic. The
+  // emitter-totality gate is what stops an unregistered id ever shipping; this
+  // is what happens if one does anyway.
+  if (!isRegisteredOperationsSource(input.sourceId)) {
+    reportUnregisteredConditionSource({
+      sourceId: input.sourceId,
+      category: input.category,
+      teamId: input.teamId ?? null,
+      writer: "api.recordIncident",
+    });
+  }
 
   const existing = input.teamId
     ? await client.operationalIncident.findUnique({
@@ -301,6 +344,8 @@ export async function recordIncident(
     row = await client.operationalIncident.create({
       data: {
         teamId: input.teamId ?? null,
+        // THE DECLARED SOURCE. Persisted so no reader has to infer it.
+        sourceId: input.sourceId,
         // WORKSPACE-SCOPE CONVERGENCE — the scope is DERIVED here, never
         // defaulted. Relying on the column default would write WORKSPACE onto
         // a NULL-team row, which is precisely the contradiction the
@@ -404,6 +449,11 @@ export async function recordIncident(
       title: safeTitle,
       safeSummary,
       runbookSlug: input.runbookSlug?.slice(0, 64) ?? undefined,
+      // A row written before `source_id` existed gets stamped by the first
+      // writer to re-observe it. Never OVERWRITTEN: a row that already carries
+      // an id keeps it, so a re-observation cannot silently move a condition
+      // from one lifecycle contract to another.
+      ...(existing.sourceId ? {} : { sourceId: input.sourceId }),
       ...(nextMetric === undefined
         ? {}
         : {
@@ -899,7 +949,12 @@ export async function assignIncident(
  * check" is not "it is fine".
  */
 export async function probeConditionActivity(
-  incident: { category: string; fingerprint: string; teamId: string },
+  incident: {
+    sourceId?: string | null;
+    category: string;
+    fingerprint: string;
+    teamId: string;
+  },
   client: PrismaClient,
 ): Promise<SourceActivity> {
   try {
@@ -963,17 +1018,39 @@ async function transitionIncident(
   // either, because the contract already refuses it.
   // ---------------------------------------------------------------------
   if (next === prismaPkg.IncidentStatus.RESOLVED) {
-    const { lifecycle } = resolveConditionSource({
+    const { lifecycle, match, diagnostic } = resolveConditionSource({
+      // DECLARED FIRST. The fingerprint is consulted only for rows written
+      // before `source_id` existed, and only where one shape means exactly
+      // one source; anything else reaches the fail-closed contract.
+      sourceId: existing.sourceId,
       category: existing.category,
       fingerprint: existing.fingerprint,
     });
+    if (diagnostic) {
+      // The condition is about to be REFUSED — the unregistered contract is
+      // NO_DIRECT_RESOLUTION — and the gap is recorded where the people who
+      // can register the source will see it.
+      reportUnregisteredConditionSource({
+        sourceId: existing.sourceId,
+        category: existing.category,
+        teamId: input.teamId,
+        writer: "api.manualResolution",
+      });
+    }
+    void match;
     const verdict = decideManualResolution({
       currentStatus: existing.status as IncidentTransitionStatus,
       authority: lifecycle.resolutionAuthority,
+      requiresResolutionNote: lifecycle.requiresResolutionNote,
+      // Trimmed, so whitespace is not a conclusion.
+      hasResolutionNote:
+        typeof input.resolutionNote === "string" &&
+        input.resolutionNote.trim().length > 0,
       activity:
         lifecycle.resolutionAuthority === "SOURCE_TRUTH"
           ? await probeConditionActivity(
               {
+                sourceId: existing.sourceId,
                 category: existing.category,
                 fingerprint: existing.fingerprint,
                 teamId: input.teamId,
@@ -1377,6 +1454,16 @@ export type IncidentProjection = {
     recoveryPolicy: string;
     /** True only for OPERATOR_DECISION. */
     manualResolution: boolean;
+    /**
+     * True when a Resolve on this source must carry a written conclusion.
+     *
+     * Projected so the browser can collect the note BEFORE posting rather
+     * than discovering the requirement as a 409 — the server still enforces
+     * it, because a form is a convenience and not an authority.
+     */
+    requiresResolutionNote: boolean;
+    /** ACTIVE, NOT_YET_DISCOVERED or DISABLED. */
+    discoveryState: string;
   };
   /**
    * THE CURRENT AGGREGATE VALUE, or null when this source carries none.
@@ -1407,6 +1494,7 @@ export function projectIncident(
   i: prismaPkg.OperationalIncident,
 ): IncidentProjection {
   const { lifecycle, match } = resolveConditionSource({
+    sourceId: i.sourceId,
     category: i.category,
     fingerprint: i.fingerprint,
   });
@@ -1420,6 +1508,9 @@ export function projectIncident(
       cardinality: lifecycle.cardinality,
       recoveryPolicy: lifecycle.recoveryPolicy,
       manualResolution: offersManualResolution(lifecycle),
+      /** True when this source's Resolve must carry a written conclusion. */
+      requiresResolutionNote: lifecycle.requiresResolutionNote,
+      discoveryState: lifecycle.discoveryState,
     },
     // A source that declares no metric never projects one, even if a row
     // somehow carries a snapshot: the contract decides what a row means, not
