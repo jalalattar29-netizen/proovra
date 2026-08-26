@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7974,
-      "UNRESOLVED_IDENTIFIER": 1010
+      "METHOD_ON_VALUE": 7980,
+      "UNRESOLVED_IDENTIFIER": 1011
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -78280,7 +78280,7 @@
       "method": "DELETE",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:455",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:450",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -105161,7 +105161,7 @@
       "method": "GET",
       "path": "/v1/search",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:301",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:296",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -105218,7 +105218,7 @@
       "method": "GET",
       "path": "/v1/search/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:654",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:649",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -105273,7 +105273,7 @@
       "method": "GET",
       "path": "/v1/search/diagnostics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:1211",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:1206",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -105333,7 +105333,7 @@
       "method": "GET",
       "path": "/v1/search/relationships/:evidenceId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:510",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:505",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -105390,7 +105390,7 @@
       "method": "GET",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:387",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:382",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -105446,7 +105446,7 @@
       "method": "GET",
       "path": "/v1/search/semantic/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:752",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:747",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -105502,7 +105502,7 @@
       "method": "GET",
       "path": "/v1/search/suggest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:786",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:781",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -111204,7 +111204,7 @@
       "method": "PATCH",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:481",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:476",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144041,7 +144041,7 @@
       "method": "POST",
       "path": "/v1/search/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:892",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:887",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144111,7 +144111,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:592",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:587",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144164,7 +144164,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/workflow/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:618",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:613",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144212,7 +144212,7 @@
       "method": "POST",
       "path": "/v1/search/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:537",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:532",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144262,7 +144262,7 @@
       "method": "POST",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:411",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:406",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144322,7 +144322,7 @@
       "method": "POST",
       "path": "/v1/search/semantic/backfill",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:713",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:708",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",

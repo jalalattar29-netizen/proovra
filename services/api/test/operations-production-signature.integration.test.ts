@@ -96,7 +96,14 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
-/** The six that write, and the five that do not. Exactly as production reported. */
+/**
+ * The sources that WRITE under the hybrid, and those that do not.
+ *
+ * Production reported six and five. `search.indexing_failure` and
+ * `storage.immutable_drift` did not exist as producers when that signature was
+ * captured; both are attempted now, and each sits in the list its behaviour
+ * puts it in — see the notes beside them.
+ */
 const EXPECTED_FAILED = [
   "evidence_integrity.ots_failed",
   "evidence_integrity.ots_pending_aged",
@@ -104,6 +111,20 @@ const EXPECTED_FAILED = [
   "pipeline.package_backlog",
   "pipeline.report_backlog",
   "platform.telemetry_stale",
+  // -------------------------------------------------------------------------
+  // IT WRITES NOW, SO IT FAILS WITH THE OTHER WRITERS.
+  // -------------------------------------------------------------------------
+  // When this signature was captured, `search.indexing_failure` had no
+  // producer; it was later given one that read a reconciliation run's exit
+  // status, and the fixture workspace had no run, so it recorded nothing and
+  // trivially "succeeded".
+  //
+  // It measures INDEX COVERAGE now — eligible records against records actually
+  // in the index — and the fixture seeds thirty-four evidence records with no
+  // search documents. That is real drift, so the source opens a real
+  // condition, and under the hybrid schema that write fails exactly as every
+  // other writer's does.
+  "search.indexing_failure",
 ];
 const EXPECTED_SUCCEEDED = [
   "coordination.backlog_stale",
@@ -118,17 +139,12 @@ const EXPECTED_SUCCEEDED = [
   // both succeed in the BROKEN state as well as the fixed one — and why they
   // belong in this list rather than in EXPECTED_FAILED.
   //
-  //   search.indexing_failure   registered with no producer for a release.
-  //                             It reads the workspace's own terminal
-  //                             SEARCH_INDEX reconciliation run, and a
-  //                             workspace with no run yet is a completed read
-  //                             that opens nothing.
   //   storage.immutable_drift   discovery does not OPEN these — the Worker's
   //                             reconciler does — but the source is source
   //                             truth now, so the sweep reads the newest
   //                             reconciliation verdict and closes the ones it
-  //                             has cleared.
-  "search.indexing_failure",
+  //                             has cleared. It never writes here, so the
+  //                             broken schema cannot fail it.
   "storage.immutable_drift",
 ];
 

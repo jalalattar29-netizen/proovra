@@ -887,45 +887,63 @@ async function observeImmutableDrift(
 }
 
 /**
- * IS SEARCH-INDEX RECONCILIATION STILL FAILING FOR THIS WORKSPACE?
+ * IS THIS WORKSPACE'S SEARCH INDEX ACTUALLY UNHEALTHY?
  *
- * The worker's reconciler claims ONE WORKSPACE AT A TIME through the shared
- * governance-run authority, so every workspace has its own
- * `GovernanceReconciliationRun` rows with `kind = SEARCH_INDEX`, its own
- * terminal status and its own history. This reads the newest TERMINAL one.
+ * ---------------------------------------------------------------------------
+ * WHAT THIS PROBE USED TO READ, AND WHY IT WAS UNSAFE
+ * ---------------------------------------------------------------------------
+ * The newest terminal `GovernanceReconciliationRun` for the workspace:
+ * FAILED or PARTIAL meant ACTIVE, SUCCEEDED meant RECOVERED.
  *
- * RUNNING rows are skipped rather than treated as either answer: a run in
- * flight has not concluded anything, and reading it as recovery would close a
- * condition on the strength of work that may be about to fail.
+ * SUCCEEDED does not mean the index is healthy. The reconciliation scheduler
+ * converges by ENQUEUEING — it finds the drifted rows, schedules a rebuild for
+ * each under a deterministic job id, and returns — so the run row closes
+ * SUCCEEDED within milliseconds while the index is still empty. The authority
+ * that owns those runs documents exactly this, and a purpose-built readiness
+ * derivation exists BECAUSE of it.
  *
- * A workspace with no terminal run is UNKNOWN, not recovered. "The reconciler
- * has never finished here" is precisely the state that must not read as
- * healthy.
+ * So the old probe auto-resolved an open indexing condition while thousands of
+ * rebuilds sat in the queue: a false all-clear produced by the one source that
+ * exists to report the opposite. It also under-reported in the other
+ * direction — persistent drift with every run succeeding never opened at all.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT IT READS NOW
+ * ---------------------------------------------------------------------------
+ * `deriveSearchReadiness`, through the extracted fact collector: eligible
+ * records against indexed records, the removal backlog, the durable run row
+ * with its LEASE evaluated, and the queue's own job state for the outstanding
+ * records. The rule is not reimplemented here and the facts are not gathered
+ * twice — the diagnostics endpoint an operator reads consumes the same module.
+ *
+ * Every uncertain state answers UNKNOWN, including the two that look like
+ * progress: INITIALIZING and PARTIAL mean work is genuinely in flight, which
+ * is neither health nor failure, and reading either as recovery is the defect
+ * being removed. See `classifySearchReadiness` for the full mapping.
  */
-const SEARCH_RUN_FAILING: readonly string[] = ["FAILED", "PARTIAL"];
-
-async function observeSearchIndexRun(
+async function observeSearchIndexHealth(
   ctx: ProbeContext,
 ): Promise<SourceObservation> {
   const base = { observedAtUtc: ctx.now } as const;
   try {
-    const run = await ctx.client.governanceReconciliationRun.findFirst({
-      where: {
-        teamId: ctx.teamId,
-        kind: "SEARCH_INDEX",
-        status: { in: ["SUCCEEDED", "FAILED", "PARTIAL"] },
-      },
-      orderBy: [{ startedAtUtc: "desc" }, { id: "desc" }],
-      select: { status: true },
-    });
-    if (!run) return { ...base, activity: "UNKNOWN" };
-    return {
-      ...base,
-      activity: SEARCH_RUN_FAILING.includes(String(run.status))
-        ? "ACTIVE"
-        : "RECOVERED",
-    };
+    const health = await import("../search/search-health.service.js");
+    const readiness = await health.resolveWorkspaceSearchReadiness(
+      // TENANT-BOUND. Every query inside the collector is keyed on this id in
+      // its own WHERE clause; there is no widening arm and no post-read filter.
+      { teamId: ctx.teamId, now: ctx.now },
+      ctx.client,
+    );
+    switch (health.classifySearchReadiness(readiness.state)) {
+      case "HEALTHY":
+        return { ...base, activity: "RECOVERED" };
+      case "FAILING":
+        return { ...base, activity: "ACTIVE" };
+      default:
+        return { ...base, activity: "UNKNOWN" };
+    }
   } catch {
+    // The facts could not be read. Not healthy, not failing — unknown, which
+    // refuses a manual resolution and resolves nothing.
     return { ...base, activity: "UNKNOWN" };
   }
 }
@@ -977,8 +995,10 @@ const PROBE_HANDLERS: Readonly<
   // reconciliation verdict for that record. A read, never a storage call.
   "storage.immutable_reconciliation_state": (ctx) => observeImmutableDrift(ctx),
 
-  // The workspace's newest TERMINAL SEARCH_INDEX reconciliation run.
-  "search.index_run_state": (ctx) => observeSearchIndexRun(ctx),
+  // The CANONICAL search-readiness derivation — eligible vs indexed, the
+  // removal backlog, the run row's lease, and the queue's own job state. Never
+  // a reconciliation run's exit status on its own.
+  "search.index_health": (ctx) => observeSearchIndexHealth(ctx),
 
   "pipeline.report_backlog_count": (ctx) =>
     observeAggregateByKey("pipeline.report_backlog_count", ctx),

@@ -95,16 +95,28 @@ describe("Phase 8.3 — tenant isolation (live PostgreSQL 16)", () => {
   // ==========================================================================
 
   it("the Operations LIST never returns another tenant's conditions", async () => {
-    await openCondition(A.teamId, "A-only condition");
-    await openCondition(B.teamId, "B-only condition");
+    // IDENTIFIED BY FINGERPRINT, NOT BY TITLE.
+    //
+    // The title used to be a per-row fixture marker, and it stopped being one:
+    // projection renders the condition's SOURCE label now — count-free and
+    // identical for every row of a source — so both workspaces' rows read
+    // "Trusted timestamping failed" and the isolation assertion compared two
+    // copies of the same string.
+    //
+    // The fingerprint is the row's own durable identity and is unique by
+    // construction, so this is a STRICTER probe than the one it replaces: a
+    // leak of a differently-titled row would have been caught by both, and a
+    // leak of an identically-titled one only by this.
+    const aRow = await openCondition(A.teamId, "A-only condition");
+    const bRow = await openCondition(B.teamId, "B-only condition");
 
     const a = await get(`/v1/ops/incidents?teamId=${A.teamId}`, A.ownerToken);
     expect(a.status).toBe(200);
-    const titles = (a.body.incidents as Array<{ title: string }>).map(
-      (i) => i.title,
-    );
-    expect(titles).toContain("A-only condition");
-    expect(titles).not.toContain("B-only condition");
+    const fingerprints = (
+      a.body.incidents as Array<{ fingerprint: string }>
+    ).map((i) => i.fingerprint);
+    expect(fingerprints).toContain(aRow.fingerprint);
+    expect(fingerprints).not.toContain(bRow.fingerprint);
   });
 
   it("the Operations SUMMARY counts only the caller's workspace", async () => {

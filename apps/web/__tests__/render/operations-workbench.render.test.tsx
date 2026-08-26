@@ -388,6 +388,23 @@ async function settle() {
   });
 }
 
+/**
+ * Wait past the search box's real 250ms debounce, then settle.
+ *
+ * The one place in this suite that waits on a wall-clock delay, and it is
+ * deliberate: the debounce is a product contract — the box types locally, the
+ * URL is written once — so a test that mocked the clock away would no longer
+ * be testing it.
+ */
+const SEARCH_DEBOUNCE_MS = 250;
+
+async function settleDebounce() {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 50));
+  });
+  await settle();
+}
+
 /** Flush a macrotask too — the deferred focus restore lands on one. */
 async function settleTimers() {
   await settle();
@@ -712,7 +729,22 @@ describe("Operations — filtering asks the server, not the page", () => {
     await act(async () => {
       fireEvent.change(box, { target: { value: "timestamp" } });
     });
-    await settle();
+    // THE INPUT TYPES AT KEYBOARD SPEED; THE URL WRITE IS DEBOUNCED.
+    //
+    // `useDebouncedSearchInput` holds the commit for 250ms, because binding the
+    // box straight to the applied filter made every keystroke a
+    // `router.replace()` — an App Router navigation with an RSC round trip —
+    // AND a `GET /v1/ops/incidents`, and the character only appeared once all
+    // of that had come back. The character still has to reach the URL; it
+    // simply reaches it once the typing settles.
+    //
+    // The value is in the box immediately, which is the half a user feels…
+    expect(box.value).toBe("timestamp");
+    // …and in the URL after the debounce, which is the half a shared link
+    // needs. Waiting past the real timer rather than mocking it: the delay is
+    // part of the contract, and a fake clock would let a regression that
+    // removed the commit entirely still pass.
+    await settleDebounce();
     expect(replaced.at(-1)).toContain("q=timestamp");
   });
 
@@ -1389,12 +1421,20 @@ describe("Operations — accessibility", () => {
     summaryReply = () => summary({ operatorCount: 3 });
     await mount(envelope(TEAM_ADMIN));
     const cards = qa("[data-ops-metric]");
-    // SEVEN, from `QUEUE_METRIC_ORDER`: open, critical, high, slaBreached,
-    // slaAtRisk, assignedToMe, unassigned. The count is asserted against the
-    // vocabulary rather than a literal so a card added there cannot pass here
-    // by coincidence.
+    // ONE ASSERTION, AGAINST THE VOCABULARY.
+    //
+    // There used to be a second line pinning the literal 7, directly beneath a
+    // comment claiming the count was "asserted against the vocabulary rather
+    // than a literal so a card added there cannot pass here by coincidence".
+    // The literal is exactly the coupling that comment disclaims, and it is
+    // what broke when the Resolved card was added — a card with its own
+    // server-side count, deliberately, because the bounded scan the other
+    // fields derive from covers only UNRESOLVED statuses.
+    //
+    // `QUEUE_METRIC_ORDER` is the canonical strip. A card silently
+    // disappearing still fails here, which is the property worth having.
     expect(cards.length).toBe(QUEUE_METRIC_ORDER.length);
-    expect(cards.length).toBe(7);
+    expect(QUEUE_METRIC_ORDER).toContain("resolved");
     for (const card of cards) {
       expect(card.tagName).toBe("BUTTON");
       expect(card.getAttribute("aria-pressed")).toMatch(/^(true|false)$/);

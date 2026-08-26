@@ -11,17 +11,9 @@ import { z } from "zod";
 // queries below emit their eligibility clause from it so the numerator and
 // the denominator can never measure different populations.
 import {
-  deriveSearchReadiness,
   projectSearchReadiness,
   searchIndexableLifecycleSql,
-  type SearchScheduledWorkFacts,
 } from "@proovra/shared";
-// Whether the outstanding rebuilds are actually in flight, read from the
-// queue's durable job state rather than inferred from elapsed time.
-import {
-  SEARCH_SCHEDULED_WORK_PROBE_CEILING,
-  probeSearchScheduledWork,
-} from "../services/search/search-scheduled-work.service.js";
 // The ONE durable reconciliation-run authority. Readiness reads the run row;
 // the reconcile endpoint starts runs through the same wrapper the worker's
 // scheduler uses, so the two cannot work one workspace at the same time.
@@ -30,7 +22,10 @@ import {
   reconcileSearchIndex,
 } from "@proovra/shared-runtime";
 
-const ELIGIBLE_SQL = searchIndexableLifecycleSql("lifecycle_state");
+import {
+  collectWorkspaceSearchHealthFacts,
+  resolveWorkspaceSearchReadiness,
+} from "../services/search/search-health.service.js";
 import {
   SAVED_VIEW_VISIBILITIES,
   SearchFilterSchema,
@@ -1243,129 +1238,53 @@ export async function searchRoutes(app: FastifyInstance) {
       // counts break the indexable population into
       // active / archived / locked / trashed and the excluded
       // population into destroyed / pendingDestruction.
-      const [team, breakdownRaw, indexedByTypeRaw, dbServer] = await Promise.all([
+      // THE FACTS COME FROM ONE PLACE NOW.
+      //
+      // The eligible-population breakdown, the index counts, the removal
+      // backlog, the durable run row and the queue probe used to be gathered
+      // INLINE here — which is why nothing else in the product could ask
+      // whether a workspace's index was healthy without either calling this
+      // endpoint or inventing a proxy. `search.indexing_failure` invented one,
+      // and it was a reconciliation run's exit status, which closes SUCCEEDED
+      // while the index is still empty.
+      //
+      // They live in `search-health.service` now, and this endpoint consumes
+      // them, so the page an operator reads and the condition that opens in
+      // their queue cannot disagree about one workspace's index.
+      const [team, healthFacts, dbServer] = await Promise.all([
         prisma.team.findUnique({
           where: { id: teamId },
           select: { id: true, name: true, isPersonal: true },
         }),
-        // Per-state breakdown — single round-trip via GROUP BY.
-        // Mutually-exclusive partition of every row in `evidence`
-        // for this team. Lifecycle DESTROYED + PENDING_DESTRUCTION
-        // win their bucket regardless of deleted_at / archived_at
-        // / locked_at so the totals add up to a single number.
-        //
-        //   activeIncluded        — alive, not archived, not locked,
-        //                           not trash
-        //   archivedIncluded      — alive, archivedAt set
-        //   lockedIncluded        — alive, lockedAt set (NOT also
-        //                           archived — archived wins to avoid
-        //                           double-counting)
-        //   trashedIncluded       — soft-deleted (deletedAt set)
-        //   destroyedExcluded     — lifecycle DESTROYED
-        //   pendingDestrExcluded  — lifecycle PENDING_DESTRUCTION
-        prisma.$queryRawUnsafe<
-          Array<{
-            active_included: bigint;
-            archived_included: bigint;
-            locked_included: bigint;
-            trashed_included: bigint;
-            destroyed_excluded: bigint;
-            pending_destruction_excluded: bigint;
-          }>
-        >(`
-          SELECT
-            COUNT(*) FILTER (
-              WHERE ${ELIGIBLE_SQL}
-                AND deleted_at IS NULL
-                AND archived_at IS NULL
-                AND locked_at IS NULL
-            )::bigint AS active_included,
-            COUNT(*) FILTER (
-              WHERE ${ELIGIBLE_SQL}
-                AND deleted_at IS NULL
-                AND archived_at IS NOT NULL
-            )::bigint AS archived_included,
-            COUNT(*) FILTER (
-              WHERE ${ELIGIBLE_SQL}
-                AND deleted_at IS NULL
-                AND archived_at IS NULL
-                AND locked_at IS NOT NULL
-            )::bigint AS locked_included,
-            COUNT(*) FILTER (
-              WHERE ${ELIGIBLE_SQL}
-                AND deleted_at IS NOT NULL
-            )::bigint AS trashed_included,
-            COUNT(*) FILTER (
-              WHERE COALESCE(lifecycle_state, 'ACTIVE') = 'DESTROYED'
-            )::bigint AS destroyed_excluded,
-            COUNT(*) FILTER (
-              WHERE COALESCE(lifecycle_state, 'ACTIVE') = 'PENDING_DESTRUCTION'
-            )::bigint AS pending_destruction_excluded
-          FROM evidence
-          WHERE team_id = $1::uuid`,
-          teamId,
-        ),
-        prisma.$queryRaw<
-          Array<{ document_type: string; n: bigint; last_indexed: Date | null }>
-        >`
-          SELECT document_type,
-                 COUNT(*)::bigint      AS n,
-                 MAX(indexed_at_utc)   AS last_indexed
-            FROM evidence_search_documents
-           WHERE team_id = ${teamId}::uuid
-           GROUP BY document_type`,
+        collectWorkspaceSearchHealthFacts({ teamId }, prisma),
         prisma.$queryRaw<Array<{ server_ip: string | null; server_port: number | null; db: string }>>`
           SELECT inet_server_addr()::text AS server_ip,
                  inet_server_port() AS server_port,
                  current_database() AS db`,
       ]);
-      const bd = breakdownRaw[0] ?? {
-        active_included: 0n,
-        archived_included: 0n,
-        locked_included: 0n,
-        trashed_included: 0n,
-        destroyed_excluded: 0n,
-        pending_destruction_excluded: 0n,
-      };
-      const activeIncluded = Number(bd.active_included);
-      const archivedIncluded = Number(bd.archived_included);
-      const lockedIncluded = Number(bd.locked_included);
-      const trashedIncluded = Number(bd.trashed_included);
-      const destroyedExcluded = Number(bd.destroyed_excluded);
-      const pendingDestructionExcluded = Number(bd.pending_destruction_excluded);
-      // Indexable evidence — every row the projection writes,
-      // i.e. active + archived + locked + trash. This is the
-      // denominator the chip + health classifier compare against.
-      const evidenceIndexable =
-        activeIncluded + archivedIncluded + lockedIncluded + trashedIncluded;
-      // Back-compat field for older clients still reading
-      // `evidence.total`. Sum of every row the source table
-      // contains (indexable + the two excluded lifecycle states).
-      // Note: hard-deleted rows are physically absent and
-      // therefore cannot be counted here — that count is reported
-      // as `null` in the response below.
-      const evidenceTotal =
-        evidenceIndexable + destroyedExcluded + pendingDestructionExcluded;
-
-      const indexedByType: Record<string, number> = {};
-      let indexedTotal = 0;
-      // The most recent write to THIS workspace's index. This is the persisted
-      // fact that separates a run which is progressing from one that stopped —
-      // the distinction a bare count comparison cannot make, and the reason two
-      // production workspaces claimed to be "catching up" indefinitely.
-      let lastIndexedAtUtc: Date | null = null;
-      for (const row of indexedByTypeRaw) {
-        const n = Number(row.n);
-        indexedByType[row.document_type] = n;
-        indexedTotal += n;
-        if (
-          row.last_indexed &&
-          (lastIndexedAtUtc === null || row.last_indexed > lastIndexedAtUtc)
-        ) {
-          lastIndexedAtUtc = row.last_indexed;
-        }
-      }
-      const indexedEvidence = indexedByType.EVIDENCE ?? 0;
+      // Unpacked from the shared facts. Every name below means exactly what it
+      // meant when these lines computed it themselves; what changed is that
+      // one module computes it and two callers read it.
+      const {
+        activeIncluded,
+        archivedIncluded,
+        lockedIncluded,
+        trashedIncluded,
+        destroyedExcluded,
+        pendingDestructionExcluded,
+      } = healthFacts.breakdown;
+      // Indexable evidence — every row the projection writes, i.e. active +
+      // archived + locked + trash. The denominator the chip and the health
+      // classifier compare against.
+      const evidenceIndexable = healthFacts.eligibleCount;
+      // Back-compat field for older clients still reading `evidence.total`.
+      // Hard-deleted rows are physically absent and cannot be counted here;
+      // that count is reported as `null` below.
+      const evidenceTotal = healthFacts.evidenceTotal;
+      const indexedByType = healthFacts.indexedByType;
+      const indexedTotal = healthFacts.indexedTotal;
+      const lastIndexedAtUtc = healthFacts.lastIndexedAtUtc;
+      const indexedEvidence = healthFacts.indexedEvidenceCount;
 
       // Sample query probe — same OR shape as executeSearch. Honors
       // reviewer-restriction gate so the count matches what the user
@@ -1454,108 +1373,27 @@ export async function searchRoutes(app: FastifyInstance) {
       }
 
       // CANONICAL READINESS — derived from persisted facts only: the eligible
-      // population, what the index holds, what is awaiting removal, and the
-      // durable run row.
+      // population, what the index holds, what is awaiting removal, the
+      // durable run row with its lease evaluated, and the queue's own job
+      // state for the outstanding records.
       //
       // The legacy `health` field above is retained for older clients, but it
       // cannot express the distinction that matters: `partial_index` covered
       // both "a backfill is running" and "nothing has run for months", and the
       // UI could only guess, so it guessed the reassuring one.
       //
+      // The FACTS were gathered once, above. The RULE lives in
+      // `@proovra/shared` and is called, never reimplemented — here or in the
+      // operational probe that now consumes the same module.
+      //
       // Reaching this line means the actor already passed `requireSearchActor`,
       // so authorization is settled; an unauthorized actor never sees a count.
-      // The durable run row for THIS workspace is tenant-bound in the query,
-      // and only reachable after that gate.
-      const runSnapshot = await latestSearchRun(prisma, teamId);
-
-      // Drift in the OTHER direction: documents whose source row is gone or has
-      // become ineligible. Invisible to `indexed` vs `eligible` — a destroyed
-      // record's leftover document keeps the counts converged while Search is
-      // still answering for a record governance decided no longer exists.
-      // Tenant-bound, and the same eligibility authority the counts above use.
-      const unresolvedRemovalRows = await prisma.$queryRawUnsafe<
-        Array<{ pending: number }>
-      >(
-        `SELECT COUNT(*)::int AS pending
-           FROM evidence_search_documents d
-           LEFT JOIN evidence e ON e.id = d.source_id
-          WHERE d.team_id = $1::uuid
-            AND d.document_type = 'EVIDENCE'
-            AND (e.id IS NULL OR NOT (${searchIndexableLifecycleSql("e.lifecycle_state")}))`,
-        teamId,
+      const runSnapshot = healthFacts.run;
+      const unresolvedRemovals = healthFacts.unresolvedRemovals;
+      const readiness = await resolveWorkspaceSearchReadiness(
+        { teamId, degradedCapabilities, facts: healthFacts },
+        prisma,
       );
-      const unresolvedRemovals = unresolvedRemovalRows[0]?.pending ?? 0;
-
-      // WHETHER THE OUTSTANDING WORK IS ACTUALLY IN FLIGHT.
-      //
-      // Asked of the queue's durable job state, addressed by deterministic job
-      // id — never inferred from how long ago a run finished. A clock cannot
-      // tell a rebuild that is on its third attempt from one nobody ever
-      // picked up, and the projection queue's own retry ladder runs far longer
-      // than any window that would be short enough to be useful.
-      //
-      // Skipped entirely when nothing is outstanding: a converged workspace
-      // has no question to ask, and a READY read must not cost a queue round
-      // trip.
-      let scheduledWork: SearchScheduledWorkFacts | undefined;
-      if (indexedEvidence < evidenceIndexable) {
-        // The outstanding records themselves, bounded and tenant-scoped by the
-        // SAME eligibility authority the counts above use — so the probe can
-        // never be pointed at a record this workspace does not own, and can
-        // never disagree with the denominator about which records are missing.
-        const outstanding = await prisma.$queryRawUnsafe<
-          Array<{ id: string }>
-        >(
-          `SELECT e.id::text AS id
-             FROM evidence e
-             LEFT JOIN evidence_search_documents d
-                    ON d.source_id = e.id
-                   AND d.document_type = 'EVIDENCE'
-            WHERE e.team_id = $1::uuid
-              AND ${ELIGIBLE_SQL}
-              AND d.source_id IS NULL
-            ORDER BY e.updated_at ASC
-            LIMIT $2`,
-          teamId,
-          SEARCH_SCHEDULED_WORK_PROBE_CEILING,
-        );
-        scheduledWork = await probeSearchScheduledWork({
-          sourceIds: outstanding.map((r) => r.id),
-        });
-      }
-
-      const readiness = deriveSearchReadiness({
-        eligibleCount: evidenceIndexable,
-        indexedCount: indexedEvidence,
-        unresolvedRemovals,
-        // Informational only. It is projected as `lastIndexedAt` and decides
-        // nothing — the run row decides whether work is in progress.
-        lastIndexedAtUtc,
-        run: runSnapshot
-          ? {
-              status: runSnapshot.status,
-              leaseValid: runSnapshot.leaseValid,
-              failureCategory: runSnapshot.failureCategory,
-            }
-          : null,
-        // Proof, not elapsed time: a rebuild for one of the outstanding
-        // records is queued or running right now. Without this the interval
-        // between an enqueue and the worker's write read as STALLED — a state
-        // that does not poll, so the reading never corrected itself and the
-        // user was told to press Rebuild.
-        scheduledWork,
-        authorized: true,
-        // This handler reached the database, so the service IS reachable. The
-        // UNAVAILABLE state is produced by the CLIENT when this endpoint could
-        // not be called at all — a server that answers cannot honestly report
-        // that it could not be reached.
-        serviceReachable: true,
-        // Secondary capabilities that are CONFIGURED for this workspace and are
-        // not answering. Deterministic search is unaffected, so this qualifies
-        // a working index and can never mask a broken one.
-        degradedCapabilities,
-        now: new Date(),
-      });
 
       const server = dbServer[0] ?? null;
 

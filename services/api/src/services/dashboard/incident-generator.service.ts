@@ -357,7 +357,13 @@ export async function generateIncidentsForWorkspace(
       if (outcome.unknown) rules.push("search:index_never_reconciled");
       successful.push(sourceId);
     } catch (err) {
-      failSource([sourceId], "UNKNOWN", err);
+      // WRITE, not UNKNOWN. `syncSearchIndexConditions` handles its own READ
+      // failures — an unreadable index returns `unknown` rather than throwing,
+      // because "we could not measure it" must not open or close anything. So
+      // anything that escapes to here happened while RECORDING the condition,
+      // and naming the stage correctly is what lets a schema fault be told
+      // apart from a source that could not be observed.
+      failSource([sourceId], "WRITE", err);
     }
   }
 

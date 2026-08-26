@@ -1,29 +1,52 @@
 /**
- * SEARCH INDEX RECONCILIATION — the producer for `search.indexing_failure`.
+ * SEARCH INDEX HEALTH — the producer for `search.indexing_failure`.
  *
  * ---------------------------------------------------------------------------
- * WHY THIS SOURCE STOPPED BEING A ROADMAP ENTRY
+ * WHAT THIS SOURCE MEASURED FIRST, AND WHY IT WAS WRONG
  * ---------------------------------------------------------------------------
- * `search.indexing_failure` was registered with no producer and the stated
- * reason that index health "is owned by the SEARCH_INDEX run authority and its
- * own readiness projection". That was accurate and it was also the description
- * of a producer nobody had written.
+ * `search.indexing_failure` was registered with no producer at all. The first
+ * producer read the newest terminal `GovernanceReconciliationRun` for the
+ * workspace: FAILED or PARTIAL opened a condition, SUCCEEDED closed one.
  *
- * The worker's reconciler claims ONE WORKSPACE AT A TIME through the shared
- * governance-run wrapper, so `governance_reconciliation_runs` already carries,
- * per workspace, a durable row with `kind = SEARCH_INDEX`, a terminal status
- * and a start instant. Whether this workspace's search index is currently
- * being kept in step is a fact that table states. This reads it.
+ * A run's exit status is a fact about a JOB, not about an INDEX. The
+ * reconciliation scheduler converges by ENQUEUEING — it finds drifted rows,
+ * schedules a rebuild for each under a deterministic job id, and returns — so
+ * the run closes SUCCEEDED within milliseconds while the index is still empty.
+ * The authority that owns those runs says exactly that in its own docstring,
+ * and the reason it says it is that a purpose-built readiness derivation had
+ * already been built to avoid this mistake.
+ *
+ * The consequence was the worst kind available to an operations surface: an
+ * open indexing condition AUTO-RESOLVED while thousands of rebuilds sat in the
+ * queue. A false all-clear, produced by the one source that exists to report
+ * the opposite.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT IT MEASURES NOW
+ * ---------------------------------------------------------------------------
+ * `deriveSearchReadiness`, the canonical derivation, through the extracted
+ * fact collector in `../search/search-health.service.js`:
+ *
+ *   * eligible records against records actually present in the index;
+ *   * the removal backlog — documents whose source row is gone or ineligible,
+ *     which is drift the two counts above cannot see;
+ *   * the durable run row WITH ITS LEASE evaluated, so a crashed RUNNING row
+ *     does not read as work in progress;
+ *   * the queue's own job state for the outstanding records, so "still
+ *     processing" is proven rather than assumed.
+ *
+ * The rule is not reimplemented here and the facts are not gathered twice: the
+ * diagnostics endpoint an operator reads consumes the same module, so the page
+ * and the condition cannot disagree about one workspace's index.
  *
  * ---------------------------------------------------------------------------
  * WHAT IT DOES NOT DO
  * ---------------------------------------------------------------------------
- * It does not run, trigger, schedule or repair a reconciliation, and it does
- * not read or write a single search document. It reads one run row and records
- * an operational condition. The workspace cannot fix the reconciler, which is
- * why the source is advisory and offers no Resolve control: the next
- * successful run closes the condition, through the source-truth recovery
- * sweep, from the same table this read.
+ * It does not run, trigger, schedule or repair a reconciliation, and it writes
+ * no search document. It reads facts and records an operational condition. The
+ * workspace cannot fix the reconciler, which is why the source is advisory and
+ * offers no Resolve control — a genuinely healthy index closes it, through the
+ * source-truth recovery sweep, from the same facts this read.
  */
 
 import * as prismaPkg from "@prisma/client";
@@ -31,6 +54,10 @@ import type { IncidentSeverity } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
+import {
+  classifySearchReadiness,
+  resolveWorkspaceSearchReadiness,
+} from "../search/search-health.service.js";
 
 import { sweepSourceTruthRecoveries } from "./source-truth-recovery.service.js";
 
@@ -47,41 +74,30 @@ export function searchIndexFingerprint(teamId: string): string {
   return `${SEARCH_INDEX_FINGERPRINT_PREFIX}:${teamId}`;
 }
 
-/**
- * The statuses that mean the run did not do its job.
- *
- * PARTIAL is included with FAILED, and the distinction it draws is the one
- * that matters here: a run that reconciled some documents and could not
- * reconcile others has left the index out of step, and calling that a success
- * because it did not throw is the shape of false all-clear this programme
- * exists to remove.
- */
-const FAILING_RUN_STATUSES: readonly prismaPkg.GovernanceReconciliationStatus[] =
-  [
-    prismaPkg.GovernanceReconciliationStatus.FAILED,
-    prismaPkg.GovernanceReconciliationStatus.PARTIAL,
-  ];
-
 export type SearchIndexConditionOutcome = {
   /** True when a condition is currently open for this workspace. */
   readonly active: boolean;
-  /** True when the newest terminal run could not be read at all. */
+  /**
+   * True when the index's health could not be concluded either way.
+   *
+   * Covers a workspace whose rebuilds are genuinely in flight (INITIALIZING /
+   * PARTIAL) as well as one whose facts could not be read. Nothing opens and
+   * nothing closes on it — which is the point: the two states that most look
+   * like recovery are exactly the ones that must not be read as recovery.
+   */
   readonly unknown: boolean;
-  /** How many conditions this pass auto-resolved from a later good run. */
+  /** How many conditions this pass auto-resolved from a proven-healthy index. */
   readonly resolved: number;
+  /** The derived readiness state, for the sweep's accounting and for tests. */
+  readonly state: string;
 };
 
 /**
  * Open, re-observe or resolve this workspace's search-indexing condition.
  *
  * ONE condition per workspace: the fingerprint is the team, so a workspace
- * whose reconciliation fails on twelve consecutive ticks has one row with an
+ * whose index is behind for twelve consecutive sweeps has one row with an
  * occurrence count of twelve rather than twelve rows.
- *
- * A workspace with NO terminal run yet opens nothing. "The reconciler has not
- * finished here" is not the same as "the reconciler failed here", and inventing
- * a condition from an absence is how a surface starts describing its own blind
- * spots as findings.
  */
 export async function syncSearchIndexConditions(
   input: { teamId: string; now?: Date },
@@ -89,34 +105,21 @@ export async function syncSearchIndexConditions(
 ): Promise<SearchIndexConditionOutcome> {
   const now = input.now ?? new Date();
 
-  const run = await client.governanceReconciliationRun.findFirst({
-    where: {
-      teamId: input.teamId,
-      kind: prismaPkg.GovernanceReconciliationKind.SEARCH_INDEX,
-      // TERMINAL ONLY. A RUNNING row has concluded nothing, and treating one
-      // as either answer would let a condition open or close on the strength
-      // of work still in flight.
-      status: {
-        in: [
-          prismaPkg.GovernanceReconciliationStatus.SUCCEEDED,
-          prismaPkg.GovernanceReconciliationStatus.FAILED,
-          prismaPkg.GovernanceReconciliationStatus.PARTIAL,
-        ],
-      },
-    },
-    orderBy: [{ startedAtUtc: "desc" }, { id: "desc" }],
-    select: { status: true, finishedAtUtc: true, startedAtUtc: true },
-  });
-
-  if (!run) {
-    // Nothing observed. No condition is opened and no existing one is closed:
-    // an absence proves neither.
-    return { active: false, unknown: true, resolved: 0 };
+  let readiness: Awaited<ReturnType<typeof resolveWorkspaceSearchReadiness>>;
+  try {
+    readiness = await resolveWorkspaceSearchReadiness(
+      { teamId: input.teamId, now },
+      client,
+    );
+  } catch {
+    // The facts could not be read. Nothing was learned, so nothing is opened
+    // and nothing is closed — an unreadable index is not a healthy one.
+    return { active: false, unknown: true, resolved: 0, state: "UNREADABLE" };
   }
 
-  const failing = FAILING_RUN_STATUSES.includes(run.status);
+  const verdict = classifySearchReadiness(readiness.state);
 
-  if (failing) {
+  if (verdict === "FAILING") {
     await recordIncident(
       {
         sourceId: SEARCH_INDEX_SOURCE_ID,
@@ -124,39 +127,57 @@ export async function syncSearchIndexConditions(
         category: "RECONCILIATION",
         // WARNING, not HIGH. Nothing evidential depends on the search index:
         // records, proofs, reports and packages are unaffected, and what is
-        // degraded is finding them. Ranking it beside an unprovable record
+        // degraded is FINDING them. Ranking it beside an unprovable record
         // would make the queue's genuinely worst rows harder to see.
         severity: "WARNING" as IncidentSeverity,
         fingerprint: searchIndexFingerprint(input.teamId),
         // COUNT-FREE and stable: the same sentence on every observation, so
         // nothing in it can go out of date the way a title carrying a number
-        // does.
+        // does. The changing numbers travel in the metadata below.
         title: "Search index reconciliation failing",
         safeSummary:
-          "This workspace's most recent search-index reconciliation did not complete successfully, so search results may be missing or out of date. " +
+          "This workspace's search index is out of step with its records, and nothing is currently working to close the gap, " +
+          "so search results may be missing or out of date. " +
           "Evidence records, proofs, reports and verification packages are unaffected. " +
-          "The condition closes on its own when a reconciliation run for this workspace succeeds.",
+          "The condition closes on its own once the index is proven complete.",
         runbookSlug: "search-index",
         metadata: {
-          runStatus: run.status,
-          runStartedAtUtc: run.startedAtUtc.toISOString(),
-          runFinishedAtUtc: run.finishedAtUtc
-            ? run.finishedAtUtc.toISOString()
-            : null,
+          // The DERIVED state, not a run's exit code. `STALLED` means work is
+          // outstanding with nothing assigned to it; `FAILED` means the
+          // durable run row says the reconciliation failed.
+          readinessState: readiness.state,
+          eligibleCount: readiness.eligibleCount,
+          indexedCount: readiness.indexedCount,
+          outstandingCount: readiness.outstandingCount,
+          unresolvedRemovals: readiness.unresolvedRemovals,
+          runStatus: readiness.runStatus,
+          failureReason: readiness.failureReason,
         },
       },
       client,
     );
-    return { active: true, unknown: false, resolved: 0 };
+    return { active: true, unknown: false, resolved: 0, state: readiness.state };
   }
 
-  // The newest terminal run SUCCEEDED. That is positive proof of recovery, and
-  // the shared sweep is what turns it into a resolution — through the same
-  // probe, the same transition authority and the same event and SLA writes
-  // every other source-truth recovery uses.
+  if (verdict === "INDETERMINATE") {
+    // INITIALIZING, PARTIAL, UNAVAILABLE, RESTRICTED. Work may be genuinely in
+    // flight or the truth may be unreadable; either way the index is NOT
+    // proven healthy, so an open condition stays open.
+    return { active: false, unknown: true, resolved: 0, state: readiness.state };
+  }
+
+  // HEALTHY — READY, DEGRADED or EMPTY_WORKSPACE. Positive proof that the
+  // index is complete, and the shared sweep is what turns it into a
+  // resolution, through the same probe, the same transition authority and the
+  // same event and SLA writes every other source-truth recovery uses.
   const sweep = await sweepSourceTruthRecoveries(
     { teamId: input.teamId, sourceId: SEARCH_INDEX_SOURCE_ID, now },
     client,
   );
-  return { active: false, unknown: false, resolved: sweep.resolved };
+  return {
+    active: false,
+    unknown: false,
+    resolved: sweep.resolved,
+    state: readiness.state,
+  };
 }

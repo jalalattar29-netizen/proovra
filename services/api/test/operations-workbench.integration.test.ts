@@ -134,6 +134,14 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
         severity: (over.severity ?? "HIGH") as never,
         status: (over.status ?? "OPEN") as never,
         fingerprint: `test:${randomUUID()}`,
+        // STORED, and no longer what a reader gets back.
+        //
+        // `projectIncident` renders the condition's SOURCE label — count-free,
+        // stable, and identical for every row of a source — because titles
+        // were written once and several carried a value that then went stale.
+        // The stored string is still the record of what the row said when it
+        // was created; it is simply not a per-row marker any more, so the
+        // cases below identify rows by FINGERPRINT.
         title: over.title ?? "Trusted timestamp failed",
         safeSummary: over.summary ?? "The authority returned no token.",
         firstSeenAtUtc: at,
@@ -142,6 +150,21 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
         assignedOperatorUserId: over.owner ?? null,
       },
     });
+  }
+
+  /**
+   * The fingerprints a list response returned, in order.
+   *
+   * The row identity the server actually projects per row. Titles used to
+   * serve this purpose and cannot any more — see the note on `seed` — and the
+   * fingerprint is a better marker regardless: it is unique by construction,
+   * so an assertion built on it cannot pass by two rows coincidentally sharing
+   * a string.
+   */
+  function fingerprints(res: { body: string }): string[] {
+    return (
+      JSON.parse(res.body).incidents as Array<{ fingerprint: string }>
+    ).map((i) => i.fingerprint);
   }
 
   /**
@@ -293,7 +316,8 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
 
   describe("tenant boundary", () => {
     it("workspace A never sees workspace B's conditions", async () => {
-      await seed({ teamId: A.teamId, title: "A only" });
+      // IDENTIFIED BY FINGERPRINT, NOT BY TITLE — see the note on `seed`.
+      const aRow = await seed({ teamId: A.teamId, title: "A only" });
       await seed({ teamId: B.teamId, title: "B only" });
 
       const res = await get(
@@ -301,9 +325,7 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
         A.ownerToken,
       );
       expect(res.statusCode).toBe(200);
-      const titles = (JSON.parse(res.body).incidents as Array<{ title: string }>)
-        .map((i) => i.title);
-      expect(titles).toEqual(["A only"]);
+      expect(fingerprints(res)).toEqual([aRow.fingerprint]);
     });
 
     it("the new detail read is scoped by the WHERE clause, not by a check after it", async () => {
@@ -488,19 +510,25 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
   describe("filters", () => {
     it("owner=unassigned returns exactly the conditions nobody holds", async () => {
       await seed({ teamId: A.teamId, title: "held", owner: A.memberUserId });
-      await seed({ teamId: A.teamId, title: "free" });
+      const free = await seed({ teamId: A.teamId, title: "free" });
       const res = await get(
         `/v1/ops/incidents?teamId=${A.teamId}&owner=unassigned`,
         A.ownerToken,
       );
-      const titles = (JSON.parse(res.body).incidents as Array<{ title: string }>)
-        .map((i) => i.title);
-      expect(titles).toEqual(["free"]);
+      expect(fingerprints(res)).toEqual([free.fingerprint]);
     });
 
     it("owner=me resolves to the CALLER, so two callers get two answers", async () => {
-      await seed({ teamId: A.teamId, title: "owners", owner: A.ownerUserId });
-      await seed({ teamId: A.teamId, title: "members", owner: A.memberUserId });
+      const ownerRow = await seed({
+        teamId: A.teamId,
+        title: "owners",
+        owner: A.ownerUserId,
+      });
+      const memberRow = await seed({
+        teamId: A.teamId,
+        title: "members",
+        owner: A.memberUserId,
+      });
 
       const asOwner = await get(
         `/v1/ops/incidents?teamId=${A.teamId}&owner=me`,
@@ -510,16 +538,8 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
         `/v1/ops/incidents?teamId=${A.teamId}&owner=me`,
         A.memberToken,
       );
-      expect(
-        (JSON.parse(asOwner.body).incidents as Array<{ title: string }>).map(
-          (i) => i.title,
-        ),
-      ).toEqual(["owners"]);
-      expect(
-        (JSON.parse(asMember.body).incidents as Array<{ title: string }>).map(
-          (i) => i.title,
-        ),
-      ).toEqual(["members"]);
+      expect(fingerprints(asOwner)).toEqual([ownerRow.fingerprint]);
+      expect(fingerprints(asMember)).toEqual([memberRow.fingerprint]);
     });
 
     it("search matches the operator-facing strings and nothing else", async () => {
@@ -595,20 +615,32 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
 
   describe("order and keyset pagination", () => {
     it("severity sort puts CRITICAL first, INFO last", async () => {
-      await seed({ teamId: A.teamId, severity: "INFO", title: "i" });
-      await seed({ teamId: A.teamId, severity: "CRITICAL", title: "c" });
-      await seed({ teamId: A.teamId, severity: "WARNING", title: "w" });
-      await seed({ teamId: A.teamId, severity: "HIGH", title: "h" });
+      const info = await seed({ teamId: A.teamId, severity: "INFO", title: "i" });
+      const crit = await seed({
+        teamId: A.teamId,
+        severity: "CRITICAL",
+        title: "c",
+      });
+      const warn = await seed({
+        teamId: A.teamId,
+        severity: "WARNING",
+        title: "w",
+      });
+      const high = await seed({ teamId: A.teamId, severity: "HIGH", title: "h" });
 
       const res = await get(
         `/v1/ops/incidents?teamId=${A.teamId}&sort=severity`,
         A.ownerToken,
       );
-      expect(
-        (JSON.parse(res.body).incidents as Array<{ title: string }>).map(
-          (i) => i.title,
-        ),
-      ).toEqual(["c", "h", "w", "i"]);
+      // The ORDER is what this pins, and the rows are named by the identity
+      // the server actually returns per row rather than by a display label
+      // every row of a source now shares.
+      expect(fingerprints(res)).toEqual([
+        crit.fingerprint,
+        high.fingerprint,
+        warn.fingerprint,
+        info.fingerprint,
+      ]);
     });
 
     it("every order is TOTAL — identical rows still page without skipping or repeating", async () => {

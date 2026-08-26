@@ -23,6 +23,16 @@ const code = (rel: string) =>
     .replace(/^\s*\/\/.*$/gm, "");
 
 const ROUTES = code("services/api/src/routes/search.routes.ts");
+/**
+ * The extracted fact collector.
+ *
+ * The queries these cases pin used to live INLINE in the diagnostics route,
+ * which is why nothing else in the product could ask whether a workspace's
+ * index was healthy without calling the endpoint — and why the operations
+ * source that needed the answer invented a proxy instead. The properties are
+ * unchanged; the module that holds them is named here.
+ */
+const HEALTH = code("services/api/src/services/search/search-health.service.ts");
 const REINDEX = code("services/api/src/services/search/reindex.service.ts");
 const PROJECTION = code("packages/shared/src/search-projection.ts");
 const READINESS = code("packages/shared/src/search-readiness.ts");
@@ -32,12 +42,14 @@ describe("Search readiness — one eligibility population", () => {
     // The rule previously existed three times: in the diagnostics SQL, in the
     // reindex SQL, and in the projection builder. Three copies of a predicate
     // that must agree forever is how "175 of 393" becomes unexplainable.
+    expect(HEALTH).toMatch(/searchIndexableLifecycleSql/);
     expect(ROUTES).toMatch(/searchIndexableLifecycleSql/);
     expect(REINDEX).toMatch(/searchIndexableLifecycleSql/);
     expect(PROJECTION).toMatch(/isSearchIndexableLifecycle/);
 
     // No hand-written copy of the list survives in either query.
     const handWritten = /NOT IN\s*\n?\s*\('DESTROYED','PENDING_DESTRUCTION'\)/;
+    expect(HEALTH).not.toMatch(handWritten);
     expect(ROUTES).not.toMatch(handWritten);
     expect(REINDEX).not.toMatch(handWritten);
     // …nor a second literal comparison in the builder.
@@ -48,45 +60,60 @@ describe("Search readiness — one eligibility population", () => {
     // Both counts are bound to the SAME `team_id` parameter. A count that
     // leaked across a tenant boundary would disclose the existence — and the
     // number — of records in another workspace.
-    // Both counting queries bind the workspace explicitly.
-    expect(ROUTES).toMatch(/FROM evidence\s*\n\s*WHERE team_id = \$1::uuid/);
-    expect(ROUTES).toMatch(
-      /FROM evidence_search_documents\s*\n\s*WHERE team_id = \$\{teamId\}::uuid/,
+    // Both counting queries bind the workspace explicitly, in the module that
+    // now owns them.
+    expect(HEALTH).toMatch(/FROM evidence\s*\n\s*WHERE team_id = \$1::uuid/);
+    expect(HEALTH).toMatch(
+      /FROM evidence_search_documents\s*\n\s*WHERE team_id = \$1::uuid/,
     );
     // Neither query has an unscoped path.
-    expect(ROUTES).not.toMatch(/FROM evidence\s*\n\s*GROUP BY/);
+    expect(HEALTH).not.toMatch(/FROM evidence\s*\n\s*GROUP BY/);
+    // …and every raw query in it is tenant-bound, not just the two above.
+    for (const sql of HEALTH.match(/SELECT[\s\S]*?`/g) ?? []) {
+      if (!/FROM (evidence|evidence_search_documents)/.test(sql)) continue;
+      expect(sql).toMatch(/team_id = \$1::uuid/);
+    }
   });
 
   it("the endpoint answers authorization before it describes the index", () => {
     // From the route registration to its readiness call. The import of
     // `deriveSearchReadiness` sits at the top of the file, so the CALL is the
     // anchor — the import would slice backwards and measure nothing.
+    // From the route registration to the point where it asks for the facts.
+    // The import sits at the top of the file, so the CALL is the anchor — an
+    // import would slice backwards and measure nothing.
     const handler = ROUTES.slice(
       ROUTES.indexOf("/v1/search/diagnostics"),
-      ROUTES.indexOf("deriveSearchReadiness({"),
+      ROUTES.indexOf("collectWorkspaceSearchHealthFacts({"),
     );
     expect(handler.length).toBeGreaterThan(0);
     // `requireSearchActor` runs — and returns — before any count is taken, so
     // an unauthorized actor never receives a number about the workspace.
     const gate = handler.indexOf("requireSearchActor");
-    const firstCount = handler.indexOf("$queryRawUnsafe");
     expect(gate).toBeGreaterThan(0);
-    expect(gate).toBeLessThan(firstCount);
     expect(handler).toMatch(/if \(!actor\) return;/);
+    // No count is taken inside the gated span before the gate itself.
+    const firstCount = handler.indexOf("$queryRaw");
+    if (firstCount >= 0) expect(gate).toBeLessThan(firstCount);
   });
 });
 
 describe("Search readiness — state from persisted facts", () => {
   it("readiness is derived, not classified inline", () => {
-    expect(ROUTES).toMatch(/deriveSearchReadiness\(\{/);
-    // The inputs are the eligible population, what the index holds, and when
-    // the index last advanced. Nothing else.
-    const call = ROUTES.slice(
-      ROUTES.indexOf("deriveSearchReadiness({"),
-      ROUTES.indexOf("});", ROUTES.indexOf("deriveSearchReadiness({")),
+    // ONE CALLER OF THE RULE, and it is the module that gathered the facts.
+    // The route consumes its verdict; the operations probe consumes the same
+    // function. A second call site would be a second place for the inputs to
+    // drift.
+    expect(HEALTH).toMatch(/deriveSearchReadiness\(\{/);
+    expect(ROUTES).not.toMatch(/deriveSearchReadiness\(\{/);
+    // The inputs are the eligible population, what the index holds, what is
+    // awaiting removal, the run row and the queue. Nothing else.
+    const call = HEALTH.slice(
+      HEALTH.indexOf("deriveSearchReadiness({"),
+      HEALTH.indexOf("});", HEALTH.indexOf("deriveSearchReadiness({")),
     );
-    expect(call).toMatch(/eligibleCount: evidenceIndexable/);
-    expect(call).toMatch(/indexedCount: indexedEvidence/);
+    expect(call).toMatch(/eligibleCount: facts\.eligibleCount/);
+    expect(call).toMatch(/indexedCount: facts\.indexedEvidenceCount/);
     expect(call).toMatch(/lastIndexedAtUtc/);
     expect(call).not.toMatch(/plan|tier|isPersonal|name/i);
   });
@@ -95,8 +122,8 @@ describe("Search readiness — state from persisted facts", () => {
     // `indexed_at_utc` is the evidence that a run is progressing. Without it
     // the endpoint can only compare two numbers, which is exactly what could
     // not distinguish a live backfill from one that never started.
-    expect(ROUTES).toMatch(/MAX\(indexed_at_utc\)\s*AS last_indexed/);
-    expect(ROUTES).toMatch(/lastIndexedAtUtc: Date \| null = null;/);
+    expect(HEALTH).toMatch(/MAX\(indexed_at_utc\) AS last_indexed/);
+    expect(HEALTH).toMatch(/lastIndexedAtUtc: Date \| null = null;/);
   });
 
   it("the projection is assembled by the SHARED projector, not by hand", () => {

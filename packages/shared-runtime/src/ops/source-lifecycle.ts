@@ -323,8 +323,8 @@ export const ACTIVITY_PROBE_KEYS = [
   "platform.worker_heartbeat_age",
   /** The append-only `ImmutableStorageCheck` verdict for one record. */
   "storage.immutable_reconciliation_state",
-  /** The workspace's latest terminal SEARCH_INDEX reconciliation run. */
-  "search.index_run_state",
+  /** The canonical search-readiness derivation for one workspace. */
+  "search.index_health",
 ] as const;
 export type ActivityProbeKey = (typeof ACTIVITY_PROBE_KEYS)[number];
 
@@ -1076,26 +1076,42 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       producers: ["services/api/src/services/security/security-event.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "worker:security_event" }],
+      // -----------------------------------------------------------------
+      // THIS WAS OPERATOR_DECISION, AND IT WAS THE OLD DEFECT UNDER A NAME.
+      // -----------------------------------------------------------------
       // The bridge's DEFAULT branch: an event type none of the mappings above
-      // claim. Registered by name rather than left to a residual, because an
-      // unmapped security signal reaching a tenant queue with no contract is
-      // precisely the hole this closure removes.
-      resolutionAuthority: "OPERATOR_DECISION",
+      // claims. Registering it closed the unregistered-row hole, and then
+      // reproduced the hole it was closing — the source MEANS "the platform
+      // cannot classify this signal", and OPERATOR_DECISION made not knowing
+      // what something is confer the right to declare it over.
+      //
+      // It is NO_DIRECT_RESOLUTION now. An operator can acknowledge it, assign
+      // it and suppress it with a recorded reason; they cannot close it,
+      // because nothing in the system knows what closed would mean. The fix
+      // for a stuck row of this kind is to CLASSIFY the event type, which adds
+      // a branch above and a real contract with it.
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
-      recoveryPolicy: "OPERATOR_CLOSES",
+      // No probe and no operator close, so nothing signals recovery. The
+      // condition is carried until the Security Center adjudicates the
+      // underlying event, or until the source is classified.
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "GUIDANCE_ONLY",
       requiredCapability: "audit.read",
-      audience: "TENANT_ACTIONABLE",
+      // ADVISORY, not actionable: there is no safe action to offer for a
+      // signal the platform could not classify, and an actionable audience
+      // that offers none is a promise the surface does not keep.
+      audience: "TENANT_ADVISORY",
       cardinality: "EVENT",
       workspaceApplicability: "ALL_WORKSPACES",
       metricContract: "NONE",
       drillDownContract: "SOURCE_SURFACE",
-      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
-      requiresResolutionNote: true,
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
       rationale:
-        "An immutable SecurityEvent whose type the bridge does not classify; closure is the operator's recorded investigation, and the absence of a mapping is visible rather than silent.",
+        "An immutable SecurityEvent whose type the bridge cannot classify; nothing knows what recovery would mean for it, so it fails closed rather than becoming closable by assertion.",
     },
     // =======================================================================
     // IDENTITY — three writers, three shapes, and only one of them is a state.
@@ -1347,7 +1363,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       // backfill table is unchanged.
       legacyFingerprints: [],
       resolutionAuthority: "SOURCE_TRUTH",
-      activityProbeKey: "search.index_run_state",
+      activityProbeKey: "search.index_health",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",

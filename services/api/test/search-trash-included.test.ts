@@ -45,6 +45,13 @@ import {
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = resolve(API_ROOT, "..", "..");
 const ROUTE_PATH = resolve(API_ROOT, "src/routes/search.routes.ts");
+// The breakdown QUERY moved to the extracted search-health authority, so the
+// operations probe and the diagnostics endpoint measure one workspace's index
+// the same way. The predicate it pins is unchanged.
+const HEALTH_PATH = resolve(
+  API_ROOT,
+  "src/services/search/search-health.service.ts",
+);
 const REINDEX_PATH = resolve(
   API_ROOT,
   "src/services/search/reindex.service.ts",
@@ -239,17 +246,21 @@ describe("Diagnostics breakdown — activeIncluded / archivedIncluded / lockedIn
   });
 
   it("evidenceIndexable = active + archived + locked + trashed (matches projection)", () => {
-    expect(src).toMatch(
-      /evidenceIndexable\s*=\s*\n?\s*activeIncluded \+ archivedIncluded \+ lockedIncluded \+ trashedIncluded/,
+    // The four INCLUDED buckets, summed in the module that counts them.
+    expect(read(HEALTH_PATH)).toMatch(
+      /eligibleCount\s*=\s*\n?\s*breakdown\.activeIncluded \+\s*\n?\s*breakdown\.archivedIncluded \+\s*\n?\s*breakdown\.lockedIncluded \+\s*\n?\s*breakdown\.trashedIncluded/,
     );
+    // …and the route still reports it under the name the response uses.
+    expect(src).toMatch(/evidenceIndexable = healthFacts\.eligibleCount/);
   });
 
   it("breakdown SQL keys trash on `deleted_at IS NOT NULL`, not lifecycle", () => {
     // The trashed bucket is the soft-deleted population — pin
     // the predicate so a future refactor can't accidentally
     // re-route it.
-    expect(src).toMatch(/trashed_included/);
-    expect(src).toMatch(
+    const facts = read(HEALTH_PATH);
+    expect(facts).toMatch(/trashed_included/);
+    expect(facts).toMatch(
       /\$\{ELIGIBLE_SQL\}\s*\n?\s*AND deleted_at IS NOT NULL/,
     );
   });

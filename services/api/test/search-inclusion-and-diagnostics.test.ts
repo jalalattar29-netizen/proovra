@@ -42,6 +42,10 @@ import {
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = resolve(API_ROOT, "..", "..");
 const ROUTE_PATH = resolve(API_ROOT, "src/routes/search.routes.ts");
+const HEALTH_PATH = resolve(
+  API_ROOT,
+  "src/services/search/search-health.service.ts",
+);
 const SERVICE_PATH = resolve(
   API_ROOT,
   "src/services/search/evidence-search.service.ts",
@@ -221,7 +225,11 @@ describe("Projection emits 'locked' tag", () => {
 // ============================================================================
 
 describe("Diagnostics — evidenceIndexable matches the indexer's exclusions", () => {
+  // The ROUTE still assembles the response; the QUERIES moved to the extracted
+  // health authority, so nothing but the endpoint could reach them before.
+  // Both files are read, and each assertion names the one that owns it.
   const src = read(ROUTE_PATH);
+  const facts = read(HEALTH_PATH);
 
   it("denominator query produces the per-state breakdown buckets (active/archived/locked/trashed/destroyed/pendingDestr)", () => {
     // Search-inclusion-audit (trash decision) — the SQL now
@@ -229,14 +237,14 @@ describe("Diagnostics — evidenceIndexable matches the indexer's exclusions", (
     // derives `evidenceIndexable` from the four included ones
     // (active + archived + locked + trashed). Pin every bucket
     // alias.
-    expect(src).toMatch(/active_included/);
-    expect(src).toMatch(/archived_included/);
-    expect(src).toMatch(/locked_included/);
-    expect(src).toMatch(/trashed_included/);
-    expect(src).toMatch(/destroyed_excluded/);
-    expect(src).toMatch(/pending_destruction_excluded/);
+    expect(facts).toMatch(/active_included/);
+    expect(facts).toMatch(/archived_included/);
+    expect(facts).toMatch(/locked_included/);
+    expect(facts).toMatch(/trashed_included/);
+    expect(facts).toMatch(/destroyed_excluded/);
+    expect(facts).toMatch(/pending_destruction_excluded/);
     // Lifecycle exclusion predicate appears once per bucket.
-    expect(src).toMatch(
+    expect(facts).toMatch(
       /\$\{ELIGIBLE_SQL\}/,
     );
   });
@@ -271,8 +279,8 @@ describe("Diagnostics — evidenceIndexable matches the indexer's exclusions", (
   });
 
   it("evidence.total field is computed from the breakdown (not a separate query)", () => {
-    expect(src).toMatch(
-      /evidenceTotal\s*=\s*evidenceIndexable\s*\+\s*destroyedExcluded\s*\+\s*pendingDestructionExcluded/,
+    expect(facts).toMatch(
+      /evidenceTotal\s*=\s*\n?\s*eligibleCount \+\s*\n?\s*breakdown\.destroyedExcluded \+\s*\n?\s*breakdown\.pendingDestructionExcluded/,
     );
   });
 });

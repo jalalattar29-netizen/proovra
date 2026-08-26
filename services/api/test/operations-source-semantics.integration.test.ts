@@ -52,6 +52,8 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
   let team: { teamId: string; ownerUserId: string; organizationId: string | null };
 
   const created = { evidenceIds: [] as string[] };
+  /** Index documents this suite wrote, including for pre-existing records. */
+  const indexedSourceIds = new Set<string>();
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
@@ -103,10 +105,17 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
       await prisma.immutableStorageCheck.deleteMany({
         where: { evidenceId: { in: created.evidenceIds } },
       });
+
       await prisma.evidence.deleteMany({
         where: { id: { in: created.evidenceIds } },
       });
       created.evidenceIds.length = 0;
+    }
+    if (indexedSourceIds.size > 0) {
+      await prisma.evidenceSearchDocument.deleteMany({
+        where: { sourceId: { in: [...indexedSourceIds] } },
+      });
+      indexedSourceIds.clear();
     }
     await prisma.governanceReconciliationRun.deleteMany({
       where: { teamId: team.teamId },
@@ -453,10 +462,19 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
   }, 300_000);
 
   // =========================================================================
-  // 4. SEARCH INDEX — A REGISTERED SOURCE THAT NOW HAS A REAL PRODUCER
+  // 4. SEARCH INDEX — HEALTH, NOT A RECONCILIATION JOB'S EXIT CODE
   // =========================================================================
+  //
+  // The first producer read the newest terminal SEARCH_INDEX run: SUCCEEDED
+  // closed the condition. The scheduler converges by ENQUEUEING, so that run
+  // closes SUCCEEDED within milliseconds while the index is still empty — and
+  // the condition auto-resolved on it. Every case below is written against
+  // REAL coverage: evidence rows, index documents, and the gap between them.
 
-  async function searchRun(status: "SUCCEEDED" | "FAILED" | "PARTIAL" | "RUNNING") {
+  async function searchRun(
+    status: "SUCCEEDED" | "FAILED" | "PARTIAL" | "RUNNING",
+    startedAtUtc: Date = new Date(),
+  ) {
     await prisma.governanceReconciliationRun.create({
       data: {
         teamId: team.teamId,
@@ -464,10 +482,51 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
         trigger: "scheduler",
         status: status as never,
         lockKey: `search:${team.teamId}:${Math.random().toString(36).slice(2)}`,
-        startedAtUtc: new Date(),
+        startedAtUtc,
         finishedAtUtc: status === "RUNNING" ? null : new Date(),
       } as never,
     });
+  }
+
+  /** The index document for a record — one unit of the readiness NUMERATOR. */
+  async function indexDocument(evidenceId: string, forTeamId = team.teamId) {
+    await prisma.evidenceSearchDocument.create({
+      data: {
+        teamId: forTeamId,
+        sourceId: evidenceId,
+        documentType: "EVIDENCE" as never,
+        title: "indexed",
+        sourceUpdatedAtUtc: new Date(),
+        indexedAtUtc: new Date(),
+      } as never,
+    });
+    indexedSourceIds.add(evidenceId);
+  }
+
+  /**
+   * BRING THE WORKSPACE TO PROVEN COVERAGE BEFORE EACH CASE.
+   *
+   * The harness's fixture workspace carries evidence other suites seeded, and
+   * readiness is a statement about the WHOLE workspace — so a case that added
+   * one drifted record to a workspace already carrying five would be measuring
+   * the fixtures rather than its own setup.
+   *
+   * Every eligible record gets a document here; each case then creates the
+   * drift it is about. Both are cleaned up afterwards.
+   */
+  async function converge(): Promise<void> {
+    const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT e.id::text AS id
+         FROM evidence e
+         LEFT JOIN evidence_search_documents d
+                ON d.source_id = e.id
+               AND d.document_type = 'EVIDENCE'
+        WHERE e.team_id = $1::uuid
+          AND COALESCE(e.lifecycle_state, 'ACTIVE') NOT IN ('DESTROYED', 'PENDING_DESTRUCTION')
+          AND d.source_id IS NULL`,
+      team.teamId,
+    );
+    for (const row of rows) await indexDocument(row.id);
   }
 
   const searchCondition = () =>
@@ -476,27 +535,32 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
       select: { id: true, status: true, severity: true, title: true },
     });
 
-  it("NO TERMINAL RUN OPENS NOTHING — an absence is not a finding", async () => {
+  it("PROVEN COVERAGE IS HEALTHY — every eligible record is in the index", async () => {
+    await converge();
+    const a = await evidenceRecord();
+    const b = await evidenceRecord();
+    await indexDocument(a);
+    await indexDocument(b);
     const outcome = await searchConditions.syncSearchIndexConditions({
       teamId: team.teamId,
     });
-    expect(outcome.unknown).toBe(true);
+    expect(outcome.state).toBe("READY");
     expect(outcome.active).toBe(false);
     expect(await searchCondition()).toBeNull();
   }, 300_000);
 
-  it("a RUNNING run is not an answer either", async () => {
-    await searchRun("RUNNING");
+  it("PROVEN DRIFT OPENS A CONDITION — records outstanding, nothing working", async () => {
+    await converge();
+    await evidenceRecord();
+    await evidenceRecord();
+    // No index documents and no run: the strongest evidence available that
+    // nothing is coming.
     const outcome = await searchConditions.syncSearchIndexConditions({
       teamId: team.teamId,
     });
-    expect(outcome.unknown).toBe(true);
-    expect(await searchCondition()).toBeNull();
-  }, 300_000);
+    expect(outcome.state).toBe("STALLED");
+    expect(outcome.active).toBe(true);
 
-  it("a FAILED run opens one workspace-level condition", async () => {
-    await searchRun("FAILED");
-    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
     const condition = await searchCondition();
     expect(condition).not.toBeNull();
     expect(condition!.status).toBe("OPEN");
@@ -509,45 +573,258 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
     expect(condition!.title).not.toMatch(/[0-9]/);
   }, 300_000);
 
-  it("a PARTIAL run counts as failing — half an index is out of step", async () => {
-    await searchRun("PARTIAL");
+  it("A SUCCESSFUL RUN WITH UNINDEXED RECORDS DOES NOT RECOVER", async () => {
+    await converge();
+    // THE DEFECT, REPRODUCED EXACTLY.
+    //
+    // Two eligible records, neither indexed, and a reconciliation run that
+    // SUCCEEDED — which is what the scheduler writes the moment it has handed
+    // the rebuilds to the queue. The old probe read that status and resolved
+    // the condition; the index was still empty.
+    await evidenceRecord();
+    await evidenceRecord();
     await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
-    expect((await searchCondition())!.status).toBe("OPEN");
-  }, 300_000);
-
-  it("ONE CONDITION FOR MANY FAILING RUNS, and a later success closes it", async () => {
-    await searchRun("FAILED");
-    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
-    await searchRun("FAILED");
-    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
-    expect(
-      await prisma.operationalIncident.count({
-        where: { teamId: team.teamId, sourceId: SEARCH_SOURCE },
-      }),
-    ).toBe(1);
+    const opened = await searchCondition();
+    expect(opened!.status).toBe("OPEN");
 
     await searchRun("SUCCEEDED");
     const outcome = await searchConditions.syncSearchIndexConditions({
       teamId: team.teamId,
     });
-    expect(outcome.resolved).toBe(1);
-    expect((await searchCondition())!.status).toBe("RESOLVED");
+
+    // Still failing, and for the right reason: the run finished and the drift
+    // remains, with nothing in flight to close it.
+    expect(outcome.state).toBe("STALLED");
+    expect(outcome.active).toBe(true);
+    expect(outcome.resolved).toBe(0);
+    expect((await searchCondition())!.status).toBe("OPEN");
   }, 300_000);
 
-  it("a search condition cannot be closed by hand while the run says FAILED", async () => {
-    await searchRun("FAILED");
+  it("…and the RESOLVE PATH refuses on the same evidence", async () => {
+    await converge();
+    await evidenceRecord();
     await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
     const condition = (await searchCondition())!;
+    await searchRun("SUCCEEDED");
+
     const before = await snapshot(condition.id);
     await expect(
       incidents.resolveIncident({
         incidentId: condition.id,
         teamId: team.teamId,
         actorUserId: team.ownerUserId,
-        resolutionNote: "reindexed manually",
+        resolutionNote: "the reconciliation succeeded",
       }),
     ).rejects.toMatchObject({ code: "CONDITION_STILL_ACTIVE" });
     expect(await snapshot(condition.id)).toEqual(before);
+  }, 300_000);
+
+  it("A PROVEN-HEALTHY INDEX RECOVERS THE CONDITION", async () => {
+    await converge();
+    const a = await evidenceRecord();
+    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
+    const condition = (await searchCondition())!;
+    expect(condition.status).toBe("OPEN");
+
+    // The rebuild actually landed. THAT is recovery — not the run's exit code.
+    await indexDocument(a);
+    const outcome = await searchConditions.syncSearchIndexConditions({
+      teamId: team.teamId,
+    });
+    expect(outcome.state).toBe("READY");
+    expect(outcome.resolved).toBe(1);
+
+    const after = await snapshot(condition.id);
+    expect(after.status).toBe("RESOLVED");
+    // No human resolver is invented for a domain-truth resolution.
+    expect(after.resolvedByUserId).toBeNull();
+  }, 300_000);
+
+  it("A LEFTOVER DOCUMENT IS DRIFT TOO, even with the counts converged", async () => {
+    await converge();
+    // The OTHER direction, and it is invisible to a numerator/denominator
+    // comparison: Search is still answering for a record that no longer
+    // exists. The removal backlog is the half that refuses READY.
+    const a = await evidenceRecord();
+    await indexDocument(a);
+    await prisma.evidence.update({
+      where: { id: a },
+      data: { lifecycleState: "DESTROYED" as never },
+    });
+    const outcome = await searchConditions.syncSearchIndexConditions({
+      teamId: team.teamId,
+    });
+    expect(outcome.state).not.toBe("READY");
+    expect(outcome.state).not.toBe("EMPTY_WORKSPACE");
+    expect(outcome.active).toBe(true);
+  }, 300_000);
+
+  it("A RUN IN FLIGHT IS INDETERMINATE — neither health nor failure", async () => {
+    await converge();
+    await evidenceRecord();
+    // A RUNNING row inside its lease is genuine work in progress. The index is
+    // incomplete, so this is not healthy; something is demonstrably working on
+    // it, so it is not a proven failure either.
+    await searchRun("RUNNING");
+    const outcome = await searchConditions.syncSearchIndexConditions({
+      teamId: team.teamId,
+    });
+    expect(["INITIALIZING", "PARTIAL"]).toContain(outcome.state);
+    expect(outcome.unknown).toBe(true);
+    expect(outcome.active).toBe(false);
+    expect(outcome.resolved).toBe(0);
+    // Nothing opened, and — the half that matters — nothing closed.
+    expect(await searchCondition()).toBeNull();
+  }, 300_000);
+
+  it("AN IN-FLIGHT RUN DOES NOT CLOSE AN OPEN CONDITION", async () => {
+    await converge();
+    await evidenceRecord();
+    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
+    const condition = (await searchCondition())!;
+    expect(condition.status).toBe("OPEN");
+
+    await searchRun("RUNNING");
+    const outcome = await searchConditions.syncSearchIndexConditions({
+      teamId: team.teamId,
+    });
+    expect(outcome.unknown).toBe(true);
+    expect(outcome.resolved).toBe(0);
+    expect((await snapshot(condition.id)).status).toBe("OPEN");
+  }, 300_000);
+
+  it("A CRASHED RUN IS A PROVEN STALL, not an unknown", async () => {
+    await converge();
+    await evidenceRecord();
+    // A RUNNING row past its lease is a process that died holding the slot.
+    // The derivation refuses to read it as progress, deliberately: the expired
+    // lease is the signal that frees the workspace.
+    await searchRun("RUNNING", new Date(Date.now() - 24 * 60 * 60 * 1000));
+    const outcome = await searchConditions.syncSearchIndexConditions({
+      teamId: team.teamId,
+    });
+    expect(outcome.state).toBe("STALLED");
+    expect(outcome.active).toBe(true);
+  }, 300_000);
+
+  it("A FAILED RUN OPENS THE CONDITION even with the counts converged", async () => {
+    await converge();
+    const a = await evidenceRecord();
+    await indexDocument(a);
+    await searchRun("FAILED");
+    const outcome = await searchConditions.syncSearchIndexConditions({
+      teamId: team.teamId,
+    });
+    // Converged counts with a failed run mean the failure happened after
+    // convergence or did no damage — but an unsuperseded failure is still the
+    // latest word on this index, and calling that READY would hide it.
+    expect(outcome.state).toBe("FAILED");
+    expect(outcome.active).toBe(true);
+  }, 300_000);
+
+  it("UNREADABLE TRUTH IS UNKNOWN — it opens nothing and closes nothing", async () => {
+    await converge();
+    await evidenceRecord();
+    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
+    const condition = (await searchCondition())!;
+
+    // A client whose reads throw. "We could not measure the index" must not
+    // become "the index is fine", and it must not become a second condition
+    // either.
+    const broken = {
+      $queryRawUnsafe: async () => {
+        throw new Error("connection terminated");
+      },
+      governanceReconciliationRun: {
+        findFirst: async () => {
+          throw new Error("connection terminated");
+        },
+      },
+    } as never;
+    const outcome = await searchConditions.syncSearchIndexConditions(
+      { teamId: team.teamId },
+      broken,
+    );
+    expect(outcome.unknown).toBe(true);
+    expect(outcome.active).toBe(false);
+    expect(outcome.resolved).toBe(0);
+    expect((await snapshot(condition.id)).status).toBe("OPEN");
+  }, 300_000);
+
+  it("ANOTHER WORKSPACE'S INDEX CANNOT DECIDE THIS ONE", async () => {
+    await converge();
+    // Workspace B is perfectly healthy and workspace A is not. Every query in
+    // the health authority is bound to the workspace in its own WHERE clause;
+    // a widening arm here would let one tenant's coverage close another
+    // tenant's condition.
+    const other = await prisma.team.findFirstOrThrow({
+      where: { id: harness.fixtures.teamB.teamId },
+      select: { id: true, ownerUserId: true, organizationId: true },
+    });
+    const foreign = await prisma.evidence.create({
+      data: {
+        teamId: other.id,
+        organizationId: other.organizationId,
+        ownerUserId: other.ownerUserId!,
+        title: `foreign-${Math.random().toString(36).slice(2, 10)}`,
+        type: "PHOTO",
+        status: "SIGNED",
+      } as never,
+      select: { id: true },
+    });
+    created.evidenceIds.push(foreign.id);
+    await indexDocument(foreign.id, other.id);
+
+    // A is drifted: one eligible record, no document.
+    await evidenceRecord();
+    const outcome = await searchConditions.syncSearchIndexConditions({
+      teamId: team.teamId,
+    });
+    expect(outcome.state).toBe("STALLED");
+    expect(outcome.active).toBe(true);
+
+    // And B's own reading is unaffected by A's drift. Converged on its own
+    // terms — its fixture population is whatever the harness seeded — and the
+    // point is that the two workspaces answer independently.
+    const health = await import("../src/services/search/search-health.service.js");
+    const others = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT e.id::text AS id
+         FROM evidence e
+         LEFT JOIN evidence_search_documents d
+                ON d.source_id = e.id
+               AND d.document_type = 'EVIDENCE'
+        WHERE e.team_id = $1::uuid
+          AND COALESCE(e.lifecycle_state, 'ACTIVE') NOT IN ('DESTROYED', 'PENDING_DESTRUCTION')
+          AND d.source_id IS NULL`,
+      other.id,
+    );
+    for (const row of others) await indexDocument(row.id, other.id);
+
+    const theirs = await health.resolveWorkspaceSearchReadiness({
+      teamId: other.id,
+    });
+    expect(theirs.indexedCount).toBeGreaterThanOrEqual(theirs.eligibleCount);
+    expect(theirs.state).toBe("READY");
+
+    // A is STILL drifted. Neither reading moved the other.
+    const ours = await health.resolveWorkspaceSearchReadiness({
+      teamId: team.teamId,
+    });
+    expect(ours.state).toBe("STALLED");
+    expect(ours.outstandingCount).toBeGreaterThan(0);
+  }, 300_000);
+
+  it("ONE CONDITION FOR MANY FAILING SWEEPS", async () => {
+    await converge();
+    await evidenceRecord();
+    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
+    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
+    await searchConditions.syncSearchIndexConditions({ teamId: team.teamId });
+    expect(
+      await prisma.operationalIncident.count({
+        where: { teamId: team.teamId, sourceId: SEARCH_SOURCE },
+      }),
+    ).toBe(1);
   }, 300_000);
 
   // =========================================================================

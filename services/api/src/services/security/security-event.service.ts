@@ -218,9 +218,16 @@ async function maybeAutoCreateIncident(
   } catch {
     return;
   }
-  const { category, runbookSlug, sourceId } = mapEventTypeToIncident(
-    input.eventType,
-  );
+  const mapping = mapEventTypeToIncident(input.eventType);
+  // NO OPERATIONS CONDITION FOR THIS EVENT.
+  //
+  // The SecurityEvent row itself is already written — this function runs after
+  // it — so nothing is lost from the audit record or the Security Center. What
+  // is withheld is the operations representation, for an event that either
+  // already has one under a dedicated source or does not describe a failure at
+  // all.
+  if (!mapping) return;
+  const { category, runbookSlug, sourceId } = mapping;
   const fingerprint = `${category.toLowerCase()}:security_event:${input.eventType}`;
   const title = `Security signal: ${input.eventType}`;
   const safeSummary = buildSafeSummaryFromDetails(input);
@@ -278,7 +285,7 @@ function mapEventTypeToIncident(eventType: string): {
     | "WORKER"
     | "RECONCILIATION";
   runbookSlug: string | null;
-} {
+} | null {
   if (eventType.startsWith("communication_webhook_invalid_signature")) {
     return {
       sourceId: "webhook.security_failure",
@@ -348,11 +355,153 @@ function mapEventTypeToIncident(eventType: string): {
   // above claims still reaches a tenant queue, and an unclassified condition
   // with no contract is exactly the hole this closure removes — including the
   // one nobody thought about.
+  //
+  // But "registered" is not the same as "should exist". Two kinds of event
+  // reach here and must NOT become a generic operations condition:
+  //
+  //   * one whose real-world fact a DEDICATED source already records, which
+  //     would otherwise put one fact in the queue twice under two different
+  //     lifecycles — and the generic copy was the manually-closable one;
+  //   * a routine administrative OUTCOME. A token being created, a policy
+  //     being updated, a signer being promoted: these belong in the security
+  //     audit log, which still gets every one of them, and putting them in an
+  //     operations queue that demands a written conclusion per row is how a
+  //     queue becomes something nobody works.
+  //
+  // Both refusals return null. Everything else — every unclassified FAILURE —
+  // still opens a condition, and that condition is now fail-closed: see
+  // `security.unclassified_signal`, which is NO_DIRECT_RESOLUTION precisely
+  // because "we could not classify this" must never confer closability.
+  if (dedicatedSourceOwning(eventType) !== null) return null;
+  if (!isUnclassifiedFailureSignal(eventType)) return null;
   return {
     sourceId: "security.unclassified_signal",
     category: "WORKER",
     runbookSlug: null,
   };
+}
+
+/**
+ * EVENT TYPES WHOSE FACT A DEDICATED SOURCE ALREADY RECORDS.
+ *
+ * Each entry was verified by reading the emitting code path: the same function
+ * that fires the SecurityEvent also calls `recordIncident` with the named
+ * source, or the domain's own reconciler does. The generic bridge must stay
+ * out of the way, or one outage becomes two rows an operator has to reconcile
+ * by eye — and the generic one carries the weaker contract.
+ *
+ * Declared as a MAP rather than a set so the owning source is on the record
+ * and a gate can prove it is registered.
+ */
+export const DEDICATED_SOURCE_EVENT_TYPES: Readonly<Record<string, string>> =
+  Object.freeze({
+    // `sso-hardening.service.ts` emits the event and records the incident in
+    // the same branch, a dozen lines apart.
+    idp_outage_detected: "identity.idp_outage",
+    idp_outage_cleared: "identity.idp_outage",
+    // `destruction-review.service.ts` — same function, event then incident.
+    destruction_executed: "governance.destruction_executed",
+    // The worker's reconciler owns the drift verdict and its recovery.
+    immutable_storage_drift: "storage.immutable_drift",
+    immutable_storage_reconciliation_failure: "storage.immutable_drift",
+    // Index health is derived from eligible-vs-indexed coverage now, not from
+    // any single indexing event.
+    search_indexing_failed: "search.indexing_failure",
+    search_indexing_drift_detected: "search.indexing_failure",
+    search_indexing_enqueue_failed: "search.indexing_failure",
+    search_indexing_lag_critical: "search.indexing_failure",
+    // `runtime-risk.service.ts` emits per session and records the aggregate
+    // surge in the same sweep.
+    runtime_risk_escalated: "identity.high_risk_session_surge",
+    // Lateness has exactly ONE authority in this product — the persisted SLA
+    // cycle — and a second one competing with it is a defect this codebase has
+    // already paid for once.
+    reviewer_sla_breached: "review.escalation",
+  });
+
+export function dedicatedSourceOwning(eventType: string): string | null {
+  return DEDICATED_SOURCE_EVENT_TYPES[eventType] ?? null;
+}
+
+/**
+ * IS AN UNCLASSIFIED EVENT A FAILURE?
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS IS AN ALLOWLIST AND NOT A DENYLIST
+ * ---------------------------------------------------------------------------
+ * Of the 380 declared security event types, 328 reach the default branch, and
+ * 93 of those have live WARNING-or-higher call sites. Denying the routine ones
+ * would mean enumerating and maintaining most of a 300-entry list, and the
+ * failure mode of a stale denylist is the bad direction: a new routine event
+ * silently becomes an operations condition nobody asked for.
+ *
+ * An allowlist of FAILURE MARKERS fails the other way. A new adverse event
+ * whose name does not match lands in the security audit log — which is where
+ * every one of these already lands, and where the Security Center reads them —
+ * rather than in the operations queue. Nothing is lost; the operations
+ * representation is what is withheld, and it is withheld from the case where
+ * the platform cannot tell whether anything went wrong.
+ *
+ * Adverse events whose names carry no marker are listed explicitly below.
+ */
+const FAILURE_MARKERS: readonly string[] = Object.freeze([
+  "_failed",
+  "_failure",
+  "failed_",
+  "fail_closed",
+  "_blocked",
+  "blocked_",
+  "_denied",
+  "_rejected",
+  "_mismatch",
+  "_exhausted",
+  "_unavailable",
+  "_degraded",
+  "_breached",
+  "_replayed",
+  "_quarantined",
+  "_abuse",
+  "_throttled",
+  "_stalled",
+  "_timeout",
+  "_inconsistency",
+  "_anomaly",
+  "suspicious_",
+  "_suspicious",
+  "excessive_",
+  "orphaned_",
+  "_exceeded",
+  "_detected",
+  "_auto_disabled",
+  "_ambiguous",
+  "_dead_lettered",
+  // A refusal is an adverse outcome even when the refusal was correct.
+  "_forbidden",
+  // `saml_mapping_privilege_warning` — a mapping that would grant more than
+  // it should. Named as a warning rather than a failure, and it is one.
+  "_warning",
+]);
+
+/**
+ * Adverse events whose type name carries no marker above.
+ *
+ * Short by design: an entry here is a name that describes a problem without
+ * saying so, and the honest fix for most of them would be a better name.
+ */
+const EXPLICIT_FAILURE_EVENT_TYPES: ReadonlySet<string> = new Set([
+  // An upload reconciliation could not converge and needs a person.
+  "recovery_review_required",
+  // A bot probing for resource existence.
+  "anti_enumeration_probe",
+  // Adaptive auth BLOCKED a request. Its sibling in the runtime gate records
+  // `identity.runtime_block` directly; this one — from `adaptive-auth` — has
+  // no dedicated source, so suppressing it would lose the signal entirely.
+  "adaptive_block_triggered",
+]);
+
+export function isUnclassifiedFailureSignal(eventType: string): boolean {
+  if (EXPLICIT_FAILURE_EVENT_TYPES.has(eventType)) return true;
+  return FAILURE_MARKERS.some((marker) => eventType.includes(marker));
 }
 
 function buildSafeSummaryFromDetails(input: EmitSecurityEventInput): string {

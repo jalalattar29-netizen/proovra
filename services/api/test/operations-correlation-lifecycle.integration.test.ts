@@ -112,7 +112,9 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
 
   /** One provider outage, N affected records, emitted the way the writer does. */
   async function emitProviderOutage(teamId: string, records: number) {
+    const fingerprints: string[] = [];
     for (let i = 0; i < records; i += 1) {
+      fingerprints.push(`tsa_failure:evidence-${ns}-${i}`);
       await recordIncident({
         sourceId: "evidence_integrity.tsa_failed",
         teamId,
@@ -124,6 +126,7 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
         relatedProvider: "freetsa",
       });
     }
+    return fingerprints;
   }
 
   /** The per-workspace shape: one condition, however deep the queue. */
@@ -285,22 +288,45 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
     }, 120_000);
 
     it("paging all the way through 1,000 sees each condition exactly once", async () => {
-      await emitProviderOutage(A.teamId, 1000);
+      const emitted = await emitProviderOutage(A.teamId, 1000);
       const seen = new Set<string>();
+      const seenFingerprints = new Set<string>();
       let cursor: string | null = null;
       for (let page = 0; page < 30; page += 1) {
         const url =
           `/v1/ops/incidents?teamId=${A.teamId}&limit=100` +
           (cursor ? `&cursor=${cursor}` : "");
         const body = JSON.parse((await get(url, A.ownerToken)).body);
-        for (const i of body.incidents as Array<{ id: string }>) {
+        for (const i of body.incidents as Array<{
+          id: string;
+          fingerprint: string;
+        }>) {
           expect(seen.has(i.id), `${i.id} was returned twice`).toBe(false);
           seen.add(i.id);
+          seenFingerprints.add(i.fingerprint);
         }
         cursor = body.pagination.nextCursor;
         if (!cursor) break;
       }
-      expect(seen.size).toBe(1000);
+      // THE PROPERTY IS THE TRAVERSAL, NOT THE WORKSPACE TOTAL.
+      //
+      // This asserted `seen.size === 1000`, which additionally claimed that
+      // the workspace contains nothing but this fixture. It does not: reading
+      // `/v1/ops/summary` in the case above starts a background discovery run,
+      // and a run that finds a real workspace condition legitimately adds a
+      // row — so the total was a hostage to whatever discovery happened to
+      // observe, which is a property no keyset-pagination test is about.
+      //
+      // What IS being pinned, and now exactly: every emitted condition was
+      // reached, and no id was returned twice. Both survive a concurrent
+      // sweep; a page boundary that skipped or repeated a record still fails.
+      for (const fingerprint of emitted) {
+        expect(
+          seenFingerprints.has(fingerprint),
+          `${fingerprint} was never reached by the traversal`,
+        ).toBe(true);
+      }
+      expect(seen.size).toBeGreaterThanOrEqual(1000);
     }, 180_000);
   });
 
@@ -341,22 +367,34 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
     });
 
     it("one record recovering does not resolve its neighbours", async () => {
-      await emitProviderOutage(A.teamId, 25);
+      // SCOPED TO THE FIXTURE, NOT TO THE WORKSPACE.
+      //
+      // Reading an Operations surface starts a background discovery run, and
+      // a run that finds a real workspace condition legitimately adds a row.
+      // A count over the whole workspace therefore asserts something this
+      // case is not about — that nothing else exists — and it is a claim no
+      // test can hold while a sweep is allowed to observe the truth.
+      const emitted = await emitProviderOutage(A.teamId, 25);
       const rows = await prisma.operationalIncident.findMany({
-        where: { teamId: A.teamId },
+        where: { teamId: A.teamId, fingerprint: { in: emitted } },
         orderBy: { fingerprint: "asc" },
       });
+      expect(rows.length).toBe(25);
       await post(`/v1/ops/incidents/${rows[0].id}/resolve`, A.ownerToken, {
         teamId: A.teamId,
       });
       const stillOpen = await prisma.operationalIncident.count({
-        where: { teamId: A.teamId, status: "OPEN" },
+        where: {
+          teamId: A.teamId,
+          fingerprint: { in: emitted },
+          status: "OPEN",
+        },
       });
       expect(stillOpen).toBe(24);
     }, 60_000);
 
     it("a TRUNCATED read can never resolve anything by absence", async () => {
-      await emitProviderOutage(A.teamId, 100);
+      const emitted = await emitProviderOutage(A.teamId, 100);
       // Read a small page — 99 conditions are absent from this response.
       const body = JSON.parse(
         (await get(`/v1/ops/incidents?teamId=${A.teamId}&limit=1`, A.ownerToken))
@@ -364,9 +402,20 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
       );
       expect(body.completeness.complete).toBe(false);
       // Nothing changed in the database. Absence from a page is not a state.
+      //
+      // Asserted over the EMITTED conditions rather than over the workspace
+      // total: ninety-nine of them were absent from that response, and every
+      // one of them is still OPEN. A workspace-wide count would additionally
+      // claim that no other condition exists, which a background discovery
+      // run may truthfully contradict at any moment — and which is not the
+      // property this case exists to hold.
       expect(
         await prisma.operationalIncident.count({
-          where: { teamId: A.teamId, status: "OPEN" },
+          where: {
+            teamId: A.teamId,
+            fingerprint: { in: emitted },
+            status: "OPEN",
+          },
         }),
       ).toBe(100);
     }, 60_000);
