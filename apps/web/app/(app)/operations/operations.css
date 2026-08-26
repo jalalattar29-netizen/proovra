@@ -141,8 +141,13 @@
   border-radius: var(--radius-pill, 999px);
   background: var(--opsw-tone, var(--tone-slate));
 }
+/* The NUMBER wears the card's own tone, the same colour as the rail beside
+   it. This said `--ink-primary`, which overrode the shared primitive's
+   `--app-metric-tone` and left every value the same near-black while the rails
+   were six different colours — the accent then read as decoration rather than
+   as the card's identity. */
 .opsw-metric__value {
-  color: var(--ink-primary);
+  color: var(--opsw-tone, var(--ink-primary));
 }
 /* A zero is still a fact. The card keeps its full surface and its rail so the
    strip does not develop holes where the good news is. */

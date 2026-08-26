@@ -34,11 +34,16 @@ import {
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
+import { FileText } from "lucide-react";
 import { apiFetch } from "../../lib/api";
+import "./reports.css";
+// THE canonical Evidence title cascade — the same one the Evidence Library and
+// Case Detail use. Reports read `title` alone and rendered "Untitled evidence"
+// over every record whose name lives in a filename field.
+import { getDisplayTitle } from "../../app/(app)/evidence/lib/evidence-library-status";
 import {
   usePlatformContext,
   useWorkspaceId,
-  WorkspaceContextBanner,
 } from "../../lib/platform-context";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { AccessGate } from "../access/AccessGate";
@@ -54,7 +59,35 @@ import type {
   PackageLifecycle,
   ReportLifecycle,
   ReportsArtifactsEnvelope,
+  ReportsSummary,
 } from "./types";
+
+/**
+ * THE SUMMARY STRIP, declared once.
+ *
+ * Tone is the card's identity: the rail and the NUMBER wear it together, the
+ * same pattern Operations and Notifications use. The six were previously flat
+ * near-black values on an undifferentiated card, so the strip read as one
+ * block of digits.
+ *
+ * The mapping follows the meaning the rest of the product already gives these
+ * tones — ready is green, pending amber, blocked red, and the two totals are
+ * neutral/blue rather than borrowing an alarm colour for a count that is not
+ * one.
+ */
+const SUMMARY_METRICS = [
+  { key: "reports_ready", field: "reportsReady", label: "Reports generated", tone: "blue" },
+  { key: "reports_pending", field: "reportsPending", label: "Reports pending", tone: "amber" },
+  { key: "packages_ready", field: "packagesReady", label: "Packages ready", tone: "green" },
+  { key: "packages_pending", field: "packagesPending", label: "Packages pending", tone: "indigo" },
+  { key: "packages_blocked", field: "packagesBlocked", label: "Packages blocked", tone: "red" },
+  { key: "total_artifacts", field: "totalEvidenceWithArtifacts", label: "Evidence with artifacts", tone: "slate" },
+] as const satisfies ReadonlyArray<{
+  key: string;
+  field: keyof ReportsSummary;
+  label: string;
+  tone: string;
+}>;
 
 type LoadState =
   | { status: "loading" }
@@ -68,6 +101,10 @@ type LoadState =
 type UserReportRow = {
   evidenceId: string;
   title: string | null;
+  /** Present on the aggregator; the user-scoped route may omit them. */
+  displayFileName?: string | null;
+  originalFileName?: string | null;
+  mimeType?: string | null;
   type: string;
   status: string;
   caseId: string | null;
@@ -113,7 +150,12 @@ async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> 
     })) as UserReportsEnvelope;
     const items: ArtifactRow[] = (envelope.items ?? []).map((row) => ({
       evidenceId: row.evidenceId,
-      title: row.title ?? "Untitled evidence",
+      // VERBATIM. The display name is resolved once, at render, through the
+      // canonical cascade — never substituted at the edge of a fetch.
+      title: row.title ?? null,
+      displayFileName: row.displayFileName ?? null,
+      originalFileName: row.originalFileName ?? null,
+      mimeType: row.mimeType ?? null,
       type: row.type,
       status: row.status,
       verificationStatus: null,
@@ -156,13 +198,29 @@ export function ReportsIndex() {
   const { state: ctxState } = usePlatformContext();
   const workspaceId = useWorkspaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  /** A reload is in flight over results that are already on screen. */
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<LifecycleFilter>("all");
   const [search, setSearch] = useState("");
 
   const reload = useCallback(
     async (currentFilter: LifecycleFilter, currentSearch: string) => {
       if (!workspaceId) return;
-      setState({ status: "loading" });
+      // ONLY the FIRST load shows the skeleton.
+      //
+      // This set `{ status: "loading" }` unconditionally, and the render
+      // returns `<ReportsLoading />` for that status — so every debounced
+      // keystroke tore the whole page down, search input included, and rebuilt
+      // it when the response landed. The input lost its DOM node and its focus
+      // mid-word, which is the "it reloads before the next character" the
+      // operator sees. The debounce was never the problem; the remount was.
+      //
+      // A reload with results already on screen now keeps them, and marks the
+      // list stale instead.
+      setState((prev) =>
+        prev.status === "ready" ? prev : { status: "loading" },
+      );
+      setRefreshing(true);
       const params = new URLSearchParams({
         teamId: workspaceId,
         lifecycle: currentFilter,
@@ -217,6 +275,8 @@ export function ReportsIndex() {
             message: toSafeUserError(e, { message: "Unable to load artifacts." }).message,
           });
         }
+      } finally {
+        setRefreshing(false);
       }
     },
     [workspaceId],
@@ -302,7 +362,18 @@ export function ReportsIndex() {
       header={
         <PageHeader
           eyebrow="Deliverables"
-          title="Reports & Artifacts"
+          title={
+            /* The canonical title treatment — `.app-title-row` +
+               `.app-title-icon`, the same geometry Notifications, Cases and
+               Search render. `aria-hidden` because the heading beside it
+               already names the page. */
+            <span className="app-title-row">
+              <span aria-hidden className="app-title-icon">
+                <FileText strokeWidth={1.75} data-reports-title-icon />
+              </span>
+              <span data-reports-title>Reports &amp; Artifacts</span>
+            </span>
+          }
           subtitle={
             <>
               Generated report snapshots and verification packages. These are
@@ -319,85 +390,44 @@ export function ReportsIndex() {
               Refreshed {formatRelativeTime(envelope.generatedAt)}
             </span>
           }
-          primaryAction={
-            /* Phase 14 — deep link into /search pre-filtered to REPORT
-               documents so operators can search generated report
-               snapshots. Styled as a secondary button via tokens. */
-            <Link
-              href="/search?documentType=REPORT"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                minHeight: 34,
-                padding: "0 12px",
-                fontSize: 13,
-                fontWeight: 650,
-                borderRadius: 10,
-                textDecoration: "none",
-                background: "var(--surface-card, #ffffff)",
-                color: "var(--ink-primary, #0f172a)",
-                border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-                boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
-              }}
-            >
-              Search reports
-            </Link>
-          }
         />
       }
     >
-      {/* PHASE 7 §10.5 — reports are workspace deliverables; show the
-          owning workspace/org. The list already re-scopes on switch
-          (reload deps include workspaceId). */}
-      <WorkspaceContextBanner action="Reports & artifacts for" />
+      {/* THE WORKSPACE STRIP IS GONE (2026-08-26).
+          It rendered "Reports & artifacts for Personal Space · Personal
+          Space" — the workspace named twice in one line, under a global header
+          that already names it a third time. The list re-scopes on switch
+          either way (`reload` depends on `workspaceId`), so the strip carried
+          no information the page did not already show.
 
-      {/* Contextual help, collapsed by default so the reports/artifacts
-          queue stays primary. */}
+          The contextual help stays: it is a real expandable surface with real
+          content about snapshot integrity. It is restyled, not deleted. */}
       <ContextualHelp surface="reports" collapsedByDefault />
 
       {/* Operational summary */}
       {sections.summary.status === "ok" && sections.summary.data ? (
         <PageSection title="Operational summary" data-reports-summary>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fill, minmax(160px, 1fr))",
-              gap: 12,
-            }}
-          >
-            <SummaryTile
-              keyId="reports_ready"
-              label="Reports generated"
-              value={sections.summary.data.reportsReady}
-            />
-            <SummaryTile
-              keyId="reports_pending"
-              label="Reports pending"
-              value={sections.summary.data.reportsPending}
-            />
-            <SummaryTile
-              keyId="packages_ready"
-              label="Packages ready"
-              value={sections.summary.data.packagesReady}
-            />
-            <SummaryTile
-              keyId="packages_pending"
-              label="Packages pending"
-              value={sections.summary.data.packagesPending}
-            />
-            <SummaryTile
-              keyId="packages_blocked"
-              label="Packages blocked"
-              value={sections.summary.data.packagesBlocked}
-              severe={sections.summary.data.packagesBlocked > 0}
-            />
-            <SummaryTile
-              keyId="total_artifacts"
-              label="Evidence with artifacts"
-              value={sections.summary.data.totalEvidenceWithArtifacts}
-            />
-          </div>
+          <ul className="rpt-summary__grid" data-reports-summary-grid>
+            {SUMMARY_METRICS.map((m) => (
+              <li key={m.key}>
+                <div
+                  className="app-metric-card rpt-metric"
+                  data-rpt-tone={m.tone}
+                  data-reports-summary-key={m.key}
+                  data-reports-summary-value={String(
+                    sections.summary.data![m.field],
+                  )}
+                >
+                  <span className="app-metric-card__value rpt-metric__value">
+                    {sections.summary.data![m.field]}
+                  </span>
+                  <span className="app-metric-card__label rpt-metric__label">
+                    {m.label}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </PageSection>
       ) : (
         <PageSection title="Operational summary">
@@ -453,6 +483,7 @@ export function ReportsIndex() {
       <PageSection
         title={`Artifacts · ${sections.artifacts.items.length}`}
         data-reports-list
+        data-reports-refreshing={refreshing ? "true" : "false"}
       >
         {sections.artifacts.status !== "ok" ? (
           <Card variant="status" tone="pending">
@@ -467,20 +498,15 @@ export function ReportsIndex() {
         ) : sections.artifacts.items.length === 0 ? (
           <ReportsEmptyState filter={filter} />
         ) : (
-          <div className="cases-panel" style={{ overflow: "hidden" }}>
-            <ul
-              className="cases-list"
-              data-reports-list-items
-            >
+          <ul className="rpt-list" data-reports-list-items>
               {sections.artifacts.items.map((row) => (
                 <ArtifactRowView
                   key={row.evidenceId}
                   row={row}
                   teamId={workspaceId}
                 />
-              ))}
-            </ul>
-          </div>
+            ))}
+          </ul>
         )}
         {sections.artifacts.nextCursor ? (
           <div
@@ -513,54 +539,6 @@ export function ReportsIndex() {
   );
 }
 
-function SummaryTile({
-  keyId,
-  label,
-  value,
-  severe,
-}: {
-  keyId: string;
-  label: string;
-  value: number;
-  severe?: boolean;
-}) {
-  return (
-    <Card
-      variant={severe ? "status" : "summary"}
-      tone={severe ? "risk" : "neutral"}
-      padding="comfortable"
-      className="cc-summary-card"
-      data-reports-summary-key={keyId}
-      data-cc-tile-severe={severe ? "true" : "false"}
-    >
-      <span
-        className="cc-summary-card-value"
-        style={{
-          fontSize: 26,
-          fontWeight: 700,
-          lineHeight: 1.1,
-          color: severe
-            ? "var(--status-risk-fg, #991b1b)"
-            : "var(--ink-primary, #0f172a)",
-        }}
-      >
-        {value}
-      </span>
-      <span
-        className="cc-summary-card-label"
-        style={{
-          display: "block",
-          marginTop: 6,
-          fontSize: 12.5,
-          color: "var(--ink-secondary, #475569)",
-        }}
-      >
-        {label}
-      </span>
-    </Card>
-  );
-}
-
 function ArtifactRowView({
   row,
   teamId,
@@ -570,57 +548,62 @@ function ArtifactRowView({
 }) {
   return (
     <li
-      className="cases-row"
+      className="rpt-row"
       data-reports-row-id={row.evidenceId}
-      style={{ listStyle: "none" }}
     >
-      <div style={{ padding: "14px 18px" }}>
-        <Link
-          href={`/evidence/${row.evidenceId}`}
-          style={{ textDecoration: "none", color: "inherit", display: "block" }}
-        >
-          <div
-            className="cases-row-main"
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            <span className="cases-row-title" style={{ whiteSpace: "normal" }}>
-              {row.title}
+      <div className="rpt-row__body">
+        <Link href={`/evidence/${row.evidenceId}`} className="rpt-row__link">
+          {/* A — PRIMARY: the record's name, resolved once through the
+              canonical cascade. B — SECONDARY: what it IS, in the neutral
+              classification voice, so a kind can never be mistaken for a
+              state. */}
+          <div className="rpt-row__head">
+            <span className="rpt-row__title">
+              {getDisplayTitle({
+                id: row.evidenceId,
+                title: row.title,
+                displayFileName: row.displayFileName,
+                originalFileName: row.originalFileName,
+                type: row.type,
+                mimeType: row.mimeType,
+                itemCount: null,
+              })}
             </span>
-            <span className="cases-row-scope">
-              {humanize(row.type)}
-            </span>
+            <span className="rpt-row__type">{humanize(row.type)}</span>
           </div>
-          <div
-            className="cases-row-meta"
-            style={{ marginTop: 10 }}
-          >
+
+          {/* C — STATUS / METADATA, one coherent group.
+              The two lifecycle states were capsules; they are plain coloured
+              text now. Two pills beside an integrity verdict made three chips
+              on one line and the eye had nothing to land on. */}
+          <div className="rpt-row__meta">
             <span
-              className="app-status-badge"
+              className="rpt-status"
               data-tone={reportStatusAttr(row.report.state)}
               data-reports-report-state={row.report.state}
             >
-              Report: {reportLabel(row.report.state)}
+              Report {reportLabel(row.report.state)}
               {row.report.version ? ` · v${row.report.version}` : ""}
             </span>
             <span
-              className="app-status-badge"
+              className="rpt-status"
               data-tone={packageStatusAttr(row.package.state)}
               data-reports-package-state={row.package.state}
             >
-              Package: {packageLabel(row.package.state)}
+              Package {packageLabel(row.package.state)}
               {row.package.version ? ` · v${row.package.version}` : ""}
             </span>
             {row.verificationStatus ? (
+              /* "Integrity Recorded Integrity Verified" was the raw enum
+                 humanised — RECORDED_INTEGRITY_VERIFIED — with the word
+                 "Integrity" already in front of it. Same value, same meaning,
+                 said once. */
               <span
+                className="rpt-status"
+                data-tone={integrityToneAttr(row.verificationStatus)}
                 data-reports-verification={row.verificationStatus}
-                style={{ fontSize: 12, color: "#5F6B7D" }}
               >
-                Integrity {humanize(row.verificationStatus)}
+                Integrity: {integrityLabel(row.verificationStatus)}
               </span>
             ) : null}
             {row.caseId ? (
@@ -628,20 +611,17 @@ function ArtifactRowView({
                 href={`/cases/${row.caseId}`}
                 onClick={(e) => e.stopPropagation()}
                 data-reports-case-link={row.caseId}
-                style={{ fontSize: 12, color: "#6D28D9", fontWeight: 600 }}
+                className="rpt-row__case"
               >
                 Case #{row.caseId.slice(0, 6)}
               </Link>
             ) : null}
-            <time
-              dateTime={row.createdAt}
-              style={{ fontSize: 12, color: "#8793A6" }}
-            >
+            <time dateTime={row.createdAt} className="rpt-row__captured">
               Captured {formatRelativeTime(row.createdAt)}
             </time>
             {row.package.blockedReason ? (
               <span
-                className="app-status-badge"
+                className="rpt-status"
                 data-tone="amber"
                 data-reports-package-blocked-reason={row.package.blockedReason}
               >
@@ -812,9 +792,8 @@ function ArtifactRowActions({
 
   return (
     <div
-      className="cases-row-actions"
+      className="rpt-row__actions"
       data-reports-row-actions={row.evidenceId}
-      style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}
     >
       {reportReady ? (
         // Phase G3.2 — every Report PDF download is governed by the
@@ -834,7 +813,8 @@ function ArtifactRowActions({
           }
           renderAction={({ disabled, onClick }) => (
             <Button
-              variant="secondary"
+              /* The record's primary OUTPUT wears the canonical purple. */
+              variant="primary"
               size="sm"
               data-reports-download-report={row.evidenceId}
               onClick={onClick}
@@ -873,7 +853,11 @@ function ArtifactRowActions({
           }
           renderAction={({ disabled, onClick }) => (
             <Button
+              /* Secondary emphasis: the canonical dark filled variant, so the
+                 two downloads are distinguishable at a glance without a second
+                 purple competing with the first. */
               variant="secondary"
+              className="app-secondary-action--filled"
               size="sm"
               data-reports-download-package={row.evidenceId}
               onClick={onClick}
@@ -924,22 +908,8 @@ function ArtifactRowActions({
       ) : null}
       <Link
         href={`/evidence/${row.evidenceId}`}
+        className="app-secondary-action rpt-row__open"
         data-reports-open-evidence={row.evidenceId}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          minHeight: 34,
-          padding: "0 12px",
-          fontSize: 13,
-          fontWeight: 650,
-          borderRadius: 10,
-          textDecoration: "none",
-          background: "var(--surface-card, #ffffff)",
-          color: "var(--ink-primary, #0f172a)",
-          border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-          boxShadow: "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))",
-        }}
       >
         Open evidence
       </Link>
@@ -1212,6 +1182,33 @@ function ReportsUnavailable({ message }: { message: string }) {
       </PageSection>
     </PageShell>
   );
+}
+
+/**
+ * INTEGRITY, said once.
+ *
+ * The column carried the raw enum through `humanize`, so
+ * `RECORDED_INTEGRITY_VERIFIED` rendered as "Recorded Integrity Verified" —
+ * behind a label that already said "Integrity". The word appeared twice and
+ * the verdict was buried in the middle of it.
+ *
+ * The enum is unchanged and so is its meaning; only the leading
+ * `RECORDED_INTEGRITY_` prefix is dropped, because the label supplies it. Any
+ * value this does not recognise is humanised as before rather than hidden — a
+ * state nobody can read is worse than a long one.
+ */
+function integrityLabel(status: string): string {
+  const raw = String(status ?? "").trim().toUpperCase();
+  const stripped = raw.replace(/^RECORDED_INTEGRITY_/, "").replace(/^INTEGRITY_/, "");
+  return humanize(stripped || raw);
+}
+
+/** Verified is the only positive integrity outcome; it alone reads green. */
+function integrityToneAttr(status: string): string {
+  const raw = String(status ?? "").trim().toUpperCase();
+  if (raw.endsWith("VERIFIED")) return "green";
+  if (raw.includes("FAIL") || raw.includes("MISMATCH")) return "red";
+  return "slate";
 }
 
 function humanize(s: string): string {

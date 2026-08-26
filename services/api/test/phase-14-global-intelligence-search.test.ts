@@ -266,13 +266,28 @@ describe("Phase 14 — Stage 6 deep-link affordances (frontend)", () => {
     expect(src).toMatch(/href=\{`\/search\?caseId=\$\{encodeURIComponent\(/);
   });
 
-  it("reports surface (ReportsIndex.tsx) contains a /search?documentType=REPORT deep link", () => {
-    // reports/page.tsx delegates to ReportsIndex per the Phase 14
-    // frontend impl report — the link lives in the component file.
+  it("the reports surface searches IN PAGE, not by deep-linking to /search", () => {
+    // WITHDRAWN AFFORDANCE (2026-08-26), not a lost one.
+    //
+    // The header carried a "Search reports" button deep-linking to
+    // `/search?documentType=REPORT`. The page has its own search field and its
+    // own lifecycle filters, both of which query the reports aggregator — so
+    // the button sent an operator AWAY from the surface that could already
+    // answer their question, to one filtered by document type rather than by
+    // report or package state.
+    //
+    // The Phase 14 guarantee was that reports are searchable. They are, on the
+    // page itself, which is what this now asserts: the deep link is gone AND
+    // the in-page search remains. Asserting only the removal would pass over a
+    // page with no search at all.
     const src = read(
       resolve(WEB_ROOT, "components/reports-experience/ReportsIndex.tsx"),
     );
-    expect(src).toMatch(/\/search\?documentType=REPORT/);
+    expect(src).not.toMatch(/\/search\?documentType=REPORT/);
+    expect(src).toMatch(/<FilterBar\.Search/);
+    expect(src).toMatch(/data-reports-search-input/);
+    // The field is wired to the query the aggregator actually honours.
+    expect(src).toMatch(/params\.set\("search"/);
   });
 
   it("investigation/graph/page.tsx contains a /search?q= deep link (entity affordance)", () => {

@@ -61,7 +61,26 @@ export type TemplateProvenance = {
 
 export type ArtifactRow = {
   evidenceId: string;
-  title: string;
+  /**
+   * The record's stored title, VERBATIM — `null` when there is none.
+   *
+   * It used to be coerced to the literal "Untitled evidence" here, which is
+   * why the Reports queue was a wall of that phrase for records that have a
+   * perfectly good name in `displayFileName` / `originalFileName`. A capture
+   * or an intake upload frequently stores the name there and leaves `title`
+   * null; the Evidence Library has always resolved those through its title
+   * cascade, and this aggregator was the one surface that did not.
+   *
+   * The substitution is gone. The fields the cascade needs travel with the
+   * row, and the CLIENT resolves the display name through the same
+   * `getDisplayTitle` every other list uses — one cascade, not a second one
+   * written here.
+   */
+  title: string | null;
+  /** For the title cascade. Never a fallback on their own. */
+  displayFileName: string | null;
+  originalFileName: string | null;
+  mimeType: string | null;
   type: string;
   status: string;
   verificationStatus: string | null;
@@ -346,6 +365,11 @@ export async function listWorkspaceArtifacts(input: {
       select: {
         id: true,
         title: true,
+        // The title cascade's inputs. Presentation data only — nothing here
+        // decides lifecycle, permission or eligibility.
+        displayFileName: true,
+        originalFileName: true,
+        mimeType: true,
         type: true,
         status: true,
         verificationStatus: true,
@@ -424,7 +448,10 @@ export async function listWorkspaceArtifacts(input: {
         });
         return {
           evidenceId: r.id,
-          title: r.title ?? "Untitled evidence",
+          title: r.title ?? null,
+          displayFileName: r.displayFileName ?? null,
+          originalFileName: r.originalFileName ?? null,
+          mimeType: r.mimeType ?? null,
           type: String(r.type),
           status: String(r.status),
           verificationStatus: r.verificationStatus

@@ -76,6 +76,13 @@ function encodeCursor(createdAt: Date, id: string): string {
 export type UserReportRow = {
   evidenceId: string;
   title: string | null;
+  /**
+   * Inputs to the canonical Evidence title cascade. A record whose name lives
+   * only in a filename field rendered as "Untitled evidence" without them.
+   */
+  displayFileName: string | null;
+  originalFileName: string | null;
+  mimeType: string | null;
   type: string;
   status: string;
   caseId: string | null;
@@ -199,6 +206,9 @@ export default async function registerReportsRoutes(
       type EvidenceListRow = {
         id: string;
         title: string | null;
+        displayFileName: string | null;
+        originalFileName: string | null;
+        mimeType: string | null;
         type: string;
         status: string;
         caseLinks: Array<{ caseId: string }>;
@@ -213,6 +223,9 @@ export default async function registerReportsRoutes(
           select: {
             id: true,
             title: true,
+            displayFileName: true,
+            originalFileName: true,
+            mimeType: true,
             type: true,
             status: true,
             caseLinks: {
@@ -297,6 +310,9 @@ export default async function registerReportsRoutes(
         return {
           evidenceId: r.id,
           title: r.title,
+          displayFileName: r.displayFileName ?? null,
+          originalFileName: r.originalFileName ?? null,
+          mimeType: r.mimeType ?? null,
           type: String(r.type),
           status: String(r.status),
           caseId: r.caseLinks[0]?.caseId ?? null,

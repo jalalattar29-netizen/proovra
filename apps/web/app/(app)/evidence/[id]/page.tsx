@@ -964,8 +964,7 @@ function EvidenceDetailPageInner() {
     workspaceCaps?.discussionEnabled === true ||
     workspaceCaps?.discussionReadOnly === true;
   const deleted = evidence?.deletedAt != null;
-  // Lifecycle availability for the header's trash control. Read from the
-  // canonical projection on the loaded record — never computed here.
+  // Header trash availability, read from the canonical projection.
   const headerTrashEligibility = getEvidenceDeletionEligibility(evidence);
 
   const iconActionTitle = {
@@ -1161,11 +1160,8 @@ function EvidenceDetailPageInner() {
           </aside>
         ) : null}
 
-        {/* LAYER 1 — Hero. Title, status pills, legal boundary, and
-            the five canonical actions (Download Report PDF / Download
-            Verification Package ZIP / Copy verification link / Lock /
-            Edit label). The legal boundary statement is rendered
-            verbatim from the backend; copy is not altered here. */}
+        {/* LAYER 1 — Hero. Title, status, the record's actions, and the
+            legal boundary rendered verbatim from the backend. */}
         <section className="evidence-detail-hero">
           <div className="evidence-detail-hero-main">
             {/* Breadcrumb — a real labelled landmark. The Library crumb
@@ -1261,13 +1257,9 @@ function EvidenceDetailPageInner() {
             <div className="evidence-detail-boundary">{workspace.legalBoundary}</div>
           </div>
 
-          {/* THE RECORD'S OPERATIONS, beside the title — not beside the
-              downloads.
-              These sat inside the download toolbar, which put "Edit name" and
-              "Lock" on the same line as the record's two primary outputs and
-              read as one undifferentiated row of six. They belong to the
-              header: they act on the record identified above them. The two
-              downloads stay below, where the primary outputs belong. */}
+          {/* The record's operations, beside the title. They act on the
+              record named above them; the two downloads — its primary
+              outputs — stay below. */}
           <EvidenceHeroIconActions
             lockedAt={evidence.lockedAt}
             archivedAt={evidence.archivedAt}
@@ -1284,9 +1276,8 @@ function EvidenceDetailPageInner() {
             onRestoreArchived={() => setRestoreArchivedOpen(true)}
             onArchive={() => setArchiveOpen(true)}
             onMoveToTrash={() => setTrashOpen(true)}
-            // The SAME canonical projection the Review tab's control reads, so
-            // the two places that offer this action cannot disagree about
-            // whether it is available or about why it is not.
+            // The same projection the Review tab reads, so the two places
+            // that offer this action cannot disagree.
             trashDisabled={!headerTrashEligibility.canMoveToTrash}
             trashReason={
               headerTrashEligibility.canMoveToTrash
@@ -1318,12 +1309,7 @@ function EvidenceDetailPageInner() {
               />
             </div>
           ) : null}
-          {/* CANONICAL ACTION TOOLBAR.
-              Two named actions carry the record's primary outputs; every other
-              existing action keeps its behaviour and permissions but moves to
-              an icon control at the logical end, matching the record header in
-              the reference. Nothing new is exposed here — each control maps to
-              an action this route already owned. */}
+
           <div className="evidence-detail-hero-actions">
             <button
               type="button"
@@ -1375,11 +1361,8 @@ function EvidenceDetailPageInner() {
           </div>
         </section>
 
-        {/* Phase 3 — "What needs attention" strip directly below the
-            hero. Users must immediately see "is there a problem?"
-            before any tab body renders. Shows top 3 risk signals,
-            unassigned case, missing reviewer, missing report, missing
-            package. Compact: hidden when there is nothing to act on. */}
+        {/* "Is there a problem?" answered above any tab body. Top risk
+            signals; hidden when there is nothing to act on. */}
         <WhatNeedsAttentionStrip
           ctx={ctx}
           onAssignCase={() => {

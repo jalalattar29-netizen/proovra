@@ -100,7 +100,19 @@ test("all 15 required Phase 7 surfaces compose the render-proven primitives", ()
     ["app/(app)/evidence-lifecycle/_shared.tsx", [/prevWorkspaceRef/, /activeWorkspaceId\]/]],
     ["app/(app)/redaction/page.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/, /activeWorkspaceId\]/]],
     ["app/(app)/review/page.tsx", [/WorkspaceContextBanner/]],
-    ["components/reports-experience/ReportsIndex.tsx", [/WorkspaceContextBanner/]],
+    // REPORTS proves tenant isolation by its LOAD, not by a banner.
+    //
+    // The banner rendered "Reports & artifacts for Personal Space · Personal
+    // Space" — the workspace named twice, under a global header that already
+    // named it. It was removed as redundant copy, and the Phase 7 guarantee it
+    // stood for is unaffected: what tenant isolation requires of a read-only
+    // list is that it RE-QUERIES when the workspace changes. That is asserted
+    // directly here, which is a stronger marker than the banner ever was — a
+    // banner can render the right name over a stale list.
+    [
+      "components/reports-experience/ReportsIndex.tsx",
+      [/useWorkspaceId\(\)/, /if \(!workspaceId\) return;/, /reload, workspaceId\]/],
+    ],
     // Intake links names its owning workspace from the SAME canonical resolver
     // the shared banner uses (`useOwningContextLabel`), rendered inline in the
     // page header instead of as a separate strip — the shared banner printed

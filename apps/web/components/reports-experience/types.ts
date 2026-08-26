@@ -23,7 +23,20 @@ export type PackageLifecycle =
 
 export type ArtifactRow = {
   evidenceId: string;
-  title: string;
+  /**
+   * The stored title, VERBATIM — `null` when the record has none.
+   *
+   * Do NOT render this directly. Pass the row through `getDisplayTitle`, the
+   * same cascade the Evidence Library and Case Detail use: many records carry
+   * their name in `displayFileName` / `originalFileName` with `title` null,
+   * and reading `title` alone is exactly what filled this page with
+   * "Untitled evidence".
+   */
+  title: string | null;
+  /** Cascade inputs. Never a display value on their own. */
+  displayFileName: string | null;
+  originalFileName: string | null;
+  mimeType: string | null;
   type: string;
   status: string;
   verificationStatus: string | null;
@@ -42,20 +55,23 @@ export type ArtifactRow = {
   };
 };
 
+/** The six operational counters the summary strip renders. */
+export type ReportsSummary = {
+  reportsReady: number;
+  reportsPending: number;
+  packagesReady: number;
+  packagesPending: number;
+  packagesBlocked: number;
+  totalEvidenceWithArtifacts: number;
+};
+
 export type ReportsArtifactsEnvelope = {
   generatedAt: string;
   workspace: { id: string; role: string };
   sections: {
     summary: {
       status: SectionStatus;
-      data: {
-        reportsReady: number;
-        reportsPending: number;
-        packagesReady: number;
-        packagesPending: number;
-        packagesBlocked: number;
-        totalEvidenceWithArtifacts: number;
-      } | null;
+      data: ReportsSummary | null;
     };
     artifacts: {
       status: SectionStatus;
