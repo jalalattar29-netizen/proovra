@@ -26,6 +26,10 @@ import { getDisplayTitle } from "../app/(app)/evidence/lib/evidence-library-stat
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
 
+/** Strip comments — a prose mention of a retired pattern is not a usage. */
+const code = (text: string) =>
+  text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/[^\n]*$/gm, "");
+
 const INDEX = read("apps/web/components/reports-experience/ReportsIndex.tsx");
 const TYPES = read("apps/web/components/reports-experience/types.ts");
 const CSS = read("apps/web/components/reports-experience/reports.css");
@@ -182,7 +186,7 @@ test("the summary strip maps every counter to a tone, and the number wears it", 
   }
   // The value takes the card's tone — not a flat ink colour, which is what
   // made six coloured rails read as decoration.
-  assert.match(CSS, /\.rpt-metric__value \{\s*color: var\(--rpt-tone/);
+  assert.match(CSS, /\.rpt-metric__value \{[\s\S]{0,300}color: var\(--rpt-tone/);
 });
 
 test("the header carries the canonical title icon and no Search-reports button", () => {
@@ -230,4 +234,143 @@ test("filters keep their canonical chip component and every state", () => {
     );
   }
   assert.match(INDEX, /cases-filter-chip/);
+});
+
+// ---------------------------------------------------------------------------
+// Search, filters, and the summary they used to destroy
+// ---------------------------------------------------------------------------
+
+test("the user-scoped fallback fires ONLY on the unfiltered view", () => {
+  // THE ROOT CAUSE of three symptoms at once. The fallback is a bootstrap
+  // probe for a personal workspace whose membership row is missing, but it
+  // fired on ANY empty result — including the correct emptiness of a search or
+  // a filter. `tryUserScopedReports` sends neither `search` nor `lifecycle`
+  // and reports its summary `unavailable`, so a query returned the UNFILTERED
+  // list and blanked the summary.
+  assert.match(
+    INDEX,
+    /const isUnfilteredView = currentFilter === "all" && trimmed\.length === 0;/,
+  );
+  assert.match(
+    INDEX,
+    /isUnfilteredView &&\s*\n\s*envelope\.sections\.artifacts\.status === "ok" &&\s*\n\s*envelope\.sections\.artifacts\.items\.length === 0/,
+    "the empty-result fallback must be gated on the unfiltered view",
+  );
+});
+
+test("a workspace summary survives a list query that could not produce one", () => {
+  // The counters are workspace totals. A list request that changed does not
+  // make six correct numbers wrong, so a failed summary section must not blank
+  // the ones already on screen.
+  assert.match(INDEX, /const previousSummary =\s*\n\s*prev\.status === "ready" \? prev\.envelope\.sections\.summary : null;/);
+  assert.match(INDEX, /summary: previousSummary/);
+});
+
+test("search and lifecycle both reach the server, and compose", () => {
+  // One request carries both, so `filter=package_ready` + `search=Joint` is
+  // one query for package-ready rows matching Joint — neither overwrites the
+  // other.
+  assert.match(INDEX, /lifecycle: currentFilter,/);
+  assert.match(INDEX, /params\.set\("search", trimmed\.slice\(0, 80\)\)/);
+  assert.match(INDEX, /void reload\(filter, search\)/);
+});
+
+test("SERVER: search matches every field the title cascade displays", () => {
+  // Matching `title` alone meant a user could read a name on screen — resolved
+  // from `displayFileName` — type it, and get nothing back.
+  const block = AGGREGATOR.slice(
+    AGGREGATOR.indexOf("if (input.search"),
+    AGGREGATOR.indexOf("// Cursor —"),
+  );
+  for (const field of ["title", "displayFileName", "originalFileName"]) {
+    assert.match(block, new RegExp(`\{ ${field}: like \}`), `search must cover ${field}`);
+  }
+  assert.match(block, /whereBase\.OR = \[/);
+});
+
+test("SERVER: all six lifecycle filters map to a real status field", () => {
+  const block = AGGREGATOR.slice(AGGREGATOR.indexOf("function filterByLifecycle"));
+  const cases: Array<[string, string]> = [
+    ["report_ready", 'i.report.state === "ready"'],
+    ["report_pending", 'i.report.state === "pending"'],
+    ["package_ready", 'i.package.state === "ready"'],
+    ["package_pending", 'i.package.state === "pending"'],
+    ["package_blocked", 'i.package.state === "blocked"'],
+  ];
+  for (const [key, predicate] of cases) {
+    assert.match(block, new RegExp(`case "${key}":`), `${key} has no branch`);
+    assert.ok(block.includes(predicate), `${key} must filter on ${predicate}`);
+  }
+  // `all` returns everything rather than filtering to nothing.
+  assert.match(block, /case "all":\s*\n\s*return items;/);
+});
+
+test("there is exactly ONE clear control on the search field", () => {
+  // `type="search"` makes WebKit draw its own cancel button beside the
+  // component's canonical one, in the same corner.
+  const GLOBALS = read("apps/web/app/globals.css");
+  assert.match(GLOBALS, /\.ui-filterbar__input::-webkit-search-cancel-button/);
+  assert.match(GLOBALS, /appearance: none;/);
+  // …and the component's own control is the one that stays.
+  const FILTERBAR = read("apps/web/components/ui/FilterBar.tsx");
+  assert.match(FILTERBAR, /aria-label="Clear search"/);
+});
+
+// ---------------------------------------------------------------------------
+// Case name, buttons, card typography
+// ---------------------------------------------------------------------------
+
+test("the row shows the case NAME, sourced in the same query", () => {
+  // A truncated uuid is not something a person recognises. The name travels on
+  // the existing `caseLinks` select — no second request, no N+1.
+  assert.match(AGGREGATOR, /case: \{ select: \{ name: true \} \}/);
+  assert.match(AGGREGATOR, /caseTitle: r\.caseLinks\[0\]\?\.case\?\.name\?\.trim\(\) \|\| null,/);
+  assert.match(TYPES, /\n {2}caseTitle: string \| null;/);
+  // The short id survives only as the fallback for a case with no name.
+  assert.match(INDEX, /Case: \{row\.caseTitle \?\? `#\$\{row\.caseId\.slice\(0, 6\)\}`\}/);
+  assert.doesNotMatch(INDEX, /Case #\{row\.caseId\.slice/);
+});
+
+test("Download report PDF is canonical purple, not the legacy coral CTA", () => {
+  assert.match(INDEX, /className="app-primary-action rpt-row__action"/);
+  // `Button variant="primary"` is the login/marketing CTA — a coral-to-pink
+  // gradient. The Reports row must not borrow it.
+  // Comments stripped: this file EXPLAINS which variant was retired, and a
+  // guard that tripped on its own rationale would be deleted by the next
+  // person who read it.
+  const actions = code(INDEX.slice(INDEX.indexOf("function ArtifactRowActions")));
+  assert.doesNotMatch(actions, /variant="primary"/);
+});
+
+test("the legacy coral CTA token still exists for its real consumers", () => {
+  // The goal was to stop USING it here, not to delete a token other surfaces
+  // legitimately own.
+  const BUTTON = read("apps/web/components/ui/Button.tsx");
+  assert.match(BUTTON, /--btn-primary-bg/);
+});
+
+test("Download verification package is canonical dark, white on hover and focus", () => {
+  assert.match(
+    INDEX,
+    /className="app-secondary-action app-secondary-action--filled rpt-row__action"/,
+  );
+  // The filled variant keeps its white label on hover; the base secondary
+  // hover sets a dark `color` at equal specificity, which is what turned the
+  // text dark on a dark ground.
+  const PRIMITIVES = read("apps/web/components/app-primitives/app-primitives.css");
+  assert.match(
+    PRIMITIVES,
+    /\.app-secondary-action--filled:hover:not\(:disabled\) \{[\s\S]{0,160}color: (#ffffff|rgb\(255, 255, 255\)|var\(--ink-inverse\))/,
+  );
+});
+
+test("the summary value uses the page's own type system", () => {
+  // The digits rendered in the browser's default numeric face because nothing
+  // in the chain set a family, so they looked like a different typeface from
+  // every label beside them.
+  assert.match(CSS, /\.rpt-metric__value \{[\s\S]{0,200}font-family: inherit;/);
+  assert.match(CSS, /font-variant-numeric: tabular-nums;/);
+  assert.match(CSS, /\.rpt-metric__label \{[\s\S]{0,160}font-family: inherit;/);
+  // Roomier cards, still not huge.
+  assert.match(CSS, /minmax\(196px, 1fr\)/);
 });

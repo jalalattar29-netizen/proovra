@@ -39,9 +39,9 @@
   /* Six cards. `auto-fill` with a readable floor rather than `auto-fit` with a
      narrow one: squeezing six onto a row at a width where each is too narrow
      to read is not a layout, it is a row of digits. */
-  grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
   grid-auto-rows: 1fr;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -49,7 +49,12 @@
 
 .rpt-metric {
   position: relative;
-  padding-inline-start: 14px;
+  /* Roomier than the shared default. Six counters at the primitive's compact
+     padding read as cramped on this page, which carries no other chrome at
+     this level to give them weight. */
+  padding: 16px 16px 15px;
+  padding-inline-start: 18px;
+  gap: 4px;
   /* Not a button — these are counters, not filters. The shared metric card is
      interactive by default because Operations' cards ARE filters; claiming a
      pointer here would promise a click that does nothing. */
@@ -58,7 +63,7 @@
 .rpt-metric::before {
   content: "";
   position: absolute;
-  inset-block: 10px;
+  inset-block: 12px;
   inset-inline-start: 0;
   inline-size: 3px;
   border-radius: var(--radius-pill, 999px);
@@ -66,10 +71,26 @@
 }
 /* The NUMBER wears the card's own tone — the same colour as the rail beside
    it, so the accent reads as the card's identity rather than as decoration. */
+/* ONE TYPE SYSTEM.
+ *
+ * `font: inherit` on the family: the value rendered in the browser's default
+ * numeric face on this page because nothing in the chain set it, so the digits
+ * looked like a different typeface from every label around them. Tabular
+ * figures so a column of counts aligns. */
 .rpt-metric__value {
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
   color: var(--rpt-tone, var(--ink-primary));
 }
 .rpt-metric__label {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
   color: var(--ink-secondary);
 }
 
@@ -213,4 +234,11 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* The three row actions share one height and radius. `app-primary-action` and
+   `app-secondary-action` already agree on both; this only bounds the labels so
+   a long one cannot stretch its button out of line with the others. */
+.rpt-row__action {
+  white-space: nowrap;
 }

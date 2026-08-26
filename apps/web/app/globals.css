@@ -294,6 +294,22 @@ textarea {
   box-shadow: var(--focus-ring, 0 0 0 3px rgba(107, 91, 255, 0.28));
 }
 
+/* ONE CLEAR CONTROL, NOT TWO.
+ *
+ * `FilterBar.Search` renders `type="search"`, so WebKit draws its own cancel
+ * button INSIDE the field — beside the component's canonical `✕`, which is
+ * positioned in the same corner. Two clears appeared as soon as the field had
+ * text, on every surface using this component, and the native one is neither
+ * styleable nor keyboard-reachable.
+ *
+ * The component's control stays; the browser's duplicate is suppressed. The
+ * input keeps `type="search"` for its semantics and its Escape-to-clear. */
+.ui-filterbar__input::-webkit-search-cancel-button,
+.ui-filterbar__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 img,
 picture,
 video,

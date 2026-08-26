@@ -41,6 +41,8 @@ export type ArtifactRow = {
   status: string;
   verificationStatus: string | null;
   caseId: string | null;
+  /** The linked case's NAME. Null only when the case genuinely has none. */
+  caseTitle: string | null;
   createdAt: string;
   report: {
     state: ReportLifecycle;

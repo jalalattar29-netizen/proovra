@@ -108,6 +108,7 @@ type UserReportRow = {
   type: string;
   status: string;
   caseId: string | null;
+  caseTitle?: string | null;
   createdAt: string;
   report: {
     available: boolean;
@@ -160,6 +161,7 @@ async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> 
       status: row.status,
       verificationStatus: null,
       caseId: row.caseId,
+      caseTitle: row.caseTitle ?? null,
       createdAt: row.createdAt,
       report: {
         state: row.report.available ? "ready" : "not_requested",
@@ -240,7 +242,25 @@ export function ReportsIndex() {
         // the active workspace. Re-query the user-scoped fallback
         // (`/v1/reports`) which finds reports via evidence
         // ownership + ANY active team membership the user holds.
+        // THE FALLBACK IS A BOOTSTRAP PROBE, NOT AN EMPTY-RESULT HANDLER.
+        //
+        // It exists for one case: a personal workspace whose TeamMember row
+        // the bootstrap missed, where the aggregator legitimately returns
+        // zero. It fired on ANY empty result — including the entirely correct
+        // emptiness of a search or a lifecycle filter — and
+        // `tryUserScopedReports` queries `/v1/reports` with NEITHER the search
+        // nor the lifecycle parameter, and reports its summary as
+        // `unavailable`.
+        //
+        // So typing a query produced: the UNFILTERED list back (search looked
+        // broken), a filter that appeared to do nothing, and
+        // "Summary is temporarily unavailable" — three symptoms, one cause.
+        //
+        // It now runs ONLY for the unfiltered default view, which is the only
+        // shape it was ever able to reason about.
+        const isUnfilteredView = currentFilter === "all" && trimmed.length === 0;
         if (
+          isUnfilteredView &&
           envelope.sections.artifacts.status === "ok" &&
           envelope.sections.artifacts.items.length === 0
         ) {
@@ -250,7 +270,25 @@ export function ReportsIndex() {
             return;
           }
         }
-        setState({ status: "ready", envelope });
+        // THE SUMMARY IS A WORKSPACE TOTAL, so it survives a list query that
+        // could not produce one. Without this a response whose summary section
+        // failed would blank six counters that were correct a moment ago and
+        // are still correct — the list changed, the workspace did not.
+        setState((prev) => {
+          const previousSummary =
+            prev.status === "ready" ? prev.envelope.sections.summary : null;
+          const incoming = envelope.sections.summary;
+          if (incoming.status === "ok" || !previousSummary || previousSummary.status !== "ok") {
+            return { status: "ready", envelope };
+          }
+          return {
+            status: "ready",
+            envelope: {
+              ...envelope,
+              sections: { ...envelope.sections, summary: previousSummary },
+            },
+          };
+        });
       } catch (err) {
         const e = err as { message?: string; statusCode?: number };
         // Phase IA-self-serve-regression-fix — 404 from the
@@ -613,7 +651,10 @@ function ArtifactRowView({
                 data-reports-case-link={row.caseId}
                 className="rpt-row__case"
               >
-                Case #{row.caseId.slice(0, 6)}
+                {/* The NAME, not the identifier. A truncated uuid is not
+                    something a person recognises; the short id survives only
+                    for a legacy row that genuinely has no name. */}
+                Case: {row.caseTitle ?? `#${row.caseId.slice(0, 6)}`}
               </Link>
             ) : null}
             <time dateTime={row.createdAt} className="rpt-row__captured">
@@ -812,16 +853,21 @@ function ArtifactRowActions({
             } as unknown as React.MouseEvent)
           }
           renderAction={({ disabled, onClick }) => (
-            <Button
-              /* The record's primary OUTPUT wears the canonical purple. */
-              variant="primary"
-              size="sm"
+            <button
+              /* CANONICAL PURPLE — `app-primary-action`.
+                 This was `<Button variant="primary">`, and that legacy
+                 variant is the marketing CTA: a coral-to-pink gradient
+                 (`--btn-primary-bg`) belonging to the login page, not to the
+                 redesigned app. The token keeps its real consumers; this
+                 surface simply stops borrowing it. */
+              type="button"
+              className="app-primary-action rpt-row__action"
               data-reports-download-report={row.evidenceId}
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
               {busy === "report" ? "Opening…" : "Download report PDF"}
-            </Button>
+            </button>
           )}
         />
       ) : (
@@ -852,19 +898,19 @@ function ArtifactRowActions({
             } as unknown as React.MouseEvent)
           }
           renderAction={({ disabled, onClick }) => (
-            <Button
-              /* Secondary emphasis: the canonical dark filled variant, so the
-                 two downloads are distinguishable at a glance without a second
-                 purple competing with the first. */
-              variant="secondary"
-              className="app-secondary-action--filled"
-              size="sm"
+            <button
+              /* CANONICAL DARK — the filled secondary variant, which keeps its
+                 white label on hover and focus. The legacy `Button` wrapper
+                 did not compose with it, so the hover fell through to a pale
+                 ground with dark text. */
+              type="button"
+              className="app-secondary-action app-secondary-action--filled rpt-row__action"
               data-reports-download-package={row.evidenceId}
               onClick={onClick}
               disabled={busy !== null || disabled}
             >
               {busy === "package" ? "Opening…" : "Download verification package"}
-            </Button>
+            </button>
           )}
         />
       ) : row.package.state === "blocked" ? (

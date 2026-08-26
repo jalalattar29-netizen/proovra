@@ -356,8 +356,17 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // now consume ONE `workspaceEvidenceWhere` resolved at the top of the
       // function. Sanctioned, audited growth — the pin moves to the current
       // size so it keeps catching UNAUDITED drift.
+      // Rebaselined 2026-08-26 (REPORTS SEARCH + CASE NAME). Two changes:
+      // search matched `title` alone while the row DISPLAYS a cascade of
+      // `title` -> `displayFileName` -> `originalFileName`, so a user could
+      // read a name on screen, type it, and get nothing back; and the row
+      // rendered "Case #f2b146" because only `caseId` was selected. Search now
+      // covers all three fields, and the case's name travels on the existing
+      // `caseLinks` select — one query, no N+1. Sanctioned, audited growth —
+      // the pin moves to the current size so it keeps catching UNAUDITED
+      // drift.
       rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 16047,
+        expected: 18555,
       },
     ];
     for (const { rel, expected } of PINS) {

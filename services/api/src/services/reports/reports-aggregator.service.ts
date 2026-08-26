@@ -85,6 +85,8 @@ export type ArtifactRow = {
   status: string;
   verificationStatus: string | null;
   caseId: string | null;
+  /** The linked case's name, for display. Null only when it has none. */
+  caseTitle: string | null;
   createdAt: string;
   /** Report lifecycle (bounded enum, never raw enum values). */
   report: {
@@ -330,10 +332,20 @@ export async function listWorkspaceArtifacts(input: {
     };
     if (input.caseId) whereBase.caseLinks = { some: { caseId: input.caseId } };
     if (input.search && input.search.trim()) {
-      whereBase.title = {
-        contains: input.search.trim().slice(0, 80),
-        mode: "insensitive",
-      };
+      // SEARCH THE FIELDS THE TITLE CASCADE READS, not `title` alone.
+      //
+      // The row's displayed name resolves `title` -> `displayFileName` ->
+      // `originalFileName`, because a capture or an intake upload commonly
+      // leaves `title` null. Matching only `title` meant a user could read a
+      // name on screen, type it, and get nothing back — the search appeared
+      // broken precisely for the records whose names had just been fixed.
+      const needle = input.search.trim().slice(0, 80);
+      const like = { contains: needle, mode: "insensitive" as const };
+      whereBase.OR = [
+        { title: like },
+        { displayFileName: like },
+        { originalFileName: like },
+      ];
     }
     // Cursor — opaque, last (createdAt, id) pair, base64-encoded JSON.
     let cursorFilter: Prisma.EvidenceWhereInput | null = null;
@@ -373,7 +385,14 @@ export async function listWorkspaceArtifacts(input: {
         type: true,
         status: true,
         verificationStatus: true,
-        caseLinks: { orderBy: { linkedAtUtc: "asc" }, select: { caseId: true }, take: 1 },
+        // The case NAME travels with the link, in this one query. Selecting
+        // only the identifier is what forced the row to render "Case #f2b146"
+        // to a human, and fetching the name per row would have been an N+1.
+        caseLinks: {
+          orderBy: { linkedAtUtc: "asc" },
+          select: { caseId: true, case: { select: { name: true } } },
+          take: 1,
+        },
         createdAt: true,
         verificationPackageMetadata: true,
         // Phase 6 — template provenance trio surfaced on the
@@ -458,6 +477,9 @@ export async function listWorkspaceArtifacts(input: {
             ? String(r.verificationStatus)
             : null,
           caseId: r.caseLinks[0]?.caseId ?? null,
+          // Null when a legacy row genuinely has no name; the client falls
+          // back to the short id only then.
+          caseTitle: r.caseLinks[0]?.case?.name?.trim() || null,
           createdAt: r.createdAt.toISOString(),
           report: {
             state: reportState,
