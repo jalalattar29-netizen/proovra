@@ -15,6 +15,12 @@ import {
   resolveWorkspaceEffectivePlan,
   type WorkspaceBillingStatus,
 } from "@proovra/shared-billing";
+import {
+  NO_CONTRACT_LIMITS,
+  resolveEnterpriseContractLimits,
+  type EnterpriseContractLimits,
+} from "./billing/enterprise-contract-limits.js";
+import { resolveEnterpriseContract } from "./organization/enterprise-contract.service.js";
 
 export type WorkspaceScope = {
   /**
@@ -57,6 +63,14 @@ export type WorkspaceScope = {
    * scopes this is sourced from the team owner's entitlement.
    */
   legacyRecordCapOverride: number | null;
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the CUSTOMER organization's
+   * contracted limits, resolved once here so storage, seats, evidence and AI
+   * enforcement all read the same contract instead of a flat catalog
+   * placeholder. `contractGovernsCapability: false` for every non-Enterprise
+   * subject and for any contract that is not ACTIVE (fail closed).
+   */
+  contractLimits: EnterpriseContractLimits;
   /**
    * Email of the REQUESTING authenticated user, looked up server-side
    * from `users.email` by the enforcement chokepoint
@@ -184,6 +198,8 @@ export async function getPersonalWorkspaceScope(
     legacyRecordCapOverride:
       (entitlement as { legacyRecordCapOverride?: number | null })
         .legacyRecordCapOverride ?? null,
+    // A Personal Space is never governed by an organization contract.
+    contractLimits: NO_CONTRACT_LIMITS,
   };
 
   assertWorkspacePlanCompatible(toBillingWorkspaceScope(scope));
@@ -286,6 +302,16 @@ export async function getTeamWorkspaceScope(
     teamId: team.id,
   });
 
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the contract is resolved
+  // ONCE, here, and travels on the scope. Every downstream limit (storage,
+  // seats, evidence, AI) reads it from the scope rather than re-fetching or —
+  // as before — ignoring it entirely and using the catalog placeholder.
+  const contractLimits = resolveEnterpriseContractLimits(
+    team.organizationId
+      ? await resolveEnterpriseContract(team.organizationId)
+      : null,
+  );
+
   const scope: WorkspaceScope = {
     billingShape,
     ownerUserId: team.ownerUserId,
@@ -322,6 +348,7 @@ export async function getTeamWorkspaceScope(
     legacyRecordCapOverride:
       (ownerEntitlement as { legacyRecordCapOverride?: number | null })
         .legacyRecordCapOverride ?? null,
+    contractLimits,
   };
 
   assertWorkspacePlanCompatible(toBillingWorkspaceScope(scope));

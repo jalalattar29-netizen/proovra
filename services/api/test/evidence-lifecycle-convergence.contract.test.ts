@@ -211,19 +211,25 @@ describe("final destruction preserves a tombstone", () => {
     }
   });
 
-  it("the routes' one remaining hard delete is a CREATE rollback, not a lifecycle step", () => {
-    // `prisma.evidence.delete` survives in exactly one place in the routes:
-    // undoing a row that was just created when the quota check then denies it.
-    // That is a create failing, not a record ending — which is why this is
-    // pinned rather than banned. A second occurrence fails here.
+  it("the routes hard-delete an Evidence row NOWHERE — not even as a rollback", () => {
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — this used to pin ONE
+    // permitted `prisma.evidence.delete`: the rollback that undid a
+    // just-created row when the packaging quota engine then denied it.
+    //
+    // That quota engine was a DUPLICATE authority — 100 records per calendar
+    // month against a TEAM plan sold as 500 per rolling 30 days — and it has
+    // been deleted, so the rollback it needed went with it. A TEAM workspace
+    // past 100 records in a month no longer has its capture created and then
+    // destroyed by a limit no published plan mentions.
+    //
+    // The invariant is therefore now absolute rather than "one allowed
+    // exception": no route may hard-delete an Evidence row for any reason. A
+    // record ends through the canonical destruction executor, which leaves a
+    // tombstone; a create that fails now fails BEFORE the row exists.
     const hits = [
       ...code(EVIDENCE_ROUTES).matchAll(/prisma\.evidence\.delete\s*\(/g),
     ];
-    expect(hits).toHaveLength(1);
-    const at = EVIDENCE_ROUTES.indexOf("prisma.evidence.delete(");
-    expect(EVIDENCE_ROUTES.slice(Math.max(0, at - 400), at)).toMatch(
-      /Roll back the just-created evidence/,
-    );
+    expect(hits).toHaveLength(0);
   });
 
   it("the executor keeps the custody chain and clears the content pointers", () => {

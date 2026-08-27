@@ -68,7 +68,7 @@ export type OperationsUiContext = {
   canCollaborate: boolean;
   /** A still-actionable incoming invitation exists (org or collaboration). */
   hasPendingInvitation: boolean;
-  /** Plan permits OWNING collaboration teams (maxOwnedTeams > 0). */
+  /** Plan includes Collaboration Teams (maxCollaborationTeamsPerWorkspace > 0). */
   canOwnTeamCollaboration: boolean;
   /** Writer-level reviewer participation (REVIEWER_OPS_ACT) — not every
    *  Team/Enterprise member. */

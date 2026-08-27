@@ -128,8 +128,11 @@ function projectPublishedPlan<P extends "FREE" | "PAYG" | "PRO" | "TEAM">(
     aiAdvisoryMonthlyOperations: caps.aiAdvisoryMonthlyOperations,
     seats: caps.includedSeats,
     billingShape: caps.billingShape,
-    maxOwnedTeams: caps.maxOwnedTeams,
-    maxMembersPerTeam: caps.maxMembersPerTeam,
+    maxOwnedWorkspaces: caps.maxOwnedWorkspaces,
+    maxCollaborationTeamsPerWorkspace: caps.maxCollaborationTeamsPerWorkspace,
+    maxAcceptedMembersPerCollaborationTeam:
+      caps.maxAcceptedMembersPerCollaborationTeam,
+    maxWorkspaceSeats: caps.maxWorkspaceSeats,
     enterpriseFeatures: caps.enterpriseFeatures,
   };
 }

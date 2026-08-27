@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
   plan: "FREE" as string,
-  ownedTeams: 0,
+  workspaceTeams: 0,
   memberCount: 0,
   pendingInvites: 0,
   invites24h: 0,
@@ -54,7 +54,7 @@ vi.mock("../src/db.js", () => {
       aggregate: async () => ({ _sum: { extraStorageBytes: 0n } }),
     },
     collaborationTeam: {
-      count: async () => H.ownedTeams,
+      count: async () => H.workspaceTeams,
       findFirst: async () => ({
         id: "team-1",
         workspace: { id: "ws-1", ownerUserId: "owner-1", isPersonal: true },
@@ -119,7 +119,7 @@ import {
 
 beforeEach(() => {
   H.plan = "FREE";
-  H.ownedTeams = 0;
+  H.workspaceTeams = 0;
   H.memberCount = 0;
   H.pendingInvites = 0;
   H.invites24h = 0;
@@ -145,7 +145,7 @@ async function expectBillingError(
 describe("Team creation — the commercial plan matrix", () => {
   it("FREE: denied with 402 TEAM_PLAN_REQUIRED, requiredPlan=PRO, ZERO rows written", async () => {
     const e = await expectBillingError(
-      () => assertCanCreateCollaborationTeam("owner-1"),
+      () => assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
       "TEAM_PLAN_REQUIRED",
       402,
     );
@@ -157,7 +157,7 @@ describe("Team creation — the commercial plan matrix", () => {
   it("PAYG: identical denial — paying per evidence does not unlock Teams", async () => {
     H.plan = "PAYG";
     await expectBillingError(
-      () => assertCanCreateCollaborationTeam("owner-1"),
+      () => assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
       "TEAM_PLAN_REQUIRED",
       402,
     );
@@ -166,17 +166,17 @@ describe("Team creation — the commercial plan matrix", () => {
 
   it("PRO: first and second allowed; third → 409 TEAM_LIMIT_REACHED with limit + usage", async () => {
     H.plan = "PRO";
-    H.ownedTeams = 0;
+    H.workspaceTeams = 0;
     await expect(
-      assertCanCreateCollaborationTeam("owner-1"),
-    ).resolves.toMatchObject({ maxTeams: 2, ownedTeamCount: 0 });
-    H.ownedTeams = 1;
+      assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
+    ).resolves.toMatchObject({ maxCollaborationTeamsPerWorkspace: 2, workspaceTeamCount: 0 });
+    H.workspaceTeams = 1;
     await expect(
-      assertCanCreateCollaborationTeam("owner-1"),
-    ).resolves.toMatchObject({ ownedTeamCount: 1 });
-    H.ownedTeams = 2;
+      assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
+    ).resolves.toMatchObject({ workspaceTeamCount: 1 });
+    H.workspaceTeams = 2;
     const e = await expectBillingError(
-      () => assertCanCreateCollaborationTeam("owner-1"),
+      () => assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
       "TEAM_LIMIT_REACHED",
       409,
     );
@@ -187,13 +187,13 @@ describe("Team creation — the commercial plan matrix", () => {
 
   it("TEAM plan: fifth allowed, sixth denied with the same typed capacity response", async () => {
     H.plan = "TEAM";
-    H.ownedTeams = 4;
+    H.workspaceTeams = 4;
     await expect(
-      assertCanCreateCollaborationTeam("owner-1"),
-    ).resolves.toMatchObject({ maxTeams: 5 });
-    H.ownedTeams = 5;
+      assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
+    ).resolves.toMatchObject({ maxCollaborationTeamsPerWorkspace: 5 });
+    H.workspaceTeams = 5;
     const e = await expectBillingError(
-      () => assertCanCreateCollaborationTeam("owner-1"),
+      () => assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
       "TEAM_LIMIT_REACHED",
       409,
     );
@@ -202,9 +202,9 @@ describe("Team creation — the commercial plan matrix", () => {
 
   it("ENTERPRISE: provisioned ceiling enforced (not unlimited frontend assumption)", async () => {
     H.plan = "ENTERPRISE";
-    H.ownedTeams = 1000;
+    H.workspaceTeams = 1000;
     await expectBillingError(
-      () => assertCanCreateCollaborationTeam("owner-1"),
+      () => assertCanCreateCollaborationTeam({ workspaceId: "ws-1", actorUserId: "owner-1" }),
       "TEAM_LIMIT_REACHED",
       409,
     );
@@ -243,7 +243,7 @@ describe("Grandfathered Teams — data readable, growth locked", () => {
     H.memberCount = 2;
     await expect(
       assertCollaborationTeamMemberLimit("team-1"),
-    ).resolves.toMatchObject({ maxMembersPerTeam: 5 });
+    ).resolves.toMatchObject({ maxAcceptedMembers: 5 });
     await expect(
       assertCanInviteCollaborationTeamMember("team-1", "EMAIL"),
     ).resolves.toBeTruthy();

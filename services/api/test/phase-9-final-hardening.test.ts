@@ -4,6 +4,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NO_CONTRACT_LIMITS } from "../src/services/billing/enterprise-contract-limits.js";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -109,6 +110,7 @@ describe("AI subject — Workspace A's AI entitlement cannot come from Personal 
       storageBytesOverride: null,
       activeStorageAddonBytes: 0n,
       legacyRecordCapOverride: null,
+    contractLimits: NO_CONTRACT_LIMITS,
       ...overrides,
     };
   }

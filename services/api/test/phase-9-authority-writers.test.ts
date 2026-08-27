@@ -43,10 +43,17 @@ const AUTHORITY_WRITERS: Array<{
     surface: "Entitlement (personal-account commercial state)",
     write: /\.entitlement\.(create|update|upsert|updateMany|delete|deleteMany)\b/,
     allowed: {
-      "services/billing.service.ts": "canonical: ensureEntitlement/setPersonalPlan/addCredits/consumeCredits",
+      "services/billing.service.ts": "canonical: ensureEntitlement/setPersonalPlan",
       "services/auth.service.ts": "bootstrap FREE entitlement on account creation",
       "services/email-password-auth.service.ts": "bootstrap FREE entitlement on email-password signup",
-      "services/billing-enforcement.service.ts": "credit decrement inside enforcement tx (usage, not plan)",
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the credit BALANCE moved
+      // out of billing-enforcement into the canonical wallet, which owns the
+      // conditional decrement and the matching ledger entry in ONE transaction.
+      // `addCredits`/`consumeCredits` were deleted from billing.service.ts:
+      // neither was idempotent, and `consumeCredits` accepted no transaction
+      // client, so its caller inside the completion transaction was in fact
+      // writing outside it.
+      "services/billing/evidence-credits.service.ts": "canonical evidence-credit wallet: grant + conditional consume, ledger-backed",
     },
   },
   {

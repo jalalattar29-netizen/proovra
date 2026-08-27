@@ -79,7 +79,7 @@ function MembersTab({
   const activeMemberCount = team.members.filter(
     (m) => m.status === "ACTIVE",
   ).length;
-  const maxMembersPerTeam = limits?.maxMembersPerTeam ?? 0;
+  const maxMembersPerTeam = limits?.maxAcceptedMembersPerCollaborationTeam ?? 0;
   const atCapacity =
     limits !== null && activeMemberCount >= maxMembersPerTeam;
   const capacityKnown = limits !== null && maxMembersPerTeam > 0;

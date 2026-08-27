@@ -90,14 +90,20 @@ export function getEffectiveSeatLimit(scope: BillingWorkspaceScope): number {
   }
 
   /**
-   * Effective member cap:
-   * - driven first by plan business cap (maxMembersPerTeam)
-   * - then by legacy includedSeats
-   * - then by any explicit runtime/team seat value
+   * Effective seat cap for ONE shared workspace:
+   * - the plan's workspace-seat cap (`maxWorkspaceSeats`);
+   * - the plan's `includedSeats`;
+   * - any explicit persisted seat value on the workspace row, which is how an
+   *   Enterprise contract's `seatCount` reaches this calculation.
+   *
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — reads `maxWorkspaceSeats`
+   * rather than the retired `maxMembersPerTeam`, which also governed
+   * Collaboration Team membership. A workspace seat and a Collaboration Team
+   * seat are different containers with different membership tables.
    */
   return Math.max(
     0,
-    caps.maxMembersPerTeam || 0,
+    caps.maxWorkspaceSeats || 0,
     caps.includedSeats || 0,
     scope.teamSeats || 0,
   );

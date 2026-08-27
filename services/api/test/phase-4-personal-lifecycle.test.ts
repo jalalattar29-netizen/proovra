@@ -17,6 +17,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { NO_CONTRACT_LIMITS } from "../src/services/billing/enterprise-contract-limits.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -149,6 +150,7 @@ function personalScope(over: Partial<WorkspaceScope> = {}): WorkspaceScope {
     storageBytesOverride: null,
     activeStorageAddonBytes: 0n,
     legacyRecordCapOverride: null,
+    contractLimits: NO_CONTRACT_LIMITS,
     authenticatedUserEmail: null,
     ...over,
   };
@@ -232,7 +234,14 @@ describe("Phase 4 §7.3 — downgrade record-cap behavior (creation gate only)",
       assertWorkspaceAllowsEvidenceCreation(
         personalScope({ plan: "PAYG" as WorkspaceScope["plan"], credits: 0 }),
       ),
-    ).rejects.toMatchObject({ statusCode: 402, code: "INSUFFICIENT_CREDITS" });
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a grandfathered
+      // `entitlements.plan = 'PAYG'` row is still credit-bound: that row grants
+      // no free record allowance, so every completion needs a credit. The
+      // denial is now the canonical DomainError, which carries `publicCode`.
+    ).rejects.toMatchObject({
+      httpStatus: 402,
+      publicCode: "INSUFFICIENT_EVIDENCE_CREDITS",
+    });
   });
 });
 

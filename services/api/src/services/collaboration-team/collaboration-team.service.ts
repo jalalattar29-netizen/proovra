@@ -361,7 +361,12 @@ export async function createCollaborationTeam(
     select: { ownerUserId: true },
   });
   if (!ws) throw E.notFound("Workspace");
-  await assertCanCreateCollaborationTeam(ws.ownerUserId, client);
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the cap is per WORKSPACE,
+  // so the guard takes the workspace, not the owner's account.
+  await assertCanCreateCollaborationTeam(
+    { workspaceId: input.workspaceId, actorUserId: input.actorUserId },
+    client,
+  );
 
   const result = await client.$transaction(async (tx) => {
     const team = await tx.collaborationTeam.create({

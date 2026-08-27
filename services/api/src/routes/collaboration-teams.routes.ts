@@ -279,7 +279,10 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
       try {
         // Phase 10 — billing guards (pre-mutation).
         await assertSubscriptionActiveOrGraceAllowed(ctx.userId);
-        await assertCanCreateCollaborationTeam(ctx.userId);
+        await assertCanCreateCollaborationTeam({
+          workspaceId: ctx.workspaceId,
+          actorUserId: ctx.userId,
+        });
         const result = await createCollaborationTeam({
           workspaceId: ctx.workspaceId,
           actorUserId: ctx.userId,

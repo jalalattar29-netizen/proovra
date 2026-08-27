@@ -200,7 +200,15 @@ describe("CR4 Group 1 — file-size guards", () => {
     // unchanged: the fan-out still runs strictly AFTER the transaction commits,
     // which is what makes a rolled-back completion unable to produce a runnable
     // job.
-    expect(sz).toBe(47556);
+    // BILLING COMMERCIAL CORRECTNESS rebaseline (2026-08-27): 47,556 → 49,553.
+    // The credit settlement inside the finalize transaction replaced a
+    // fire-and-forget `consumeWorkspaceCompletionCredits(scope)` call that ran
+    // against the GLOBAL prisma client — so a rolled-back completion still
+    // burned the customer's credit. It now takes `tx`, and the record's
+    // report/package entitlement is resolved from how the completion was FUNDED
+    // rather than from the account's recurring plan. The growth is that
+    // settlement plus its explanation; no custody, signing or TSA step moved.
+    expect(sz).toBe(49553);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {

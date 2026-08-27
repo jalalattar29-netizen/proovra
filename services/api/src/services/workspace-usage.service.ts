@@ -2,6 +2,10 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {
+  resolveEffectiveBaseStorageBytes,
+  resolveEffectiveContractSeats,
+} from "./billing/enterprise-contract-limits.js";
+import {
   formatBytesHuman,
   getPlanCapabilities,
 } from "./plan-catalog.service.js";
@@ -138,13 +142,14 @@ function getTeamMemberLimit(scope: WorkspaceScope): number {
     return 0;
   }
 
-  const caps = getPlanCapabilities(scope.plan);
-  return Math.max(
-    0,
-    caps.maxMembersPerTeam || 0,
-    caps.includedSeats || 0,
-    scope.teamSeats || 0
-  );
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted seat count is
+  // the ceiling, not one input to a `max()`. Maxing a contract against a
+  // catalog placeholder would have silently granted seats nobody bought.
+  return resolveEffectiveContractSeats({
+    plan: scope.plan,
+    contract: scope.contractLimits,
+    persistedSeats: scope.teamSeats || 0,
+  });
 }
 
 export type WorkspaceUsage = {
@@ -303,7 +308,14 @@ export async function getWorkspaceUsage(
   const storageBytesUsed =
     evidenceStorageBytes + reportStorageBytes + verificationPackageStorageBytes;
 
-  const baseStorageBytesLimit = caps.includedStorageBytes;
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted storage figure
+  // is the base capacity. It was previously ignored: every Enterprise
+  // workspace was enforced at the flat 500 GB catalog placeholder no matter
+  // what its contract said.
+  const baseStorageBytesLimit = resolveEffectiveBaseStorageBytes({
+    plan: scope.plan,
+    contract: scope.contractLimits,
+  });
   const extraStorageAddonBytes = scope.activeStorageAddonBytes ?? 0n;
   const storageBytesOverride = scope.storageBytesOverride ?? null;
 

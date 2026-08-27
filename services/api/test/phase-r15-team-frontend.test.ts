@@ -297,7 +297,7 @@ describe("Phase R15 — Stages 4-12: page content", () => {
     // fillable form that would 402 (TEAM_INVITES_NOT_INCLUDED).
     expect(detail).toMatch(/data-testid="invites-plan-locked"/);
     expect(detail).toMatch(/data-testid="invites-plan-locked-upgrade-cta"/);
-    expect(detail).toMatch(/limits\.maxTeams === 0/);
+    expect(detail).toMatch(/limits.maxCollaborationTeamsPerWorkspace === 0/);
     expect(detail).toMatch(/does not include Teams/);
   });
 

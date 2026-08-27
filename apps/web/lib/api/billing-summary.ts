@@ -74,8 +74,11 @@ function projectFromLimits(
   return {
     plan,
     teamsUsed,
-    teamsMax: projectMax(plan, limits.maxOwnedWorkspaces),
-    membersMax: projectMax(plan, limits.maxMembersPerTeam),
+    teamsMax: projectMax(plan, limits.maxCollaborationTeamsPerWorkspace),
+    membersMax: projectMax(
+      plan,
+      limits.maxAcceptedMembersPerCollaborationTeam,
+    ),
   };
 }
 

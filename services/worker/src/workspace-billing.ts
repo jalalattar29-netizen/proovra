@@ -2,7 +2,9 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "./db.js";
 import {
   getPlanCapabilities,
+  resolveEvidenceOutputEntitlements,
   resolveWorkspaceEffectivePlan,
+  type EvidenceFundingSource,
   type WorkspaceBillingStatus,
 } from "@proovra/shared-billing";
 // Domain classifier — single implementation in the general domain package.
@@ -20,6 +22,18 @@ export type WorkerWorkspaceScope = {
   teamSeats: number;
   storageBytesOverride: bigint | null;
   activeStorageAddonBytes: bigint;
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the CUSTOMER organization's
+   * contracted cumulative storage, in bytes, when its contract is ACTIVE and
+   * states one. `null` means the canonical catalog default applies.
+   *
+   * The worker enforces artifact storage on the SAME capacity the API does; it
+   * previously used `PLAN_CAPABILITIES.ENTERPRISE.includedStorageBytes` — a
+   * flat 500 GB placeholder — so an Enterprise workspace contracted for more
+   * had its reports and verification packages refused by the worker while the
+   * API accepted the evidence.
+   */
+  contractStorageBytes: bigint | null;
 };
 
 export type WorkerWorkspaceUsage = {
@@ -110,6 +124,8 @@ export async function getPersonalWorkspaceScope(
     plan: personalPlan,
     credits: entitlement?.credits ?? 0,
     teamSeats: entitlement?.teamSeats ?? 0,
+    // A Personal Space is never governed by an organization contract.
+    contractStorageBytes: null,
     storageBytesOverride: null,
     activeStorageAddonBytes,
   };
@@ -123,6 +139,7 @@ export async function getTeamWorkspaceScope(
     select: {
       id: true,
       ownerUserId: true,
+      organizationId: true,
       billingPlan: true,
       billingStatus: true,
       includedSeats: true,
@@ -168,6 +185,23 @@ export async function getTeamWorkspaceScope(
     teamId: team.id,
   });
 
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — read the ACTIVE contract's
+  // storage term. Deliberately a direct, bounded read rather than an import of
+  // the API's resolver: the two hosts generate their own Prisma clients, and
+  // the DECISION (contract wins when ACTIVE and stated, catalog default
+  // otherwise) is the same rule stated in one place per host, exactly as the
+  // effective-plan policy already is.
+  const contract = team.organizationId
+    ? await prisma.enterpriseContract.findUnique({
+        where: { organizationId: team.organizationId },
+        select: { status: true, storageGb: true },
+      })
+    : null;
+  const contractStorageBytes =
+    contract && contract.status === "ACTIVE" && (contract.storageGb ?? 0) > 0
+      ? BigInt(contract.storageGb as number) * 1024n * 1024n * 1024n
+      : null;
+
   return {
     billingShape: "SHARED",
     ownerUserId: team.ownerUserId,
@@ -176,6 +210,7 @@ export async function getTeamWorkspaceScope(
     credits: 0,
     teamSeats: Math.max(0, team.includedSeats ?? 0),
     storageBytesOverride: team.storageBytesOverride ?? null,
+    contractStorageBytes,
     activeStorageAddonBytes,
   };
 }
@@ -301,7 +336,12 @@ export async function getWorkspaceUsage(
   const storageBytesUsed =
     evidenceStorageBytes + reportStorageBytes + verificationPackageStorageBytes;
 
-const baseStorageBytesLimit = caps.includedStorageBytes;
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted figure is the
+  // base capacity; the catalog default applies only when the contract is
+  // silent. Same rule as the API, so the two hosts cannot disagree about how
+  // much room an Enterprise workspace has.
+  const baseStorageBytesLimit =
+    scope.contractStorageBytes ?? caps.includedStorageBytes;
 const storageFromPlanAndAddons =
   baseStorageBytesLimit + scope.activeStorageAddonBytes;
 
@@ -379,15 +419,50 @@ export async function assertWorkspaceStorageAvailable(params: {
   return usage;
 }
 
+/**
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — how ONE Evidence record's
+ * completion was funded, read from the canonical credit ledger.
+ *
+ * The worker needs this because the artifact gates below used to ask only
+ * "does this workspace's PLAN include reports?" — which is FREE for every
+ * evidence-credit buyer, so a record the customer had paid for was refused its
+ * report and verification package by the worker even after the API had
+ * enqueued them.
+ *
+ * This is a thin input ADAPTER, not a second authority: the DECISION lives in
+ * `resolveEvidenceOutputEntitlements` (@proovra/shared-billing) and the API
+ * reads the same ledger row through its own adapter.
+ */
+export async function resolveEvidenceFundingSource(
+  evidenceId: string,
+): Promise<EvidenceFundingSource> {
+  const entry = await prisma.evidenceCreditLedgerEntry.findUnique({
+    where: { evidenceId },
+    select: { entryType: true },
+  });
+  return entry?.entryType === "CONSUMPTION" ? "EVIDENCE_CREDIT" : "PLAN";
+}
+
 export async function assertWorkspaceAllowsReportArtifact(params: {
   ownerUserId: string;
   teamId?: string | null;
   incomingBytes?: bigint | number | null;
+  /**
+   * The Evidence record this artifact belongs to. When supplied, a
+   * credit-funded record earns its report regardless of the workspace plan.
+   * Omitted only by callers that have no single record in hand.
+   */
+  evidenceId?: string | null;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
-  const caps = getPlanCapabilities(scope.plan);
+  const outputs = resolveEvidenceOutputEntitlements({
+    plan: scope.plan,
+    funding: params.evidenceId
+      ? await resolveEvidenceFundingSource(params.evidenceId)
+      : "PLAN",
+  });
 
-  if (!caps.reportsIncluded) {
+  if (!outputs.reportsIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
       "Report generation is not included in the current plan"
     );
@@ -411,11 +486,18 @@ export async function assertWorkspaceAllowsVerificationPackageArtifact(params: {
   ownerUserId: string;
   teamId?: string | null;
   incomingBytes?: bigint | number | null;
+  /** See `assertWorkspaceAllowsReportArtifact`. */
+  evidenceId?: string | null;
 }) {
   const scope = await resolveWorkspaceScopeForEvidence(params);
-  const caps = getPlanCapabilities(scope.plan);
+  const outputs = resolveEvidenceOutputEntitlements({
+    plan: scope.plan,
+    funding: params.evidenceId
+      ? await resolveEvidenceFundingSource(params.evidenceId)
+      : "PLAN",
+  });
 
-  if (!caps.verificationPackageIncluded) {
+  if (!outputs.verificationPackageIncluded) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
       "Verification package is not included in the current plan"
     );

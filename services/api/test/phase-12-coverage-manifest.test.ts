@@ -239,7 +239,12 @@ describe("Phase 12 — behavioral chain registry", () => {
     { op: "evidence create/upload/finalize", suites: ["services/api/test/phase-30-9-client-uploads.test.ts", "services/api/test/phase-37-98-reviewer-workflow-lifecycle.integration.test.ts"] },
     { op: "case + bulk operations", suites: ["services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"] },
     { op: "legal hold / destruction", suites: ["apps/web/__tests__/legal-hold-create-step-up.test.ts", "services/api/test/phase-5-lifecycle-hold-gate-union.test.ts"] },
-    { op: "billing checkout / seats / storage", suites: ["services/api/test/phase9-collaboration-team-billing-parity.test.ts", "apps/web/__tests__/render/phase10-no-personal-ux.render.test.tsx"] },
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the previous suite,
+    // phase9-collaboration-team-billing-parity, ASSERTED that the Collaboration
+    // Team cap equals the Owned Workspace cap. That equality WAS the defect, so
+    // the suite was deleted along with the conflation it protected, and the
+    // chain now points at the suite that proves the corrected contract.
+    { op: "billing checkout / seats / storage", suites: ["services/api/test/billing-commercial-correctness.test.ts", "apps/web/__tests__/render/phase10-no-personal-ux.render.test.tsx"] },
     { op: "deep links (web+mobile+API)", suites: ["services/api/test/phase-11-tenant-routes.test.ts", "apps/web/__tests__/render/phase11-deep-link-navigation.render.test.tsx", "apps/mobile/test/deep-link.contract.test.mjs"] },
     { op: "audit query/export", suites: ["services/api/test/phase-11-tenant-routes.test.ts", "apps/web/__tests__/render/phase11-audit-surface.render.test.tsx"] },
   ];

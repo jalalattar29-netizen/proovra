@@ -135,7 +135,7 @@
     "Phase0ChangedPathClassificationMissing": 0,
     "ManualPhase0ChangeInventories": 0,
     "ProductionRuntimeFilesModifiedByPhase0": 0,
-    "ProductBehaviorTestsRemoved": 0,
+    "ProductBehaviorTestsRemoved": 2,
     "HistoricalMigrationsModifiedByPhase0": 0,
     "ProductBehaviorTestsInventoried": 177
   },
@@ -174,7 +174,10 @@
     "DEPRECATED_DELEGATE": 1,
     "AUDIT_ENGINE_TEST": 15
   },
-  "problems": [],
+  "problems": [
+    "PRODUCT BEHAVIOUR TEST DELETED: services/api/test/phase-9-collab-limits-divergence.test.ts",
+    "PRODUCT BEHAVIOUR TEST DELETED: services/api/test/phase9-collaboration-team-billing-parity.test.ts"
+  ],
   "duplicateClaims": [],
   "multiProducer": [],
   "selfReading": [],

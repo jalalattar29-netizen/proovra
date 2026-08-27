@@ -25,7 +25,7 @@ export type PlatformContextPlanFeatures = {
   casesIncluded: boolean;
   reviewerOperationsIncluded: boolean;
   reviewQueuesIncluded: boolean;
-  /** Team ownership included (maxOwnedTeams > 0). */
+  /** Collaboration Teams included (maxCollaborationTeamsPerWorkspace > 0). */
   teamCollaborationIncluded: boolean;
   /**
    * PHASE 12 POINT 4 — guest-invitation eligibility, server-projected from the
@@ -61,8 +61,14 @@ export type PlatformContextPlanFeatures = {
    * UNKNOWN and render the honest unknown state rather than a fabricated cap.
    */
   limits?: {
+    /** Owned Workspaces this ACCOUNT may create. */
     maxOwnedWorkspaces: number;
-    maxMembersPerTeam: number;
+    /** ACTIVE Collaboration Teams allowed inside ONE workspace. */
+    maxCollaborationTeamsPerWorkspace: number;
+    /** ACCEPTED members allowed in ONE Collaboration Team. */
+    maxAcceptedMembersPerCollaborationTeam: number;
+    /** ACCEPTED TeamMember seats allowed in ONE shared workspace. */
+    maxWorkspaceSeats: number;
     maxPendingInvitesPerTeam: number;
     maxInvitesPer24h: number;
   };

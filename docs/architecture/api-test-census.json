@@ -2136,13 +2136,6 @@
         "skipped": 0,
         "todo": 0
       },
-      "test/phase-9-collab-limits-divergence.test.ts": {
-        "tests": 3,
-        "passed": 3,
-        "failed": 0,
-        "skipped": 0,
-        "todo": 0
-      },
       "test/phase-9-commercial-context.test.ts": {
         "tests": 4,
         "passed": 4,
@@ -3980,13 +3973,6 @@
       "test/phase8-integrations-final-consolidation.test.ts": {
         "tests": 12,
         "passed": 12,
-        "failed": 0,
-        "skipped": 0,
-        "todo": 0
-      },
-      "test/phase9-collaboration-team-billing-parity.test.ts": {
-        "tests": 4,
-        "passed": 4,
         "failed": 0,
         "skipped": 0,
         "todo": 0

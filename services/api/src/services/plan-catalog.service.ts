@@ -8,7 +8,6 @@ export {
   getPlanCapabilities,
   getPlanSeatLimit,
   getPlanStorageLimitBytes,
-  getPricingCatalogResponse,
   planHasEnterpriseFeature,
   type EnterpriseFeatureFlags,
   type PlanCapabilities,

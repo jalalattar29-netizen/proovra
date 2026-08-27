@@ -110,7 +110,32 @@ export async function grantEnterprisePlanToOrg(
   client: PrismaClient = defaultPrisma,
 ): Promise<GrantEnterprisePlanResult> {
   const plan: GrantablePlan = input.plan ?? "ENTERPRISE";
-  const seats = input.seats ?? getPlanCapabilities(plan).includedSeats;
+
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — seats come from the
+  // CONTRACT when one states them.
+  //
+  // This was `input.seats ?? getPlanCapabilities(plan).includedSeats`, so an
+  // Enterprise organization whose contract said 400 seats was provisioned with
+  // the catalog placeholder of 5 unless the caller happened to repeat the
+  // number. The contract is the purchased right; the catalog default applies
+  // only when neither the caller nor the contract states one.
+  const contractSeats = await (async () => {
+    try {
+      const row = await client.enterpriseContract.findUnique({
+        where: { organizationId: input.orgId },
+        select: { status: true, seatCount: true },
+      });
+      if (row && row.status === "ACTIVE" && (row.seatCount ?? 0) > 0) {
+        return row.seatCount as number;
+      }
+    } catch {
+      // Migration-window tolerant: a missing table means no contract yet.
+    }
+    return null;
+  })();
+
+  const seats =
+    input.seats ?? contractSeats ?? getPlanCapabilities(plan).includedSeats;
 
   const result = await client.$transaction(async (tx) => {
     const org = await tx.organization.findUnique({

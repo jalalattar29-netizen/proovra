@@ -10,7 +10,7 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
 | ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 9a3a5f66052d23bb690fa3c7ce39f378bd1d978194980a9f90a092b0e64b3903 |
+| engineHash    | 738fa1a8b5e6a28853e28c198262846be83e501fdde5f7b7bc8c2735553ce34c |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -126,7 +126,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | Phase0ChangedPathClassificationMissing     | 0     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
-| ProductBehaviorTestsRemoved                | 0     |
+| ProductBehaviorTestsRemoved                | 2     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
 | ProductBehaviorTestsInventoried            | 177   |
 
@@ -200,7 +200,8 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- PRODUCT BEHAVIOUR TEST DELETED: services/api/test/phase-9-collab-limits-divergence.test.ts
+- PRODUCT BEHAVIOUR TEST DELETED: services/api/test/phase9-collaboration-team-billing-parity.test.ts
 
 ### Product closure
 

@@ -64,7 +64,7 @@ describe("Phase 2 — TEAM is not enterprise (plan capabilities)", () => {
     expect(team.verificationPackageIncluded).toBe(true);
     expect(team.allowsSharedWorkspace).toBe(true);
     expect(team.includedSeats).toBe(5);
-    expect(team.maxMembersPerTeam).toBe(5);
+    expect(team.maxWorkspaceSeats).toBe(5);
     // ...but never governance/SSO/SCIM.
     expect(team.enterpriseFeatures.ssoScim).toBe(false);
     expect(team.enterpriseFeatures.legalHold).toBe(false);

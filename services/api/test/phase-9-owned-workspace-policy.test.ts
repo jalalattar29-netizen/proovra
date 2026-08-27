@@ -6,7 +6,7 @@
  *   PERSONAL      → owner entitlement (the personal-space subject);
  *   OWNED         → ONLY the workspace's own commercial state (owner's
  *                   Personal plan NEVER covers an existing Owned Workspace;
- *                   `maxOwnedTeams` governs CREATION allowance only);
+ *                   `maxOwnedWorkspaces` governs CREATION allowance only);
  *   ORGANIZATION  → contract-provisioned coverage;
  *   OWNED+ENTERPRISE plan string → LEGACY AMBIGUITY, FAIL CLOSED;
  *   UNKNOWN       → FAIL CLOSED.
@@ -38,10 +38,10 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
       .toEqual({ plan: "FREE", source: "NONE" });
   });
 
-  it("3. Owner FREE→PRO changes maxOwnedTeams (creation allowance) only — existing workspace stays FREE", () => {
+  it("3. Owner FREE→PRO changes maxOwnedWorkspaces (creation allowance) only — existing workspace stays FREE", () => {
     // Creation allowance moves 0 → 2 …
-    expect(getPlanCapabilities("FREE").maxOwnedTeams).toBe(0);
-    expect(getPlanCapabilities("PRO").maxOwnedTeams).toBe(2);
+    expect(getPlanCapabilities("FREE").maxOwnedWorkspaces).toBe(0);
+    expect(getPlanCapabilities("PRO").maxOwnedWorkspaces).toBe(2);
     // … but the existing workspace's effective plan is UNCHANGED by the owner upgrade.
     const before = resolveWorkspaceEffectivePlan({ ...OWNED_UNPAID, ownerPlan: "FREE" });
     const after = resolveWorkspaceEffectivePlan({ ...OWNED_UNPAID, ownerPlan: "PRO" });
@@ -117,16 +117,33 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
     expect(Object.keys(r).sort()).toEqual(["plan", "source"]);
   });
 
-  it("14. Account maxOwnedTeams creation enforcement is intact (published values unchanged)", () => {
-    expect(getPlanCapabilities("PRO").maxOwnedTeams).toBe(2);
-    expect(getPlanCapabilities("TEAM").maxOwnedTeams).toBe(5);
-    // The creation guard remains an ACCOUNT-subject decision:
+  it("14. Account maxOwnedWorkspaces creation enforcement is intact (published values unchanged)", () => {
+    expect(getPlanCapabilities("PRO").maxOwnedWorkspaces).toBe(2);
+    expect(getPlanCapabilities("TEAM").maxOwnedWorkspaces).toBe(5);
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the OWNED WORKSPACE
+    // creation guard is still an ACCOUNT-subject decision, and it lives in
+    // teams.routes.ts where it counts `Team` rows.
+    const teams = readFileSync(
+      fileURLToPath(new URL("../src/routes/teams.routes.ts", import.meta.url)),
+      "utf8",
+    );
+    const createWorkspace = teams.slice(
+      teams.indexOf("async function assertUserCanCreateAnotherOwnedWorkspace"),
+    );
+    expect(createWorkspace.slice(0, 800)).toMatch(
+      /resolveCommercialContext\(\{\s*type:\s*"PERSONAL_ACCOUNT"/,
+    );
+    expect(createWorkspace.slice(0, 800)).toMatch(/caps\.maxOwnedWorkspaces/);
+
+    // The COLLABORATION TEAM guard is a different decision over a different
+    // table, and it no longer reads this cap at all — that conflation is what
+    // gave a PRO account two owned workspaces AND two collaboration teams.
     const guards = readFileSync(
       fileURLToPath(new URL("../src/services/collaboration-team/billing-guards.ts", import.meta.url)),
       "utf8",
     );
-    const create = guards.slice(guards.indexOf("export async function assertCanCreateCollaborationTeam"));
-    expect(create.slice(0, 800)).toMatch(/resolveUserPlan\(client, ownerUserId\)/);
+    expect(guards).not.toMatch(/maxOwnedWorkspaces/);
+    expect(guards).toMatch(/maxCollaborationTeamsPerWorkspace/);
   });
 
   it("15. Existing-team member/invite limits come from WORKSPACE context, not the owner account", () => {
@@ -172,7 +189,12 @@ describe("Phase 9 — legacyRecordCapOverride classified T (compatibility projec
     // §9.7 FOLD (2026-07-22): the enforcement ternary is DELETED — the raw
     // override is interpreted exactly once, inside the canonical envelope.
     expect(enforcement).not.toMatch(/scope\.legacyRecordCapOverride/);
-    expect(enforcement).toMatch(/scope\.commercialLimits\?\.effectiveLifetimeRecordCap\s*\?\?\s*planLifetimeCap/);
+    // The expression is unchanged in meaning; the local it falls back to is
+    // now read inline from the catalog rather than through a `planLifetimeCap`
+    // temporary.
+    expect(enforcement).toMatch(
+      /scope\.commercialLimits\?\.effectiveLifetimeRecordCap\s*\?\?\s*caps\.maxEvidenceRecords/,
+    );
     const resolver = readFileSync(
       fileURLToPath(new URL("../src/services/billing/commercial-context.service.ts", import.meta.url)),
       "utf8",

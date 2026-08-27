@@ -50,11 +50,10 @@ import {
   isWellFormedCollaborationTeamInviteToken,
   renderCollaborationTeamInvitationSmsBody,
 } from "@proovra/shared";
-// §9.6 corrected — limits adapter relocated to the canonical billing package.
-import {
-  COLLABORATION_TEAM_PLAN_LIMITS,
-  getCollaborationTeamPlanLimits,
-} from "@proovra/shared-billing";
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the collaboration-limits
+// adapter was deleted; these assertions now read the canonical capability
+// record, where each limit has its own name.
+import { getPlanCapabilities } from "@proovra/shared-billing";
 
 // =============================================================================
 // Path helpers
@@ -223,82 +222,81 @@ describe("Phase R14 — Stage 5: role permissions", () => {
 // =============================================================================
 
 describe("Phase R14 — Stage 11: plan limits", () => {
-  // Teams Entitlement Alignment 2026-07-14: SMS + shareable-link
-  // invitation channels and external guests were removed from the product
-  // (never published by Pricing/Billing); invitations are EMAIL-only;
-  // FREE/PAYG include zero Teams. The limits type carries NO sms/link
-  // fields — `toEqual` pins the exact key set per tier.
-  it("ships the exact 2026-07-14 limits table for every plan tier", () => {
-    const zero = {
-      maxTeams: 0,
-      maxMembersPerTeam: 0,
-      maxPendingInvitesPerTeam: 0,
-      maxInvitesPer24h: 0,
-    };
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.FREE).toEqual(zero);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.PAYG).toEqual(zero);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.PRO).toEqual({
-      maxTeams: 2,
-      maxMembersPerTeam: 5,
-      maxPendingInvitesPerTeam: 10,
-      maxInvitesPer24h: 50,
-    });
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.TEAM).toEqual({
-      maxTeams: 5,
-      maxMembersPerTeam: 5,
-      maxPendingInvitesPerTeam: 25,
-      maxInvitesPer24h: 100,
-    });
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.ENTERPRISE).toEqual({
-      maxTeams: 1000,
-      maxMembersPerTeam: 500,
-      maxPendingInvitesPerTeam: 1000,
-      maxInvitesPer24h: 5000,
-    });
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the four limits are now four
+  // independently-named capabilities. The tests that used to pin
+  // `COLLABORATION_TEAM_PLAN_LIMITS.maxTeams` were asserting that the
+  // Collaboration Team cap EQUALS the Owned Workspace cap, which is the exact
+  // conflation that let one published "Up to 2" grant a PRO account two owned
+  // workspaces AND two collaboration teams. They are pinned separately here.
+  const CANONICAL = {
+    FREE: { workspaces: 0, teams: 0, members: 0, seats: 0, pending: 0, rate: 0 },
+    PAYG: { workspaces: 0, teams: 0, members: 0, seats: 0, pending: 0, rate: 0 },
+    PRO: { workspaces: 2, teams: 2, members: 5, seats: 5, pending: 10, rate: 50 },
+    TEAM: { workspaces: 5, teams: 5, members: 5, seats: 5, pending: 25, rate: 100 },
+    ENTERPRISE: {
+      workspaces: 1000,
+      teams: 1000,
+      members: 500,
+      seats: 500,
+      pending: 1000,
+      rate: 5000,
+    },
+  } as const;
+
+  it("ships the exact limits table for every plan tier", () => {
+    for (const [plan, want] of Object.entries(CANONICAL)) {
+      const caps = getPlanCapabilities(plan as keyof typeof CANONICAL);
+      expect(caps.maxOwnedWorkspaces, `${plan}.maxOwnedWorkspaces`).toBe(
+        want.workspaces,
+      );
+      expect(
+        caps.maxCollaborationTeamsPerWorkspace,
+        `${plan}.maxCollaborationTeamsPerWorkspace`,
+      ).toBe(want.teams);
+      expect(
+        caps.maxAcceptedMembersPerCollaborationTeam,
+        `${plan}.maxAcceptedMembersPerCollaborationTeam`,
+      ).toBe(want.members);
+      expect(caps.maxWorkspaceSeats, `${plan}.maxWorkspaceSeats`).toBe(want.seats);
+      expect(
+        caps.maxPendingInvitesPerTeam,
+        `${plan}.maxPendingInvitesPerTeam`,
+      ).toBe(want.pending);
+      expect(caps.maxInvitesPer24h, `${plan}.maxInvitesPer24h`).toBe(want.rate);
+    }
   });
 
   it("plan tiers are monotonically increasing in capacity", () => {
-    const free = COLLABORATION_TEAM_PLAN_LIMITS.FREE;
-    const pro = COLLABORATION_TEAM_PLAN_LIMITS.PRO;
-    const team = COLLABORATION_TEAM_PLAN_LIMITS.TEAM;
-    const ent = COLLABORATION_TEAM_PLAN_LIMITS.ENTERPRISE;
-    expect(free.maxTeams).toBeLessThanOrEqual(pro.maxTeams);
-    expect(pro.maxTeams).toBeLessThanOrEqual(team.maxTeams);
-    expect(team.maxTeams).toBeLessThanOrEqual(ent.maxTeams);
-    expect(free.maxMembersPerTeam).toBeLessThanOrEqual(pro.maxMembersPerTeam);
-    expect(pro.maxMembersPerTeam).toBeLessThanOrEqual(team.maxMembersPerTeam);
+    const order = ["FREE", "PRO", "TEAM", "ENTERPRISE"] as const;
+    for (let i = 1; i < order.length; i += 1) {
+      const lower = getPlanCapabilities(order[i - 1]);
+      const higher = getPlanCapabilities(order[i]);
+      expect(lower.maxOwnedWorkspaces).toBeLessThanOrEqual(
+        higher.maxOwnedWorkspaces,
+      );
+      expect(lower.maxCollaborationTeamsPerWorkspace).toBeLessThanOrEqual(
+        higher.maxCollaborationTeamsPerWorkspace,
+      );
+      expect(lower.maxAcceptedMembersPerCollaborationTeam).toBeLessThanOrEqual(
+        higher.maxAcceptedMembersPerCollaborationTeam,
+      );
+    }
   });
 
-  it("commercial contract 2026-07-14: FREE/PAYG zero Teams, PRO 2x5, TEAM 5x5 (email-only invites)", () => {
-    // SMS + shareable-link invitation channels were removed from the
-    // product entirely — the limits type carries no channel flags.
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.FREE.maxTeams).toBe(0);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.FREE.maxMembersPerTeam).toBe(0);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.PAYG.maxTeams).toBe(0);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.PRO.maxTeams).toBe(2);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.PRO.maxMembersPerTeam).toBe(5);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.TEAM.maxTeams).toBe(5);
-    expect(COLLABORATION_TEAM_PLAN_LIMITS.TEAM.maxMembersPerTeam).toBe(5);
-    expect(
-      Object.keys(COLLABORATION_TEAM_PLAN_LIMITS.FREE).sort(),
-    ).toEqual([
-      "maxInvitesPer24h",
-      "maxMembersPerTeam",
-      "maxPendingInvitesPerTeam",
-      "maxTeams",
-    ]);
+  it("FREE and PAYG include zero Collaboration Teams", () => {
+    expect(getPlanCapabilities("FREE").maxCollaborationTeamsPerWorkspace).toBe(0);
+    expect(getPlanCapabilities("PAYG").maxCollaborationTeamsPerWorkspace).toBe(0);
   });
 
-  it("getCollaborationTeamPlanLimits falls back to FREE for unknown plans", () => {
-    expect(getCollaborationTeamPlanLimits(null)).toBe(
-      COLLABORATION_TEAM_PLAN_LIMITS.FREE,
-    );
-    expect(getCollaborationTeamPlanLimits("UNKNOWN_TIER")).toBe(
-      COLLABORATION_TEAM_PLAN_LIMITS.FREE,
-    );
-    expect(getCollaborationTeamPlanLimits("pro")).toBe(
-      COLLABORATION_TEAM_PLAN_LIMITS.PRO,
-    );
+  it("the Owned Workspace cap and the Collaboration Team cap are separate fields", () => {
+    // Not that they must DIFFER — today they happen to match on PRO and TEAM —
+    // but that neither is derived from the other, so a future commercial change
+    // to one cannot silently move the other.
+    const caps = getPlanCapabilities("PRO");
+    expect(Object.keys(caps)).toContain("maxOwnedWorkspaces");
+    expect(Object.keys(caps)).toContain("maxCollaborationTeamsPerWorkspace");
+    expect(Object.keys(caps)).not.toContain("maxOwnedTeams");
+    expect(Object.keys(caps)).not.toContain("maxMembersPerTeam");
   });
 });
 

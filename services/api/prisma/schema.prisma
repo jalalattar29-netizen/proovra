@@ -896,6 +896,7 @@ model User {
 
   caseAccess                        CaseAccess[]
   entitlements                      Entitlement[]
+  evidenceCreditLedgerEntries       EvidenceCreditLedgerEntry[]
   // Phase 2.7X Stage 1 — User can have an OrganizationMembership in
   // any number of Organizations. Membership grants org-level
   // governance role; it does NOT grant any workspace access (those
@@ -1888,6 +1889,13 @@ model EnterpriseContract {
   endsAtUtc              DateTime?                @map("ends_at_utc") @db.Timestamptz(6)
   seatCount              Int?                     @map("seat_count")
   storageGb              Int?                     @map("storage_gb")
+  /// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — contract-managed
+  /// operational allowances. NULL means the contract does not specify one,
+  /// in which case the canonical ENTERPRISE catalog default applies and the
+  /// UI renders "Contract-managed" rather than inventing a number. A
+  /// specified value is ENFORCED, not merely displayed.
+  evidenceRecordsPerMonth Int?                    @map("evidence_records_per_month")
+  aiOperationsPerMonth    Int?                    @map("ai_operations_per_month")
   region                 String?                  @db.VarChar(40)
   planVersion            String?                  @map("plan_version") @db.VarChar(40)
   billingCustomerRef     String?                  @map("billing_customer_ref") @db.VarChar(200)
@@ -2048,6 +2056,51 @@ model Entitlement {
   @@map("entitlements")
 }
 
+/// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE evidence-credit ledger.
+///
+/// entitlements.credits is a bare integer with no history: it could not say
+/// what was bought, what was spent, or which Evidence record spent it, so a
+/// double-spend or a lost credit was undetectable after the fact.
+///
+/// Every movement of the wallet is now one immutable row here, and the wallet
+/// balance is the sum of credits_delta for a user. entitlements.credits stays
+/// as the fast projection the enforcement path reads under a conditional
+/// update, and the ledger is what proves it.
+///
+/// IDEMPOTENCY: evidence_id is UNIQUE. A CONSUMPTION row therefore exists at
+/// most once per Evidence record, so a retried or re-delivered completion for
+/// the same record can never burn a second credit. Postgres allows unlimited
+/// NULLs in a unique column, so PURCHASE rows (which carry no evidence id)
+/// are unconstrained.
+model EvidenceCreditLedgerEntry {
+  id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String                  @map("user_id") @db.Uuid
+  entryType    EvidenceCreditEntryType @map("entry_type")
+  /// Signed movement: positive for PURCHASE / REVERSAL, negative for CONSUMPTION.
+  creditsDelta Int                     @map("credits_delta")
+  /// Set on CONSUMPTION and on the REVERSAL that undoes one. UNIQUE — the
+  /// per-Evidence idempotency key.
+  evidenceId   String?                 @unique @map("evidence_id") @db.Uuid
+  /// Provider payment identity for a PURCHASE. Never a raw provider payload.
+  provider     PaymentProvider?
+  providerRef  String?                 @map("provider_ref") @db.VarChar(191)
+  /// Wallet balance immediately after this entry was applied.
+  balanceAfter Int                     @map("balance_after")
+  createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([entryType])
+  @@map("evidence_credit_ledger_entries")
+}
+
+enum EvidenceCreditEntryType {
+  PURCHASE
+  CONSUMPTION
+  REVERSAL
+}
+
 model Subscription {
   id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId           String             @map("user_id") @db.Uuid
@@ -2056,6 +2109,17 @@ model Subscription {
   status           SubscriptionStatus
   plan             PlanType
   currentPeriodEnd DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  /// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — provider-confirmed
+  /// "cancels at the end of the paid period". Set ONLY from a provider
+  /// response or webhook, never optimistically by the cancel route: the
+  /// previous implementation wrote CANCELED locally before (and, for PayPal,
+  /// even instead of) the provider confirming, so the app could report a
+  /// cancelled subscription that the provider was still billing.
+  /// status stays ACTIVE while this is true — access runs to
+  /// currentPeriodEnd; the terminal CANCELED transition arrives by webhook.
+  cancelAtPeriodEnd Boolean           @default(false) @map("cancel_at_period_end")
+  /// When the provider recorded the cancellation request.
+  canceledAtUtc     DateTime?         @map("canceled_at_utc") @db.Timestamptz(6)
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   teamId           String?            @map("team_id") @db.Uuid

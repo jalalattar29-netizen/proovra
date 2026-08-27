@@ -48,7 +48,7 @@ export type PlanContractRow = {
   /** Owned Workspaces this account may CREATE. 0 = the capability is absent. */
   maxOwnedWorkspaces: number;
   /** Members per collaboration team. */
-  maxMembersPerTeam: number;
+  maxWorkspaceSeats: number;
   /** Lifetime evidence-record cap; null = uncapped. */
   lifetimeRecordCap: number | null;
   /** Rolling 30-day evidence-record cap; null = uncapped. */
@@ -85,7 +85,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     intake: false,
     reviewerOperations: false,
     maxOwnedWorkspaces: 0,
-    maxMembersPerTeam: 0,
+    maxWorkspaceSeats: 0,
     lifetimeRecordCap: 3,
     monthlyRecordCap: null,
     creditsPerCompletion: 0,
@@ -98,7 +98,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     intake: true,
     reviewerOperations: false,
     maxOwnedWorkspaces: 0,
-    maxMembersPerTeam: 0,
+    maxWorkspaceSeats: 0,
     lifetimeRecordCap: null,
     monthlyRecordCap: null,
     creditsPerCompletion: 1,
@@ -111,7 +111,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     intake: true,
     reviewerOperations: false,
     maxOwnedWorkspaces: 2,
-    maxMembersPerTeam: 5,
+    maxWorkspaceSeats: 5,
     lifetimeRecordCap: 100,
     monthlyRecordCap: null,
     creditsPerCompletion: 0,
@@ -124,7 +124,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     intake: true,
     reviewerOperations: true,
     maxOwnedWorkspaces: 5,
-    maxMembersPerTeam: 5,
+    maxWorkspaceSeats: 5,
     lifetimeRecordCap: null,
     monthlyRecordCap: 500,
     creditsPerCompletion: 0,
@@ -137,7 +137,7 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     intake: true,
     reviewerOperations: true,
     maxOwnedWorkspaces: 1000,
-    maxMembersPerTeam: 500,
+    maxWorkspaceSeats: 500,
     lifetimeRecordCap: null,
     monthlyRecordCap: null,
     creditsPerCompletion: 0,

@@ -42,6 +42,8 @@ type Concern = {
   // For ENFORCED concerns with a write registry:
   write?: RegExp;
   allowed?: Record<string, string>;
+  /** When true the correct writer set is EMPTY and any match is a regression. */
+  banned?: boolean;
 };
 
 const CONCERNS: Concern[] = [
@@ -216,10 +218,20 @@ const CONCERNS: Concern[] = [
     //     custody EVIDENCE_PURGED event + worker audit.
     // governance-lifecycle.routes / governance.service matches are
     // "evidence.delete" PERMISSION STRINGS, excluded by the call-syntax regex.
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the allowlist is now
+    // EMPTY, and `banned` says so explicitly.
+    //
+    // The single permitted API-side `evidence.delete` was the compensator that
+    // undid a row the same request had just created, when the packaging quota
+    // engine then denied it. That engine was a duplicate commercial authority
+    // (100 records a calendar month against a TEAM plan sold as 500 a rolling
+    // 30 days) and has been removed, so the rollback it existed for is gone
+    // too. No API file may hard-delete an Evidence row for ANY reason; a
+    // record ends only through the worker purge executor, which leaves a
+    // custody tombstone.
     write: /\.evidence\.delete(Many)?\(/,
-    allowed: {
-      "routes/evidence.routes.ts": "canonical destructive gate consumer + creation-rollback compensator",
-    },
+    banned: true,
+    allowed: {},
   },
   {
     name: "6b. Policy-precedence vocabulary (the ONE effective-policy/hold-prevails/retention-strength source)",
@@ -294,6 +306,16 @@ const CONCERNS: Concern[] = [
 
 describe("Program architecture registry — canonical authority per concern", () => {
   for (const c of CONCERNS.filter((x) => x.status === "ENFORCED" && x.write && x.allowed)) {
+    // A concern may declare `banned: true` — meaning the correct writer set is
+    // EMPTY, and any match is a regression. Without it the "scanner matched
+    // nothing" guard is right: an allowlisted concern that suddenly matches
+    // zero files usually means the regex rotted, not that the writers left.
+    if (c.banned) {
+      it(`${c.name}: NO file may write it`, () => {
+        expect(writersMatching(c.write!), c.name).toEqual([]);
+      });
+      continue;
+    }
     it(`${c.name}: only the LOCKED writer set may write it`, () => {
       const found = writersMatching(c.write!);
       expect(found.length, `${c.name}: scanner matched nothing`).toBeGreaterThan(0);
@@ -336,10 +358,14 @@ const PHASE12_FAMILIES: Phase12Family[] = [
   { family: "6. authorization/capability evaluation", authority: [P12("src/middleware/authorize.ts")], guard: "test/phase-1-authorization-closure.test.ts" },
   { family: "7. evidence custody", authority: [P12("src/services/evidence.service.ts")], guard: "test/phase-4b-product-packaging-and-lifecycle.test.ts" },
   { family: "8. legal hold/retention/destruction", authority: [P12("src/services/lifecycle/legal-hold.service.ts"), P12("src/services/lifecycle/destruction-governance.service.ts")], guard: "test/phase-4b-product-packaging-and-lifecycle.test.ts" },
-  { family: "9. commercial context", authority: [P12("src/services/billing-overview.service.ts")], guard: "test/phase9-collaboration-team-billing-parity.test.ts" },
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the previous guard,
+  // phase9-collaboration-team-billing-parity, ASSERTED that the Collaboration
+  // Team cap equals the Owned Workspace cap. That equality was the defect, not
+  // the contract, so the suite was deleted with the conflation it protected.
+  { family: "9. commercial context", authority: [P12("src/services/billing-overview.service.ts")], guard: "test/billing-commercial-correctness.test.ts" },
   { family: "10. subscription lifecycle", authority: [P12("src/services/billing-checkout.service.ts")], guard: "test/production-billing-parity.test.ts" },
   { family: "11. plan/capability/limit vocabulary", authority: [P12("../../packages/shared-billing/src/plan-catalog.ts")], guard: "test/pricing-hardening-plan-capabilities.test.ts" },
-  { family: "12. seats/storage/add-ons", authority: [P12("src/services/billing-overview.service.ts")], guard: "test/phase9-collaboration-team-billing-parity.test.ts" },
+  { family: "12. seats/storage/add-ons", authority: [P12("src/services/billing-overview.service.ts")], guard: "test/billing-commercial-correctness.test.ts" },
   { family: "13. provider (Stripe/PayPal) state normalization", authority: [P12("src/services/paypal.service.ts"), P12("src/services/billing-checkout.service.ts")], guard: "test/phase-10-paypal-idempotency.test.ts" },
   { family: "14. enterprise provisioning", authority: [P12("src/services/enterprise-provisioning.service.ts")], guard: "test/phase2-enterprise-provisioning.test.ts" },
   { family: "15. managed identity/SSO/SCIM", authority: [P12("src/services/identity/identity-mode.service.ts"), P12("src/services/access-control/scim-reconciliation.service.ts")], guard: "test/phase-10-mandatory-sso-switch.test.ts" },

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 247,
-    "classifiedMigrations": 247,
+    "filesystemMigrations": 248,
+    "classifiedMigrations": 248,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 247,
+    "productionSnapshotUnknown": 248,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 247,
-    "classifiedMigrations": 247,
+    "filesystemMigrations": 248,
+    "classifiedMigrations": 248,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 247,
+    "productionSnapshotUnknown": 248,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 30,
+      "EXPAND": 31,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 39,
+      "SAFE_TO_APPLY_NOW": 40,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 247
+    "ProductionMigrationStateUnknown": 248
   },
   "gateFailures": [],
   "migrations": [
@@ -19278,7 +19278,7 @@
       "checksumSha256Raw": "c626297703e04c93e3e58a82d0390146d36a400744f0700e1a4d74a45be20308",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": null,
+      "gitIntroductionCommit": "cb0862c1858cd568306cc042798c698bb7b143bf",
       "sqlChangedSinceIntroduction": false,
       "classification": "REPAIR",
       "sqlShape": "BACKFILL",
@@ -19350,7 +19350,7 @@
       "checksumSha256Raw": "f0d596dbd56b4f80774cebd94b59942463fead6cc320ff5def1f35a9b4db255c",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": null,
+      "gitIntroductionCommit": "b93e5f88707e1cfaba4576cd7ecac69488ed97cb",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
       "sqlShape": "EXPAND",
@@ -19412,8 +19412,8 @@
       "checksumSha256": "f174c7ed631cd36d4a6df353508d8c94ce3585a16a7e134bb20ca9aefede72a7",
       "checksumSha256Raw": "f174c7ed631cd36d4a6df353508d8c94ce3585a16a7e134bb20ca9aefede72a7",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
-      "gitIntroductionCommit": null,
+      "gitTracked": true,
+      "gitIntroductionCommit": "36cc44c0ec1ececdb7adaeb37d063f43694dbab7",
       "sqlChangedSinceIntroduction": false,
       "classification": "BACKFILL",
       "sqlShape": "BACKFILL",
@@ -19472,8 +19472,92 @@
       "evidence": "OPERATIONS SOURCE TOTALITY — one nullable VARCHAR(120) column, operational_incidents.source_id, plus a deterministic backfill over 29 unambiguous fingerprint prefixes. A condition's lifecycle — who may resolve it, which probe answers 'is it still true', how it recovers and recurs, who it is for — was derived from category (14 values for 35 sources) and then from fingerprint, which covered the 11 shapes the discovery sweep writes and left 15 other production emitters in both hosts falling through to an 'unregistered' contract that was OPERATOR_DECISION: a condition the system could not identify was the most closable kind there is. The ADD COLUMN is nullable with no default, no index and no constraint. The backfill is one UPDATE per prefix, guarded by source_id IS NULL so re-running is a no-op, anchored on the separator so report_backlog_v2 cannot inherit report_backlog, and derived from the exact legacyFingerprints declarations in packages/shared-runtime/src/ops/source-lifecycle.ts — operations-source-identity.test.ts fails the build if the migration and that registry disagree. NO HISTORY IS REWRITTEN: it touches one previously-absent column on the incident row and reads neither operational_incident_events nor operational_incident_sla_cycles, so no status, resolution, note, actor, occurrence count or SLA cycle changes. Anything matching no prefix stays NULL and fails closed at runtime to NO_DIRECT_RESOLUTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271227000000_billing_commercial_correctness",
       "order": 246,
+      "sqlPresent": true,
+      "byteLength": 8397,
+      "checksumSha256": "a2ee79ae5b585515e9d9eeb377ab1a5d94f15823b2b732de4c9a8de7ad38b618",
+      "checksumSha256Raw": "a2ee79ae5b585515e9d9eeb377ab1a5d94f15823b2b732de4c9a8de7ad38b618",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "evidence_credit_ledger_entries"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "enterprise_contracts",
+          "evidence_credit_ledger_entries",
+          "subscriptions"
+        ],
+        "addedColumns": [
+          "ai_operations_per_month",
+          "cancel_at_period_end",
+          "canceled_at_utc",
+          "evidence_records_per_month"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [
+          "evidencecreditentrytype"
+        ],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "evidence_credit_ledger_entries_entry_type_idx",
+          "evidence_credit_ledger_entries_evidence_id_key",
+          "evidence_credit_ledger_entries_user_id_created_at_idx",
+          "evidence_credit_ledger_purchase_provider_ref_key"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "evidence_credit_ledger_entries_user_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing",
+        "20270920300000_enterprise_contract_state"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 2,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "Nothing to reverse. An image without the ledger writer never inserts into the new table and reads the balance column exactly as it does today; an image without the cancel_at_period_end reader ignores a column that defaults to false; an image without the contract-allowance reader falls back to the catalog default it already used. No other column, index or constraint is touched, and no historical payment, entitlement or subscription row is rewritten.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": "Apply BEFORE deploying API and Worker. Until it runs, credit purchases continue to land on entitlements.credits and remain unspendable past the free allowance — the pre-existing defect — and cancellation keeps its current immediate semantics. No data is at risk either way.",
+      "removalCondition": "NEVER removed while evidence credits are sellable. Dropping evidence_credit_ledger_entries would return the wallet to an unauditable integer with no per-record idempotency, which is the defect it was added to close. cancel_at_period_end may only be removed if the product returns to immediate-only cancellation AND the confirmation copy is changed to state immediate loss of access.",
+      "evidence": "BILLING COMMERCIAL CORRECTNESS — expand-only, three additions, no backfill. (1) evidence_credit_ledger_entries: the auditable evidence-credit wallet ledger. entitlements.credits was a bare integer with no history, so a double-spend or a lost credit was undetectable after the fact, and the consume path read the balance, compared it in application memory, then decremented in a separate statement against the GLOBAL prisma client from inside the evidence-completion transaction — so a rolled-back completion still burned the credit. The new table's UNIQUE evidence_id makes consumption idempotent per Evidence record and is the serialization point for concurrent completions; a PARTIAL unique index on (provider, provider_ref) WHERE entry_type='PURCHASE' is the database-level backstop against double-crediting one payment. Existing entitlements.credits balances are UNTOUCHED and are treated by the application as an opening balance, so no customer loses a purchased credit. (2) subscriptions.cancel_at_period_end BOOLEAN NOT NULL DEFAULT false + canceled_at_utc: the provider-confirmed cancellation lifecycle. The DEFAULT means every existing row keeps its exact current meaning — nothing becomes 'cancelling' as a side effect. (3) enterprise_contracts.evidence_records_per_month + ai_operations_per_month, both nullable: contract-managed operational allowances, where NULL means the contract is silent and the canonical ENTERPRISE catalog default applies. No column is dropped, renamed, retyped or narrowed; no row is deleted or rewritten; the CREATE TABLE is wrapped in a Phase O-Final information_schema guard rather than CREATE TABLE IF NOT EXISTS, so column evolution can never be silently skipped. No Stripe or PayPal identifier and no evidence, custody, signature, TSA or OTS data is touched."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 247,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

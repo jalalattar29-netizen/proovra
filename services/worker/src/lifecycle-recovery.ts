@@ -32,7 +32,7 @@
  *     custody, reports, or storage.
  */
 import * as prismaPkg from "@prisma/client";
-import { canPlanGenerateReports } from "@proovra/shared-billing";
+import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -43,7 +43,10 @@ import { logger } from "./logger.js";
 // generator's whole dependency graph.
 import { enqueueReportGenerationRequest } from "./queue.js";
 import { requestReportGenerationFromWorker } from "./report-generation-authority.js";
-import { resolveEffectivePlanForEvidence } from "./workspace-billing.js";
+import {
+  resolveEffectivePlanForEvidence,
+  resolveEvidenceFundingSource,
+} from "./workspace-billing.js";
 
 export interface RunLifecycleRecoveryOptions {
   trigger?: string;
@@ -118,7 +121,15 @@ export async function runLifecycleRecovery(
         ownerUserId: ev.ownerUserId,
         teamId: ev.teamId ?? null,
       });
-      if (!canPlanGenerateReports(plan)) {
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — recovery must not skip a
+      // record whose report was PAID FOR with an evidence credit. Asking the
+      // plan alone treated every credit-funded record on a FREE account as
+      // "ineligible" and quietly abandoned an artifact the customer had bought.
+      const outputs = resolveEvidenceOutputEntitlements({
+        plan,
+        funding: await resolveEvidenceFundingSource(ev.id),
+      });
+      if (!outputs.reportsIncluded) {
         skippedIneligiblePlan++;
         continue;
       }

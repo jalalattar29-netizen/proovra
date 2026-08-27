@@ -31,11 +31,9 @@ import {
   assertWorkspaceAllowsReportArtifact,
   assertWorkspaceAllowsVerificationPackageArtifact,
   resolveEffectivePlanForEvidence,
+  resolveEvidenceFundingSource,
 } from "./workspace-billing.js";
-import {
-  canPlanGenerateReports,
-  canPlanGenerateVerificationPackage,
-} from "@proovra/shared-billing";
+import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 import {
   type EvidenceAssetKind as ReportEvidenceAssetKind,
   type EvidenceContentSummary as ReportEvidenceContentSummary,
@@ -2033,7 +2031,17 @@ async function prepareReportArtifacts(
     teamId: evidence.teamId ?? null,
   });
 
-  if (!canPlanGenerateReports(effectivePlan)) {
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the entitlement belongs to
+  // the RECORD and its funding, not to the account's recurring plan. An
+  // evidence-credit buyer is on FREE, so asking the plan alone refused the
+  // report for a record the customer had already paid for.
+  const evidenceFunding = await resolveEvidenceFundingSource(evidence.id);
+  const evidenceOutputs = resolveEvidenceOutputEntitlements({
+    plan: effectivePlan,
+    funding: evidenceFunding,
+  });
+
+  if (!evidenceOutputs.reportsIncluded) {
     throw createWorkerError("REPORT_NOT_INCLUDED_IN_PLAN", false);
   }
 
@@ -2507,7 +2515,7 @@ captureMethod: deriveReportCaptureMethod({
   ];
 
   const verificationPackageIncluded =
-    canPlanGenerateVerificationPackage(effectivePlan);
+    evidenceOutputs.verificationPackageIncluded;
 
   const reportEvidencePayload = {
     id: evidence.id,
@@ -3399,6 +3407,8 @@ const effectiveReportEvidencePayload = {
           ownerUserId: evidence.ownerUserId,
           teamId: evidence.teamId ?? null,
           incomingBytes: BigInt(finalizedReportPdf.length),
+          // Credit-funded records earn their report on a FREE account.
+          evidenceId: evidence.id,
         });
 
         // Phase O1.5C — bounded report.upload span. NEVER PDF bytes
@@ -4091,6 +4101,8 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           ownerUserId: evidence.ownerUserId,
           teamId: evidence.teamId ?? null,
           incomingBytes: BigInt(finalizedVerificationZip.length),
+          // Credit-funded records earn their package on a FREE account.
+          evidenceId: evidence.id,
         });
 
         await putObjectBuffer({

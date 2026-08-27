@@ -37,13 +37,28 @@ vi.mock("../src/report-generation-authority.js", () => ({
 vi.mock("../src/workspace-billing.js", () => ({
   resolveEffectivePlanForEvidence: (...args: unknown[]) =>
     resolveEffectivePlanForEvidence(...args),
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — recovery now asks how the
+  // record was FUNDED before deciding it is plan-ineligible, so a report the
+  // customer paid for with an evidence credit is not silently abandoned on a
+  // FREE account. These cases are all plan-funded.
+  resolveEvidenceFundingSource: async () => "PLAN",
 }));
 vi.mock("../src/logger.js", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 // A plan can generate reports unless it is FREE (enough to exercise the skip).
 vi.mock("@proovra/shared-billing", () => ({
-  canPlanGenerateReports: (plan: string) => plan !== "FREE",
+  // The outputs a record earns follow its plan AND its funding. FREE grants no
+  // report on a plan-funded record; a credit-funded one always does.
+  resolveEvidenceOutputEntitlements: (input: {
+    plan: string;
+    funding: string;
+  }) => ({
+    reportsIncluded: input.funding === "EVIDENCE_CREDIT" || input.plan !== "FREE",
+    verificationPackageIncluded:
+      input.funding === "EVIDENCE_CREDIT" || input.plan !== "FREE",
+    publicVerifyIncluded: true,
+  }),
 }));
 
 import { runLifecycleRecovery } from "../src/lifecycle-recovery.js";

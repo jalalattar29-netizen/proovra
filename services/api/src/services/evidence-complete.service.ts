@@ -1,12 +1,14 @@
 import { prisma } from "../db.js";
 import { canonicalJson, sha256Hex } from "../crypto.js";
-import { canPlanGenerateReports } from "@proovra/shared-billing";
+import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 import { getEvidenceSigner } from "../signing/signer.js";
 import {
   assertWorkspaceAllowsStorageGrowth,
-  consumeWorkspaceCompletionCredits,
+  countPersonalEvidenceRecords,
   resolveEnforcementScopeForRequester,
+  settleEvidenceCompletionFunding,
 } from "./billing-enforcement.service.js";
+import { resolveEvidenceFunding } from "./billing/evidence-credits.service.js";
 import {
   applyDefaultObjectRetention,
   getObjectStream,
@@ -548,7 +550,15 @@ export async function completeEvidence(params: {
             signingKeyId: evidence.signingKeyId,
             signingKeyVersion: evidence.signingKeyVersion,
           },
-          shouldEnqueueReport: canPlanGenerateReports(scope.plan),
+          // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the already-signed
+          // path re-reads how THIS record was funded instead of re-asking the
+          // account's plan. A credit-funded record on a FREE account still
+          // earns its report; asking `canPlanGenerateReports(FREE)` here
+          // silently withheld the output the customer had paid for.
+          shouldEnqueueReport: resolveEvidenceOutputEntitlements({
+            plan: scope.plan,
+            funding: await resolveEvidenceFunding(evidence.id),
+          }).reportsIncluded,
           retentionTargets,
         };
       }
@@ -1090,7 +1100,29 @@ const captureMethod =
         });
       }
 
-      await consumeWorkspaceCompletionCredits(scope);
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — settle the commercial
+      // cost of this completion INSIDE the completion transaction.
+      //
+      // `consumeWorkspaceCompletionCredits(scope)` used to be called here with
+      // no transaction client, so it ran against the global prisma connection:
+      // a completion that rolled back after this line still burned the
+      // customer's credit. `tx` is now passed, so the spend and the completion
+      // commit or roll back together, and the ledger's unique `evidence_id`
+      // makes a retry for this same record a no-op rather than a second spend.
+      const settlement = await settleEvidenceCompletionFunding(
+        {
+          scope,
+          evidenceId: ev.id,
+          // Records held BEFORE this one. This row is already written inside
+          // `tx`, so the canonical count (which reads the committed snapshot)
+          // does not yet include it.
+          priorRecordCount:
+            scope.billingShape === "SHARED"
+              ? 0
+              : await countPersonalEvidenceRecords(scope.ownerUserId),
+        },
+        tx,
+      );
 
       return {
         result: {
@@ -1102,7 +1134,13 @@ const captureMethod =
           signingKeyId: ev.signingKeyId,
           signingKeyVersion: ev.signingKeyVersion,
         },
-        shouldEnqueueReport: canPlanGenerateReports(scope.plan),
+        // The outputs belong to the RECORD and its funding, not to the
+        // account's recurring plan. A credit-funded completion earns its
+        // report even though the account is on FREE.
+        shouldEnqueueReport: resolveEvidenceOutputEntitlements({
+          plan: scope.plan,
+          funding: settlement.funding,
+        }).reportsIncluded,
         retentionTargets,
       };
     },

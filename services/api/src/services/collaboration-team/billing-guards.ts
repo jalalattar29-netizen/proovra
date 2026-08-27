@@ -15,7 +15,7 @@
  *     vocabulary, because that belongs to the legacy /v1/teams workspace
  *     surface.
  *   - Personal users can own Collaboration Teams if their plan allows
- *     (FREE/PAYG/PRO have a positive `maxTeams`); the helper resolves
+ *     (PRO and above have a positive `maxCollaborationTeamsPerWorkspace`);
  *     the *owner's* plan via the entitlement table, never the legacy
  *     `Team.billingPlan` column.
  *   - Billing controls capacity, not the definition of Team — these
@@ -31,8 +31,12 @@ import {
   COLLABORATION_TEAM_BILLING_UPGRADE_CTA,
   type CollaborationTeamBillingErrorCode,
 } from "@proovra/shared";
-// §9.6 corrected — the limits adapter lives in the canonical billing package.
-import { getCollaborationTeamPlanLimits } from "@proovra/shared-billing";
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — reads the canonical capability
+// record directly. The `getCollaborationTeamPlanLimits` adapter was DELETED:
+// it projected the OWNED-WORKSPACE cap (`maxOwnedTeams`) into a field called
+// `maxTeams` that this module then enforced over `CollaborationTeam` rows, so
+// one integer capped two unrelated tables.
+import { getPlanCapabilities } from "@proovra/shared-billing";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
@@ -191,7 +195,9 @@ async function resolveCollaborationTeamWorkspacePlan(
  *  from the canonical limits so pricing/UI never hardcode it. */
 export function lowestPlanWithTeams(): PlanType {
   for (const p of ["PRO", "TEAM", "ENTERPRISE"] as const) {
-    if (getCollaborationTeamPlanLimits(p).maxTeams > 0) return p as PlanType;
+    if (getPlanCapabilities(p).maxCollaborationTeamsPerWorkspace > 0) {
+      return p as PlanType;
+    }
   }
   return "ENTERPRISE" as PlanType;
 }
@@ -210,8 +216,7 @@ function planDisplayName(plan: PlanType): string {
  * stable code until the owner upgrades.
  */
 export function assertTeamsFeatureIncluded(plan: PlanType): void {
-  const limits = getCollaborationTeamPlanLimits(plan);
-  if (limits.maxTeams > 0) return;
+  if (getPlanCapabilities(plan).maxCollaborationTeamsPerWorkspace > 0) return;
   throwBillingError({
     code: "TEAM_INVITES_NOT_INCLUDED",
     message:
@@ -231,7 +236,7 @@ export function assertTeamsFeatureIncluded(plan: PlanType): void {
  * services/api/src/routes/teams.routes.ts (which gates the legacy
  * /v1/teams workspace endpoint on `caps.maxOwnedTeams`).
  *
- * Reads `COLLABORATION_TEAM_PLAN_LIMITS[plan].maxTeams` and counts
+ * Reads `PlanCapabilities.maxCollaborationTeamsPerWorkspace` and counts
  * non-archived `CollaborationTeam` rows whose parent workspace is
  * owned by `ownerUserId`. Throws `TEAM_LIMIT_REACHED` (HTTP 409) when
  * at-cap.
@@ -240,51 +245,100 @@ export function assertTeamsFeatureIncluded(plan: PlanType): void {
  * so the assertion is reusable from routes and webhook downgrade flows.
  */
 export async function assertCanCreateCollaborationTeam(
-  ownerUserId: string,
+  input: { workspaceId: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
-): Promise<{ plan: PlanType; maxTeams: number; ownedTeamCount: number }> {
-  const plan = await resolveUserPlan(client, ownerUserId);
-  const limits = getCollaborationTeamPlanLimits(plan);
-  const maxTeams = Math.max(0, limits.maxTeams);
+): Promise<{
+  plan: PlanType;
+  maxCollaborationTeamsPerWorkspace: number;
+  workspaceTeamCount: number;
+}> {
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — SUBJECT AND CAP BOTH FIXED.
+  //
+  // This used to resolve the ACTOR'S ACCOUNT plan and count every
+  // CollaborationTeam across every workspace that account owns, against
+  // `maxOwnedTeams` — the OWNED-WORKSPACE cap. Three things were wrong:
+  //
+  //   * the cap belonged to a different entity (Team rows, not
+  //     CollaborationTeam rows), so a PRO account silently received 2 owned
+  //     workspaces AND 2 collaboration teams from one published "Up to 2";
+  //   * the plan subject was the account, not the workspace, so a
+  //     collaboration team inside an unsubscribed Owned Workspace was gated on
+  //     its owner's Personal PRO — a plan that workspace does not hold;
+  //   * the count spanned workspaces, so filling one workspace's teams blocked
+  //     creation in a different workspace.
+  //
+  // The subject is the WORKSPACE the team is being created in, and the cap is
+  // `maxCollaborationTeamsPerWorkspace`.
+  const workspace = await client.team.findUnique({
+    where: { id: input.workspaceId },
+    select: { id: true, ownerUserId: true, isPersonal: true },
+  });
+  if (!workspace) {
+    throwBillingError({
+      code: "TEAM_LIMIT_REACHED",
+      message: "Workspace not found.",
+      details: { workspaceId: input.workspaceId },
+    });
+  }
 
-  // Count non-archived collaboration teams whose parent workspace is
-  // owned by this user. The constitutional pattern is: the parent
-  // `Team` row's ownerUserId carries billing identity.
-  const ownedTeamCount = await client.collaborationTeam.count({
+  const ctx = workspace.isPersonal
+    ? await resolveCommercialContext({
+        type: "PERSONAL_ACCOUNT",
+        userId: workspace.ownerUserId,
+      })
+    : await resolveCommercialContext({
+        type: "WORKSPACE",
+        teamId: workspace.id,
+        requesterUserId: workspace.ownerUserId,
+      });
+  const plan = ctx.scope.plan;
+
+  const maxCollaborationTeamsPerWorkspace = Math.max(
+    0,
+    getPlanCapabilities(plan).maxCollaborationTeamsPerWorkspace,
+  );
+
+  const workspaceTeamCount = await client.collaborationTeam.count({
     where: {
+      workspaceId: input.workspaceId,
       status: "ACTIVE",
       archivedAtUtc: null,
-      workspace: { ownerUserId },
     },
   });
 
-  if (maxTeams <= 0) {
-    // Commercial contract (2026-07-14): FREE and PAYG include ZERO
-    // Teams. This is a plan feature, not capacity — 402 with the
-    // lowest plan that includes Teams so the UI can render the
-    // upgrade target without hardcoding it.
+  if (maxCollaborationTeamsPerWorkspace <= 0) {
+    // Commercial contract: FREE includes ZERO Collaboration Teams. This is a
+    // plan feature, not capacity — 402 with the lowest plan that includes
+    // them so the UI can render the upgrade target without hardcoding it.
     throwBillingError({
       code: "TEAM_PLAN_REQUIRED",
       message: "Teams are available on Pro, Team, and Enterprise plans.",
       details: {
         plan,
-        maxTeams,
-        ownedTeamCount,
-        ownerUserId,
+        maxCollaborationTeamsPerWorkspace,
+        workspaceTeamCount,
+        workspaceId: input.workspaceId,
         requiredPlan: lowestPlanWithTeams(),
       },
     });
   }
 
-  if (ownedTeamCount >= maxTeams) {
+  if (workspaceTeamCount >= maxCollaborationTeamsPerWorkspace) {
     throwBillingError({
       code: "TEAM_LIMIT_REACHED",
-      message: `Your ${planDisplayName(plan)} plan includes up to ${maxTeams} Team${maxTeams === 1 ? "" : "s"}. Upgrade to create another Team.`,
-      details: { plan, maxTeams, ownedTeamCount, ownerUserId, limit: maxTeams, usage: ownedTeamCount },
+      message: `This workspace's ${planDisplayName(plan)} plan includes up to ${maxCollaborationTeamsPerWorkspace} Team${maxCollaborationTeamsPerWorkspace === 1 ? "" : "s"}. Upgrade to create another Team.`,
+      details: {
+        plan,
+        maxCollaborationTeamsPerWorkspace,
+        workspaceTeamCount,
+        workspaceId: input.workspaceId,
+        limit: maxCollaborationTeamsPerWorkspace,
+        usage: workspaceTeamCount,
+      },
     });
   }
 
-  return { plan, maxTeams, ownedTeamCount };
+  return { plan, maxCollaborationTeamsPerWorkspace, workspaceTeamCount };
 }
 
 // =============================================================================
@@ -301,7 +355,7 @@ export async function assertCanCreateCollaborationTeam(
  * `assertTeamSeatAvailable` from
  * services/api/src/services/workspace-usage.service.ts.
  *
- * Reads `COLLABORATION_TEAM_PLAN_LIMITS[plan].maxMembersPerTeam`,
+ * Reads `PlanCapabilities.maxAcceptedMembersPerCollaborationTeam`,
  * compares to the current ACTIVE member count + `addingCount`. Throws
  * `TEAM_MEMBER_LIMIT_REACHED` (HTTP 409) when adding would exceed
  * the per-team cap.
@@ -316,7 +370,7 @@ export async function assertCollaborationTeamMemberLimit(
   client: PrismaClient = defaultPrisma,
 ): Promise<{
   plan: PlanType;
-  maxMembersPerTeam: number;
+  maxAcceptedMembers: number;
   currentMemberCount: number;
   seatRemaining: number;
 }> {
@@ -329,37 +383,43 @@ export async function assertCollaborationTeamMemberLimit(
   // growth on grandfathered Teams (adds, every invite channel, and
   // acceptance) — data stays readable, growth requires an upgrade.
   assertTeamsFeatureIncluded(plan);
-  const limits = getCollaborationTeamPlanLimits(plan);
-  const maxMembersPerTeam = Math.max(0, limits.maxMembersPerTeam);
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the ACCEPTED-MEMBER cap for
+  // a Collaboration Team, no longer the retired `maxMembersPerTeam` that also
+  // governed WORKSPACE seats. Pending invitations are counted separately
+  // below and never against this number.
+  const maxAcceptedMembers = Math.max(
+    0,
+    getPlanCapabilities(plan).maxAcceptedMembersPerCollaborationTeam,
+  );
 
   const currentMemberCount = await client.collaborationTeamMember.count({
     where: { teamId, status: "ACTIVE" },
   });
 
-  const seatRemaining = Math.max(0, maxMembersPerTeam - currentMemberCount);
+  const seatRemaining = Math.max(0, maxAcceptedMembers - currentMemberCount);
 
-  if (maxMembersPerTeam <= 0) {
+  if (maxAcceptedMembers <= 0) {
     throwBillingError({
       code: "TEAM_MEMBER_LIMIT_REACHED",
       message: `Plan ${plan} does not include collaboration team membership.`,
       details: {
         plan,
         teamId,
-        maxMembersPerTeam,
+        maxAcceptedMembers,
         currentMemberCount,
         addingCount: safeAdding,
       },
     });
   }
 
-  if (currentMemberCount + safeAdding > maxMembersPerTeam) {
+  if (currentMemberCount + safeAdding > maxAcceptedMembers) {
     throwBillingError({
       code: "TEAM_MEMBER_LIMIT_REACHED",
-      message: `This team has reached its member limit (${maxMembersPerTeam}) on plan ${plan}.`,
+      message: `This team has reached its member limit (${maxAcceptedMembers}) on plan ${plan}.`,
       details: {
         plan,
         teamId,
-        maxMembersPerTeam,
+        maxAcceptedMembers,
         currentMemberCount,
         addingCount: safeAdding,
         seatRemaining,
@@ -367,7 +427,7 @@ export async function assertCollaborationTeamMemberLimit(
     });
   }
 
-  return { plan, maxMembersPerTeam, currentMemberCount, seatRemaining };
+  return { plan, maxAcceptedMembers, currentMemberCount, seatRemaining };
 }
 
 // =============================================================================
@@ -403,7 +463,7 @@ export async function assertCanInviteCollaborationTeamMember(
 }> {
   // §9.4 corrected — invite limits are a WORKSPACE-subject decision.
   const plan = await resolveCollaborationTeamWorkspacePlan(client, teamId);
-  const limits = getCollaborationTeamPlanLimits(plan);
+  const limits = getPlanCapabilities(plan);
 
   // Invitations are EMAIL-ONLY (Teams Entitlement Alignment,
   // 2026-07-14): SMS invites and shareable invite links were never
@@ -502,7 +562,7 @@ export async function assertCanInviteCollaborationTeamGuest(
   maxPendingPerTeam: number;
 }> {
   const plan = await resolveCollaborationTeamWorkspacePlan(client, teamId);
-  const limits = getCollaborationTeamPlanLimits(plan);
+  const limits = getPlanCapabilities(plan);
 
   // FREE / PAYG include zero Teams, so they include no external guests
   // either. PAYG is an operation entitlement, never a workspace plan.

@@ -26,7 +26,8 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
-import { addCredits } from "../services/billing.service.js";
+import * as prismaPkg from "@prisma/client";
+import { grantEvidenceCredits } from "../services/billing/evidence-credits.service.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { devAuthEnabled } from "./dev-login.js";
 
@@ -46,7 +47,17 @@ export async function devBillingCreditsRoutes(
         .parse(req.body);
       const userId = getAuthUserId(req);
 
-      await addCredits(userId, body.credits);
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the dev grant goes
+      // through the same canonical wallet as a real purchase, so a
+      // dev-granted credit is spendable and auditable in exactly the same way
+      // and this route cannot drift from the production path. The synthetic
+      // provider ref keeps the grant idempotent per request.
+      await grantEvidenceCredits({
+        userId,
+        credits: body.credits,
+        provider: prismaPkg.PaymentProvider.STRIPE,
+        providerRef: `dev-grant:${userId}:${req.id ?? "no-request-id"}`,
+      });
 
       // The grant is still audited — a dev boundary is not an audit exemption.
       await emitPlatformAudit({

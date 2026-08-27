@@ -162,22 +162,58 @@ export type PlanCapabilities = {
    */
 
   /**
-   * Business limits:
-   * - FREE / PAYG => no owned teams
-   * - PRO => up to 2 owned teams
-   * - TEAM => up to 5 owned teams
-   * - ENTERPRISE => custom (modelled as a generous default; Sales
-   *                  provisions per-account overrides as needed)
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `maxOwnedTeams` and
+   * `maxMembersPerTeam` were REMOVED and replaced by the four explicit fields
+   * below. Both old names were semantically overloaded, and each overload had
+   * already produced a live defect.
+   *
+   * `maxOwnedTeams` was ONE integer enforced over TWO unrelated tables:
+   *   - `teams.routes.ts`      counted `Team` rows      (Owned Workspaces)
+   *   - `billing-guards.ts`    counted `CollaborationTeam` rows
+   * so a PRO account actually received 2 Owned Workspaces AND 2 Collaboration
+   * Teams — four things called "Teams" — while Pricing advertised "Up to 2"
+   * and Billing rendered a usage line that compared a CollaborationTeam
+   * membership count against the Owned-Workspace cap.
+   *
+   * `maxMembersPerTeam` was ONE integer serving the WORKSPACE seat ceiling
+   * (`getEffectiveSeatLimit`, `computeOverSeatLimit`) and the COLLABORATION
+   * TEAM accepted-member ceiling (`assertCollaborationTeamMemberLimit`). Two
+   * different containers, two different membership tables, one number.
+   *
+   * Four questions, four fields. None is derived from another.
    */
-  maxOwnedTeams: number;
 
   /**
-   * Hard cap for actual members inside one team.
-   * This is NOT an invite cap.
-   * Invites may exist above the limit, but accepting / adding a member
-   * must fail once this cap is reached.
+   * How many OWNED WORKSPACES (`Team` rows, `workspaceKind: OWNED`) this
+   * ACCOUNT may create. A PERSONAL_ACCOUNT-subject decision, enforced by
+   * `assertUserCanCreateAnotherOwnedWorkspace`. Excludes the bootstrap
+   * Personal Space and provisioned Organization workspaces.
    */
-  maxMembersPerTeam: number;
+  maxOwnedWorkspaces: number;
+
+  /**
+   * How many ACTIVE Collaboration Teams may exist INSIDE ONE WORKSPACE.
+   * Enforced by `assertCanCreateCollaborationTeam` against the workspace the
+   * team is being created in — not across every workspace the account owns.
+   * A Collaboration Team is a grouping inside a workspace; it is never a
+   * billing account, never a tenant, and owns no storage or subscription.
+   */
+  maxCollaborationTeamsPerWorkspace: number;
+
+  /**
+   * Hard cap on ACCEPTED members inside one Collaboration Team.
+   * NOT an invite cap: pending invitations may exist above this number, but
+   * accepting or adding a member must fail once the cap is reached.
+   */
+  maxAcceptedMembersPerCollaborationTeam: number;
+
+  /**
+   * Hard cap on ACCEPTED `TeamMember` seats inside one SHARED workspace
+   * (Owned or Organization). Drives `getEffectiveSeatLimit` and the
+   * `overSeatLimit` comparison. Always 0 for a SINGLE_OCCUPANT workspace —
+   * a Personal Space has no seats to sell.
+   */
+  maxWorkspaceSeats: number;
 
   /**
    * PHASE 9 §9.6 (2026-07-22) — invitation abuse rails, folded from the
@@ -198,16 +234,6 @@ export type PlanCapabilities = {
   enterpriseFeatures: EnterpriseFeatureFlags;
 };
 
-export type EnterprisePricingCatalog = {
-  displayName: string;
-  pricingModel: "CUSTOM";
-  ctaLabel: string;
-  ctaHref: string;
-  summary: string;
-  capabilities: string[];
-  operationalFit: string[];
-  supportWindow: string;
-};
 
 const NO_ENTERPRISE_FEATURES: EnterpriseFeatureFlags = {
   ssoScim: false,
@@ -257,16 +283,32 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 0,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
-    maxOwnedTeams: 0,
-    maxMembersPerTeam: 0,
+    maxOwnedWorkspaces: 0,
+    maxCollaborationTeamsPerWorkspace: 0,
+    maxAcceptedMembersPerCollaborationTeam: 0,
+    maxWorkspaceSeats: 0,
     maxPendingInvitesPerTeam: 0,
     maxInvitesPer24h: 0,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
   },
 
+  /**
+   * GRANDFATHER-RESOLUTION ROW ONLY (2026-08-27). NOT A SELLABLE PLAN.
+   *
+   * PAYG is now the evidence-credit WALLET (see `EVIDENCE_CREDIT_PRODUCT` at
+   * the foot of this file), and no current write path assigns
+   * `entitlements.plan = 'PAYG'`. This row exists so that any row already
+   * carrying that value — from earlier code or the dev-only plan route —
+   * still resolves to the entitlements it was granted, rather than silently
+   * losing storage and AI it was told it had. Removing rights from an
+   * existing account is not a refactor.
+   *
+   * Nothing may advertise these values: Pricing and Billing render
+   * `EVIDENCE_CREDIT_PRODUCT`, never this row.
+   */
   PAYG: {
     plan: "PAYG",
-    displayName: "Pay-as-you-go",
+    displayName: "Pay-as-you-go (legacy)",
     billingShape: "SINGLE_OCCUPANT",
     monthlyPriceCents: 500,
     includedStorageBytes: 5n * GB,
@@ -285,8 +327,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 50,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
-    maxOwnedTeams: 0,
-    maxMembersPerTeam: 0,
+    maxOwnedWorkspaces: 0,
+    maxCollaborationTeamsPerWorkspace: 0,
+    maxAcceptedMembersPerCollaborationTeam: 0,
+    maxWorkspaceSeats: 0,
     maxPendingInvitesPerTeam: 0,
     maxInvitesPer24h: 0,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
@@ -313,8 +357,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 100,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
-    maxOwnedTeams: 2,
-    maxMembersPerTeam: 5,
+    maxOwnedWorkspaces: 2,
+    maxCollaborationTeamsPerWorkspace: 2,
+    maxAcceptedMembersPerCollaborationTeam: 5,
+    maxWorkspaceSeats: 5,
     maxPendingInvitesPerTeam: 10,
     maxInvitesPer24h: 50,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
@@ -341,8 +387,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 500,
     allowsPersonalWorkspacePurchase: false,
     allowsSharedWorkspace: true,
-    maxOwnedTeams: 5,
-    maxMembersPerTeam: 5,
+    maxOwnedWorkspaces: 5,
+    maxCollaborationTeamsPerWorkspace: 5,
+    maxAcceptedMembersPerCollaborationTeam: 5,
+    maxWorkspaceSeats: 5,
     maxPendingInvitesPerTeam: 25,
     maxInvitesPer24h: 100,
     enterpriseFeatures: NO_ENTERPRISE_FEATURES,
@@ -369,8 +417,10 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: null,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
-    maxOwnedTeams: 1000,
-    maxMembersPerTeam: 500,
+    maxOwnedWorkspaces: 1000,
+    maxCollaborationTeamsPerWorkspace: 1000,
+    maxAcceptedMembersPerCollaborationTeam: 500,
+    maxWorkspaceSeats: 500,
     maxPendingInvitesPerTeam: 1000,
     maxInvitesPer24h: 5000,
     enterpriseFeatures: ALL_ENTERPRISE_FEATURES,
@@ -440,7 +490,7 @@ export type NormalizedWorkspaceKind =
  *                         plan string on an OWNED row is LEGACY AMBIGUITY →
  *                         FAIL CLOSED (FREE + reason); otherwise FREE.
  *                         The owner's Personal plan NEVER covers an existing
- *                         Owned Workspace (maxOwnedTeams governs CREATION
+ *                         Owned Workspace (maxOwnedWorkspaces governs CREATION
  *                         allowance only, at the PERSONAL_ACCOUNT subject).
  *   ORGANIZATION        → the parent CUSTOMER Organization's contract
  *                         coverage, represented by the provisioned
@@ -497,52 +547,20 @@ export function resolveWorkspaceEffectivePlan(input: {
 }
 
 // =============================================================================
-// PHASE 9 §9.6 corrected (2026-07-22) — collaboration-team limits adapter,
-// RELOCATED here from @proovra/shared to fix the package-layering inversion
-// (the generic shared package must not depend on the billing package).
-// ZERO-DECISION projections of PlanCapabilities: no literal limits, no
-// subject inference, no owner-plan fallback, no lifecycle interpretation.
-// TEMPORARY ADAPTER — owner: billing domain · removal: callers read
-// PlanCapabilities fields directly · Phase 12 target: delete this block.
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the "collaboration-team limits
+// adapter" (`CollaborationTeamPlanLimits`, `COLLABORATION_TEAM_PLAN_LIMITS`,
+// `getCollaborationTeamPlanLimits`) was DELETED here.
+//
+// It carried its own removal note ("TEMPORARY ADAPTER … Phase 12 target: delete
+// this block") and it was the vehicle through which the `maxOwnedTeams`
+// overload reached the Collaboration Team surface: it projected the
+// OWNED-WORKSPACE cap into a field called `maxTeams` that
+// `assertCanCreateCollaborationTeam` then enforced over `CollaborationTeam`
+// rows. Its only consumer (`collaboration-team/billing-guards.ts`) now reads
+// the explicit `maxCollaborationTeamsPerWorkspace` /
+// `maxAcceptedMembersPerCollaborationTeam` fields from `PlanCapabilities`
+// directly, so there is one name per question and no projection in between.
 // =============================================================================
-
-export type CollaborationTeamPlanLimits = {
-  maxTeams: number;
-  maxMembersPerTeam: number;
-  maxPendingInvitesPerTeam: number;
-  maxInvitesPer24h: number;
-};
-
-function projectCollaborationLimits(plan: PlanType): CollaborationTeamPlanLimits {
-  const caps = getPlanCapabilities(plan);
-  return {
-    maxTeams: caps.maxOwnedTeams,
-    maxMembersPerTeam: caps.maxMembersPerTeam,
-    maxPendingInvitesPerTeam: caps.maxPendingInvitesPerTeam,
-    maxInvitesPer24h: caps.maxInvitesPer24h,
-  };
-}
-
-export const COLLABORATION_TEAM_PLAN_LIMITS: Record<
-  PlanType,
-  CollaborationTeamPlanLimits
-> = {
-  FREE: projectCollaborationLimits("FREE"),
-  PAYG: projectCollaborationLimits("PAYG"),
-  PRO: projectCollaborationLimits("PRO"),
-  TEAM: projectCollaborationLimits("TEAM"),
-  ENTERPRISE: projectCollaborationLimits("ENTERPRISE"),
-};
-
-export function getCollaborationTeamPlanLimits(
-  plan: string | null | undefined,
-): CollaborationTeamPlanLimits {
-  const key = (plan ?? "FREE").toUpperCase();
-  if (key in COLLABORATION_TEAM_PLAN_LIMITS) {
-    return COLLABORATION_TEAM_PLAN_LIMITS[key as PlanType];
-  }
-  return COLLABORATION_TEAM_PLAN_LIMITS.FREE;
-}
 
 export function getPlanStorageLimitBytes(plan: PlanType): bigint {
   return getPlanCapabilities(plan).includedStorageBytes;
@@ -597,64 +615,191 @@ export function formatBytesHuman(bytes: bigint): string {
   return `${bytes} B`;
 }
 
-function projectPlan(plan: PlanType) {
-  const caps = PLAN_CAPABILITIES[plan];
+// =============================================================================
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `projectPlan` and
+// `getPricingCatalogResponse` were DELETED here, together with the
+// `EnterprisePricingCatalog` type they alone used.
+//
+// They were a SECOND pricing-catalog projection carrying a second hard-coded
+// copy of the Enterprise marketing block, byte-for-byte duplicating
+// `buildPricingCatalogResponse` in services/api. A repo-wide search proved
+// zero call sites: `plan-catalog.service.ts` re-exported the symbol and
+// nothing ever invoked it. The served catalog has exactly one producer.
+// =============================================================================
+
+// =============================================================================
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE EVIDENCE-CREDIT PRODUCT.
+//
+// The defect this replaces
+// ---------------------------------------------------------------------------
+// `PLAN_CAPABILITIES.PAYG` described a PLAN — 5 GB of storage, 50 AI
+// operations a month, intake, reports — but no production code path ever set
+// `Entitlement.plan = 'PAYG'`. The only writer was `setPersonalPlan` reached
+// from `POST /v1/billing/plan`, a route registered exclusively behind
+// `devAuthEnabled()`. Stripe PAYG checkout runs in `mode: "payment"` and
+// PayPal PAYG creates an ORDER, so neither produces a subscription event, and
+// `syncPlanForSubscription` — the one production writer of a personal plan —
+// is only reached from subscription events.
+//
+// A real buyer therefore received `addCredits(userId, 1)` and stayed on FREE.
+// On FREE, `paygCreditsRequiredPerCompletion` is 0, so the credit-spend branch
+// in `assertWorkspaceAllowsEvidenceCreation` was unreachable: at 3 records the
+// buyer was refused with `FREE_LIMIT_REACHED` while holding paid, unspendable
+// credits. The 5 GB and the 50 AI operations were never reachable either.
+//
+// What replaces it
+// ---------------------------------------------------------------------------
+// PAYG is not a plan. It is a CREDIT WALLET layered over the Personal FREE
+// account, and this descriptor is the whole product: a price, a credit grant,
+// and the outputs a credit-funded completion earns. There is deliberately no
+// storage and no AI allowance here, because a one-time payment cannot fund a
+// perpetual monthly entitlement — that is the promise the old row made and
+// could not keep.
+//
+// `PLAN_CAPABILITIES.PAYG` is RETAINED, but strictly as a resolution row for
+// grandfathered `entitlements.plan = 'PAYG'` rows that may exist from earlier
+// code. It is never sold, never advertised, and never assigned by any current
+// write path.
+// =============================================================================
+
+/**
+ * How a single Evidence record's completion was funded.
+ *
+ *   PLAN             the workspace's own plan allowance covered it (the FREE
+ *                    lifetime allowance, PRO's lifetime cap, TEAM's rolling
+ *                    30-day cap, or an Enterprise contract).
+ *   EVIDENCE_CREDIT  a purchased evidence credit was consumed for it.
+ */
+export type EvidenceFundingSource = "PLAN" | "EVIDENCE_CREDIT";
+
+/** The purchasable evidence-credit product. One SKU, one grant. */
+export type EvidenceCreditProduct = {
+  /** Stable product key. Not a `PlanType`; a credit pack is not a plan. */
+  productKey: "EVIDENCE_CREDIT";
+  displayName: string;
+  /** Credits granted per successful purchase of one unit. */
+  creditsGrantedPerPurchase: number;
+  /** Credits burned by one credit-funded Evidence completion. */
+  creditsPerCompletion: number;
+  /** List price per unit, in minor units. Currency comes from the server. */
+  unitPriceCents: number;
+  /** Credits do not expire. Stated explicitly so nothing has to infer it. */
+  creditsExpire: false;
+};
+
+export const EVIDENCE_CREDIT_PRODUCT: EvidenceCreditProduct = {
+  productKey: "EVIDENCE_CREDIT",
+  displayName: "Evidence credit",
+  creditsGrantedPerPurchase: 1,
+  creditsPerCompletion: 1,
+  unitPriceCents: 500,
+  creditsExpire: false,
+};
+
+/**
+ * The outputs one Evidence record earns, resolved from the plan that governs
+ * its workspace AND how that record's completion was funded.
+ *
+ * THE ONE RULE THAT MATTERS: a credit-funded completion is a PAID Evidence
+ * operation, so it earns the paid outputs — report, verification package and
+ * public verification — even though the account's recurring plan is FREE. The
+ * entitlement is attached to the RECORD, not to the account, which is exactly
+ * why buying one credit does not turn a FREE account into a PRO subscription.
+ */
+export function resolveEvidenceOutputEntitlements(input: {
+  plan: PlanType;
+  funding: EvidenceFundingSource;
+}): {
+  reportsIncluded: boolean;
+  verificationPackageIncluded: boolean;
+  publicVerifyIncluded: boolean;
+} {
+  const caps = getPlanCapabilities(input.plan);
+
+  if (input.funding === "EVIDENCE_CREDIT") {
+    return {
+      reportsIncluded: true,
+      verificationPackageIncluded: true,
+      // Public verification is plan-independent everywhere it is offered; a
+      // paid record is never the one that loses it.
+      publicVerifyIncluded: true,
+    };
+  }
+
   return {
-    plan,
-    displayName: caps.displayName,
-    monthlyPriceCents: caps.monthlyPriceCents,
-    storageBytes: caps.includedStorageBytes.toString(),
-    storageLabel: formatBytesHuman(caps.includedStorageBytes),
     reportsIncluded: caps.reportsIncluded,
     verificationPackageIncluded: caps.verificationPackageIncluded,
     publicVerifyIncluded: caps.publicVerifyIncluded,
-    maxEvidenceRecords: caps.maxEvidenceRecords,
-    maxEvidenceRecordsPerMonth: caps.maxEvidenceRecordsPerMonth,
-    aiAdvisoryMonthlyOperations: caps.aiAdvisoryMonthlyOperations,
-    seats: caps.includedSeats,
-    billingShape: caps.billingShape,
-    maxOwnedTeams: caps.maxOwnedTeams,
-    maxMembersPerTeam: caps.maxMembersPerTeam,
-    enterpriseFeatures: caps.enterpriseFeatures,
   };
 }
 
-export function getPricingCatalogResponse() {
-  const enterprise: EnterprisePricingCatalog = {
-    displayName: "Enterprise",
-    pricingModel: "CUSTOM",
-    ctaLabel: "Contact Sales",
-    ctaHref: "/contact-sales",
-    summary:
-      "Custom commercial terms for larger organizations that need procurement handling, governance review, rollout planning, or higher-volume evidence operations.",
-    capabilities: [
-      "Custom operational volume and onboarding scope",
-      "Custom storage envelope and rollout planning",
-      "SAML SSO and SCIM provisioning",
-      "MFA enforcement, access reviews, session governance",
-      "Legal hold and custom retention policies",
-      "Organization audit logs",
-      "Object Lock / immutable storage controls",
-    ],
-    operationalFit: [
-      "Procurement and security review",
-      "Retention and governance alignment",
-      "Departmental or organization-wide rollout",
-      "Higher-volume evidence operations",
-    ],
-    supportWindow:
-      "Enterprise inquiries are typically reviewed within 4 business hours, depending on workflow clarity and commercial fit.",
-  };
+/**
+ * THE evidence-creation admission decision for a SINGLE_OCCUPANT (personal)
+ * subject, stated once as pure policy so the API gate and any other consumer
+ * cannot drift.
+ *
+ * Consumption order is fixed and deterministic:
+ *   1. spend the remaining PLAN allowance;
+ *   2. only then spend ONE purchased credit.
+ *
+ * The returned `funding` is what the caller must record when — and only when —
+ * the completion actually succeeds. This function decides admission; it never
+ * mutates a balance.
+ */
+export function resolvePersonalEvidenceAdmission(input: {
+  plan: PlanType;
+  /** Non-destroyed evidence records already held by the personal subject. */
+  currentRecordCount: number;
+  /**
+   * Effective lifetime cap after the canonical envelope has applied any
+   * grandfather override. `null` = no lifetime cap on this plan.
+   */
+  effectiveLifetimeRecordCap: number | null;
+  /** Unspent purchased evidence credits on the account's wallet. */
+  availableEvidenceCredits: number;
+}):
+  | { allowed: true; funding: EvidenceFundingSource }
+  | {
+      allowed: false;
+      /**
+       * CREDIT_REQUIRED_NONE_AVAILABLE — this plan grants no free allowance at
+       * all, so the denial is purely "you are out of credits" (402).
+       * PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS — the plan's included allowance ran
+       * out and no credit is banked to continue past it (409).
+       */
+      reason:
+        | "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS"
+        | "CREDIT_REQUIRED_NONE_AVAILABLE";
+    } {
+  /**
+   * GRANDFATHERED PAYG-PLAN ROWS. `paygCreditsRequiredPerCompletion > 0` means
+   * this plan grants NO free record allowance at all — every completion costs a
+   * credit. Only the legacy PAYG resolution row says that, and it must keep
+   * saying it: those accounts have always been credit-bound, and a null
+   * lifetime cap on that row means "no cap BEYOND the credit requirement", not
+   * "unlimited free records". Reading the cap alone would have handed every
+   * grandfathered PAYG account unlimited free evidence.
+   */
+  const planGrantsNoFreeAllowance =
+    getPlanCapabilities(input.plan).paygCreditsRequiredPerCompletion > 0;
+
+  const withinPlanAllowance =
+    !planGrantsNoFreeAllowance &&
+    (input.effectiveLifetimeRecordCap === null ||
+      input.currentRecordCount < input.effectiveLifetimeRecordCap);
+
+  if (withinPlanAllowance) {
+    return { allowed: true, funding: "PLAN" };
+  }
+
+  if (input.availableEvidenceCredits >= EVIDENCE_CREDIT_PRODUCT.creditsPerCompletion) {
+    return { allowed: true, funding: "EVIDENCE_CREDIT" };
+  }
 
   return {
-    free: projectPlan("FREE"),
-    payg: {
-      ...projectPlan("PAYG"),
-      creditsRequiredPerCompletion:
-        PLAN_CAPABILITIES.PAYG.paygCreditsRequiredPerCompletion,
-    },
-    pro: projectPlan("PRO"),
-    team: projectPlan("TEAM"),
-    enterprise,
+    allowed: false,
+    reason: planGrantsNoFreeAllowance
+      ? "CREDIT_REQUIRED_NONE_AVAILABLE"
+      : "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS",
   };
 }

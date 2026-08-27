@@ -38,6 +38,10 @@ const API_BILLING_ENFORCEMENT = resolve(
   API_ROOT,
   "src/services/billing-enforcement.service.ts",
 );
+const API_CONTRACT_LIMITS = resolve(
+  API_ROOT,
+  "src/services/billing/enterprise-contract-limits.ts",
+);
 const API_ENTERPRISE_MIDDLEWARE = resolve(
   API_ROOT,
   "src/middleware/require-enterprise-feature.ts",
@@ -217,8 +221,14 @@ describe("billing-enforcement guards (API)", () => {
 
   it("enforces a rolling 30-day window for the TEAM monthly cap", () => {
     expect(text).toContain("THIRTY_DAYS_MS");
-    expect(text).toContain("maxEvidenceRecordsPerMonth");
     expect(text).toContain("EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED");
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the monthly cap is now
+    // resolved through `resolveEffectiveContractEvidenceCap`, which returns the
+    // Enterprise contract's figure when one is stated and
+    // `PLAN_CAPABILITIES.maxEvidenceRecordsPerMonth` otherwise. The window is
+    // unchanged; the source of the NUMBER moved, so this pin follows it.
+    expect(text).toContain("resolveEffectiveContractEvidenceCap");
+    expect(read(API_CONTRACT_LIMITS)).toContain("maxEvidenceRecordsPerMonth");
   });
 
   it("honours the grandfather cap via the canonical envelope (§9.7 fold)", () => {

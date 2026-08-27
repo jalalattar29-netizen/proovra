@@ -4815,57 +4815,36 @@ intakePlanJson:
   browserUpload: true,
       });
 
-      // 4B-I1: QUOTA_EVIDENCE_COUNT — gate on workspace evidence count.
-      // Denial: 429 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_EVIDENCE_COUNT" }.
-      // recordEntitlementUsage is fire-and-forget. Engine errors are swallowed.
-      // PHASE 11 §3 Batch A — hoisted out of the try block (unchanged query,
-      // just widened scope) so the create-success audit below can read the
-      // AUTHORITATIVE persisted teamId without a second lookup.
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE DUPLICATE QUOTA
+      // AUTHORITY WAS DELETED HERE.
+      //
+      // This block ran `assertQuotaEntitlement(QUOTA_EVIDENCE_COUNT)` from the
+      // packaging entitlement engine, whose table is keyed on PRODUCT LINE and
+      // whose unprovisioned default is 100 records per calendar month. The
+      // canonical commercial authority — `PLAN_CAPABILITIES`, enforced by
+      // `assertWorkspaceAllowsEvidenceCreation` inside `createEvidence` —
+      // says 500 records per ROLLING 30 DAYS on TEAM and no cap on
+      // ENTERPRISE. The two disagreed on the window AND on the number, the
+      // stricter one won silently, and the denial named an entitlement no
+      // published plan mentions.
+      //
+      // Worse, the denial path DELETED the just-created evidence row to "roll
+      // back", so a TEAM workspace past 100 records in a month lost the
+      // capture outright with a 429 that no pricing surface could explain.
+      //
+      // `createEvidence` has already run the canonical gate before this point.
+      // There is now one quota authority, and it is the plan catalog.
+      //
+      // PHASE 11 §3 Batch A — the persisted-teamId lookup is retained: the
+      // create-success audit below reads the AUTHORITATIVE teamId from it.
       let createdForQuota: { teamId: string | null } | null = null;
       try {
         createdForQuota = await prisma.evidence.findUnique({
           where: { id: result.id },
           select: { teamId: true },
         });
-        // Phase HOME-DATA-OWNERSHIP — every row now carries a teamId,
-        // including personal captures (stamped with the personal Team
-        // id). The team-quota entitlement engine governs REAL team
-        // workspaces only; personal captures stay governed by the plan
-        // gates inside createEvidence, so skip when isPersonal.
-        const quotaTeam = createdForQuota?.teamId
-          ? await prisma.team.findUnique({
-              where: { id: createdForQuota.teamId },
-              select: { isPersonal: true },
-            })
-          : null;
-        if (createdForQuota?.teamId && quotaTeam?.isPersonal !== true) {
-          const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
-            "../services/packaging/entitlement.service.js"
-          );
-          const qEvidence = await assertQuotaEntitlement({
-            prisma,
-            teamId: createdForQuota.teamId,
-            key: "QUOTA_EVIDENCE_COUNT",
-            requested: 1,
-            actorUserId: ownerUserId,
-          });
-          if (!qEvidence.ok) {
-            // Roll back the just-created evidence before denying.
-            await prisma.evidence.delete({ where: { id: result.id } }).catch(() => null);
-            return reply.code(429).send({
-              denial: "QUOTA_EXCEEDED",
-              entitlement: "QUOTA_EVIDENCE_COUNT",
-            });
-          }
-          recordEntitlementUsage({
-            prisma,
-            teamId: createdForQuota.teamId,
-            key: "QUOTA_EVIDENCE_COUNT",
-            amount: 1,
-          }).catch(() => null);
-        }
       } catch {
-        /* entitlement engine error — do not block evidence creation */
+        /* audit-only lookup; never blocks evidence creation */
       }
 
       auditEvidenceAction(req, {
@@ -9541,42 +9520,20 @@ try {
       try {
         const result = await completeEvidence({ evidenceId: id, ownerUserId });
 
-        // 4B-I1: QUOTA_STORAGE_BYTES — gate after sizeBytes is known on finalize.
-        // Denial: 429 { denial: "QUOTA_EXCEEDED", entitlement: "QUOTA_STORAGE_BYTES" }.
-        // recordEntitlementUsage is fire-and-forget. Engine errors are swallowed.
-        try {
-          const evidenceForStorage = await prisma.evidence.findUnique({
-            where: { id },
-            select: { teamId: true, sizeBytes: true },
-          });
-          if (evidenceForStorage?.teamId && evidenceForStorage.sizeBytes) {
-            const sizeNum = Number(evidenceForStorage.sizeBytes);
-            const { assertQuotaEntitlement, recordEntitlementUsage } = await import(
-              "../services/packaging/entitlement.service.js"
-            );
-            const qStorage = await assertQuotaEntitlement({
-              prisma,
-              teamId: evidenceForStorage.teamId,
-              key: "QUOTA_STORAGE_BYTES",
-              requested: sizeNum,
-              actorUserId: ownerUserId,
-            });
-            if (!qStorage.ok) {
-              return reply.code(429).send({
-                denial: "QUOTA_EXCEEDED",
-                entitlement: "QUOTA_STORAGE_BYTES",
-              });
-            }
-            recordEntitlementUsage({
-              prisma,
-              teamId: evidenceForStorage.teamId,
-              key: "QUOTA_STORAGE_BYTES",
-              amount: sizeNum,
-            }).catch(() => null);
-          }
-        } catch {
-          /* entitlement engine error — do not block evidence completion */
-        }
+        // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE DUPLICATE STORAGE
+        // QUOTA AUTHORITY WAS DELETED HERE.
+        //
+        // This block ran `assertQuotaEntitlement(QUOTA_STORAGE_BYTES)` from
+        // the packaging entitlement engine, whose unprovisioned default is
+        // 1 GiB per calendar MONTH. The canonical authority is cumulative
+        // capacity from `PLAN_CAPABILITIES.includedStorageBytes` plus active
+        // storage add-ons — 500 GB on TEAM — enforced by
+        // `assertWorkspaceStorageAvailable` on the same finalize path.
+        //
+        // A monthly byte budget and a cumulative capacity are not the same
+        // quantity, so the two could never be reconciled; the stricter one
+        // silently capped every shared workspace at 1 GiB a month regardless
+        // of what it had bought. One authority now owns storage.
 
         await appendCustodyEvent({
   evidenceId: id,

@@ -636,7 +636,7 @@ export async function buildPlatformContext(
     // commercial catalog decides; the frontend never branches on plan names).
     professionalSurfacesIncluded: planCaps.professionalSurfacesIncluded,
     reviewQueuesIncluded: planCaps.reviewQueuesIncluded,
-    teamCollaborationIncluded: planCaps.maxOwnedTeams > 0,
+    teamCollaborationIncluded: planCaps.maxCollaborationTeamsPerWorkspace > 0,
     aiAssistanceMonthlyOperations: planCaps.aiAdvisoryMonthlyOperations,
     // PHASE 12 POINT 4 PASS C0 — server-projected guest-invitation eligibility.
     //
@@ -674,8 +674,12 @@ export async function buildPlatformContext(
      * the ACTIVE workspace. The client renders them; it no longer derives them.
      */
     limits: {
-      maxOwnedWorkspaces: planCaps.maxOwnedTeams,
-      maxMembersPerTeam: planCaps.maxMembersPerTeam,
+      maxOwnedWorkspaces: planCaps.maxOwnedWorkspaces,
+      maxCollaborationTeamsPerWorkspace:
+        planCaps.maxCollaborationTeamsPerWorkspace,
+      maxAcceptedMembersPerCollaborationTeam:
+        planCaps.maxAcceptedMembersPerCollaborationTeam,
+      maxWorkspaceSeats: planCaps.maxWorkspaceSeats,
       maxPendingInvitesPerTeam: planCaps.maxPendingInvitesPerTeam,
       maxInvitesPer24h: planCaps.maxInvitesPer24h,
     },

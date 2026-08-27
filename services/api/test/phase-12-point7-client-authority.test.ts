@@ -211,7 +211,13 @@ describe("PHASE 12 POINT 7 STEP 5 — client-authority metrics", () => {
     );
     expect(types).toMatch(/limits:\s*\{/);
     expect(types).toMatch(/maxOwnedWorkspaces:\s*number/);
-    expect(types).toMatch(/maxMembersPerTeam:\s*number/);
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — one overloaded
+    // `maxMembersPerTeam` became three separately-named limits, because a
+    // workspace seat, a Collaboration Team seat and an Owned Workspace slot are
+    // three different quantities that were sharing one integer.
+    expect(types).toMatch(/maxCollaborationTeamsPerWorkspace:\s*number/);
+    expect(types).toMatch(/maxAcceptedMembersPerCollaborationTeam:\s*number/);
+    expect(types).toMatch(/maxWorkspaceSeats:\s*number/);
 
     const service = readFileSync(
       resolve(
@@ -220,8 +226,11 @@ describe("PHASE 12 POINT 7 STEP 5 — client-authority metrics", () => {
       ),
       "utf8",
     );
-    expect(service).toMatch(/maxOwnedWorkspaces:\s*planCaps\.maxOwnedTeams/);
-    expect(service).toMatch(/maxMembersPerTeam:\s*planCaps\.maxMembersPerTeam/);
+    expect(service).toMatch(/maxOwnedWorkspaces:\s*planCaps\.maxOwnedWorkspaces/);
+    expect(service).toMatch(
+      /maxCollaborationTeamsPerWorkspace:\s*\n?\s*planCaps\.maxCollaborationTeamsPerWorkspace/,
+    );
+    expect(service).toMatch(/maxWorkspaceSeats:\s*planCaps\.maxWorkspaceSeats/);
   });
 
   it("SilentPersonalFallbacks = 0 — the context builder gates every personal selection", () => {

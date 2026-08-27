@@ -23,7 +23,22 @@ import {
   COLLABORATION_TEAM_ROLES,
   type CollaborationTeamRole,
 } from "@proovra/shared";
-import { type CollaborationTeamPlanLimits } from "@proovra/shared-billing";
+/**
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `CollaborationTeamCapacity`
+ * was DELETED from the billing package. It projected the OWNED-WORKSPACE cap
+ * into a field called `maxTeams` that the server then enforced over
+ * CollaborationTeam rows, so one integer capped two unrelated tables.
+ *
+ * This is the shape the SERVER projection actually sends, with each field
+ * naming the container it caps. The browser still renders these values and
+ * never derives them.
+ */
+type CollaborationTeamCapacity = {
+  maxCollaborationTeamsPerWorkspace: number;
+  maxAcceptedMembersPerCollaborationTeam: number;
+  maxPendingInvitesPerTeam: number;
+  maxInvitesPer24h: number;
+};
 import {
   useActiveSpace,
   useWorkspaceLimits,
@@ -58,7 +73,7 @@ function InvitesTab({
   canInvite: boolean;
 }) {
   const { addToast } = useToast();
-  const limits = useResolvedCollaborationTeamPlanLimits();
+  const limits = useResolvedCollaborationTeamCapacity();
   const currentPlan = useResolvedActivePlanTier();
 
   const onError = (err: { message: string; requestId?: string }) =>
@@ -68,7 +83,8 @@ function InvitesTab({
   // surface (form + caps badge) with one honest upgrade panel. While the
   // envelope is still loading (limits === null) we keep the normal surface;
   // the backend guards remain the source of truth.
-  const planLocked = limits !== null && limits.maxTeams === 0;
+  const planLocked =
+    limits !== null && limits.maxCollaborationTeamsPerWorkspace === 0;
 
   if (planLocked) {
     return (
@@ -441,7 +457,7 @@ function InviteRow({
 // Data sources (NO new endpoint):
 //   - Counts are derived from `team.invites` already on the detail payload.
 //   - Caps come from the SERVER projection (`planFeatures.limits` for the
-//     ACTIVE workspace) via `useResolvedCollaborationTeamPlanLimits`. We do
+//     ACTIVE workspace) via `useResolvedCollaborationTeamCapacity`. We do
 //     NOT fabricate caps, we do NOT re-derive them from a plan name, and we do
 //     NOT re-fetch billing.
 //
@@ -452,7 +468,7 @@ function PendingInvitesBadge({
   limits,
 }: {
   invites: ReadonlyArray<CollaborationTeamInvite>;
-  limits: CollaborationTeamPlanLimits | null;
+  limits: CollaborationTeamCapacity | null;
 }) {
   const pending = useMemo(
     () => invites.filter((i) => i.status === "PENDING").length,
@@ -567,14 +583,15 @@ function PendingInvitesBadge({
  * `null` still means UNKNOWN, and call sites still render the unknown state
  * rather than fabricating FREE — that part was right and is preserved.
  */
-function useResolvedCollaborationTeamPlanLimits():
-  | CollaborationTeamPlanLimits
+function useResolvedCollaborationTeamCapacity():
+  | CollaborationTeamCapacity
   | null {
   const limits = useWorkspaceLimits();
   if (!limits) return null;
   return {
-    maxTeams: limits.maxOwnedWorkspaces,
-    maxMembersPerTeam: limits.maxMembersPerTeam,
+    maxCollaborationTeamsPerWorkspace: limits.maxCollaborationTeamsPerWorkspace,
+    maxAcceptedMembersPerCollaborationTeam:
+      limits.maxAcceptedMembersPerCollaborationTeam,
     maxPendingInvitesPerTeam: limits.maxPendingInvitesPerTeam,
     maxInvitesPer24h: limits.maxInvitesPer24h,
   };

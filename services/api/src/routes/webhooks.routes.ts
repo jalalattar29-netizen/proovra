@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import {
-  addCredits,
   ensureEntitlement,
   recordPayment,
   setPersonalPlan,
@@ -12,6 +11,10 @@ import {
   upsertSubscription,
   upsertWorkspaceStorageAddon,
 } from "../services/billing.service.js";
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — evidence credits are granted
+// through the canonical wallet, which writes the auditable ledger entry in the
+// same transaction as the balance and is idempotent on the provider payment id.
+import { grantEvidenceCredits } from "../services/billing/evidence-credits.service.js";
 import {
   parseStripeEvent,
   verifyStripeSignature,
@@ -25,9 +28,16 @@ import { auditWebhookSignatureVerification } from "../services/security/webhook-
 // PHASE 9 §12 — canonical commercial decision (no raw plan literals).
 // PHASE 9 §9.4 — the ONE subscription-active rule, consumed directly from
 // the canonical pure policy (api delegate deleted).
-import { isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive } from "@proovra/shared-billing";
+import {
+  EVIDENCE_CREDIT_PRODUCT,
+  isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive,
+} from "@proovra/shared-billing";
 
-const PAYG_CREDITS_PER_PURCHASE = 1;
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the credit grant per purchase
+// is a property of the PRODUCT, read from the canonical catalog, not a literal
+// maintained beside the webhook handler.
+const PAYG_CREDITS_PER_PURCHASE =
+  EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase;
 
 function parsePlan(value: unknown): prismaPkg.PlanType | null {
   if (
@@ -437,7 +447,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
       if (userId && plan === prismaPkg.PlanType.PAYG) {
         await ensureEntitlement(userId);
-        await addCredits(userId, PAYG_CREDITS_PER_PURCHASE);
+        await grantEvidenceCredits({
+          userId,
+          credits: PAYG_CREDITS_PER_PURCHASE,
+          provider: prismaPkg.PaymentProvider.STRIPE,
+          providerRef: session.id,
+        });
 
         await recordPayment({
           userId,
@@ -870,7 +885,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
         if (parsed.userId && parsed.plan === prismaPkg.PlanType.PAYG) {
           await ensureEntitlement(parsed.userId);
-          await addCredits(parsed.userId, PAYG_CREDITS_PER_PURCHASE);
+          await grantEvidenceCredits({
+            userId: parsed.userId,
+            credits: PAYG_CREDITS_PER_PURCHASE,
+            provider: prismaPkg.PaymentProvider.PAYPAL,
+            providerRef: event.resource.id ?? "",
+          });
 
           await recordPayment({
             userId: parsed.userId,

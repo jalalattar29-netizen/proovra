@@ -1132,6 +1132,11 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // `security_events` column, index, enum or mapping is altered by it,
       // which is what this allowlist is about.
       "20271226000000_operational_incident_source_identity",
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — expand-only: the
+      // evidence-credit ledger, the subscription cancel-at-period-end
+      // lifecycle, and the Enterprise contract operational allowances. No
+      // column is dropped, renamed or narrowed and no row is rewritten.
+      "20271227000000_billing_commercial_correctness",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

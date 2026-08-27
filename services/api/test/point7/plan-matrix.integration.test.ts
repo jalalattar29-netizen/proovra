@@ -22,6 +22,7 @@
  * did not think to look.
  */
 
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "../integration-harness.js";
@@ -144,8 +145,8 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
             reports: caps.reportsIncluded,
             intake: caps.intakeIncluded,
             reviewerOperations: caps.reviewerOperationsIncluded,
-            maxOwnedWorkspaces: caps.maxOwnedTeams,
-            maxMembersPerTeam: caps.maxMembersPerTeam,
+            maxOwnedWorkspaces: caps.maxOwnedWorkspaces,
+            maxWorkspaceSeats: caps.maxWorkspaceSeats,
             lifetimeRecordCap: caps.maxEvidenceRecords,
             monthlyRecordCap: caps.maxEvidenceRecordsPerMonth,
             creditsPerCompletion: caps.paygCreditsRequiredPerCompletion,
@@ -375,46 +376,140 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
     });
 
     it("p7.payg.entitlement.consumed_by_intended_operation", async () => {
-      const t = await seedPersonalTenant(deps, "PAYG", { credits: 2 });
-      const { consumeWorkspaceCompletionCredits } = await import(
-        "../../src/services/billing-enforcement.service.js"
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — retargeted at the
+      // canonical evidence-credit wallet.
+      //
+      // This used to call `consumeWorkspaceCompletionCredits(scope)`, which
+      // charged based on `caps.paygCreditsRequiredPerCompletion`. That test
+      // could only pass because the fixture forced `entitlements.plan = PAYG`,
+      // a state no production path can produce — the very reason real buyers
+      // could never spend a credit. The wallet is now spent per COMPLETED
+      // Evidence record and is independent of the recurring plan.
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 2 });
+      const { consumeEvidenceCreditForCompletion } = await import(
+        "../../src/services/billing/evidence-credits.service.js"
       );
-      const scope = await (
-        await import("../../src/services/workspace-billing.service.js")
-      ).getPersonalWorkspaceScope(t.owner.userId);
-      await consumeWorkspaceCompletionCredits(scope);
+      const evidenceId = randomUUID();
+
+      const result = await consumeEvidenceCreditForCompletion(
+        { userId: t.owner.userId, evidenceId },
+        prisma,
+      );
+      expect(result.consumed).toBe(true);
+      expect(result.alreadyConsumed).toBe(false);
+
       const ent = await prisma.entitlement.findFirstOrThrow({
         where: { userId: t.owner.userId, active: true },
         select: { credits: true, plan: true },
       });
-      // Exactly the contract's per-completion cost, and the PLAN is untouched.
-      expect(ent.credits).toBe(2 - PLAN_CONTRACT.PAYG.creditsPerCompletion);
-      expect(ent.plan).toBe("PAYG");
+      expect(ent.credits).toBe(1);
+      // The RECURRING PLAN is untouched. Buying credits does not make an
+      // account PRO, and spending one does not change its plan either.
+      expect(ent.plan).toBe("FREE");
+
+      // The movement is on the auditable ledger, keyed to the record.
+      const entry = await prisma.evidenceCreditLedgerEntry.findUniqueOrThrow({
+        where: { evidenceId },
+        select: { entryType: true, creditsDelta: true, balanceAfter: true },
+      });
+      expect(entry.entryType).toBe("CONSUMPTION");
+      expect(entry.creditsDelta).toBe(-1);
+      expect(entry.balanceAfter).toBe(1);
+
       provenScenario(
         "SERVER",
         "p7.payg.entitlement.consumed_by_intended_operation",
       );
     });
 
-    it("p7.payg.entitlement.exhausted_denies_operation", async () => {
-      const t = await seedPersonalTenant(deps, "PAYG", { credits: 0 });
-      const { consumeWorkspaceCompletionCredits } = await import(
-        "../../src/services/billing-enforcement.service.js"
+    it("p7.payg.entitlement.retry_is_idempotent_per_record", async () => {
+      // A retried or re-delivered completion for the SAME record must not burn
+      // a second credit. The ledger's unique `evidence_id` is the guard.
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 2 });
+      const { consumeEvidenceCreditForCompletion } = await import(
+        "../../src/services/billing/evidence-credits.service.js"
       );
-      const scope = await (
-        await import("../../src/services/workspace-billing.service.js")
-      ).getPersonalWorkspaceScope(t.owner.userId);
-      const before = await fingerprintSideEffects(prisma);
-      await expect(consumeWorkspaceCompletionCredits(scope)).rejects.toMatchObject(
-        { statusCode: expect.any(Number) },
+      const evidenceId = randomUUID();
+
+      await consumeEvidenceCreditForCompletion(
+        { userId: t.owner.userId, evidenceId },
+        prisma,
       );
-      const after = await fingerprintSideEffects(prisma);
-      expect(fingerprintDelta(before, after)).toEqual({});
-      // The credit balance did not go negative.
+      const again = await consumeEvidenceCreditForCompletion(
+        { userId: t.owner.userId, evidenceId },
+        prisma,
+      );
+      expect(again.alreadyConsumed).toBe(true);
+      expect(again.consumed).toBe(false);
+
       const ent = await prisma.entitlement.findFirstOrThrow({
         where: { userId: t.owner.userId, active: true },
         select: { credits: true },
       });
+      // Two calls, ONE credit.
+      expect(ent.credits).toBe(1);
+      provenScenario(
+        "SERVER",
+        "p7.payg.entitlement.retry_is_idempotent_per_record",
+      );
+    });
+
+    it("p7.payg.entitlement.concurrent_completions_cannot_double_spend", async () => {
+      // One credit, two DIFFERENT records completing at once. Exactly one may
+      // win; the balance must never go negative.
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 1 });
+      const { consumeEvidenceCreditForCompletion } = await import(
+        "../../src/services/billing/evidence-credits.service.js"
+      );
+
+      const settled = await Promise.allSettled([
+        prisma.$transaction((tx) =>
+          consumeEvidenceCreditForCompletion(
+            { userId: t.owner.userId, evidenceId: randomUUID() },
+            tx,
+          ),
+        ),
+        prisma.$transaction((tx) =>
+          consumeEvidenceCreditForCompletion(
+            { userId: t.owner.userId, evidenceId: randomUUID() },
+            tx,
+          ),
+        ),
+      ]);
+
+      const fulfilled = settled.filter((r) => r.status === "fulfilled");
+      expect(fulfilled).toHaveLength(1);
+
+      const ent = await prisma.entitlement.findFirstOrThrow({
+        where: { userId: t.owner.userId, active: true },
+        select: { credits: true },
+      });
+      expect(ent.credits).toBe(0);
+      provenScenario(
+        "SERVER",
+        "p7.payg.entitlement.concurrent_completions_cannot_double_spend",
+      );
+    });
+
+    it("p7.payg.entitlement.exhausted_denies_operation", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { consumeEvidenceCreditForCompletion } = await import(
+        "../../src/services/billing/evidence-credits.service.js"
+      );
+      const before = await fingerprintSideEffects(prisma);
+      await expect(
+        consumeEvidenceCreditForCompletion(
+          { userId: t.owner.userId, evidenceId: randomUUID() },
+          prisma,
+        ),
+      ).rejects.toMatchObject({ publicCode: "INSUFFICIENT_EVIDENCE_CREDITS" });
+      const after = await fingerprintSideEffects(prisma);
+      expect(fingerprintDelta(before, after)).toEqual({});
+      const ent = await prisma.entitlement.findFirstOrThrow({
+        where: { userId: t.owner.userId, active: true },
+        select: { credits: true },
+      });
+      // The credit balance did not go negative.
       expect(ent.credits).toBe(0);
       provenScenario("SERVER", "p7.payg.entitlement.exhausted_denies_operation");
     });
@@ -537,7 +632,7 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
       expect(limit).toBeGreaterThan(0);
       // The whole canonical allowance, through the real route. Before Point 7
       // this failed on the SECOND one: the bootstrap Personal Team was being
-      // counted against `maxOwnedTeams`, so the published limit and the
+      // counted against `maxOwnedWorkspaces`, so the published limit and the
       // enforced limit differed by exactly one.
       for (let i = 0; i < limit; i += 1) {
         const res = await inject({
@@ -612,7 +707,7 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
         userId: t.owner.userId,
       });
       expect(personal.plan).toBe("PRO");
-      // The workspace's OWN commercial state governs it. `maxOwnedTeams`
+      // The workspace's OWN commercial state governs it. `maxOwnedWorkspaces`
       // governs CREATION allowance at the account subject, not coverage.
       expect(ws.plan).toBe("FREE");
       provenScenario(
@@ -705,12 +800,12 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
       // client-side table keyed on a plan name.
       expect(typeof assertCollaborationTeamMemberLimit).toBe("function");
       const { getPlanCapabilities } = await import("@proovra/shared-billing");
-      expect(getPlanCapabilities("PRO").maxMembersPerTeam).toBe(
-        t.expected.maxMembersPerTeam,
+      expect(getPlanCapabilities("PRO").maxWorkspaceSeats).toBe(
+        t.expected.maxWorkspaceSeats,
       );
       // Fill the workspace to its cap with ACTIVE members and prove the
       // canonical seat projection reports it as full.
-      const cap = t.expected.maxMembersPerTeam;
+      const cap = t.expected.maxWorkspaceSeats;
       const current = await prisma.teamMember.count({
         where: { teamId: ws.teamId, status: "ACTIVE" },
       });

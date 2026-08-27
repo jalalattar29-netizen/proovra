@@ -69,7 +69,9 @@ export function useEnterpriseSurfaceAccess(): boolean {
  */
 export type ServerWorkspaceLimits = {
   maxOwnedWorkspaces: number;
-  maxMembersPerTeam: number;
+  maxCollaborationTeamsPerWorkspace: number;
+  maxAcceptedMembersPerCollaborationTeam: number;
+  maxWorkspaceSeats: number;
   maxPendingInvitesPerTeam: number;
   maxInvitesPer24h: number;
 };
@@ -77,7 +79,7 @@ export type ServerWorkspaceLimits = {
 export function useWorkspaceLimits(): ServerWorkspaceLimits | null {
   const ctx = usePlatformContext();
   const limits = ctx?.envelope?.planFeatures?.limits;
-  if (!limits || typeof limits.maxMembersPerTeam !== "number") return null;
+  if (!limits || typeof limits.maxWorkspaceSeats !== "number") return null;
   return limits;
 }
 

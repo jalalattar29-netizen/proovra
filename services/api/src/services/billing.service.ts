@@ -385,61 +385,29 @@ export async function cancelTeamPlan(params: {
   return updated;
 }
 
-export async function addCredits(userId: string, credits: number) {
-  const ensured = await ensureEntitlement(userId);
-  const increment = Math.max(0, credits);
-
-  const updated = await prisma.entitlement.update({
-    where: { id: ensured.id },
-    data: {
-      credits: { increment },
-    },
-  });
-
-  await trackBillingEvent({
-    eventType: "billing_credits_added",
-    userId,
-    plan: updated.plan,
-    metadata: {
-      delta: increment,
-      balance: updated.credits ?? 0,
-    },
-  });
-
-  return updated;
-}
-
-export async function consumeCredits(userId: string, credits: number) {
-  const ensured = await ensureEntitlement(userId);
-
-  if ((ensured.credits ?? 0) < credits) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Insufficient credits"
-    );
-    err.statusCode = 402;
-    err.code = "INSUFFICIENT_CREDITS";
-    throw err;
-  }
-
-  const updated = await prisma.entitlement.update({
-    where: { id: ensured.id },
-    data: {
-      credits: { decrement: credits },
-    },
-  });
-
-  await trackBillingEvent({
-    eventType: "billing_credits_consumed",
-    userId,
-    plan: updated.plan,
-    metadata: {
-      delta: credits,
-      balance: updated.credits ?? 0,
-    },
-  });
-
-  return updated;
-}
+// =============================================================================
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `addCredits` and
+// `consumeCredits` were DELETED here. Their replacement is the canonical
+// evidence-credit wallet in `services/billing/evidence-credits.service.ts`.
+//
+// Both were unsafe for the thing they were used for:
+//
+//   `addCredits`      incremented the balance with NO idempotency and NO
+//                     ledger, so a re-delivered provider event double-credited
+//                     a wallet and nothing recorded which payment bought what.
+//   `consumeCredits`  read the balance, compared it in application memory,
+//                     then decremented in a SEPARATE statement. Two concurrent
+//                     completions could both read "1 credit" and both decrement
+//                     it, and it accepted no transaction client, so its caller
+//                     inside the evidence-completion transaction was in fact
+//                     writing outside that transaction — a rolled-back
+//                     completion still burned the credit.
+//
+// The wallet replaces both with a conditional decrement
+// (`credits: { gte: required }` in the WHERE) plus an immutable ledger entry
+// written in the caller's own transaction, with a UNIQUE `evidence_id` making
+// consumption idempotent per Evidence record.
+// =============================================================================
 
 export async function recordPayment(params: {
   userId: string;

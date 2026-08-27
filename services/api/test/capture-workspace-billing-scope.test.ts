@@ -48,6 +48,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { NO_CONTRACT_LIMITS } from "../src/services/billing/enterprise-contract-limits.js";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -166,6 +167,7 @@ describe("Capture scope hotfix — assertWorkspaceAllowsEvidenceCreation typed e
       storageBytesOverride: null,
       activeStorageAddonBytes: 0n,
       legacyRecordCapOverride: null,
+    contractLimits: NO_CONTRACT_LIMITS,
     };
   }
 
@@ -336,6 +338,7 @@ describe("Capture scope matrix — 6 templates × 3 scopes", () => {
       storageBytesOverride: null,
       activeStorageAddonBytes: 0n,
       legacyRecordCapOverride: null,
+    contractLimits: NO_CONTRACT_LIMITS,
     };
   }
 

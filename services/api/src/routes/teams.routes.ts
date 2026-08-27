@@ -311,13 +311,13 @@ function fireTeamAnalyticsEvent(params: {
   }).catch(() => null);
 }
 
-async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
+async function assertUserCanCreateAnotherOwnedWorkspace(ownerUserId: string) {
   // §9.7 — Owned-Workspace CREATION allowance is a PERSONAL_ACCOUNT decision.
   const personalScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId: ownerUserId })).scope;
   const caps = getPlanCapabilities(personalScope.plan);
-  const maxOwnedTeams = Math.max(0, caps.maxOwnedTeams ?? 0);
+  const maxOwnedWorkspaces = Math.max(0, caps.maxOwnedWorkspaces ?? 0);
 
-  if (maxOwnedTeams <= 0) {
+  if (maxOwnedWorkspaces <= 0) {
     const err: Error & {
       statusCode?: number;
       code?: string;
@@ -327,18 +327,18 @@ async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
     err.code = "TEAM_CREATION_NOT_ALLOWED";
     err.details = {
       plan: personalScope.plan,
-      maxOwnedTeams,
+      maxOwnedWorkspaces,
     };
     throw err;
   }
 
-  // PHASE 12 — POINT 7 (2026-08-05). `maxOwnedTeams` caps OWNED workspaces.
+  // PHASE 12 — POINT 7 (2026-08-05). `maxOwnedWorkspaces` caps OWNED workspaces.
   // This counted EVERY `Team` row the user owns, which is three different
   // kinds of thing: the Personal Space (bootstrapped for every account, always
   // present, and never an "owned team"), provisioned ORGANIZATION workspaces
   // (governed by the Organization's contract, not by the owner's personal
   // plan), and the OWNED workspaces the cap is actually about. A PRO account
-  // (`maxOwnedTeams: 2`) therefore reached the cap after creating ONE owned
+  // (`maxOwnedWorkspaces: 2`) therefore reached the cap after creating ONE owned
   // workspace, because its Personal Space had already consumed the other slot
   // — the published limit and the enforced limit differed by exactly the
   // bootstrap.
@@ -354,7 +354,7 @@ async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
     },
   });
 
-  if (ownedTeamCount >= maxOwnedTeams) {
+  if (ownedTeamCount >= maxOwnedWorkspaces) {
     const err: Error & {
       statusCode?: number;
       code?: string;
@@ -364,7 +364,7 @@ async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
     err.code = "SHARED_WORKSPACE_LIMIT_REACHED";
     err.details = {
       plan: personalScope.plan,
-      maxOwnedTeams,
+      maxOwnedWorkspaces,
       ownedTeamCount,
     };
     throw err;
@@ -372,7 +372,7 @@ async function assertUserCanCreateAnotherTeam(ownerUserId: string) {
 
   return {
     plan: personalScope.plan,
-    maxOwnedTeams,
+    maxOwnedWorkspaces,
     ownedTeamCount,
   };
 }
@@ -383,7 +383,7 @@ export async function teamsRoutes(app: FastifyInstance) {
     const ownerUserId = getAuthUserId(req);
 
     try {
-      const ownershipState = await assertUserCanCreateAnotherTeam(ownerUserId);
+      const ownershipState = await assertUserCanCreateAnotherOwnedWorkspace(ownerUserId);
 
       // PHASE 12 — POINT 7 (2026-08-05): ONE authority for the owned-workspace
       // count.
@@ -391,7 +391,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       // This route used to run a SECOND, independent limit on the same
       // decision: `assertQuotaEntitlement("QUOTA_WORKSPACES")`, from the
       // packaging entitlement engine, whose table is keyed on PRODUCT LINE and
-      // whose default is **1**. `assertUserCanCreateAnotherTeam` above is
+      // whose default is **1**. `assertUserCanCreateAnotherOwnedWorkspace` above is
       // keyed on the COMMERCIAL PLAN and says 2 for PRO, 5 for TEAM, 1000 for
       // ENTERPRISE. The two disagreed on every plan, the stricter one won
       // silently, and the published limit was therefore unreachable: a PRO
@@ -400,7 +400,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       // entitlement the pricing page never mentions.
       //
       // The canonical authority for "how many Owned Workspaces may this
-      // account create" is `PlanCapabilities.maxOwnedTeams`, resolved at the
+      // account create" is `PlanCapabilities.maxOwnedWorkspaces`, resolved at the
       // PERSONAL_ACCOUNT commercial subject (Phase 9 §9.7). The duplicate
       // DECISION is removed here rather than reconciled, because reconciling
       // two tables leaves two tables. Usage is still RECORDED so the packaging
@@ -432,7 +432,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         // PHASE 12 — POINT 7 (2026-08-05): the limit is RE-EVALUATED inside the
         // creating transaction, under a per-owner advisory lock.
         //
-        // `assertUserCanCreateAnotherTeam` above is a count followed, some
+        // `assertUserCanCreateAnotherOwnedWorkspace` above is a count followed, some
         // milliseconds later, by an unrelated INSERT. Two requests arriving
         // together both counted `limit - 1`, both passed, and both created:
         // a PRO account allowed two Owned Workspaces ended up with three.
@@ -454,7 +454,7 @@ export async function teamsRoutes(app: FastifyInstance) {
             NOT: { organization: { kind: "CUSTOMER" } },
           },
         });
-        if (liveOwnedCount >= ownershipState.maxOwnedTeams) {
+        if (liveOwnedCount >= ownershipState.maxOwnedWorkspaces) {
           const err: Error & {
             statusCode?: number;
             code?: string;
@@ -464,7 +464,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           err.code = "SHARED_WORKSPACE_LIMIT_REACHED";
           err.details = {
             plan: ownershipState.plan,
-            maxOwnedTeams: ownershipState.maxOwnedTeams,
+            maxOwnedWorkspaces: ownershipState.maxOwnedWorkspaces,
             ownedTeamCount: liveOwnedCount,
           };
           throw err;
@@ -519,7 +519,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           name: team.name,
           plan: ownershipState.plan,
           ownedTeamCountBeforeCreate: ownershipState.ownedTeamCount,
-          maxOwnedTeams: ownershipState.maxOwnedTeams,
+          maxOwnedWorkspaces: ownershipState.maxOwnedWorkspaces,
         },
       });
 

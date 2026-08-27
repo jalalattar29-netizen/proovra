@@ -59,6 +59,25 @@ function classifyKind(key: EntitlementKey): EntitlementKind {
 
 type EntitlementValue = boolean | number;
 
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `QUOTA_EVIDENCE_COUNT` and
+// `QUOTA_STORAGE_BYTES` were REMOVED from this engine and from
+// `ENTITLEMENT_KEYS`.
+//
+// They were a SECOND authority over two quantities the commercial plan catalog
+// already owns, keyed on PRODUCT LINE rather than on the purchased plan, and
+// they disagreed with it on the number AND on the window (a monthly byte
+// budget versus cumulative capacity; 100 records a calendar month versus 500 a
+// rolling 30 days). Their unprovisioned defaults silently capped every shared
+// workspace at 1 GiB and 100 records a month whatever it had bought.
+//
+// Evidence-record and storage limits now have exactly one authority:
+// `PLAN_CAPABILITIES`, enforced by `billing-enforcement.service.ts` and
+// `workspace-usage.service.ts`. This engine keeps only the FEATURE and
+// non-commercial LIMIT entitlements it is actually the authority for.
+//
+// Existing `entitlement_grants` rows carrying the removed keys are left in
+// place — no historical entitlement record is rewritten — and are simply never
+// read again.
 export const DEFAULT_ENTITLEMENTS: Record<
   EntitlementKey,
   { kind: EntitlementKind; value: EntitlementValue }
@@ -79,8 +98,6 @@ export const DEFAULT_ENTITLEMENTS: Record<
   FEATURE_DELEGATED_ADMIN: { kind: "FEATURE", value: false },
   FEATURE_DEPARTMENT_ISOLATION: { kind: "FEATURE", value: false },
   FEATURE_CROSS_ORG_REVIEW: { kind: "FEATURE", value: false },
-  QUOTA_EVIDENCE_COUNT: { kind: "QUOTA", value: 100 },
-  QUOTA_STORAGE_BYTES: { kind: "QUOTA", value: 1024 * 1024 * 1024 },
   QUOTA_USERS: { kind: "QUOTA", value: 3 },
   QUOTA_WORKSPACES: { kind: "QUOTA", value: 1 },
   QUOTA_REVIEWER_SEATS: { kind: "QUOTA", value: 1 },
@@ -106,8 +123,6 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_REVIEWER_WORKSPACE: true,
     FEATURE_TRUST_CENTER: true,
     FEATURE_REDACTION: true,
-    QUOTA_EVIDENCE_COUNT: 5_000,
-    QUOTA_STORAGE_BYTES: 50 * 1024 * 1024 * 1024,
     QUOTA_USERS: 10,
     QUOTA_WORKSPACES: 3,
     QUOTA_REVIEWER_SEATS: 5,
@@ -129,8 +144,6 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_LEGAL_HOLD: true,
     FEATURE_ARCHIVE_TIERS: true,
     FEATURE_LIFECYCLE_DASHBOARD: true,
-    QUOTA_EVIDENCE_COUNT: 50_000,
-    QUOTA_STORAGE_BYTES: 500 * 1024 * 1024 * 1024,
     QUOTA_USERS: 50,
     QUOTA_WORKSPACES: 25,
     QUOTA_REVIEWER_SEATS: 25,
@@ -160,8 +173,6 @@ export const PLAN_LINE_ENTITLEMENTS: Record<
     FEATURE_DELEGATED_ADMIN: true,
     FEATURE_DEPARTMENT_ISOLATION: true,
     FEATURE_CROSS_ORG_REVIEW: true,
-    QUOTA_EVIDENCE_COUNT: 1_000_000,
-    QUOTA_STORAGE_BYTES: 10 * 1024 * 1024 * 1024 * 1024,
     QUOTA_USERS: 1_000,
     QUOTA_WORKSPACES: 500,
     QUOTA_REVIEWER_SEATS: 500,

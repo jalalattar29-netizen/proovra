@@ -131,7 +131,11 @@ function TeamsOverview() {
     () => teams.filter((t) => t.status === "ACTIVE").length,
     [teams],
   );
-  const maxTeams = serverLimits?.maxOwnedWorkspaces ?? 0;
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — this page lists
+  // COLLABORATION TEAMS, so it reads the Collaboration Team cap. It used to
+  // read `maxOwnedWorkspaces`, which is the cap on how many WORKSPACES the
+  // account may create — a different container counted from a different table.
+  const maxTeams = serverLimits?.maxCollaborationTeamsPerWorkspace ?? 0;
   const planContextReady = serverLimits !== null;
   // Entitlement Alignment (2026-07-14): FREE/PAYG include ZERO Teams.
   // When the resolved plan grants no Teams at all the page renders a

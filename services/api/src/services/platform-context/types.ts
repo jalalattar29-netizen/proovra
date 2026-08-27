@@ -55,7 +55,7 @@ export type PlatformContextPlanFeatures = {
   /** PHASE 12B Track 1A — PROFESSIONAL surface tier included (catalog-derived). */
   professionalSurfacesIncluded: boolean;
   reviewQueuesIncluded: boolean;
-  /** Team ownership included (maxOwnedTeams > 0). */
+  /** Collaboration Teams included (maxCollaborationTeamsPerWorkspace > 0). */
   teamCollaborationIncluded: boolean;
   /**
    * Monthly AI-assistance operation allowance for the active plan
@@ -75,9 +75,14 @@ export type PlatformContextPlanFeatures = {
    * capacity belongs to its WORKSPACE, not to the account that owns it.
    */
   limits: {
-    /** `maxOwnedTeams` — Owned Workspaces this ACCOUNT may create. */
+    /** Owned Workspaces this ACCOUNT may create. */
     maxOwnedWorkspaces: number;
-    maxMembersPerTeam: number;
+    /** ACTIVE Collaboration Teams allowed inside ONE workspace. */
+    maxCollaborationTeamsPerWorkspace: number;
+    /** ACCEPTED members allowed in ONE Collaboration Team. */
+    maxAcceptedMembersPerCollaborationTeam: number;
+    /** ACCEPTED TeamMember seats allowed in ONE shared workspace. */
+    maxWorkspaceSeats: number;
     maxPendingInvitesPerTeam: number;
     maxInvitesPer24h: number;
   };
@@ -107,7 +112,7 @@ export type PlatformContextOperationalEligibility = {
     /** A still-actionable incoming invitation exists (organization OR
      *  collaboration team). Lets Free/PAYG see Invitations legitimately. */
     hasPendingInvitation: boolean;
-    /** Plan permits OWNING collaboration teams (maxOwnedTeams > 0). Distinct
+    /** Plan permits Collaboration Teams (maxCollaborationTeamsPerWorkspace > 0). Distinct
      *  from incoming participation. */
     canOwnTeams: boolean;
   };

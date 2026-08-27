@@ -256,11 +256,9 @@ describe("Phase 12 Point 4 — guest invitation is server-enforced", () => {
   it("an allowed plan is still DENIED over its pending-invitation limit", async () => {
     state.workspaceBillingPlan = "TEAM";
     // Sit exactly at the catalog cap for this plan.
-    const { getCollaborationTeamPlanLimits } = await import(
-      "@proovra/shared-billing"
-    );
+    const { getPlanCapabilities } = await import("@proovra/shared-billing");
     state.pendingGuests =
-      getCollaborationTeamPlanLimits("TEAM").maxPendingInvitesPerTeam;
+      getPlanCapabilities("TEAM").maxPendingInvitesPerTeam;
     await expectDenied("TEAM_INVITE_LIMIT_REACHED");
     // One under the cap still passes — the gate is the limit, not a block.
     state.pendingGuests -= 1;

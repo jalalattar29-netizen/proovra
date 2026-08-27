@@ -1,12 +1,25 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
 import { DomainError } from "../errors.js";
-import { consumeCredits } from "./billing.service.js";
+import {
+  EVIDENCE_CREDIT_PRODUCT,
+  resolveEvidenceOutputEntitlements,
+  resolvePersonalEvidenceAdmission,
+  type EvidenceFundingSource,
+} from "@proovra/shared-billing";
+import {
+  consumeEvidenceCreditForCompletion,
+  type EvidenceCreditClient,
+} from "./billing/evidence-credits.service.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 // §9.7 — the enforcement chokepoint consumes the canonical commercial
 // envelope (explicit subjects); this file no longer calls the scope adapter.
 import { type WorkspaceScope } from "./workspace-billing.service.js";
 import { resolveCommercialContext } from "./billing/commercial-context.service.js";
+import {
+  resolveEffectiveContractAiCap,
+  resolveEffectiveContractEvidenceCap,
+} from "./billing/enterprise-contract-limits.js";
 import {
   assertWorkspaceStorageAvailable,
   getWorkspaceUsage,
@@ -127,7 +140,12 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     // Rolling 30-day cap on TEAM workspaces. ENTERPRISE workspaces have
     // null monthly cap and skip the count. The team's `evidence_team_id_created_at_idx`
     // compound index covers this query.
-    const monthlyCap = caps.maxEvidenceRecordsPerMonth;
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted allowance
+    // governs; the catalog default applies only when the contract is silent.
+    const monthlyCap = resolveEffectiveContractEvidenceCap({
+      plan: scope.plan,
+      contract: scope.contractLimits,
+    });
     if (monthlyCap === null || monthlyCap <= 0) {
       return;
     }
@@ -171,82 +189,68 @@ export async function assertWorkspaceAllowsEvidenceCreation(
   // id, and the backfill migrates legacy NULL rows to it. Count both
   // shapes so plan limits survive the migration. (Evidence has no
   // `team` relation field, so the personal team id is resolved first.)
-  const personalTeam = await prisma.team.findFirst({
-    where: { ownerUserId: scope.ownerUserId, isPersonal: true },
-    select: { id: true },
-  });
-  const evidenceCount = await prisma.evidence.count({
-    where: {
-      ownerUserId: scope.ownerUserId,
-      deletedAt: null,
-      OR: [
-        { teamId: null },
-        ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
-      ],
-    },
-  });
+  const evidenceCount = await countPersonalEvidenceRecords(scope.ownerUserId);
 
   // §9.7 — the effective lifetime cap is resolved by the CANONICAL ENVELOPE
   // (`resolveCommercialContext(...).limits`, attached at the enforcement
   // chokepoint). This file no longer interprets the raw grandfather
   // override; a scope that did not travel through the envelope gets the
   // plan default (absence of an envelope value is not an override).
-  const planLifetimeCap = caps.maxEvidenceRecords;
   const effectiveLifetimeCap =
-    scope.commercialLimits?.effectiveLifetimeRecordCap ?? planLifetimeCap;
+    scope.commercialLimits?.effectiveLifetimeRecordCap ?? caps.maxEvidenceRecords;
 
-  const creditsRequired = caps.paygCreditsRequiredPerCompletion ?? 0;
-  const availableCredits = scope.credits ?? 0;
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE admission decision now
+  // lives in one pure policy (`resolvePersonalEvidenceAdmission`,
+  // @proovra/shared-billing) and this file supplies its inputs.
+  //
+  // What it replaces: a hand-rolled branch that asked
+  // `caps.paygCreditsRequiredPerCompletion` whether a credit could be spent.
+  // On FREE that value is 0, and a real PAYG buyer IS on FREE — no production
+  // path ever writes `entitlements.plan = 'PAYG'` — so the credit branch was
+  // unreachable and paid credits could never be spent. Credits are a wallet
+  // over the plan, not a property of the plan, so the plan no longer decides
+  // whether they exist.
+  const admission = resolvePersonalEvidenceAdmission({
+    plan: scope.plan,
+    currentRecordCount: evidenceCount,
+    effectiveLifetimeRecordCap: effectiveLifetimeCap,
+    availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
+  });
 
-  // No lifetime cap => either credit-bound (PAYG) or uncapped (ENTERPRISE).
-  if (effectiveLifetimeCap === null) {
-    if (creditsRequired > 0) {
-      if (availableCredits < creditsRequired) {
-        const err: Error & { statusCode?: number; code?: string } = new Error(
-          "Insufficient credits"
-        );
-        err.statusCode = 402;
-        err.code = "INSUFFICIENT_CREDITS";
-        throw err;
-      }
-    }
+  if (admission.allowed) {
+    // Admission only. The credit is not spent here — it is spent inside the
+    // completion transaction by `consumeEvidenceCreditForCompletion`, so a
+    // completion that never succeeds never costs the customer a credit.
     return;
   }
 
-  // Lifetime cap path (FREE 3, PRO 100, or legacy override).
-  if (evidenceCount < effectiveLifetimeCap) {
-    return;
+  if (admission.reason === "CREDIT_REQUIRED_NONE_AVAILABLE") {
+    // This plan grants no free allowance at all (the grandfathered PAYG
+    // resolution row), so the denial is purely "out of credits" and keeps the
+    // 402 status those accounts have always received.
+    throw new DomainError("Insufficient evidence credits", {
+      httpStatus: 402,
+      publicCode: "INSUFFICIENT_EVIDENCE_CREDITS",
+      publicMessage:
+        "You have no evidence credits left. Buy more to record further evidence.",
+      reportability: "EXPECTED_DENIAL",
+      severity: "info",
+      metadata: { plan: String(scope.plan), limitKind: "evidence_credits" },
+    });
   }
 
-  if (creditsRequired > 0) {
-    if (availableCredits < creditsRequired) {
-      const err: Error & { statusCode?: number; code?: string } = new Error(
-        "Insufficient credits"
-      );
-      err.statusCode = 402;
-      err.code = "INSUFFICIENT_CREDITS";
-      throw err;
-    }
-    return;
-  }
-
-  // Cap reached. Distinguish FREE for backcompat code consumers while
-  // emitting the new canonical code for everyone else.
+  // Allowance exhausted and no purchased credit available.
   //
   // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): this is a `DomainError`
-  // declaring itself an EXPECTED_DENIAL.
-  //
-  // It used to be a plain `Error` with `statusCode`/`code` assigned onto it —
-  // a shape the central handler does not recognise — so a user hitting the
-  // published FREE record cap produced an error-level Sentry issue, an
-  // operational page, and a 500 on the wire. The most ordinary outcome in the
-  // product was indistinguishable from a crash.
+  // declaring itself an EXPECTED_DENIAL. It used to be a plain `Error` with
+  // `statusCode`/`code` assigned onto it — a shape the central handler does
+  // not recognise — so a user hitting the published record cap produced an
+  // error-level Sentry issue and a 500 on the wire.
   //
   // 409 CONFLICT is retained deliberately: the request conflicts with the
   // current state of the resource (the workspace is at its record cap), and it
   // is the status the commercial vocabulary already uses for the report,
-  // package, intake and cases gates. It is not 402 — nothing here is unpaid,
-  // and the same denial applies to plans that cannot buy their way past it.
+  // package, intake and cases gates.
   const isFree = scope.plan === prismaPkg.PlanType.FREE;
   throw new DomainError(
     isFree
@@ -256,13 +260,48 @@ export async function assertWorkspaceAllowsEvidenceCreation(
       httpStatus: 409,
       publicCode: isFree ? "FREE_LIMIT_REACHED" : "EVIDENCE_RECORD_LIMIT_REACHED",
       publicMessage: isFree
-        ? "You have reached the record limit included in the Free plan. Existing records remain available."
-        : "You have reached the record limit included in your current plan. Existing records remain available.",
+        ? "You have used the 3 records included in the Free plan. Existing records remain available — buy evidence credits or upgrade to add more."
+        : "You have reached the record limit included in your current plan. Existing records remain available — buy evidence credits or upgrade to add more.",
       reportability: "EXPECTED_DENIAL",
       severity: "info",
       metadata: { plan: String(scope.plan), limitKind: "evidence_records" },
     },
   );
+}
+
+/**
+ * THE personal evidence-record count.
+ *
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — extracted so the enforcement
+ * gate, the completion-time funding decision and the Billing usage meter all
+ * count the same rows. They previously did not: the gate counted
+ * `deletedAt: null` while `getWorkspaceUsage` counted
+ * `lifecycleState != DESTROYED`, so the meter could read "3 of 3" while the
+ * gate still admitted a fourth record.
+ *
+ * The predicate is the ENFORCEMENT one — a trashed record releases its record
+ * slot. (Storage accounting deliberately differs and still counts trashed
+ * bytes, because those bytes are really still in the bucket.)
+ */
+export async function countPersonalEvidenceRecords(
+  ownerUserId: string,
+): Promise<number> {
+  const personalTeam = await prisma.team.findFirst({
+    where: { ownerUserId, isPersonal: true },
+    select: { id: true },
+  });
+
+  return prisma.evidence.count({
+    where: {
+      ownerUserId,
+      deletedAt: null,
+      lifecycleState: { not: "DESTROYED" },
+      OR: [
+        { teamId: null },
+        ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
+      ],
+    },
+  });
 }
 
 export async function assertWorkspaceAllowsStorageGrowth(params: {
@@ -387,43 +426,107 @@ export async function getWorkspaceAvailableStorageBytes(
   return usage.storageBytesRemaining;
 }
 
-export async function consumeWorkspaceCompletionCredits(
-  scope: WorkspaceScope,
-  tx?: EntitlementWriter
-) {
-  assertCommercialLifecycleAllowsPaidMutation(scope);
+/**
+ * Settle the commercial cost of ONE successfully completed Evidence record and
+ * report how it was funded.
+ *
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — replaces
+ * `consumeWorkspaceCompletionCredits`, which had three defects:
+ *
+ *   1. It asked `caps.paygCreditsRequiredPerCompletion` whether to charge. On
+ *      FREE — where every real credit buyer actually sits — that is 0, so it
+ *      never charged and never let a paid credit be spent.
+ *   2. It was called from INSIDE the completion transaction but ran against
+ *      the GLOBAL prisma client, so the decrement was not part of that
+ *      transaction. A completion that rolled back still burned the credit.
+ *   3. It had no per-record idempotency, so a retried completion could burn a
+ *      second credit for the same Evidence record.
+ *
+ * MUST be passed the completion's own transaction client. The caller's
+ * transaction is the atomic boundary: if the completion rolls back, so does
+ * the spend.
+ *
+ * Returns the funding source, which decides that record's outputs (see
+ * `resolveEvidenceOutputEntitlements`) — a credit-funded record earns its
+ * report and verification package even on a FREE account, because the
+ * entitlement belongs to the paid RECORD and not to the account.
+ */
+export async function settleEvidenceCompletionFunding(
+  params: {
+    scope: WorkspaceScope;
+    evidenceId: string;
+    /**
+     * Records already held by this personal subject BEFORE this one, counted
+     * with the canonical predicate. Supplied by the caller so the count is
+     * taken once inside the completion transaction's read window.
+     */
+    priorRecordCount: number;
+  },
+  client: EvidenceCreditClient,
+): Promise<{ funding: EvidenceFundingSource }> {
+  const { scope } = params;
+
+  // A SHARED workspace is funded by its own subscription; there is no personal
+  // wallet behind it and nothing to settle per record.
+  if (scope.billingShape === "SHARED") {
+    return { funding: "PLAN" };
+  }
+
   const caps = getPlanCapabilities(scope.plan);
-  const required = caps.paygCreditsRequiredPerCompletion;
+  const effectiveLifetimeCap =
+    scope.commercialLimits?.effectiveLifetimeRecordCap ?? caps.maxEvidenceRecords;
 
-  if (required <= 0) {
-    return;
-  }
-
-  if (!tx) {
-    await consumeCredits(scope.ownerUserId, required);
-    return;
-  }
-
-  const decremented = await tx.entitlement.updateMany({
-    where: {
-      userId: scope.ownerUserId,
-      active: true,
-      credits: { gte: required },
-    },
-    data: {
-      credits: { decrement: required },
-    },
+  const admission = resolvePersonalEvidenceAdmission({
+    plan: scope.plan,
+    currentRecordCount: params.priorRecordCount,
+    effectiveLifetimeRecordCap: effectiveLifetimeCap,
+    availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
   });
 
-  if (decremented.count !== 1) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Insufficient credits"
-    );
-    err.statusCode = 402;
-    err.code = "INSUFFICIENT_CREDITS";
-    throw err;
+  if (!admission.allowed) {
+    throw new DomainError("Insufficient evidence credits", {
+      httpStatus: 402,
+      publicCode: "INSUFFICIENT_EVIDENCE_CREDITS",
+      publicMessage:
+        "You have used your included records and have no evidence credits left. Buy more to continue.",
+      reportability: "EXPECTED_DENIAL",
+      severity: "info",
+      metadata: { limitKind: "evidence_credits" },
+    });
   }
+
+  if (admission.funding !== "EVIDENCE_CREDIT") {
+    return { funding: "PLAN" };
+  }
+
+  const result = await consumeEvidenceCreditForCompletion(
+    { userId: scope.ownerUserId, evidenceId: params.evidenceId },
+    client,
+  );
+
+  // `alreadyConsumed` is the idempotent-retry path: this record already paid.
+  void result;
+  return { funding: "EVIDENCE_CREDIT" };
 }
+
+/**
+ * The outputs ONE Evidence record earns, resolved from its workspace plan and
+ * how its completion was funded. Thin host binding over the canonical policy
+ * so the API and the worker cannot answer this differently.
+ */
+export function resolveEvidenceOutputs(input: {
+  plan: WorkspaceScope["plan"];
+  funding: EvidenceFundingSource;
+}) {
+  return resolveEvidenceOutputEntitlements({
+    plan: input.plan,
+    funding: input.funding,
+  });
+}
+
+/** Credits one completion costs. Re-exported so callers do not re-derive it. */
+export const EVIDENCE_CREDITS_PER_COMPLETION =
+  EVIDENCE_CREDIT_PRODUCT.creditsPerCompletion;
 
 export async function getWorkspaceBillingSummary(scope: WorkspaceScope) {
   const caps = getPlanCapabilities(scope.plan);
@@ -482,7 +585,12 @@ export async function assertWorkspaceAllowsAiOperation(
   // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
   assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
-  const cap = caps.aiAdvisoryMonthlyOperations;
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — contract-managed AI
+  // allowance when the contract states one.
+  const cap = resolveEffectiveContractAiCap({
+    plan: scope.plan,
+    contract: scope.contractLimits,
+  });
 
   if (cap === null) return; // ENTERPRISE / custom — no monthly cap.
   if (cap <= 0) {
