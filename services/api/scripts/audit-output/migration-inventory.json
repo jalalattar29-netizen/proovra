@@ -1,33 +1,34 @@
 {
-  "generatedAtUtc": "2026-06-02T07:21:35.761Z",
-  "migrationCount": 124,
+  "generatedAtUtc": "2026-08-27T18:47:52.806Z",
+  "migrationCount": 249,
   "summary": {
-    "CRITICAL": 173,
-    "HIGH": 439,
-    "MEDIUM": 163,
+    "CRITICAL": 216,
+    "HIGH": 542,
+    "MEDIUM": 332,
     "LOW": 0,
     "findingsByKind": {
-      "CREATE_INDEX_NO_IF_NOT_EXISTS": 242,
-      "ALTER_TABLE_DROP_COLUMN": 10,
-      "DROP_INDEX": 6,
-      "ALTER_TYPE": 86,
-      "ENUM_ADD_VALUE": 86,
-      "ADD_COLUMN_NO_IF_NOT_EXISTS": 25,
-      "ALTER_COLUMN_TYPE": 128,
-      "CREATE_TABLE_IF_NOT_EXISTS": 113,
-      "ALTER_COLUMN_SET_DEFAULT": 15,
+      "CREATE_INDEX_NO_IF_NOT_EXISTS": 277,
+      "ALTER_TABLE_DROP_COLUMN": 12,
+      "DROP_INDEX": 10,
+      "ALTER_TYPE": 105,
+      "ENUM_ADD_VALUE": 105,
+      "ADD_COLUMN_NO_IF_NOT_EXISTS": 55,
+      "ALTER_COLUMN_TYPE": 191,
+      "CREATE_TABLE_IF_NOT_EXISTS": 126,
+      "ALTER_COLUMN_SET_DEFAULT": 32,
       "ALTER_TABLE_RENAME": 1,
-      "INDEX_COLUMN_RISK": 40,
-      "SET_NOT_NULL_NO_READINESS": 2,
-      "CREATE_INDEX_GUARDED": 16,
-      "DROP_TABLE": 1,
-      "SET_NOT_NULL_WITH_READINESS": 4
+      "INDEX_COLUMN_RISK": 53,
+      "SET_NOT_NULL_WITH_READINESS": 69,
+      "SET_NOT_NULL_NO_READINESS": 8,
+      "CREATE_INDEX_GUARDED": 40,
+      "DROP_TABLE": 5,
+      "DROP_TYPE": 1
     }
   },
   "verdicts": {
-    "SAFE": 35,
-    "RISKY": 43,
-    "UNSAFE": 46
+    "SAFE": 119,
+    "RISKY": 62,
+    "UNSAFE": 68
   },
   "inventory": [
     {
@@ -1453,31 +1454,19 @@
       "migration": "20260510160000_phase_a_b_forensic_hardening",
       "timestamp": "20260510160000",
       "slug": "phase_a_b_forensic_hardening",
-      "verdict": "UNSAFE",
-      "rationale": "Critical pattern present.",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
       "tables": [
         "evidence"
       ],
       "totalColumnsAdded": 1,
       "findingsByRisk": {
-        "CRITICAL": 2,
+        "CRITICAL": 0,
         "HIGH": 8,
         "MEDIUM": 0,
         "LOW": 0
       },
       "findings": [
-        {
-          "kind": "ALTER_TABLE_DROP_COLUMN",
-          "risk": "CRITICAL",
-          "detail": "DROP COLUMN is destructive and cannot be safely re-applied.",
-          "lineHint": 9
-        },
-        {
-          "kind": "DROP_INDEX",
-          "risk": "CRITICAL",
-          "detail": "DROP INDEX risks production-read regressions.",
-          "lineHint": 10
-        },
         {
           "kind": "ALTER_TYPE",
           "risk": "HIGH",
@@ -1532,32 +1521,19 @@
       "migration": "20260510200000_phase_c_hardening",
       "timestamp": "20260510200000",
       "slug": "phase_c_hardening",
-      "verdict": "UNSAFE",
-      "rationale": "Critical pattern present.",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
       "tables": [
         "evidence"
       ],
       "totalColumnsAdded": 2,
       "findingsByRisk": {
-        "CRITICAL": 2,
+        "CRITICAL": 0,
         "HIGH": 0,
         "MEDIUM": 0,
         "LOW": 0
       },
-      "findings": [
-        {
-          "kind": "ALTER_TABLE_DROP_COLUMN",
-          "risk": "CRITICAL",
-          "detail": "DROP COLUMN is destructive and cannot be safely re-applied.",
-          "lineHint": 7
-        },
-        {
-          "kind": "ALTER_TABLE_DROP_COLUMN",
-          "risk": "CRITICAL",
-          "detail": "DROP COLUMN is destructive and cannot be safely re-applied.",
-          "lineHint": 8
-        }
-      ]
+      "findings": []
     },
     {
       "migration": "20260516120000_add_workflow_template_foundation",
@@ -4219,6 +4195,37 @@
       ]
     },
     {
+      "migration": "20260722110000_enterprise_provisioning_idempotency",
+      "timestamp": "20260722110000",
+      "slug": "enterprise_provisioning_idempotency",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "enterprise_provisioning_requests"
+      ],
+      "totalColumnsAdded": 11,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 36
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 38
+        }
+      ]
+    },
+    {
       "migration": "20260724000000_r8_1_3_mfa_pending_challenges",
       "timestamp": "20260724000000",
       "slug": "r8_1_3_mfa_pending_challenges",
@@ -5832,24 +5839,24 @@
       "migration": "20260927000000_p2_7x_stage6_invite_token_hash",
       "timestamp": "20260927000000",
       "slug": "p2_7x_stage6_invite_token_hash",
-      "verdict": "UNSAFE",
-      "rationale": "Critical pattern present.",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
       "tables": [
         "organization_invites"
       ],
       "totalColumnsAdded": 1,
       "findingsByRisk": {
-        "CRITICAL": 1,
+        "CRITICAL": 0,
         "HIGH": 2,
-        "MEDIUM": 0,
+        "MEDIUM": 1,
         "LOW": 0
       },
       "findings": [
         {
-          "kind": "SET_NOT_NULL_NO_READINESS",
-          "risk": "CRITICAL",
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
           "lineHint": 54,
-          "detail": "SET NOT NULL without a readiness marker risks rejecting NULL rows from production."
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
         },
         {
           "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
@@ -7254,6 +7261,4167 @@
         "evidence_semantic_chunks"
       ],
       "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270801000000_phase16_semantic_usage",
+      "timestamp": "20270801000000",
+      "slug": "phase16_semantic_usage",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 2,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 71,
+          "detail": "Index semantic_usage_daily_workspace_id_date_utc_key ON semantic_usage_daily(workspace_id,date_utc) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {workspace_id,date_utc}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 94,
+          "detail": "Index semantic_usage_daily_workspace_id_idx ON semantic_usage_daily(workspace_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {workspace_id}."
+        }
+      ]
+    },
+    {
+      "migration": "20270802000000_phase_sentry_batch_schema_drift_repair",
+      "timestamp": "20270802000000",
+      "slug": "phase_sentry_batch_schema_drift_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "chain_transfers",
+        "coding_fields",
+        "coding_schemas",
+        "delegated_admin_grants",
+        "evidence_exchange_packages",
+        "provider_budgets",
+        "redaction_policy_assignments",
+        "redaction_projects",
+        "status_components",
+        "subprocessors"
+      ],
+      "totalColumnsAdded": 10,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270803000000_phase_governance_additive_repair",
+      "timestamp": "20270803000000",
+      "slug": "phase_governance_additive_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "access_review_campaigns",
+        "cross_org_review_grants",
+        "departments",
+        "governance_policies"
+      ],
+      "totalColumnsAdded": 4,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 110,
+          "detail": "Index cross_org_review_grants_team_inviting_state_idx ON cross_org_review_grants(team_id,inviting_organization_id,state) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id,state}."
+        }
+      ]
+    },
+    {
+      "migration": "20270804000000_phase1_production_drift_stabilization",
+      "timestamp": "20270804000000",
+      "slug": "phase1_production_drift_stabilization",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "archive_tier_transitions",
+        "destruction_requests",
+        "legal_holds",
+        "redaction_policy_assignments",
+        "retention_policy_configs",
+        "reviewer_corrections"
+      ],
+      "totalColumnsAdded": 10,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270805000000_phase2_drift_repair_trust_status",
+      "timestamp": "20270805000000",
+      "slug": "phase2_drift_repair_trust_status",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "maintenance_windows",
+        "security_claim_checks",
+        "status_incident_updates",
+        "status_incidents",
+        "subprocessor_versions",
+        "trust_center_article_versions"
+      ],
+      "totalColumnsAdded": 15,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270806000000_phase2_drift_repair_governance",
+      "timestamp": "20270806000000",
+      "slug": "phase2_drift_repair_governance",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "delegated_admin_grants",
+        "governance_policy_assignments",
+        "governance_policy_audits"
+      ],
+      "totalColumnsAdded": 10,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270807000000_phase2_drift_repair_redaction",
+      "timestamp": "20270807000000",
+      "slug": "phase2_drift_repair_redaction",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "redaction_activities",
+        "redaction_approvals",
+        "redaction_decisions",
+        "redaction_derivatives",
+        "redaction_detections",
+        "redaction_policy_versions",
+        "redaction_versions"
+      ],
+      "totalColumnsAdded": 19,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270808000000_phase2_drift_repair_lifecycle_webhooks",
+      "timestamp": "20270808000000",
+      "slug": "phase2_drift_repair_lifecycle_webhooks",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "webhook_deliveries",
+        "webhook_endpoints"
+      ],
+      "totalColumnsAdded": 5,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270809000000_phase_2_1_final_drift_closure",
+      "timestamp": "20270809000000",
+      "slug": "phase_2_1_final_drift_closure",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "redaction_policy_audits",
+        "verification_packages"
+      ],
+      "totalColumnsAdded": 12,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270810000000_wave1_graph_taxonomy_renames",
+      "timestamp": "20270810000000",
+      "slug": "wave1_graph_taxonomy_renames",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270811000000_wave2_duplicate_decisions",
+      "timestamp": "20270811000000",
+      "slug": "wave2_duplicate_decisions",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "duplicate_decisions"
+      ],
+      "totalColumnsAdded": 8,
+      "findingsByRisk": {
+        "CRITICAL": 2,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 27
+        },
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 29
+        }
+      ]
+    },
+    {
+      "migration": "20270812000000_wave3_custody_event_type_widening",
+      "timestamp": "20270812000000",
+      "slug": "wave3_custody_event_type_widening",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 18,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 46
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 58
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 72
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 86
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 100
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 114
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 128
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 142
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 156
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 46
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 58
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 72
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 86
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 100
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 114
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 128
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 142
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 156
+        }
+      ]
+    },
+    {
+      "migration": "20270813000000_phase2_api_key_dual_active_rotation",
+      "timestamp": "20270813000000",
+      "slug": "phase2_api_key_dual_active_rotation",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "api_credentials"
+      ],
+      "totalColumnsAdded": 3,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270814000000_phase4_webhook_dual_signing_rotation",
+      "timestamp": "20270814000000",
+      "slug": "phase4_webhook_dual_signing_rotation",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "integration_webhook_endpoints"
+      ],
+      "totalColumnsAdded": 3,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270815000000_phase_closure_webhook_delivery_duration",
+      "timestamp": "20270815000000",
+      "slug": "phase_closure_webhook_delivery_duration",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "integration_webhook_deliveries"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270816000000_phase_t_template_identity_columns",
+      "timestamp": "20270816000000",
+      "slug": "phase_t_template_identity_columns",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence",
+        "evidence_review_workflows"
+      ],
+      "totalColumnsAdded": 5,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 2,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 95,
+          "detail": "Index evidence_team_id_template_slug_idx ON evidence(team_id,template_slug) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 153,
+          "detail": "Index evidence_review_workflows_team_id_template_slug_idx ON evidence_review_workflows(team_id,template_slug) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id,template_slug}."
+        }
+      ]
+    },
+    {
+      "migration": "20270817000000_phase_t_coding_schema_uuid_default_repair",
+      "timestamp": "20270817000000",
+      "slug": "phase_t_coding_schema_uuid_default_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 2,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 7
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 10
+        }
+      ]
+    },
+    {
+      "migration": "20270818000000_phase_t_coding_values_updated_at_default",
+      "timestamp": "20270818000000",
+      "slug": "phase_t_coding_values_updated_at_default",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 4
+        }
+      ]
+    },
+    {
+      "migration": "20270818010000_phase_t_coding_values_id_default",
+      "timestamp": "20270818010000",
+      "slug": "phase_t_coding_values_id_default",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 4
+        }
+      ]
+    },
+    {
+      "migration": "20270818020000_phase_t_reviewer_disagreements_defaults",
+      "timestamp": "20270818020000",
+      "slug": "phase_t_reviewer_disagreements_defaults",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 2,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 4
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 5
+        }
+      ]
+    },
+    {
+      "migration": "20270818030000_phase_t_trust_center_drift_repair",
+      "timestamp": "20270818030000",
+      "slug": "phase_t_trust_center_drift_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "status_components",
+        "subprocessor_versions",
+        "trust_center_article_versions"
+      ],
+      "totalColumnsAdded": 3,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270819000000_phase_t_trust_center_versions_published_at_repair",
+      "timestamp": "20270819000000",
+      "slug": "phase_t_trust_center_versions_published_at_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "trust_center_article_versions"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270819010000_phase_t_subprocessor_versions_runtime_repair",
+      "timestamp": "20270819010000",
+      "slug": "phase_t_subprocessor_versions_runtime_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "subprocessor_versions"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 29
+        }
+      ]
+    },
+    {
+      "migration": "20270820000000_add_inbox_item_state",
+      "timestamp": "20270820000000",
+      "slug": "add_inbox_item_state",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "inbox_item_state"
+      ],
+      "totalColumnsAdded": 12,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 1,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 63
+        }
+      ]
+    },
+    {
+      "migration": "20270821000000_phase_search_evidence_search_documents_legacy_drop_not_null",
+      "timestamp": "20270821000000",
+      "slug": "phase_search_evidence_search_documents_legacy_drop_not_null",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270822000000_intake_link_sender_identity",
+      "timestamp": "20270822000000",
+      "slug": "intake_link_sender_identity",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "workflow_intake_links"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 14
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 15
+        }
+      ]
+    },
+    {
+      "migration": "20270823000000_communication_message_idem_key_split",
+      "timestamp": "20270823000000",
+      "slug": "communication_message_idem_key_split",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "communication_messages"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 62,
+          "detail": "Index communication_messages_delivery_idem_uk ON communication_messages(related_intake_link_id,channel,delivery_idempotency_key) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {related_intake_link_id,channel}."
+        }
+      ]
+    },
+    {
+      "migration": "20270824000000_intake_link_archive",
+      "timestamp": "20270824000000",
+      "slug": "intake_link_archive",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "workflow_intake_links"
+      ],
+      "totalColumnsAdded": 2,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 41,
+          "detail": "Index workflow_intake_links_team_archived_idx ON workflow_intake_links(team_id,archived_at_utc) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id}."
+        }
+      ]
+    },
+    {
+      "migration": "20270825000000_intake_link_location_collection",
+      "timestamp": "20270825000000",
+      "slug": "intake_link_location_collection",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence",
+        "workflow_intake_links"
+      ],
+      "totalColumnsAdded": 2,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270826000000_pricing_hardening_enterprise_plan_record_caps",
+      "timestamp": "20270826000000",
+      "slug": "pricing_hardening_enterprise_plan_record_caps",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "entitlements"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 2,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 47,
+          "detail": "Index evidence_team_id_created_at_idx ON evidence(team_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 67,
+          "detail": "Index evidence_team_id_deleted_at_created_at_idx ON evidence(team_id,deleted_at) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id,deleted_at}."
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 20
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 20
+        }
+      ]
+    },
+    {
+      "migration": "20270827000000_contact_sales_lead_capture",
+      "timestamp": "20270827000000",
+      "slug": "contact_sales_lead_capture",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "contact_sales_requests"
+      ],
+      "totalColumnsAdded": 34,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 46
+        }
+      ]
+    },
+    {
+      "migration": "20270828000000_email_verification_tokens",
+      "timestamp": "20270828000000",
+      "slug": "email_verification_tokens",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "email_verification_tokens"
+      ],
+      "totalColumnsAdded": 6,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 19
+        }
+      ]
+    },
+    {
+      "migration": "20270829000000_evr_p4_canonical_verification_record",
+      "timestamp": "20270829000000",
+      "slug": "evr_p4_canonical_verification_record",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270829000000_phase_2a_live_missing_columns_catchup",
+      "timestamp": "20270829000000",
+      "slug": "phase_2a_live_missing_columns_catchup",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "access_review_items",
+        "cross_org_review_grants",
+        "department_memberships",
+        "departments",
+        "entitlement_grants",
+        "evidence_exchange_package_deliveries",
+        "external_review_invitation_deliveries",
+        "governance_policies",
+        "governance_policy_assignments",
+        "media_intelligence_records",
+        "redaction_approvals",
+        "redaction_decisions",
+        "redaction_derivatives",
+        "redaction_detections",
+        "redaction_policy_versions",
+        "redaction_regions",
+        "redaction_versions",
+        "video_tracks"
+      ],
+      "totalColumnsAdded": 20,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 2,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 52
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 276
+        }
+      ]
+    },
+    {
+      "migration": "20270830000000_evr_p10_tsa_retry_tracking",
+      "timestamp": "20270830000000",
+      "slug": "evr_p10_tsa_retry_tracking",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270901000000_verification_package_validation_findings",
+      "timestamp": "20270901000000",
+      "slug": "verification_package_validation_findings",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270902000000_verification_package_hash",
+      "timestamp": "20270902000000",
+      "slug": "verification_package_hash",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270903000000_verification_package_validation_status",
+      "timestamp": "20270903000000",
+      "slug": "verification_package_validation_status",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270904000000_report_claims_package_verified",
+      "timestamp": "20270904000000",
+      "slug": "report_claims_package_verified",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270905000000_contributor_identity_snapshot",
+      "timestamp": "20270905000000",
+      "slug": "contributor_identity_snapshot",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270906000000_phase_2b_1_timestamp_repairs",
+      "timestamp": "20270906000000",
+      "slug": "phase_2b_1_timestamp_repairs",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 9,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 27
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 42
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 57
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 72
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 87
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 102
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 117
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 132
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 147
+        }
+      ]
+    },
+    {
+      "migration": "20270906010000_phase_2b_2_integer_widening",
+      "timestamp": "20270906010000",
+      "slug": "phase_2b_2_integer_widening",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 7,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 24
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 35
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 46
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 57
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 68
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 79
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 90
+        }
+      ]
+    },
+    {
+      "migration": "20270906020000_phase_2b_3_string_type_alignment",
+      "timestamp": "20270906020000",
+      "slug": "phase_2b_3_string_type_alignment",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 28,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 24
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 34
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 44
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 54
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 64
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 74
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 84
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 94
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 104
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 114
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 124
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 134
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 144
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 154
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 164
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 174
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 184
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 194
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 204
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 214
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 224
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 234
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 244
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 254
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 264
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 274
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 284
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 294
+        }
+      ]
+    },
+    {
+      "migration": "20270906030000_phase_2b_4_nullability_hardening",
+      "timestamp": "20270906030000",
+      "slug": "phase_2b_4_nullability_hardening",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 64,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 25,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 37,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 49,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 61,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 73,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 85,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 97,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 109,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 121,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 133,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 145,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 157,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 169,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 181,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 193,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 205,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 217,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 229,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 241,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 253,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 265,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 277,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 289,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 301,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 313,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 325,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 337,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 349,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 361,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 373,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 385,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 397,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 409,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 421,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 433,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 445,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 457,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 469,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 481,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 493,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 505,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 517,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 529,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 541,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 553,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 565,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 577,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 589,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 601,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 613,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 625,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 637,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 649,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 661,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 673,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 685,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 697,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 709,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 721,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 733,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 745,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 757,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 769,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        },
+        {
+          "kind": "SET_NOT_NULL_WITH_READINESS",
+          "risk": "MEDIUM",
+          "lineHint": 781,
+          "detail": "SET NOT NULL is preceded by a documented readiness marker."
+        }
+      ]
+    },
+    {
+      "migration": "20270906040000_phase_2b_5_enum_alignment",
+      "timestamp": "20270906040000",
+      "slug": "phase_2b_5_enum_alignment",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 12,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 115
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 115
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 268
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 318
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 368
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 418
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 472
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 165
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 217
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 264
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 314
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 364
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 414
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 468
+        }
+      ]
+    },
+    {
+      "migration": "20270906050000_phase_2b_6_uuid_and_identifier_alignment",
+      "timestamp": "20270906050000",
+      "slug": "phase_2b_6_uuid_and_identifier_alignment",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 7,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 28
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 51
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 74
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 97
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 120
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 143
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 166
+        }
+      ]
+    },
+    {
+      "migration": "20270906060000_phase_2b_7_json_semantic_repairs",
+      "timestamp": "20270906060000",
+      "slug": "phase_2b_7_json_semantic_repairs",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 2,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 40
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 59
+        }
+      ]
+    },
+    {
+      "migration": "20270906070000_phase_2c_d_provider_confidence_nullable_relaxation",
+      "timestamp": "20270906070000",
+      "slug": "phase_2c_d_provider_confidence_nullable_relaxation",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270907000000_technical_metadata_capture_environment",
+      "timestamp": "20270907000000",
+      "slug": "technical_metadata_capture_environment",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence",
+        "evidence_parts"
+      ],
+      "totalColumnsAdded": 2,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270908000000_drop_evidence_anchor_publication_columns",
+      "timestamp": "20270908000000",
+      "slug": "drop_evidence_anchor_publication_columns",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 2,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TABLE_DROP_COLUMN",
+          "risk": "CRITICAL",
+          "detail": "DROP COLUMN is destructive and cannot be safely re-applied.",
+          "lineHint": 7
+        },
+        {
+          "kind": "ALTER_TABLE_DROP_COLUMN",
+          "risk": "CRITICAL",
+          "detail": "DROP COLUMN is destructive and cannot be safely re-applied.",
+          "lineHint": 8
+        }
+      ]
+    },
+    {
+      "migration": "20270909000000_org_pending_enterprise_seats",
+      "timestamp": "20270909000000",
+      "slug": "org_pending_enterprise_seats",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "organizations"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 1,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 12
+        }
+      ]
+    },
+    {
+      "migration": "20270910000000_phase_3_enterprise_identity_domains_and_sp_signing",
+      "timestamp": "20270910000000",
+      "slug": "phase_3_enterprise_identity_domains_and_sp_signing",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "organization_domains",
+        "sso_connections"
+      ],
+      "totalColumnsAdded": 11,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 6,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 14
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 18
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 24
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 43
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 46
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 49
+        }
+      ]
+    },
+    {
+      "migration": "20270911000000_workspace_ai_policy",
+      "timestamp": "20270911000000",
+      "slug": "workspace_ai_policy",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "workspace_ai_policies"
+      ],
+      "totalColumnsAdded": 25,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 38
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 39
+        }
+      ]
+    },
+    {
+      "migration": "20270912000000_ai_copilot_runs",
+      "timestamp": "20270912000000",
+      "slug": "ai_copilot_runs",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "ai_copilot_observation_reviews",
+        "ai_copilot_runs"
+      ],
+      "totalColumnsAdded": 34,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 7,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 33
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 34
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 35
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 36
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 37
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 51
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 53
+        }
+      ]
+    },
+    {
+      "migration": "20270913000000_ai_usage_ledger",
+      "timestamp": "20270913000000",
+      "slug": "ai_usage_ledger",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "ai_usage_daily",
+        "ai_usage_events",
+        "ai_usage_monthly"
+      ],
+      "totalColumnsAdded": 25,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 5,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 21
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 22
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 23
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 32
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 41
+        }
+      ]
+    },
+    {
+      "migration": "20270914000000_reviewer_criteria_catalog",
+      "timestamp": "20270914000000",
+      "slug": "reviewer_criteria_catalog",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "reviewer_criteria",
+        "reviewer_criteria_sets",
+        "reviewer_criteria_versions"
+      ],
+      "totalColumnsAdded": 29,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 3,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 16
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 30
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 46
+        }
+      ]
+    },
+    {
+      "migration": "20270915000000_mi_provider_local_value_rename",
+      "timestamp": "20270915000000",
+      "slug": "mi_provider_local_value_rename",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270916000000_operations_center_history_and_schedule",
+      "timestamp": "20270916000000",
+      "slug": "operations_center_history_and_schedule",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "notification_schedule_settings",
+        "operations_inbox_snapshots"
+      ],
+      "totalColumnsAdded": 38,
+      "findingsByRisk": {
+        "CRITICAL": 2,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 14
+        },
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 72
+        }
+      ]
+    },
+    {
+      "migration": "20270917000000_org_notification_policy_and_resolution_provenance",
+      "timestamp": "20270917000000",
+      "slug": "org_notification_policy_and_resolution_provenance",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "operations_inbox_snapshots",
+        "organization_notification_policies"
+      ],
+      "totalColumnsAdded": 14,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 12
+        }
+      ]
+    },
+    {
+      "migration": "20270918000000_user_identity_links",
+      "timestamp": "20270918000000",
+      "slug": "user_identity_links",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "user_identity_links"
+      ],
+      "totalColumnsAdded": 12,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 17
+        }
+      ]
+    },
+    {
+      "migration": "20270919000000_account_data_export_requests",
+      "timestamp": "20270919000000",
+      "slug": "account_data_export_requests",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "account_data_export_requests"
+      ],
+      "totalColumnsAdded": 15,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 7
+        }
+      ]
+    },
+    {
+      "migration": "20270920000000_account_closure_requests",
+      "timestamp": "20270920000000",
+      "slug": "account_closure_requests",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "account_closure_requests"
+      ],
+      "totalColumnsAdded": 13,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 7
+        }
+      ]
+    },
+    {
+      "migration": "20270920000000_workspace_kind_discriminator",
+      "timestamp": "20270920000000",
+      "slug": "workspace_kind_discriminator",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "organizations",
+        "teams"
+      ],
+      "totalColumnsAdded": 2,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 3,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 32
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 35
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 70
+        }
+      ]
+    },
+    {
+      "migration": "20270920100000_org_invite_workspace_assignments",
+      "timestamp": "20270920100000",
+      "slug": "org_invite_workspace_assignments",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "organization_invites"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 18
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 19
+        }
+      ]
+    },
+    {
+      "migration": "20270920200000_membership_grant_provenance",
+      "timestamp": "20270920200000",
+      "slug": "membership_grant_provenance",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "membership_grants"
+      ],
+      "totalColumnsAdded": 11,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 3,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 54
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 56
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 58
+        }
+      ]
+    },
+    {
+      "migration": "20270920250000_membership_grant_legacy_backfill",
+      "timestamp": "20270920250000",
+      "slug": "membership_grant_legacy_backfill",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270920300000_enterprise_contract_state",
+      "timestamp": "20270920300000",
+      "slug": "enterprise_contract_state",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "enterprise_contracts"
+      ],
+      "totalColumnsAdded": 18,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 54
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 56
+        }
+      ]
+    },
+    {
+      "migration": "20270921000000_organization_closure_requests",
+      "timestamp": "20270921000000",
+      "slug": "organization_closure_requests",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "organization_closure_requests"
+      ],
+      "totalColumnsAdded": 14,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 7
+        }
+      ]
+    },
+    {
+      "migration": "20270922000000_workspace_closure_requests",
+      "timestamp": "20270922000000",
+      "slug": "workspace_closure_requests",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "workspace_closure_requests"
+      ],
+      "totalColumnsAdded": 14,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 7
+        }
+      ]
+    },
+    {
+      "migration": "20270923000000_notification_schedule_timezone_inherit",
+      "timestamp": "20270923000000",
+      "slug": "notification_schedule_timezone_inherit",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270923500000_persona_profiles_removal_precondition",
+      "timestamp": "20270923500000",
+      "slug": "persona_profiles_removal_precondition",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20270924000000_drop_workspace_persona_profiles",
+      "timestamp": "20270924000000",
+      "slug": "drop_workspace_persona_profiles",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "DROP_TABLE",
+          "risk": "CRITICAL",
+          "detail": "DROP TABLE is destructive.",
+          "lineHint": 21
+        }
+      ]
+    },
+    {
+      "migration": "20270925000000_user_identity_mode",
+      "timestamp": "20270925000000",
+      "slug": "user_identity_mode",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "users"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271001000000_org_security_policy_phase10",
+      "timestamp": "20271001000000",
+      "slug": "org_security_policy_phase10",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "emergency_access_grants",
+        "organization_security_policies",
+        "support_access_grants"
+      ],
+      "totalColumnsAdded": 24,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 14,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 6
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 7
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 8
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 9
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 10
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 11
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 12
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 13
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 14
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 15
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 32
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 33
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 50
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 51
+        }
+      ]
+    },
+    {
+      "migration": "20271002000000_managed_identity_ownership",
+      "timestamp": "20271002000000",
+      "slug": "managed_identity_ownership",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "users"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271003000000_managed_identity_ownership_backfill",
+      "timestamp": "20271003000000",
+      "slug": "managed_identity_ownership_backfill",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271004000000_authenticated_session_org_context",
+      "timestamp": "20271004000000",
+      "slug": "authenticated_session_org_context",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "authenticated_sessions"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271005000000_org_security_policy_org_scoped",
+      "timestamp": "20271005000000",
+      "slug": "org_security_policy_org_scoped",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "organization_security_policies"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271006000000_org_security_policy_lifecycle",
+      "timestamp": "20271006000000",
+      "slug": "org_security_policy_lifecycle",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "organization_security_policies"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271101000000_audit_tenant_columns",
+      "timestamp": "20271101000000",
+      "slug": "audit_tenant_columns",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "admin_audit_logs"
+      ],
+      "totalColumnsAdded": 2,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271102000000_uuid_id_default_repair",
+      "timestamp": "20271102000000",
+      "slug": "uuid_id_default_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 60
+        }
+      ]
+    },
+    {
+      "migration": "20271103000000_case_evidence_link_canonical",
+      "timestamp": "20271103000000",
+      "slug": "case_evidence_link_canonical",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271104000000_case_evidence_link_integrity",
+      "timestamp": "20271104000000",
+      "slug": "case_evidence_link_integrity",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271105000000_evidence_case_id_removal",
+      "timestamp": "20271105000000",
+      "slug": "evidence_case_id_removal",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 3,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TABLE_DROP_COLUMN",
+          "risk": "CRITICAL",
+          "detail": "DROP COLUMN is destructive and cannot be safely re-applied.",
+          "lineHint": 147
+        },
+        {
+          "kind": "DROP_INDEX",
+          "risk": "CRITICAL",
+          "detail": "DROP INDEX risks production-read regressions.",
+          "lineHint": 136
+        },
+        {
+          "kind": "DROP_INDEX",
+          "risk": "CRITICAL",
+          "detail": "DROP INDEX risks production-read regressions.",
+          "lineHint": 137
+        }
+      ]
+    },
+    {
+      "migration": "20271106000000_legal_hold_canonical",
+      "timestamp": "20271106000000",
+      "slug": "legal_hold_canonical",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "evidence_legal_holds"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 3,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 250,
+          "detail": "Index evidence_legal_holds_source_store_source_row_id_key ON evidence_legal_holds(source_store,source_row_id) references column(s) {source_store,source_row_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 253,
+          "detail": "Index evidence_legal_holds_case_id_status_idx ON evidence_legal_holds(case_id,status) references column(s) {case_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 256,
+          "detail": "Index evidence_legal_holds_team_id_scope_status_idx ON evidence_legal_holds(team_id,scope,status) references column(s) {team_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 71
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 71
+        }
+      ]
+    },
+    {
+      "migration": "20271107000000_legal_hold_backfill",
+      "timestamp": "20271107000000",
+      "slug": "legal_hold_backfill",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271108000000_legal_hold_legacy_removal",
+      "timestamp": "20271108000000",
+      "slug": "legal_hold_legacy_removal",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 3,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "DROP_TABLE",
+          "risk": "CRITICAL",
+          "detail": "DROP TABLE is destructive.",
+          "lineHint": 190
+        },
+        {
+          "kind": "DROP_TABLE",
+          "risk": "CRITICAL",
+          "detail": "DROP TABLE is destructive.",
+          "lineHint": 191
+        },
+        {
+          "kind": "DROP_TYPE",
+          "risk": "CRITICAL",
+          "detail": "DROP TYPE on a referenced enum breaks every dependent column.",
+          "lineHint": 196
+        }
+      ]
+    },
+    {
+      "migration": "20271109000000_workspace_governance_policy_version",
+      "timestamp": "20271109000000",
+      "slug": "workspace_governance_policy_version",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "workspace_governance_policies"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 1,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "SET_NOT_NULL_NO_READINESS",
+          "risk": "CRITICAL",
+          "lineHint": 73,
+          "detail": "SET NOT NULL without a readiness marker risks rejecting NULL rows from production."
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 46
+        },
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 81
+        }
+      ]
+    },
+    {
+      "migration": "20271110000000_exchange_download_authorization_semantics",
+      "timestamp": "20271110000000",
+      "slug": "exchange_download_authorization_semantics",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "evidence_exchange_package_deliveries"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 1,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 43
+        }
+      ]
+    },
+    {
+      "migration": "20271111000000_step_up_session_organization_binding",
+      "timestamp": "20271111000000",
+      "slug": "step_up_session_organization_binding",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "step_up_challenges"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 32,
+          "detail": "Index step_up_challenges_organization_id_status_idx ON step_up_challenges(organization_id,status) references column(s) {organization_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        }
+      ]
+    },
+    {
+      "migration": "20271112000000_point4_write_unblock_repair",
+      "timestamp": "20271112000000",
+      "slug": "point4_write_unblock_repair",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 2,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_COLUMN_SET_DEFAULT",
+          "risk": "MEDIUM",
+          "detail": "Default change affects only future inserts; existing rows unchanged.",
+          "lineHint": 107
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 105
+        }
+      ]
+    },
+    {
+      "migration": "20271113000000_point5_report_generation_authority",
+      "timestamp": "20271113000000",
+      "slug": "point5_report_generation_authority",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "report_generation_requests"
+      ],
+      "totalColumnsAdded": 20,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_TABLE_IF_NOT_EXISTS",
+          "risk": "CRITICAL",
+          "detail": "CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.",
+          "lineHint": 21
+        }
+      ]
+    },
+    {
+      "migration": "20271114000000_point5_media_intelligence_kind_catalog",
+      "timestamp": "20271114000000",
+      "slug": "point5_media_intelligence_kind_catalog",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271115000000_point5_atomic_sweep_claims",
+      "timestamp": "20271115000000",
+      "slug": "point5_atomic_sweep_claims",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 4,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 87,
+          "detail": "Index governance_reconciliation_runs_running_lock_uniq ON governance_reconciliation_runs(kind,lock_key) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {kind,lock_key}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 123,
+          "detail": "Index destruction_executions_active_review_uniq ON destruction_executions(destruction_review_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {destruction_review_id}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 170,
+          "detail": "Index destruction_reviews_active_evidence_uniq ON destruction_reviews(evidence_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {evidence_id}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 203,
+          "detail": "Index archive_tier_transitions_active_evidence_uniq ON archive_tier_transitions(evidence_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {evidence_id}."
+        }
+      ]
+    },
+    {
+      "migration": "20271117000000_point4_schema_authority_contract",
+      "timestamp": "20271117000000",
+      "slug": "point4_schema_authority_contract",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 2,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TABLE_DROP_COLUMN",
+          "risk": "CRITICAL",
+          "detail": "DROP COLUMN is destructive and cannot be safely re-applied.",
+          "lineHint": 101
+        },
+        {
+          "kind": "DROP_TABLE",
+          "risk": "CRITICAL",
+          "detail": "DROP TABLE is destructive.",
+          "lineHint": 128
+        }
+      ]
+    },
+    {
+      "migration": "20271118000000_legal_hold_strict_scope_target",
+      "timestamp": "20271118000000",
+      "slug": "legal_hold_strict_scope_target",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271119000000_search_document_embedding_after_extension",
+      "timestamp": "20271119000000",
+      "slug": "search_document_embedding_after_extension",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "evidence_search_documents"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 76
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 90
+        }
+      ]
+    },
+    {
+      "migration": "20271120000000_external_review_invitation_authority_expand",
+      "timestamp": "20271120000000",
+      "slug": "external_review_invitation_authority_expand",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [
+        "external_review_grants",
+        "external_review_invitation_deliveries"
+      ],
+      "totalColumnsAdded": 4,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 4,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 58
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 84
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 92
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 100
+        }
+      ]
+    },
+    {
+      "migration": "20271121000000_external_review_invitation_authority_backfill",
+      "timestamp": "20271121000000",
+      "slug": "external_review_invitation_authority_backfill",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271122000000_external_review_invitation_authority_contract",
+      "timestamp": "20271122000000",
+      "slug": "external_review_invitation_authority_contract",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 3,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TABLE_DROP_COLUMN",
+          "risk": "CRITICAL",
+          "detail": "DROP COLUMN is destructive and cannot be safely re-applied.",
+          "lineHint": 266
+        },
+        {
+          "kind": "DROP_INDEX",
+          "risk": "CRITICAL",
+          "detail": "DROP INDEX risks production-read regressions.",
+          "lineHint": 186
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 203,
+          "detail": "Index external_review_invitation_deliveries_intent_key ON external_review_invitation_deliveries(team_id,grant_id,content_version,resend_seq) references column(s) {team_id,grant_id,content_version,resend_seq} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 215,
+          "detail": "Index external_review_invitation_deliveries_intent_key_uk ON external_review_invitation_deliveries(intent_key) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {intent_key}."
+        }
+      ]
+    },
+    {
+      "migration": "20271123000000_workspace_kind_authority_expand",
+      "timestamp": "20271123000000",
+      "slug": "workspace_kind_authority_expand",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271124000000_workspace_kind_authority_backfill",
+      "timestamp": "20271124000000",
+      "slug": "workspace_kind_authority_backfill",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271125000000_workspace_kind_authority_contract",
+      "timestamp": "20271125000000",
+      "slug": "workspace_kind_authority_contract",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 3,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "DROP_INDEX",
+          "risk": "CRITICAL",
+          "detail": "DROP INDEX risks production-read regressions.",
+          "lineHint": 168
+        },
+        {
+          "kind": "SET_NOT_NULL_NO_READINESS",
+          "risk": "CRITICAL",
+          "lineHint": 104,
+          "detail": "SET NOT NULL without a readiness marker risks rejecting NULL rows from production."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 153,
+          "detail": "Index teams_one_personal_space_per_owner_uk ON teams(owner_user_id) references column(s) {owner_user_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        }
+      ]
+    },
+    {
+      "migration": "20271126000000_org_membership_lifecycle_expand",
+      "timestamp": "20271126000000",
+      "slug": "org_membership_lifecycle_expand",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 2,
+        "HIGH": 1,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 134,
+          "detail": "Index organization_memberships_organization_id_status_idx ON organization_memberships(organization_id,status) references column(s) {organization_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 135,
+          "detail": "Index organization_memberships_user_id_status_idx ON organization_memberships(user_id,status) references column(s) {user_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 82
+        }
+      ]
+    },
+    {
+      "migration": "20271127000000_org_membership_lifecycle_backfill",
+      "timestamp": "20271127000000",
+      "slug": "org_membership_lifecycle_backfill",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271128000000_org_membership_lifecycle_contract",
+      "timestamp": "20271128000000",
+      "slug": "org_membership_lifecycle_contract",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 1,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "SET_NOT_NULL_NO_READINESS",
+          "risk": "CRITICAL",
+          "lineHint": 104,
+          "detail": "SET NOT NULL without a readiness marker risks rejecting NULL rows from production."
+        }
+      ]
+    },
+    {
+      "migration": "20271129000000_automation_runtime_durability_expand",
+      "timestamp": "20271129000000",
+      "slug": "automation_runtime_durability_expand",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 4,
+        "HIGH": 2,
+        "MEDIUM": 4,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 200,
+          "detail": "Index automation_runs_due_idx ON automation_runs(next_attempt_at_utc,created_at) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {next_attempt_at_utc}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 209,
+          "detail": "Index automation_runs_expired_lease_idx ON automation_runs(lease_expires_at_utc) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {lease_expires_at_utc}."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 219,
+          "detail": "Index automation_runs_source_event_expand_idx ON automation_runs(team_id,source_event_id) references column(s) {team_id,source_event_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 262,
+          "detail": "Index automation_webhook_deliveries_due_idx ON automation_webhook_deliveries(next_attempt_at) references column(s) {next_attempt_at} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 263,
+          "detail": "Index automation_webhook_deliveries_expired_lease_idx ON automation_webhook_deliveries(lease_expires_at_utc) references column(s) {lease_expires_at_utc} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 267,
+          "detail": "Index automation_webhook_deliveries_ambiguous_due_idx ON automation_webhook_deliveries(next_attempt_at) references column(s) {next_attempt_at} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 130
+        },
+        {
+          "kind": "ADD_COLUMN_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.",
+          "lineHint": 257
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 74
+        },
+        {
+          "kind": "ALTER_COLUMN_TYPE",
+          "risk": "MEDIUM",
+          "detail": "Type change can take a long-running ACCESS EXCLUSIVE lock on large tables.",
+          "lineHint": 84
+        }
+      ]
+    },
+    {
+      "migration": "20271130000000_automation_runtime_durability_backfill",
+      "timestamp": "20271130000000",
+      "slug": "automation_runtime_durability_backfill",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271131000000_automation_runtime_durability_contract",
+      "timestamp": "20271131000000",
+      "slug": "automation_runtime_durability_contract",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 6,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "DROP_INDEX",
+          "risk": "CRITICAL",
+          "detail": "DROP INDEX risks production-read regressions.",
+          "lineHint": 125
+        },
+        {
+          "kind": "SET_NOT_NULL_NO_READINESS",
+          "risk": "CRITICAL",
+          "lineHint": 104,
+          "detail": "SET NOT NULL without a readiness marker risks rejecting NULL rows from production."
+        },
+        {
+          "kind": "SET_NOT_NULL_NO_READINESS",
+          "risk": "CRITICAL",
+          "lineHint": 105,
+          "detail": "SET NOT NULL without a readiness marker risks rejecting NULL rows from production."
+        },
+        {
+          "kind": "SET_NOT_NULL_NO_READINESS",
+          "risk": "CRITICAL",
+          "lineHint": 106,
+          "detail": "SET NOT NULL without a readiness marker risks rejecting NULL rows from production."
+        },
+        {
+          "kind": "SET_NOT_NULL_NO_READINESS",
+          "risk": "CRITICAL",
+          "lineHint": 153,
+          "detail": "SET NOT NULL without a readiness marker risks rejecting NULL rows from production."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 122,
+          "detail": "Index automation_runs_source_event_uniq ON automation_runs(team_id,rule_id,source_event_id) references column(s) {team_id,rule_id,source_event_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        }
+      ]
+    },
+    {
+      "migration": "20271201000000_new058_verified_contact_factors",
+      "timestamp": "20271201000000",
+      "slug": "new058_verified_contact_factors",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "mfa_factors",
+        "step_up_challenges"
+      ],
+      "totalColumnsAdded": 10,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 4,
+        "MEDIUM": 3,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 167,
+          "detail": "Index mfa_factors_user_kind_destination_key ON mfa_factors(user_id,kind,destination_hash) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {user_id,kind}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 187,
+          "detail": "Index mfa_factors_user_id_kind_status_idx ON mfa_factors(user_id,kind,status) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {user_id,kind,status}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 217,
+          "detail": "Index step_up_challenges_factor_id_idx ON step_up_challenges(factor_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {factor_id}."
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 36
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 37
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 36
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 37
+        }
+      ]
+    },
+    {
+      "migration": "20271215000000_search_index_reconciliation_kind",
+      "timestamp": "20271215000000",
+      "slug": "search_index_reconciliation_kind",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 10
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 10
+        }
+      ]
+    },
+    {
+      "migration": "20271216000000_evidence_integrity_incident_category",
+      "timestamp": "20271216000000",
+      "slug": "evidence_integrity_incident_category",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 28
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 28
+        }
+      ]
+    },
+    {
+      "migration": "20271217000000_evidence_integrity_correlation",
+      "timestamp": "20271217000000",
+      "slug": "evidence_integrity_correlation",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271218000000_bulk_assign_incidents",
+      "timestamp": "20271218000000",
+      "slug": "bulk_assign_incidents",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 27
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 27
+        }
+      ]
+    },
+    {
+      "migration": "20271219000000_incident_sla_history",
+      "timestamp": "20271219000000",
+      "slug": "incident_sla_history",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "operational_incident_sla_cycles",
+        "workspace_sla_policy_versions"
+      ],
+      "totalColumnsAdded": 33,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271220000000_evidence_lifecycle_trashed_state",
+      "timestamp": "20271220000000",
+      "slug": "evidence_lifecycle_trashed_state",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence"
+      ],
+      "totalColumnsAdded": 2,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 78,
+          "detail": "Index evidence_lifecycle_state_delete_scheduled_for_utc_idx ON evidence(lifecycle_state,delete_scheduled_for_utc) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {lifecycle_state,delete_scheduled_for_utc}."
+        },
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 49
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 49
+        }
+      ]
+    },
+    {
+      "migration": "20271220000001_evidence_lifecycle_state_backfill",
+      "timestamp": "20271220000001",
+      "slug": "evidence_lifecycle_state_backfill",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271222000000_workspace_operations_reconciliation_kind",
+      "timestamp": "20271222000000",
+      "slug": "workspace_operations_reconciliation_kind",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TYPE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 20
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 20
+        }
+      ]
+    },
+    {
+      "migration": "20271223000000_operational_incident_scope",
+      "timestamp": "20271223000000",
+      "slug": "operational_incident_scope",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "operational_incidents"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 96,
+          "detail": "Index operational_incidents_scope_team_status_idx ON operational_incidents(scope,team_id,status) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id,status}."
+        }
+      ]
+    },
+    {
+      "migration": "20271224000000_operational_incident_naming_convergence",
+      "timestamp": "20271224000000",
+      "slug": "operational_incident_naming_convergence",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
+      "tables": [],
+      "totalColumnsAdded": 0,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 1,
+        "MEDIUM": 3,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 432,
+          "detail": "Index operational_incidents_team_fingerprint_uk ON operational_incidents(team_id,fingerprint) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id,fingerprint}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 466,
+          "detail": "Index operational_incidents_assigned_operator_user_id_idx ON operational_incidents(assigned_operator_user_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {assigned_operator_user_id}."
+        },
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 482,
+          "detail": "Index operational_incident_events_incident_created_at_idx ON operational_incident_events(incident_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {incident_id}."
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 432
+        }
+      ]
+    },
+    {
+      "migration": "20271225000000_operational_incident_metric_snapshot",
+      "timestamp": "20271225000000",
+      "slug": "operational_incident_metric_snapshot",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "operational_incidents"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271226000000_operational_incident_source_identity",
+      "timestamp": "20271226000000",
+      "slug": "operational_incident_source_identity",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "operational_incidents"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271227000000_billing_commercial_correctness",
+      "timestamp": "20271227000000",
+      "slug": "billing_commercial_correctness",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "enterprise_contracts",
+        "evidence_credit_ledger_entries",
+        "subscriptions"
+      ],
+      "totalColumnsAdded": 13,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20271228000000_billing_provider_state_ordering",
+      "timestamp": "20271228000000",
+      "slug": "billing_provider_state_ordering",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "subscriptions",
+        "workspace_storage_addons"
+      ],
+      "totalColumnsAdded": 2,
       "findingsByRisk": {
         "CRITICAL": 0,
         "HIGH": 0,

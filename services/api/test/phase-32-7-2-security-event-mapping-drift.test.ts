@@ -1137,6 +1137,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // lifecycle, and the Enterprise contract operational allowances. No
       // column is dropped, renamed or narrowed and no row is rewritten.
       "20271227000000_billing_commercial_correctness",
+      // BILLING RECONCILIATION (2026-08-27) — expand-only: two nullable
+      // TIMESTAMPTZ columns recording the PROVIDER's own timestamp for the
+      // subscription and add-on state last written, so a polled observation
+      // that is older than a webhook already applied is discarded rather than
+      // applied. It touches `subscriptions` and `workspace_storage_addons`
+      // alone. No `security_events` column, index, enum or mapping is altered
+      // by it, which is what this allowlist is about.
+      "20271228000000_billing_provider_state_ordering",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

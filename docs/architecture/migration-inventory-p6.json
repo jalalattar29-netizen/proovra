@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 248,
-    "classifiedMigrations": 248,
+    "filesystemMigrations": 249,
+    "classifiedMigrations": 249,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 248,
+    "productionSnapshotUnknown": 249,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 248,
-    "classifiedMigrations": 248,
+    "filesystemMigrations": 249,
+    "classifiedMigrations": 249,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 248,
+    "productionSnapshotUnknown": 249,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 31,
+      "EXPAND": 32,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 40,
+      "SAFE_TO_APPLY_NOW": 41,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 248
+    "ProductionMigrationStateUnknown": 249
   },
   "gateFailures": [],
   "migrations": [
@@ -19556,8 +19556,73 @@
       "evidence": "BILLING COMMERCIAL CORRECTNESS — expand-only, three additions, no backfill. (1) evidence_credit_ledger_entries: the auditable evidence-credit wallet ledger. entitlements.credits was a bare integer with no history, so a double-spend or a lost credit was undetectable after the fact, and the consume path read the balance, compared it in application memory, then decremented in a separate statement against the GLOBAL prisma client from inside the evidence-completion transaction — so a rolled-back completion still burned the credit. The new table's UNIQUE evidence_id makes consumption idempotent per Evidence record and is the serialization point for concurrent completions; a PARTIAL unique index on (provider, provider_ref) WHERE entry_type='PURCHASE' is the database-level backstop against double-crediting one payment. Existing entitlements.credits balances are UNTOUCHED and are treated by the application as an opening balance, so no customer loses a purchased credit. (2) subscriptions.cancel_at_period_end BOOLEAN NOT NULL DEFAULT false + canceled_at_utc: the provider-confirmed cancellation lifecycle. The DEFAULT means every existing row keeps its exact current meaning — nothing becomes 'cancelling' as a side effect. (3) enterprise_contracts.evidence_records_per_month + ai_operations_per_month, both nullable: contract-managed operational allowances, where NULL means the contract is silent and the canonical ENTERPRISE catalog default applies. No column is dropped, renamed, retyped or narrowed; no row is deleted or rewritten; the CREATE TABLE is wrapped in a Phase O-Final information_schema guard rather than CREATE TABLE IF NOT EXISTS, so column evolution can never be silently skipped. No Stripe or PayPal identifier and no evidence, custody, signature, TSA or OTS data is touched."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271228000000_billing_provider_state_ordering",
       "order": 247,
+      "sqlPresent": true,
+      "byteLength": 1985,
+      "checksumSha256": "d3e513031b752493ae01fdc0e53590f9f38920fe9f7078a825731567b7252c14",
+      "checksumSha256Raw": "d3e513031b752493ae01fdc0e53590f9f38920fe9f7078a825731567b7252c14",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "subscriptions",
+          "workspace_storage_addons"
+        ],
+        "addedColumns": [
+          "provider_state_at_utc"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260204190000_add_auth_billing",
+        "20260925000000_phase0_schema_catchup"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "Nothing to reverse. An image without the reconciliation reader neither reads nor writes the columns; the webhook path is unchanged and never touched them. No other column, index or constraint is affected and no historical payment, subscription or add-on row is rewritten, so a rolling deployment in either order is safe.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": "Apply BEFORE deploying API. Until it runs, the reconciliation service cannot record a provider timestamp and its ordering guard degrades to accept-every-observation — which is the behaviour that existed before reconciliation, not a regression. No data is at risk either way.",
+      "removalCondition": "NEVER removed while provider reconciliation exists. Dropping either column removes the only durable ordering signal between a pushed webhook and a polled observation, returning the system to last-writer-wins between two sources that legitimately arrive out of order.",
+      "evidence": "BILLING RECONCILIATION — expand-only, two nullable columns, no backfill, no rewrite: subscriptions.provider_state_at_utc and workspace_storage_addons.provider_state_at_utc. Reconciliation learns provider facts by POLLING, and a poll that starts before a webhook lands can finish after it. Without an ordering signal a stale 'still active' reply could resurrect a subscription the provider had already cancelled, and a stale 'cancelled' could tear down one the customer had just renewed. updated_at cannot decide this — it records when WE last wrote the row, not when the PROVIDER's state was true — so the provider's own authoritative timestamp for the state that produced the last write is recorded alongside it, and an observation older than it is discarded rather than applied. This creates NO second ledger and NO second state machine: payment idempotency continues to come from the existing payments (provider, provider_payment_id) unique constraint, and credit idempotency from the existing partial unique index on PURCHASE ledger rows. Both columns are nullable with no default, and NULL is meaningful — 'no provider time recorded yet', which the ordering guard treats as accept-and-record, so every existing row reconciles normally on its first pass instead of being frozen out. No column is dropped, renamed, retyped or narrowed; no row is deleted or rewritten; no Stripe or PayPal identifier is stored, and no evidence, custody, signature, TSA or OTS data is touched."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 248,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

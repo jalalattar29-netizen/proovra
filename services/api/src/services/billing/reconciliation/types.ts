@@ -1,0 +1,208 @@
+/**
+ * BILLING RECONCILIATION (2026-08-27) — the shared internal observation model.
+ *
+ * WHY AN OBSERVATION AND NOT A PROVIDER OBJECT
+ * ---------------------------------------------------------------------------
+ * A webhook and a reconciliation poll learn the same fact by different routes:
+ * one is pushed and signature-verified, the other is pulled and answered by an
+ * authenticated request we initiated. What they learn — "this provider
+ * subscription is active until X", "this payment settled for N cents" — is the
+ * same fact either way, and the domain must not be able to tell them apart.
+ *
+ * So a provider adapter never touches local state and never returns a provider
+ * payload. It returns one of these, and the reconciliation service is the only
+ * thing that decides what a fact means. That keeps the number of places that
+ * can misread Stripe or PayPal at exactly two — the two adapters — and the
+ * number of places that can WRITE a commercial consequence at one.
+ *
+ * WHAT IS DELIBERATELY ABSENT
+ * ---------------------------------------------------------------------------
+ * No raw object, no customer id, no invoice id, no payload fragment. A field
+ * here exists because a domain rule reads it. `providerRef` is the one
+ * identifier that survives, because the durable idempotency constraints are
+ * keyed on it — and it never leaves the server.
+ */
+
+import type * as prismaPkg from "@prisma/client";
+
+/**
+ * The settled state of ONE provider transaction or subscription.
+ *
+ * `UNKNOWN` is not a failure mode to be tidied away later — it is the answer
+ * whenever the provider could not be reached, answered malformed, or reported
+ * something this version does not model. Every consumer treats it as "learn
+ * nothing, change nothing". An adapter that cannot say SUCCEEDED must say
+ * UNKNOWN; there is no path that infers success from silence.
+ */
+export type ObservedState =
+  /** Money captured and settled. The only state that may grant anything. */
+  | "SUCCEEDED"
+  /** Authorized or awaiting settlement. Grants nothing. */
+  | "PENDING"
+  /** The provider declined, denied or reversed the charge. */
+  | "FAILED"
+  /** The subscription or order was cancelled at the provider. */
+  | "CANCELED"
+  /**
+   * The provider returned the money. Only ever produced when the canonical
+   * lifecycle has a real writer for it — see `PaymentStatus.REFUNDED`.
+   */
+  | "REFUNDED"
+  /** Unreachable, malformed, or a state this version does not model. */
+  | "UNKNOWN";
+
+/** Why an observation could not be turned into a fact. Never shown raw. */
+export type ObservationFailure =
+  | "PROVIDER_UNAVAILABLE"
+  | "PROVIDER_MALFORMED"
+  | "NOT_FOUND"
+  | "UNSUPPORTED_STATE";
+
+/**
+ * ONE provider payment, as observed.
+ *
+ * `amountCents` and `currency` are what the PROVIDER says it charged. They are
+ * carried so the service can compare them against the server catalog and
+ * refuse a mismatch — never so that they can be written as authority.
+ */
+export type PaymentObservation = {
+  kind: "PAYMENT";
+  provider: prismaPkg.PaymentProvider;
+  /** The provider's own id for this transaction. Server-side only. */
+  providerRef: string;
+  state: ObservedState;
+  amountCents: number | null;
+  currency: string | null;
+  /**
+   * Units the provider confirms were bought. For an evidence credit this is
+   * the line quantity; the service still refuses anything but the canonical
+   * quantity, so this is a check, not an input.
+   */
+  quantity: number | null;
+  /**
+   * The provider's authoritative timestamp for this state, normalized to UTC.
+   * The ordering guard reads it: an observation older than the state already
+   * recorded is discarded rather than applied.
+   */
+  observedAtUtc: Date | null;
+  failure?: ObservationFailure;
+};
+
+/** ONE provider subscription, as observed. */
+export type SubscriptionObservation = {
+  kind: "SUBSCRIPTION";
+  provider: prismaPkg.PaymentProvider;
+  providerRef: string;
+  state: ObservedState;
+  /** Provider-confirmed paid-through date, UTC. Never synthesised. */
+  currentPeriodEndUtc: Date | null;
+  /** Provider-confirmed "stops renewing at period end". */
+  cancelAtPeriodEnd: boolean;
+  observedAtUtc: Date | null;
+  /**
+   * Bounded recent billing events for this subscription — only what is needed
+   * to repair missing local renewal history. An adapter must cap this; the
+   * service never asks for "all".
+   */
+  recentPayments: PaymentObservation[];
+  failure?: ObservationFailure;
+};
+
+export type Observation = PaymentObservation | SubscriptionObservation;
+
+/**
+ * THE adapter contract.
+ *
+ * Injected, so the contract suites run with deterministic fixtures and no
+ * credentials, no SDK and no socket. The production implementations are the
+ * only things that hold a provider client.
+ */
+export type BillingReconciliationProvider = {
+  readonly provider: prismaPkg.PaymentProvider;
+  /** Observe ONE stored payment binding. Never enumerates the provider. */
+  observePayment(providerRef: string): Promise<PaymentObservation>;
+  /** Observe ONE stored subscription binding, with bounded recent events. */
+  observeSubscription(providerRef: string): Promise<SubscriptionObservation>;
+};
+
+/** A safe, user-facing reconciliation outcome. Contains no provider data. */
+export type ReconciliationOutcome =
+  | "NO_CHANGE"
+  | "UPDATED"
+  | "PENDING"
+  | "ACTION_REQUIRED"
+  | "PROVIDER_UNAVAILABLE";
+
+/**
+ * What a reconciliation run did, in categories a customer can read.
+ *
+ * Counts only. There is no field here that could carry a provider id, an
+ * amount the provider disputed, or an error string — the surface renders this
+ * verbatim, so anything unsafe in it would be unsafe on screen.
+ */
+export type ReconciliationSummary = {
+  outcome: ReconciliationOutcome;
+  /** Bindings examined. */
+  checked: number;
+  /** Credits granted by this run, having been paid for and never granted. */
+  creditsRestored: number;
+  /** Renewal payments recorded that the local history was missing. */
+  paymentsRecorded: number;
+  /** Subscriptions or add-ons whose lifecycle moved. */
+  subscriptionsUpdated: number;
+  /** Bindings the provider reported as still pending. */
+  pending: number;
+  /**
+   * Bindings that need a person: the provider and PROOVRA disagree in a way
+   * this service will not resolve on its own, or a dependent cancellation
+   * could not be completed remotely.
+   */
+  actionRequired: number;
+  /** Bindings the provider could not be reached for. */
+  unavailable: number;
+  /**
+   * Discrepancies recorded for operators — an amount, currency or product that
+   * did not match the server catalog. Counted, never described to the client.
+   */
+  discrepancies: number;
+};
+
+export function emptySummary(): ReconciliationSummary {
+  return {
+    outcome: "NO_CHANGE",
+    checked: 0,
+    creditsRestored: 0,
+    paymentsRecorded: 0,
+    subscriptionsUpdated: 0,
+    pending: 0,
+    actionRequired: 0,
+    unavailable: 0,
+    discrepancies: 0,
+  };
+}
+
+/**
+ * Resolve the single outcome from the counters.
+ *
+ * Order matters and is deliberate: a run that repaired something AND hit an
+ * unreachable provider is ACTION_REQUIRED, not UPDATED — the customer needs to
+ * know the picture is still incomplete more than they need to know part of it
+ * worked.
+ */
+export function resolveOutcome(
+  summary: ReconciliationSummary,
+): ReconciliationOutcome {
+  if (summary.actionRequired > 0 || summary.discrepancies > 0) {
+    return "ACTION_REQUIRED";
+  }
+  if (summary.unavailable > 0) return "PROVIDER_UNAVAILABLE";
+  if (
+    summary.creditsRestored > 0 ||
+    summary.paymentsRecorded > 0 ||
+    summary.subscriptionsUpdated > 0
+  ) {
+    return "UPDATED";
+  }
+  if (summary.pending > 0) return "PENDING";
+  return "NO_CHANGE";
+}

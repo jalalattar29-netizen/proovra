@@ -2,19 +2,26 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { createHash } from "node:crypto";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+// BILLING RECONCILIATION (2026-08-27) — `setPersonalPlan`, `activateTeamPlan`,
+// `cancelTeamPlan` and `upsertSubscription` are no longer imported here. Every
+// one of them was called only by `syncPlanForSubscription`, which moved to
+// `services/billing/subscription-lifecycle.handlers.ts` so the verified webhook
+// and the polled reconciliation share one implementation of what a provider
+// subscription state MEANS. This route now applies that meaning rather than
+// deciding it.
 import {
   ensureEntitlement,
   recordPayment,
-  setPersonalPlan,
-  activateTeamPlan,
-  cancelTeamPlan,
-  upsertSubscription,
   upsertWorkspaceStorageAddon,
 } from "../services/billing.service.js";
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — evidence credits are granted
 // through the canonical wallet, which writes the auditable ledger entry in the
 // same transaction as the balance and is idempotent on the provider payment id.
 import { grantEvidenceCredits } from "../services/billing/evidence-credits.service.js";
+import {
+  storageAddonStatusFromSubscription,
+  syncPlanForSubscription,
+} from "../services/billing/subscription-lifecycle.handlers.js";
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — renewal ownership comes from
 // the AUTHORITATIVE STORED subscription row, not from provider metadata that
 // providers do not in fact put on renewal events.
@@ -285,106 +292,17 @@ async function assertWebhookStorageAddonAllowed(params: {
  * usage aggregate counts ACTIVE and PAST_DUE add-ons, which is the same bounded
  * grace the base subscription gets rather than an instant cliff on a failed card.
  */
-function storageAddonStatusFromSubscription(
-  status: prismaPkg.SubscriptionStatus,
-): prismaPkg.WorkspaceStorageAddonStatus {
-  switch (status) {
-    case prismaPkg.SubscriptionStatus.ACTIVE:
-      return prismaPkg.WorkspaceStorageAddonStatus.ACTIVE;
-    case prismaPkg.SubscriptionStatus.TRIALING:
-      return prismaPkg.WorkspaceStorageAddonStatus.PENDING;
-    case prismaPkg.SubscriptionStatus.PAST_DUE:
-      return prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
-    case prismaPkg.SubscriptionStatus.CANCELED:
-      return prismaPkg.WorkspaceStorageAddonStatus.CANCELED;
-  }
-}
-
-async function syncPlanForSubscription(params: {
-  userId: string;
-  plan: prismaPkg.PlanType;
-  teamId?: string | null;
-  provider: prismaPkg.PaymentProvider;
-  providerSubId: string;
-  status: prismaPkg.SubscriptionStatus;
-  currentPeriodEnd?: Date | null;
-}) {
-  await upsertSubscription({
-    userId: params.userId,
-    provider: params.provider,
-    providerSubId: params.providerSubId,
-    status: params.status,
-    plan: params.plan,
-    currentPeriodEnd: params.currentPeriodEnd ?? null,
-    teamId: params.teamId ?? null,
-  });
-
-  if (params.plan === prismaPkg.PlanType.TEAM) {
-    if (!params.teamId) return;
-
-    if (params.status === prismaPkg.SubscriptionStatus.CANCELED) {
-      await cancelTeamPlan({
-        teamId: params.teamId,
-        ownerUserId: params.userId,
-      });
-      return;
-    }
-
-    if (params.status === prismaPkg.SubscriptionStatus.ACTIVE) {
-      await activateTeamPlan({
-        teamId: params.teamId,
-        ownerUserId: params.userId,
-        plan: prismaPkg.PlanType.TEAM,
-        status: prismaPkg.TeamBillingStatus.ACTIVE,
-      });
-      return;
-    }
-
-    if (params.status === prismaPkg.SubscriptionStatus.PAST_DUE) {
-      const existingTeam = await prisma.team.findUnique({
-        where: { id: params.teamId },
-        select: {
-          billingPlan: true,
-          billingStatus: true,
-        },
-      });
-
-      // PHASE 9 §12 — canonical commercial decision (no raw plan literals).
-      const alreadyActivated = existingTeam
-        ? isPaidTeamSubscriptionActive({
-            billingPlan: existingTeam.billingPlan,
-            billingStatus: existingTeam.billingStatus,
-          })
-        : false;
-
-      if (alreadyActivated) {
-        await activateTeamPlan({
-          teamId: params.teamId,
-          ownerUserId: params.userId,
-          plan: prismaPkg.PlanType.TEAM,
-          status: prismaPkg.TeamBillingStatus.PAST_DUE,
-        });
-      }
-
-      return;
-    }
-
-    return;
-  }
-
-  if (params.status === prismaPkg.SubscriptionStatus.CANCELED) {
-    await setPersonalPlan(params.userId, prismaPkg.PlanType.FREE);
-    return;
-  }
-
-  if (params.status === prismaPkg.SubscriptionStatus.TRIALING) {
-    return;
-  }
-
-  if (params.status === prismaPkg.SubscriptionStatus.ACTIVE) {
-    await setPersonalPlan(params.userId, params.plan);
-  }
-}
+/**
+ * BILLING RECONCILIATION (2026-08-27) — `storageAddonStatusFromSubscription`
+ * and `syncPlanForSubscription` MOVED to
+ * `services/billing/subscription-lifecycle.handlers.ts`.
+ *
+ * They were fine here while a verified webhook was the only way a provider
+ * fact could reach the domain. Reconciliation now learns the same facts by
+ * polling, and a second copy of "what an ACTIVE TEAM subscription means" is
+ * exactly how the two paths would come to disagree about a customer's plan.
+ * The behaviour is unchanged; this file imports it and calls it as before.
+ */
 
 export async function webhooksRoutes(app: FastifyInstance) {
   app.addContentTypeParser(

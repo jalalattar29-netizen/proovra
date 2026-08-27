@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-06-02T07:21:35.763Z",
+  "generatedAtUtc": "2026-08-27T18:47:52.808Z",
   "entries": [
     {
       "migration": "20260404193000_add_analytics_tables",
@@ -228,7 +228,13 @@
       "identifier": "createdAt",
       "altSnake": "created_at",
       "detail": "Migration uses quoted camelCase identifier \"createdAt\". PROOVRA's convention is snake_case (Prisma @map)."
+    },
+    {
+      "migration": "20270906020000_phase_2b_3_string_type_alignment",
+      "identifier": "userAgent",
+      "altSnake": "user_agent",
+      "detail": "Migration uses quoted camelCase identifier \"userAgent\". PROOVRA's convention is snake_case (Prisma @map)."
     }
   ],
-  "count": 38
+  "count": 39
 }

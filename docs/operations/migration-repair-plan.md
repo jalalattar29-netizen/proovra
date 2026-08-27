@@ -129,24 +129,6 @@ _Tables touched_: `reports`
 **Recommended action:**
 - Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
 
-### `20260510160000_phase_a_b_forensic_hardening`
-- `ALTER_TABLE_DROP_COLUMN` (line 9) — DROP COLUMN is destructive and cannot be safely re-applied.
-- `DROP_INDEX` (line 10) — DROP INDEX risks production-read regressions.
-
-_Tables touched_: `evidence`
-
-**Recommended action:**
-- Operator review required. Document the production state of every affected table before any further action.
-
-### `20260510200000_phase_c_hardening`
-- `ALTER_TABLE_DROP_COLUMN` (line 7) — DROP COLUMN is destructive and cannot be safely re-applied.
-- `ALTER_TABLE_DROP_COLUMN` (line 8) — DROP COLUMN is destructive and cannot be safely re-applied.
-
-_Tables touched_: `evidence`
-
-**Recommended action:**
-- Operator review required. Document the production state of every affected table before any further action.
-
 ### `20260521100000_add_review_operations_phase13`
 - `INDEX_COLUMN_RISK` (line 96) — Index evidence_review_workflows_sla_status_due_at_idx ON evidence_review_workflows(sla_status,due_at) references column(s) {sla_status,due_at} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
 - `INDEX_COLUMN_RISK` (line 98) — Index evidence_review_workflows_escalation_level_status_idx ON evidence_review_workflows(escalation_level,status) references column(s) {escalation_level,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
@@ -475,14 +457,6 @@ _Tables touched_: `access_reviews`, `cases`, `demo_requests`, `destruction_revie
 **Recommended action:**
 - Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
 
-### `20260927000000_p2_7x_stage6_invite_token_hash`
-- `SET_NOT_NULL_NO_READINESS` (line 54) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
-
-_Tables touched_: `organization_invites`
-
-**Recommended action:**
-- Confirm the column has been backfilled to 100% non-NULL before SET NOT NULL runs. Add a readiness-marker comment OR wrap in a DO block that verifies via SELECT COUNT(*) ... WHERE col IS NULL = 0.
-
 ### `20260928000000_p2_7x_stage6_teams_org_not_null`
 - `SET_NOT_NULL_NO_READINESS` (line 29) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
 
@@ -506,6 +480,229 @@ _Tables touched_: (none detected)
 
 **Recommended action:**
 - Operator review required. Document the production state of every affected table before any further action.
+
+### `20270811000000_wave2_duplicate_decisions`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 27) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 29) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `duplicate_decisions`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270827000000_contact_sales_lead_capture`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 46) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `contact_sales_requests`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270828000000_email_verification_tokens`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 19) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `email_verification_tokens`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270908000000_drop_evidence_anchor_publication_columns`
+- `ALTER_TABLE_DROP_COLUMN` (line 7) — DROP COLUMN is destructive and cannot be safely re-applied.
+- `ALTER_TABLE_DROP_COLUMN` (line 8) — DROP COLUMN is destructive and cannot be safely re-applied.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
+### `20270916000000_operations_center_history_and_schedule`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 14) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 72) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `notification_schedule_settings`, `operations_inbox_snapshots`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270917000000_org_notification_policy_and_resolution_provenance`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 12) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `operations_inbox_snapshots`, `organization_notification_policies`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270918000000_user_identity_links`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 17) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `user_identity_links`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270919000000_account_data_export_requests`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 7) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `account_data_export_requests`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270920000000_account_closure_requests`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 7) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `account_closure_requests`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270921000000_organization_closure_requests`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 7) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `organization_closure_requests`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270922000000_workspace_closure_requests`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 7) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `workspace_closure_requests`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20270924000000_drop_workspace_persona_profiles`
+- `DROP_TABLE` (line 21) — DROP TABLE is destructive.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
+### `20271105000000_evidence_case_id_removal`
+- `ALTER_TABLE_DROP_COLUMN` (line 147) — DROP COLUMN is destructive and cannot be safely re-applied.
+- `DROP_INDEX` (line 136) — DROP INDEX risks production-read regressions.
+- `DROP_INDEX` (line 137) — DROP INDEX risks production-read regressions.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
+### `20271106000000_legal_hold_canonical`
+- `INDEX_COLUMN_RISK` (line 250) — Index evidence_legal_holds_source_store_source_row_id_key ON evidence_legal_holds(source_store,source_row_id) references column(s) {source_store,source_row_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 253) — Index evidence_legal_holds_case_id_status_idx ON evidence_legal_holds(case_id,status) references column(s) {case_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 256) — Index evidence_legal_holds_team_id_scope_status_idx ON evidence_legal_holds(team_id,scope,status) references column(s) {team_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: `evidence_legal_holds`
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20271108000000_legal_hold_legacy_removal`
+- `DROP_TABLE` (line 190) — DROP TABLE is destructive.
+- `DROP_TABLE` (line 191) — DROP TABLE is destructive.
+- `DROP_TYPE` (line 196) — DROP TYPE on a referenced enum breaks every dependent column.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
+### `20271109000000_workspace_governance_policy_version`
+- `SET_NOT_NULL_NO_READINESS` (line 73) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
+
+_Tables touched_: `workspace_governance_policies`
+
+**Recommended action:**
+- Confirm the column has been backfilled to 100% non-NULL before SET NOT NULL runs. Add a readiness-marker comment OR wrap in a DO block that verifies via SELECT COUNT(*) ... WHERE col IS NULL = 0.
+
+### `20271111000000_step_up_session_organization_binding`
+- `INDEX_COLUMN_RISK` (line 32) — Index step_up_challenges_organization_id_status_idx ON step_up_challenges(organization_id,status) references column(s) {organization_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: `step_up_challenges`
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20271113000000_point5_report_generation_authority`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 21) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `report_generation_requests`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20271117000000_point4_schema_authority_contract`
+- `ALTER_TABLE_DROP_COLUMN` (line 101) — DROP COLUMN is destructive and cannot be safely re-applied.
+- `DROP_TABLE` (line 128) — DROP TABLE is destructive.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
+### `20271122000000_external_review_invitation_authority_contract`
+- `ALTER_TABLE_DROP_COLUMN` (line 266) — DROP COLUMN is destructive and cannot be safely re-applied.
+- `DROP_INDEX` (line 186) — DROP INDEX risks production-read regressions.
+- `INDEX_COLUMN_RISK` (line 203) — Index external_review_invitation_deliveries_intent_key ON external_review_invitation_deliveries(team_id,grant_id,content_version,resend_seq) references column(s) {team_id,grant_id,content_version,resend_seq} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20271125000000_workspace_kind_authority_contract`
+- `DROP_INDEX` (line 168) — DROP INDEX risks production-read regressions.
+- `SET_NOT_NULL_NO_READINESS` (line 104) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
+- `INDEX_COLUMN_RISK` (line 153) — Index teams_one_personal_space_per_owner_uk ON teams(owner_user_id) references column(s) {owner_user_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20271126000000_org_membership_lifecycle_expand`
+- `INDEX_COLUMN_RISK` (line 134) — Index organization_memberships_organization_id_status_idx ON organization_memberships(organization_id,status) references column(s) {organization_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 135) — Index organization_memberships_user_id_status_idx ON organization_memberships(user_id,status) references column(s) {user_id,status} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20271128000000_org_membership_lifecycle_contract`
+- `SET_NOT_NULL_NO_READINESS` (line 104) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Confirm the column has been backfilled to 100% non-NULL before SET NOT NULL runs. Add a readiness-marker comment OR wrap in a DO block that verifies via SELECT COUNT(*) ... WHERE col IS NULL = 0.
+
+### `20271129000000_automation_runtime_durability_expand`
+- `INDEX_COLUMN_RISK` (line 219) — Index automation_runs_source_event_expand_idx ON automation_runs(team_id,source_event_id) references column(s) {team_id,source_event_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 262) — Index automation_webhook_deliveries_due_idx ON automation_webhook_deliveries(next_attempt_at) references column(s) {next_attempt_at} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 263) — Index automation_webhook_deliveries_expired_lease_idx ON automation_webhook_deliveries(lease_expires_at_utc) references column(s) {lease_expires_at_utc} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 267) — Index automation_webhook_deliveries_ambiguous_due_idx ON automation_webhook_deliveries(next_attempt_at) references column(s) {next_attempt_at} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20271131000000_automation_runtime_durability_contract`
+- `DROP_INDEX` (line 125) — DROP INDEX risks production-read regressions.
+- `SET_NOT_NULL_NO_READINESS` (line 104) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
+- `SET_NOT_NULL_NO_READINESS` (line 105) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
+- `SET_NOT_NULL_NO_READINESS` (line 106) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
+- `SET_NOT_NULL_NO_READINESS` (line 153) — SET NOT NULL without a readiness marker risks rejecting NULL rows from production.
+- `INDEX_COLUMN_RISK` (line 122) — Index automation_runs_source_event_uniq ON automation_runs(team_id,rule_id,source_event_id) references column(s) {team_id,rule_id,source_event_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
 
 ### `email_password_auth`
 - `CREATE_TABLE_IF_NOT_EXISTS` (line 19) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
@@ -630,6 +827,16 @@ _Tables touched_: `password_reset_tokens`, `users`
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 78) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 80) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 
+### `20260510160000_phase_a_b_forensic_hardening`
+- `ALTER_TYPE` (line 25) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 26) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 27) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 28) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 25) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 26) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 27) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 28) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
 ### `20260516120000_add_workflow_template_foundation`
 - `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 41) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 43) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
@@ -748,6 +955,10 @@ _Tables touched_: `password_reset_tokens`, `users`
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 77) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 79) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 
+### `20260722110000_enterprise_provisioning_idempotency`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 36) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 38) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
 ### `20260724000000_r8_1_3_mfa_pending_challenges`
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 42) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 46) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
@@ -819,6 +1030,10 @@ _Tables touched_: `password_reset_tokens`, `users`
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 141) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 144) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 147) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20260927000000_p2_7x_stage6_invite_token_hash`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 39) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 65) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
 
 ### `20260929000000_phase_b2_workflow_review_decisions`
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 73) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
@@ -907,6 +1122,153 @@ _Tables touched_: `password_reset_tokens`, `users`
 ### `20270501000000_phase_10_paypal_webhook_payload_hash`
 - `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 36) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
 
+### `20270812000000_wave3_custody_event_type_widening`
+- `ALTER_TYPE` (line 46) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 58) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 72) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 86) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 100) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 114) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 128) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 142) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 156) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 46) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 58) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 72) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 86) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 100) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 114) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 128) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 142) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 156) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20270820000000_add_inbox_item_state`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 63) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20270822000000_intake_link_sender_identity`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 14) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 15) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+
+### `20270826000000_pricing_hardening_enterprise_plan_record_caps`
+- `ALTER_TYPE` (line 20) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 20) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20270906040000_phase_2b_5_enum_alignment`
+- `ALTER_TYPE` (line 115) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 115) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20270909000000_org_pending_enterprise_seats`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 12) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+
+### `20270910000000_phase_3_enterprise_identity_domains_and_sp_signing`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 14) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 18) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 24) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 43) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 46) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 49) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20270911000000_workspace_ai_policy`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 38) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 39) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20270912000000_ai_copilot_runs`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 33) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 34) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 35) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 36) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 37) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 51) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 53) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20270913000000_ai_usage_ledger`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 21) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 22) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 23) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 32) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 41) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20270914000000_reviewer_criteria_catalog`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 16) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 30) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 46) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20270920000000_workspace_kind_discriminator`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 32) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 35) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 70) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20270920100000_org_invite_workspace_assignments`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 18) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 19) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+
+### `20270920200000_membership_grant_provenance`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 54) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 56) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 58) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20270920300000_enterprise_contract_state`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 54) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 56) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20271001000000_org_security_policy_phase10`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 6) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 7) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 8) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 9) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 10) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 11) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 12) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 13) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 14) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 15) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 32) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 33) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 50) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 51) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20271110000000_exchange_download_authorization_semantics`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 43) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+
+### `20271119000000_search_document_embedding_after_extension`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 76) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 90) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20271120000000_external_review_invitation_authority_expand`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 58) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 84) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 92) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 100) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+
+### `20271201000000_new058_verified_contact_factors`
+- `ALTER_TYPE` (line 36) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 37) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 36) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 37) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20271215000000_search_index_reconciliation_kind`
+- `ALTER_TYPE` (line 10) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 10) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20271216000000_evidence_integrity_incident_category`
+- `ALTER_TYPE` (line 28) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 28) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20271218000000_bulk_assign_incidents`
+- `ALTER_TYPE` (line 27) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 27) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20271220000000_evidence_lifecycle_trashed_state`
+- `ALTER_TYPE` (line 49) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 49) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20271222000000_workspace_operations_reconciliation_kind`
+- `ALTER_TYPE` (line 20) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 20) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20271224000000_operational_incident_naming_convergence`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 432) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
 ## Prisma compatibility issues
 
 | Migration | Table | Column | Detail |
@@ -917,6 +1279,7 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20260131235343_init` | `custody_events` | `actor_id` | Migration ADDs column custody_events.actor_id but Prisma model CustodyEvent no longer references it. |
 | `20260131235343_init` | `reports` | `report_sha256` | Migration ADDs column reports.report_sha256 but Prisma model Report no longer references it. |
 | `20260131235343_init` | `reports` | `created_at` | Migration ADDs column reports.created_at but Prisma model Report no longer references it. |
+| `20260204190000_add_auth_billing` | `evidence` | `case_id` | Migration ADDs column evidence.case_id but Prisma model Evidence no longer references it. |
 | `20260215095541_email_password_auth` | `password_reset_tokens` | `ON` | Migration ADDs column password_reset_tokens.ON but Prisma model PasswordResetToken no longer references it. |
 | `20260407_add_legal_acceptance_and_cookie_consent` | `user_legal_acceptances` | `ON` | Migration ADDs column user_legal_acceptances.ON but Prisma model UserLegalAcceptance no longer references it. |
 | `20260407_add_legal_acceptance_and_cookie_consent` | `cookie_consent_records` | `ON` | Migration ADDs column cookie_consent_records.ON but Prisma model CookieConsentRecord no longer references it. |
@@ -951,7 +1314,6 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20260519100000_add_security_hardening_phase11` | `security_events` | `details` | Migration ADDs column security_events.details but Prisma model SecurityEvent no longer references it. |
 | `20260519100000_add_security_hardening_phase11` | `security_events` | `created_at` | Migration ADDs column security_events.created_at but Prisma model SecurityEvent no longer references it. |
 | `20260520100000_add_reliability_phase12` | `upload_sessions` | `ON` | Migration ADDs column upload_sessions.ON but Prisma model UploadSession no longer references it. |
-| `20260523100000_add_governance_platform_phase14` | `case_legal_holds` | `ON` | Migration ADDs column case_legal_holds.ON but Prisma model CaseLegalHold no longer references it. |
 | `20260524100000_add_intelligence_phase15` | `evidence_intelligence_jobs` | `ON` | Migration ADDs column evidence_intelligence_jobs.ON but Prisma model EvidenceIntelligenceJob no longer references it. |
 | `20260524100000_add_intelligence_phase15` | `evidence_extracted_texts` | `ON` | Migration ADDs column evidence_extracted_texts.ON but Prisma model EvidenceExtractedText no longer references it. |
 | `20260524100000_add_intelligence_phase15` | `evidence_entities` | `ON` | Migration ADDs column evidence_entities.ON but Prisma model EvidenceEntity no longer references it. |
@@ -970,8 +1332,11 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20260613100000_phase27_5_governance_operationalization` | `governance_notifications` | `recipient_user_ids` | Migration ADDs column governance_notifications.recipient_user_ids but Prisma model GovernanceNotification no longer references it. |
 | `20260613100000_phase27_5_governance_operationalization` | `governance_export_snapshots` | `active_hold_ids` | Migration ADDs column governance_export_snapshots.active_hold_ids but Prisma model GovernanceExportSnapshot no longer references it. |
 | `20260613100000_phase27_5_governance_operationalization` | `governance_export_snapshots` | `governance_incident_ids` | Migration ADDs column governance_export_snapshots.governance_incident_ids but Prisma model GovernanceExportSnapshot no longer references it. |
+| `20260620100000_phase24_31_consolidated_drift_patches` | `evidence_upload_sessions` | `part_etag` | Migration ADDs column evidence_upload_sessions.part_etag but Prisma model EvidenceUploadSession no longer references it. |
+| `20260620100000_phase24_31_consolidated_drift_patches` | `evidence_upload_sessions` | `scope` | Migration ADDs column evidence_upload_sessions.scope but Prisma model EvidenceUploadSession no longer references it. |
+| `20260620100000_phase24_31_consolidated_drift_patches` | `evidence_upload_session_parts` | `target_part_index` | Migration ADDs column evidence_upload_session_parts.target_part_index but Prisma model EvidenceUploadSessionPart no longer references it. |
 | `20260620100000_phase24_31_consolidated_drift_patches` | `evidence_search_documents` | `tsv` | Migration ADDs column evidence_search_documents.tsv but Prisma model EvidenceSearchDocument no longer references it. |
-| `20260620100000_phase24_31_consolidated_drift_patches` | `evidence_search_documents` | `embedding` | Migration ADDs column evidence_search_documents.embedding but Prisma model EvidenceSearchDocument no longer references it. |
+| `20260620100000_phase24_31_consolidated_drift_patches` | `media_intelligence_runs` | `assignment_due_at_utc` | Migration ADDs column media_intelligence_runs.assignment_due_at_utc but Prisma model MediaIntelligenceRun no longer references it. |
 | `20260625100000_phase328cpppp_dashboard_intelligence_closure` | `evidence_integrity_snapshots` | `ON` | Migration ADDs column evidence_integrity_snapshots.ON but Prisma model EvidenceIntegritySnapshot no longer references it. |
 | `20260625100000_phase328cpppp_dashboard_intelligence_closure` | `access_anomalies` | `ON` | Migration ADDs column access_anomalies.ON but Prisma model AccessAnomaly no longer references it. |
 | `20260626100000_phase328cppppp_structural_intelligence_closure` | `queue_telemetry_snapshots` | `ON` | Migration ADDs column queue_telemetry_snapshots.ON but Prisma model QueueTelemetrySnapshot no longer references it. |
@@ -992,28 +1357,32 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20260925000000_phase0_schema_catchup` | `evidence_relationships` | `eventTypes` | Migration ADDs column evidence_relationships.eventTypes but Prisma model EvidenceRelationship no longer references it. |
 | `20260925000000_phase0_schema_catchup` | `review_escalations` | `createdAtUtc` | Migration ADDs column review_escalations.createdAtUtc but Prisma model ReviewEscalation no longer references it. |
 | `20260925000000_phase0_schema_catchup` | `trusted_devices` | `avatar_url` | Migration ADDs column trusted_devices.avatar_url but Prisma model TrustedDevice no longer references it. |
-| `20261015000000_phase_2b_closure_invitation_delivery_sso` | `external_review_invitation_deliveries` | `provider_message_id` | Migration ADDs column external_review_invitation_deliveries.provider_message_id but Prisma model ExternalReviewInvitationDelivery no longer references it. |
-| `20261101000000_phase_3a_redaction_platform` | `redaction_projects` | `archived_at` | Migration ADDs column redaction_projects.archived_at but Prisma model RedactionProject no longer references it. |
-| `20261101000000_phase_3a_redaction_platform` | `redaction_versions` | `rejected_at_utc` | Migration ADDs column redaction_versions.rejected_at_utc but Prisma model RedactionVersion no longer references it. |
-| `20261101000000_phase_3a_redaction_platform` | `redaction_derivatives` | `render_started_at_utc` | Migration ADDs column redaction_derivatives.render_started_at_utc but Prisma model RedactionDerivative no longer references it. |
+| `20260925000000_phase0_schema_catchup` | `evidence_anchors` | `receipt_id` | Migration ADDs column evidence_anchors.receipt_id but Prisma model EvidenceAnchor no longer references it. |
+| `20260925000000_phase0_schema_catchup` | `evidence_anchors` | `public_url` | Migration ADDs column evidence_anchors.public_url but Prisma model EvidenceAnchor no longer references it. |
 | `20261201000000_phase_3a_elite_closure_policy_video` | `redaction_policy_versions` | `published_at_utc` | Migration ADDs column redaction_policy_versions.published_at_utc but Prisma model RedactionPolicyVersion no longer references it. |
 | `20261201000000_phase_3a_elite_closure_policy_video` | `redaction_policy_assignments` | `policy_version_id` | Migration ADDs column redaction_policy_assignments.policy_version_id but Prisma model RedactionPolicyAssignment no longer references it. |
 | `20261201000000_phase_3a_elite_closure_policy_video` | `redaction_policy_assignments` | `revoked_at_utc` | Migration ADDs column redaction_policy_assignments.revoked_at_utc but Prisma model RedactionPolicyAssignment no longer references it. |
-| `20261201000000_phase_3a_elite_closure_policy_video` | `video_track_detections` | `created_at` | Migration ADDs column video_track_detections.created_at but Prisma model VideoTrackDetection no longer references it. |
-| `20261215000000_phase_3b_intelligence_platform` | `media_intelligence_records` | `reviewed_at_utc` | Migration ADDs column media_intelligence_records.reviewed_at_utc but Prisma model MediaIntelligenceRecord no longer references it. |
-| `20261215000000_phase_3b_intelligence_platform` | `media_intelligence_records` | `superseded_at_utc` | Migration ADDs column media_intelligence_records.superseded_at_utc but Prisma model MediaIntelligenceRecord no longer references it. |
-| `20261215000000_phase_3b_intelligence_platform` | `reviewer_corrections` | `accepted_at_utc` | Migration ADDs column reviewer_corrections.accepted_at_utc but Prisma model ReviewerCorrection no longer references it. |
-| `20261215000000_phase_3b_intelligence_platform` | `reviewer_corrections` | `reverted_at_utc` | Migration ADDs column reviewer_corrections.reverted_at_utc but Prisma model ReviewerCorrection no longer references it. |
-| `20261216000000_phase_3b_enterprise_closure` | `reviewer_corrections` | `superseded_at_utc` | Migration ADDs column reviewer_corrections.superseded_at_utc but Prisma model ReviewerCorrection no longer references it. |
 | `20261220000000_phase_4a_trust_and_governance` | `delegated_admin_grants` | `grantee_user_id` | Migration ADDs column delegated_admin_grants.grantee_user_id but Prisma model DelegatedAdminGrant no longer references it. |
 | `20261220000000_phase_4a_trust_and_governance` | `cross_org_review_grants` | `created_by_user_id` | Migration ADDs column cross_org_review_grants.created_by_user_id but Prisma model CrossOrgReviewGrant no longer references it. |
-| `20261225000000_phase_4a_enterprise_closure` | `evidence` | `department_id` | Migration ADDs column evidence.department_id but Prisma model Evidence no longer references it. |
-| `20261230000000_phase_4b_packaging_and_lifecycle` | `entitlement_grants` | `notes` | Migration ADDs column entitlement_grants.notes but Prisma model EntitlementGrant no longer references it. |
-| `20261231000000_phase_4b_final_closure` | `destruction_certificates` | `certificate_pdf_uri` | Migration ADDs column destruction_certificates.certificate_pdf_uri but Prisma model DestructionCertificate no longer references it. |
 | `20270101000000_phase_r3_model_catchup` | `devices` | `parent_annotation_id` | Migration ADDs column devices.parent_annotation_id but Prisma model Device no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `external_reviewer_role_assignments` | `grant_state` | Migration ADDs column external_reviewer_role_assignments.grant_state but Prisma model ExternalReviewerRoleAssignment no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `external_reviewer_role_assignments` | `raw_token` | Migration ADDs column external_reviewer_role_assignments.raw_token but Prisma model ExternalReviewerRoleAssignment no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `external_reviewer_role_assignments` | `token_hash` | Migration ADDs column external_reviewer_role_assignments.token_hash but Prisma model ExternalReviewerRoleAssignment no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `external_reviewer_role_assignments` | `expires_at_utc` | Migration ADDs column external_reviewer_role_assignments.expires_at_utc but Prisma model ExternalReviewerRoleAssignment no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `external_reviewer_role_assignments` | `revoked_at_utc` | Migration ADDs column external_reviewer_role_assignments.revoked_at_utc but Prisma model ExternalReviewerRoleAssignment no longer references it. |
 | `20270101000000_phase_r3_model_catchup` | `external_reviewer_role_assignments` | `allowed_domains` | Migration ADDs column external_reviewer_role_assignments.allowed_domains but Prisma model ExternalReviewerRoleAssignment no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `status_incidents` | `component_id` | Migration ADDs column status_incidents.component_id but Prisma model StatusIncident no longer references it. |
+| `20270101000000_phase_r3_model_catchup` | `maintenance_windows` | `body` | Migration ADDs column maintenance_windows.body but Prisma model MaintenanceWindow no longer references it. |
 | `20270102000000_phase_r7_schema_catchup` | `video_frames` | `device_model` | Migration ADDs column video_frames.device_model but Prisma model VideoFrame no longer references it. |
 | `20270103000000_phase_r7_trust_schema_fix` | `subprocessors` | `change_summary` | Migration ADDs column subprocessors.change_summary but Prisma model Subprocessor no longer references it. |
+| `20270809000000_phase_2_1_final_drift_closure` | `redaction_policy_audits` | `team_seats` | Migration ADDs column redaction_policy_audits.team_seats but Prisma model RedactionPolicyAudit no longer references it. |
+| `20270829000000_phase_2a_live_missing_columns_catchup` | `evidence_exchange_package_deliveries` | `created_at` | Migration ADDs column evidence_exchange_package_deliveries.created_at but Prisma model EvidenceExchangePackageDelivery no longer references it. |
+| `20270829000000_phase_2a_live_missing_columns_catchup` | `governance_policy_assignments` | `title` | Migration ADDs column governance_policy_assignments.title but Prisma model GovernancePolicyAssignment no longer references it. |
+| `20270916000000_operations_center_history_and_schedule` | `operations_inbox_snapshots` | `frequency` | Migration ADDs column operations_inbox_snapshots.frequency but Prisma model OperationsInboxSnapshot no longer references it. |
+| `20270917000000_org_notification_policy_and_resolution_provenance` | `organization_notification_policies` | `resolution_source` | Migration ADDs column organization_notification_policies.resolution_source but Prisma model OrganizationNotificationPolicy no longer references it. |
+| `20270920300000_enterprise_contract_state` | `enterprise_contracts` | `ON` | Migration ADDs column enterprise_contracts.ON but Prisma model EnterpriseContract no longer references it. |
+| `20271201000000_new058_verified_contact_factors` | `mfa_factors` | `factor_id` | Migration ADDs column mfa_factors.factor_id but Prisma model MfaFactor no longer references it. |
+| `20271227000000_billing_commercial_correctness` | `evidence_credit_ledger_entries` | `cancel_at_period_end` | Migration ADDs column evidence_credit_ledger_entries.cancel_at_period_end but Prisma model EvidenceCreditLedgerEntry no longer references it. |
 | `email_password_auth` | `password_reset_tokens` | `ON` | Migration ADDs column password_reset_tokens.ON but Prisma model PasswordResetToken no longer references it. |
 
 ## Naming drift (camelCase quoted identifiers)
@@ -1058,6 +1427,7 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20261008000000_phase_o_workflow_join_table_final_repair` | `workflowInstanceId` | `workflow_instance_id` |
 | `20261008000000_phase_o_workflow_join_table_final_repair` | `evidenceId` | `evidence_id` |
 | `20261008000000_phase_o_workflow_join_table_final_repair` | `createdAt` | `created_at` |
+| `20270906020000_phase_2b_3_string_type_alignment` | `userAgent` | `user_agent` |
 
 ## Required tests
 - `services/api/test/phase-o-migration-safety-gate.test.ts` — CI gate that fails any NEW migration added after the configured baseline timestamp if it introduces a CRITICAL pattern.

@@ -1552,5 +1552,63 @@ allowedHeaders: [
     app.log.warn({ reconciler: "operations" }, "operations_reconciler.disabled");
   }
 
+  // BILLING RECONCILIATION (2026-08-27) — the scheduled provider sweep.
+  //
+  // The manual "Re-check purchases and billing" action only helps a customer
+  // who notices. Someone who bought an evidence credit, never received it and
+  // concluded the product was broken will not press a button — so the same
+  // reconciliation authority is offered to accounts whose stored bindings
+  // could need repair, without anyone asking.
+  //
+  // Delayed and jittered for the same reason the Operations sweep is: an
+  // immediate run would put every replica in a rolling deploy onto the same
+  // provider at the same moment. The interval is deliberately long — this
+  // repairs a rare loss, and a tight loop would spend a provider rate limit
+  // learning nothing.
+  //
+  // Enabled by default: a recovery path that has to be switched on is one that
+  // is off in exactly the deployments that need it.
+  if (process.env.BILLING_RECONCILER_ENABLED !== "false") {
+    const { runBillingReconciliationSweep } = await import(
+      "./jobs/billing-reconciliation.job.js"
+    );
+    const intervalMs = Number.parseInt(
+      process.env.BILLING_RECONCILER_INTERVAL_MS ?? "3600000",
+      10,
+    );
+    const startupDelayMs =
+      Number.parseInt(
+        process.env.BILLING_RECONCILER_STARTUP_DELAY_MS ?? "120000",
+        10,
+      ) + Math.floor(Math.random() * 60_000);
+
+    const billingStartupHandle = setTimeout(() => {
+      void runBillingReconciliationSweep().catch(() => null);
+    }, startupDelayMs);
+    if (
+      typeof (billingStartupHandle as { unref?: () => void }).unref === "function"
+    ) {
+      (billingStartupHandle as { unref?: () => void }).unref!();
+    }
+    const billingHandle = setInterval(() => {
+      void runBillingReconciliationSweep().catch(() => null);
+    }, intervalMs);
+    if (typeof (billingHandle as { unref?: () => void }).unref === "function") {
+      (billingHandle as { unref?: () => void }).unref!();
+    }
+    app.addHook("onClose", async () => {
+      clearTimeout(billingStartupHandle);
+      clearInterval(billingHandle);
+    });
+    app.log.info(
+      { intervalMs, startupDelayMs },
+      "billing_reconciler.scheduled",
+    );
+  } else {
+    // A disabled reconciler is a DECISION, and one nobody can see is
+    // indistinguishable from a bug.
+    app.log.warn({ reconciler: "billing" }, "billing_reconciler.disabled");
+  }
+
   return app;
 }

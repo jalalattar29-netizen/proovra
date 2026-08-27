@@ -1787,6 +1787,8 @@ model WorkspaceStorageAddon {
   currentPeriodEnd       DateTime?                   @map("current_period_end") @db.Timestamptz(6)
   expiresAtUtc           DateTime?                   @map("expires_at_utc") @db.Timestamptz(6)
   canceledAtUtc          DateTime?                   @map("canceled_at_utc") @db.Timestamptz(6)
+  /// See Subscription.providerStateAtUtc.
+  providerStateAtUtc     DateTime?                   @map("provider_state_at_utc") @db.Timestamptz(6)
   metadata               Json?
   createdAt              DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -2120,6 +2122,10 @@ model Subscription {
   cancelAtPeriodEnd Boolean           @default(false) @map("cancel_at_period_end")
   /// When the provider recorded the cancellation request.
   canceledAtUtc     DateTime?         @map("canceled_at_utc") @db.Timestamptz(6)
+  /// The PROVIDER's own timestamp for the state this row last recorded.
+  /// Reconciliation discards an observation older than it, so a slow poll
+  /// cannot overwrite a newer webhook. NULL = none recorded yet (accept).
+  providerStateAtUtc DateTime?        @map("provider_state_at_utc") @db.Timestamptz(6)
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   teamId           String?            @map("team_id") @db.Uuid
