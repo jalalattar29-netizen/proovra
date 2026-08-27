@@ -51,6 +51,7 @@ import { getWorkspaceUsage } from "../workspace-usage.service.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";
 import {
+  getPlanPriceCents,
   getStorageAddonPriceCents,
   resolveCheckoutCurrency,
   type BillingCurrency,
@@ -188,6 +189,28 @@ export type CollaborationUsage = {
   };
 };
 
+/**
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — what this account may BUY, and
+ * what that costs, decided on the server.
+ *
+ * The checkout surface used to hold this itself: a client function returned
+ * `"PRO"` or `"TEAM"` from the account kind and hard-coded the blurb —
+ * "500 records, 500 GB" — in the browser. That is a second copy of the
+ * commercial catalog, in the one place that cannot be kept in step with it, and
+ * it is the same class of defect as the limits the old page rendered from the
+ * platform envelope.
+ */
+export type PlanOffer = {
+  /** The plan key the checkout route accepts. */
+  planKey: "PRO" | "TEAM";
+  displayName: string;
+  /** Present ONLY with BILLING_AMOUNT_VIEW. */
+  priceCents?: number;
+  currency?: BillingCurrency;
+  /** Server-composed from the canonical catalog. Never written in the client. */
+  summary: string;
+};
+
 export type StorageAddonOffer = {
   key: string;
   label: string;
@@ -209,6 +232,17 @@ export type ActiveStorageAddon = {
   billingCycle: string;
   /** True for a grandfathered one-time purchase. */
   legacyOneTime: boolean;
+  /**
+   * Whether THIS add-on can be cancelled by THIS viewer.
+   *
+   * Decided here rather than in the browser, because it depends on three
+   * server facts at once: the viewer's add-on capability, whether the row is
+   * a grandfathered one-time purchase (which has no recurring charge to
+   * stop), and whether the subscription is still in a cancellable state. A
+   * client re-deriving that from a raw status string is a commercial
+   * decision in the one place that must not hold them.
+   */
+  canCancel: boolean;
   activatedAtUtc: string | null;
   currentPeriodEndUtc: string | null;
   /** Present ONLY with BILLING_AMOUNT_VIEW. */
@@ -235,6 +269,24 @@ export type BillingAccountProjection = {
   };
   collaboration?: CollaborationUsage;
   contract?: EnterpriseContractSummary;
+  /** Plans this account may purchase. Empty when it may purchase none. */
+  planOffers?: PlanOffer[];
+  /**
+   * What needs doing, if anything.
+   *
+   * Composed HERE because every input is a server fact — the bounded grace
+   * clock, whether a billing owner is assigned, whether storage is really
+   * exhausted. The client used to branch on the lifecycle value to decide
+   * whether to show a banner at all, which is a commercial judgement wearing
+   * presentation clothes. `null` means nothing needs doing.
+   */
+  actionRequired: {
+    severity: "CRITICAL" | "WARNING";
+    title: string;
+    messages: string[];
+    /** Self-serve reassurance. Null where there is no card to reassure about. */
+    reassurance: string | null;
+  } | null;
   storageAddons?: {
     offers: StorageAddonOffer[];
     active: ActiveStorageAddon[];
@@ -251,6 +303,15 @@ export type BillingAccountProjection = {
     canRequestCancellation: boolean;
     /** Enterprise: the only sanctioned change path. */
     contactAccountManager: boolean;
+    /**
+     * The label for the manage-plan control.
+     *
+     * Decided HERE because "is this an upgrade or a change?" is a commercial
+     * question about the account's current model, and a client branching on
+     * that model to pick a word is a client holding commercial logic. Null
+     * when there is no manage action to render.
+     */
+    manageLabel: string | null;
   };
 };
 
@@ -372,6 +433,7 @@ async function activeAddonsFor(params: {
   ownerUserId: string;
   teamId: string | null;
   showAmounts: boolean;
+  canPurchaseAddons: boolean;
 }): Promise<ActiveStorageAddon[]> {
   const rows = await prisma.workspaceStorageAddon.findMany({
     where: { ownerUserId: params.ownerUserId, teamId: params.teamId },
@@ -403,6 +465,11 @@ async function activeAddonsFor(params: {
       status: r.status,
       billingCycle: r.billingCycle,
       legacyOneTime,
+      canCancel:
+        params.canPurchaseAddons &&
+        !legacyOneTime &&
+        (r.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
+          r.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE),
       activatedAtUtc: iso(r.activatedAtUtc),
       currentPeriodEndUtc: iso(r.currentPeriodEnd),
       ...(params.showAmounts
@@ -410,6 +477,55 @@ async function activeAddonsFor(params: {
         : {}),
     };
   });
+}
+
+/**
+ * The plans this ACCOUNT may buy, with their published limits described from
+ * the canonical catalog.
+ *
+ * A WORKSPACE buys TEAM — a TEAM subscription is for exactly one Owned
+ * Workspace. A PERSONAL account buys PRO. An ORGANIZATION buys nothing here:
+ * Enterprise is contract-managed.
+ */
+function planOffersFor(params: {
+  accountType: "PERSONAL" | "WORKSPACE";
+  currency: BillingCurrency;
+  showAmounts: boolean;
+}): PlanOffer[] {
+  const planKey: "PRO" | "TEAM" =
+    params.accountType === "WORKSPACE" ? "TEAM" : "PRO";
+  const caps = getPlanCapabilities(planKey);
+
+  const records =
+    caps.maxEvidenceRecordsPerMonth !== null
+      ? `${caps.maxEvidenceRecordsPerMonth} evidence records in any 30 days`
+      : caps.maxEvidenceRecords !== null
+        ? `${caps.maxEvidenceRecords} lifetime evidence records`
+        : "no evidence-record limit";
+  const storage = `${formatBytesHuman(caps.includedStorageBytes)} of cumulative storage`;
+  const ai =
+    caps.aiAdvisoryMonthlyOperations === null
+      ? null
+      : caps.aiAdvisoryMonthlyOperations > 0
+        ? `${caps.aiAdvisoryMonthlyOperations} AI operations a month`
+        : null;
+
+  return [
+    {
+      planKey,
+      displayName: caps.displayName,
+      summary: [records, storage, ai].filter(Boolean).join(", "),
+      ...(params.showAmounts
+        ? {
+            priceCents: getPlanPriceCents(
+              planKey as prismaPkg.PlanType,
+              params.currency,
+            ),
+            currency: params.currency,
+          }
+        : {}),
+    },
+  ];
 }
 
 function offersFor(params: {
@@ -658,10 +774,45 @@ export async function buildBillingAccountProjection(input: {
   // plan first", so the surface offers nothing rather than a button that 409s.
   const addonsEligible = scope.plan !== "FREE";
 
+  // THE banner decision, made once, on the server.
+  const storageFull = storage.state === "MEASURED" && storage.limitReached;
+  const lifecycleNeedsAction =
+    plan.lifecycle === "PAST_DUE" || plan.lifecycle === "ACTION_REQUIRED";
+  const bannerMessages: string[] = [];
+  if (plan.lifecycle === "PAST_DUE") {
+    const until = iso(ctx.lifecycle.graceEndsAtUtc);
+    bannerMessages.push(
+      until
+        ? `We could not take the last payment. Access continues until ${until.slice(0, 10)} while we retry.`
+        : "We could not take the last payment.",
+    );
+  } else if (plan.lifecycle === "ACTION_REQUIRED") {
+    bannerMessages.push("Billing needs attention before paid features continue.");
+  }
+  if (account.billingOwnerMissing) {
+    bannerMessages.push(
+      "No one is currently assigned to pay for this account. A workspace owner or organization administrator needs to take it on.",
+    );
+  }
+  if (storageFull) {
+    bannerMessages.push(
+      "Storage is full. New evidence cannot be recorded until space is freed or capacity is added.",
+    );
+  }
+
   return {
     account,
     plan,
     usage: { evidence, storage, ai },
+    actionRequired:
+      bannerMessages.length > 0
+        ? {
+            severity: lifecycleNeedsAction ? "CRITICAL" : "WARNING",
+            title: lifecycleNeedsAction ? "Action required" : "Attention needed",
+            messages: bannerMessages,
+            reassurance: "Nothing has been charged again.",
+          }
+        : null,
     ...(wallet
       ? {
           wallet: {
@@ -679,6 +830,15 @@ export async function buildBillingAccountProjection(input: {
         }
       : {}),
     ...(Object.keys(collaboration).length > 0 ? { collaboration } : {}),
+    ...(canManage
+      ? {
+          planOffers: planOffersFor({
+            accountType: account.type === "WORKSPACE" ? "WORKSPACE" : "PERSONAL",
+            currency,
+            showAmounts,
+          }),
+        }
+      : {}),
     ...(addonsEligible
       ? {
           storageAddons: {
@@ -689,12 +849,20 @@ export async function buildBillingAccountProjection(input: {
               ownerUserId: scope.ownerUserId,
               teamId: scope.teamId,
               showAmounts,
+              canPurchaseAddons: canAddon,
             }),
           },
         }
       : {}),
     actions: {
       canStartCheckout: canManage,
+      // An account paying nothing recurring is UPGRADING; one that already has
+      // a subscription is CHANGING it.
+      manageLabel: canManage
+        ? model === "MONTHLY"
+          ? "Change plan"
+          : "Upgrade plan"
+        : null,
       // Credits are a PERSONAL product; a workspace buys a TEAM subscription.
       canBuyEvidenceCredits: canManage && account.type === "PERSONAL",
       canBuyStorageAddon: canAddon && addonsEligible,
@@ -726,14 +894,14 @@ async function buildOrganizationProjection(input: {
   // customer was shown against their contracted seats.
   const seatsUsed = await prisma.teamMember.count({
     where: {
-      teamId: { in: workspaceIds.length > 0 ? workspaceIds : [" "] },
+      teamId: { in: workspaceIds },
       status: prismaPkg.TeamMemberStatus.ACTIVE,
     },
   });
 
   const storageAgg = await prisma.evidence.aggregate({
     where: {
-      teamId: { in: workspaceIds.length > 0 ? workspaceIds : [" "] },
+      teamId: { in: workspaceIds },
       lifecycleState: { not: "DESTROYED" },
     },
     _sum: { sizeBytes: true },
@@ -749,6 +917,18 @@ async function buildOrganizationProjection(input: {
 
   return {
     account,
+    actionRequired: contractActive
+      ? null
+      : {
+          severity: "CRITICAL",
+          title: "Action required",
+          messages: [
+            "This organization's agreement is not currently active. Your account manager can confirm its status.",
+          ],
+          // Enterprise is invoiced by agreement; there is no card to
+          // reassure anyone about.
+          reassurance: null,
+        },
     plan: {
       planKey: "ENTERPRISE",
       displayName: "Enterprise",
@@ -769,7 +949,7 @@ async function buildOrganizationProjection(input: {
               state: "MEASURED",
               used: await prisma.evidence.count({
                 where: {
-                  teamId: { in: workspaceIds.length > 0 ? workspaceIds : [" "] },
+                  teamId: { in: workspaceIds },
                   deletedAt: null,
                   createdAt: { gte: new Date(Date.now() - THIRTY_DAYS_MS) },
                 },
@@ -825,6 +1005,7 @@ async function buildOrganizationProjection(input: {
       canBuyStorageAddon: false,
       canRequestCancellation: false,
       contactAccountManager: true,
+      manageLabel: null,
     },
   };
 }

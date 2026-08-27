@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | c933ab9a8c36e244f385fda750e58b0f05a1e4f69702919d2c208060725d6a22 |
+| engineHash    | ca2087bfc97ca95a55940bc3d342ffb3701ee4a263c9306fc88db8d5ce7e6df4 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1103  |
+| registeredRoutes              | 1101  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 871   |
+| productConsumerRoutes         | 872   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 228   |
+| noConsumerRoutes              | 225   |
 | dispositionedNonProductRoutes | 228   |
-| undisposedRoutes              | 3     |
+| undisposedRoutes              | 0     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
 
@@ -127,7 +127,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
-| HistoricalMigrationsModifiedByPhase0       | 1     |
+| HistoricalMigrationsModifiedByPhase0       | 0     |
 | ProductBehaviorTestsInventoried            | 177   |
 
 ### Report roles
@@ -200,9 +200,8 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- HISTORICAL MIGRATION MODIFIED: services/api/prisma/migrations/20271227000000_billing_commercial_correctness/migration.sql
+_(none — the instrument is sound)_
 
 ### Product closure
 
-- CHECKPOINT: 4 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1099, facts say 1102 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1100, facts say 1103 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 3 | SCALAR_DISAGREES_WITH_FACTS: ReleaseBlockingClosure: checkpoint says PASS, facts say OPEN
-- ArchitectureBacklog: UndisposedRoutes = 3 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)
+_(none)_

@@ -13,7 +13,8 @@
  *      composition AppShellV2 uses to protect EVERY (app) route (capture,
  *      evidence, billing, settings, deep links). Proven via a `GateHost`
  *      stand-in identical in shape to AppShellV2's gating block.
- *   2. `CheckoutPanel` — the Personal checkout target/button.
+ *   2. The Billing account selector — a managed identity has no PERSONAL
+ *      billing account to select at all.
  */
 
 import React from "react";
@@ -44,7 +45,7 @@ import {
   CAPABILITY_SCHEMA_VERSION,
   NAVIGATION_SCHEMA_VERSION,
 } from "../../lib/platform-context/types";
-import { CheckoutPanel } from "../../components/billing/CheckoutPanel";
+import { AccountSelector } from "../../app/(app)/billing/_sections/AccountSelector";
 import { ToastProvider } from "../../components/ui";
 
 // ---------------------------------------------------------------------------
@@ -200,50 +201,77 @@ describe("PHASE 10 CLOSURE FIX 3 — usePersonalSpaceGate + PersonalSpaceUnavail
   });
 });
 
-describe("PHASE 10 CLOSURE FIX 3 — CheckoutPanel Personal checkout target", () => {
-  function renderCheckout(props: Partial<React.ComponentProps<typeof CheckoutPanel>>) {
-    return render(
-      <ToastProvider>
-        <CheckoutPanel personal={null} teams={[]} {...props} />
-      </ToastProvider>,
+describe("PHASE 10 CLOSURE FIX 3 — the Billing account selector", () => {
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — this concern MOVED, and the
+   * move made it stronger.
+   *
+   * It used to be tested against `CheckoutPanel`, which rendered a "Personal
+   * workspace" target chip and hid it when `personalSpaceAllowed === false` —
+   * client-side hiding over a server that also refused the checkout.
+   *
+   * There is no target picker any more. The page selects a BILLING ACCOUNT, and
+   * a managed identity has no PERSONAL account in the server's list at all:
+   * `listBillingAccountsForViewer` gates the personal entry on the canonical
+   * `assertPersonalSpaceAllowed`. Absence at the source beats hiding at the
+   * surface, because there is then nothing to reveal by any client route.
+   */
+  const account = (
+    type: "PERSONAL" | "WORKSPACE",
+    id: string,
+    displayName: string,
+  ) => ({
+    type,
+    id,
+    displayName,
+    capabilities: ["BILLING_ACCOUNT_VIEW" as const],
+    billingOwnerMissing: false,
+  });
+
+  it("renders nothing when the viewer has only one billing account", () => {
+    // A control that offers one choice is not a choice. It also implies other
+    // bills the viewer cannot see.
+    const { container } = render(
+      <AccountSelector
+        accounts={[account("WORKSPACE", "ws-1", "Acme")]}
+        selected={account("WORKSPACE", "ws-1", "Acme")}
+        onSelect={() => {}}
+      />,
     );
-  }
-
-  it("hides the Personal workspace checkout target when personalSpaceAllowed=false", () => {
-    renderCheckout({ personalSpaceAllowed: false });
-    expect(screen.queryByText("Personal workspace")).toBeNull();
-    expect(screen.getByText("Workspace")).not.toBeNull();
+    expect(container.querySelector("[data-billing-account-selector]")).toBeNull();
   });
 
-  it("mirror case: shows the Personal workspace checkout target when personalSpaceAllowed=true (default)", () => {
-    renderCheckout({});
-    expect(screen.getByText("Personal workspace")).not.toBeNull();
+  it("renders a real listbox once there are two accounts", () => {
+    const accounts = [
+      account("PERSONAL", "user-1", "Jamie"),
+      account("WORKSPACE", "ws-1", "Acme"),
+    ];
+    render(
+      <AccountSelector
+        accounts={accounts}
+        selected={accounts[0]!}
+        onSelect={() => {}}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: /Jamie/ });
+    expect(trigger.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("a stale ?workspace=personal deep link cannot select the disallowed Personal target", () => {
-    renderCheckout({
-      personalSpaceAllowed: false,
-      initialTargetType: "PERSONAL",
-      teams: [
-        {
-          id: "team-1",
-          name: "Acme",
-          plan: "TEAM",
-          effectivePlan: "TEAM",
-          billingStatus: "ACTIVE",
-        } as never,
-      ],
-    });
-    expect(screen.queryByText("Personal workspace")).toBeNull();
-    // Auto-corrected to the Workspace target.
-    expect(screen.getByText(/Target: Workspace/)).not.toBeNull();
-  });
-
-  it("with no owned workspace and Personal disallowed, checkout has no valid target", () => {
-    renderCheckout({ personalSpaceAllowed: false, teams: [] });
-    expect(screen.getByText(/No workspace is available for checkout/)).not.toBeNull();
-    const continueButton = screen.getByText(/Continue to checkout/).closest("button");
-    expect(continueButton).not.toBeNull();
-    expect((continueButton as HTMLButtonElement).disabled).toBe(true);
+  it("a managed identity with no personal account never sees one offered", () => {
+    // The server omitted PERSONAL, so the selector cannot show it — there is no
+    // client flag to get wrong.
+    const accounts = [
+      account("WORKSPACE", "ws-1", "Acme"),
+      account("WORKSPACE", "ws-2", "Beta"),
+    ];
+    render(
+      <AccountSelector
+        accounts={accounts}
+        selected={accounts[0]!}
+        onSelect={() => {}}
+      />,
+    );
+    expect(screen.queryByText("Personal")).toBeNull();
   });
 });

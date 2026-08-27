@@ -7,7 +7,6 @@ import {
 } from "./billing/enterprise-contract-limits.js";
 import {
   formatBytesHuman,
-  getPlanCapabilities,
 } from "./plan-catalog.service.js";
 
 const GB = 1024n * 1024n * 1024n;
@@ -198,7 +197,11 @@ export type WorkspaceUsage = {
 export async function getWorkspaceUsage(
   scope: WorkspaceScope
 ): Promise<WorkspaceUsage> {
-  const caps = getPlanCapabilities(scope.plan);
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the plan-capabilities local
+  // was removed. The one value this function still took from it — the base
+  // storage limit — is now resolved contract-first by
+  // `resolveEffectiveBaseStorageBytes`, and keeping the local would have left a
+  // second, catalog-only candidate answer sitting beside it.
 
   // Phase HOME-DATA-OWNERSHIP — personal usage covers BOTH legacy rows
   // (team_id NULL) and rows stamped with the owner's personal Team id

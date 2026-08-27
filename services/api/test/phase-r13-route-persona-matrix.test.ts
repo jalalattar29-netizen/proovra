@@ -446,13 +446,22 @@ describe("Phase R13 — Stage 4: team UI copy is hygienic", () => {
     expect(body).toMatch(/\|\| "Workspace"/);
   });
 
-  it("billing TeamWorkspaceCard does not contain 'team workspace' in body copy", () => {
-    const body = read("apps/web/components/billing/TeamWorkspaceCard.tsx");
-    // The card may keep its internal component name (it is a billing-
-    // tier card historically called TeamWorkspaceCard); user-visible
-    // copy must not contain the forbidden phrase.
-    expect(body).not.toMatch(/a team workspace/);
-    expect(body).not.toMatch(/team workspaces/);
+  it("no Billing surface contains 'team workspace' in body copy", () => {
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — widened from one card to
+    // the whole surface. `TeamWorkspaceCard` is deleted; the property it
+    // carried now applies to every file the page renders, and the exemption its
+    // own component NAME needed is gone with it.
+    for (const rel of [
+      "apps/web/app/(app)/billing/page.tsx",
+      "apps/web/app/(app)/billing/_sections/PlanAndUsage.tsx",
+      "apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx",
+      "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx",
+      "apps/web/app/(app)/billing/_sections/AccountSelector.tsx",
+    ]) {
+      const body = read(rel);
+      expect(body, `${rel} says "a team workspace"`).not.toMatch(/a team workspace/i);
+      expect(body, `${rel} says "team workspaces"`).not.toMatch(/team workspaces/i);
+    }
   });
 });
 

@@ -231,8 +231,12 @@ describe("CR1.5B Test 5 — fallback label is operationally neutral", () => {
   // neutral "Status pending", never to a raw ALL_CAPS value — is pinned
   // on a surface that actually formats backend enums for display.
   it("an unmapped backend enum degrades to the neutral `Status pending`", () => {
-    const src = readWeb("components/billing/StorageAddonsPanel.tsx");
-    expect(src).toMatch(/function formatAddonStatus/);
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — retargeted. The panel that
+    // held `formatAddonStatus` is deleted; the Billing surface now formats every
+    // provider and lifecycle enum through ONE `statusLabel`, so the invariant is
+    // pinned once instead of per panel.
+    const src = readWeb("app/(app)/billing/_sections/format.ts");
+    expect(src).toMatch(/export function statusLabel/);
     // The default arm — reached when no known enum matched.
     expect(src).toMatch(/return "Status pending";\s*\n\s*}/);
     // …and the raw normalized value is never returned to the UI.

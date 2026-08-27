@@ -261,27 +261,32 @@ describe("Phase IA-self-serve-audit-fixes — Teams landing + renames", () => {
 
 describe("Phase IA-self-serve-audit-fixes — Billing copy", () => {
   const BILLING = readWeb("app/(app)/billing/page.tsx");
-  const CHECKOUT = readWeb("components/billing/CheckoutPanel.tsx");
 
   it("'operate shared evidence workflows' is gone", () => {
     expect(BILLING).not.toMatch(/operate shared evidence workflows/i);
   });
 
-  it("Billing empty-state copy uses 'share cases and evidence with collaborators'", () => {
-    // JSX text spans two source lines — allow whitespace between
-    // "and" and "evidence".
-    expect(BILLING).toMatch(
-      /share cases and\s+evidence with collaborators/,
-    );
-  });
-
-  it("CheckoutPanel lists the per-account / per-team clarification", () => {
-    expect(CHECKOUT).toMatch(
-      /PAYG, PRO, and TEAM apply to your personal account\./,
-    );
-    expect(CHECKOUT).toMatch(
-      /Each workspace you own can also have its own dedicated TEAM subscription./,
-    );
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — two assertions retired with
+   * the surfaces they described.
+   *
+   * The "share cases and evidence with collaborators" empty state belonged to a
+   * per-workspace card list that no longer exists: the page shows ONE billing
+   * account, and an account with no workspaces is not an empty state on Billing
+   * — it is simply an account that has not created one.
+   *
+   * The CheckoutPanel clarification ("PAYG, PRO, and TEAM apply to your personal
+   * account… each workspace you own can also have its own TEAM subscription")
+   * existed because checkout let the user pick a target and the distinction was
+   * genuinely confusing. The drawer has no target picker: the page has already
+   * selected the account being bought for, and the drawer names it. There is
+   * nothing left to disambiguate.
+   *
+   * What replaced them is asserted instead: the page names its subject.
+   */
+  it("the page names the billing account it is showing", () => {
+    expect(BILLING).toMatch(/AccountSelector/);
+    expect(BILLING).toMatch(/accountFromLocator/);
   });
 });
 

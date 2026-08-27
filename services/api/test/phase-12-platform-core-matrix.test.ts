@@ -213,6 +213,10 @@ vi.mock("../src/db.js", () => ({
       }),
       update: async () => ({ id: H.actorUserId }),
     },
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the account enumerator
+    // asks which CUSTOMER organizations the viewer belongs to. This harness
+    // exercises a self-serve caller, so the answer is none.
+    organizationMembership: { findMany: async () => [] },
     userLegalAcceptance: { findMany: async () => [] },
     cookieConsentRecord: { findFirst: async () => null, create: async () => ({}) },
     communicationMessage: { findMany: async () => [], findFirst: async () => null, update: async () => ({}) },
@@ -506,50 +510,82 @@ describe("PLATFORM_CORE §1 — billing entitlement + payment ledger", () => {
     teamId: null,
   };
 
-  it("happy path — GET /v1/billing/payments returns the caller's ledger + audits the read", async () => {
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — retargeted from
+   * `GET /v1/billing/payments` to `GET /v1/billing/accounts/:type/:id/history`.
+   *
+   * The old route returned EVERY payment the caller had ever made across every
+   * billing account they touch, in one list, distinguished only by a `teamId`
+   * the UI rendered as "Team payment" / "Personal payment" — the cross-payer
+   * merge the account model exists to end. It is deleted.
+   *
+   * Every property it proved still holds, and two are now stronger: the subject
+   * is not merely session-derived but explicitly AUTHORIZED, and a viewer
+   * without `BILLING_HISTORY_VIEW` receives a 403 with a stable code rather
+   * than a list quietly missing what they may not see.
+   */
+  const LEDGER_URL = "/v1/billing/accounts/PERSONAL/user-1/history";
+
+  it("happy path — the account ledger returns the caller's payments + audits the read", async () => {
     H.payments = [PAYMENT_ROW];
-    const res = await app.inject({ method: "GET", url: "/v1/billing/payments" });
+    const res = await app.inject({ method: "GET", url: LEDGER_URL });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.items).toHaveLength(1);
     expect(body.count).toBe(1);
-    expect(body.limit).toBe(20);
-    expect(H.audits).toContain("billing.payments_list");
+    expect(H.audits).toContain("billing.account_history_view");
   });
 
   it("safe projection — the ledger NEVER echoes the raw row (no userId, no unknown columns)", async () => {
     H.payments = [{ ...PAYMENT_ROW, secretInternalColumn: "leak" }];
-    const res = await app.inject({ method: "GET", url: "/v1/billing/payments" });
+    const res = await app.inject({ method: "GET", url: LEDGER_URL });
+    expect(res.statusCode).toBe(200);
     const item = JSON.parse(res.body).items[0];
+    // An EXPLICITLY constructed DTO. The provider's own payment id is gone too:
+    // it is an operator-facing identifier, not something a customer needs.
     expect(Object.keys(item).sort()).toEqual(
       [
         "amountCents",
-        "createdAt",
         "currency",
+        "description",
         "id",
-        "provider",
-        "providerPaymentId",
+        "occurredAtUtc",
+        "providerLabel",
         "status",
-        "teamId",
       ].sort(),
     );
     expect(item).not.toHaveProperty("userId");
     expect(item).not.toHaveProperty("secretInternalColumn");
+    expect(item).not.toHaveProperty("providerPaymentId");
   });
 
   it("SERVER-derived subject — a client-declared userId/teamId cannot widen the query", async () => {
     H.payments = [PAYMENT_ROW];
     const res = await app.inject({
       method: "GET",
-      url: `/v1/billing/payments?userId=${OTHER_USER}&teamId=${TEAM_B}`,
+      url: `${LEDGER_URL}?userId=${OTHER_USER}&teamId=${TEAM_B}`,
     });
     expect(res.statusCode).toBe(200);
-    // The query is scoped by the SESSION subject alone.
-    expect(H.paymentWhere).toEqual({ userId: "user-1" });
+    // The predicate comes from the RESOLVED billing account, which the caller
+    // had to be authorized for. A PERSONAL account matches its own team-less
+    // payments and nothing else.
+    expect(H.paymentWhere).toEqual({ userId: "user-1", teamId: null });
+  });
+
+  it("cross-subject denial — naming another account is 404, not a wide read", async () => {
+    H.payments = [PAYMENT_ROW];
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/billing/accounts/PERSONAL/${OTHER_USER}/history`,
+    });
+    // 404 rather than 403: a 403 would confirm the id exists and let the
+    // endpoint be used to enumerate other tenants.
+    expect(res.statusCode).toBe(404);
+    expect(H.reads).not.toContain("payment.findMany");
   });
 
   it("bounded input — an out-of-range limit is rejected, never silently clamped into a wide read", async () => {
-    const res = await app.inject({ method: "GET", url: "/v1/billing/payments?limit=5000" });
+    const res = await app.inject({ method: "GET", url: `${LEDGER_URL}?limit=5000` });
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error.code).toBe("invalid_query");
     expect(H.reads).not.toContain("payment.findMany");
@@ -557,7 +593,7 @@ describe("PLATFORM_CORE §1 — billing entitlement + payment ledger", () => {
 
   it("legal gate — 428 short-circuits the ledger; ZERO reads, ZERO audit", async () => {
     H.legalOk = false;
-    const res = await app.inject({ method: "GET", url: "/v1/billing/payments" });
+    const res = await app.inject({ method: "GET", url: LEDGER_URL });
     expect(res.statusCode).toBe(428);
     expect(H.reads).toEqual([]);
     expect(H.audits).toEqual([]);

@@ -25,7 +25,11 @@ import {
   getWorkspaceUsage,
 } from "./workspace-usage.service.js";
 
-type EntitlementWriter = Pick<prismaPkg.Prisma.TransactionClient, "entitlement">;
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `EntitlementWriter` was
+// DELETED. It typed the optional transaction client of
+// `consumeWorkspaceCompletionCredits`, whose callers mostly did not pass one —
+// which is exactly how the credit spend came to run outside the completion
+// transaction. The wallet takes `EvidenceCreditClient` and it is REQUIRED.
 
 /**
  * Canonical entry point used by routes to build a WorkspaceScope for the
@@ -584,9 +588,9 @@ export async function assertWorkspaceAllowsAiOperation(
 ): Promise<void> {
   // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
   assertCommercialLifecycleAllowsPaidMutation(scope);
-  const caps = getPlanCapabilities(scope.plan);
-  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — contract-managed AI
-  // allowance when the contract states one.
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the AI cap is resolved
+  // contract-first; reading the catalog into a local here would have left two
+  // candidate answers in one function.
   const cap = resolveEffectiveContractAiCap({
     plan: scope.plan,
     contract: scope.contractLimits,

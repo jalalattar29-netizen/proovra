@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "abbf7d2309f5bcf1a60eb6c77de804da57eaf805309654e24b35fe057d1f34f8",
+  "capabilityRouteInventoryHash": "042c0e0ef676635b3247c22e9bc629690a2c1abca4e4cc6415c2948e2d9b81e8",
   "totals": {
-    "routes": 1103,
+    "routes": 1101,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -705,12 +705,6 @@
       "testCallerFiles": []
     },
     {
-      "routeId": "GET /v1/billing/payments",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
       "routeId": "GET /v1/billing/pricing",
       "testCallerCount": 0,
       "testOnly": false,
@@ -718,12 +712,6 @@
     },
     {
       "routeId": "GET /v1/billing/status",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "GET /v1/billing/storage-addons",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6700,5 +6688,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "86b12dcb7bbad4fc98b37711cd4afadd525c1ecf05ccf688c8e1f943157962a3"
+  "contentHash": "ea6546546694a80c82e6cb2837af9c454007dc92e8f3f32aa232fd5f97d116e3"
 }

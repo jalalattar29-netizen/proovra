@@ -7,12 +7,18 @@ import { cancelPayPalSubscription } from "../services/paypal.service.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
 import { devAuthEnabled } from "../dev/dev-login.js";
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `cancelTeamPlan` is no longer
+// imported here. The cancel route used to write the local team downgrade
+// itself, immediately, before any webhook had confirmed the provider agreed;
+// that terminal transition is now the webhook's alone.
+//
+// `activateTeamPlan` and `setPersonalPlan` remain, used ONLY by the dev-only
+// `POST /v1/billing/plan` route below (registered behind `devAuthEnabled()`).
 import {
-  setPersonalPlan,
   activateTeamPlan,
-  cancelTeamPlan,
   cancelWorkspaceStorageAddon,
   getStorageAddonDefinition,
+  setPersonalPlan,
 } from "../services/billing.service.js";
 import { stripeRequestRaw } from "../services/stripe.service.js";
 import {
@@ -260,20 +266,12 @@ function assertPurchasablePlan(plan: prismaPkg.PlanType) {
   }
 }
 
-async function readActiveStorageAddons(userId: string) {
-  return prisma.workspaceStorageAddon.findMany({
-    where: {
-      ownerUserId: userId,
-      status: {
-        in: [
-          prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-          prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-        ],
-      },
-    },
-    orderBy: [{ teamId: "asc" }, { createdAt: "desc" }],
-  });
-}
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `readActiveStorageAddons` was
+// DELETED with the route it served. Its only caller was
+// `GET /v1/billing/storage-addons`, which returned the catalogue plus every
+// active add-on the CALLER owns, account-agnostic, for a panel that then
+// filtered it in the browser. The account projection returns already-scoped
+// rows instead.
 
 async function assertStorageAddonAllowed(params: {
   userId: string;
@@ -522,36 +520,18 @@ export async function billingRoutes(app: FastifyInstance) {
     return reply.code(200).send(buildPricingCatalogResponse({ currency }));
   });
 
-  app.get(
-    "/v1/billing/storage-addons",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const activeAddons = await readActiveStorageAddons(userId);
-
-      const query = (req.query ?? {}) as { currency?: string };
-      const currency = resolveCheckoutCurrency({
-        requestedCurrency: query.currency ?? null,
-      });
-
-      auditBillingAction(req, {
-        userId,
-        action: "billing.storage_addons_view",
-        outcome: "success",
-        metadata: {
-          activeCount: activeAddons.length,
-          currency,
-        },
-      });
-
-      const pricingCatalog = buildPricingCatalogResponse({ currency });
-
-      return reply.code(200).send({
-        catalog: pricingCatalog.storageAddons,
-        active: activeAddons,
-      });
-    }
-  );
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `GET /v1/billing/storage-addons`
+   * was DELETED here.
+   *
+   * It served the add-on catalogue plus the caller's active add-ons as one
+   * account-agnostic blob, for a panel that then filtered it in the browser by
+   * a target the user picked separately. Both halves now arrive already scoped
+   * on `GET /v1/billing/accounts/:type/:id`: `storageAddons.offers` is filtered
+   * to the account's commercial shape and its eligibility, and
+   * `storageAddons.active` is that account's own rows. Its only consumer
+   * (`StorageAddonsPanel`) is deleted, so nothing calls it.
+   */
 
   app.get(
     "/v1/billing/overview",
@@ -599,70 +579,19 @@ export async function billingRoutes(app: FastifyInstance) {
   );
 
   /**
-   * PHASE 12 VERTICAL A (2026-07-30) — the canonical PAYMENT LEDGER read.
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `GET /v1/billing/payments`
+   * was DELETED here.
    *
-   * `/v1/billing/overview` carries a 20-row payment SNAPSHOT for the summary
-   * cards; this endpoint is the dedicated ledger the Billing page's payment
-   * history renders from, so the history can be re-read (and paged) without
-   * re-deriving the entire overview aggregate.
+   * It returned EVERY payment the caller had ever made across every billing
+   * account they touch, in one list, distinguished only by a `teamId` the UI
+   * rendered as the words "Team payment" / "Personal payment". That is the
+   * cross-payer merge the account model exists to end.
    *
-   * Subject is SERVER-DERIVED from the session (`getAuthUserId`) — the caller
-   * cannot name a userId/teamId, so cross-account reads are impossible by
-   * construction. The response is an EXPLICIT SAFE PROJECTION: the raw Prisma
-   * row was previously sent verbatim, which leaked `userId` and would leak any
-   * column a future migration adds to `payments`.
+   * Its replacement is `GET /v1/billing/accounts/:type/:id/history`, which is
+   * scoped to ONE account and gated on `BILLING_HISTORY_VIEW` — so a viewer
+   * without that capability gets a 403 with a stable code rather than a list
+   * that silently omits what they may not see.
    */
-  app.get(
-    "/v1/billing/payments",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-
-      const query = z
-        .object({ limit: z.coerce.number().int().min(1).max(100).optional() })
-        .safeParse(req.query ?? {});
-      if (!query.success) {
-        return reply.code(400).send({ error: { code: "invalid_query" } });
-      }
-      const limit = query.data.limit ?? 20;
-
-      const rows = await prisma.payment.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: limit,
-        select: {
-          id: true,
-          provider: true,
-          providerPaymentId: true,
-          amountCents: true,
-          currency: true,
-          status: true,
-          createdAt: true,
-          teamId: true,
-        },
-      });
-
-      const items = rows.map((row) => ({
-        id: row.id,
-        provider: row.provider,
-        providerPaymentId: row.providerPaymentId,
-        amountCents: row.amountCents,
-        currency: row.currency,
-        status: row.status,
-        createdAt: row.createdAt.toISOString(),
-        teamId: row.teamId ?? null,
-      }));
-
-      auditBillingAction(req, {
-        userId,
-        action: "billing.payments_list",
-        outcome: "success",
-        metadata: { count: items.length, limit },
-      });
-
-      return reply.code(200).send({ items, count: items.length, limit });
-    }
-  );
 
   app.get(
     "/v1/billing/subscription",

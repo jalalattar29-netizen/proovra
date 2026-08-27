@@ -127,22 +127,18 @@ function throwBillingError(args: {
 // =============================================================================
 
 /**
- * Resolve the canonical billing PlanType for a given user. Reads from
- * the same `Entitlement` table that `ensureEntitlement` and the legacy
- * personal-scope adapter read from, so the two surfaces
- * never drift.
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `resolveUserPlan` was DELETED.
+ *
+ * It read the ACTOR'S ACCOUNT entitlement, and its only remaining caller was
+ * `assertCanCreateCollaborationTeam`. That guard's subject was wrong: a
+ * Collaboration Team lives inside a WORKSPACE, so its capacity belongs to that
+ * workspace's own commercial state, not to whoever happens to own it. A team
+ * inside an unsubscribed Owned Workspace was being gated on its owner's
+ * Personal PRO — a plan the workspace does not hold.
+ *
+ * Every guard in this module now resolves the workspace subject through the
+ * canonical envelope, so there is no account-plan reader left to keep.
  */
-async function resolveUserPlan(
-  client: PrismaClient,
-  userId: string,
-): Promise<PlanType> {
-  const entitlement = await client.entitlement.findFirst({
-    where: { userId, active: true },
-    orderBy: { createdAt: "desc" },
-    select: { plan: true },
-  });
-  return entitlement?.plan ?? prismaPkg.PlanType.FREE;
-}
 
 /**
  * PHASE 9 §9.4 corrected (2026-07-22) — SUBJECT-CORRECT plan resolution for

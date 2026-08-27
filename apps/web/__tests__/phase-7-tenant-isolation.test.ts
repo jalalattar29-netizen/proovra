@@ -129,11 +129,23 @@ test("all 15 required Phase 7 surfaces compose the render-proven primitives", ()
     ["app/(app)/settings/_sections/AiSection.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],
     // Org settings — proven complete via the org-name header + orgId re-scope.
     ["app/(app)/organizations/[id]/admin/layout.tsx", [/state\.data\.name/, /\[orgId\]/]],
-    // Checkout — shows the explicit SELECTED target workspace (the active-
-    // workspace banner is N/A here: checkout targets a user-selected
-    // workspace, not necessarily the active one). Server creates the
-    // checkout session bound to that explicit teamId.
-    ["components/billing/CheckoutPanel.tsx", [/Checkout will apply to workspace/, /selectedTeamId/]],
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — Checkout moved, and the
+    // tenant-isolation property got STRONGER rather than merely relocating.
+    //
+    // `CheckoutPanel` let the user pick a target workspace INSIDE checkout and
+    // proved isolation by naming the selection ("Checkout will apply to
+    // workspace: X"). Picking the subject inside the purchase is how someone
+    // buys the wrong workspace a plan.
+    //
+    // The drawer has no target picker at all: the page has already selected a
+    // BILLING ACCOUNT, that account is what is being bought for, and the
+    // workspace id passed to the server is derived from it — never chosen
+    // again. The drawer states which account it applies to, and the server
+    // re-authorizes BILLING_MANAGE on that exact subject.
+    [
+      "app/(app)/billing/_sections/CheckoutDrawer.tsx",
+      [/projection\.account\.type === "WORKSPACE"/, /This applies to \$\{projection\.account\.displayName\}/],
+    ],
   ];
   // Share — N/A as a distinct authenticated form: sharing in this product
   // is (a) Evidence Request (wired above), (b) external-review portal

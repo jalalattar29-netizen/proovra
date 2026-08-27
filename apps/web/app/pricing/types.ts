@@ -34,8 +34,14 @@ export type PricingCatalogPlan = {
    * workspace KIND.
    */
   billingShape?: "SINGLE_OCCUPANT" | "SHARED" | "BOTH";
-  maxOwnedTeams?: number;
-  maxMembersPerTeam?: number;
+  /** Owned Workspaces this ACCOUNT may create. */
+  maxOwnedWorkspaces?: number;
+  /** ACTIVE Collaboration Teams allowed inside ONE workspace. */
+  maxCollaborationTeamsPerWorkspace?: number;
+  /** ACCEPTED members allowed in ONE Collaboration Team. */
+  maxAcceptedMembersPerCollaborationTeam?: number;
+  /** ACCEPTED seats allowed in ONE shared workspace. */
+  maxWorkspaceSeats?: number;
   enterpriseFeatures?: EnterpriseFeatureFlags;
 };
 

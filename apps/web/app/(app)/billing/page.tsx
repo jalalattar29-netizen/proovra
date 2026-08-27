@@ -1,48 +1,117 @@
 "use client";
-import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
+
+/**
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the Billing page, rebuilt
+ * around the billing ACCOUNT.
+ *
+ * What the page this replaces did
+ * ---------------------------------------------------------------------------
+ * It rendered nine full-width panels in one flat column, spanning every payer
+ * the viewer touched at once: a four-card summary strip that summed ACROSS
+ * accounts, a Teams card whose "Current usage: N of M" compared a Collaboration
+ * Team membership count against the account's Owned Workspace cap, an
+ * always-expanded Checkout Console with three separate workspace pickers, a
+ * personal card showing storage five different ways, one card per owned
+ * workspace printing internal resolver outputs ("Effective capability view",
+ * "Billing ownership: Not assigned"), and a payment list merging personal and
+ * workspace payments together.
+ *
+ * What it does now
+ * ---------------------------------------------------------------------------
+ * ONE account at a time, chosen in a selector that only appears when there is
+ * more than one to choose. Everything below it — plan, usage, collaboration,
+ * add-ons, history, actions — comes from a single account-scoped server
+ * projection, so the sections cannot disagree about who is paying. Checkout is
+ * a drawer that opens on intent.
+ *
+ * The browser renders; it does not decide. Every capability, limit, price and
+ * lifecycle state on this page was resolved by the server for THIS viewer on
+ * THIS account.
+ */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useToast, Skeleton, PageShell, PageHeader, PageSection } from "../../../components/ui";
+import { useRouter, useSearchParams } from "next/navigation";
+
+import { PageShell, PageHeader, PageSection, Skeleton, useToast } from "../../../components/ui";
+import { Button } from "../../../components/ui/Button";
+import { Card } from "../../../components/ui/Card";
+import { EmptyState } from "../../../components/ui/EmptyState";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
-import { apiFetch } from "../../../lib/api";
-import { useBillingSummary } from "../../../lib/api/billing-summary";
-import { listTeams } from "../../../lib/api/collaboration-teams";
-import { captureException } from "../../../lib/sentry";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { usePlatformContext } from "../../../lib/platform-context";
-import { parseBillingWorkspaceLocator } from "../../../lib/navigation/billingWorkspaceLocator";
-import { PersonalWorkspaceCard } from "../../../components/billing/PersonalWorkspaceCard";
-import { TeamWorkspaceCard } from "../../../components/billing/TeamWorkspaceCard";
-import { CheckoutPanel } from "../../../components/billing/CheckoutPanel";
-import { StorageAddonsPanel } from "../../../components/billing/StorageAddonsPanel";
-// PHASE 12 VERTICAL A (2026-07-30) — payment ledger + entitlement re-sync.
-// Owns GET /v1/billing/payments and POST /v1/billing/restore, and reloads
-// this page's overview projection after a successful re-sync.
-import { PaymentsSection } from "./_sections/PaymentsSection";
-import type {
-  BillingOverviewResponse,
-  PersonalWorkspaceSummary,
-  TeamWorkspaceSummary,
-  BillingPaymentSummary,
-  CheckoutPlan,
-  CheckoutTargetType,
-  WorkspaceStorageAddonSummary,
-} from "../../../components/billing/types";
+import { captureException } from "../../../lib/sentry";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
+import { useTenantGuard } from "../../../lib/platform-context";
+import {
+  listBillingAccounts,
+  readBillingAccount,
+  readBillingHistory,
+  requestCancellation,
+  restorePurchases,
+  type BillingAccountProjection,
+  type BillingAccountRef,
+  type BillingHistoryEntry,
+} from "../../../lib/api/billing-accounts";
+import { AccountSelector } from "./_sections/AccountSelector";
+import {
+  ActionRequiredBanner,
+  CollaborationUsageCard,
+  EnterpriseContractCard,
+  PlanSummaryCard,
+  UsageAndLimits,
+} from "./_sections/PlanAndUsage";
+import {
+  BillingHistorySection,
+  StorageAddonsSection,
+} from "./_sections/StorageAndHistory";
+import { CheckoutDrawer, type CheckoutIntent } from "./_sections/CheckoutDrawer";
+import { formatDate } from "./_sections/format";
+import { apiFetch } from "../../../lib/api";
+import {
+  buildBillingHref,
+  parseBillingWorkspaceLocator,
+  type BillingWorkspaceLocator,
+} from "../../../lib/navigation/billingWorkspaceLocator";
 
-function readInitialPlan(value: string | null): CheckoutPlan | null {
-  if (value === "PAYG" || value === "PRO" || value === "TEAM") return value;
-  return null;
+/**
+ * The URL names the selected account through the CANONICAL billing locator —
+ * the same `?workspace=` vocabulary Pricing and the team pages already build
+ * with `buildBillingHref`. A private `?account=` param would have been a second
+ * parser for one question, which is exactly what that module exists to prevent.
+ */
+function toLocator(a: BillingAccountRef): BillingWorkspaceLocator {
+  if (a.type === "WORKSPACE") return { kind: "team", teamId: a.id };
+  if (a.type === "ORGANIZATION") return { kind: "organization", organizationId: a.id };
+  return { kind: "personal" };
 }
 
-function normalizePlanLabel(value?: string | null, fallback = "FREE"): string {
-  const normalized = String(value ?? "").trim().toUpperCase();
-  return normalized || fallback;
+/**
+ * Resolve a locator against the accounts the SERVER said this viewer may see.
+ *
+ * A locator naming an account that is not in that list resolves to `null` and
+ * the page falls back to the first one: a URL can name a subject, but it can
+ * never grant one.
+ */
+function accountFromLocator(
+  locator: BillingWorkspaceLocator,
+  accounts: BillingAccountRef[],
+): BillingAccountRef | null {
+  if (locator.kind === "personal") {
+    return accounts.find((a) => a.type === "PERSONAL") ?? null;
+  }
+  if (locator.kind === "organization") {
+    return (
+      accounts.find(
+        (a) => a.type === "ORGANIZATION" && a.id === locator.organizationId,
+      ) ?? null
+    );
+  }
+  if (!locator.teamId) return null;
+  return (
+    accounts.find((a) => a.type === "WORKSPACE" && a.id === locator.teamId) ?? null
+  );
 }
 
-// Phase 38.9 — wrap in canonical PageRouteGate. `account.billing` is
-// an ACCOUNT-domain route (NONE active-space).
 export default function BillingPage() {
   return (
     <PageRouteGate routeId="account.billing">
@@ -51,524 +120,448 @@ export default function BillingPage() {
   );
 }
 
+type Phase =
+  | { kind: "LOADING" }
+  | { kind: "NO_ACCOUNTS" }
+  | { kind: "READY" }
+  | { kind: "ERROR"; title: string; message: string };
+
 function BillingPageInner() {
   const { addToast } = useToast();
   const { confirm } = useConfirmAction();
+  const { stamp, isStale } = useTenantGuard();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  // PHASE 10 CLOSURE FIX 3 (2026-07-23) — client-hiding signal only; the
-  // server independently rejects a personal checkout regardless.
-  const { envelope } = usePlatformContext();
-  const personalSpaceAllowed = envelope?.personalSpaceAllowed !== false;
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<Phase>({ kind: "LOADING" });
+  const [accounts, setAccounts] = useState<BillingAccountRef[]>([]);
+  const [selected, setSelected] = useState<BillingAccountRef | null>(null);
+  const [projection, setProjection] = useState<BillingAccountProjection | null>(null);
 
-  const [personal, setPersonal] = useState<PersonalWorkspaceSummary | null>(null);
-  const [teams, setTeams] = useState<TeamWorkspaceSummary[]>([]);
-  const [payments, setPayments] = useState<BillingPaymentSummary[]>([]);
-  const [storageAddons, setStorageAddons] = useState<WorkspaceStorageAddonSummary[]>([]);
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [history, setHistory] = useState<BillingHistoryEntry[]>([]);
+  const [historyState, setHistoryState] =
+    useState<"LOADING" | "READY" | "DENIED" | "ERROR">("LOADING");
 
-  const [cancelBusyTeamId, setCancelBusyTeamId] = useState<string | null>(null);
-  const [cancelBusyAddonId, setCancelBusyAddonId] = useState<string | null>(null);
+  const [checkout, setCheckout] = useState<CheckoutIntent | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelAddonBusy, setCancelAddonBusy] = useState<string | null>(null);
+  const [recheckBusy, setRecheckBusy] = useState(false);
 
-  // Teams Entitlement Alignment 2026-07-14 — the Teams section reads
-  // the canonical billing summary (plan / teamsUsed / teamsMax /
-  // membersMax, sourced from COLLABORATION_TEAM_PLAN_LIMITS). The
-  // used-count comes from the Collaboration Teams list; a fetch
-  // failure keeps the count at 0 rather than blocking the page.
-  const [collabTeamsUsed, setCollabTeamsUsed] = useState<number>(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    listTeams()
-      .then((collabTeams) => {
-        if (!cancelled) setCollabTeamsUsed(collabTeams.length);
-      })
-      .catch(() => {
-        // Teams list unavailable (e.g. plan without Teams) — keep 0.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const teamsSummary = useBillingSummary(collabTeamsUsed);
-
-  // PHASE 11 §5 — the ONE billing workspace locator is the single parser of
-  // the workspace-naming query param. Both the checkout KIND and the specific
-  // workspace id come from `?workspace=` (personal | team | team:<id>); the
-  // retired `?team=<uuid>` alias is no longer read.
-  const workspaceLocator = useMemo(
+  const requestedLocator = useMemo(
     () => parseBillingWorkspaceLocator(searchParams),
     [searchParams],
   );
 
-  const initialTargetType = useMemo<CheckoutTargetType>(() => {
-    const fromParam: CheckoutTargetType =
-      workspaceLocator.kind === "team" ? "TEAM" : "PERSONAL";
-    // PHASE 10 CLOSURE FIX 3 — a Personal deep link (`?workspace=personal`)
-    // can never select a disallowed Personal checkout target; fall back to
-    // Workspace rather than silently attempting a personal checkout the
-    // server would reject anyway.
-    if (fromParam === "PERSONAL" && !personalSpaceAllowed) return "TEAM";
-    return fromParam;
-  }, [workspaceLocator, personalSpaceAllowed]);
-
-  const initialPlan = useMemo(() => {
-    if (initialTargetType === "TEAM") return "TEAM" satisfies CheckoutPlan;
-    const plan = readInitialPlan(searchParams.get("plan"));
-    return plan ?? "PAYG";
-  }, [initialTargetType, searchParams]);
-
-  const loadOverview = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = (await apiFetch("/v1/billing/overview")) as BillingOverviewResponse;
-
-      const nextPersonal = data?.workspaces?.personal ?? null;
-      const nextTeams = Array.isArray(data?.workspaces?.teams)
-        ? data.workspaces.teams
-        : [];
-      const nextPayments = Array.isArray(data?.payments) ? data.payments : [];
-      const nextStorageAddons = Array.isArray(data?.storageAddons?.all)
-        ? data.storageAddons.all
-        : Array.isArray(
-              (data as BillingOverviewResponse & {
-                storageAddons?: WorkspaceStorageAddonSummary[];
-              }).storageAddons
-            )
-          ? (((data as BillingOverviewResponse & {
-              storageAddons?: WorkspaceStorageAddonSummary[];
-            }).storageAddons) ?? [])
-          : [];
-
-      setPersonal(nextPersonal);
-      setTeams(nextTeams);
-      setPayments(nextPayments);
-      setStorageAddons(nextStorageAddons);
-
-      setSelectedTeamId((current) => {
-        // §5 — the team id comes ONLY from the canonical locator
-        // (`?workspace=team:<id>`), never the retired `?team=<uuid>` alias.
-        const queryTeamId =
-          workspaceLocator.kind === "team" ? (workspaceLocator.teamId ?? null) : null;
-
-        if (queryTeamId && nextTeams.some((team) => team.id === queryTeamId)) {
-          return queryTeamId;
-        }
-
-        if (!nextTeams.length) return "";
-        if (current && nextTeams.some((team) => team.id === current)) {
-          return current;
-        }
-
-        return nextTeams[0]?.id ?? "";
-      });
-    } catch (err) {
-      const message =
-        toSafeUserError(err, { message: "Failed to load billing overview" }).message;
-      setError(message);
-      captureException(err, { feature: "billing_overview_page" });
-    } finally {
-      setLoading(false);
-    }
-    // The locator IS the parsed form of `searchParams` (memoised on it above),
-    // so depending on the locator is both honest and exactly as stable.
-  }, [workspaceLocator]);
-
+  // ---- Accounts ----------------------------------------------------------
   useEffect(() => {
-    void loadOverview();
-  }, [loadOverview]);
+    const captured = stamp();
+    let cancelled = false;
 
-  const handleSelectTeamForCheckout = useCallback((teamId: string) => {
-    setSelectedTeamId(teamId);
-    try {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      window.scrollTo(0, 0);
-    }
-  }, []);
-
-  const handleCancelSubscription = useCallback(
-    async (teamId: string) => {
-      const teamName =
-        teams.find((team) => team.id === teamId)?.name ?? "this workspace";
-      const ok = await confirm({
-        title: `Cancel subscription for "${teamName}"?`,
-        description:
-          "This cancels the dedicated TEAM subscription for this workspace. The workspace stays visible and can be reactivated later, but paid TEAM capability ends at the current period.",
-        confirmLabel: "Cancel subscription",
-        cancelLabel: "Keep subscription",
-        tone: "danger",
-        testId: "billing-cancel-subscription",
+    listBillingAccounts()
+      .then((list) => {
+        if (cancelled || isStale(captured)) return;
+        setAccounts(list);
+        if (list.length === 0) {
+          setPhase({ kind: "NO_ACCOUNTS" });
+          return;
+        }
+        setSelected(accountFromLocator(requestedLocator, list) ?? list[0]!);
+        setPhase({ kind: "READY" });
+      })
+      .catch((err) => {
+        if (cancelled || isStale(captured)) return;
+        captureException(err, { feature: "billing_accounts" });
+        const safe = toSafeUserError(err, {
+          message: "Billing could not be loaded just now.",
+        });
+        setPhase({ kind: "ERROR", title: safe.title, message: safe.message });
       });
-      if (!ok) return;
 
+    return () => {
+      cancelled = true;
+    };
+    // `requestedLocator` intentionally excluded: it seeds the INITIAL
+    // selection only. Re-running on every URL change would fight the selector.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stamp, isStale]);
+
+  // ---- The selected account's projection ----------------------------------
+  const loadProjection = useCallback(
+    async (account: BillingAccountRef) => {
+      const captured = stamp();
+      setProjection(null);
       try {
-        setCancelBusyTeamId(teamId);
-        addToast("Cancelling team subscription...", "info");
-
-        await apiFetch("/v1/billing/subscription/cancel", {
-          method: "POST",
-          body: JSON.stringify({ teamId }),
+        const next = await readBillingAccount({
+          type: account.type,
+          id: account.id,
         });
-
-        addToast("Team subscription cancelled", "success");
-        await loadOverview();
+        if (isStale(captured)) return;
+        setProjection(next);
       } catch (err) {
-        captureException(err, {
-          feature: "billing_cancel_team_subscription",
-          teamId,
+        if (isStale(captured)) return;
+        captureException(err, { feature: "billing_account_projection" });
+        const safe = toSafeUserError(err, {
+          message: "This billing account could not be loaded.",
         });
-        const message =
-          toSafeUserError(err, { message: "Failed to cancel team subscription" }).message;
-        addToast(message, "error");
-      } finally {
-        setCancelBusyTeamId(null);
+        setPhase({ kind: "ERROR", title: safe.title, message: safe.message });
       }
     },
-    [addToast, loadOverview, confirm, teams]
+    [stamp, isStale],
   );
 
-  const handleCancelStorageAddon = useCallback(
+  const loadHistory = useCallback(
+    async (account: BillingAccountRef) => {
+      const captured = stamp();
+      setHistoryState("LOADING");
+      try {
+        const items = await readBillingHistory({
+          type: account.type,
+          id: account.id,
+        });
+        if (isStale(captured)) return;
+        setHistory(items);
+        setHistoryState("READY");
+      } catch (err) {
+        if (isStale(captured)) return;
+        const status = (err as { statusCode?: number })?.statusCode;
+        // A missing capability is a DENIAL, never an empty list — otherwise it
+        // reads as "you have no payments".
+        setHistoryState(status === 403 ? "DENIED" : "ERROR");
+        if (status !== 403) {
+          captureException(err, { feature: "billing_account_history" });
+        }
+      }
+    },
+    [stamp, isStale],
+  );
+
+  useEffect(() => {
+    if (!selected) return;
+    void loadProjection(selected);
+    void loadHistory(selected);
+  }, [selected, loadProjection, loadHistory]);
+
+  const selectAccount = useCallback(
+    (account: BillingAccountRef) => {
+      setSelected(account);
+      // The ONE sanctioned builder for a billing link that names a subject.
+      router.replace(buildBillingHref(toLocator(account)), { scroll: false });
+    },
+    [router],
+  );
+
+  const refresh = useCallback(() => {
+    if (!selected) return;
+    void loadProjection(selected);
+    void loadHistory(selected);
+  }, [selected, loadProjection, loadHistory]);
+
+  // ---- Cancellation ------------------------------------------------------
+  const handleCancel = useCallback(async () => {
+    if (!selected || !projection) return;
+
+    // The copy states what the PROVIDER will actually do. The dialog this
+    // replaces promised "ends at the current period" while the route called
+    // Stripe's immediate DELETE.
+    const workspaceId = selected.type === "WORKSPACE" ? selected.id : null;
+    const ok = await confirm({
+      title: `Cancel the subscription for ${selected.displayName}?`,
+      description:
+        "We will ask your payment provider to stop renewing it. Where the provider supports it you keep access until the end of the period you have already paid for, and we will tell you the exact date. Nothing is charged again.",
+      confirmLabel: "Cancel subscription",
+      cancelLabel: "Keep subscription",
+      tone: "danger",
+      testId: "billing-cancel-subscription",
+    });
+    if (!ok) return;
+
+    setCancelBusy(true);
+    try {
+      const outcome = await requestCancellation({ teamId: workspaceId });
+      const ends = formatDate(outcome.accessEndsAtUtc);
+      addToast(
+        outcome.mode === "PERIOD_END" && ends
+          ? `Cancelled. You keep access until ${ends}.`
+          : "Cancelled with your payment provider.",
+        "success",
+      );
+      refresh();
+    } catch (err) {
+      captureException(err, { feature: "billing_cancel" });
+      const safe = toSafeUserError(err, {
+        message:
+          "We could not reach your payment provider. Nothing has changed — please try again shortly.",
+      });
+      addToast(safe.message, "error");
+    } finally {
+      setCancelBusy(false);
+    }
+  }, [selected, projection, confirm, addToast, refresh]);
+
+  const handleCancelAddon = useCallback(
     async (addonId: string) => {
       const ok = await confirm({
-        title: "Cancel recurring storage add-on?",
+        title: "Cancel this storage add-on?",
         description:
-          "This cancels the legacy recurring storage add-on. Storage already included in your base plan is unaffected; only this recurring add-on stops renewing.",
+          "It stops renewing at your provider. Evidence already stored is never deleted by cancelling an add-on — but if you are over your remaining capacity you will not be able to record new evidence until you free space or add capacity back.",
         confirmLabel: "Cancel add-on",
         cancelLabel: "Keep add-on",
         tone: "danger",
-        testId: "billing-cancel-storage-addon",
+        testId: "billing-cancel-addon",
       });
       if (!ok) return;
 
+      setCancelAddonBusy(addonId);
       try {
-        setCancelBusyAddonId(addonId);
-        addToast("Cancelling recurring storage add-on...", "info");
-
         await apiFetch("/v1/billing/storage-addons/cancel", {
           method: "POST",
           body: JSON.stringify({ addonId }),
         });
-
         addToast("Storage add-on cancelled", "success");
-        await loadOverview();
+        refresh();
       } catch (err) {
-        captureException(err, {
-          feature: "billing_cancel_storage_addon",
-          addonId,
+        captureException(err, { feature: "billing_cancel_addon" });
+        const safe = toSafeUserError(err, {
+          message: "We could not cancel that add-on. Nothing has changed.",
         });
-        const message =
-          toSafeUserError(err, { message: "Failed to cancel storage add-on" }).message;
-        addToast(message, "error");
+        addToast(safe.message, "error");
       } finally {
-        setCancelBusyAddonId(null);
+        setCancelAddonBusy(null);
       }
     },
-    [addToast, loadOverview, confirm]
+    [confirm, addToast, refresh],
   );
 
-  const allTeams = useMemo(() => teams, [teams]);
+  const header = useMemo(
+    () => (
+      <PageHeader
+        title={
+          <h1 className="cc-title" data-billing-title>
+            Billing
+          </h1>
+        }
+        subtitle={
+          <span className="cc-subtitle" data-billing-subtitle>
+            Your plan, what you have used, and what you have paid.
+          </span>
+        }
+        primaryAction={
+          <Link href="/pricing" className="app-header-primary-action" data-billing-view-pricing>
+            <span>View pricing</span>
+          </Link>
+        }
+      />
+    ),
+    [],
+  );
 
-  const summaryCards = useMemo(() => {
-    const personalPlan = normalizePlanLabel(personal?.plan, "FREE");
-    const totalTeams = allTeams.length;
-    const totalPayments = payments.length;
-    const activeAddons = storageAddons.filter((item) =>
-      ["ACTIVE", "PENDING", "PAST_DUE"].includes(String(item.status ?? "").toUpperCase())
-    ).length;
-
-    return [
-      {
-        label: "Personal plan",
-        value: personalPlan,
-      },
-      {
-        label: "Workspaces",
-        value: String(totalTeams),
-      },
-      {
-        label: "Payments",
-        value: String(totalPayments),
-      },
-      {
-        label: "Storage add-ons",
-        value: String(activeAddons),
-      },
-    ];
-  }, [personal, allTeams, payments, storageAddons]);
-
-  return (
-    <PageShell
-      data-billing-page
-      header={
-        <PageHeader
-          title={
-            <div
-              className="cases-page-heading"
-              style={{ display: "flex", alignItems: "center", gap: 12 }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 12,
-                  display: "grid",
-                  placeItems: "center",
-                  flexShrink: 0,
-                  background:
-                    "linear-gradient(145deg, rgba(91,79,233,0.10), rgba(73,184,255,0.08))",
-                  border: "1px solid rgba(91,79,233,0.16)",
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
-                }}
-              >
-                <svg
-                  width="21"
-                  height="21"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#7C3AED"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="2" y="5" width="20" height="14" rx="2" />
-                  <path d="M2 10h20" />
-                </svg>
-              </span>
-              <h1 className="cc-title" data-billing-title>
-                Billing
-              </h1>
-            </div>
-          }
-          subtitle={
-            // INLINE element — see the PageHeader `subtitle` contract. A <p>
-            // here nested inside PageHeader's own <p>, which is invalid HTML
-            // and a React validateDOMNesting hydration error.
-            <span className="cc-subtitle" data-billing-subtitle>
-              Review storage, members, subscriptions, add-ons, and payment
-              history in one place. Workspaces stay visible here even when their
-              TEAM subscription is canceled, so you can review and reactivate
-              them from the same console.
-            </span>
-          }
-          primaryAction={
-            <Link href="/pricing" className="app-header-primary-action" data-billing-view-pricing>
-              <span>View pricing</span>
-            </Link>
-          }
-        />
-      }
-    >
-      {loading ? (
+  if (phase.kind === "LOADING") {
+    return (
+      <PageShell data-billing-page header={header}>
         <PageSection>
           <div style={{ display: "grid", gap: 16 }}>
-            <Skeleton width="100%" height="220px" />
-            <Skeleton width="100%" height="220px" />
-            <Skeleton width="100%" height="220px" />
+            <Skeleton width="100%" height="180px" />
+            <Skeleton width="100%" height="160px" />
           </div>
         </PageSection>
-      ) : error ? (
+      </PageShell>
+    );
+  }
+
+  if (phase.kind === "ERROR") {
+    return (
+      <PageShell data-billing-page header={header}>
         <PageSection>
-          <div
-            className="cases-panel"
-            role="alert"
-            style={{
-              padding: "16px 18px",
-              fontSize: "0.95rem",
-              color: "#991b1b",
-            }}
-          >
-            {error}
+          <Card variant="status" tone="risk" role="alert" data-billing-error title={phase.title}>
+            <p style={{ margin: 0, color: "var(--text-muted, #475569)" }}>{phase.message}</p>
+            <div style={{ marginTop: 14 }}>
+              <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>
+                Try again
+              </Button>
+            </div>
+          </Card>
+        </PageSection>
+      </PageShell>
+    );
+  }
+
+  if (phase.kind === "NO_ACCOUNTS" || !selected) {
+    // A managed enterprise identity has no personal account and may hold no
+    // billing authority anywhere. Saying so plainly beats an empty page.
+    return (
+      <PageShell data-billing-page header={header}>
+        <PageSection>
+          <div data-billing-no-accounts>
+            <EmptyState
+              framed
+              title="Billing is managed for you"
+              purpose="Your organization looks after billing for this account. Your administrator can make changes."
+            />
           </div>
+        </PageSection>
+      </PageShell>
+    );
+  }
+
+  return (
+    <PageShell data-billing-page header={header}>
+      {accounts.length > 1 ? (
+        <PageSection>
+          <AccountSelector
+            accounts={accounts}
+            selected={selected}
+            onSelect={selectAccount}
+          />
+        </PageSection>
+      ) : null}
+
+      {!projection ? (
+        <PageSection>
+          <Skeleton width="100%" height="200px" />
         </PageSection>
       ) : (
         <>
-          <PageSection data-billing-summary>
-            <div
-              style={{
-                display: "grid",
-                gap: 12,
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              }}
-            >
-              {summaryCards.map((item) => (
-                <div
-                  key={item.label}
-                  className="cases-inner"
-                  style={{ padding: "16px 18px" }}
-                >
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
-                    {item.label}
-                  </div>
-                  <div className="mt-2 text-[1.05rem] font-semibold text-[#172033]">
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
+          <PageSection>
+            <ActionRequiredBanner projection={projection} />
           </PageSection>
 
-          {/* Teams Entitlement Alignment 2026-07-14 — canonical Teams
-              entitlement section. Values mirror
-              COLLABORATION_TEAM_PLAN_LIMITS via useBillingSummary:
-              FREE/PAYG 0 Teams, PRO 2, TEAM 5, ENTERPRISE Custom.
-              Invitations are email-only. */}
-          {teamsSummary ? (
-            <PageSection data-billing-teams>
-              <div className="cases-panel" style={{ padding: "20px 22px" }}>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5F6878]">
-                  Teams
+          <PageSection>
+            <PlanSummaryCard
+              projection={projection}
+              onManage={() => setCheckout("PLAN")}
+              onCancel={() => void handleCancel()}
+              cancelBusy={cancelBusy}
+            />
+          </PageSection>
+
+          <PageSection>
+            <UsageAndLimits projection={projection} />
+          </PageSection>
+
+          {projection.actions.canBuyEvidenceCredits ? (
+            <PageSection>
+              <Card
+                variant="summary"
+                title="Evidence credits"
+                subtitle="Record more evidence without changing your plan. Credits do not expire."
+                headerAction={
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setCheckout("CREDITS")}
+                    data-billing-buy-credits
+                  >
+                    Buy credits
+                  </Button>
+                }
+                data-billing-credits
+              >
+                <div style={{ fontSize: "0.95rem", color: "var(--text-strong, #172033)" }}>
+                  {projection.wallet?.availableCredits ?? 0} available
                 </div>
-                {(() => {
-                  const numericTeamsMax =
-                    teamsSummary.teamsMax === "unlimited"
-                      ? null
-                      : teamsSummary.teamsMax;
-                  const teamsMaxLabel =
-                    numericTeamsMax === null
-                      ? "Custom"
-                      : String(numericTeamsMax);
-                  const membersLabel =
-                    teamsSummary.membersMax === "unlimited"
-                      ? "Custom"
-                      : `up to ${teamsSummary.membersMax}`;
-                  const grandfathered =
-                    numericTeamsMax !== null &&
-                    teamsSummary.teamsUsed > numericTeamsMax;
-                  const teamsIncluded =
-                    numericTeamsMax === null || numericTeamsMax > 0;
-
-                  if (grandfathered) {
-                    return (
-                      <div
-                        className="mt-2 text-[0.92rem] leading-[1.7] text-[#475569]"
-                        data-billing-teams-grandfathered
-                      >
-                        <div className="text-[1.05rem] font-semibold text-[#172033]">
-                          {teamsSummary.teamsUsed} Teams ·{" "}
-                          {numericTeamsMax} included in your plan
-                        </div>
-                        <p className="mt-1">
-                          Plan-restricted — existing Teams stay
-                          accessible; upgrading restores invitations and
-                          member management.
-                        </p>
-                        <Link
-                          href="/pricing#plan-pro"
-                          className="app-header-primary-action mt-3 inline-flex"
-                          data-billing-teams-upgrade
-                        >
-                          <span>Upgrade to Pro</span>
-                        </Link>
-                      </div>
-                    );
-                  }
-
-                  if (!teamsIncluded) {
-                    return (
-                      <div
-                        className="mt-2 text-[0.92rem] leading-[1.7] text-[#475569]"
-                        data-billing-teams-not-included
-                      >
-                        <p>Teams are not included in your current plan.</p>
-                        <Link
-                          href="/pricing#plan-pro"
-                          className="app-header-primary-action mt-3 inline-flex"
-                          data-billing-teams-upgrade
-                        >
-                          <span>Upgrade to Pro</span>
-                        </Link>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      className="mt-2 text-[0.92rem] leading-[1.7] text-[#475569]"
-                      data-billing-teams-included
-                    >
-                      Teams — Current usage: {teamsSummary.teamsUsed} of{" "}
-                      {teamsMaxLabel} · Members per Team: {membersLabel} ·
-                      Email invitations: Included
-                    </div>
-                  );
-                })()}
-              </div>
+                {projection.wallet?.hasLedgerHistory ? (
+                  <div
+                    style={{
+                      marginTop: 4,
+                      fontSize: "0.85rem",
+                      color: "var(--text-muted, #5F6878)",
+                    }}
+                  >
+                    {projection.wallet.purchasedCredits} purchased ·{" "}
+                    {projection.wallet.consumedCredits} used
+                  </div>
+                ) : null}
+              </Card>
             </PageSection>
           ) : null}
 
           <PageSection>
-            <CheckoutPanel
-              key={`${initialTargetType}-${initialPlan}-${selectedTeamId || "no-team-selected"}`}
-              personal={personal}
-              teams={allTeams}
-              initialSelectedTeamId={selectedTeamId}
-              initialTargetType={initialTargetType}
-              initialPlan={initialPlan}
-              onCheckoutCompleted={loadOverview}
-              personalSpaceAllowed={personalSpaceAllowed}
+            <CollaborationUsageCard projection={projection} />
+          </PageSection>
+
+          <PageSection>
+            <StorageAddonsSection
+              projection={projection}
+              onBuy={() => setCheckout("STORAGE")}
+              onCancelAddon={(id) => void handleCancelAddon(id)}
+              cancelBusyId={cancelAddonBusy}
             />
           </PageSection>
 
           <PageSection>
-            <PersonalWorkspaceCard workspace={personal} />
-          </PageSection>
-
-          <PageSection>
-            {allTeams.length > 0 ? (
-              <div style={{ display: "grid", gap: 20 }}>
-                {allTeams.map((team) => (
-                  <TeamWorkspaceCard
-                    key={team.id}
-                    workspace={team}
-                    onSelectForCheckout={handleSelectTeamForCheckout}
-                    onCancelSubscription={handleCancelSubscription}
-                    busy={cancelBusyTeamId === team.id}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="cases-empty" data-billing-no-workspaces>
-                {/* Phase IA-self-serve-completion — "operate shared
-                    evidence workflows" replaced with plain-language
-                    copy. /workflows is ENTERPRISE_ONLY in the tier
-                    table; advertising workflow features to a
-                    self-serve user on the Billing page misleads them
-                    about what's included. */}
-                <strong>No workspaces yet</strong>
-                <p>
-                  Create one to share cases and evidence with collaborators, or
-                  activate a dedicated TEAM subscription later to raise your
-                  owned-workspace limit.
-                </p>
-              </div>
-            )}
-          </PageSection>
-
-          <PageSection>
-            <StorageAddonsPanel
-              items={storageAddons}
-              cancelBusyId={cancelBusyAddonId}
-              onCancelRecurring={handleCancelStorageAddon}
-              onBuyMore={() => {
-                try {
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                } catch {
-                  window.scrollTo(0, 0);
-                }
+            <BillingHistorySection
+              entries={history}
+              state={historyState}
+              onRetry={() => selected && void loadHistory(selected)}
+              recheckBusy={recheckBusy}
+              onRecheck={() => {
+                void (async () => {
+                  setRecheckBusy(true);
+                  try {
+                    await restorePurchases();
+                    addToast("Checked with your payment provider.", "success");
+                    refresh();
+                  } catch (err) {
+                    captureException(err, { feature: "billing_restore" });
+                    const safe = toSafeUserError(err, {
+                      message:
+                        "Your purchases could not be re-checked. Try again in a moment.",
+                    });
+                    addToast(safe.message, "error");
+                  } finally {
+                    setRecheckBusy(false);
+                  }
+                })();
               }}
             />
           </PageSection>
 
           <PageSection>
-            <PaymentsSection onEntitlementRestored={loadOverview} />
+            <EnterpriseContractCard projection={projection} />
           </PageSection>
+
+          <PageSection>
+            <Card variant="admin" data-billing-support>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.9rem",
+                  lineHeight: 1.65,
+                  color: "var(--text-muted, #475569)",
+                }}
+              >
+                {projection.actions.contactAccountManager
+                  ? "Changes to your agreement go through your account manager."
+                  : "Something not right on this page? Your billing records are the ones we act on — get in touch and we will look at them with you."}
+              </p>
+              <div style={{ marginTop: 12 }}>
+                <Link
+                  href={
+                    projection.actions.contactAccountManager
+                      ? "/contact-sales"
+                      : "/settings#privacy"
+                  }
+                  className="app-header-primary-action"
+                  data-billing-support-action
+                >
+                  <span>
+                    {projection.actions.contactAccountManager
+                      ? "Contact your account manager"
+                      : "Get help"}
+                  </span>
+                </Link>
+              </div>
+            </Card>
+          </PageSection>
+
+          <CheckoutDrawer
+            open={checkout !== null}
+            intent={checkout ?? "PLAN"}
+            projection={projection}
+            onClose={() => setCheckout(null)}
+            onCompleted={refresh}
+            onError={(title, message) => addToast(`${title}: ${message}`, "error")}
+          />
         </>
       )}
     </PageShell>

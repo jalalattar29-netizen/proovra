@@ -345,7 +345,7 @@ describe("public pricing UI vs catalog parity", () => {
     expect(page).toContain("evidence records included");
   });
   it("Team card shows 500 evidence records / month", () => {
-    expect(page).toContain("evidence records / month");
+    expect(page).toContain("evidence records in any 30 days");
   });
   // UX refinement: the Fair-Usage block + AI advisory disclaimer were
   // moved off the primary pricing flow (the spec routes them to FAQ /

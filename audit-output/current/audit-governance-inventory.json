@@ -136,7 +136,7 @@
     "ManualPhase0ChangeInventories": 0,
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
-    "HistoricalMigrationsModifiedByPhase0": 1,
+    "HistoricalMigrationsModifiedByPhase0": 0,
     "ProductBehaviorTestsInventoried": 177
   },
   "reportRoles": {
@@ -174,9 +174,7 @@
     "DEPRECATED_DELEGATE": 1,
     "AUDIT_ENGINE_TEST": 15
   },
-  "problems": [
-    "HISTORICAL MIGRATION MODIFIED: services/api/prisma/migrations/20271227000000_billing_commercial_correctness/migration.sql"
-  ],
+  "problems": [],
   "duplicateClaims": [],
   "multiProducer": [],
   "selfReading": [],

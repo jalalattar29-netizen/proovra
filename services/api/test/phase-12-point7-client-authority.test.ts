@@ -86,14 +86,7 @@ function rel(file: string): string {
  * somebody has to write down, which is the point.
  */
 const PRESENTATION_ALLOWLIST: Record<string, string> = {
-  "apps/web/components/billing/CheckoutPanel.tsx":
-    "checkout TARGET selection — the user picks what to buy; the server prices and authorizes it",
-  "apps/web/components/billing/StorageAddonsPanel.tsx":
-    "add-on catalogue filtering by the user's chosen target",
-  "apps/web/components/billing/TeamWorkspaceCard.tsx":
-    "renders the workspace's server-resolved plan as a label + tone",
-  "apps/web/components/billing/PersonalWorkspaceCard.tsx":
-    "renders the server-resolved plan as a label",
+
   "apps/web/app/(app)/billing/page.tsx":
     "checkout target defaulting from an explicit query parameter",
   "apps/web/app/(app)/admin/executive/page.tsx":

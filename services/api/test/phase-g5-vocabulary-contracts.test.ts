@@ -257,9 +257,11 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   "components/pricing/PricingComparisonTable.tsx",
   "components/pricing/PricingCheckoutGuide.tsx",
   "app/pricing/page.tsx",
-  "components/billing/CheckoutPanel.tsx",
-  "components/billing/BillingHistoryCard.tsx",
-  "app/(app)/billing/page.tsx",
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — three entries removed. The
+  // two components are deleted, and the rebuilt Billing page carries no "Team"
+  // wording at all: it names a BILLING ACCOUNT ("Personal", "Workspace",
+  // "Organization"), and the word "Team" survives only as the pricing-tier
+  // brand on Pricing.
   // Admin / dashboard / nav — pre-G5 terminology.
   "app/(app)/admin/dashboard/page.tsx",
   "app/(app)/admin/page.tsx",

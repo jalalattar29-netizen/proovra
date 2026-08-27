@@ -54,7 +54,11 @@ const RUNTIME_INDICATOR = readWeb(
   "components/operational/GlobalRuntimeIndicator.tsx",
 );
 const REGISTRY = readWeb("lib/navigation/routeRegistry.ts");
-const BILLING_ADDONS = readWeb("components/billing/StorageAddonsPanel.tsx");
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the status vocabulary moved
+// from `StorageAddonsPanel` (deleted) into the Billing page's one formatter.
+// The invariant is unchanged: an absent value is "Not configured", an unmapped
+// one is "Status pending", and no raw enum ever reaches a pixel.
+const BILLING_ADDONS = readWeb("app/(app)/billing/_sections/format.ts");
 const ADMIN_DASHBOARD = readWeb("app/(app)/admin/dashboard/page.tsx");
 
 // Primary UX surfaces — the bounded set the language sweep runs on.
@@ -153,7 +157,7 @@ describe("R4 Part 3 — no raw 'Unknown' user-facing labels in primary + billing
     { name: "CommandPalette.tsx", src: PALETTE },
     { name: "CommandCenter.tsx", src: COMMAND_CENTER },
     { name: "GlobalRuntimeIndicator.tsx", src: RUNTIME_INDICATOR },
-    { name: "StorageAddonsPanel.tsx", src: BILLING_ADDONS },
+    { name: "billing/_sections/format.ts", src: BILLING_ADDONS },
     { name: "admin/dashboard/page.tsx", src: ADMIN_DASHBOARD },
   ];
 
@@ -267,7 +271,7 @@ describe("R4 Part 7 — canonical state labels on the live surfaces", () => {
   });
 
   it("an unmapped backend enum degrades to 'Status pending', never a raw value", () => {
-    const addons = readWeb("components/billing/StorageAddonsPanel.tsx");
+    const addons = readWeb("app/(app)/billing/_sections/format.ts");
     expect(addons).toMatch(/return "Status pending";\s*\n\s*}/);
     expect(addons).not.toMatch(/return\s+normalized\s*;/);
   });
@@ -275,7 +279,7 @@ describe("R4 Part 7 — canonical state labels on the live surfaces", () => {
   it("neither surface renders a bare 'Unknown' label", () => {
     for (const rel of [
       "components/operational/GlobalRuntimeIndicator.tsx",
-      "components/billing/StorageAddonsPanel.tsx",
+      "app/(app)/billing/_sections/format.ts",
     ]) {
       const executable = readWeb(rel)
         .split("\n")

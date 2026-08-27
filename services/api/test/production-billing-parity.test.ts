@@ -37,10 +37,17 @@ const BILLING_GUARDS = readApi(
 );
 
 describe("Production fix — entitlement plan resolution parity", () => {
-  it("billing-guards.ts queries Entitlement with active:true (canonical source of truth)", () => {
-    // The authoritative `resolveUserPlan` helper must always read only
-    // active entitlements.
-    expect(BILLING_GUARDS).toMatch(
+  it("billing-guards.ts does not read Entitlement itself — it resolves the canonical envelope", () => {
+    // The active-entitlement filter has ONE home. A guard that repeats the
+    // query is a guard that can repeat it wrongly; the 2025 production
+    // mismatch ("FREE plan: 0 of 1 teams used" for PRO users) was exactly a
+    // second copy of this read drifting from the first.
+    expect(BILLING_GUARDS).not.toMatch(/entitlement\.findFirst/);
+    expect(BILLING_GUARDS).toMatch(/resolveCommercialContext/);
+
+    // …and the envelope's own reader still applies the filter.
+    const ensure = readApi("src/services/billing.service.ts");
+    expect(ensure).toMatch(
       /entitlement\.findFirst\(\{[\s\S]*?where:\s*\{[\s\S]*?userId[\s\S]*?active:\s*true/,
     );
   });

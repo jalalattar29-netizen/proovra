@@ -617,12 +617,6 @@
       "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
     },
     {
-      "capabilityId": "POST:/v1/automation/runs/process",
-      "routeId": "POST /v1/automation/runs/process",
-      "vertical": "OPERATIONS_AUTOMATION",
-      "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
-    },
-    {
       "capabilityId": "GET:/v1/automation/rules",
       "routeId": "GET /v1/automation/rules",
       "vertical": "PLATFORM_CORE",
@@ -677,16 +671,28 @@
       "evidenceLevel": "UNPROVEN"
     },
     {
+      "capabilityId": "GET:/v1/billing/accounts",
+      "routeId": "GET /v1/billing/accounts",
+      "vertical": "PLATFORM_CORE",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/billing/accounts/:type/:id",
+      "routeId": "GET /v1/billing/accounts/:type/:id",
+      "vertical": "PLATFORM_CORE",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/billing/accounts/:type/:id/history",
+      "routeId": "GET /v1/billing/accounts/:type/:id/history",
+      "vertical": "PLATFORM_CORE",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/billing/overview",
       "routeId": "GET /v1/billing/overview",
       "vertical": "PLATFORM_CORE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
-    },
-    {
-      "capabilityId": "GET:/v1/billing/payments",
-      "routeId": "GET /v1/billing/payments",
-      "vertical": "PLATFORM_CORE",
-      "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
       "capabilityId": "GET:/v1/billing/pricing",
@@ -697,12 +703,6 @@
     {
       "capabilityId": "GET:/v1/billing/status",
       "routeId": "GET /v1/billing/status",
-      "vertical": "PLATFORM_CORE",
-      "evidenceLevel": "UNPROVEN"
-    },
-    {
-      "capabilityId": "GET:/v1/billing/storage-addons",
-      "routeId": "GET /v1/billing/storage-addons",
       "vertical": "PLATFORM_CORE",
       "evidenceLevel": "UNPROVEN"
     },
@@ -3657,6 +3657,12 @@
       "routeId": "POST /v1/automation/rules/:id/enable",
       "vertical": "PLATFORM_CORE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "POST:/v1/automation/runs/process",
+      "routeId": "POST /v1/automation/runs/process",
+      "vertical": "OPERATIONS_AUTOMATION",
+      "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
     },
     {
       "capabilityId": "POST:/v1/automation/webhooks",

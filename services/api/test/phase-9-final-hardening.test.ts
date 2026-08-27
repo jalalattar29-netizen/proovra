@@ -273,6 +273,13 @@ describe("§9.11 — client/worker raw commercial decisions = 0", () => {
   const WEB_DISPLAY_TONE_ADAPTERS = [
     join("app", "(app)", "admin", "executive", "page.tsx"),
     join("app", "(app)", "teams", "[id]", "page.tsx"),
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the Billing page's ONE
+    // formatter. Its status branches return a WORD and a TONE and nothing
+    // else: no capability, no gating, no precedence. Every commercial decision
+    // the page used to make in the browser — whether a banner appears, whether
+    // an add-on can be cancelled, whether the manage button says "Upgrade" or
+    // "Change" — now arrives already decided on the projection.
+    join("app", "(app)", "billing", "_sections", "format.ts"),
   ];
 
   it("apps/web contains ZERO raw commercial DECISIONS (registered display-tone adapters excluded with proof)", () => {
@@ -285,11 +292,21 @@ describe("§9.11 — client/worker raw commercial decisions = 0", () => {
     // return style/tone values and never gate a capability or route.
     for (const rel of WEB_DISPLAY_TONE_ADAPTERS) {
       const body = readFileSync(join(REPO, "apps", "web", rel), "utf8");
-      const idx = body.search(/===\s*"PAST_DUE"/);
-      if (idx === -1) continue;
-      const branch = body.slice(idx, idx + 400);
-      expect(branch).toMatch(/return\s*("risk"|\{\s*border|"neutral")/);
-      expect(branch).not.toMatch(/href|navigate|disabled|enabled|allow/i);
+      const matches = [...body.matchAll(/===\s*"PAST_DUE"/g)];
+      if (matches.length === 0) continue;
+      for (const m of matches) {
+        const branch = body.slice(m.index ?? 0, (m.index ?? 0) + 400);
+        // Produces something to DISPLAY: a label, a tone, or a style object.
+        expect(
+          branch,
+          `${rel}: a PAST_DUE branch must return a display value`,
+        ).toMatch(/return\s*("[^"]*"|\{\s*border|\{\s*label)/);
+        // …and gates NOTHING.
+        expect(
+          branch,
+          `${rel}: a PAST_DUE branch must not gate anything`,
+        ).not.toMatch(/href|navigate|disabled|enabled|allow/i);
+      }
     }
   });
   it("apps/mobile contains ZERO raw commercial decisions", () => {

@@ -18,7 +18,6 @@ import {
   GitBranch,
   Globe,
   History as ClockCounterClockwise,
-  Package,
   PenTool as PenNib,
   ShieldCheck,
   Sparkles as Sparkle,
@@ -256,11 +255,11 @@ export default function MarketingPricingPage() {
     },
     {
       id: "payg",
-      title: "Per Evidence",
+      title: "Pay per evidence",
       subtitle: "Use only what you need with flexible pricing.",
       price: paygPrice,
-      priceSuffix: "/ evidence",
-      priceNote: "One-time checkout",
+      priceSuffix: "/ credit",
+      priceNote: "Per credit, one-time",
       icon: Briefcase,
       accent: {
         bg: "linear-gradient(135deg,#3B82F6 0%,#2563EB 100%)",
@@ -270,10 +269,10 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("payg"),
       ctaHref: buildCtaHref("payg"),
       features: [
-        "Pay only when you complete evidence",
-        "Verification package included",
-        "Optional add-ons",
-        "No subscription required",
+        "One credit records one evidence item",
+        "Report and verification package for each paid record",
+        "Credits never expire",
+        "No subscription — your account stays on Free",
       ],
     },
     {
@@ -298,7 +297,7 @@ export default function MarketingPricingPage() {
         `${catalogValue(catalog?.pro?.storageLabel)} storage`,
         "Reports & verification packages included",
         `AI assistance: ${catalogValue(catalog?.pro?.aiAdvisoryMonthlyOperations)} operations / month`,
-        "Personal workspace",
+        "Personal account — additional workspaces need their own Team plan",
       ],
     },
     {
@@ -318,11 +317,11 @@ export default function MarketingPricingPage() {
       ctaLabel: buildCtaLabel("team"),
       ctaHref: buildCtaHref("team"),
       features: [
-        `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} evidence records / month`,
-        `${catalogValue(catalog?.team?.storageLabel)} storage`,
+        `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} evidence records in any 30 days`,
+        `${catalogValue(catalog?.team?.storageLabel)} cumulative storage`,
         `AI assistance: ${catalogValue(catalog?.team?.aiAdvisoryMonthlyOperations)} operations / month`,
         "Shared workspace, review assignments, team governance",
-        `Up to ${catalogValue(catalog?.team?.maxMembersPerTeam)} members per Team`,
+        `Up to ${catalogValue(catalog?.team?.maxAcceptedMembersPerCollaborationTeam)} accepted members per Team`,
       ],
     },
     {
@@ -385,9 +384,18 @@ export default function MarketingPricingPage() {
     },
   ];
 
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — this list said "Reports" and
+   * "Verification Packages" while the comparison table on the SAME PAGE said
+   * "PDF reports: Free — Not included". The catalog agrees with the table:
+   * `PLAN_CAPABILITIES.FREE.reportsIncluded` and
+   * `verificationPackageIncluded` are both false.
+   *
+   * What genuinely IS plan-independent is the integrity layer — hashing,
+   * trusted timestamps, signatures, custody — and that is what this row now
+   * claims. It is also the stronger claim: it is the part no tier can weaken.
+   */
   const everyPlanIncludes: { label: string; icon: MarketingIcon }[] = [
-    { label: "Reports", icon: FileText },
-    { label: "Verification Packages", icon: Package },
     { label: "Public Verification", icon: Globe },
     { label: "SHA-256 Hashing", icon: Fingerprint },
     { label: "RFC 3161 Timestamps", icon: ClockCounterClockwise },
@@ -461,7 +469,7 @@ export default function MarketingPricingPage() {
         `${catalogValue(catalog?.free?.maxEvidenceRecords)} total`,
         "Pay only when you complete evidence",
         `${catalogValue(catalog?.pro?.maxEvidenceRecords)} included`,
-        `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} / month`,
+        `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} in any 30 days`,
         "Custom operational volume",
       ],
     },
@@ -479,10 +487,10 @@ export default function MarketingPricingPage() {
       label: "Storage add-ons",
       values: [
         "Not available",
-        "Optional",
-        "Personal top-ups",
-        "Team storage top-ups",
-        "Commercial planning",
+        "Not available",
+        "Monthly, from +10 GB",
+        "Monthly, from +100 GB",
+        "Contract storage",
       ],
     },
     {
@@ -561,22 +569,30 @@ export default function MarketingPricingPage() {
       ],
     },
     {
+      // The governance ENTITLEMENTS that exist (legal hold, retention,
+      // organization audit, Object Lock, SSO/SCIM, MFA enforcement) are all
+      // Enterprise-only flags. "Personal-workspace controls" and "Team
+      // governance" named none of them.
       label: "Governance controls",
       values: [
         "Not included",
         "Not included",
-        "Personal-workspace controls",
-        "Team governance",
+        "Not included",
+        "Not included",
         "Enterprise governance",
       ],
     },
     {
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — "Basic retention" was
+      // sold to TEAM and refused by the code: `enterpriseFeatures.retentionPolicy`
+      // is false on TEAM, and `denyIfTeamNotEnterprise(..., "retentionPolicy")`
+      // returns 402 to a TEAM workspace that tries to use it.
       label: "Retention policies",
       values: [
         "Not included",
         "Not included",
         "Not included",
-        "Basic retention",
+        "Not included",
         "Custom retention policies",
       ],
     },
@@ -611,6 +627,11 @@ export default function MarketingPricingPage() {
       ],
     },
     {
+      // Enforcement note: `enterpriseFeatures.objectLock` has no gate consumer
+      // in the codebase today. It is retained as an Enterprise row because
+      // Object Lock is a real storage posture the platform configures, but no
+      // per-plan gate turns it on or off — which is why it is not claimed as a
+      // capability the customer switches.
       label: "Object Lock / immutable storage",
       values: [
         "Not included",
@@ -621,39 +642,45 @@ export default function MarketingPricingPage() {
       ],
     },
     {
+      // Only `organizationAuditLogs` exists as an entitlement, and only on
+      // ENTERPRISE. The four tier-specific strings this replaces named no flag
+      // the product enforces. Record history itself is plan-independent.
       label: "Audit logs",
       values: [
-        "Basic record history",
-        "Basic record history",
-        "Record audit history",
-        "Team audit logs",
+        "Record history",
+        "Record history",
+        "Record history",
+        "Record history",
         "Organization audit logs",
       ],
     },
     {
+      // "Limited integrations" named no entitlement. No plan field governs
+      // integrations, and the product-line engine that does is keyed on
+      // something Pricing does not sell.
       label: "Integrations & APIs",
       values: [
         "Not included",
         "Not included",
         "Not included",
-        "Limited integrations",
+        "Not included",
         "APIs, webhooks, SSO, and integrations",
       ],
     },
     {
-      // Teams Entitlement Alignment 2026-07-14 — source of truth is
-      // COLLABORATION_TEAM_PLAN_LIMITS in
-      // packages/shared/src/collaboration-team.ts (FREE 0 / PAYG 0 /
-      // PRO 2 / TEAM 5 / ENTERPRISE Custom). The served catalog
-      // mirrors those values via maxOwnedTeams; the static fallbacks
-      // below MUST equal the canonical table (pinned by
-      // apps/web/__tests__/pricing-teams-entitlement-consistency.test.ts).
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — this row is the
+      // COLLABORATION TEAM cap, served from
+      // `PlanCapabilities.maxCollaborationTeamsPerWorkspace`. The comment it
+      // replaces cited `COLLABORATION_TEAM_PLAN_LIMITS` (deleted, it carried
+      // the overload) and a guard suite
+      // `pricing-teams-entitlement-consistency.test.ts` that does not exist —
+      // a pin that had rotted into a claim.
       label: "Teams",
       values: [
         "Not included",
         "Not included",
-        `Up to ${catalogValue(catalog?.pro?.maxOwnedTeams)}`,
-        `Up to ${catalogValue(catalog?.team?.maxOwnedTeams)}`,
+        `Up to ${catalogValue(catalog?.pro?.maxCollaborationTeamsPerWorkspace)} per workspace`,
+        `Up to ${catalogValue(catalog?.team?.maxCollaborationTeamsPerWorkspace)} per workspace`,
         "Custom",
       ],
     },
@@ -666,8 +693,22 @@ export default function MarketingPricingPage() {
       values: [
         "Not included",
         "Not included",
-        `Up to ${catalogValue(catalog?.pro?.maxMembersPerTeam)} per Team`,
-        `Up to ${catalogValue(catalog?.team?.maxMembersPerTeam)} per Team`,
+        `Up to ${catalogValue(catalog?.pro?.maxAcceptedMembersPerCollaborationTeam)} accepted members per Team`,
+        `Up to ${catalogValue(catalog?.team?.maxAcceptedMembersPerCollaborationTeam)} accepted members per Team`,
+        "Custom",
+      ],
+    },
+    {
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — its OWN row. This number
+      // used to be published as "Teams" and enforced over BOTH `Team` rows and
+      // `CollaborationTeam` rows, so one advertised "Up to 2" quietly granted a
+      // PRO account two owned workspaces AND two collaboration teams.
+      label: "Owned workspaces",
+      values: [
+        "Not included",
+        "Not included",
+        `Up to ${catalogValue(catalog?.pro?.maxOwnedWorkspaces)}`,
+        `Up to ${catalogValue(catalog?.team?.maxOwnedWorkspaces)}`,
         "Custom",
       ],
     },
@@ -1165,7 +1206,8 @@ export default function MarketingPricingPage() {
                 <span className="font-medium text-[#0F172A]">
                   {displayCurrency}
                 </span>
-                . VAT may apply depending on your country.
+                . Displayed prices exclude any taxes that may be handled by
+                the payment provider where applicable.
               </div>
             </section>
 

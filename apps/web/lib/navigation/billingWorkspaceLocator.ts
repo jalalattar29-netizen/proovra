@@ -39,7 +39,23 @@ export type BillingPlanHint = "PAYG" | "PRO" | "TEAM";
  */
 export type BillingWorkspaceLocator =
   | { kind: "personal" }
-  | { kind: "team"; teamId?: string | null };
+  | { kind: "team"; teamId?: string | null }
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — an ORGANIZATION billing
+   * account.
+   *
+   * Added to the EXISTING vocabulary rather than beside it. Billing now selects
+   * one of three account kinds, and an Enterprise organization is a billing
+   * subject in its own right — its constituent workspaces bill through its
+   * contract rather than each carrying one. A second query parameter would have
+   * meant two parsers for one question, which is the ambiguity this module was
+   * created to end.
+   *
+   * The id is deliberately part of the VALUE ("organization:<id>") rather than
+   * a bare id: a bare id cannot say whether it names a workspace or an
+   * organization, and the two are different tenancy objects.
+   */
+  | { kind: "organization"; organizationId: string };
 
 /** Minimal read surface shared by URLSearchParams and Next's ReadonlyURLSearchParams. */
 type ParamReader = { get(name: string): string | null };
@@ -50,6 +66,9 @@ type ParamReader = { get(name: string): string | null };
  */
 export function encodeBillingWorkspace(locator: BillingWorkspaceLocator): string {
   if (locator.kind === "personal") return "personal";
+  if (locator.kind === "organization") {
+    return `organization:${encodeURIComponent(locator.organizationId)}`;
+  }
   const id = locator.teamId?.trim();
   return id ? `team:${encodeURIComponent(id)}` : "team";
 }
@@ -71,6 +90,12 @@ export function parseBillingWorkspaceLocator(
   if (value.startsWith("team:")) {
     const id = decodeURIComponent(value.slice("team:".length)).trim();
     return id ? { kind: "team", teamId: id } : { kind: "team" };
+  }
+  if (value.startsWith("organization:")) {
+    const id = decodeURIComponent(value.slice("organization:".length)).trim();
+    // An organization locator with no id names nothing. Falling back to the
+    // default is safer than inventing a tenant.
+    return id ? { kind: "organization", organizationId: id } : { kind: "personal" };
   }
   // Unknown value — never trust it as a tenant; fall back to the default.
   return { kind: "personal" };

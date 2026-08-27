@@ -87,11 +87,14 @@ const WEB_FILES = walk(WEB_ROOT);
  * import-site usage; the component's BODY copy is still enforced by
  * `phase-r13-route-persona-matrix.test.ts`.
  */
-const BILLING_CARD_IMPORT_ALLOWLIST = new Set<string>([
-  resolve(WEB_ROOT, "components/billing/TeamWorkspaceCard.tsx"),
-  // Any file that imports the billing card.
-  resolve(WEB_ROOT, "app/(app)/billing/page.tsx"),
-]);
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the allowlist is EMPTY.
+//
+// It existed for one component named `TeamWorkspaceCard`, whose JSX identifier
+// tripped the case-insensitive fake-workspace scan. That component is deleted:
+// the redesigned page renders ONE billing account at a time and has no
+// per-workspace card, so no file in the tree carries the identifier and there
+// is nothing left to exempt.
+const BILLING_CARD_IMPORT_ALLOWLIST = new Set<string>([]);
 
 // ---------------------------------------------------------------------------
 // Forbidden fake workspace types
