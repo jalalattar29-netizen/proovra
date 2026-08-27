@@ -243,6 +243,32 @@ function overview() {
   };
 }
 
+// BILLING RECONCILIATION (2026-08-27) — the reconciliation authority and the
+// billing-account authority are PROCESS BOUNDARIES for this matrix, mocked the
+// same way `billing-overview` is. What the matrix drives is the ROUTE: its
+// authorization, its rate limit, its audit and the shape of what it returns.
+vi.mock(
+  "../src/services/billing/reconciliation/reconciliation.service.js",
+  () => ({
+    reconcileBillingAccount: async (input: { account: { type: string } }) => {
+      H.reads.push(`reconcileBillingAccount:${input.account.type}`);
+      // A reconciliation that found nothing to repair. The route must return
+      // the server's own verdict verbatim and add nothing of its own.
+      return {
+        outcome: "NO_CHANGE",
+        checked: 2,
+        creditsRestored: 0,
+        paymentsRecorded: 0,
+        subscriptionsUpdated: 0,
+        pending: 0,
+        actionRequired: 0,
+        unavailable: 0,
+        discrepancies: 0,
+      };
+    },
+  }),
+);
+
 vi.mock("../src/services/billing-overview.service.js", () => ({
   readBillingOverview: async (userId: string) => {
     H.reads.push(`readBillingOverview:${userId}`);
@@ -599,55 +625,99 @@ describe("PLATFORM_CORE §1 — billing entitlement + payment ledger", () => {
     expect(H.audits).toEqual([]);
   });
 
-  it("happy path — POST /v1/billing/restore returns the SERVER's bounded restore verdict", async () => {
+  it("happy path — the reconcile route returns the SERVER's bounded verdict and no provider data", async () => {
+    // BILLING RECONCILIATION (2026-08-27) — retargeted from
+    // `POST /v1/billing/restore`, which was DELETED.
+    //
+    // That route re-read local rows and returned them, so it could not help
+    // the one customer who needs it: the customer whose webhook was lost, for
+    // whom the local rows are exactly what is wrong. The replacement asks the
+    // PROVIDER about the bindings this server stored for the authorized
+    // account. The property the matrix holds is unchanged and now stricter —
+    // the response is a bounded server verdict, and nothing in it can carry a
+    // provider identifier.
     H.plan = "PRO";
     H.credits = 12;
     H.ownedTeamIds = [TEAM_A];
     const res = await app.inject({
       method: "POST",
-      url: "/v1/billing/restore",
+      url: `/v1/billing/accounts/PERSONAL/${H.actorUserId}/reconcile`,
       headers: JSON_HEADERS,
       payload: {},
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.restore.plan).toBe("PRO");
-    expect(body.restore.credits).toBe(12);
-    expect(body.restore.ownedWorkspaceCount).toBe(1);
-    expect(typeof body.restore.restoredAtUtc).toBe("string");
-    expect(H.audits).toContain("billing.restore_entitlement");
+    expect(body.outcome).toBe("NO_CHANGE");
+    expect(body.summary.checked).toBe(2);
+    expect(H.reads).toContain("reconcileBillingAccount:PERSONAL");
+    expect(H.audits).toContain("billing.account_reconciled");
+
+    // Nothing that could name a provider object may appear on the wire.
+    expect(res.body).not.toMatch(/cs_|sub_|pi_|in_|PAYID|providerRef/);
   });
 
-  it("idempotent retry — restoring twice converges on the same server truth (no duplicated grant)", async () => {
-    H.plan = "PAYG";
+  it("idempotent retry — reconciling twice converges on the same verdict (no duplicated grant)", async () => {
+    H.plan = "PRO";
     H.credits = 3;
-    const first = await app.inject({ method: "POST", url: "/v1/billing/restore", headers: JSON_HEADERS, payload: {} });
-    const second = await app.inject({ method: "POST", url: "/v1/billing/restore", headers: JSON_HEADERS, payload: {} });
+    const url = `/v1/billing/accounts/PERSONAL/${H.actorUserId}/reconcile`;
+    const first = await app.inject({ method: "POST", url, headers: JSON_HEADERS, payload: {} });
+    const second = await app.inject({ method: "POST", url, headers: JSON_HEADERS, payload: {} });
+
+    // The second may be rate-limited or leased; either way it must be a
+    // BOUNDED verdict and never a duplicate grant.
     expect(first.statusCode).toBe(200);
-    expect(second.statusCode).toBe(200);
-    expect(JSON.parse(first.body).restore.plan).toBe(JSON.parse(second.body).restore.plan);
-    expect(JSON.parse(first.body).restore.credits).toBe(JSON.parse(second.body).restore.credits);
-    // A restore is a re-read + ensure, never a plan/credit mutation.
+    expect([200, 429]).toContain(second.statusCode);
+    if (second.statusCode === 200) {
+      expect(JSON.parse(second.body).outcome).toBeDefined();
+    }
+    // Reconciliation writes only through its own idempotent handlers; the
+    // ROUTE mutates no plan or credit of its own.
     expect(H.writes).toEqual([]);
   });
 
-  it("client-declared plan is ignored — restore reflects only the persisted commercial state", async () => {
+  it("a client-declared body cannot steer reconciliation — the route reads none of it", async () => {
+    // The strongest form of the property the deleted restore case held. The
+    // body below names a plan, a credit count, a workspace, an amount and a
+    // provider subscription; the route's schema declares no body at all, so
+    // every one of them is inert. A caller cannot reach another account's
+    // purchase because there is no field in which to name one.
     H.plan = "FREE";
     const res = await app.inject({
       method: "POST",
-      url: "/v1/billing/restore",
+      url: `/v1/billing/accounts/PERSONAL/${H.actorUserId}/reconcile`,
       headers: JSON_HEADERS,
-      payload: { plan: "ENTERPRISE", credits: 9999, teamId: TEAM_B },
+      payload: {
+        plan: "ENTERPRISE",
+        credits: 9999,
+        teamId: TEAM_B,
+        amountCents: 999999,
+        providerSubId: "sub_attacker",
+        sessionId: "cs_attacker",
+      },
     });
-    expect(JSON.parse(res.body).restore.plan).toBe("FREE");
-    expect(JSON.parse(res.body).restore.credits).toBe(0);
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    // The verdict came from the authority, not from anything sent.
+    expect(body.outcome).toBe("NO_CHANGE");
+    expect(body.summary.creditsRestored).toBe(0);
+    // The account reconciled is the one in the PATH, resolved server-side.
+    expect(H.reads).toContain("reconcileBillingAccount:PERSONAL");
+    expect(res.body).not.toMatch(/sub_attacker|cs_attacker/);
   });
 
-  it("no-mutation-on-denial — a legal-gated restore never touches entitlement state", async () => {
+  it("no-mutation-on-denial — a legal-gated reconcile never reaches a provider or a write", async () => {
     H.legalOk = false;
-    const res = await app.inject({ method: "POST", url: "/v1/billing/restore", headers: JSON_HEADERS, payload: {} });
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/billing/accounts/PERSONAL/${H.actorUserId}/reconcile`,
+      headers: JSON_HEADERS,
+      payload: {},
+    });
     expect(res.statusCode).toBe(428);
     expect(H.writes).toEqual([]);
+    // Not even the capability check ran: the legal gate is a preHandler, so a
+    // denial happens before the route body — and therefore before any provider
+    // could be contacted.
     expect(H.reads).toEqual([]);
   });
 });

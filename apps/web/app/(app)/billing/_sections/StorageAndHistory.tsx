@@ -178,20 +178,17 @@ export function BillingHistorySection({
   state: "LOADING" | "READY" | "DENIED" | "ERROR";
   onRetry: () => void;
   /**
-   * "Refresh billing status" — a reload of what PROOVRA has recorded.
+   * "Re-check purchases and billing" — REAL provider reconciliation.
    *
-   * BILLING PRODUCTION CLOSURE (2026-08-27) — renamed from "Re-check my
-   * purchases", which described something the product does not do.
+   * BILLING RECONCILIATION (2026-08-27) — the label promises a provider check
+   * again, because the action now performs one. Its two previous names were
+   * both accurate at the time: "Re-check my purchases" over-promised against a
+   * local re-read, so it became "Refresh billing status"; the server now asks
+   * Stripe or PayPal about the bindings it stored for the selected account, so
+   * the promise is true again.
    *
-   * The action calls no payment provider. It re-reads the persisted
-   * subscription, entitlement and payment rows and returns them, so it helps
-   * with exactly one thing: a webhook that arrived while the page was open. If
-   * the webhook never arrived, pressing it changes nothing — and the old label
-   * promised a customer who had paid and seen no credit that the button would
-   * go and find their money.
-   *
-   * Wording follows behaviour. When provider reconciliation is implemented it
-   * can promise more; until then it says what it does.
+   * The request names the ACCOUNT and nothing else — no session, no
+   * subscription, no amount — so it cannot reach another customer's purchase.
    */
   onRecheck: () => void;
   recheckBusy: boolean;
@@ -236,7 +233,7 @@ export function BillingHistorySection({
     <Card
       variant="summary"
       title="Billing history"
-      subtitle="Reloads what we have recorded for this account. If a payment is still missing after a few minutes, contact support — nothing is charged again."
+      subtitle="Checks your payment provider for anything we have not recorded on this account. Nothing is charged again."
       headerAction={
         <Button
           variant="secondary"
@@ -246,7 +243,7 @@ export function BillingHistorySection({
           disabled={recheckBusy}
           data-billing-recheck
         >
-          Refresh billing status
+          Re-check purchases and billing
         </Button>
       }
       data-billing-history

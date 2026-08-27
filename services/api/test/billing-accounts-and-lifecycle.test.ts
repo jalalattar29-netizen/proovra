@@ -354,11 +354,38 @@ describe("storage add-ons are recurring monthly, legacy purchases preserved", ()
   });
 
   it("add-on status follows its subscription's lifecycle on BOTH providers", async () => {
-    const src = await readSource("../src/routes/webhooks.routes.ts");
-    expect(src).toMatch(/function storageAddonStatusFromSubscription/);
+    // BILLING RECONCILIATION (2026-08-27) — the mapping MOVED out of the
+    // webhook route, and the assertion follows it while getting stronger.
+    //
+    // It used to check that the function was DEFINED in `webhooks.routes.ts`.
+    // Reconciliation now learns the same provider facts by polling, so the
+    // property that matters is no longer "the webhook has a mapping" but "both
+    // paths use the SAME one" — a second copy is how a polled cancellation and
+    // a pushed one would come to mean different things.
+    const handlers = await readSource(
+      "../src/services/billing/subscription-lifecycle.handlers.ts",
+    );
+    expect(handlers).toMatch(/function storageAddonStatusFromSubscription/);
+
+    // Neither consumer may define its own.
+    for (const consumer of [
+      "../src/routes/webhooks.routes.ts",
+      "../src/services/billing/reconciliation/reconciliation.service.ts",
+    ]) {
+      const src = await readSource(consumer);
+      expect(
+        src,
+        `${consumer} must IMPORT the shared mapping, never redefine it`,
+      ).not.toMatch(/function storageAddonStatusFromSubscription/);
+      expect(src).toMatch(/storageAddonStatusFromSubscription/);
+    }
+
     // Both branches previously logged "unsupported" and dropped the event, so a
     // cancelled add-on kept granting capacity.
-    expect(src).not.toMatch(/unsupported\.storage_addon_subscription_event_ignored/);
+    const webhook = await readSource("../src/routes/webhooks.routes.ts");
+    expect(webhook).not.toMatch(
+      /unsupported\.storage_addon_subscription_event_ignored/,
+    );
   });
 });
 

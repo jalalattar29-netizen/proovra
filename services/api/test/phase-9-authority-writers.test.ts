@@ -74,6 +74,19 @@ const AUTHORITY_WRITERS: Array<{
       // state.
       "services/billing/subscription-cancellation.service.ts":
         "canonical: provider-confirmed cancel-at-period-end (never the terminal CANCELED)",
+      // BILLING RECONCILIATION (2026-08-27) — the ORDERING STAMP, and nothing
+      // else.
+      //
+      // Reconciliation does not write subscription STATE: every lifecycle
+      // transition it applies goes through `syncPlanForSubscription`, the same
+      // handler the verified webhook calls. What it writes directly is one
+      // column — `providerStateAtUtc`, the provider's own timestamp for the
+      // state just applied — because that is the value the ordering guard
+      // reads to discard an observation older than what is already recorded.
+      // Routing a single audit stamp through the plan writer would have made
+      // `upsertSubscription` take an argument only one caller ever uses.
+      "services/billing/reconciliation/reconciliation.service.ts":
+        "canonical: providerStateAtUtc ordering stamp only — every lifecycle transition goes through syncPlanForSubscription",
     },
   },
   {
@@ -106,6 +119,20 @@ const AUTHORITY_WRITERS: Array<{
     write: /\.workspaceStorageAddon\.(create|update|upsert|updateMany|delete|deleteMany)\b/,
     allowed: {
       "services/billing.service.ts": "canonical: upsertWorkspaceStorageAddon/cancelWorkspaceStorageAddon",
+      // BILLING RECONCILIATION (2026-08-27) — two writers added, both for the
+      // same defect: a recurring add-on is its OWN provider subscription, so
+      // cancelling the base plan left it charging and nothing in the product
+      // connected the two.
+      //
+      // Neither invents a lifecycle. The status they write comes from
+      // `storageAddonStatusFromSubscription`, the shared mapping the webhook
+      // uses, and neither writes ANY status the provider did not confirm — a
+      // refused provider call leaves the row untouched so the orphan stays
+      // visible instead of being marked cancelled and forgotten.
+      "services/billing/reconciliation/reconciliation.service.ts":
+        "canonical: applies the PROVIDER-observed add-on status through the shared mapping, plus the providerStateAtUtc ordering stamp",
+      "services/billing/storage-addon-dependency.service.ts":
+        "canonical: dependent-add-on cancellation on base-plan cancellation — provider first, and never a local write the provider did not confirm",
     },
   },
 ];
@@ -137,6 +164,21 @@ const SUBSCRIPTION_STATUS_REF =
   /\bSubscriptionStatus\.(ACTIVE|PAST_DUE|CANCELED|TRIALING)\b/;
 const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
   "services/billing/commercial-context.service.ts": "CANONICAL: the ONE subscription-active + grace decision (resolvePaidLifecycle)",
+  // BILLING RECONCILIATION (2026-08-27) — the scheduled sweep names the three
+  // repairable statuses when SELECTING which stored bindings to offer to the
+  // reconciliation authority. It makes no active/grace decision: it decides
+  // only which rows are worth asking a provider about.
+  "jobs/billing-reconciliation.job.ts":
+    "SELECTION: chooses repairable bindings to reconcile — no lifecycle decision",
+  // BILLING RECONCILIATION (2026-08-27) — these two READ the enum to map a
+  // provider observation onto the canonical status. Neither decides whether a
+  // subscription is active or in grace: that stays
+  // `commercial-context.service.ts`, and both hand the resulting status to
+  // `syncPlanForSubscription` rather than acting on it themselves.
+  "services/billing/reconciliation/reconciliation.service.ts":
+    "MAPPING: provider observation -> canonical SubscriptionStatus, applied through the shared handler",
+  "services/billing/subscription-lifecycle.handlers.ts":
+    "CANONICAL: the shared lifecycle handler the webhook and reconciliation both call",
   "routes/webhooks.routes.ts": "PROVIDER PROJECTION: normalizes Stripe/PayPal event strings → SubscriptionStatus + write routing (no capability decision)",
   "services/billing.service.ts": "PERSISTENCE: upsertSubscription status write",
   "routes/billing.routes.ts": "display subscription query filter + user cancel-at-period-end write",

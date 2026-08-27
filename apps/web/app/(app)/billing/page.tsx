@@ -47,7 +47,7 @@ import {
   readBillingAccount,
   readBillingHistory,
   requestCancellation,
-  restorePurchases,
+  reconcileAccount,
   type BillingAccountProjection,
   type BillingAccountRef,
   type BillingHistoryEntry,
@@ -280,10 +280,12 @@ function BillingPageInner() {
       const outcome = await requestCancellation({ teamId: workspaceId });
       const ends = formatDate(outcome.accessEndsAtUtc);
       addToast(
-        outcome.mode === "PERIOD_END" && ends
-          ? `Cancelled. You keep access until ${ends}.`
-          : "Cancelled with your payment provider.",
-        "success",
+        outcome.result === "ACTION_REQUIRED"
+          ? "Your plan is cancelled, but a storage add-on could not be stopped. Please contact support — it may still be charging."
+          : outcome.mode === "PERIOD_END" && ends
+            ? `Cancelled. You keep access until ${ends}.`
+            : "Cancelled with your payment provider.",
+        outcome.result === "ACTION_REQUIRED" ? "error" : "success",
       );
       refresh();
     } catch (err) {
@@ -498,16 +500,49 @@ function BillingPageInner() {
                 void (async () => {
                   setRecheckBusy(true);
                   try {
-                    await restorePurchases();
-                    // Says what happened. "Checked with your payment provider"
-                    // named a provider call this action does not make.
-                    addToast("Billing status refreshed.", "success");
-                    refresh();
+                    // BILLING RECONCILIATION (2026-08-27) — a real provider
+                    // check, scoped to the SELECTED account, reporting the
+                    // server's own verdict verbatim. Every branch below is a
+                    // server-decided outcome; the browser classifies nothing.
+                    const result = await reconcileAccount(selected);
+                    switch (result.outcome) {
+                      case "UPDATED":
+                        addToast(
+                          "Your provider had something we had not recorded. Your billing is now up to date.",
+                          "success",
+                        );
+                        // Only an UPDATED run changes what the page shows.
+                        refresh();
+                        break;
+                      case "PENDING":
+                        addToast(
+                          "Your provider is still settling a payment. Check again in a few minutes — nothing is charged twice.",
+                          "info",
+                        );
+                        break;
+                      case "ACTION_REQUIRED":
+                        addToast(
+                          "Something on this account needs our help. Please contact support — nothing has been charged again.",
+                          "error",
+                        );
+                        break;
+                      case "PROVIDER_UNAVAILABLE":
+                        addToast(
+                          "We could not reach your payment provider just now. Nothing has changed — please try again shortly.",
+                          "error",
+                        );
+                        break;
+                      default:
+                        addToast(
+                          "Everything on this account already matches your payment provider.",
+                          "success",
+                        );
+                    }
                   } catch (err) {
                     captureException(err, { feature: "billing_restore" });
                     const safe = toSafeUserError(err, {
                       message:
-                        "We could not refresh your billing status. Try again in a moment.",
+                        "We could not check with your payment provider. Nothing has changed — try again in a moment.",
                     });
                     addToast(safe.message, "error");
                   } finally {

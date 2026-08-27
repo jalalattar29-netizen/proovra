@@ -44,6 +44,7 @@ import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { stripeRequest } from "../stripe.service.js";
 import { cancelPayPalSubscription } from "../paypal.service.js";
+import { cancelDependentRecurringAddons } from "./storage-addon-dependency.service.js";
 
 /**
  * What a provider can actually do, stated per provider rather than assumed.
@@ -77,6 +78,19 @@ export type CancellationOutcome = {
   status: prismaPkg.SubscriptionStatus;
   /** True when the request was a no-op because it was already scheduled. */
   alreadyScheduled: boolean;
+  /**
+   * BILLING RECONCILIATION (2026-08-27) — what happened to the recurring
+   * Storage add-ons that depend on this subscription.
+   *
+   * A recurring add-on is its own provider subscription. Cancelling the base
+   * plan used to do nothing to it, so the provider kept charging for storage
+   * attached to a plan the customer no longer had. `dependentAddonsFailed > 0`
+   * means something is STILL CHARGING and the caller must say so rather than
+   * report a clean cancellation.
+   */
+  dependentAddonsFound: number;
+  dependentAddonsScheduled: number;
+  dependentAddonsFailed: number;
 };
 
 function providerFailure(provider: prismaPkg.PaymentProvider): DomainError {
@@ -112,6 +126,8 @@ export async function requestSubscriptionCancellation(input: {
       currentPeriodEnd: true,
       cancelAtPeriodEnd: true,
       canceledAtUtc: true,
+      userId: true,
+      teamId: true,
     },
   });
 
@@ -138,6 +154,16 @@ export async function requestSubscriptionCancellation(input: {
   // your payment provider" error about a cancellation that had already
   // succeeded.
   if (subscription.cancelAtPeriodEnd || subscription.canceledAtUtc) {
+    // A repeat is where a PREVIOUS partial failure gets its retry: the base
+    // subscription is already scheduled, but a dependent add-on may still be
+    // charging because its provider call failed last time. Cancelling the
+    // dependants again is safe — each is provider-first and idempotent — and
+    // it is the only way a customer can clear an ACTION_REQUIRED themselves.
+    const retry = await cancelDependentRecurringAddons({
+      ownerUserId: subscription.userId,
+      teamId: subscription.teamId,
+      mode,
+    });
     return {
       mode,
       accessEndsAtUtc: subscription.cancelAtPeriodEnd
@@ -146,16 +172,29 @@ export async function requestSubscriptionCancellation(input: {
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       status: subscription.status,
       alreadyScheduled: true,
+      dependentAddonsFound: retry.found,
+      dependentAddonsScheduled: retry.scheduled,
+      dependentAddonsFailed: retry.failed,
     };
   }
 
   if (subscription.status === prismaPkg.SubscriptionStatus.CANCELED) {
+    // Same retry reasoning as above: a terminally cancelled base plan with a
+    // live dependent add-on is exactly the orphan this closes.
+    const retry = await cancelDependentRecurringAddons({
+      ownerUserId: subscription.userId,
+      teamId: subscription.teamId,
+      mode,
+    });
     return {
       mode,
       accessEndsAtUtc: subscription.currentPeriodEnd?.toISOString() ?? null,
       cancelAtPeriodEnd: false,
       status: prismaPkg.SubscriptionStatus.CANCELED,
       alreadyScheduled: true,
+      dependentAddonsFound: retry.found,
+      dependentAddonsScheduled: retry.scheduled,
+      dependentAddonsFailed: retry.failed,
     };
   }
 
@@ -245,6 +284,20 @@ export async function requestSubscriptionCancellation(input: {
     select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
   });
 
+  // ---- Then the dependants ----------------------------------------------
+  //
+  // Ordering is deliberate. The base call is confirmed FIRST, because a
+  // dependent add-on cancelled under a base subscription that then failed to
+  // cancel would leave the customer with less storage and the same plan
+  // charge — strictly worse than doing nothing. Once the provider has agreed
+  // to end the base subscription, every recurring add-on that depends on it is
+  // asked to stop, in the same mode.
+  const dependents = await cancelDependentRecurringAddons({
+    ownerUserId: subscription.userId,
+    teamId: subscription.teamId,
+    mode,
+  });
+
   return {
     mode,
     // An IMMEDIATE cancellation has no future access date to report. Returning
@@ -256,5 +309,8 @@ export async function requestSubscriptionCancellation(input: {
     cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
     status: updated.status,
     alreadyScheduled: false,
+    dependentAddonsFound: dependents.found,
+    dependentAddonsScheduled: dependents.scheduled,
+    dependentAddonsFailed: dependents.failed,
   };
 }

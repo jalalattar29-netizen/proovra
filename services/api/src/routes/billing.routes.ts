@@ -55,6 +55,9 @@ import {
   readBillingHistoryForAccount,
 } from "../services/billing/billing-account-projection.service.js";
 import { requestSubscriptionCancellation } from "../services/billing/subscription-cancellation.service.js";
+import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
+import { createErrorResponse, ErrorCode } from "../errors.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 
@@ -729,6 +732,9 @@ export async function billingRoutes(app: FastifyInstance) {
           mode: outcome.mode,
           alreadyScheduled: outcome.alreadyScheduled,
           accessEndsAtUtc: outcome.accessEndsAtUtc,
+          dependentAddonsFound: outcome.dependentAddonsFound,
+          dependentAddonsScheduled: outcome.dependentAddonsScheduled,
+          dependentAddonsFailed: outcome.dependentAddonsFailed,
         },
       });
 
@@ -742,7 +748,20 @@ export async function billingRoutes(app: FastifyInstance) {
 
       // A bounded, server-decided outcome the client renders verbatim. It never
       // re-derives "is it cancelled?" from a plan string.
-      return reply.code(200).send({ cancellation: outcome });
+      //
+      // BILLING RECONCILIATION (2026-08-27) — `ACTION_REQUIRED` is a
+      // server-decided verdict, not a client inference. A recurring Storage
+      // add-on is its own provider subscription, so a base cancellation that
+      // could not stop one of them leaves something CHARGING. Reporting that
+      // as a clean cancellation is the failure mode this closes, and the
+      // client must not have to work it out from a count.
+      return reply.code(200).send({
+        cancellation: {
+          ...outcome,
+          result:
+            outcome.dependentAddonsFailed > 0 ? "ACTION_REQUIRED" : "COMPLETE",
+        },
+      });
     }
   );
 
@@ -915,56 +934,108 @@ export async function billingRoutes(app: FastifyInstance) {
    * amount — a retry converges on the same server truth, so the action is
    * safe to repeat.
    */
+  /**
+   * BILLING RECONCILIATION (2026-08-27) — real provider reconciliation,
+   * replacing `POST /v1/billing/restore`.
+   *
+   * The route it replaces re-read local rows and returned them. It could not
+   * help the one customer who needs it — the one whose webhook was lost, so
+   * that the local rows are exactly what is wrong.
+   *
+   * WHAT THIS ROUTE ACCEPTS
+   * -------------------------------------------------------------------------
+   * The account in the path, and nothing else. Not a session id, not a
+   * subscription id, not an amount, a currency, a product, a quantity or a
+   * status. That is the security argument in full: a caller cannot claim
+   * another account's purchase because there is no field in which to name one.
+   * The server resolves the bindings IT stored for the authorized account and
+   * asks the provider only about those.
+   *
+   * BOUNDED AND SERIALIZED
+   * -------------------------------------------------------------------------
+   * Rate-limited per actor and per account, and one run at a time per account
+   * through the same distributed limiter — a second concurrent press is told
+   * to wait rather than starting a parallel pass over the same bindings. The
+   * service itself caps how many bindings any single run examines.
+   */
   app.post(
-    "/v1/billing/restore",
+    "/v1/billing/accounts/:type/:id/reconcile",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
+      const params = z
+        .object({
+          type: z.enum(["PERSONAL", "WORKSPACE", "ORGANIZATION"]),
+          id: z.string().min(1).max(200),
+        })
+        .safeParse(req.params ?? {});
+      if (!params.success) {
+        return reply.code(400).send({ error: { code: "invalid_params" } });
+      }
 
-      // BILLING PRODUCTION CLOSURE (2026-08-27) — capability-gated, like every
-      // other billing read.
-      //
-      // This route had only `requireAuthAndLegal`. It reads the caller's own
-      // commercial state, so it was never a cross-tenant leak, but "the caller
-      // happens to be the subject" is not the same statement as "the caller
-      // holds BILLING_ACCOUNT_VIEW on this account", and it is the second that
-      // every other billing surface is required to make.
-      //
-      // It performs NO provider call. It re-reads persisted rows, which is why
-      // the surface that drives it now says "Refresh billing status" rather
-      // than promising to go and find a missing payment.
-      await assertBillingCapability({
+      // Reconciliation writes money-backed entitlements, so it needs the
+      // MANAGE capability rather than the view one: a workspace administrator
+      // who is not the payer may see the plan, not repair the billing.
+      const account = await assertBillingCapability({
         viewerUserId: userId,
-        type: "PERSONAL",
-        id: userId,
-        capability: "BILLING_ACCOUNT_VIEW",
+        type: params.data.type,
+        id: params.data.id,
+        capability: "BILLING_MANAGE",
       });
 
-      const overview = await readBillingOverview(userId);
+      const rate = await enforceRateLimit({
+        key: `ratelimit:billing_reconcile:${userId}:${account.type}:${account.id}`,
+        max: 4,
+        windowSec: 300,
+      });
+      if (!rate.allowed) {
+        return reply.code(429).send(
+          createErrorResponse(
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            req.id,
+            undefined,
+            "Billing has been re-checked recently. Please try again in a few minutes.",
+          ),
+        );
+      }
+
+      // ONE run per account at a time. A second press while a run is in flight
+      // would duplicate every provider request for no benefit.
+      const lease = await enforceRateLimit({
+        key: `lease:billing_reconcile:${account.type}:${account.id}`,
+        max: 1,
+        windowSec: 60,
+      });
+      if (!lease.allowed) {
+        return reply.code(200).send({
+          outcome: "PENDING",
+          summary: null,
+          message: "A check is already running for this account.",
+        });
+      }
+
+      const summary = await reconcileBillingAccount({ account });
 
       auditBillingAction(req, {
         userId,
-        action: "billing.restore_entitlement",
+        action: "billing.account_reconciled",
         outcome: "success",
+        workspaceId: account.type === "WORKSPACE" ? account.id : null,
         metadata: {
-          plan: overview.entitlement.plan,
-          credits: overview.entitlement.credits,
+          accountType: account.type,
+          result: summary.outcome,
+          checked: summary.checked,
+          creditsRestored: summary.creditsRestored,
+          paymentsRecorded: summary.paymentsRecorded,
+          subscriptionsUpdated: summary.subscriptionsUpdated,
         },
       });
 
-      return reply.code(200).send({
-        ...overview,
-        // Bounded, server-decided outcome the client renders verbatim — the
-        // frontend never re-derives "did anything change?" from raw plan
-        // values.
-        restore: {
-          restoredAtUtc: new Date().toISOString(),
-          plan: overview.entitlement.plan,
-          credits: overview.entitlement.credits,
-          ownedWorkspaceCount: overview.workspaces.teams.length,
-        },
-      });
-    }
+      // Counts and categories only. Nothing here can carry a provider id, a
+      // provider error string or a disputed amount, because the surface
+      // renders it verbatim.
+      return reply.code(200).send({ outcome: summary.outcome, summary });
+    },
   );
 
   app.post(
