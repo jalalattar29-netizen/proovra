@@ -3298,8 +3298,8 @@ describe("Operations — the cards' interactive states are real", () => {
     expect(card.getAttribute("aria-pressed")).toBe("true");
     // The pressed border reads the same custom property the rail does, so a
     // selected card cannot be a different colour from the one it just was.
-    const { readFileSync } = require("node:fs") as typeof import("node:fs");
-    const { resolve } = require("node:path") as typeof import("node:path");
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
     const route = readFileSync(
       resolve(process.cwd(), "app/(app)/operations/operations.css"),
       "utf8",
@@ -3311,17 +3311,17 @@ describe("Operations — the cards' interactive states are real", () => {
 });
 
 describe("Operations — the summary grid adapts to its container", () => {
-  const css = () => {
-    const { readFileSync } = require("node:fs") as typeof import("node:fs");
-    const { resolve } = require("node:path") as typeof import("node:path");
+  const css = async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
     return readFileSync(
       resolve(process.cwd(), "app/(app)/operations/operations.css"),
       "utf8",
     );
   };
 
-  it("21. FOUR, THREE, TWO, ONE — by container width, with no fixed card widths", () => {
-    const src = css();
+  it("21. FOUR, THREE, TWO, ONE — by container width, with no fixed card widths", async () => {
+    const src = await css();
     // The strip is the query subject, not the viewport: the same strip inside
     // a narrower column has to make the same decision.
     expect(src).toMatch(/\.opsw-summary\s*\{[^}]*container-type:\s*inline-size/);
@@ -3362,8 +3362,8 @@ describe("Operations — the summary grid adapts to its container", () => {
     expect(src).not.toMatch(/\.opsw-summary__grid[^}]*overflow-x/);
   });
 
-  it("22. cards may shrink, wrap their text, and share a row height", () => {
-    const src = css();
+  it("22. cards may shrink, wrap their text, and share a row height", async () => {
+    const src = await css();
     const card = src.slice(src.indexOf(".opsw-metric {"));
     const body = card.slice(0, card.indexOf("}"));
     // Without this a long label makes the card refuse to shrink and the row
