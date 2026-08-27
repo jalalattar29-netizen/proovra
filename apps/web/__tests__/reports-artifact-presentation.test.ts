@@ -544,3 +544,27 @@ test("the coral CTA token keeps its legitimate consumers", () => {
   const BUTTON = read("apps/web/components/ui/Button.tsx");
   assert.match(BUTTON, /--btn-primary-bg/);
 });
+
+test("FREE renders the same Reports shell — no upgrade banner above it", () => {
+  // `FreeReportsLockedNotice` was stacked above the page for any workspace
+  // whose projected plan excluded reports, so the surface opened with an
+  // upgrade panel and a feature checklist while the operator's existing
+  // reports sat underneath it. Every plan now gets the same shell.
+  //
+  // This asserts PRESENTATION only. Entitlement is unchanged and still
+  // authoritative at the backend and in the row-level controls, which read the
+  // server-projected capability — a plan that does not include reports still
+  // cannot generate or download one.
+  // Comments stripped: the file EXPLAINS which panel was removed, and a guard
+  // that tripped on its own rationale would be deleted by the next reader.
+  const ROUTE = code(read("apps/web/app/(app)/reports/page.tsx"));
+  assert.doesNotMatch(ROUTE, /FreeReportsLockedNotice/);
+  assert.doesNotMatch(ROUTE, /usePlanFeature/);
+  assert.doesNotMatch(ROUTE, /reportsIncluded/);
+  // …and it is not swapped for another conditional plan surface: the gate
+  // renders the index, unconditionally.
+  assert.match(
+    ROUTE,
+    /<PageRouteGate routeId="workspace\.reports">\s*\n\s*<ReportsIndex \/>\s*\n\s*<\/PageRouteGate>/,
+  );
+});
