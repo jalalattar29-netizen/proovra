@@ -8,12 +8,23 @@
  * hex in JSX.
  */
 
-/* ---------- tone accents (single source for bell + inbox) ---------- */
-
+/* ---------- tone accents (single source for bell + inbox) ----------
+ *
+ * Read by every item-level severity signal — the row's inline-start accent,
+ * the category chip, the priority header rule and the bell dot — so the
+ * summary strip and the list below it cannot disagree about what a severity
+ * looks like.
+ *
+ * CRITICAL and WARNING now resolve to the SAME canonical tokens the metric
+ * cards use (`--error`, `--accent-600`) rather than to private hexes. They
+ * were `#b91c1c` and `#a16207`, one family off each, which is how the strip
+ * and the rows drifted apart in the first place. `high` and `info` keep their
+ * current values.
+ */
 :root {
-  --ops-tone-critical: #b91c1c;
+  --ops-tone-critical: var(--error);
   --ops-tone-high: #c2410c;
-  --ops-tone-warning: #a16207;
+  --ops-tone-warning: var(--accent-600);
   --ops-tone-info: #64748b;
 }
 
@@ -791,12 +802,15 @@
    and the app-wide status badges consume. No hex literal appears here, and
    none may.
 
-   THE MAPPING IS A PRESENTATION DECISION, recorded as one. `critical` reading
-   blue and `warning` reading red is not the severity ramp you would derive
-   from first principles; it is what this dashboard was specified to show, and
-   it changes nothing behind the surface — the tone a notification carries, the
-   filter each card applies and every backend meaning are untouched. The word
-   is always rendered beside the colour, so the ramp is never the only signal.
+   THE MAPPING IS A PRESENTATION DECISION, recorded as one. It previously read
+   `critical` blue and `warning` red — the two effectively swapped — which is
+   the ramp this pass corrects: the most severe tone now wears the canonical
+   danger red, and warning wears the brand purple.
+
+   Nothing behind the surface moves. The tone a notification carries, the
+   filter each card applies and every backend meaning are untouched, and the
+   word is always rendered beside the colour, so the ramp is never the only
+   signal.
 
      all       --ink-primary   #0F172A  the darkest neutral in the system.
                                         A total is not a judgement, so it gets
@@ -806,9 +820,9 @@
                                         leading number read as disabled silver.
      unread    --accent-600    #6D28D9  the approved brand purple. The page's
                                         own question wears the product accent.
-     critical  --info          #2563EB  the canonical blue, the exact token
-                                        `.app-status-badge[data-tone="blue"]`
-                                        and the Intake Links blue tone use.
+     critical  --error         #DC2626  the canonical danger red, the one
+                                        `.app-status-badge[data-fill="solid"]
+                                        [data-tone="red"]` fills with.
      high      --orange-500    #EA580C  the standard classification orange.
                                         This was `--ops-tone-high` (#C2410C),
                                         the READABLE-INK orange, which is a
@@ -817,18 +831,17 @@
                                         holds: 3.6:1 on white, and the value is
                                         26px/720 — well past the 18.66px bold
                                         threshold where 3:1 applies.
-     warning   --error         #DC2626  the canonical danger red, the one
-                                        `.app-status-badge[data-fill="solid"]
-                                        [data-tone="red"]` fills with.
+     warning   --accent-600    #6D28D9  the approved brand purple, the same
+                                        token `unread` above resolves to.
      info      --ink-secondary #475569  the canonical neutral informational
                                         tone, matching the slate the status
                                         badges and `--ilk-tone-slate` use.
    =========================================================================== */
 .ops-metric[data-ops-metric-tone="all"]      { --app-metric-tone: var(--ink-primary); }
 .ops-metric[data-ops-metric-tone="unread"]   { --app-metric-tone: var(--accent-600); }
-.ops-metric[data-ops-metric-tone="critical"] { --app-metric-tone: var(--info); }
+.ops-metric[data-ops-metric-tone="critical"] { --app-metric-tone: var(--error); }
 .ops-metric[data-ops-metric-tone="high"]     { --app-metric-tone: var(--orange-500); }
-.ops-metric[data-ops-metric-tone="warning"]  { --app-metric-tone: var(--error); }
+.ops-metric[data-ops-metric-tone="warning"]  { --app-metric-tone: var(--accent-600); }
 .ops-metric[data-ops-metric-tone="info"]     { --app-metric-tone: var(--ink-secondary); }
 
 /* ===========================================================================

@@ -1358,6 +1358,30 @@ textarea.app-form-input {
 .app-anchored-overlay {
   position: fixed;
   z-index: var(--layer-anchored-overlay, 100000);
+  /* THE CONTAINER IS NOT A CLICK TARGET.
+   *
+   * A `matchAnchorWidth` overlay is exactly as wide as its trigger, which is
+   * correct — but the menu inside is capped at 360px. Measured on
+   * /operations: a 930px trigger gave a 930px container around a 360px
+   * commitment menu, leaving 570px of INVISIBLE surface at
+   * `pointer-events: auto` and `z-index: 100000` sitting over the page.
+   *
+   * That band broke two things at once. A click in it landed on the OVERLAY,
+   * so `AppAnchoredOverlay`'s outside-pointer handler saw a target the
+   * overlay contained and correctly declined to close — the dropdown stayed
+   * open however far away the operator clicked. And whatever sat underneath
+   * (the summary cards, on /operations) could not be clicked at all while the
+   * menu was open.
+   *
+   * The container now passes pointer events through and its CHILD — the menu
+   * itself — takes them back, so the hit area is the menu and nothing else.
+   * No geometry changes: the box is still positioned and sized exactly as
+   * before. */
+  pointer-events: none;
+}
+/* …and the menu inside takes them back. */
+.app-anchored-overlay > * {
+  pointer-events: auto;
 }
 
 /* ---- ROW ACTIONS MENU -------------------------------------------------
@@ -1435,6 +1459,7 @@ textarea.app-form-input {
   /* Positioning and layering belong to `.app-anchored-overlay`, the portaled
      element this list now sits inside. Keeping a second `position: fixed` and
      a second z-index here would be two authorities over one box.
+
      A percentage width is safe precisely BECAUSE the parent is a sized box:
      under the old fixed positioning it resolved against the viewport and
      stretched the menu across the page. */

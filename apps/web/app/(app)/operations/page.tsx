@@ -1336,11 +1336,11 @@ function OperationsWorkbench() {
         ? "slaAtRisk"
         : filters.status === "RESOLVED"
           ? "resolved"
-          : filters.severity === "CRITICAL" && filters.status === "OPEN"
+          : filters.severity === "CRITICAL" && filters.status === DEFAULT_FILTERS.status
       ? "critical"
-      : filters.severity === "HIGH" && filters.status === "OPEN"
+      : filters.severity === "HIGH" && filters.status === DEFAULT_FILTERS.status
         ? "high"
-        : filters.severity === "WARNING" && filters.status === "OPEN"
+        : filters.severity === "WARNING" && filters.status === DEFAULT_FILTERS.status
           ? "warning"
         : filters.owner === "me"
           ? "assignedToMe"

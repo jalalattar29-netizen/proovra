@@ -390,17 +390,36 @@ test("severity is never carried by colour alone", () => {
   // CANONICAL design tokens rather than from this route's own `--ops-tone-*`
   // block — the same families the status badges and the Intake Links KPI
   // cards consume, so a colour cannot be defined twice and drift.
-  for (const token of [
+  // Asserted as the PROPERTY, not as a list of the tokens the mapping happened
+  // to use. The list was a snapshot: it named `--info` because `critical`
+  // resolved to it, so swapping critical to red and warning to purple failed a
+  // guard about token PROVENANCE for a reason that had nothing to do with
+  // provenance. What must hold is that every card resolves from the canonical
+  // palette and none reintroduces this route's private `--ops-tone-*`.
+  const CANONICAL_TOKENS = new Set([
     "--ink-primary",
+    "--ink-secondary",
     "--accent-600",
     "--info",
     "--orange-500",
     "--error",
-    "--ink-secondary",
-  ]) {
+    "--success",
+  ]);
+  const resolved = [
+    ...NOTIFICATIONS_CSS.matchAll(/--app-metric-tone:\s*var\((--[\w-]+)\)/g),
+  ].map((m) => m[1]);
+  assert.ok(
+    resolved.length >= 6,
+    `every metric card must resolve a tone; found ${resolved.length}`,
+  );
+  for (const token of resolved) {
     assert.ok(
-      NOTIFICATIONS_CSS.includes(`--app-metric-tone: var(${token})`),
-      `a metric card must resolve its tone from ${token}`,
+      CANONICAL_TOKENS.has(token),
+      `a metric card resolves its tone from ${token}, which is not a canonical design token`,
+    );
+    assert.ok(
+      !token.startsWith("--ops-tone-"),
+      `a metric card must not resolve its tone from this route's private ${token}`,
     );
   }
   // And the mapping names tokens, never literals.

@@ -144,6 +144,28 @@ export function GroupSurface({
                 <span className="app-table__primary opsw-group__title">
                   {g.title}
                 </span>
+
+                {/*
+                  STATUS AT THE TRAILING EDGE.
+
+                  It used to sit inside the metadata sentence, between the
+                  source and the age, so a row read "Evidence integrity · Open
+                  · 34 affected records · last seen 20m ago" — one run-on line
+                  in which the lifecycle state was the hardest thing to find.
+                  Given the row's far edge it becomes a column: the same word
+                  in the same place on every row, scannable down the list
+                  without reading anything else.
+
+                  Same primitive, same tones, same words, no capsule. Only the
+                  position changed.
+                */}
+                <AppStatusText
+                  tone={status.tone}
+                  className="opsw-group__status"
+                  data-ops-group-status={g.statusPosture}
+                >
+                  {status.label}
+                </AppStatusText>
               </span>
 
               <span className="opsw-group__meta">
@@ -256,13 +278,6 @@ export function GroupSurface({
                   obviously the one on the left. The same primitive the flat
                   table uses: same tones, same words, no box.
                 */}
-                <AppStatusText
-                  tone={status.tone}
-                  data-ops-group-status={g.statusPosture}
-                >
-                  {status.label}
-                </AppStatusText>
-
                 {g.assignedCount > 0 ? (
                   <>
                     <span aria-hidden="true">·</span>

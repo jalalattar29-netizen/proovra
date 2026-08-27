@@ -1011,6 +1011,28 @@
 }
 .opsw-group__title {
   overflow-wrap: anywhere;
+  /* Takes the slack, so the status is pushed to the far edge and every row's
+     status lands in the same column. The title still wraps rather than being
+     compressed: a zero min-inline-size lets it shrink to its own wrap point
+     and no further. */
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+/* THE TRAILING STATUS COLUMN. Never squeezed, never wrapped mid-word. */
+.opsw-group__status {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  /* On a phone the head already wraps; pushing the status to the far edge of a
+     wrapped line would strand it under the severity badge. It takes its own
+     line instead, still trailing-aligned. */
+  .opsw-group__status {
+    margin-inline-start: 0;
+    inline-size: 100%;
+    text-align: end;
+  }
 }
 
 /* WRAPPING, so a long source label and two counts reflow on a phone instead

@@ -62,16 +62,21 @@ export type FilterState = {
 };
 
 /**
- * The default view is UNRESOLVED WORK.
+ * The default view is EVERY STATUS.
  *
- * A workbench that opens showing every condition ever recorded, resolved ones
- * included, makes the operator's first action "filter out the noise". The
- * queue opens on what is still open; the Status control is right there and
- * says so.
+ * It opened on `status=OPEN`, which is a filter the operator never chose:
+ * the page presented itself as the queue while silently withholding everything
+ * acknowledged, suppressed or resolved, and the Status control showed "Open"
+ * as though that had been asked for. A default that narrows the collection is
+ * indistinguishable from a collection that is small.
+ *
+ * An explicit `?status=` in the URL still wins — see `filtersFromParams` —
+ * so a shared link, a saved view, a metric card and the browser's Back button
+ * all keep saying exactly what they said before.
  */
 export const DEFAULT_FILTERS: FilterState = Object.freeze({
   sla: "",
-  status: "OPEN",
+  status: "",
   severity: "",
   category: "",
   owner: "any",
