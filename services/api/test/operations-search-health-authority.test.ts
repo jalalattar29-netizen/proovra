@@ -87,13 +87,13 @@ describe("the readiness → activity mapping", () => {
       (s) => classifySearchReadiness(s) === "HEALTHY",
     );
     // READY            everything eligible is present, nothing awaiting removal
-    // DEGRADED         the same, qualified by a secondary capability that is
-    //                  configured and not answering — deterministic search is
-    //                  complete, so the INDEX is healthy
     // EMPTY_WORKSPACE  nothing to index and no leftover document
-    expect([...healthy].sort()).toEqual(
-      ["DEGRADED", "EMPTY_WORKSPACE", "READY"].sort(),
-    );
+    //
+    // DEGRADED IS DELIBERATELY ABSENT. It says the counts converged AND a
+    // capability this workspace turned on is not answering. Reading the first
+    // half as recovery let an open condition close itself at the moment the
+    // platform was reporting that part of Search does not work.
+    expect([...healthy].sort()).toEqual(["EMPTY_WORKSPACE", "READY"].sort());
   });
 
   it("only PROVEN drift or a PROVEN failure is failing", () => {
@@ -107,7 +107,7 @@ describe("the readiness → activity mapping", () => {
     expect([...failing].sort()).toEqual(["FAILED", "STALLED"].sort());
   });
 
-  it("THE TWO STATES THAT LOOK LIKE PROGRESS ARE NOT RECOVERY", () => {
+  it("THE STATES THAT LOOK LIKE PROGRESS ARE NOT RECOVERY", () => {
     // The subtle ones, and the reason the mapping is three-valued rather than
     // boolean. INITIALIZING and PARTIAL mean the index is INCOMPLETE with a
     // rebuild genuinely in flight. Reading them as recovery is the defect this
@@ -218,5 +218,143 @@ describe("the source contract still refuses a manual close", () => {
     // was an accurate name for the wrong thing.
     expect(lifecycle.activityProbeKey).toBe("search.index_health");
     expect(lifecycle.requiresResolutionNote).toBe(false);
+  });
+});
+
+// ===========================================================================
+// PREMATURE RECOVERY — THE FULL STATE CONTRACT
+// ===========================================================================
+
+/**
+ * The mapping, stated one state at a time.
+ *
+ * Written out rather than table-driven on purpose: a table shares one
+ * assertion, so a change to the mapping edits the data and every row keeps
+ * passing. These are the states an operator's open condition is closed or kept
+ * open by, and each one deserves a line a reviewer has to delete on purpose.
+ */
+describe("no Search condition closes without proven recovery", () => {
+  const activityFor = (state: (typeof ALL_STATES)[number]) => {
+    switch (classifySearchReadiness(state)) {
+      case "HEALTHY":
+        return "RECOVERED";
+      case "FAILING":
+        return "ACTIVE";
+      default:
+        return "UNKNOWN";
+    }
+  };
+
+  it("1. READY is the recovered state", () => {
+    expect(activityFor("READY")).toBe("RECOVERED");
+  });
+
+  it("2. EMPTY_WORKSPACE is recovered — complete, not pending", () => {
+    // Nothing eligible and no leftover document is a CONVERGED index, not an
+    // unmeasured one.
+    expect(activityFor("EMPTY_WORKSPACE")).toBe("RECOVERED");
+  });
+
+  it("3. STALLED is active — outstanding work with nothing assigned to it", () => {
+    expect(activityFor("STALLED")).toBe("ACTIVE");
+  });
+
+  it("4. FAILED is active", () => {
+    expect(activityFor("FAILED")).toBe("ACTIVE");
+  });
+
+  it("5. DEGRADED IS UNKNOWN, NOT RECOVERY", () => {
+    // The correction. Converged deterministic counts beside a configured
+    // capability that is not answering is not proof that the condition an
+    // operator is looking at is over.
+    expect(classifySearchReadiness("DEGRADED")).toBe("INDETERMINATE");
+    expect(activityFor("DEGRADED")).toBe("UNKNOWN");
+    expect(activityFor("DEGRADED")).not.toBe("RECOVERED");
+  });
+
+  it("6. INITIALIZING is unknown", () => {
+    expect(activityFor("INITIALIZING")).toBe("UNKNOWN");
+  });
+
+  it("7. PARTIAL is unknown — an eligible-versus-indexed gap is not recovery", () => {
+    expect(activityFor("PARTIAL")).toBe("UNKNOWN");
+  });
+
+  it("8. UNAVAILABLE is unknown — unmeasured is not measured-and-fine", () => {
+    // Every count below an unreachable search service would be a zero nobody
+    // observed, and a zero gap reads as convergence.
+    expect(activityFor("UNAVAILABLE")).toBe("UNKNOWN");
+  });
+
+  it("9. RESTRICTED is unknown — that answer is about the ACTOR", () => {
+    expect(activityFor("RESTRICTED")).toBe("UNKNOWN");
+  });
+
+  it("10. A STATE A FUTURE RELEASE ADDS IS UNKNOWN", () => {
+    for (const future of ["CONVERGING", "SUCCEEDED", "OK", ""]) {
+      const state = future as unknown as (typeof ALL_STATES)[number];
+      const verdict: SearchHealthVerdict = classifySearchReadiness(state);
+      expect(verdict, future).toBe("INDETERMINATE");
+      expect(activityFor(state), future).toBe("UNKNOWN");
+    }
+  });
+
+  it("11. RECOVERY IS AN ALLOWLIST, SO THE DEFAULT CANNOT BE RECOVERED", () => {
+    // Structural, because the previous defect was exactly a default that
+    // meant health: the fail-closed answer has to be the one you get by
+    // writing nothing.
+    const src = code(HEALTH);
+    const body = src.slice(src.indexOf("export function classifySearchReadiness("));
+    const fn = body.slice(0, body.indexOf("\n}"));
+    expect(fn).toContain('return "INDETERMINATE";');
+    // The last statement in the function is the fail-closed one.
+    expect(fn.trimEnd().endsWith('return "INDETERMINATE";')).toBe(true);
+    // And no arm returns HEALTHY except through the explicit set.
+    expect(fn).not.toMatch(/case\s+"DEGRADED"/);
+  });
+
+  it("12. AN UNKNOWN OBSERVATION CLOSES NOTHING AND INVENTS NO RESOLVER", () => {
+    // The consumer half of the contract. The recovery sweep leaves anything
+    // that is not a proven RECOVERED untouched — no status change, no
+    // resolvedByUserId, no resolution note, no SLA close.
+    const sweep = code(
+      "services/api/src/services/operations/source-truth-recovery.service.ts",
+    );
+    expect(sweep).toContain('if (observation.activity !== "RECOVERED") continue;');
+    // …and the skip happens before the writer, not after it.
+    expect(sweep.indexOf('!== "RECOVERED") continue;')).toBeLessThan(
+      sweep.indexOf("operationalIncident.update("),
+    );
+  });
+
+  it("13. THE PROBE IS READ-ONLY AND CALLS THE SHARED AUTHORITY", () => {
+    // It must not mutate search documents, evidence, queue jobs,
+    // reconciliation runs, proofs, custody data or storage objects — and it
+    // must not recompute readiness locally.
+    const probe = code(PROBES);
+    const observe = probe.slice(
+      probe.indexOf("async function observeSearchIndexHealth("),
+    );
+    const body = observe.slice(0, observe.indexOf("\n}\n"));
+    expect(body).toContain("resolveWorkspaceSearchReadiness");
+    expect(body).toContain("classifySearchReadiness");
+    for (const write of [".update(", ".create(", ".delete(", ".upsert(", "$executeRaw"]) {
+      expect(body, `the probe calls ${write}`).not.toContain(write);
+    }
+    // The default arm is UNKNOWN, and there is exactly one RECOVERED arm.
+    expect(body).toContain('default:');
+    expect((body.match(/activity: "RECOVERED"/g) ?? []).length).toBe(1);
+  });
+
+  it("14. THE PROBE IS BOUND TO ONE WORKSPACE", () => {
+    // Workspace B never decides Workspace A's state: the only team id the
+    // probe can reach is the one on its own context.
+    const probe = code(PROBES);
+    const observe = probe.slice(
+      probe.indexOf("async function observeSearchIndexHealth("),
+    );
+    const body = observe.slice(0, observe.indexOf("\n}\n"));
+    expect(body).toContain("teamId: ctx.teamId");
+    expect(body).not.toMatch(/teamId: (null|undefined)/);
   });
 });

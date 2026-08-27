@@ -132,6 +132,22 @@
   --orange-fill: #F97316;
   --orange-ink: #C2410C;
 
+  /* SILVER — the "approaching, not yet late" metallic neutral.
+
+     A commitment that is DUE SOON is not a caution and not a failure: it is a
+     clock. Amber said caution and put every approaching condition beside the
+     genuine warnings; indigo said active processing. Neither is what a
+     deadline means, and both borrowed a colour that already had a job.
+
+     A metallic grey is the honest reading — visibly cooler and lighter than
+     `--ink-secondary` (#475569), which stays the tone for ABSENT and unknown,
+     so "no commitment recorded" and "due soon" do not collapse onto one grey.
+
+     #5B6B7B measures 5.45:1 on #FFFFFF and 5.22:1 on the #F8FAFC card
+     surface — WCAG AA for normal-size text on both, which matters because
+     this tone paints a COUNT, not just a rail. */
+  --silver-ink: #5B6B7B;
+
   /* ------------------------------------------------------------------
    * SEMANTIC TONE RAILS
    *
@@ -155,6 +171,20 @@
   --tone-blue: var(--info);
   --tone-indigo: var(--accent-600);
   --tone-slate: var(--ink-secondary);
+
+  /* PURPLE is the BRAND accent at its lighter weight — the approved
+     "Color Palette/Purple" authority above, never a new violet. It carries
+     WARNING severity, which amber previously carried; amber keeps its own
+     meaning ("waiting for an owner") and the two are no longer the same
+     colour saying two things. 5.70:1 on #FFFFFF.
+
+     SILVER is the metallic neutral for an approaching commitment, and BLACK is
+     the canonical near-black already used for primary ink. Black is spent on
+     exactly one thing — the Unresolved TOTAL — because a colour that means
+     "all of it" must not also mean one of the parts. */
+  --tone-purple: var(--accent-500);
+  --tone-silver: var(--silver-ink);
+  --tone-black: var(--ink-primary);
 
   /* ------------------------------------------------------------------
    * LAYERS

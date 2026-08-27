@@ -31,6 +31,110 @@ import type {
 } from "./types";
 
 // ---------------------------------------------------------------------------
+// THE ONE TONE TABLE
+// ---------------------------------------------------------------------------
+
+/**
+ * Every semantic value this route paints, and the tone it wears — once.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS EXISTS
+ * ---------------------------------------------------------------------------
+ * The tone for a value used to be decided in whichever table happened to need
+ * it, and the tables disagreed. The severity vocabulary painted CRITICAL red
+ * and HIGH orange; the summary cards painted the Critical card ORANGE and the
+ * High card RED. Same two words, opposite colours, one scroll apart. An
+ * operator who learned the colour on the cards read the queue below them
+ * backwards.
+ *
+ * The same divergence sat on the commitment axis: the SLA badge painted
+ * "Overdue" red while the Overdue card painted itself blue.
+ *
+ * So this is not a list of preferences. It is the reason a semantic value
+ * cannot change colour by moving between the cards, Grouped, All conditions,
+ * the filter chips and the Inspector — every one of those reads a table below,
+ * and every one of those tables reads THIS.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT THE COLOURS MEAN
+ * ---------------------------------------------------------------------------
+ * SEVERITY descends in visual strength, so a queue scanned at speed puts the
+ * worst thing first: CRITICAL red, then HIGH orange, then WARNING purple.
+ * Warning is deliberately the brand accent rather than amber — amber already
+ * means "waiting for an owner" on this surface, and one colour cannot carry
+ * two meanings in adjacent columns.
+ *
+ * UNRESOLVED is black because it is a TOTAL: the count of everything still
+ * open, not one category within it. Spending a semantic colour on it would
+ * rank it against the severities it contains.
+ *
+ * DUE_SOON is silver — a clock, not a caution. OVERDUE is red because a missed
+ * commitment IS a failure, and it is the same red the row badge has always
+ * used for it.
+ *
+ * OPEN and ACKNOWLEDGED keep their own colours. They are lifecycle STATES, and
+ * neither of them is the Unresolved total: a status column that turned black
+ * because a card above it counts a superset of it would be a third meaning for
+ * one colour.
+ */
+export type OperationsSemantic =
+  // Severity
+  | "CRITICAL"
+  | "HIGH"
+  | "WARNING"
+  | "INFO"
+  // Lifecycle
+  | "OPEN"
+  | "ACKNOWLEDGED"
+  | "RESOLVED"
+  | "SUPPRESSED"
+  // Aggregate
+  | "UNRESOLVED"
+  // Commitment
+  | "OVERDUE"
+  | "DUE_SOON"
+  | "ON_TIME"
+  | "NO_COMMITMENT"
+  // Ownership
+  | "OWNED_BY_ME"
+  | "UNOWNED";
+
+export const OPERATIONS_TONE: Readonly<Record<OperationsSemantic, AppTone>> =
+  Object.freeze({
+    CRITICAL: "red",
+    HIGH: "orange",
+    WARNING: "purple",
+    INFO: "blue",
+
+    OPEN: "blue",
+    ACKNOWLEDGED: "indigo",
+    RESOLVED: "green",
+    SUPPRESSED: "slate",
+
+    UNRESOLVED: "black",
+
+    OVERDUE: "red",
+    DUE_SOON: "silver",
+    ON_TIME: "blue",
+    // An absent promise is not a warning. Treating it as one would push every
+    // legacy condition to the top of a queue sorted by urgency it was never
+    // measured for.
+    NO_COMMITMENT: "slate",
+
+    OWNED_BY_ME: "indigo",
+    UNOWNED: "amber",
+  });
+
+/**
+ * Severity, ranked by visual strength.
+ *
+ * Stated as data so the ordering is checkable rather than implied by which
+ * colours somebody happened to pick. Lower index = stronger.
+ */
+export const SEVERITY_TONE_STRENGTH: readonly OperationsSemantic[] =
+  Object.freeze(["CRITICAL", "HIGH", "WARNING", "INFO"]);
+
+// ---------------------------------------------------------------------------
 // Severity
 // ---------------------------------------------------------------------------
 
@@ -47,25 +151,25 @@ export const SEVERITY_VOCABULARY: Readonly<
 > = Object.freeze({
   CRITICAL: {
     label: "Critical",
-    tone: "red",
+    tone: OPERATIONS_TONE.CRITICAL,
     rank: 4,
     explanation: "Records or delivery are affected now.",
   },
   HIGH: {
     label: "High",
-    tone: "orange",
+    tone: OPERATIONS_TONE.HIGH,
     rank: 3,
     explanation: "Needs an operator before it becomes critical.",
   },
   WARNING: {
     label: "Warning",
-    tone: "amber",
+    tone: OPERATIONS_TONE.WARNING,
     rank: 2,
     explanation: "Worth attention; nothing is blocked yet.",
   },
   INFO: {
     label: "Info",
-    tone: "blue",
+    tone: OPERATIONS_TONE.INFO,
     rank: 1,
     explanation: "Recorded for context, no action expected.",
   },
@@ -95,24 +199,24 @@ export const STATUS_VOCABULARY: Readonly<Record<IncidentStatus, StatusEntry>> =
   Object.freeze({
     OPEN: {
       label: "Open",
-      tone: "blue",
+      tone: OPERATIONS_TONE.OPEN,
       explanation: "Nobody has taken this on yet.",
     },
     ACKNOWLEDGED: {
       label: "Acknowledged",
-      tone: "indigo",
+      tone: OPERATIONS_TONE.ACKNOWLEDGED,
       explanation:
         "An operator has seen this and taken it on. It does not mean the underlying problem is fixed.",
     },
     RESOLVED: {
       label: "Resolved",
-      tone: "green",
+      tone: OPERATIONS_TONE.RESOLVED,
       explanation:
         "Closed. If the same condition happens again it reopens with its history intact.",
     },
     SUPPRESSED: {
       label: "Suppressed",
-      tone: "slate",
+      tone: OPERATIONS_TONE.SUPPRESSED,
       explanation:
         "This workspace decided to stop being told about it. Repeat occurrences are still recorded, and it resolves on its own when the source recovers.",
     },
@@ -170,6 +274,7 @@ export type QueueMetricKey =
   | "open"
   | "critical"
   | "high"
+  | "warning"
   | "slaBreached"
   | "slaAtRisk"
   | "resolved"
@@ -190,10 +295,20 @@ export type QueueMetricEntry = {
   collaborative: boolean;
 };
 
+/**
+ * The order the cards are read in, and the ONLY authority on how many there
+ * are.
+ *
+ * Severity descends — Critical, High, Warning — after the Unresolved total
+ * that contains them all. Nothing may assert a card COUNT against a literal:
+ * a test that says "seven cards" pins a number, not a contract, and it is
+ * wrong the moment a card is added on purpose.
+ */
 export const QUEUE_METRIC_ORDER: readonly QueueMetricKey[] = Object.freeze([
   "open",
   "critical",
   "high",
+  "warning",
   "slaBreached",
   "slaAtRisk",
   "resolved",
@@ -219,25 +334,45 @@ export const QUEUE_METRIC_VOCABULARY: Readonly<
 > = Object.freeze({
   open: {
     label: "Unresolved",
-    tone: "slate",
+    // The TOTAL, so it wears the total's tone rather than competing with the
+    // severities it contains.
+    tone: OPERATIONS_TONE.UNRESOLVED,
     note: "Open or acknowledged.",
     collaborative: false,
   },
   critical: {
     label: "Critical",
-    tone: "orange",
+    tone: OPERATIONS_TONE.CRITICAL,
     note: "Affecting records now.",
     collaborative: false,
   },
   high: {
     label: "High",
-    tone: "red",
+    tone: OPERATIONS_TONE.HIGH,
     note: "Needs an operator soon.",
+    collaborative: false,
+  },
+  /**
+   * THE THIRD SEVERITY, which the strip was missing.
+   *
+   * The field has been in the server summary the whole time — the same scan
+   * that produces Critical and High produces it — and the strip simply did
+   * not render it. So a tenant whose queue held nothing but Warning conditions
+   * read a summary saying Critical 0, High 0 and concluded there was nothing
+   * to look at.
+   *
+   * Not a new counter, not a second authority, and nothing counted in the
+   * browser: the same field, from the same projection, finally shown.
+   */
+  warning: {
+    label: "Warning",
+    tone: OPERATIONS_TONE.WARNING,
+    note: "Worth attention; nothing is blocked yet.",
     collaborative: false,
   },
   slaBreached: {
     label: "Overdue",
-    tone: "blue",
+    tone: OPERATIONS_TONE.OVERDUE,
     // Names the AUTHORITY rather than a number: the promise differs per
     // workspace and, for a historical condition, differs from today's.
     note: "Past the time this workspace committed to.",
@@ -245,25 +380,25 @@ export const QUEUE_METRIC_VOCABULARY: Readonly<
   },
   slaAtRisk: {
     label: "Due soon",
-    tone: "indigo",
+    tone: OPERATIONS_TONE.DUE_SOON,
     note: "Approaching the committed time.",
     collaborative: false,
   },
   resolved: {
     label: "Resolved",
-    tone: "green",
+    tone: OPERATIONS_TONE.RESOLVED,
     note: "Closed operational conditions.",
     collaborative: false,
   },
   assignedToMe: {
     label: "Assigned to me",
-    tone: "indigo",
+    tone: OPERATIONS_TONE.OWNED_BY_ME,
     note: "You own these.",
     collaborative: true,
   },
   unassigned: {
     label: "Unassigned",
-    tone: "amber",
+    tone: OPERATIONS_TONE.UNOWNED,
     note: "Waiting for an owner.",
     collaborative: true,
   },
@@ -363,22 +498,22 @@ export function slaLabel(posture: SlaPosture): string {
 export function slaTone(posture: SlaPosture): AppTone {
   switch (posture) {
     case "BREACHED":
-      return "red";
+      return OPERATIONS_TONE.OVERDUE;
     case "AT_RISK":
-      return "amber";
+      return OPERATIONS_TONE.DUE_SOON;
     case "RESOLVED":
-      return "green";
+      return OPERATIONS_TONE.RESOLVED;
     case "ACKNOWLEDGED":
-      return "indigo";
+      return OPERATIONS_TONE.ACKNOWLEDGED;
     case "ON_TRACK":
-      return "blue";
+      return OPERATIONS_TONE.ON_TIME;
     case "UNTRACKED_LEGACY":
     case "NOT_APPLICABLE":
     default:
       // Neutral, deliberately. An absent promise is not a warning; treating
       // it as one would push every legacy condition to the top of a queue
       // sorted by urgency it was never measured for.
-      return "slate";
+      return OPERATIONS_TONE.NO_COMMITMENT;
   }
 }
 

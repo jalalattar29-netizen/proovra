@@ -160,13 +160,16 @@ export async function syncSearchIndexConditions(
   }
 
   if (verdict === "INDETERMINATE") {
-    // INITIALIZING, PARTIAL, UNAVAILABLE, RESTRICTED. Work may be genuinely in
-    // flight or the truth may be unreadable; either way the index is NOT
-    // proven healthy, so an open condition stays open.
+    // INITIALIZING, PARTIAL, UNAVAILABLE, RESTRICTED, DEGRADED — and any
+    // state a future release adds. Work may be genuinely in flight, the truth
+    // may be unreadable, or a configured capability may be impaired beside a
+    // converged count; in every case the index is NOT proven healthy, so an
+    // open condition stays open, keeps its lifecycle and gains no resolver.
     return { active: false, unknown: true, resolved: 0, state: readiness.state };
   }
 
-  // HEALTHY — READY, DEGRADED or EMPTY_WORKSPACE. Positive proof that the
+  // HEALTHY — READY or EMPTY_WORKSPACE, the only two states that assert
+  // complete, unimpaired convergence. Positive proof that the
   // index is complete, and the shared sweep is what turns it into a
   // resolution, through the same probe, the same transition authority and the
   // same event and SLA writes every other source-truth recovery uses.

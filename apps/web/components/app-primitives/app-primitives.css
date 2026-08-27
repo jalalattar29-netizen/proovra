@@ -825,6 +825,25 @@ textarea.app-form-input {
   color: var(--orange-ink, #C2410C);
   border-color: var(--orange-200, #FED7AA);
 }
+/* PURPLE is the brand accent carrying WARNING severity — see the AppTone
+   contract. SILVER is an approaching commitment; BLACK is a total. All three
+   are declared for BOTH forms below, so a shared mapping cannot return a tone
+   only one of the capsule and the text form can paint. */
+.app-status-badge[data-tone="purple"] {
+  background: var(--accent-050, #F2ECFE);
+  color: var(--tone-purple, #7C3AED);
+  border-color: var(--accent-200, #D9C7FB);
+}
+.app-status-badge[data-tone="silver"] {
+  background: #F1F5F9;
+  color: var(--tone-silver, #5B6B7B);
+  border-color: rgba(91, 107, 123, 0.20);
+}
+.app-status-badge[data-tone="black"] {
+  background: #F1F5F9;
+  color: var(--tone-black, #0F172A);
+  border-color: rgba(15, 23, 42, 0.14);
+}
 .app-status-badge[data-tone="slate"] {
   background: #F1F5F9; color: #475569; border-color: rgba(15, 23, 42, 0.08);
 }
@@ -909,6 +928,15 @@ textarea.app-form-input {
 .app-status-badge[data-fill="solid"][data-tone="amber"] {
   background: var(--warning-ink);
 }
+.app-status-badge[data-fill="solid"][data-tone="purple"] {
+  background: var(--tone-purple);
+}
+.app-status-badge[data-fill="solid"][data-tone="silver"] {
+  background: var(--tone-silver);
+}
+.app-status-badge[data-fill="solid"][data-tone="black"] {
+  background: var(--tone-black);
+}
 .app-status-badge[data-fill="solid"][data-tone="slate"] {
   background: var(--ink-secondary);
 }
@@ -980,6 +1008,9 @@ textarea.app-form-input {
 .app-status-text[data-tone="orange"] { --app-status-tone: var(--orange-ink); }
 /* Slate is the FALLBACK an unmapped state resolves to, so it is a real
    declaration rather than whatever the base happens to paint. */
+.app-status-text[data-tone="purple"] { --app-status-tone: var(--tone-purple); }
+.app-status-text[data-tone="silver"] { --app-status-tone: var(--tone-silver); }
+.app-status-text[data-tone="black"] { --app-status-tone: var(--tone-black); }
 .app-status-text[data-tone="slate"] { --app-status-tone: var(--ink-secondary); }
 .app-status-text[data-tone="ink"] { --app-status-tone: var(--ink-primary); }
 

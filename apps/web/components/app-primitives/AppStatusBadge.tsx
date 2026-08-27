@@ -34,6 +34,29 @@ export type AppTone =
    * opposite of what a type label says.
    */
   | "orange"
+  /**
+   * PURPLE is the BRAND accent carrying WARNING severity.
+   *
+   * Distinct from `indigo`, which is the same family one weight darker and
+   * means active processing / selection. The pair is deliberate: a severity
+   * and a lifecycle state are read in different columns, and both always
+   * carry their word.
+   */
+  | "purple"
+  /**
+   * SILVER is a CLOCK, not a caution — an approaching commitment.
+   *
+   * Distinct from `slate`, which means absent or unknown. "Due soon" and "no
+   * commitment recorded" are opposite statements and must not share a grey.
+   */
+  | "silver"
+  /**
+   * BLACK is the TOTAL.
+   *
+   * Reserved for a figure that means "all of the above" rather than one
+   * category within it. It is not a severity and never ranks against one.
+   */
+  | "black"
   | "slate"
   /**
    * INK is the DARKEST NEUTRAL — a TERMINAL state ("Closed").

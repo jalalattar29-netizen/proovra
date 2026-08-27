@@ -34,7 +34,15 @@ import {
   cleanup,
   fireEvent,
 } from "@testing-library/react";
-import { QUEUE_METRIC_ORDER } from "../../app/(app)/operations/_lib/vocabulary";
+import {
+  OPERATIONS_TONE,
+  QUEUE_METRIC_ORDER,
+  QUEUE_METRIC_VOCABULARY,
+  SEVERITY_TONE_STRENGTH,
+  SEVERITY_VOCABULARY,
+  STATUS_VOCABULARY,
+  slaTone,
+} from "../../app/(app)/operations/_lib/vocabulary";
 // The SLA fixture below is typed against the PAGE'S OWN contract rather than
 // shaped by hand. A hand-written block drifts from the server projection
 // silently; borrowing the real type means a change to the contract breaks the
@@ -2916,5 +2924,466 @@ describe("Operations — the grouped surface is layout- and direction-safe", () 
     // over a stylesheet that never gained them.
     expect(css).toContain(".opsw-group__meta");
     expect(css).toContain(".opsw-affected__meta");
+  });
+});
+
+// ===========================================================================
+// 12. THE WARNING CARD, THE GRID, AND THE ONE TONE TABLE
+//
+// Three changes with one property between them: a semantic value has exactly
+// one count and exactly one colour, wherever it is rendered. The tests below
+// read the CANONICAL tables and then check the DOM the page actually produced,
+// because either half alone proves nothing — a table nobody renders is a
+// wish, and a rendered colour nobody derived is a coincidence.
+// ===========================================================================
+
+describe("Operations — the Warning card", () => {
+  it("1. the third severity is on the strip", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    expect(metric("warning")).not.toBeNull();
+    expect(
+      metric("warning")?.querySelector(".app-metric-card__label")?.textContent,
+    ).toBe("Warning");
+  });
+
+  it("2. its count is the SERVER's field, never counted in the browser", async () => {
+    // Seven Warning conditions in the projection and NONE in the loaded page:
+    // a card that counted the rows it can see would render 0 here. The
+    // projection is a workspace-wide scan; the table is one page of a keyset
+    // collection and would disagree with itself on page two.
+    summaryReply = () => summary({ warning: 7 });
+    incidentsReply = () => list([]);
+    await mount(envelope(TEAM_ADMIN));
+    expect(
+      metric("warning")?.querySelector(".app-metric-card__value")?.textContent,
+    ).toBe("7");
+    expect(metric("warning")?.getAttribute("data-ops-metric-value")).toBe("7");
+  });
+
+  it("3. IT STAYS VISIBLE AT ZERO", async () => {
+    // A zero is a fact — "nothing at this severity" — and the strip must not
+    // develop holes where the good news is. A card that disappears at zero
+    // also moves every card after it, which is how a strip becomes unreadable
+    // at exactly the moment it is reporting calm.
+    summaryReply = () => summary({ warning: 0 });
+    await mount(envelope(TEAM_ADMIN));
+    expect(metric("warning")).not.toBeNull();
+    expect(
+      metric("warning")?.querySelector(".app-metric-card__value")?.textContent,
+    ).toBe("0");
+  });
+
+  it("4. a missing field is an em dash, never a fabricated zero", async () => {
+    summaryReply = () => {
+      const s = summary() as { summary: Record<string, unknown> };
+      delete s.summary.warning;
+      return s;
+    };
+    await mount(envelope(TEAM_ADMIN));
+    expect(
+      metric("warning")?.querySelector(".app-metric-card__value")?.textContent,
+    ).toBe("—");
+  });
+
+  it("5. it is a real accessible filter button", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    const card = metric("warning") as HTMLButtonElement;
+    expect(card.tagName).toBe("BUTTON");
+    expect(card.getAttribute("type")).toBe("button");
+    expect(card.getAttribute("aria-pressed")).toBe("false");
+    expect(card.getAttribute("aria-describedby")).toBeTruthy();
+    // The accessible name carries the label and the count, not a colour.
+    expect(card.textContent).toContain("Warning");
+  });
+
+  it("6. pressing it sets the canonical severity filter and re-reads", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(metric("warning") as HTMLButtonElement);
+    });
+    await settle();
+    expect(lastListQuery()).toMatch(/severity=WARNING/);
+    // …and it clears what it does not imply.
+    expect(lastListQuery()).not.toMatch(/sla=/);
+    expect(lastListQuery()).not.toMatch(/owner=/);
+  });
+
+  it("7. THE SELECTION IS IN THE URL, so the view is shareable", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(metric("warning") as HTMLButtonElement);
+    });
+    await settle();
+    expect(replaced.at(-1)).toContain("severity=WARNING");
+  });
+
+  it("8. AND A RELOAD OF THAT URL RESTORES IT", async () => {
+    // The other half of the contract: a pasted link has to come back to the
+    // same view, with the same card showing as the one driving the queue.
+    currentSearch = "severity=WARNING";
+    await mount(envelope(TEAM_ADMIN));
+    expect(lastListQuery()).toMatch(/severity=WARNING/);
+    expect(metric("warning")?.getAttribute("aria-pressed")).toBe("true");
+    expect(metric("critical")?.getAttribute("aria-pressed")).toBe("false");
+    expect(metric("high")?.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("9. the severities read Critical, High, Warning in that order", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    const keys = qa("[data-ops-metric]").map((el) =>
+      el.getAttribute("data-ops-metric"),
+    );
+    const at = (k: string) => keys.indexOf(k);
+    expect(at("critical")).toBeGreaterThan(-1);
+    expect(at("critical")).toBeLessThan(at("high"));
+    expect(at("high")).toBeLessThan(at("warning"));
+    // The rendered order IS the canonical order, filtered — not a second one.
+    expect(keys).toEqual(
+      QUEUE_METRIC_ORDER.filter((k) => keys.includes(k)),
+    );
+  });
+
+  it("10. THERE IS EXACTLY ONE WARNING METRIC", async () => {
+    // A second card, a second counter or a browser-side tally would each show
+    // up as another node claiming the same fact.
+    summaryReply = () => summary({ warning: 4, operatorCount: 3 });
+    await mount(envelope(TEAM_ADMIN));
+    expect(qa('[data-ops-metric="warning"]').length).toBe(1);
+    expect(
+      QUEUE_METRIC_ORDER.filter((k) => k === "warning").length,
+    ).toBe(1);
+  });
+
+  it("11. the card count comes from the vocabulary, and ownership still governs", async () => {
+    // Capability and workspace composition are untouched by this change: the
+    // sole-operator strip still drops the ownership pair, and the shared one
+    // still keeps it.
+    summaryReply = () => summary({ operatorCount: 1 });
+    await mount(envelope(TEAM_ADMIN));
+    const sole = qa("[data-ops-metric]").map((el) =>
+      el.getAttribute("data-ops-metric"),
+    );
+    expect(sole).toContain("warning");
+    expect(sole).not.toContain("assignedToMe");
+    expect(sole.length).toBe(
+      QUEUE_METRIC_ORDER.filter(
+        (k) => !QUEUE_METRIC_VOCABULARY[k].collaborative,
+      ).length,
+    );
+
+    summaryReply = () => summary({ operatorCount: 3 });
+    await mount(envelope(TEAM_ADMIN));
+    const shared = qa("[data-ops-metric]").map((el) =>
+      el.getAttribute("data-ops-metric"),
+    );
+    expect(shared).toContain("assignedToMe");
+    expect(shared.length).toBe(QUEUE_METRIC_ORDER.length);
+  });
+});
+
+describe("Operations — one tone table, every surface", () => {
+  it("12. THE CARDS PAINT THE CANONICAL SEVERITY TONES", async () => {
+    // The defect this replaces: the cards said Critical=orange, High=red
+    // while the queue below said Critical=red, High=orange. Same two words,
+    // opposite colours, one scroll apart.
+    await mount(envelope(TEAM_ADMIN));
+    expect(metric("critical")?.getAttribute("data-opsw-tone")).toBe(
+      OPERATIONS_TONE.CRITICAL,
+    );
+    expect(metric("high")?.getAttribute("data-opsw-tone")).toBe(
+      OPERATIONS_TONE.HIGH,
+    );
+    expect(metric("warning")?.getAttribute("data-opsw-tone")).toBe(
+      OPERATIONS_TONE.WARNING,
+    );
+    // …and those are the exact colours the brief names.
+    expect(OPERATIONS_TONE.CRITICAL).toBe("red");
+    expect(OPERATIONS_TONE.HIGH).toBe("orange");
+    expect(OPERATIONS_TONE.WARNING).toBe("purple");
+  });
+
+  it("13. the aggregate and the commitments wear their own tones", async () => {
+    summaryReply = () => summary({ operatorCount: 3 });
+    await mount(envelope(TEAM_ADMIN));
+    expect(metric("open")?.getAttribute("data-opsw-tone")).toBe("black");
+    expect(metric("slaAtRisk")?.getAttribute("data-opsw-tone")).toBe("silver");
+    expect(metric("slaBreached")?.getAttribute("data-opsw-tone")).toBe(
+      OPERATIONS_TONE.OVERDUE,
+    );
+    expect(metric("resolved")?.getAttribute("data-opsw-tone")).toBe("green");
+  });
+
+  it("14. BLACK IS SPENT ONLY ON THE UNRESOLVED TOTAL", async () => {
+    // OPEN and ACKNOWLEDGED are lifecycle STATES, not the aggregate. Painting
+    // a status column black because a card above it counts a superset of it
+    // would be a third meaning for one colour.
+    expect(OPERATIONS_TONE.OPEN).not.toBe("black");
+    expect(OPERATIONS_TONE.ACKNOWLEDGED).not.toBe("black");
+    expect(STATUS_VOCABULARY.OPEN.label).toBe("Open");
+    expect(STATUS_VOCABULARY.ACKNOWLEDGED.label).toBe("Acknowledged");
+    const black = Object.entries(OPERATIONS_TONE).filter(
+      ([, tone]) => tone === "black",
+    );
+    expect(black.map(([k]) => k)).toEqual(["UNRESOLVED"]);
+  });
+
+  it("15. A SEVERITY IS THE SAME COLOUR IN THE QUEUE AS ON THE CARDS", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    const badge = table().querySelector("[data-ops-severity]");
+    expect(badge).not.toBeNull();
+    const value = badge!.getAttribute("data-ops-severity") as
+      | "CRITICAL"
+      | "HIGH"
+      | "WARNING"
+      | "INFO";
+    expect(badge!.getAttribute("data-tone")).toBe(
+      SEVERITY_VOCABULARY[value].tone,
+    );
+    expect(SEVERITY_VOCABULARY[value].tone).toBe(OPERATIONS_TONE[value]);
+  });
+
+  it("16. AND THE SAME COLOUR IN GROUPED AS IN ALL CONDITIONS", async () => {
+    // The property the brief names directly: switching views must not change
+    // a semantic value's colour. Read from the two rendered surfaces rather
+    // than from the table both of them import.
+    groupsReply = () => ({
+      groups: [group({ groupKey: "search.indexing_failure", severity: "WARNING" })],
+      conservation: { conditions: 1, grouped: 1 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const grouped = q("[data-ops-group-severity]");
+    expect(grouped, "no grouped severity rendered").not.toBeNull();
+    const value = grouped!.getAttribute("data-ops-group-severity") as
+      | "CRITICAL"
+      | "HIGH"
+      | "WARNING"
+      | "INFO";
+    expect(grouped!.getAttribute("data-tone")).toBe(OPERATIONS_TONE[value]);
+  });
+
+  it("17. every vocabulary reads the ONE table", () => {
+    // Stated over the whole vocabulary rather than sampled: any entry that
+    // still decided its own colour would appear here as a tone no semantic
+    // value claims.
+    const canonical = new Set(Object.values(OPERATIONS_TONE));
+    for (const [k, v] of Object.entries(SEVERITY_VOCABULARY)) {
+      expect(v.tone, k).toBe(OPERATIONS_TONE[k as "CRITICAL"]);
+    }
+    for (const [k, v] of Object.entries(STATUS_VOCABULARY)) {
+      expect(v.tone, k).toBe(OPERATIONS_TONE[k as "OPEN"]);
+    }
+    for (const [k, v] of Object.entries(QUEUE_METRIC_VOCABULARY)) {
+      expect(canonical.has(v.tone), `card ${k} uses ${v.tone}`).toBe(true);
+    }
+    for (const posture of [
+      "BREACHED",
+      "AT_RISK",
+      "ON_TRACK",
+      "ACKNOWLEDGED",
+      "RESOLVED",
+      "UNTRACKED_LEGACY",
+      "NOT_APPLICABLE",
+    ] as const) {
+      expect(canonical.has(slaTone(posture)), posture).toBe(true);
+    }
+    // The commitment axis agrees with itself: the badge and the card that
+    // report the same posture cannot be different colours.
+    expect(slaTone("BREACHED")).toBe(QUEUE_METRIC_VOCABULARY.slaBreached.tone);
+    expect(slaTone("AT_RISK")).toBe(QUEUE_METRIC_VOCABULARY.slaAtRisk.tone);
+  });
+
+  it("18. severity descends in strength: Critical, then High, then Warning", () => {
+    expect(SEVERITY_TONE_STRENGTH.slice(0, 3)).toEqual([
+      "CRITICAL",
+      "HIGH",
+      "WARNING",
+    ]);
+    // The rank the queue sorts by agrees with the strength the eye reads.
+    expect(SEVERITY_VOCABULARY.CRITICAL.rank).toBeGreaterThan(
+      SEVERITY_VOCABULARY.HIGH.rank,
+    );
+    expect(SEVERITY_VOCABULARY.HIGH.rank).toBeGreaterThan(
+      SEVERITY_VOCABULARY.WARNING.rank,
+    );
+  });
+
+  it("19. COLOUR IS NEVER THE CARRIER — every value keeps its word", async () => {
+    summaryReply = () => summary({ operatorCount: 3 });
+    await mount(envelope(TEAM_ADMIN));
+    for (const card of qa("[data-ops-metric]")) {
+      const label = card.querySelector(".app-metric-card__label");
+      const key = card.getAttribute("data-ops-metric") ?? "(no key)";
+      expect(label?.textContent?.trim() ?? "", key).not.toBe("");
+    }
+    for (const v of Object.values(SEVERITY_VOCABULARY)) expect(v.label).toBeTruthy();
+    for (const v of Object.values(STATUS_VOCABULARY)) expect(v.label).toBeTruthy();
+  });
+
+  it("20. NO COLOUR IS DECIDED IN JSX", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { resolve, join } = await import("node:path");
+    const root = resolve(process.cwd(), "app/(app)/operations");
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        // The WORKBENCH only. batch-analysis and quotas are separate routes
+        // with their own presentation and are out of scope here.
+        if (entry.isDirectory()) {
+          if (["batch-analysis", "quotas"].includes(entry.name)) continue;
+          walk(full);
+        }
+        else if (/\.tsx?$/.test(entry.name)) files.push(full);
+      }
+    };
+    walk(root);
+    expect(files.length).toBeGreaterThan(5);
+    for (const file of files) {
+      const src = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
+      // A hex literal anywhere in this route is a colour decision taken away
+      // from the table above.
+      const hex = src.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+      expect(hex, `${file}: ${hex.join(", ")}`).toEqual([]);
+    }
+  });
+});
+
+describe("Operations — the cards' interactive states are real", () => {
+  it("KEYBOARD FOCUS IS VISIBLE, because the route no longer breaks it", async () => {
+    // WHAT WAS BROKEN, AND HOW IT HID.
+    //
+    // The route carried `.opsw-metric:focus-visible { outline: 2px solid
+    // var(--focus-ring) }`. `--focus-ring` holds a BOX-SHADOW value —
+    // `0 0 0 3px rgba(...)` — so that expands to an invalid declaration, and
+    // CSS discards an invalid declaration WHOLE. The rule looked like a focus
+    // style in the stylesheet and painted nothing in a browser: a focused
+    // summary card computed `outline-style: none`.
+    //
+    // It hid because it also SUPPRESSED the shared primitive's working ring,
+    // which it beat on cascade order at equal specificity. Deleting it is the
+    // fix; `.app-metric-card:focus-visible` is the authority.
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    // Comments stripped: the block above the deleted rule QUOTES it, and a
+    // prose account of what was removed must not fail the check for it.
+    const route = readFileSync(
+      resolve(process.cwd(), "app/(app)/operations/operations.css"),
+      "utf8",
+    ).replace(new RegExp("/\\*[\\s\\S]*?\\*/", "g"), " ");
+    const primitive = readFileSync(
+      resolve(process.cwd(), "components/app-primitives/app-primitives.css"),
+      "utf8",
+    );
+    // Nothing in this route may spend a shadow token as an outline COLOUR.
+    expect(route).not.toMatch(/outline:[^;]*var\(--focus-ring\)/);
+    // The card takes its focus style from the primitive, which really paints.
+    expect(primitive).toMatch(
+      /\.app-metric-card:focus-visible \{[^}]*box-shadow:[^}]*rgba\(124, 58, 237/,
+    );
+    // …and the card is reachable by keyboard in the first place.
+    await mount(envelope(TEAM_ADMIN));
+    for (const card of qa("[data-ops-metric]")) {
+      expect(card.getAttribute("disabled")).toBeNull();
+      expect(card.getAttribute("tabindex")).not.toBe("-1");
+    }
+  });
+
+  it("the SELECTED card carries its own tone, not a generic highlight", async () => {
+    currentSearch = "severity=WARNING";
+    await mount(envelope(TEAM_ADMIN));
+    const card = metric("warning") as HTMLButtonElement;
+    expect(card.getAttribute("aria-pressed")).toBe("true");
+    // The pressed border reads the same custom property the rail does, so a
+    // selected card cannot be a different colour from the one it just was.
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    const { resolve } = require("node:path") as typeof import("node:path");
+    const route = readFileSync(
+      resolve(process.cwd(), "app/(app)/operations/operations.css"),
+      "utf8",
+    );
+    expect(route).toMatch(
+      /\.opsw-metric\[aria-pressed="true"\] \{[^}]*border-color: var\(--opsw-tone/,
+    );
+  });
+});
+
+describe("Operations — the summary grid adapts to its container", () => {
+  const css = () => {
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    const { resolve } = require("node:path") as typeof import("node:path");
+    return readFileSync(
+      resolve(process.cwd(), "app/(app)/operations/operations.css"),
+      "utf8",
+    );
+  };
+
+  it("21. FOUR, THREE, TWO, ONE — by container width, with no fixed card widths", () => {
+    const src = css();
+    // The strip is the query subject, not the viewport: the same strip inside
+    // a narrower column has to make the same decision.
+    expect(src).toMatch(/\.opsw-summary\s*\{[^}]*container-type:\s*inline-size/);
+    expect(src).toMatch(/container-name:\s*opsw-summary/);
+    // One column is the BASE, so the narrow layout is right before any query
+    // has matched.
+    expect(src).toMatch(
+      /\.opsw-summary__grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+    );
+    const steps = [...src.matchAll(
+      /@container opsw-summary \(min-width: (\d+)px\)\s*\{[^}]*\{[^}]*repeat\((\d)/g,
+    )].map((m) => [Number(m[1]), Number(m[2])] as const);
+    expect(steps).toEqual([
+      [340, 2],
+      [800, 3],
+      [1100, 4],
+    ]);
+    // FOUR IS THE CEILING. Past four a summary strip stops being scannable.
+    expect(Math.max(...steps.map(([, n]) => n))).toBe(4);
+    // Every step keeps the narrowest possible card at or above the legibility
+    // floor, computed rather than asserted by eye.
+    // THE FLOOR IS 165px, AND IT WAS MEASURED, NOT GUESSED. At a 390px
+    // viewport the page column gives the strip 342px, which is two 166px
+    // cards. Rendered in a browser at that width, every card's content —
+    // including "Assigned to me" and the two-line notes — wraps inside its
+    // box with no element overflowing (scrollWidth never exceeds clientWidth)
+    // and no horizontal page scroll. A stricter floor would have made a
+    // 390px phone a nine-card single stack for no legibility gain.
+    for (const [width, columns] of steps) {
+      const cardWidth = (width - 10 * (columns - 1)) / columns;
+      expect(cardWidth, `${columns} columns at ${width}px`).toBeGreaterThanOrEqual(
+        165,
+      );
+    }
+    // No card is pinned to a pixel width, and nothing scrolls sideways.
+    const grid = src.slice(src.indexOf(".opsw-summary__grid"));
+    expect(grid.slice(0, grid.indexOf("}"))).not.toMatch(/(?:^|[\s;])width:\s*\d/);
+    expect(src).not.toMatch(/\.opsw-summary__grid[^}]*overflow-x/);
+  });
+
+  it("22. cards may shrink, wrap their text, and share a row height", () => {
+    const src = css();
+    const card = src.slice(src.indexOf(".opsw-metric {"));
+    const body = card.slice(0, card.indexOf("}"));
+    // Without this a long label makes the card refuse to shrink and the row
+    // scrolls sideways — the automatic minimum size of a grid item is its
+    // CONTENT.
+    expect(body).toMatch(/min-inline-size:\s*0/);
+    // Equal heights per row, so a one-line note and a two-line note do not
+    // produce cards the eye reads as different in importance.
+    expect(src).toMatch(/grid-auto-rows:\s*1fr/);
+    expect(body).toMatch(/block-size:\s*100%/);
+    // Text wraps; it is never clipped or ellipsised.
+    expect(src).toMatch(
+      /\.opsw-metric__value,[\s\S]{0,120}overflow-wrap:\s*anywhere/,
+    );
+    expect(src).not.toMatch(/\.opsw-metric__(value|label|meta)[^}]*text-overflow/);
+    // And there is exactly ONE strip — no duplicated mobile component.
+    // The class is DECLARED once at the top level; every other appearance is
+    // a widening nested inside a query, which is the same strip changing its
+    // column count rather than a second strip being defined.
+    expect((src.match(/^\.opsw-summary__grid\s*\{/gm) ?? []).length).toBe(1);
+    expect(src).not.toMatch(/opsw-summary--(mobile|narrow|compact)/);
   });
 });

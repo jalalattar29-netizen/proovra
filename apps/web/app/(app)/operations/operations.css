@@ -60,6 +60,18 @@
 [data-opsw-tone="red"] {
   --opsw-tone: var(--tone-red);
 }
+/* PURPLE carries WARNING severity, SILVER an approaching commitment, BLACK the
+   Unresolved total. Aliases like every hook above: the rail and the badge
+   beside it resolve to the same token, so they cannot drift apart. */
+[data-opsw-tone="purple"] {
+  --opsw-tone: var(--tone-purple);
+}
+[data-opsw-tone="silver"] {
+  --opsw-tone: var(--tone-silver);
+}
+[data-opsw-tone="black"] {
+  --opsw-tone: var(--tone-black);
+}
 
 /* Shared muted note voice. */
 .opsw-muted {
@@ -91,22 +103,42 @@
 /* --------------------------------------------------------------------------
  * 2. COMPACT QUEUE SUMMARY
  *
- * Four to six equal cards on ONE row wherever the viewport allows. This is
- * deliberately not `app-grid-kpis`: that grid is sized for a cockpit, and the
- * whole point of this strip is that it must not become one. The cards are the
- * smallest thing on the page that is still legible, so the queue below them
- * starts inside the first screen.
+ * A triage strip, not a cockpit. The cards are the smallest thing on the page
+ * that is still legible, so the queue below them starts inside the first
+ * screen.
+ *
+ * SIZED BY ITS CONTAINER, NOT BY THE VIEWPORT. The strip sits inside the page
+ * column, and that column is narrower than the window by a gutter that itself
+ * changes with the window. A viewport media query therefore asks the wrong
+ * question and answers it confidently: it counts pixels the strip does not
+ * have. The same strip in a narrower column has to make the same decision, and
+ * a container query is the only one that can.
+ *
+ * WHY A FIXED COLUMN COUNT RATHER THAN auto-fill. auto-fill with a minimum
+ * width fits as many columns as arithmetic allows, which on a wide desktop was
+ * six or seven cards in one row, each too narrow to read a two-line note in.
+ * The counts below are capped at FOUR for that reason: past four, a summary
+ * strip stops being scannable and becomes a row of numbers.
+ *
+ * WHY THE FLOOR IS 165px. Every step is chosen so the narrowest card the rule
+ * can produce is at least that wide — (340 - 10) / 2 = 165. A label like
+ * "Assigned to me" or its longer translation wraps to two lines there and
+ * still reads; below it, words break mid-word. One column is the honest answer
+ * for anything narrower, and a translation long enough to need the full width
+ * gets it because the card's own text wraps rather than the grid clipping it.
  * ------------------------------------------------------------------------ */
 .opsw-summary {
   margin-block-end: var(--section-gap, 20px);
+  /* The query subject. Named, so a nested container cannot capture it. */
+  container-type: inline-size;
+  container-name: opsw-summary;
 }
 .opsw-summary__grid {
   display: grid;
-  /* SIX cards. `auto-fit` with a 148px floor let six squeeze onto one row at
-     widths where each was too narrow to read; `auto-fill` with a 172px floor
-     wraps to 3+3 instead, which is legible at every width and still fits one
-     row on a wide desktop. */
-  grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
+  /* ONE column is the base case, and every step below is a widening. Written
+     this way round because the narrow layout is the one that must be right
+     without a query having matched. */
+  grid-template-columns: minmax(0, 1fr);
   /* Equal rows. Once the strip wraps, a one-line note and a two-line note
      produced cards of different heights in different rows, and the eye reads
      that difference as meaning. */
@@ -115,6 +147,45 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+/* Two: a phone in portrait, and the narrow end of a tablet. */
+@container opsw-summary (min-width: 340px) {
+  .opsw-summary__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Three: tablet landscape and an ordinary laptop column. */
+@container opsw-summary (min-width: 800px) {
+  .opsw-summary__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+/* Four, and no more. */
+@container opsw-summary (min-width: 1100px) {
+  .opsw-summary__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+/* A container query is the rule; this is the fallback for a browser without
+   one, keyed to the viewport. It is deliberately coarser — it cannot know the
+   column width — and it exists so the strip is never a single stack on a
+   desktop that simply lacks the feature. */
+@supports not (container-type: inline-size) {
+  @media (min-width: 640px) {
+    .opsw-summary__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .opsw-summary__grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1360px) {
+    .opsw-summary__grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
 }
 .opsw-summary__note {
   margin: 8px 0 0;
@@ -128,9 +199,23 @@
 .opsw-metric {
   position: relative;
   inline-size: 100%;
+  /* A grid item's automatic minimum size is its CONTENT, so a long label makes
+     the whole card refuse to shrink and the row scrolls sideways. This is what
+     lets the column rules above actually hold. */
+  min-inline-size: 0;
+  block-size: 100%;
   text-align: start;
   padding-inline-start: 14px;
   cursor: pointer;
+}
+/* Text WRAPS; it is never clipped and never truncated to an ellipsis. A count
+   an operator cannot read in full is worse than a taller card, and the equal
+   row height above absorbs the extra line. */
+.opsw-metric__value,
+.opsw-metric__label,
+.opsw-metric__meta {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .opsw-metric::before {
   content: "";
@@ -161,10 +246,19 @@
   border-color: var(--opsw-tone, var(--tone-slate));
   box-shadow: var(--shadow-card);
 }
-.opsw-metric:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
+/* NO FOCUS RULE FOR THE CARD.
+
+   The shared primitive already paints one — `.app-metric-card:focus-visible`
+   keeps the card's elevation and adds the ring on top of it — and the
+   route's own override was BROKEN. It fed `--focus-ring`, which holds a
+   BOX-SHADOW value (`0 0 0 3px rgba(...)`), into
+   `outline: 2px solid var(--focus-ring)`. That expands to an invalid
+   declaration, and CSS discards an invalid declaration WHOLE — so a
+   keyboard-focused summary card had no visible indicator at all.
+
+   Measured in a browser rather than inferred: a focused card computed
+   `outline-style: none`. Deleting the override is the fix; the primitive
+   is the authority for how a metric card takes focus. */
 
 /* --------------------------------------------------------------------------
  * 3. TOOLBAR + RESULT BAR
@@ -316,8 +410,8 @@
   text-decoration: underline;
 }
 .opsw-open:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring);
   border-radius: var(--radius-sm);
 }
 
@@ -905,8 +999,8 @@
   background: var(--surface-hover);
 }
 .opsw-group__open:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .opsw-group__head {

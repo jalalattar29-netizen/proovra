@@ -337,55 +337,95 @@ export async function resolveWorkspaceSearchReadiness(
  * WHAT AN OPERATIONS CONDITION SHOULD SAY ABOUT A READINESS STATE.
  *
  * ---------------------------------------------------------------------------
- * THE MAPPING, AND WHY EACH SIDE IS WHERE IT IS
+ * THE CANONICAL MEANING OF EVERY STATE `deriveSearchReadiness` RETURNS
  * ---------------------------------------------------------------------------
- * HEALTHY — the index is correct and nothing is outstanding:
+ * Read from the derivation itself, not inferred from the names:
  *
- *   READY            everything eligible is present, nothing awaiting removal;
- *   DEGRADED         the same, qualified by a secondary capability (semantic
- *                    search) that is configured and not answering. Deterministic
- *                    search is complete, so the INDEX is healthy;
- *   EMPTY_WORKSPACE  there is nothing to index and no leftover document. A
- *                    complete state, not a pending one.
+ *   READY            Every eligible record is present in the index AND nothing
+ *                    is awaiting removal. Positive, complete convergence.
+ *   EMPTY_WORKSPACE  There is nothing eligible to index and no leftover
+ *                    document. A complete state, not a pending one.
+ *   DEGRADED         The deterministic index is converged, and a SECONDARY
+ *                    capability that this workspace has TURNED ON — semantic
+ *                    search — is configured and not answering. See below.
+ *   INITIALIZING     Records are outstanding, none indexed yet, and a rebuild
+ *                    is genuinely in flight.
+ *   PARTIAL          The same, with some records already present.
+ *   STALLED          Work is outstanding and NOTHING is assigned to it: no run,
+ *                    a finished run with drift remaining and no job in flight,
+ *                    or a RUNNING row past its lease (a crashed process).
+ *   FAILED           The durable run row says the reconciliation failed.
+ *   UNAVAILABLE      The search service could not be reached, so no count was
+ *                    measured. Every number below it would be a zero nobody
+ *                    observed.
+ *   RESTRICTED       An answer about the ACTOR, not about the index.
  *
- * FAILING — proven drift or a proven failure:
+ * ---------------------------------------------------------------------------
+ * WHY DEGRADED IS NOT RECOVERY — THIS IS THE CORRECTION
+ * ---------------------------------------------------------------------------
+ * DEGRADED was mapped to HEALTHY, on the reasoning that deterministic search
+ * is complete so the INDEX is fine. That reasoning is about the wrong subject.
  *
- *   STALLED  work is outstanding and nothing is assigned to it — no run, or a
- *            finished run with drift remaining and no job in flight;
- *   FAILED   the durable run row says the reconciliation failed.
+ * DEGRADED is a COMPOUND state: it says the counts converged AND something
+ * this workspace paid to switch on is not answering. Reading the first half as
+ * proof of recovery let an open Search condition CLOSE ITSELF — resolved from
+ * "domain truth", with no resolver and a resolution note — at the moment the
+ * platform was also reporting that part of Search does not work. A surface
+ * that closes a condition while naming a live impairment is not reporting
+ * recovery; it is discarding a finding.
  *
- * INDETERMINATE — everything else, and all of it fails closed:
+ * And the compound is not decomposable here. Nothing in the state tells this
+ * probe whether the impairment is transient, nor whether the condition it is
+ * about to close was opened for the deterministic gap or something else. The
+ * honest answer to "may I close this?" is: not from here.
  *
- *   INITIALIZING  outstanding work with a rebuild genuinely in flight;
- *   PARTIAL       the same, with some records already indexed;
- *   UNAVAILABLE   the service could not be reached, so no count was measured;
- *   RESTRICTED    an answer about the ACTOR, not about the index.
+ * So DEGRADED is UNKNOWN. An open condition stays open and keeps its
+ * lifecycle, its acknowledgement and its SLA cycle untouched; a closed one is
+ * not reopened. Only READY and EMPTY_WORKSPACE — the two states that assert
+ * complete, unimpaired convergence — may resolve anything.
  *
- * INITIALIZING and PARTIAL are the subtle ones. They are NOT healthy — the
- * index is incomplete — and they are NOT proven failures either, because
- * something is demonstrably working on it. Reading them as recovery is the
- * exact defect this replaces; reading them as failure would open a condition
- * every time a workspace uploaded a record. UNKNOWN is what they are: the
- * probe cannot conclude, so nothing opens and nothing closes.
+ * ---------------------------------------------------------------------------
+ * THE MAPPING
+ * ---------------------------------------------------------------------------
+ *   HEALTHY        READY, EMPTY_WORKSPACE                  -> RECOVERED
+ *   FAILING        STALLED, FAILED                         -> ACTIVE
+ *   INDETERMINATE  DEGRADED, INITIALIZING, PARTIAL,
+ *                  UNAVAILABLE, RESTRICTED, and any state
+ *                  a future release adds                   -> UNKNOWN
+ *
+ * Pending work, scheduled work, an eligible-versus-indexed gap, an unresolved
+ * removal, a stale proof, unavailable data and lease uncertainty are each a
+ * reason NOT to claim recovery. None of them is proof of it.
  */
 export type SearchHealthVerdict = "HEALTHY" | "FAILING" | "INDETERMINATE";
+
+/**
+ * The two states that may resolve a Search condition.
+ *
+ * Declared as an explicit ALLOWLIST rather than as cases in a switch, so that
+ * "which states count as recovery" is one readable line that a reviewer can
+ * check against the paragraph above — and so a state added to the derivation
+ * cannot join it by being written next to the right `case`.
+ */
+const PROVEN_RECOVERY_STATES: ReadonlySet<string> = new Set([
+  "READY",
+  "EMPTY_WORKSPACE",
+]);
+
+/** The two states that are proven failure. Everything else is neither. */
+const PROVEN_FAILURE_STATES: ReadonlySet<string> = new Set([
+  "STALLED",
+  "FAILED",
+]);
 
 export function classifySearchReadiness(
   state: SearchReadiness["state"],
 ): SearchHealthVerdict {
-  switch (state) {
-    case "READY":
-    case "DEGRADED":
-    case "EMPTY_WORKSPACE":
-      return "HEALTHY";
-    case "STALLED":
-    case "FAILED":
-      return "FAILING";
-    default:
-      // INITIALIZING, PARTIAL, UNAVAILABLE, RESTRICTED — and anything a future
-      // state adds. A state this build does not recognise must never be read
-      // as recovery, so the default is the fail-closed one by construction
-      // rather than by remembering to extend a list.
-      return "INDETERMINATE";
-  }
+  if (PROVEN_RECOVERY_STATES.has(state)) return "HEALTHY";
+  if (PROVEN_FAILURE_STATES.has(state)) return "FAILING";
+  // DEGRADED, INITIALIZING, PARTIAL, UNAVAILABLE, RESTRICTED — and anything a
+  // future release adds. The fail-closed answer is the DEFAULT here by
+  // construction: a new state has to be added to an allowlist above to become
+  // recovery, and cannot become it by omission.
+  return "INDETERMINATE";
 }
