@@ -839,6 +839,48 @@ const IMMUTABLE_DRIFT_OUTCOMES: readonly string[] = [
   "COMPLIANCE_MODE_MISMATCH",
 ];
 
+/**
+ * IS THE STORAGE ADD-ON STILL OWED A CANCELLATION?
+ *
+ * `billing_dependent_cancellation:<addonId>` names one add-on, and the add-on's
+ * own `dependentCancellationState` is the answer. That column reaches
+ * CONFIRMED only when a provider CALL succeeded or a provider OBSERVATION
+ * proved the cancellation — never because a person decided it had, which is
+ * exactly why this condition is SOURCE_TRUTH.
+ *
+ * A read, never a provider contact: probing must not make a payment API call.
+ * The condition is about money leaving a customer's account, so a probe that
+ * could itself fail would make the condition look recovered when the provider
+ * was merely unreachable.
+ */
+async function observeDependentCancellation(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const addonId = identifiableSubject(fingerprintSegment(ctx.fingerprint, 1));
+    if (!addonId) return { ...base, activity: "NOT_APPLICABLE" };
+
+    // Workspace-bound: the add-on must belong to the workspace whose operator
+    // is asking. A personal add-on carries the owner's personal team id, a
+    // shared one carries the workspace's, so a strict equality is complete.
+    const row = await ctx.client.workspaceStorageAddon.findFirst({
+      where: { id: addonId, teamId: ctx.teamId },
+      select: { dependentCancellationState: true },
+    });
+    if (!row) return { ...base, activity: "NOT_APPLICABLE" };
+
+    const resolved =
+      row.dependentCancellationState === "CONFIRMED" ||
+      row.dependentCancellationState === "NONE";
+    return { ...base, activity: resolved ? "RECOVERED" : "ACTIVE" };
+  } catch {
+    // UNKNOWN, never RECOVERED. A failed read must not close a condition that
+    // is costing the customer money.
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
 async function observeImmutableDrift(
   ctx: ProbeContext,
 ): Promise<SourceObservation> {
@@ -993,6 +1035,11 @@ const PROBE_HANDLERS: Readonly<
 
   // `immutable_storage_drift:<OUTCOME>:<evidenceId>` — the newest append-only
   // reconciliation verdict for that record. A read, never a storage call.
+  // `billing_dependent_cancellation:<addonId>` — the add-on's own obligation
+  // state, which only provider truth moves to CONFIRMED.
+  "billing.dependent_cancellation_state": (ctx) =>
+    observeDependentCancellation(ctx),
+
   "storage.immutable_reconciliation_state": (ctx) => observeImmutableDrift(ctx),
 
   // The CANONICAL search-readiness derivation — eligible vs indexed, the

@@ -322,6 +322,10 @@ export const ACTIVITY_PROBE_KEYS = [
   "platform.telemetry_age",
   "platform.worker_heartbeat_age",
   /** The append-only `ImmutableStorageCheck` verdict for one record. */
+  // The add-on obligation state. Only a provider call or a provider
+  // observation moves it to CONFIRMED, which is what makes the condition it
+  // resolves SOURCE_TRUTH rather than operator-closable.
+  "billing.dependent_cancellation_state",
   "storage.immutable_reconciliation_state",
   /** The canonical search-readiness derivation for one workspace. */
   "search.index_health",
@@ -1261,6 +1265,59 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiresResolutionNote: true,
       rationale:
         "A HIGH/CRITICAL governance notification was raised and deduped by its own key; the notification is the record, and closure is the operator's written follow-up.",
+    },
+    {
+      sourceId: "billing.dependent_cancellation_failed",
+      category: "STORAGE",
+      displayLabel: "Storage add-on still billing after cancellation",
+      producers: [
+        "services/api/src/services/billing/dependent-cancellation-conditions.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [],
+      // -------------------------------------------------------------------
+      // SOURCE_TRUTH, and it could not be anything else.
+      // -------------------------------------------------------------------
+      // The condition is "a recurring Storage add-on whose plan was cancelled
+      // is still live at the payment provider" — which is to say, the customer
+      // is still being charged. A person cannot make that stop by concluding
+      // it has stopped, so neither a tenant nor an operator may close it with
+      // a note or a decision. Only the provider's own state may resolve it,
+      // and the probe reads exactly that: the durable obligation the
+      // cancellation path maintains, which reaches CONFIRMED only when a
+      // provider call or a provider observation proved the cancellation.
+      //
+      // This is deliberately stricter than "the operator has looked at it".
+      // An add-on that is still charging does not care whether anyone looked.
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "billing.dependent_cancellation_state",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      // A provider-side reinstatement, or a cancellation that reported success
+      // and did not take, must bring the same condition back rather than
+      // leaving a closed one behind.
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      // There IS a safe remediation and the customer holds it: the dedicated
+      // "Retry stopping storage add-ons" action, which re-attempts only the
+      // unresolved obligations and never re-cancels the base plan.
+      remediationDisposition: "SAFE_REMEDIATION",
+      requiredCapability: "operations.view",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      // ALLOW_OPERATOR_CLOSE, and the distinction matters. It does NOT let
+      // anyone declare the cancellation done — `resolutionAuthority` is
+      // SOURCE_TRUTH and only the probe closes it on provider truth. This is
+      // the narrower escape hatch every PER_RECORD source needs: if the add-on
+      // row itself is gone, the condition names a subject that no longer
+      // exists, and a condition nobody can close about a record nobody can see
+      // is just permanent noise.
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "The add-on's own dependentCancellationState is a durable, workspace-bound record of whether the provider has confirmed the cancellation, so the condition's truth is a column read; and because the customer is still being charged while it is open, no note or operator decision may close it.",
     },
     {
       sourceId: "storage.immutable_drift",

@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "ff834cd68105bfbdb38db1c6771521bea18740fdc9e387e820d0032b2423aade",
+  "capabilityRouteInventoryHash": "540d3c2f755000c4a3ffa5ecae43759d8794c42097738dd7dd53873bf873ccc6",
   "totals": {
-    "routes": 1102,
+    "routes": 1103,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -3790,6 +3790,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/billing/accounts/:type/:id/retry-storage-cancellation",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/billing/checkout/paypal",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6694,5 +6700,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "d6188ee347513a58c6de5a89bb08d0b3ece8f491f11c33d0ae1812ee3912b584"
+  "contentHash": "144384d87654ffd71c98c35eba2de9b4649d99c4db5b9e79cc1cab24a6145e9e"
 }

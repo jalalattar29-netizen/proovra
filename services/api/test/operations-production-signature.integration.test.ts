@@ -127,6 +127,19 @@ const EXPECTED_FAILED = [
   "search.indexing_failure",
 ];
 const EXPECTED_SUCCEEDED = [
+  //   billing.dependent_cancellation_failed
+  //                             the sweep READS each workspace's unresolved
+  //                             storage-cancellation obligations and opens a
+  //                             condition per add-on. The fixture workspace
+  //                             has none — nobody cancelled a plan in it — so
+  //                             the read returns nothing and the source writes
+  //                             nothing, which is why the broken incident
+  //                             schema cannot fail it. It would appear in
+  //                             EXPECTED_FAILED on a workspace that DID owe a
+  //                             cancellation, and that is the honest reason it
+  //                             sits here rather than a claim that it never
+  //                             writes.
+  "billing.dependent_cancellation_failed",
   "coordination.backlog_stale",
   "pipeline.signed_without_report_aged",
   "platform.worker_heartbeat_stale",

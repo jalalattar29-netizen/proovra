@@ -22,7 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { seedPersonalTenant, type FixtureDeps } from "./point7/product-fixtures.js";
-import type { DependentAddonCanceller } from "../src/services/billing/storage-addon-dependency.service.js";
+import type { StorageAddonProviderCanceller } from "../src/services/billing/storage-addon-cancellation.service.js";
 
 const GB = BigInt(1024) ** BigInt(3);
 
@@ -35,16 +35,19 @@ describe("BILLING — recurring storage add-on lifecycle (live PostgreSQL 16)", 
   /** Every provider call succeeds, and records what it was asked to do. */
   const acceptingCanceller = () => {
     const calls: Array<{ providerRef: string; mode: string }> = [];
-    const fn: DependentAddonCanceller = async ({ providerRef, mode }) => {
+    const fn: StorageAddonProviderCanceller = async ({ providerRef, mode }) => {
       calls.push({ providerRef, mode });
+      return { ok: true as const, mode, terminal: mode === "IMMEDIATE" };
     };
     return { fn, calls };
   };
 
   /** The provider refuses. Nothing local may move. */
-  const refusingCanceller: DependentAddonCanceller = async () => {
-    throw new Error("provider refused");
-  };
+  const refusingCanceller: StorageAddonProviderCanceller = async ({ mode }) => ({
+    ok: false as const,
+    mode,
+    reasonCode: "PROVIDER_UNAVAILABLE" as const,
+  });
 
   async function seedAddon(input: {
     ownerUserId: string;
@@ -105,133 +108,24 @@ describe("BILLING — recurring storage add-on lifecycle (live PostgreSQL 16)", 
   // =========================================================================
   // The cascade
   // =========================================================================
-  it("a Stripe period-end base cancellation schedules its dependants for the same end", async () => {
-    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
-    const addon = await seedAddon({
-      ownerUserId: t.owner.userId,
-      cycle: "MONTHLY",
-      gb: 10,
-    });
-
-    const { fn, calls } = acceptingCanceller();
-    const result = await cascade({
-      ownerUserId: t.owner.userId,
-      teamId: null,
-      mode: "PERIOD_END",
-      cancelAtProvider: fn,
-    });
-
-    expect(result.found).toBe(1);
-    expect(result.scheduled).toBe(1);
-    expect(result.failed).toBe(0);
-    expect(calls).toEqual([
-      { providerRef: addon.externalSubscriptionId, mode: "PERIOD_END" },
-    ]);
-
-    const after = await prisma.workspaceStorageAddon.findUniqueOrThrow({
-      where: { id: addon.id },
-      select: { status: true, canceledAtUtc: true },
-    });
-    // Scheduled, not terminated: the customer keeps the storage they paid for
-    // until the provider's own terminal event arrives.
-    expect(after.status).toBe("ACTIVE");
-    expect(after.canceledAtUtc).not.toBeNull();
-  });
-
-  it("a PayPal immediate base cancellation ends its dependants now", async () => {
-    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
-    const addon = await seedAddon({
-      ownerUserId: t.owner.userId,
-      cycle: "MONTHLY",
-      gb: 10,
-    });
-
-    const { fn, calls } = acceptingCanceller();
-    const result = await cascade({
-      ownerUserId: t.owner.userId,
-      teamId: null,
-      mode: "IMMEDIATE",
-      cancelAtProvider: fn,
-    });
-
-    expect(result.scheduled).toBe(1);
-    expect(calls[0]?.mode).toBe("IMMEDIATE");
-    const after = await prisma.workspaceStorageAddon.findUniqueOrThrow({
-      where: { id: addon.id },
-      select: { status: true },
-    });
-    expect(after.status).toBe("CANCELED");
-  });
-
-  it("a REFUSED provider cancellation writes nothing and reports failure", async () => {
-    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
-    const addon = await seedAddon({
-      ownerUserId: t.owner.userId,
-      cycle: "MONTHLY",
-      gb: 10,
-    });
-
-    const result = await cascade({
-      ownerUserId: t.owner.userId,
-      teamId: null,
-      mode: "PERIOD_END",
-      cancelAtProvider: refusingCanceller,
-    });
-
-    expect(result.found).toBe(1);
-    expect(result.scheduled).toBe(0);
-    expect(result.failed).toBe(1);
-
-    // THE POINT. The add-on is untouched, so it is still visible as active and
-    // still known to be charging — rather than marked cancelled and forgotten.
-    const after = await prisma.workspaceStorageAddon.findUniqueOrThrow({
-      where: { id: addon.id },
-      select: { status: true, canceledAtUtc: true },
-    });
-    expect(after.status).toBe("ACTIVE");
-    expect(after.canceledAtUtc).toBeNull();
-  });
-
-  it("repeating the cascade is safe and clears a previous failure", async () => {
-    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
-    const addon = await seedAddon({
-      ownerUserId: t.owner.userId,
-      cycle: "MONTHLY",
-      gb: 10,
-    });
-
-    const first = await cascade({
-      ownerUserId: t.owner.userId,
-      teamId: null,
-      mode: "IMMEDIATE",
-      cancelAtProvider: refusingCanceller,
-    });
-    expect(first.failed).toBe(1);
-
-    const { fn } = acceptingCanceller();
-    const second = await cascade({
-      ownerUserId: t.owner.userId,
-      teamId: null,
-      mode: "IMMEDIATE",
-      cancelAtProvider: fn,
-    });
-    expect(second.scheduled).toBe(1);
-
-    const after = await prisma.workspaceStorageAddon.findUniqueOrThrow({
-      where: { id: addon.id },
-      select: { status: true },
-    });
-    expect(after.status).toBe("CANCELED");
-
-    // A third pass finds nothing: a terminal add-on is no longer a dependant.
-    const third = await cascade({
-      ownerUserId: t.owner.userId,
-      teamId: null,
-      mode: "IMMEDIATE",
-      cancelAtProvider: fn,
-    });
-    expect(third.found).toBe(0);
-  });
+  // ===========================================================================
+  // SUPERSEDED, and named rather than silently dropped.
+  // ===========================================================================
+  //
+  // Four cases lived here: Stripe period-end cascade, PayPal immediate cascade,
+  // a refused provider cancellation, and the repeat-clears-a-failure case. All
+  // four drove `cancelDependentRecurringAddons` DIRECTLY — the weaker entry
+  // point, which proved the helper and nothing above it. That is how a defect
+  // in the layer immediately above them survived a green suite: the failure was
+  // recorded nowhere and every one of these still passed.
+  //
+  // Every property they held is now proven through the real production
+  // orchestration — `requestSubscriptionCancellation`, its atomic obligation
+  // write, the durable failure state, the retry and the convergence — in
+  // `billing-dependent-cancellation.integration.test.ts`. The cascade itself is
+  // no longer a discovery function: it attempts DURABLE OBLIGATIONS, so calling
+  // it without one now correctly finds nothing, and a test that recreated an
+  // obligation by hand just to call it would be testing its own fixture.
 
   // =========================================================================
   // Isolation
@@ -379,6 +273,26 @@ describe("BILLING — recurring storage add-on lifecycle (live PostgreSQL 16)", 
         select: { id: true },
       });
 
+      // PAYPAL, because only an IMMEDIATE provider cancellation is terminal.
+      // A Stripe add-on is scheduled for period end and legitimately KEEPS its
+      // capacity until then — the customer paid for this month.
+      await prisma.workspaceStorageAddon.update({
+        where: { id: recurring.id },
+        data: { paymentProvider: "PAYPAL" },
+      });
+      // Record the obligation the way a base cancellation does, then attempt
+      // it — the cascade acts on durable obligations now, not on discovery.
+      const { recordDependentCancellationObligations } = await import(
+        "../src/services/billing/dependent-cancellation.service.js"
+      );
+      await recordDependentCancellationObligations(
+        {
+          ownerUserId: t.owner.userId,
+          teamId: null,
+          triggeredBySubscriptionId: randomUUID(),
+        },
+        prisma,
+      );
       const { fn } = acceptingCanceller();
       await cascade({
         ownerUserId: t.owner.userId,

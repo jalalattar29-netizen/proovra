@@ -41,6 +41,7 @@ import {
   resolveConditionFromSourceRecovery,
 } from "../observability/incident.service.js";
 import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
+import { syncDependentCancellationConditions } from "../billing/dependent-cancellation-conditions.service.js";
 import { syncSearchIndexConditions } from "../operations/search-index-conditions.service.js";
 import { sweepSourceTruthRecoveries } from "../operations/source-truth-recovery.service.js";
 import {
@@ -208,6 +209,39 @@ export async function generateIncidentsForWorkspace(
     // the stage it was in (`inSourceStage`), and UNKNOWN is the honest
     // fallback for anything that reached here untagged.
     failSource(INTEGRITY_SOURCE_IDS, "UNKNOWN", err);
+  }
+
+  // -------------------------------------------------------------------------
+  // THE DEPENDENT STORAGE-CANCELLATION SOURCE.
+  //
+  // Written by the billing path when a base plan is cancelled and one of its
+  // recurring Storage add-ons cannot be stopped — but SWEPT here as well, and
+  // that is not redundancy. An obligation recorded while Operations was
+  // unavailable would otherwise carry no condition until something else
+  // happened to it, and this workspace's operator would see nothing while the
+  // customer was still being charged.
+  //
+  // It is a READ of the add-on's own durable obligation state, bounded to this
+  // workspace. It contacts no payment provider: a probe or a sweep that could
+  // itself fail at the provider would make the condition look recovered when
+  // the provider was merely unreachable.
+  const DEPENDENT_CANCELLATION_SOURCE_IDS = [
+    "billing.dependent_cancellation_failed",
+  ];
+  attempted.push(...DEPENDENT_CANCELLATION_SOURCE_IDS);
+  try {
+    const dependent = await syncDependentCancellationConditions({
+      teamId: ctx.teamId,
+    });
+    recorded += dependent.opened;
+    if (dependent.opened > 0) {
+      rules.push("billing_dependent_cancellation:per_record");
+    }
+    successful.push(...DEPENDENT_CANCELLATION_SOURCE_IDS);
+  } catch (err) {
+    // SCAN: this source both reads the obligations and writes their
+    // conditions, and the read is what fails first if anything does.
+    failSource(DEPENDENT_CANCELLATION_SOURCE_IDS, "SCAN", err);
   }
 
   // -------------------------------------------------------------------------

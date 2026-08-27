@@ -524,6 +524,25 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     surfaces: { home: false, notifications: true, operations: true },
   },
   {
+    id: "billing.dependent_cancellation_failed",
+    owner: "WorkspaceStorageAddon.dependentCancellationState",
+    // STRICT_WORKSPACE_COLUMN: an add-on belonging to a shared workspace
+    // carries that workspace's team_id, and one belonging to a personal
+    // account carries the owner's personal team. A workspace therefore sees
+    // its own obligations and no others.
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery:
+      "Recurring Storage add-ons in workspace scope whose dependentCancellationState is PENDING, RETRY_SCHEDULED, ACTION_REQUIRED or MANUAL_INTERVENTION",
+    fingerprint: "one condition per (storage add-on, dependent_cancellation)",
+    resolution:
+      "the add-on's dependentCancellationState reaches CONFIRMED — which only a provider call or a provider observation writes",
+    freshnessParticipating: true,
+    // Home and Notifications too: the customer is being charged, and a fact
+    // that costs money every month should not wait for someone to open the
+    // Operations page.
+    surfaces: { home: true, notifications: true, operations: true },
+  },
+  {
     id: "storage.immutable_drift",
     owner: "immutable storage reconciliation",
     scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",
