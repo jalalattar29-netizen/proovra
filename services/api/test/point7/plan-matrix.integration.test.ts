@@ -93,6 +93,46 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
     return res;
   }
 
+  /**
+   * BILLING PRODUCTION CLOSURE (2026-08-27) — settle through the REAL caller.
+   *
+   * The credit scenarios below used to invoke
+   * `consumeEvidenceCreditForCompletion` directly. That proved the wallet and
+   * nothing above it, which is how a defect in the layer immediately above —
+   * an admission decision that counted the record it was funding — passed
+   * every one of them while making FREE's third record unfundable in
+   * production.
+   *
+   * They now enter at `settleEvidenceCompletionFunding`, inside an interactive
+   * transaction, exactly as `completeEvidence` enters it. The wallet is still
+   * exercised; it is just no longer the entry point.
+   */
+  async function settleCompletion(ownerUserId: string, evidenceId: string) {
+    const { settleEvidenceCompletionFunding } = await import(
+      "../../src/services/billing-enforcement.service.js"
+    );
+    const { getPersonalWorkspaceScope } = await import(
+      "../../src/services/workspace-billing.service.js"
+    );
+    const scope = await getPersonalWorkspaceScope(ownerUserId);
+    return prisma.$transaction((tx) =>
+      settleEvidenceCompletionFunding({ scope, evidenceId }, tx as never),
+    );
+  }
+
+  /** A held Evidence row for the personal subject, as creation leaves it. */
+  async function heldRecord(t: { owner: { userId: string }; personalTeamId: string; personalOrganizationId: string }) {
+    return prisma.evidence.create({
+      data: {
+        ownerUserId: t.owner.userId,
+        teamId: t.personalTeamId,
+        organizationId: t.personalOrganizationId,
+        type: "PHOTO",
+      },
+      select: { id: true },
+    });
+  }
+
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("../integration-harness.js");
     harness = await bootIntegrationHarness();
@@ -386,17 +426,29 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
       // could never spend a credit. The wallet is now spent per COMPLETED
       // Evidence record and is independent of the recurring plan.
       const t = await seedPersonalTenant(deps, "FREE", { credits: 2 });
-      const { consumeEvidenceCreditForCompletion } = await import(
-        "../../src/services/billing/evidence-credits.service.js"
-      );
-      const evidenceId = randomUUID();
 
-      const result = await consumeEvidenceCreditForCompletion(
-        { userId: t.owner.userId, evidenceId },
-        prisma,
-      );
-      expect(result.consumed).toBe(true);
-      expect(result.alreadyConsumed).toBe(false);
+      // The plan's THREE included records are funded by the plan and cost
+      // nothing. This is the boundary the production defect sat on: the third
+      // one used to demand a credit.
+      for (let i = 0; i < 3; i += 1) {
+        const included = await heldRecord(t);
+        const settled = await settleCompletion(t.owner.userId, included.id);
+        expect(settled.funding, `record ${i + 1} must be plan-funded`).toBe("PLAN");
+      }
+      expect(
+        (
+          await prisma.entitlement.findFirstOrThrow({
+            where: { userId: t.owner.userId, active: true },
+            select: { credits: true },
+          })
+        ).credits,
+      ).toBe(2);
+
+      // The FOURTH is the one a credit pays for.
+      const fourth = await heldRecord(t);
+      const evidenceId = fourth.id;
+      const result = await settleCompletion(t.owner.userId, evidenceId);
+      expect(result.funding).toBe("EVIDENCE_CREDIT");
 
       const ent = await prisma.entitlement.findFirstOrThrow({
         where: { userId: t.owner.userId, active: true },
@@ -426,28 +478,32 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
       // A retried or re-delivered completion for the SAME record must not burn
       // a second credit. The ledger's unique `evidence_id` is the guard.
       const t = await seedPersonalTenant(deps, "FREE", { credits: 2 });
-      const { consumeEvidenceCreditForCompletion } = await import(
-        "../../src/services/billing/evidence-credits.service.js"
-      );
-      const evidenceId = randomUUID();
+      // Fill the plan allowance so the next record is genuinely credit-funded.
+      for (let i = 0; i < 3; i += 1) await heldRecord(t);
+      const fourth = await heldRecord(t);
 
-      await consumeEvidenceCreditForCompletion(
-        { userId: t.owner.userId, evidenceId },
-        prisma,
-      );
-      const again = await consumeEvidenceCreditForCompletion(
-        { userId: t.owner.userId, evidenceId },
-        prisma,
-      );
-      expect(again.alreadyConsumed).toBe(true);
-      expect(again.consumed).toBe(false);
+      const first = await settleCompletion(t.owner.userId, fourth.id);
+      expect(first.funding).toBe("EVIDENCE_CREDIT");
+
+      // Re-driving the SAME completion must be a no-op — and must not be
+      // refused. Admission legitimately says "no" by now (the allowance is
+      // spent and the credit is gone), so a settlement that asked admission
+      // before checking the ledger turned every retry of a PAID record into a
+      // 402.
+      const again = await settleCompletion(t.owner.userId, fourth.id);
+      expect(again.funding).toBe("EVIDENCE_CREDIT");
 
       const ent = await prisma.entitlement.findFirstOrThrow({
         where: { userId: t.owner.userId, active: true },
         select: { credits: true },
       });
-      // Two calls, ONE credit.
+      // Two settlements, ONE credit.
       expect(ent.credits).toBe(1);
+      expect(
+        await prisma.evidenceCreditLedgerEntry.count({
+          where: { evidenceId: fourth.id, entryType: "CONSUMPTION" },
+        }),
+      ).toBe(1);
       provenScenario(
         "SERVER",
         "p7.payg.entitlement.retry_is_idempotent_per_record",
@@ -458,26 +514,17 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
       // One credit, two DIFFERENT records completing at once. Exactly one may
       // win; the balance must never go negative.
       const t = await seedPersonalTenant(deps, "FREE", { credits: 1 });
-      const { consumeEvidenceCreditForCompletion } = await import(
-        "../../src/services/billing/evidence-credits.service.js"
-      );
+      for (let i = 0; i < 3; i += 1) await heldRecord(t);
+      const [a1, b1] = [await heldRecord(t), await heldRecord(t)];
 
       const settled = await Promise.allSettled([
-        prisma.$transaction((tx) =>
-          consumeEvidenceCreditForCompletion(
-            { userId: t.owner.userId, evidenceId: randomUUID() },
-            tx,
-          ),
-        ),
-        prisma.$transaction((tx) =>
-          consumeEvidenceCreditForCompletion(
-            { userId: t.owner.userId, evidenceId: randomUUID() },
-            tx,
-          ),
-        ),
+        settleCompletion(t.owner.userId, a1.id),
+        settleCompletion(t.owner.userId, b1.id),
       ]);
 
-      const fulfilled = settled.filter((r) => r.status === "fulfilled");
+      const fulfilled = settled.filter(
+        (r) => r.status === "fulfilled" && r.value.funding === "EVIDENCE_CREDIT",
+      );
       expect(fulfilled).toHaveLength(1);
 
       const ent = await prisma.entitlement.findFirstOrThrow({
@@ -493,15 +540,12 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
 
     it("p7.payg.entitlement.exhausted_denies_operation", async () => {
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
-      const { consumeEvidenceCreditForCompletion } = await import(
-        "../../src/services/billing/evidence-credits.service.js"
-      );
+      for (let i = 0; i < 3; i += 1) await heldRecord(t);
+      const overflow = await heldRecord(t);
+
       const before = await fingerprintSideEffects(prisma);
       await expect(
-        consumeEvidenceCreditForCompletion(
-          { userId: t.owner.userId, evidenceId: randomUUID() },
-          prisma,
-        ),
+        settleCompletion(t.owner.userId, overflow.id),
       ).rejects.toMatchObject({ publicCode: "INSUFFICIENT_EVIDENCE_CREDITS" });
       const after = await fingerprintSideEffects(prisma);
       expect(fingerprintDelta(before, after)).toEqual({});

@@ -67,9 +67,39 @@ const BROWSER_ONLY = ARGS.has("--browser-only");
  * would produce a run whose fixtures write to one bucket and whose application
  * reads from another.
  */
+/**
+ * BILLING PRODUCTION CLOSURE (2026-08-27) — the disposable Redis host port is
+ * selectable by environment.
+ *
+ * It was the literal 56379, and on a Windows host that port can fall inside a
+ * reserved TCP exclusion range, where EVERY process gets EACCES. The proof
+ * artifact could then not be regenerated on that machine at all — not because
+ * anything about the proof was unavailable, but because of a number.
+ *
+ * Nothing about the gate moves: the port is a transport detail the runner
+ * already threads to its children as `P7_TEST_REDIS_URL`. No assertion, no
+ * hash, no scenario and no CSP requirement reads it.
+ *
+ * Invalid input is a hard stop rather than a silent fallback to the default —
+ * a runner that quietly ignored the operator's port would connect somewhere
+ * they did not intend and blame the resulting failure on the product.
+ */
+function resolveRedisHostPort() {
+  const raw = process.env.P7_HOST_REDIS_PORT;
+  if (raw === undefined || raw.trim() === "") return 56379;
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    throw new Error(
+      `P7_HOST_REDIS_PORT must be a whole TCP port between 1 and 65535; received ${JSON.stringify(raw)}`,
+    );
+  }
+  return parsed;
+}
+
 const STACK = {
   pgHostPort: 55432,
-  redisHostPort: 56379,
+  redisHostPort: resolveRedisHostPort(),
   s3Endpoint: "http://127.0.0.1:59000",
   s3Bucket: "point7-local-bucket",
   apiPort: 8091,
