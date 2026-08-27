@@ -96,10 +96,10 @@
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1,
-    "PARTIAL_INDEX_DECLARATION": 1,
+    "PARTIAL_INDEX_DECLARATION": 2,
     "PARTIAL_UNIQUE_DECLARATION": 1
   },
-  "totalRegisteredObjects": 875,
+  "totalRegisteredObjects": 876,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -5414,6 +5414,21 @@
       "sign": "*",
       "object": "Renamed index workspace_notification_preferences_user_id_team_id_preferenc_ke to workspace_notification_preferences_user_id_team_id_preferen_key",
       "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "workspace_storage_addons",
+      "sign": "-",
+      "object": "Removed index on columns (dependent_cancellation_next_retry_at_utc)",
+      "category": "PARTIAL_INDEX_DECLARATION",
+      "indexName": "workspace_storage_addons_dependent_cancellation_open_idx",
+      "columns": [
+        "dependent_cancellation_next_retry_at_utc"
+      ],
+      "predicate": "dependent_cancellation_state IN ('PENDING', 'RETRY_SCHEDULED', 'ACTION_REQUIRED', 'MANUAL_INTERVENTION')",
+      "createdBy": "20271229000000_billing_dependent_cancellation_obligation",
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unfiltered @@index over the retry column would cover every add-on ever sold, including the overwhelming majority whose state is NONE, which is the opposite of what the predicate is for.",
+      "prismaExpressible": false,
+      "purpose": "The retry worker and the reconciliation sweep both ask 'which add-ons are still owed a cancellation, and which are due now?', and both must answer without scanning the table. The predicate excludes the two resolved states, so the index stays proportional to outstanding work rather than to the number of add-ons ever sold — on a healthy system, zero rows."
     }
   ]
 }

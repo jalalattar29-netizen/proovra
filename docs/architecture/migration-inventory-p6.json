@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 249,
-    "classifiedMigrations": 249,
+    "filesystemMigrations": 250,
+    "classifiedMigrations": 250,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 249,
+    "productionSnapshotUnknown": 250,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 249,
-    "classifiedMigrations": 249,
+    "filesystemMigrations": 250,
+    "classifiedMigrations": 250,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 249,
+    "productionSnapshotUnknown": 250,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 32,
+      "EXPAND": 33,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 41,
+      "SAFE_TO_APPLY_NOW": 42,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 249
+    "ProductionMigrationStateUnknown": 250
   },
   "gateFailures": [],
   "migrations": [
@@ -19563,8 +19563,8 @@
       "checksumSha256": "d3e513031b752493ae01fdc0e53590f9f38920fe9f7078a825731567b7252c14",
       "checksumSha256Raw": "d3e513031b752493ae01fdc0e53590f9f38920fe9f7078a825731567b7252c14",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
-      "gitIntroductionCommit": null,
+      "gitTracked": true,
+      "gitIntroductionCommit": "f1fe833501cec792fcc8f3b6d752aa7ca3d22637",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
       "sqlShape": "EXPAND",
@@ -19621,8 +19621,83 @@
       "evidence": "BILLING RECONCILIATION — expand-only, two nullable columns, no backfill, no rewrite: subscriptions.provider_state_at_utc and workspace_storage_addons.provider_state_at_utc. Reconciliation learns provider facts by POLLING, and a poll that starts before a webhook lands can finish after it. Without an ordering signal a stale 'still active' reply could resurrect a subscription the provider had already cancelled, and a stale 'cancelled' could tear down one the customer had just renewed. updated_at cannot decide this — it records when WE last wrote the row, not when the PROVIDER's state was true — so the provider's own authoritative timestamp for the state that produced the last write is recorded alongside it, and an observation older than it is discarded rather than applied. This creates NO second ledger and NO second state machine: payment idempotency continues to come from the existing payments (provider, provider_payment_id) unique constraint, and credit idempotency from the existing partial unique index on PURCHASE ledger rows. Both columns are nullable with no default, and NULL is meaningful — 'no provider time recorded yet', which the ordering guard treats as accept-and-record, so every existing row reconciles normally on its first pass instead of being frozen out. No column is dropped, renamed, retyped or narrowed; no row is deleted or rewritten; no Stripe or PayPal identifier is stored, and no evidence, custody, signature, TSA or OTS data is touched."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271229000000_billing_dependent_cancellation_obligation",
       "order": 248,
+      "sqlPresent": true,
+      "byteLength": 4250,
+      "checksumSha256": "4e87a1688ef96eca7c95198dc03bc403c152c1a4da3f9f57c8c4d4f1781a9b9e",
+      "checksumSha256Raw": "4e87a1688ef96eca7c95198dc03bc403c152c1a4da3f9f57c8c4d4f1781a9b9e",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:9 types:1 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "workspace_storage_addons"
+        ],
+        "addedColumns": [
+          "dependent_cancellation_attempt_count",
+          "dependent_cancellation_confirmed_at_utc",
+          "dependent_cancellation_failed_at_utc",
+          "dependent_cancellation_lease_until_utc",
+          "dependent_cancellation_next_retry_at_utc",
+          "dependent_cancellation_reason_code",
+          "dependent_cancellation_requested_at_utc",
+          "dependent_cancellation_state",
+          "dependent_cancellation_triggered_by_subscription_id"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [
+          "dependentcancellationstate"
+        ],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "workspace_storage_addons_dependent_cancellation_open_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260925000000_phase0_schema_catchup"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "Nothing to reverse. An image without the obligation reader neither reads nor writes any of it; the default NONE is indistinguishable from the previous behaviour. No other column, index or constraint is affected and no historical add-on, payment or subscription row is rewritten, so a rolling deployment in either order is safe.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": "Apply BEFORE deploying API and Worker. Until it runs, a failed dependent cancellation stays transient — the pre-existing defect — and no orphaned add-on is retried or alerted. No data is at risk either way.",
+      "removalCondition": "NEVER removed while recurring Storage add-ons are sold. Dropping these columns returns a failed dependent cancellation to an in-memory counter, which is the defect they were added to close: the add-on keeps charging and nothing can find it.",
+      "evidence": "BILLING DEPENDENT-CANCELLATION CONVERGENCE — expand-only, no backfill, no row rewritten: one new enum (DependentCancellationState) and nine columns on workspace_storage_addons, plus one PARTIAL index over the unresolved states. A recurring Storage add-on is its OWN provider subscription, so when a customer cancels PRO or TEAM the add-on must be stopped by a SEPARATE remote call that cannot be atomic with the first. Until now a failed dependent call left NOTHING behind — the failure lived in an in-memory counter that died with the HTTP response — so the add-on kept renewing, no retry existed, no alert existed, and no query could find it: a single provider blip charged a customer indefinitely for storage they had cancelled. These columns make the OBLIGATION durable, and they extend the existing add-on authority rather than opening a parallel ledger because the obligation is a property of the add-on itself. NO BACKFILL, deliberately: every existing row defaults to NONE with attempt count 0, which is exactly true — nobody has asked for it to be cancelled — and synthesising an obligation for a historical row would invent a customer intention that was never expressed. A legacy ONE_TIME add-on is not a provider subscription and never leaves NONE. The partial index is scoped to the four unresolved states so it stays proportional to outstanding work rather than to every add-on ever sold, and it is registered in docs/architecture/raw-schema-ownership.json because Prisma cannot declare an index predicate. Nothing is dropped, renamed, retyped or narrowed; no Stripe or PayPal identifier is stored; no evidence, custody, signature, TSA or OTS data is touched."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 249,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

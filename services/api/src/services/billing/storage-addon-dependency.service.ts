@@ -1,67 +1,57 @@
 /**
- * BILLING RECONCILIATION (2026-08-27) — the Storage add-on dependency contract.
+ * BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the dependent
+ * cascade, now durable.
  *
- * THE RISK THIS CLOSES
+ * WHAT CHANGED, AND WHY
  * ---------------------------------------------------------------------------
- * A recurring Storage add-on is its OWN provider subscription, separate from
- * the PRO or TEAM subscription it depends on. Cancelling the base plan
- * therefore did nothing to the add-on: the provider kept charging for storage
- * attached to an account that no longer had the plan the storage extends. The
- * customer sees a cancelled subscription and a monthly charge they cannot
- * explain, and nothing in the product knows the two are related.
+ * This module used to call the provider directly and, on failure, increment an
+ * in-memory counter inside a bare `catch`. That counter died with the HTTP
+ * response: nothing was persisted, so nothing could retry, nothing could alert,
+ * and no query could find the add-on that was still charging. A single
+ * provider blip billed a customer indefinitely for storage they had cancelled.
  *
- * THE CONTRACT
- * ---------------------------------------------------------------------------
- *   * A recurring PERSONAL add-on depends on the PRO personal subscription.
- *   * A recurring WORKSPACE add-on depends on that workspace's TEAM
- *     subscription.
- *   * Enterprise is contract-managed and has no self-service add-on to cascade.
- *   * A LEGACY one-time entitlement is not a provider subscription. It is
- *     never cancelled, never charged again, and is deliberately invisible to
- *     everything here.
+ * It now does two things and neither of them is a provider call:
  *
- * PROVIDER FIRST, ALWAYS
+ *   1. `recordDependentCancellationObligations` persists the intent, inside
+ *      the caller's transaction, alongside the base cancellation result.
+ *   2. `attemptDependentCancellations` makes the first attempt against those
+ *      durable rows.
+ *
+ * The provider semantics live in `storage-addon-cancellation.service.ts`, which
+ * the direct add-on route also uses — so a Stripe add-on is scheduled for
+ * period end whether the customer cancelled it on its own or by cancelling
+ * their plan. There is no longer a second implementation to disagree.
+ *
+ * THE ORDER IS UNCHANGED, DELIBERATELY
  * ---------------------------------------------------------------------------
- * Nothing local is written for an add-on the provider did not confirm. A
- * failure produces ACTION_REQUIRED and leaves the add-on exactly as it was —
- * because the alternative, marking it cancelled locally, is precisely how a
- * silently charging orphan becomes invisible. The customer is told the truth:
- * the base plan is cancelled, one add-on is not, and it needs attention.
+ * The base subscription is still cancelled at the provider FIRST. Reversing it
+ * would remove paid storage from a customer whose plan then failed to cancel —
+ * less capacity and the same charge, which is strictly worse. Multiple remote
+ * subscriptions cannot be cancelled atomically, so the answer is a durable
+ * compensating obligation, not a different order.
  */
 
 import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
-import { stripeRequest, stripeRequestRaw } from "../stripe.service.js";
-import { cancelPayPalSubscription } from "../paypal.service.js";
-
-/**
- * The provider call, injectable.
- *
- * Production passes nothing and gets the real Stripe and PayPal clients. The
- * contract suites pass a deterministic function, so every rule below — provider
- * first, no local write without confirmation, ACTION_REQUIRED on failure — is
- * proven against a real database without a credential or a socket.
- *
- * It resolves to nothing on success and THROWS on failure, which is the same
- * shape the real clients have; a canceller that returned a boolean would invite
- * a caller to ignore it.
- */
-export type DependentAddonCanceller = (input: {
-  provider: prismaPkg.PaymentProvider;
-  providerRef: string;
-  mode: "PERIOD_END" | "IMMEDIATE";
-}) => Promise<void>;
+import {
+  attemptDependentCancellations,
+  dependentAddonWhere,
+  recordDependentCancellationObligations,
+  UNRESOLVED_STATES,
+} from "./dependent-cancellation.service.js";
+import type { StorageAddonProviderCanceller } from "./storage-addon-cancellation.service.js";
 
 /** What happened to the dependent add-ons of one base cancellation. */
 export type DependentCancellationResult = {
-  /** Add-ons found depending on the cancelled base subscription. */
+  /** Add-ons that owe a cancellation after this request. */
   found: number;
-  /** Add-ons the provider confirmed will stop. */
+  /** Add-ons the provider CONFIRMED will stop. */
   scheduled: number;
   /**
    * Add-ons the provider did NOT confirm. Non-zero means the caller must
-   * report ACTION_REQUIRED: something is still charging.
+   * report ACTION_REQUIRED — something is still charging — and the obligation
+   * is now durable, so the worker will keep trying regardless.
    */
   failed: number;
 };
@@ -69,30 +59,17 @@ export type DependentCancellationResult = {
 /**
  * The recurring add-ons that depend on one base billing subject.
  *
- * A personal subject owns its `teamId: null` add-ons; a workspace owns its own.
- * `billingCycle: MONTHLY` and a non-null `externalSubscriptionId` together are
- * what make an add-on a provider subscription — a legacy one-time row has
- * neither and is never returned.
+ * Re-exported from the obligation authority so there is ONE definition of
+ * "which add-ons does this base plan own". A legacy ONE_TIME row has no
+ * provider binding and is never included: it is not a subscription, so it is
+ * never cascaded, never retried and never charged again.
  */
 export async function findDependentRecurringAddons(input: {
   ownerUserId: string;
   teamId: string | null;
 }) {
   return prisma.workspaceStorageAddon.findMany({
-    where: {
-      ...(input.teamId
-        ? { teamId: input.teamId }
-        : { ownerUserId: input.ownerUserId, teamId: null }),
-      billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-      externalSubscriptionId: { not: null },
-      status: {
-        in: [
-          prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-          prismaPkg.WorkspaceStorageAddonStatus.PENDING,
-          prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-        ],
-      },
-    },
+    where: dependentAddonWhere(input),
     select: {
       id: true,
       paymentProvider: true,
@@ -103,123 +80,65 @@ export async function findDependentRecurringAddons(input: {
 }
 
 /**
- * The production canceller.
+ * Record the obligation for every dependent add-on, then attempt it.
  *
- * Stripe distinguishes the two modes at the API level: a period-end
- * cancellation is a flag on the subscription, an immediate one is a DELETE. A
- * flag that comes back false means the call succeeded and the provider did NOT
- * agree to what was asked, which must be a failure — recording a cancellation
- * the provider did not make is the whole defect class.
- *
- * PayPal has one cancel and it is immediate, which is why the mode never
- * reaches it.
+ * `client` is the caller's transaction. The obligations are written in it, with
+ * the base cancellation result, which is the crash-safety boundary: there is no
+ * window in which the base is cancelled at the provider and the intent to stop
+ * its dependants exists nowhere. The provider attempts happen AFTER that
+ * transaction commits, because a remote call inside a database transaction
+ * holds a connection open across the network.
  */
-// A FUNCTION DECLARATION, and called directly below rather than through a
-// `?? defaultCanceller` variable. The call-graph authority resolves direct
-// calls; an indirection through a local const made the Stripe write inside it
-// look like a terminal writer with no entrypoint, which is the same signature
-// as genuinely dead code. Keeping it directly callable keeps the map honest.
-async function cancelAtProviderDirectly({
-  provider,
-  providerRef,
-  mode,
-}: Parameters<DependentAddonCanceller>[0]): Promise<void> {
-  if (provider === prismaPkg.PaymentProvider.STRIPE) {
-    if (mode === "IMMEDIATE") {
-      await stripeRequestRaw(`/subscriptions/${providerRef}`, "DELETE");
-      return;
-    }
-    const body = new URLSearchParams();
-    body.append("cancel_at_period_end", "true");
-    const response = await stripeRequest(`/subscriptions/${providerRef}`, body);
-    if (response["cancel_at_period_end"] !== true) {
-      throw new Error("Stripe did not confirm the scheduled cancellation");
-    }
-    return;
-  }
-  await cancelPayPalSubscription(providerRef, "Base subscription canceled");
+export async function recordDependentCancellationIntent(
+  input: {
+    ownerUserId: string;
+    teamId: string | null;
+    triggeredBySubscriptionId: string;
+    now?: Date;
+  },
+  client: Pick<prismaPkg.Prisma.TransactionClient, "workspaceStorageAddon">,
+): Promise<{ created: number; alreadyOpen: number }> {
+  return recordDependentCancellationObligations(input, client);
 }
 
 /**
- * Cancel every recurring add-on that depends on a base subscription now ending.
+ * Attempt every outstanding obligation for one billing subject.
  *
- * `mode` follows the base cancellation, because an add-on that outlives its
- * plan by a month is the same defect in miniature:
- *
- *   PERIOD_END  Stripe — the add-on is flagged to stop renewing, and the
- *               customer keeps the storage they already paid for.
- *   IMMEDIATE   PayPal — the agreement ends now, because PayPal offers nothing
- *               else and promising a period end we cannot deliver is the
- *               defect the cancellation service exists to prevent.
- *
- * The local row is marked CANCELED only where the provider confirmed. The
- * terminal transition still arrives by webhook; this records the requested,
- * confirmed intent so the projection can stop counting the capacity.
+ * Idempotent and safe to repeat: already-CONFIRMED add-ons are not selected,
+ * the base subscription is never touched, and a durable lease stops the
+ * customer's retry and the worker's sweep attempting the same add-on at once.
  */
 export async function cancelDependentRecurringAddons(input: {
   ownerUserId: string;
   teamId: string | null;
-  mode: "PERIOD_END" | "IMMEDIATE";
+  /** Retained for call compatibility; provider semantics come from the binding. */
+  mode?: "PERIOD_END" | "IMMEDIATE";
   /** Injected by contract tests; production uses the real clients. */
-  cancelAtProvider?: DependentAddonCanceller;
+  cancelAtProvider?: StorageAddonProviderCanceller;
+  now?: Date;
 }): Promise<DependentCancellationResult> {
-  const addons = await findDependentRecurringAddons({
+  const attempt = await attemptDependentCancellations({
     ownerUserId: input.ownerUserId,
     teamId: input.teamId,
+    cancelAtProvider: input.cancelAtProvider,
+    now: input.now,
   });
 
-  const result: DependentCancellationResult = {
-    found: addons.length,
-    scheduled: 0,
-    failed: 0,
+  // What the caller reports is the state AFTER the attempt: anything still
+  // unresolved is still charging, whether this attempt touched it or a lease
+  // held it elsewhere.
+  const stillOwed = await prisma.workspaceStorageAddon.count({
+    where: {
+      ...(input.teamId
+        ? { teamId: input.teamId }
+        : { ownerUserId: input.ownerUserId, teamId: null }),
+      dependentCancellationState: { in: [...UNRESOLVED_STATES] },
+    },
+  });
+
+  return {
+    found: attempt.confirmed + stillOwed,
+    scheduled: attempt.confirmed,
+    failed: stillOwed,
   };
-
-  for (const addon of addons) {
-    const provider = addon.paymentProvider;
-    const ref = addon.externalSubscriptionId;
-    if (!provider || !ref) {
-      // A recurring row with no binding cannot be cancelled remotely and must
-      // not be reported as cancelled. It needs a person.
-      result.failed += 1;
-      continue;
-    }
-
-    try {
-      if (input.cancelAtProvider) {
-        await input.cancelAtProvider({
-          provider,
-          providerRef: ref,
-          mode: input.mode,
-        });
-      } else {
-        await cancelAtProviderDirectly({
-          provider,
-          providerRef: ref,
-          mode: input.mode,
-        });
-      }
-    } catch {
-      // NO local write. The add-on stays exactly as it was, and the caller
-      // reports ACTION_REQUIRED rather than claiming a clean cancellation.
-      result.failed += 1;
-      continue;
-    }
-
-    await prisma.workspaceStorageAddon.update({
-      where: { id: addon.id },
-      data: {
-        // PERIOD_END keeps the capacity the customer paid for until the
-        // provider's own terminal event; IMMEDIATE ends it now, which is what
-        // PayPal actually did.
-        status:
-          input.mode === "IMMEDIATE"
-            ? prismaPkg.WorkspaceStorageAddonStatus.CANCELED
-            : addon.status,
-        canceledAtUtc: new Date(),
-      },
-    });
-    result.scheduled += 1;
-  }
-
-  return result;
 }

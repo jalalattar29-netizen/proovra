@@ -44,7 +44,11 @@ import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { stripeRequest } from "../stripe.service.js";
 import { cancelPayPalSubscription } from "../paypal.service.js";
-import { cancelDependentRecurringAddons } from "./storage-addon-dependency.service.js";
+import {
+  cancelDependentRecurringAddons,
+  recordDependentCancellationIntent,
+} from "./storage-addon-dependency.service.js";
+import type { StorageAddonProviderCanceller } from "./storage-addon-cancellation.service.js";
 
 /**
  * What a provider can actually do, stated per provider rather than assumed.
@@ -115,6 +119,13 @@ function providerFailure(provider: prismaPkg.PaymentProvider): DomainError {
  */
 export async function requestSubscriptionCancellation(input: {
   subscriptionId: string;
+  /**
+   * Injected by the orchestration suites for the DEPENDENT provider calls
+   * only. The base provider call is never injected — the tests that drive this
+   * end to end stub the base clients at the module boundary instead, so the
+   * base path under test is the real one.
+   */
+  cancelAddonAtProvider?: StorageAddonProviderCanceller;
 }): Promise<CancellationOutcome> {
   const subscription = await prisma.subscription.findUnique({
     where: { id: input.subscriptionId },
@@ -163,6 +174,7 @@ export async function requestSubscriptionCancellation(input: {
       ownerUserId: subscription.userId,
       teamId: subscription.teamId,
       mode,
+      cancelAtProvider: input.cancelAddonAtProvider,
     });
     return {
       mode,
@@ -185,6 +197,7 @@ export async function requestSubscriptionCancellation(input: {
       ownerUserId: subscription.userId,
       teamId: subscription.teamId,
       mode,
+      cancelAtProvider: input.cancelAddonAtProvider,
     });
     return {
       mode,
@@ -272,30 +285,62 @@ export async function requestSubscriptionCancellation(input: {
   // stop renewing at the end of a period it named. PayPal names none, so the
   // flag stays false and `canceledAtUtc` carries the confirmed moment.
   const schedulesPeriodEnd = mode === "PERIOD_END";
-  const updated = await prisma.subscription.update({
-    where: { id: subscription.id },
-    data: {
-      cancelAtPeriodEnd: schedulesPeriodEnd,
-      canceledAtUtc: new Date(),
-      ...(schedulesPeriodEnd && confirmedPeriodEnd
-        ? { currentPeriodEnd: confirmedPeriodEnd }
-        : {}),
-    },
-    select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
+
+  // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the base result
+  // and the dependent OBLIGATIONS are written in ONE transaction.
+  //
+  // This is the crash-safety boundary. The provider has already agreed to end
+  // the base subscription; from this moment the customer is owed the
+  // cancellation of every add-on that depended on it. Writing the base result
+  // without recording that debt is what allowed a process death — or a failed
+  // provider call — to leave an add-on charging with no record that anyone had
+  // asked it to stop.
+  //
+  // Provider calls stay OUTSIDE the transaction: a remote request inside one
+  // holds a database connection open across the network.
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        cancelAtPeriodEnd: schedulesPeriodEnd,
+        canceledAtUtc: new Date(),
+        ...(schedulesPeriodEnd && confirmedPeriodEnd
+          ? { currentPeriodEnd: confirmedPeriodEnd }
+          : {}),
+      },
+      select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
+    });
+
+    await recordDependentCancellationIntent(
+      {
+        ownerUserId: subscription.userId,
+        teamId: subscription.teamId,
+        triggeredBySubscriptionId: subscription.id,
+      },
+      tx,
+    );
+
+    return row;
   });
 
   // ---- Then the dependants ----------------------------------------------
   //
-  // Ordering is deliberate. The base call is confirmed FIRST, because a
-  // dependent add-on cancelled under a base subscription that then failed to
-  // cancel would leave the customer with less storage and the same plan
-  // charge — strictly worse than doing nothing. Once the provider has agreed
-  // to end the base subscription, every recurring add-on that depends on it is
-  // asked to stop, in the same mode.
+  // Ordering is deliberate and UNCHANGED. The base call is confirmed FIRST,
+  // because a dependent add-on cancelled under a base subscription that then
+  // failed to cancel would leave the customer with less storage and the same
+  // plan charge — strictly worse than doing nothing. Multiple remote
+  // subscriptions cannot be cancelled atomically, so the answer is the durable
+  // obligation recorded above, not a different order.
+  //
+  // This is the FIRST attempt against those obligations. Anything it cannot
+  // confirm stays durable, is retried by the worker on a bounded schedule, is
+  // surfaced to the customer, and opens an Operations condition — none of
+  // which depends on this call succeeding, or on this process surviving it.
   const dependents = await cancelDependentRecurringAddons({
     ownerUserId: subscription.userId,
     teamId: subscription.teamId,
     mode,
+    cancelAtProvider: input.cancelAddonAtProvider,
   });
 
   return {

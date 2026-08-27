@@ -4,7 +4,12 @@ import { z } from "zod";
 import * as prismaPkg from "@prisma/client";
 import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
 import { requireAuth } from "../middleware/auth.js";
-import { cancelPayPalSubscription } from "../services/paypal.service.js";
+// BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — `cancelPayPalSubscription`
+// and `stripeRequestRaw` are no longer imported here. This route reached the
+// provider three different ways depending on what it found locally, and its
+// Stripe arm sent DELETE while the SAME add-on cancelled through a plan
+// cancellation was scheduled for period end. Both paths now call
+// `cancelStorageAddonAtProvider`, which owns the provider semantics.
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
 import { devAuthEnabled } from "../dev/dev-login.js";
@@ -21,7 +26,6 @@ import {
   getStorageAddonDefinition,
   setPersonalPlan,
 } from "../services/billing.service.js";
-import { stripeRequestRaw } from "../services/stripe.service.js";
 import {
   createStripeCheckoutSession,
   createStripeEvidenceCreditCheckout,
@@ -56,6 +60,11 @@ import {
 } from "../services/billing/billing-account-projection.service.js";
 import { requestSubscriptionCancellation } from "../services/billing/subscription-cancellation.service.js";
 import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
+import { cancelStorageAddonAtProvider } from "../services/billing/storage-addon-cancellation.service.js";
+import {
+  attemptDependentCancellations,
+  summarizeDependentCancellations,
+} from "../services/billing/dependent-cancellation.service.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
@@ -841,44 +850,48 @@ export async function billingRoutes(app: FastifyInstance) {
         });
       }
 
-      // Provider FIRST. A failure throws a safe 502 and nothing local changes;
-      // there is no local-only fallback that could report a cancellation the
-      // provider never made.
-      const subscriptionRow = await prisma.subscription.findUnique({
-        where: {
-          provider_providerSubId: {
-            provider: addon.paymentProvider,
-            providerSubId: addon.externalSubscriptionId,
-          },
-        },
-        select: { id: true },
+      // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — ONE
+      // canonical provider semantic for a recurring add-on.
+      //
+      // This route used to reach the provider three different ways depending
+      // on what it found locally, and the Stripe arm sent `DELETE` — immediate
+      // termination of storage the customer had already paid for that month —
+      // while the SAME add-on cancelled as part of a plan cancellation was
+      // scheduled for period end. Same object, same button in the customer's
+      // mind, two outcomes.
+      //
+      // Both paths now call `cancelStorageAddonAtProvider`, so Stripe is always
+      // period-end and PayPal is always immediate, and the local write records
+      // only what the provider confirmed.
+      const outcome = await cancelStorageAddonAtProvider({
+        provider: addon.paymentProvider,
+        providerRef: addon.externalSubscriptionId,
       });
 
-      if (subscriptionRow) {
-        await requestSubscriptionCancellation({
-          subscriptionId: subscriptionRow.id,
+      if (!outcome.ok) {
+        // Provider first, and no local-only fallback. The add-on stays exactly
+        // as it is, so it remains visible and still known to be charging.
+        return reply.code(502).send({
+          error: {
+            code: "PROVIDER_CANCELLATION_FAILED",
+            message:
+              "We could not reach your payment provider to stop this add-on. Nothing has changed and you have not been charged again — please try again shortly.",
+          },
         });
-      } else if (
-        addon.paymentProvider === prismaPkg.PaymentProvider.PAYPAL
-      ) {
-        // An add-on subscription this platform never recorded as a
-        // `Subscription` row still has to be stopped at the provider, and a
-        // failure must still surface rather than be swallowed.
-        await cancelPayPalSubscription(
-          addon.externalSubscriptionId,
-          "Canceled by customer",
-        );
-      } else {
-        await stripeRequestRaw(
-          `/subscriptions/${addon.externalSubscriptionId}`,
-          "DELETE",
-        );
       }
 
-      const updated = await cancelWorkspaceStorageAddon({
-        addonId: addon.id,
-        ownerUserId: addon.ownerUserId,
-      });
+      // A PERIOD_END schedule leaves the capacity the customer paid for in
+      // place; the terminal transition is the provider's own, by webhook or
+      // reconciliation. Only a TERMINAL provider statement ends it here.
+      const updated = outcome.terminal
+        ? await cancelWorkspaceStorageAddon({
+            addonId: addon.id,
+            ownerUserId: addon.ownerUserId,
+          })
+        : await prisma.workspaceStorageAddon.update({
+            where: { id: addon.id },
+            data: { canceledAtUtc: new Date() },
+          });
 
       auditBillingAction(req, {
         userId,
@@ -1121,6 +1134,122 @@ export async function billingRoutes(app: FastifyInstance) {
    * `EVIDENCE_CREDIT_PRODUCT` and the server price map, so there is no field
    * on the wire a caller could tamper with to buy credits cheaply or in bulk.
    */
+  /**
+   * BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — retry ONLY the
+   * outstanding storage add-on cancellations.
+   *
+   * Deliberately its own route rather than re-showing the base Cancel button.
+   * Re-running a base cancellation to reach a dependent retry would ask the
+   * provider to cancel a subscription it has already cancelled, and would
+   * present the customer with a control that says it will do something it has
+   * already done.
+   *
+   * It takes the ACCOUNT in the path and nothing else: no add-on id, no
+   * provider reference, no amount. The server resolves the obligations IT
+   * recorded and retries exactly those — never the base subscription, and
+   * never an add-on whose cancellation the provider has already confirmed.
+   */
+  app.post(
+    "/v1/billing/accounts/:type/:id/retry-storage-cancellation",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z
+        .object({
+          type: z.enum(["PERSONAL", "WORKSPACE", "ORGANIZATION"]),
+          id: z.string().min(1).max(200),
+        })
+        .safeParse(req.params ?? {});
+      if (!params.success) {
+        return reply.code(400).send({ error: { code: "invalid_params" } });
+      }
+
+      // Stopping a recurring charge is a financial mutation, so it takes the
+      // CANCEL capability — the same one the original cancellation took. A
+      // workspace administrator who is not the payer may see that an add-on is
+      // still billing and may not act on the payer's provider account.
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: params.data.type,
+        id: params.data.id,
+        capability: "BILLING_CANCEL",
+      });
+
+      const rate = await enforceRateLimit({
+        key: `ratelimit:billing_addon_retry:${userId}:${account.type}:${account.id}`,
+        max: 6,
+        windowSec: 300,
+      });
+      if (!rate.allowed) {
+        return reply.code(429).send(
+          createErrorResponse(
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            req.id,
+            undefined,
+            "We are already retrying. Please give it a few minutes.",
+          ),
+        );
+      }
+
+      // An ORGANIZATION account is contract-managed and owns no self-service
+      // add-on, so there is nothing for it to retry.
+      if (account.type === "ORGANIZATION") {
+        return reply
+          .code(200)
+          .send({ outcome: "NO_CHANGE", summary: null, supportRequired: false });
+      }
+
+      const scope =
+        account.type === "PERSONAL"
+          ? { ownerUserId: account.id, teamId: null as string | null }
+          : await (async () => {
+              const row = await prisma.workspaceStorageAddon.findFirst({
+                where: { teamId: account.id },
+                select: { ownerUserId: true },
+              });
+              return row
+                ? { ownerUserId: row.ownerUserId, teamId: account.id }
+                : null;
+            })();
+
+      if (!scope) {
+        return reply
+          .code(200)
+          .send({ outcome: "NO_CHANGE", summary: null, supportRequired: false });
+      }
+
+      const attempt = await attemptDependentCancellations({
+        ownerUserId: scope.ownerUserId,
+        teamId: scope.teamId,
+      });
+      const summary = await summarizeDependentCancellations(scope);
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.storage_addon_cancellation_retry",
+        outcome: "success",
+        workspaceId: account.type === "WORKSPACE" ? account.id : null,
+        metadata: {
+          accountType: account.type,
+          attempted: attempt.attempted,
+          confirmed: attempt.confirmed,
+          failed: attempt.failed,
+          escalated: attempt.escalated,
+        },
+      });
+
+      return reply.code(200).send({
+        outcome: summary
+          ? summary.supportRequired
+            ? "ACTION_REQUIRED"
+            : "PENDING"
+          : "UPDATED",
+        summary,
+        supportRequired: summary?.supportRequired ?? false,
+      });
+    },
+  );
+
   app.post(
     "/v1/billing/credits/checkout/stripe",
     { preHandler: requireAuthAndLegal },

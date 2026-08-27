@@ -131,8 +131,23 @@ const AUTHORITY_WRITERS: Array<{
       // visible instead of being marked cancelled and forgotten.
       "services/billing/reconciliation/reconciliation.service.ts":
         "canonical: applies the PROVIDER-observed add-on status through the shared mapping, plus the providerStateAtUtc ordering stamp",
-      "services/billing/storage-addon-dependency.service.ts":
-        "canonical: dependent-add-on cancellation on base-plan cancellation — provider first, and never a local write the provider did not confirm",
+      // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the writer
+      // MOVED out of `storage-addon-dependency.service.ts` and into the
+      // obligation authority, and the move is the point: the cascade no longer
+      // decides anything about an add-on's state, it records an obligation and
+      // the authority transitions it. Every write here is a transition on a
+      // durable obligation whose only resolved state, CONFIRMED, requires a
+      // provider call to have SUCCEEDED or a provider observation to have
+      // proved it. A provider failure writes the failure — never a
+      // cancellation.
+      "services/billing/dependent-cancellation.service.ts":
+        "canonical: the dependent-cancellation obligation state machine — provider first, and CONFIRMED only on provider truth",
+      // The direct add-on cancel route. It writes only after
+      // `cancelStorageAddonAtProvider` confirms, and only the canceled-at
+      // stamp when the provider scheduled rather than terminated — the
+      // capacity the customer paid for is not taken early.
+      "routes/billing.routes.ts":
+        "canonical: direct add-on cancellation, recording only what the provider confirmed",
     },
   },
 ];

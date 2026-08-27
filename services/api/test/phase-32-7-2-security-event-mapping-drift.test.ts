@@ -1145,6 +1145,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // alone. No `security_events` column, index, enum or mapping is altered
       // by it, which is what this allowlist is about.
       "20271228000000_billing_provider_state_ordering",
+      // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — expand-only:
+      // the durable obligation to stop a recurring Storage add-on whose plan
+      // was cancelled. It touches `workspace_storage_addons` alone. No
+      // `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20271229000000_billing_dependent_cancellation_obligation",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

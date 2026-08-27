@@ -1789,6 +1789,26 @@ model WorkspaceStorageAddon {
   canceledAtUtc          DateTime?                   @map("canceled_at_utc") @db.Timestamptz(6)
   /// See Subscription.providerStateAtUtc.
   providerStateAtUtc     DateTime?                   @map("provider_state_at_utc") @db.Timestamptz(6)
+  /// THE DURABLE CANCELLATION OBLIGATION.
+  ///
+  /// Extends the existing add-on authority rather than opening a parallel
+  /// ledger: the obligation is a property of THIS add-on, and keeping it on the
+  /// row is what lets one query find every unresolved one.
+  ///
+  /// A legacy ONE_TIME add-on is not a provider subscription and never leaves
+  /// NONE.
+  dependentCancellationState DependentCancellationState @default(NONE) @map("dependent_cancellation_state")
+  dependentCancellationRequestedAtUtc DateTime? @map("dependent_cancellation_requested_at_utc") @db.Timestamptz(6)
+  dependentCancellationFailedAtUtc    DateTime? @map("dependent_cancellation_failed_at_utc") @db.Timestamptz(6)
+  dependentCancellationConfirmedAtUtc DateTime? @map("dependent_cancellation_confirmed_at_utc") @db.Timestamptz(6)
+  dependentCancellationNextRetryAtUtc DateTime? @map("dependent_cancellation_next_retry_at_utc") @db.Timestamptz(6)
+  dependentCancellationAttemptCount   Int       @default(0) @map("dependent_cancellation_attempt_count")
+  /// A SAFE internal vocabulary, never a provider error body.
+  dependentCancellationReasonCode     String?   @map("dependent_cancellation_reason_code") @db.VarChar(64)
+  /// Which base subscription's cancellation created this obligation.
+  dependentCancellationTriggeredBySubscriptionId String? @map("dependent_cancellation_triggered_by_subscription_id") @db.Uuid
+  /// The durable lease that stops two workers retrying one add-on at once.
+  dependentCancellationLeaseUntilUtc  DateTime? @map("dependent_cancellation_lease_until_utc") @db.Timestamptz(6)
   metadata               Json?
   createdAt              DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -3307,6 +3327,29 @@ enum CaptureSessionEventType {
   FINALIZED
   DISCARDED
   EXPIRED
+}
+
+/// The obligation to stop ONE recurring Storage add-on whose base plan has
+/// been cancelled.
+///
+/// A recurring add-on is its own provider subscription, so a base cancellation
+/// cannot stop it atomically. The obligation is what makes the intent durable:
+/// without it a failed provider call left nothing behind and the add-on kept
+/// charging with no record that anyone had asked it to stop.
+enum DependentCancellationState {
+  /// No dependent cancellation has been requested for this add-on.
+  NONE
+  /// The base cancellation succeeded and this add-on must be stopped.
+  PENDING
+  /// A provider attempt failed transiently; a retry is scheduled.
+  RETRY_SCHEDULED
+  /// The add-on may still be charging. Visible to the tenant and Operations.
+  ACTION_REQUIRED
+  /// The provider CONFIRMED the scheduling or terminal cancellation.
+  CONFIRMED
+  /// Fast retries are exhausted. Still charging, still escalated; only
+  /// provider truth may resolve it.
+  MANUAL_INTERVENTION
 }
 
 enum WorkspaceStorageAddonStatus {

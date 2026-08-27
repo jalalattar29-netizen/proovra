@@ -271,11 +271,23 @@ describe("cancellation never claims more than the provider confirmed", () => {
     const src = await readSource(
       "../src/services/billing/subscription-cancellation.service.ts",
     );
-    const updateBlock = src.slice(src.indexOf("prisma.subscription.update"));
+    // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the local
+    // write moved INTO a transaction (it now records the dependent
+    // obligations alongside the base result), so the anchor is the transaction
+    // rather than the bare update. The property is unchanged and the
+    // assertion is now stronger: no branch anywhere in the service may write
+    // the terminal status.
+    const updateBlock = src.slice(src.indexOf("tx.subscription.update"));
     // The terminal transition is the provider's own statement and arrives by
     // webhook. Writing it here recreates the disagreement.
-    expect(updateBlock).not.toMatch(/status:\s*prismaPkg\.SubscriptionStatus\.CANCELED/);
-    expect(updateBlock).toMatch(/cancelAtPeriodEnd:\s*true/);
+    expect(updateBlock).not.toMatch(
+      /status:\s*prismaPkg\.SubscriptionStatus\.CANCELED/,
+    );
+    expect(src).not.toMatch(
+      /data:\s*\{[^}]*status:\s*prismaPkg\.SubscriptionStatus\.CANCELED/,
+    );
+    // Stripe's confirmed period-end schedule is still recorded.
+    expect(updateBlock).toMatch(/cancelAtPeriodEnd:\s*schedulesPeriodEnd/);
   });
 
   it("writes nothing locally before the provider answers", async () => {
@@ -283,9 +295,15 @@ describe("cancellation never claims more than the provider confirmed", () => {
       "../src/services/billing/subscription-cancellation.service.ts",
     );
     const providerCallAt = src.indexOf("// ---- Ask the provider FIRST");
-    const localWriteAt = src.indexOf("prisma.subscription.update");
+    // The local write is now the transaction that records the base result AND
+    // the dependent obligations together. It must still come strictly after
+    // the provider has answered — the obligation only exists because the base
+    // cancellation really happened.
+    const localWriteAt = src.indexOf("prisma.$transaction");
     expect(providerCallAt).toBeGreaterThan(0);
     expect(localWriteAt).toBeGreaterThan(providerCallAt);
+    // And no bare subscription update may creep back in ahead of it.
+    expect(src).not.toMatch(/prisma\.subscription\.update\(/);
   });
 
   it("the cancel route requires BILLING_CANCEL, not workspace ownership", async () => {
