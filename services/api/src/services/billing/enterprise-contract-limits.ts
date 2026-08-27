@@ -103,13 +103,14 @@ export function resolveEnterpriseContractLimits(
     contractGovernsCapability: true,
     storageBytes: storageGb === null ? null : BigInt(storageGb) * BYTES_PER_GB,
     seats: positiveOrNull(contract.seatCount),
-    evidenceRecordsPerMonth: positiveOrNull(
-      (contract as { evidenceRecordsPerMonth?: number | null })
-        .evidenceRecordsPerMonth,
-    ),
-    aiOperationsPerMonth: positiveOrNull(
-      (contract as { aiOperationsPerMonth?: number | null }).aiOperationsPerMonth,
-    ),
+    // BILLING PRODUCTION CLOSURE (2026-08-27) — read straight off the
+    // projection. These two used to be reached through
+    // `(contract as { evidenceRecordsPerMonth?: number })`, a cast asserting a
+    // field the projection type did not declare and the reader never selected.
+    // It compiled, it never threw, and it always produced `undefined` — so a
+    // contracted allowance could not reach enforcement at all.
+    evidenceRecordsPerMonth: positiveOrNull(contract.evidenceRecordsPerMonth),
+    aiOperationsPerMonth: positiveOrNull(contract.aiOperationsPerMonth),
     legacyDerived: contract.legacyDerived,
   };
 }

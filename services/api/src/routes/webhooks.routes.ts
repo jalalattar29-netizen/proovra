@@ -467,6 +467,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
           billingCycle?: string;
           currency?: string;
           amountCents?: string;
+          productKey?: string;
         };
       };
 
@@ -477,7 +478,23 @@ export async function webhooksRoutes(app: FastifyInstance) {
         session.metadata?.storageAddonKey
       );
 
-      if (userId && plan === prismaPkg.PlanType.PAYG) {
+      // BILLING PRODUCTION CLOSURE (2026-08-27) — identify the PRODUCT, not a
+      // plan.
+      //
+      // This asked whether the session's metadata named the PAYG plan, so a
+      // legacy recurring-plan row carried the identity of a one-time product
+      // and no other product could ever be added without another plan row.
+      // The server now stamps `productKey` at checkout and it is read first.
+      //
+      // The `plan === PAYG` arm is retained DELIBERATELY and only as a
+      // compatibility path: a customer who opened checkout before this deploy
+      // has a live Stripe session whose metadata carries no `productKey`, and
+      // refusing to settle it would take money without granting the credit.
+      const isEvidenceCreditPurchase =
+        session.metadata?.productKey === "EVIDENCE_CREDIT" ||
+        plan === prismaPkg.PlanType.PAYG;
+
+      if (userId && isEvidenceCreditPurchase) {
         await ensureEntitlement(userId);
         await grantEvidenceCredits({
           userId,

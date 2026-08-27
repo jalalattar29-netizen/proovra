@@ -423,12 +423,29 @@ export async function readBillingOverview(userId: string) {
           return toStorageAddonSummary(addon, teamName);
         }),
     },
-    payments: recentPayments,
-    paymentMethods: {
-      PAYG: ["STRIPE", "PAYPAL"],
-      PRO: ["STRIPE", "PAYPAL"],
-      TEAM: ["STRIPE", "PAYPAL"],
-      STORAGE_ADDONS: ["STRIPE", "PAYPAL"],
-    },
+    // BILLING PRODUCTION CLOSURE (2026-08-27) — the raw `payments` array was
+    // DELETED, narrowing this endpoint to the non-financial reads its
+    // remaining consumers actually make.
+    //
+    // `/v1/billing/overview` still serves four surfaces that need one thing
+    // from it: personal storage (the sidebar widget, the Home storage signals,
+    // the Evidence library header) and the organization setup wizard's
+    // readiness check. None of them read a payment, and no client in either app
+    // ever did. What it carried instead was every payment row the caller had
+    // made across every billing account they touch, merged and un-capability-
+    // filtered — the exact shape `GET /v1/billing/payments` was deleted for.
+    //
+    // Account-scoped payment history lives at
+    // `GET /v1/billing/accounts/:type/:id/history`, behind BILLING_HISTORY_VIEW.
+    // The aggregate `summary` counts below are retained: they identify nobody
+    // and no payer, and the setup wizard reads them.
+    //
+    // `paymentMethods` was DELETED at the same time.
+    //
+    // It was a hard-coded map from plan name to provider names. No provider
+    // authority produced it, nothing verified it, and it shared a name with the
+    // one thing a billing surface must never fabricate: which cards a customer
+    // has on file. Which providers a checkout accepts is decided by the
+    // checkout routes at the moment of purchase.
   };
 }

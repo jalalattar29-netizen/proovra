@@ -178,13 +178,20 @@ export function BillingHistorySection({
   state: "LOADING" | "READY" | "DENIED" | "ERROR";
   onRetry: () => void;
   /**
-   * "Re-check my purchases" — the entitlement re-sync.
+   * "Refresh billing status" — a reload of what PROOVRA has recorded.
    *
-   * Kept from the section this replaces, because it answers a question a
-   * customer really has: a provider confirms a purchase moments after checkout,
-   * so returning early shows the old plan. It is safe to repeat — the server
-   * recomputes from persisted subscription rows and accepts nothing from the
-   * client — and that is said in the copy.
+   * BILLING PRODUCTION CLOSURE (2026-08-27) — renamed from "Re-check my
+   * purchases", which described something the product does not do.
+   *
+   * The action calls no payment provider. It re-reads the persisted
+   * subscription, entitlement and payment rows and returns them, so it helps
+   * with exactly one thing: a webhook that arrived while the page was open. If
+   * the webhook never arrived, pressing it changes nothing — and the old label
+   * promised a customer who had paid and seen no credit that the button would
+   * go and find their money.
+   *
+   * Wording follows behaviour. When provider reconciliation is implemented it
+   * can promise more; until then it says what it does.
    */
   onRecheck: () => void;
   recheckBusy: boolean;
@@ -229,7 +236,7 @@ export function BillingHistorySection({
     <Card
       variant="summary"
       title="Billing history"
-      subtitle="Just paid and still seeing the old plan? Re-check — nothing is charged again."
+      subtitle="Reloads what we have recorded for this account. If a payment is still missing after a few minutes, contact support — nothing is charged again."
       headerAction={
         <Button
           variant="secondary"
@@ -239,7 +246,7 @@ export function BillingHistorySection({
           disabled={recheckBusy}
           data-billing-recheck
         >
-          Re-check my purchases
+          Refresh billing status
         </Button>
       }
       data-billing-history

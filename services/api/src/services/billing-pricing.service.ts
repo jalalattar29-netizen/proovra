@@ -51,6 +51,28 @@ export function getPlanPriceCents(
   return 0;
 }
 
+/**
+ * BILLING PRODUCTION CLOSURE (2026-08-27) — the evidence-credit PRODUCT price.
+ *
+ * Credits are a product, not a plan, and the modern checkout must not name a
+ * plan to buy one. These two wrappers give the product its own price identity
+ * while resolving through the SAME server-owned environment mapping the
+ * one-time purchase has always used — the variable names are retained
+ * deliberately, because renaming a configured Stripe price id in a code change
+ * would take the product offline on every deployment that has one set.
+ *
+ * There is no second price authority here: both delegate.
+ */
+export function getEvidenceCreditPriceCents(currency: BillingCurrency): number {
+  return getPlanPriceCents(prismaPkg.PlanType.PAYG, currency);
+}
+
+export function getStripeEvidenceCreditPriceId(
+  currency: BillingCurrency,
+): string | null {
+  return getStripePlanPriceId(prismaPkg.PlanType.PAYG, currency);
+}
+
 export function getStripePlanPriceId(
   plan: prismaPkg.PlanType,
   currency: BillingCurrency

@@ -111,6 +111,7 @@ export async function requestSubscriptionCancellation(input: {
       status: true,
       currentPeriodEnd: true,
       cancelAtPeriodEnd: true,
+      canceledAtUtc: true,
     },
   });
 
@@ -128,11 +129,21 @@ export async function requestSubscriptionCancellation(input: {
 
   // Idempotent repeat. A second request must not produce a second provider
   // call, and must not produce a conflicting state.
-  if (subscription.cancelAtPeriodEnd) {
+  //
+  // BILLING PRODUCTION CLOSURE (2026-08-27) — `canceledAtUtc` joins the guard.
+  // `cancelAtPeriodEnd` is now false for an IMMEDIATE provider, so it can no
+  // longer stand alone: a second PayPal cancel would otherwise reach the
+  // provider again, and PayPal refuses to cancel an already-cancelled
+  // subscription — turning a harmless double click into a "we could not reach
+  // your payment provider" error about a cancellation that had already
+  // succeeded.
+  if (subscription.cancelAtPeriodEnd || subscription.canceledAtUtc) {
     return {
       mode,
-      accessEndsAtUtc: subscription.currentPeriodEnd?.toISOString() ?? null,
-      cancelAtPeriodEnd: true,
+      accessEndsAtUtc: subscription.cancelAtPeriodEnd
+        ? subscription.currentPeriodEnd?.toISOString() ?? null
+        : null,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
       status: subscription.status,
       alreadyScheduled: true,
     };
@@ -208,19 +219,40 @@ export async function requestSubscriptionCancellation(input: {
   // `status` deliberately stays as it was. The terminal CANCELED transition is
   // the provider's own statement and arrives by webhook; writing it here would
   // recreate the disagreement this service exists to end.
+  // BILLING PRODUCTION CLOSURE (2026-08-27) — record what the provider did,
+  // per provider.
+  //
+  // Both branches used to write `cancelAtPeriodEnd: true`, so a PayPal
+  // cancellation — which ends the agreement THERE AND THEN — was stored as a
+  // scheduled period-end cancellation. The row then said two contradictory
+  // things at once, and every reader of `cancelAtPeriodEnd` (the projection's
+  // plan summary, the CANCELING lifecycle, the "cancels on <date>" copy)
+  // published the half that was not true.
+  //
+  // `cancelAtPeriodEnd` now means exactly what it says: the provider agreed to
+  // stop renewing at the end of a period it named. PayPal names none, so the
+  // flag stays false and `canceledAtUtc` carries the confirmed moment.
+  const schedulesPeriodEnd = mode === "PERIOD_END";
   const updated = await prisma.subscription.update({
     where: { id: subscription.id },
     data: {
-      cancelAtPeriodEnd: true,
+      cancelAtPeriodEnd: schedulesPeriodEnd,
       canceledAtUtc: new Date(),
-      ...(confirmedPeriodEnd ? { currentPeriodEnd: confirmedPeriodEnd } : {}),
+      ...(schedulesPeriodEnd && confirmedPeriodEnd
+        ? { currentPeriodEnd: confirmedPeriodEnd }
+        : {}),
     },
     select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
   });
 
   return {
     mode,
-    accessEndsAtUtc: updated.currentPeriodEnd?.toISOString() ?? null,
+    // An IMMEDIATE cancellation has no future access date to report. Returning
+    // the stored period end here would put a date on the screen that the
+    // provider has already invalidated.
+    accessEndsAtUtc: schedulesPeriodEnd
+      ? updated.currentPeriodEnd?.toISOString() ?? null
+      : null,
     cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
     status: updated.status,
     alreadyScheduled: false,

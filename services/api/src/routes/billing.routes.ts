@@ -2,6 +2,7 @@ import { resolveCommercialContext } from "../services/billing/commercial-context
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import * as prismaPkg from "@prisma/client";
+import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
 import { requireAuth } from "../middleware/auth.js";
 import { cancelPayPalSubscription } from "../services/paypal.service.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -23,7 +24,9 @@ import {
 import { stripeRequestRaw } from "../services/stripe.service.js";
 import {
   createStripeCheckoutSession,
+  createStripeEvidenceCreditCheckout,
   createPayPalCheckout,
+  createPayPalEvidenceCreditCheckout,
   createStripeStorageAddonCheckoutSession,
   createPayPalStorageAddonCheckout,
 } from "../services/billing-checkout.service.js";
@@ -72,10 +75,34 @@ const StorageAddonKeySchema = prismaPkg.StorageAddonKey
 
 const CurrencySchema = z.enum(["USD", "EUR"]);
 
+/**
+ * BILLING PRODUCTION CLOSURE (2026-08-27) — the RECURRING plans, and only
+ * those.
+ *
+ * This accepted the whole `PlanType` enum, so a client could open checkout
+ * naming PAYG and the resulting session carried a legacy plan row as the
+ * identity of a one-time product. Evidence credits now have their own routes
+ * and their own server-owned product identity; FREE was already refused by
+ * `assertPurchasablePlan`, and ENTERPRISE is contracted, never self-service.
+ *
+ * PAYG is not listed here and no modern route accepts it.
+ */
+const RecurringPlanSchema = z.enum(["PRO", "TEAM"]);
+
 const CheckoutBody = z.object({
-  plan: PlanTypeSchema,
+  plan: RecurringPlanSchema,
   currency: CurrencySchema.optional(),
   teamId: z.string().uuid().optional(),
+});
+
+/**
+ * Buying evidence credits takes NO commercial input at all. Quantity is
+ * `EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase`, the price comes from the
+ * server map, and the billing subject is always the caller's personal account —
+ * a credit wallet has no workspace.
+ */
+const EvidenceCreditCheckoutBody = z.object({
+  currency: CurrencySchema.optional(),
 });
 
 const StorageAddonCheckoutBody = z.object({
@@ -550,47 +577,20 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
-  app.get(
-    "/v1/billing/status",
-    { preHandler: requireAuthAndLegal },
-    async (req, reply) => {
-      const userId = getAuthUserId(req);
-      const overview = await readBillingOverview(userId);
-
-      auditBillingAction(req, {
-        userId,
-        action: "billing.status_view",
-        outcome: "success",
-        metadata: {
-          plan: overview.entitlement.plan,
-          credits: overview.entitlement.credits,
-        },
-      });
-
-      return reply.code(200).send({
-        entitlement: overview.entitlement,
-        workspaces: overview.workspaces,
-        payments: overview.payments,
-        paymentMethods: overview.paymentMethods,
-        storageAddons: overview.storageAddons,
-        summary: overview.summary,
-      });
-    }
-  );
-
   /**
-   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `GET /v1/billing/payments`
-   * was DELETED here.
+   * BILLING PRODUCTION CLOSURE (2026-08-27) — `GET /v1/billing/status` was
+   * DELETED here.
    *
-   * It returned EVERY payment the caller had ever made across every billing
-   * account they touch, in one list, distinguished only by a `teamId` the UI
-   * rendered as the words "Team payment" / "Personal payment". That is the
-   * cross-payer merge the account model exists to end.
+   * It returned the whole `readBillingOverview` aggregate — every payment the
+   * caller had made across every billing account, a `paymentMethods` shape no
+   * provider authority backs, every storage add-on and every workspace — behind
+   * nothing but authentication. It was the same cross-payer merge that
+   * `GET /v1/billing/payments` was removed for, still reachable under a
+   * different name.
    *
-   * Its replacement is `GET /v1/billing/accounts/:type/:id/history`, which is
-   * scoped to ONE account and gated on `BILLING_HISTORY_VIEW` — so a viewer
-   * without that capability gets a 403 with a stable code rather than a list
-   * that silently omits what they may not see.
+   * Its one consumer was the mobile Billing screen, which read a single field
+   * off it. That screen now reads the capability-gated account projection
+   * (`/v1/billing/accounts`, then `/v1/billing/accounts/PERSONAL/:id`).
    */
 
   app.get(
@@ -920,6 +920,26 @@ export async function billingRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
+
+      // BILLING PRODUCTION CLOSURE (2026-08-27) — capability-gated, like every
+      // other billing read.
+      //
+      // This route had only `requireAuthAndLegal`. It reads the caller's own
+      // commercial state, so it was never a cross-tenant leak, but "the caller
+      // happens to be the subject" is not the same statement as "the caller
+      // holds BILLING_ACCOUNT_VIEW on this account", and it is the second that
+      // every other billing surface is required to make.
+      //
+      // It performs NO provider call. It re-reads persisted rows, which is why
+      // the surface that drives it now says "Refresh billing status" rather
+      // than promising to go and find a missing payment.
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_ACCOUNT_VIEW",
+      });
+
       const overview = await readBillingOverview(userId);
 
       auditBillingAction(req, {
@@ -1019,6 +1039,98 @@ export async function billingRoutes(app: FastifyInstance) {
         session: result.session,
       });
     }
+  );
+
+  /**
+   * BILLING PRODUCTION CLOSURE (2026-08-27) — buy evidence credits.
+   *
+   * Its own route because it is its own product. The client sends a display
+   * currency and nothing else: no plan, no amount, no quantity, no billing
+   * subject. Everything commercial is resolved server-side from
+   * `EVIDENCE_CREDIT_PRODUCT` and the server price map, so there is no field
+   * on the wire a caller could tamper with to buy credits cheaply or in bulk.
+   */
+  app.post(
+    "/v1/billing/credits/checkout/stripe",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const body = EvidenceCreditCheckoutBody.parse(req.body ?? {});
+      const userId = getAuthUserId(req);
+
+      await assertPersonalCheckoutAllowed(userId, undefined);
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_ADDON_PURCHASE",
+      });
+
+      const result = await createStripeEvidenceCreditCheckout({
+        userId,
+        currency: body.currency,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.evidence_credit_checkout_created",
+        outcome: "success",
+        resourceId: String(result.session?.id ?? ""),
+        providerEventId: result.session?.id ? String(result.session.id) : null,
+        metadata: {
+          productKey: EVIDENCE_CREDIT_PRODUCT.productKey,
+          credits: EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase,
+          currency: result.currency,
+          amountCents: result.amountCents,
+        },
+      });
+
+      return reply.code(200).send({
+        provider: "STRIPE",
+        mode: result.mode,
+        session: result.session,
+      });
+    },
+  );
+
+  /** PayPal counterpart. Same server-owned product identity. */
+  app.post(
+    "/v1/billing/credits/checkout/paypal",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const body = EvidenceCreditCheckoutBody.parse(req.body ?? {});
+      const userId = getAuthUserId(req);
+
+      await assertPersonalCheckoutAllowed(userId, undefined);
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_ADDON_PURCHASE",
+      });
+
+      const result = await createPayPalEvidenceCreditCheckout({
+        userId,
+        currency: body.currency,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.evidence_credit_checkout_created",
+        outcome: "success",
+        metadata: {
+          productKey: EVIDENCE_CREDIT_PRODUCT.productKey,
+          credits: EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase,
+          currency: result.currency,
+          amountCents: result.amountCents,
+        },
+      });
+
+      return reply.code(200).send({
+        provider: "PAYPAL",
+        mode: result.mode,
+        order: "order" in result ? result.order : undefined,
+      });
+    },
   );
 
   app.post(

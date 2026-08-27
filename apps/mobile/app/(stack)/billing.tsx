@@ -11,10 +11,36 @@ export default function BillingScreen() {
   const router = useRouter();
   const [plan, setPlan] = useState("FREE");
 
+  // BILLING PRODUCTION CLOSURE (2026-08-27) — read the canonical billing
+  // ACCOUNT, not the legacy aggregate.
+  //
+  // This screen was the last consumer of `GET /v1/billing/status`, which
+  // returned every payment, payment-method shape and storage add-on the caller
+  // touched across every billing account — merged, uncapability-filtered — so
+  // that one string could be read off it. It now asks which billing accounts
+  // the viewer holds and reads the plan off the PERSONAL one, through the same
+  // capability-gated projection the web Billing page uses.
   useEffect(() => {
-    apiFetch("/v1/billing/status")
-      .then((data) => setPlan(data.entitlement?.plan ?? "FREE"))
-      .catch(() => setPlan("FREE"));
+    let cancelled = false;
+
+    (async () => {
+      const { accounts } = await apiFetch("/v1/billing/accounts");
+      const personal = (accounts ?? []).find(
+        (account: { type?: string }) => account.type === "PERSONAL"
+      );
+      if (!personal) return;
+
+      const projection = await apiFetch(
+        `/v1/billing/accounts/PERSONAL/${personal.id}`
+      );
+      if (!cancelled) setPlan(projection.plan?.planKey ?? "FREE");
+    })().catch(() => {
+      if (!cancelled) setPlan("FREE");
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const plans = [

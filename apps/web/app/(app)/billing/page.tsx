@@ -499,13 +499,15 @@ function BillingPageInner() {
                   setRecheckBusy(true);
                   try {
                     await restorePurchases();
-                    addToast("Checked with your payment provider.", "success");
+                    // Says what happened. "Checked with your payment provider"
+                    // named a provider call this action does not make.
+                    addToast("Billing status refreshed.", "success");
                     refresh();
                   } catch (err) {
                     captureException(err, { feature: "billing_restore" });
                     const safe = toSafeUserError(err, {
                       message:
-                        "Your purchases could not be re-checked. Try again in a moment.",
+                        "We could not refresh your billing status. Try again in a moment.",
                     });
                     addToast(safe.message, "error");
                   } finally {

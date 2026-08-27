@@ -111,17 +111,24 @@ export function CheckoutDrawer({
     const teamPart = workspaceId ? { teamId: workspaceId } : {};
 
     if (intent === "CREDITS") {
+      // BILLING PRODUCTION CLOSURE (2026-08-27) — credits have their own route
+      // and take no commercial input. This used to POST `{ plan: "PAYG" }` to
+      // the plan checkout, which made a legacy recurring-plan row the identity
+      // of a one-time product and put a plan name for it on the wire. Quantity
+      // and price are resolved server-side; the body carries a display currency
+      // and nothing else.
+      const creditBody = JSON.stringify({ currency });
       return provider === "STRIPE"
         ? send(() =>
-            apiFetch("/v1/billing/checkout/stripe", {
+            apiFetch("/v1/billing/credits/checkout/stripe", {
               method: "POST",
-              body: JSON.stringify({ plan: "PAYG", currency }),
+              body: creditBody,
             }),
           )
         : send(() =>
-            apiFetch("/v1/billing/checkout/paypal", {
+            apiFetch("/v1/billing/credits/checkout/paypal", {
               method: "POST",
-              body: JSON.stringify({ plan: "PAYG", currency }),
+              body: creditBody,
             }),
           );
     }

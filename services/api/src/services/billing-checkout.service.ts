@@ -79,11 +79,65 @@ export async function createPayPalStorageAddonCheckout(params: {
   });
 }
 
+/**
+ * What a checkout session is buying. Server-owned: the client never sends it,
+ * and no client value is ever mapped onto it.
+ */
+export type CheckoutProductKey = "PLAN" | "EVIDENCE_CREDIT";
+
+/**
+ * BILLING PRODUCTION CLOSURE (2026-08-27) — the modern evidence-credit
+ * checkout.
+ *
+ * Buying a credit is a PRODUCT purchase, so the caller names no plan, no
+ * amount, no currency conversion and no quantity. Everything comes from
+ * `EVIDENCE_CREDIT_PRODUCT` and the server price map; the one-time payment
+ * machinery underneath is the same machinery the legacy route used, which is
+ * why in-flight sessions created before this change still settle correctly.
+ */
+export async function createStripeEvidenceCreditCheckout(params: {
+  userId: string;
+  currency?: string | null;
+}) {
+  return createStripeCheckoutSession({
+    userId: params.userId,
+    plan: prismaPkg.PlanType.PAYG,
+    currency: params.currency,
+    teamId: null,
+    productKey: "EVIDENCE_CREDIT",
+  });
+}
+
+/** PayPal counterpart of `createStripeEvidenceCreditCheckout`. */
+export async function createPayPalEvidenceCreditCheckout(params: {
+  userId: string;
+  currency?: string | null;
+}) {
+  return createPayPalCheckout({
+    userId: params.userId,
+    plan: prismaPkg.PlanType.PAYG,
+    currency: params.currency,
+    teamId: null,
+    productKey: "EVIDENCE_CREDIT",
+  });
+}
+
 export async function createStripeCheckoutSession(params: {
   userId: string;
   plan: prismaPkg.PlanType;
   currency?: string | null;
   teamId?: string | null;
+  /**
+   * BILLING PRODUCTION CLOSURE (2026-08-27) — what is being BOUGHT, stated by
+   * the server.
+   *
+   * The webhook used to answer "is this a credit purchase?" by asking whether
+   * the session's metadata named the PAYG plan, which meant a legacy plan row
+   * carried the identity of a product. It is now stamped explicitly, and the
+   * webhook reads this field first. Defaults to PLAN so every existing
+   * recurring path is unchanged.
+   */
+  productKey?: CheckoutProductKey;
 }) {
   const currency = resolveCheckoutCurrency({
     requestedCurrency: params.currency,
@@ -99,6 +153,10 @@ export async function createStripeCheckoutSession(params: {
   searchParams.append("cancel_url", billingReturnUrl(appBase, "canceled=1"));
   searchParams.append("metadata[userId]", params.userId);
   searchParams.append("metadata[plan]", params.plan);
+  searchParams.append(
+    "metadata[productKey]",
+    params.productKey ?? "PLAN",
+  );
   searchParams.append("metadata[currency]", currency);
   searchParams.append("metadata[amountCents]", String(amountCents));
   searchParams.append("payment_method_types[]", "card");
@@ -277,6 +335,8 @@ export async function createPayPalCheckout(params: {
   plan: prismaPkg.PlanType;
   currency?: string | null;
   teamId?: string | null;
+  /** See `createStripeCheckoutSession`. */
+  productKey?: CheckoutProductKey;
 }) {
   const currency = resolveCheckoutCurrency({
     requestedCurrency: params.currency,

@@ -45,8 +45,15 @@ import {
 } from "./billing-accounts.service.js";
 import { readEvidenceCreditWallet } from "./evidence-credits.service.js";
 import { resolveEnterpriseContract } from "../organization/enterprise-contract.service.js";
-import { resolveEnterpriseContractLimits } from "./enterprise-contract-limits.js";
-import { countPersonalEvidenceRecords } from "../billing-enforcement.service.js";
+import {
+  resolveEffectiveContractEvidenceCap,
+  resolveEnterpriseContractLimits,
+} from "./enterprise-contract-limits.js";
+import {
+  AI_USAGE_KEY,
+  countPersonalEvidenceRecords,
+  startOfCurrentMonthUtc,
+} from "../billing-enforcement.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";
@@ -659,7 +666,17 @@ export async function buildBillingAccountProjection(input: {
   // ---- Evidence meter -----------------------------------------------------
   let evidence: UsageMeter;
   if (scope.billingShape === "SHARED") {
-    const monthlyCap = ctx.limits.effectiveMonthlyRecordCap;
+    // BILLING PRODUCTION CLOSURE (2026-08-27) — the meter resolves its cap the
+    // way the gate resolves its cap. `ctx.limits.effectiveMonthlyRecordCap` is
+    // the CATALOG value; `assertWorkspaceAllowsEvidenceCreation` asks
+    // `resolveEffectiveContractEvidenceCap`. For an ENTERPRISE workspace with a
+    // contracted allowance those are different numbers, and a meter that
+    // disagrees with the gate is how a customer is refused at a limit the page
+    // told them they had not reached.
+    const monthlyCap = resolveEffectiveContractEvidenceCap({
+      plan: scope.plan,
+      contract: scope.contractLimits,
+    });
     if (monthlyCap === null) {
       evidence =
         scope.plan === "ENTERPRISE"
@@ -969,7 +986,24 @@ async function buildOrganizationProjection(input: {
         limits.contractGovernsCapability && limits.aiOperationsPerMonth !== null
           ? {
               state: "MEASURED",
-              used: 0,
+              // BILLING PRODUCTION CLOSURE (2026-08-27) — measured, not zero.
+              // This read `used: 0` unconditionally, which is precisely the
+              // fabricated zero the meter model exists to prevent: an
+              // organization that had spent its entire contracted AI allowance
+              // displayed "0 of 9,000". The sum is taken over the same
+              // `EntitlementUsage` rows, key and period the AI gate decrements.
+              used: Number(
+                (
+                  await prisma.entitlementUsage.aggregate({
+                    where: {
+                      teamId: { in: workspaceIds },
+                      key: AI_USAGE_KEY,
+                      periodStartUtc: startOfCurrentMonthUtc(),
+                    },
+                    _sum: { consumed: true },
+                  })
+                )._sum.consumed ?? 0n,
+              ),
               limit: limits.aiOperationsPerMonth,
               window: "CALENDAR_MONTH",
             }

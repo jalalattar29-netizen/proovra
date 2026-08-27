@@ -184,10 +184,16 @@ export type BillingOverviewResponse = {
     active?: WorkspaceStorageAddonSummary[];
   } | null;
   payments?: BillingPaymentSummary[];
-  paymentMethods?: Record<string, string[]>;
+  // BILLING PRODUCTION CLOSURE (2026-08-27) — `paymentMethods` was DELETED with
+  // the server field it typed. It was a hard-coded plan→provider map, not
+  // anything a provider told us, and its name invited exactly the reading a
+  // billing page must never invite: that the customer has a card on file.
 };
 
-export type CheckoutPlan = "PAYG" | "PRO" | "TEAM";
+// BILLING PRODUCTION CLOSURE (2026-08-27) — PAYG left this union. Evidence
+// credits are a PRODUCT with their own checkout routes; no modern surface
+// selects them by naming a plan.
+export type CheckoutPlan = "PRO" | "TEAM";
 export type CheckoutProvider = "STRIPE" | "PAYPAL";
 export type CheckoutTargetType = "PERSONAL" | "TEAM";
 export type StorageAddonCheckoutTargetType = "PERSONAL" | "TEAM";

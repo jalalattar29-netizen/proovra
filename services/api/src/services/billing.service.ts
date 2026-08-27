@@ -180,6 +180,27 @@ export async function setPersonalPlan(
     throw err;
   }
 
+  // BILLING PRODUCTION CLOSURE (2026-08-27) — PAYG is not a plan any writer may
+  // produce.
+  //
+  // This is THE single writer of `entitlements.plan`, which makes it the one
+  // place the invariant can be stated once and be true everywhere. Evidence
+  // credits are a wallet over whatever plan the account is on; promoting an
+  // account to the legacy PAYG row would hand it that row's grandfathered
+  // terms — 5 GB of storage and 50 AI operations a month that no purchase pays
+  // for — and would rebind every future completion to a credit.
+  //
+  // The catalog row stays, because historical entitlements still resolve
+  // through it. Nothing may CREATE another one.
+  if (plan === prismaPkg.PlanType.PAYG) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "PAYG is a legacy resolution row, not an assignable plan"
+    );
+    err.statusCode = 409;
+    err.code = "PAYG_NOT_ASSIGNABLE";
+    throw err;
+  }
+
   await ensureEntitlement(userId);
 
   await prisma.entitlement.updateMany({
