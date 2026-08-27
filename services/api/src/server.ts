@@ -1552,6 +1552,49 @@ allowedHeaders: [
     app.log.warn({ reconciler: "operations" }, "operations_reconciler.disabled");
   }
 
+  // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the retry sweep.
+  //
+  // Separate from the hourly reconciliation, and much faster, because the two
+  // answer different questions. Reconciliation asks 'has anything drifted?';
+  // this asks 'is a customer still being charged for something they
+  // cancelled?', and the backoff schedule that answers it is measured in
+  // minutes at first. The sweep itself is cheap: it reads a partial index of
+  // unresolved obligations, which on a healthy system is empty.
+  if (process.env.BILLING_ADDON_RETRY_ENABLED !== 'false') {
+    const { runDependentCancellationRetrySweep } = await import(
+      './jobs/dependent-cancellation-retry.job.js'
+    );
+    const intervalMs = Number.parseInt(
+      process.env.BILLING_ADDON_RETRY_INTERVAL_MS ?? '60000',
+      10,
+    );
+    const startupDelayMs =
+      Number.parseInt(
+        process.env.BILLING_ADDON_RETRY_STARTUP_DELAY_MS ?? '30000',
+        10,
+      ) + Math.floor(Math.random() * 15000);
+
+    const addonStartupHandle = setTimeout(() => {
+      void runDependentCancellationRetrySweep().catch(() => null);
+    }, startupDelayMs);
+    if (typeof (addonStartupHandle as { unref?: () => void }).unref === 'function') {
+      (addonStartupHandle as { unref?: () => void }).unref!();
+    }
+    const addonHandle = setInterval(() => {
+      void runDependentCancellationRetrySweep().catch(() => null);
+    }, intervalMs);
+    if (typeof (addonHandle as { unref?: () => void }).unref === 'function') {
+      (addonHandle as { unref?: () => void }).unref!();
+    }
+    app.addHook('onClose', async () => {
+      clearTimeout(addonStartupHandle);
+      clearInterval(addonHandle);
+    });
+    app.log.info({ intervalMs, startupDelayMs }, 'billing_addon_retry.scheduled');
+  } else {
+    app.log.warn({ reconciler: 'billing_addon_retry' }, 'billing_addon_retry.disabled');
+  }
+
   // BILLING RECONCILIATION (2026-08-27) — the scheduled provider sweep.
   //
   // The manual "Re-check purchases and billing" action only helps a customer

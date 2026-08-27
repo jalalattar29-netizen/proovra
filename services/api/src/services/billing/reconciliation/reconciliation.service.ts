@@ -52,6 +52,15 @@ import { recordPayment } from "../../billing.service.js";
 import { getPlanPriceCents, getStorageAddonPriceCents } from "../../billing-pricing.service.js";
 import { grantEvidenceCredits } from "../evidence-credits.service.js";
 import {
+  attemptDependentCancellations,
+  confirmObligationFromProviderTruth,
+  recordDependentCancellationObligations,
+  reopenObligationFromProviderTruth,
+  UNRESOLVED_STATES,
+} from "../dependent-cancellation.service.js";
+import { syncDependentCancellationConditions } from "../dependent-cancellation-conditions.service.js";
+import type { StorageAddonProviderCanceller } from "../storage-addon-cancellation.service.js";
+import {
   storageAddonStatusFromSubscription,
   syncPlanForSubscription,
 } from "../subscription-lifecycle.handlers.js";
@@ -147,6 +156,8 @@ function subscriptionStatusFromObservation(
 export async function reconcileBillingAccount(input: {
   account: BillingAccountRef;
   providers?: ReconciliationProviders;
+  /** Injected by contract tests for the dependent add-on provider calls. */
+  cancelAddonAtProvider?: StorageAddonProviderCanceller;
 }): Promise<ReconciliationSummary> {
   const providers = input.providers ?? defaultReconciliationProviders();
   const summary = emptySummary();
@@ -154,9 +165,125 @@ export async function reconcileBillingAccount(input: {
   await reconcileEvidenceCredits({ account: input.account, providers, summary });
   await reconcileSubscriptions({ account: input.account, providers, summary });
   await reconcileStorageAddons({ account: input.account, providers, summary });
+  await convergeDependentCancellations({
+    account: input.account,
+    summary,
+    cancelAddonAtProvider: input.cancelAddonAtProvider,
+  });
 
   summary.outcome = resolveOutcome(summary);
   return summary;
+}
+
+/**
+ * BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the orphan sweep.
+ *
+ * THE HOLE THIS CLOSES
+ * ---------------------------------------------------------------------------
+ * The subscription pass only ever looked at bases whose LOCAL status was
+ * ACTIVE, TRIALING or PAST_DUE. A Stripe base that reached its period end had
+ * its webhook write CANCELED, which removed it from that selection — so the
+ * one place that noticed live dependants stopped being reachable at exactly
+ * the moment the orphan became permanent. And what it did notice, it only
+ * COUNTED.
+ *
+ * This pass asks the question the other one could not:
+ *
+ *   the base is CANCELED, or is scheduled to cancel at period end
+ *   AND a recurring add-on that depends on it is still live
+ *   OR an obligation on that add-on is unresolved
+ *
+ * and then it ACTS: it creates the obligation if the crash window swallowed
+ * it, attempts the provider, records the result durably, and opens the
+ * Operations condition. Nothing here is a count that the caller may discard.
+ */
+async function convergeDependentCancellations(ctx: {
+  account: BillingAccountRef;
+  summary: ReconciliationSummary;
+  cancelAddonAtProvider?: StorageAddonProviderCanceller;
+}): Promise<void> {
+  const subject =
+    ctx.account.type === "PERSONAL"
+      ? { ownerUserId: ctx.account.id, teamId: null as string | null }
+      : ctx.account.type === "WORKSPACE"
+        ? null
+        : undefined;
+  // An ORGANIZATION account is contract-managed and has no self-service add-on.
+  if (subject === undefined) return;
+
+  // A WORKSPACE subject is identified by its team id; the owner is read from
+  // the workspace's own add-on rows so a personal id can never leak in.
+  const scope =
+    subject ??
+    (await (async () => {
+      const row = await prisma.workspaceStorageAddon.findFirst({
+        where: { teamId: ctx.account.id },
+        select: { ownerUserId: true },
+      });
+      return row
+        ? { ownerUserId: row.ownerUserId, teamId: ctx.account.id }
+        : null;
+    })());
+  if (!scope) return;
+
+  // ---- 1. Create obligations the crash window swallowed --------------------
+  //
+  // A base that the provider has cancelled — or scheduled to cancel — while a
+  // dependent add-on is still live and carries NO obligation is exactly the
+  // shape of "the process died between the base provider call and the local
+  // transaction". The intent was real; only the record is missing.
+  const cancelledBases = await prisma.subscription.findMany({
+    where: {
+      ...(scope.teamId
+        ? { teamId: scope.teamId }
+        : { userId: scope.ownerUserId, teamId: null }),
+      OR: [
+        { status: prismaPkg.SubscriptionStatus.CANCELED },
+        { cancelAtPeriodEnd: true },
+      ],
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 5,
+    select: { id: true },
+  });
+
+  if (cancelledBases.length > 0) {
+    const created = await recordDependentCancellationObligations(
+      {
+        ownerUserId: scope.ownerUserId,
+        teamId: scope.teamId,
+        triggeredBySubscriptionId: cancelledBases[0]!.id,
+      },
+      prisma,
+    );
+    if (created.created > 0) {
+      ctx.summary.subscriptionsUpdated += created.created;
+    }
+  }
+
+  // ---- 2. Attempt every unresolved obligation ------------------------------
+  const attempt = await attemptDependentCancellations({
+    ownerUserId: scope.ownerUserId,
+    teamId: scope.teamId,
+    cancelAtProvider: ctx.cancelAddonAtProvider,
+  });
+  ctx.summary.subscriptionsUpdated += attempt.confirmed;
+
+  // ---- 3. Report what is still owed, durably -------------------------------
+  const stillOwed = await prisma.workspaceStorageAddon.count({
+    where: {
+      ...(scope.teamId
+        ? { teamId: scope.teamId }
+        : { ownerUserId: scope.ownerUserId, teamId: null }),
+      dependentCancellationState: { in: [...UNRESOLVED_STATES] },
+    },
+  });
+  if (stillOwed > 0) {
+    ctx.summary.actionRequired += stillOwed;
+    // The condition is the durable half of ACTION_REQUIRED: a summary counter
+    // can be discarded by a caller, an Operations condition cannot.
+    await syncDependentCancellationConditions();
+  }
 }
 
 // ===========================================================================
@@ -580,6 +707,29 @@ async function reconcileStorageAddons(ctx: {
     const subscriptionStatus = subscriptionStatusFromObservation(observation);
     if (!subscriptionStatus) continue;
     const next = storageAddonStatusFromSubscription(subscriptionStatus);
+
+    // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — provider truth
+    // moves the obligation in BOTH directions.
+    //
+    // The provider agreeing the add-on is cancelled is a stronger proof than
+    // our own call having succeeded, so an obligation whose retries never
+    // worked still converges the moment the provider agrees. And an add-on the
+    // provider reports ACTIVE again after we confirmed it — a reinstatement, or
+    // a cancellation that reported success and did not take — must become an
+    // obligation again rather than staying quietly closed.
+    if (observation.observedAtUtc) {
+      if (observation.state === "CANCELED" || observation.cancelAtPeriodEnd) {
+        await confirmObligationFromProviderTruth({
+          addonId: addon.id,
+          observedAtUtc: observation.observedAtUtc,
+        });
+      } else if (observation.state === "SUCCEEDED") {
+        await reopenObligationFromProviderTruth({
+          addonId: addon.id,
+          observedAtUtc: observation.observedAtUtc,
+        });
+      }
+    }
 
     if (next === addon.status) {
       await stampAddonProviderState(addon.id, observation.observedAtUtc);

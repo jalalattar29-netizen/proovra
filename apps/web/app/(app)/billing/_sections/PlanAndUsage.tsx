@@ -168,10 +168,24 @@ function storageMeterProps(meter: StorageMeter) {
  */
 export function ActionRequiredBanner({
   projection,
+  onRetryStorageCancellation,
+  retryBusy = false,
 }: {
   projection: BillingAccountProjection;
+  /**
+   * BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — retry the
+   * outstanding storage add-on cancellations.
+   *
+   * Passed in rather than derived here: whether there is anything to retry is
+   * the server's `dependentStorageCancellation`, and what pressing it does is
+   * the page's. This component renders a decision, as it already did for the
+   * banner itself.
+   */
+  onRetryStorageCancellation?: () => void;
+  retryBusy?: boolean;
 }) {
   const banner = projection.actionRequired;
+  const outstanding = projection.dependentStorageCancellation;
   if (!banner) return null;
 
   return (
@@ -207,6 +221,39 @@ export function ActionRequiredBanner({
         >
           {banner.reassurance}
         </p>
+      ) : null}
+
+      {outstanding && outstanding.actionAvailable && onRetryStorageCancellation ? (
+        <div
+          style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}
+          data-billing-addon-retry
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onRetryStorageCancellation}
+            loading={retryBusy}
+            disabled={retryBusy}
+            data-billing-addon-retry-action
+          >
+            Retry stopping storage add-ons
+          </Button>
+          {outstanding.supportRequired ? (
+            // MANUAL_INTERVENTION. The automatic retries are spent and the
+            // add-on may still be charging, so the customer is given a real
+            // next step rather than being asked to keep pressing a button.
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                window.location.href = "/settings/support";
+              }}
+              data-billing-addon-support
+            >
+              Contact support
+            </Button>
+          ) : null}
+        </div>
       ) : null}
     </Card>
   );

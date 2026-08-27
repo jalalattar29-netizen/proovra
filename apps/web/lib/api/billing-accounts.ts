@@ -162,6 +162,25 @@ export type BillingAccountProjection = {
     messages: string[];
     reassurance: string | null;
   } | null;
+  /**
+   * Storage add-ons whose cancellation the provider has not confirmed.
+   *
+   * Absent when nothing is outstanding, so its presence IS the condition. The
+   * server decides every value here; the browser renders it and classifies
+   * nothing.
+   */
+  dependentStorageCancellation?: {
+    status:
+      | "PENDING"
+      | "RETRY_SCHEDULED"
+      | "ACTION_REQUIRED"
+      | "MANUAL_INTERVENTION";
+    affectedCount: number;
+    lastAttemptAtUtc: string | null;
+    nextRetryAtUtc: string | null;
+    actionAvailable: boolean;
+    supportRequired: boolean;
+  };
   storageAddons?: { offers: StorageAddonOffer[]; active: ActiveStorageAddon[] };
   actions: {
     canStartCheckout: boolean;
@@ -241,6 +260,29 @@ export type CancellationResult = CancellationOutcome & {
   dependentAddonsScheduled: number;
   dependentAddonsFailed: number;
 };
+
+/**
+ * Retry ONLY the outstanding storage add-on cancellations.
+ *
+ * Named separately from `requestCancellation` because it is a different act:
+ * the plan is already cancelled, and re-running that would ask the provider to
+ * cancel a subscription it has already cancelled. This retries the durable
+ * obligations the server recorded, and nothing else.
+ *
+ * The request names the ACCOUNT and nothing else — no add-on id, no provider
+ * reference.
+ */
+export async function retryStorageCancellation(
+  account: BillingAccountRef,
+): Promise<{
+  outcome: "UPDATED" | "PENDING" | "ACTION_REQUIRED";
+  supportRequired: boolean;
+}> {
+  return (await apiFetch(
+    `/v1/billing/accounts/${account.type}/${encodeURIComponent(account.id)}/retry-storage-cancellation`,
+    { method: "POST", body: "{}" },
+  )) as { outcome: "UPDATED" | "PENDING" | "ACTION_REQUIRED"; supportRequired: boolean };
+}
 
 export async function requestCancellation(input: {
   teamId?: string | null;

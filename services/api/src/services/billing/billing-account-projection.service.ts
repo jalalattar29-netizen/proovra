@@ -44,6 +44,10 @@ import {
   type BillingAccountRef,
 } from "./billing-accounts.service.js";
 import { readEvidenceCreditWallet } from "./evidence-credits.service.js";
+import {
+  summarizeDependentCancellations,
+  type DependentCancellationSummary,
+} from "./dependent-cancellation.service.js";
 import { resolveEnterpriseContract } from "../organization/enterprise-contract.service.js";
 import {
   resolveEffectiveContractEvidenceCap,
@@ -298,6 +302,16 @@ export type BillingAccountProjection = {
     offers: StorageAddonOffer[];
     active: ActiveStorageAddon[];
   };
+  /**
+   * BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — storage add-ons
+   * whose cancellation the provider has not confirmed.
+   *
+   * Present ONLY while something is still owed, so its absence means "nothing
+   * outstanding" rather than "we did not look". Counts, timestamps and two
+   * booleans: no add-on id, no provider id, no reason code, no error text —
+   * the page renders this verbatim.
+   */
+  dependentStorageCancellation?: DependentCancellationSummary;
   /**
    * What this viewer may actually DO. Derived server-side from the same
    * capabilities the routes enforce, so the client renders affordances rather
@@ -817,15 +831,50 @@ export async function buildBillingAccountProjection(input: {
     );
   }
 
+  // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — the PERSISTENT
+  // half of the failure.
+  //
+  // A cancellation whose add-ons did not all stop used to be told once, in a
+  // toast, and then vanish: after a refresh the customer saw an active add-on
+  // with no explanation, while it kept billing. It is now a server fact on the
+  // projection, so it survives reload and stays until the provider confirms.
+  const dependentCancellation = await summarizeDependentCancellations({
+    ownerUserId: scope.ownerUserId,
+    teamId: scope.teamId,
+  });
+  if (dependentCancellation) {
+    const many = dependentCancellation.affectedCount > 1;
+    const subject = many
+      ? `${dependentCancellation.affectedCount} storage add-ons are`
+      : "a storage add-on is";
+    bannerMessages.push(
+      dependentCancellation.supportRequired
+        ? `Your plan cancellation was accepted, but ${subject} still being stopped and our automatic retries have not succeeded. ${many ? "They" : "It"} may continue billing until your provider confirms the cancellation — please contact support.`
+        : `Your plan cancellation was accepted, but ${subject} still being stopped. ${many ? "They" : "It"} may continue billing until your payment provider confirms the cancellation. We are retrying automatically.`,
+    );
+  }
+
   return {
     account,
     plan,
     usage: { evidence, storage, ai },
+    ...(dependentCancellation
+      ? { dependentStorageCancellation: dependentCancellation }
+      : {}),
     actionRequired:
       bannerMessages.length > 0
         ? {
-            severity: lifecycleNeedsAction ? "CRITICAL" : "WARNING",
-            title: lifecycleNeedsAction ? "Action required" : "Attention needed",
+            // An add-on that may still be charging is CRITICAL by the same
+            // measure as a failed payment: money is moving against the
+            // customer's stated intent.
+            severity:
+              lifecycleNeedsAction || dependentCancellation
+                ? "CRITICAL"
+                : "WARNING",
+            title:
+              lifecycleNeedsAction || dependentCancellation
+                ? "Action required"
+                : "Attention needed",
             messages: bannerMessages,
             reassurance: "Nothing has been charged again.",
           }

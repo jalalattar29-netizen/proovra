@@ -48,6 +48,7 @@ import {
   readBillingHistory,
   requestCancellation,
   reconcileAccount,
+  retryStorageCancellation,
   type BillingAccountProjection,
   type BillingAccountRef,
   type BillingHistoryEntry,
@@ -256,6 +257,39 @@ function BillingPageInner() {
     void loadHistory(selected);
   }, [selected, loadProjection, loadHistory]);
 
+  // ---- Outstanding storage add-on cancellations ---------------------------
+  //
+  // Its own action, not the base Cancel button shown again. The plan is
+  // already cancelled; what is outstanding is the add-ons, and a control
+  // offering to cancel the plan again would be offering to do something that
+  // has already happened.
+  const [addonRetryBusy, setAddonRetryBusy] = useState(false);
+  const handleRetryStorageCancellation = useCallback(async () => {
+    if (!selected || addonRetryBusy) return;
+    setAddonRetryBusy(true);
+    try {
+      const result = await retryStorageCancellation(selected);
+      addToast(
+        result.outcome === "UPDATED"
+          ? "Your storage add-ons are stopped. Nothing further will be charged for them."
+          : result.supportRequired
+            ? "We still could not stop every add-on. Support has been notified and is looking at it."
+            : "We asked your payment provider again. We will keep retrying until it confirms.",
+        result.outcome === "UPDATED" ? "success" : "info",
+      );
+      refresh();
+    } catch (err) {
+      captureException(err, { feature: "billing_addon_cancel_retry" });
+      const safe = toSafeUserError(err, {
+        message:
+          "We could not reach your payment provider. Nothing has changed — we will keep retrying automatically.",
+      });
+      addToast(safe.message, "error");
+    } finally {
+      setAddonRetryBusy(false);
+    }
+  }, [selected, addonRetryBusy, addToast, refresh]);
+
   // ---- Cancellation ------------------------------------------------------
   const handleCancel = useCallback(async () => {
     if (!selected || !projection) return;
@@ -424,7 +458,11 @@ function BillingPageInner() {
       ) : (
         <>
           <PageSection>
-            <ActionRequiredBanner projection={projection} />
+            <ActionRequiredBanner
+              projection={projection}
+              onRetryStorageCancellation={handleRetryStorageCancellation}
+              retryBusy={addonRetryBusy}
+            />
           </PageSection>
 
           <PageSection>
