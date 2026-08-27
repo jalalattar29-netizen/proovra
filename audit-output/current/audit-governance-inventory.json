@@ -135,8 +135,8 @@
     "Phase0ChangedPathClassificationMissing": 0,
     "ManualPhase0ChangeInventories": 0,
     "ProductionRuntimeFilesModifiedByPhase0": 0,
-    "ProductBehaviorTestsRemoved": 2,
-    "HistoricalMigrationsModifiedByPhase0": 0,
+    "ProductBehaviorTestsRemoved": 0,
+    "HistoricalMigrationsModifiedByPhase0": 1,
     "ProductBehaviorTestsInventoried": 177
   },
   "reportRoles": {
@@ -175,8 +175,7 @@
     "AUDIT_ENGINE_TEST": 15
   },
   "problems": [
-    "PRODUCT BEHAVIOUR TEST DELETED: services/api/test/phase-9-collab-limits-divergence.test.ts",
-    "PRODUCT BEHAVIOUR TEST DELETED: services/api/test/phase9-collaboration-team-billing-parity.test.ts"
+    "HISTORICAL MIGRATION MODIFIED: services/api/prisma/migrations/20271227000000_billing_commercial_correctness/migration.sql"
   ],
   "duplicateClaims": [],
   "multiProducer": [],

@@ -4,20 +4,20 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "fcaf49fbd0277e3d5586085b944b926ceba1e3196f398b9971b27399f691130d",
-  "routeInventoryHash": "03b6b4d39d13415ab76c9d0548fe0ce8f9fb8ee2aa4142061596a67d261297e5",
+  "routeInventoryHash": "abbf7d2309f5bcf1a60eb6c77de804da57eaf805309654e24b35fe057d1f34f8",
   "consumerInventoryHash": "fc48791f11b3327d43bbab7a98f54cf1075274f8fa0abe61f69531a20b3fc841",
   "dispositionsHash": "57b1dc947d2dcce5e0ee11272e021a4279c6fadd7be8b55480d53201535bd7e9",
   "totals": {
-    "RegisteredRoutes": 1100,
-    "ProductionRegisteredRoutes": 1099,
+    "RegisteredRoutes": 1103,
+    "ProductionRegisteredRoutes": 1102,
     "DevelopmentOnlyRoutes": 1,
     "ProductConsumedRoutes": 871,
     "NonProductDispositionedRoutes": 228,
-    "UndisposedRoutes": 0,
+    "UndisposedRoutes": 3,
     "ConservationIdentityHolds": true,
     "ProductConsumerRoutes": 871,
     "MachineOnlyConsumerRoutes": 4,
-    "NoConsumerRoutes": 225,
+    "NoConsumerRoutes": 228,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 20,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -74,13 +74,13 @@
       "ACCOUNT_SESSION_SECURITY": 218,
       "ORGANIZATION": 32,
       "ORGANIZATION_MEMBERSHIP": 29,
-      "WORKSPACE": 46,
+      "WORKSPACE": 45,
       "WORKSPACE_MEMBERSHIP_INVITATION": 62,
       "CASE": 85,
       "EVIDENCE_CUSTODY_FINALIZATION": 280,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
-      "BILLING_SUBSCRIPTION_SEAT": 46,
+      "BILLING_SUBSCRIPTION_SEAT": 47,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 104,
       "REPORT_EXPORT_REDACTION": 49,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 7988,
-      "UNRESOLVED_IDENTIFIER": 1010
+      "METHOD_ON_VALUE": 8007,
+      "UNRESOLVED_IDENTIFIER": 1015
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -133,7 +133,7 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 0,
+      "UNDISPOSED": 3,
       "PRODUCT_CONNECTED": 871,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
@@ -146,14 +146,14 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 124
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1098,
+    "TenantBindingResolved": 1101,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 15,
       "GLOBAL_USER_SELF": 59,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 740,
-      "ORGANIZATION_SCOPED": 88,
+      "WORKSPACE_SCOPED": 734,
+      "ORGANIZATION_SCOPED": 97,
       "MULTI_TENANT_PLATFORM_ADMIN": 69,
       "TOKEN_SCOPED": 45,
       "PROVIDER_SCOPED": 4,
@@ -161,11 +161,11 @@
       "NO_DATA_ACCESS": 11
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 184,
+    "OrganizationRoutesMeasured": 188,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1098,
+    "ClassifiedSecurityRoutes": 1101,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -179,16 +179,16 @@
         "tagged": 10
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 442,
-        "tagged": 442
+        "primary": 436,
+        "tagged": 436
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 365,
         "tagged": 365
       },
       "ORGANIZATION_AUTHORIZED": {
-        "primary": 88,
-        "tagged": 88
+        "primary": 97,
+        "tagged": 97
       },
       "PLATFORM_ADMIN": {
         "primary": 69,
@@ -228,7 +228,7 @@
       },
       "BILLING_OR_PAYMENT": {
         "primary": 0,
-        "tagged": 15
+        "tagged": 18
       },
       "UPLOAD_DOWNLOAD_EXPORT_SHARE": {
         "primary": 0,
@@ -240,8 +240,9 @@
       }
     }
   },
-  "totalRoutes": 1100,
+  "totalRoutes": 1103,
   "classificationCounts": {
+    "BACKEND_ONLY_UNWIRED": 3,
     "COMPATIBILITY_TEMPORARY": 3,
     "INTERNAL_REQUIRED": 226,
     "TARGET_COMPLETE": 871
@@ -250,14 +251,14 @@
     "BEHAVIORALLY_PROVEN": 400,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 169
+    "UNPROVEN": 172
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 374,
+    "PLATFORM_CORE": 377,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -1579,6 +1580,42 @@
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "INTERNAL_REQUIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/billing/accounts",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/billing/accounts",
+      "registeringFile": "services/api/src/routes/billing.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/billing/accounts/:type/:id",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/billing/accounts/:type/:id",
+      "registeringFile": "services/api/src/routes/billing.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/billing/accounts/:type/:id/history",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/billing/accounts/:type/:id/history",
+      "registeringFile": "services/api/src/routes/billing.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -7709,7 +7746,7 @@
       "registeringFile": "services/api/src/routes/billing.routes.ts",
       "productConsumer": "apps/web/components/billing/CheckoutPanel.tsx:275",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
@@ -7721,7 +7758,7 @@
       "registeringFile": "services/api/src/routes/billing.routes.ts",
       "productConsumer": "apps/web/components/billing/CheckoutPanel.tsx:261",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
@@ -7757,7 +7794,7 @@
       "registeringFile": "services/api/src/routes/billing.routes.ts",
       "productConsumer": "apps/web/app/(app)/billing/page.tsx:253",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
@@ -7769,7 +7806,7 @@
       "registeringFile": "services/api/src/routes/billing.routes.ts",
       "productConsumer": "apps/web/components/billing/StorageAddonsPanel.tsx:283",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
@@ -7781,7 +7818,7 @@
       "registeringFile": "services/api/src/routes/billing.routes.ts",
       "productConsumer": "apps/web/components/billing/StorageAddonsPanel.tsx:269",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
@@ -7793,7 +7830,7 @@
       "registeringFile": "services/api/src/routes/billing.routes.ts",
       "productConsumer": "apps/web/app/(app)/billing/page.tsx:214",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
@@ -16084,8 +16121,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/billing.routes.ts#PAYMENT.createStripeCheckoutSession@901",
-      "terminalLocation": "services/api/src/routes/billing.routes.ts:901",
+      "writerId": "services/api/src/routes/billing.routes.ts#PAYMENT.createStripeCheckoutSession@1049",
+      "terminalLocation": "services/api/src/routes/billing.routes.ts:1049",
       "file": "services/api/src/routes/billing.routes.ts",
       "enclosingDeclaration": "billingRoutes",
       "kind": "EXTERNAL",
@@ -16102,7 +16139,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -16110,72 +16147,6 @@
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/billing.routes.ts#subscription.update@659",
-      "terminalLocation": "services/api/src/routes/billing.routes.ts:659",
-      "file": "services/api/src/routes/billing.routes.ts",
-      "enclosingDeclaration": "billingRoutes",
-      "kind": "DATABASE",
-      "target": "subscription",
-      "mutationKind": "update",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/billing/subscription/cancel"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/billing.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/routes/billing.routes.ts#workspaceStorageAddon.updateMany@664",
-      "terminalLocation": "services/api/src/routes/billing.routes.ts:664",
-      "file": "services/api/src/routes/billing.routes.ts",
-      "enclosingDeclaration": "billingRoutes",
-      "kind": "DATABASE",
-      "target": "workspaceStorageAddon",
-      "mutationKind": "updateMany",
-      "primaryFamily": "WORKSPACE",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/billing/subscription/cancel"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/billing.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
@@ -21049,8 +21020,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/webhooks.routes.ts#paypalWebhookEvent.create@756",
-      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:756",
+      "writerId": "services/api/src/routes/webhooks.routes.ts#paypalWebhookEvent.create@874",
+      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:874",
       "file": "services/api/src/routes/webhooks.routes.ts",
       "enclosingDeclaration": "webhooksRoutes",
       "kind": "DATABASE",
@@ -21082,8 +21053,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/webhooks.routes.ts#paypalWebhookEvent.update@851",
-      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:851",
+      "writerId": "services/api/src/routes/webhooks.routes.ts#paypalWebhookEvent.update@969",
+      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:969",
       "file": "services/api/src/routes/webhooks.routes.ts",
       "enclosingDeclaration": "markProcessed",
       "kind": "DATABASE",
@@ -21115,8 +21086,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/webhooks.routes.ts#paypalWebhookEvent.update@864",
-      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:864",
+      "writerId": "services/api/src/routes/webhooks.routes.ts#paypalWebhookEvent.update@982",
+      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:982",
       "file": "services/api/src/routes/webhooks.routes.ts",
       "enclosingDeclaration": "markFailed",
       "kind": "DATABASE",
@@ -21148,8 +21119,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/webhooks.routes.ts#stripeWebhookEvent.create@400",
-      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:400",
+      "writerId": "services/api/src/routes/webhooks.routes.ts#stripeWebhookEvent.create@432",
+      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:432",
       "file": "services/api/src/routes/webhooks.routes.ts",
       "enclosingDeclaration": "webhooksRoutes",
       "kind": "DATABASE",
@@ -21181,8 +21152,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/webhooks.routes.ts#stripeWebhookEvent.update@667",
-      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:667",
+      "writerId": "services/api/src/routes/webhooks.routes.ts#stripeWebhookEvent.update@785",
+      "terminalLocation": "services/api/src/routes/webhooks.routes.ts:785",
       "file": "services/api/src/routes/webhooks.routes.ts",
       "enclosingDeclaration": "webhooksRoutes",
       "kind": "DATABASE",
@@ -23714,6 +23685,7 @@
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
         "GET /v1/auth/sso/callback",
+        "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
         "GET /v1/billing/status",
         "GET /v1/cases",
@@ -23876,6 +23848,7 @@
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
         "GET /v1/auth/sso/callback",
+        "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
         "GET /v1/billing/status",
         "GET /v1/cases",
@@ -24038,6 +24011,7 @@
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
         "GET /v1/auth/sso/callback",
+        "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
         "GET /v1/billing/status",
         "GET /v1/cases",
@@ -25040,8 +25014,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.createPayPalOrder@256",
-      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:256",
+      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.createPayPalOrder@292",
+      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:292",
       "file": "services/api/src/services/billing-checkout.service.ts",
       "enclosingDeclaration": "createPayPalCheckout",
       "kind": "EXTERNAL",
@@ -25058,7 +25032,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -25073,8 +25047,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.createPayPalSubscription@279",
-      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:279",
+      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.createPayPalSubscription@315",
+      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:315",
       "file": "services/api/src/services/billing-checkout.service.ts",
       "enclosingDeclaration": "createPayPalCheckout",
       "kind": "EXTERNAL",
@@ -25091,7 +25065,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -25106,8 +25080,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.stripeRequest@147",
-      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:147",
+      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.stripeRequest@149",
+      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:149",
       "file": "services/api/src/services/billing-checkout.service.ts",
       "enclosingDeclaration": "createStripeCheckoutSession",
       "kind": "EXTERNAL",
@@ -25124,7 +25098,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -25139,8 +25113,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.stripeRequest@229",
-      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:229",
+      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.stripeRequest@265",
+      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:265",
       "file": "services/api/src/services/billing-checkout.service.ts",
       "enclosingDeclaration": "createStripeStorageAddonCheckoutSession",
       "kind": "EXTERNAL",
@@ -25157,7 +25131,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -25222,6 +25196,7 @@
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
         "GET /v1/auth/sso/callback",
+        "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
         "GET /v1/billing/status",
         "GET /v1/evidence/:id/review-workspace",
@@ -25252,7 +25227,6 @@
         "POST /v1/billing/restore",
         "POST /v1/billing/storage-addons/checkout/paypal",
         "POST /v1/billing/storage-addons/checkout/stripe",
-        "POST /v1/billing/subscription/cancel",
         "POST /v1/cases",
         "POST /v1/collaboration-team-invites/:token/accept",
         "POST /v1/collaboration-teams",
@@ -25338,8 +25312,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /paypal",
-        "POST /stripe",
-        "POST /v1/billing/subscription/cancel"
+        "POST /stripe"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -25477,12 +25450,10 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /paypal",
-        "POST /stripe",
-        "POST /v1/billing/subscription/cancel"
+        "POST /stripe"
       ],
       "entryJobs": [],
       "entryModules": [
-        "MODULE services/api/src/routes/billing.routes.ts",
         "MODULE services/api/src/routes/webhooks.routes.ts"
       ],
       "entrySchedules": [],
@@ -25502,8 +25473,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#team.update@807",
-      "terminalLocation": "services/api/src/services/billing.service.ts:807",
+      "writerId": "services/api/src/services/billing.service.ts#team.update@820",
+      "terminalLocation": "services/api/src/services/billing.service.ts:820",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "refreshTeamSeatState",
       "kind": "DATABASE",
@@ -25536,8 +25507,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.create@656",
-      "terminalLocation": "services/api/src/services/billing.service.ts:656",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.create@669",
+      "terminalLocation": "services/api/src/services/billing.service.ts:669",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "upsertWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -25570,8 +25541,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@652",
-      "terminalLocation": "services/api/src/services/billing.service.ts:652",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@665",
+      "terminalLocation": "services/api/src/services/billing.service.ts:665",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "upsertWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -25604,8 +25575,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@718",
-      "terminalLocation": "services/api/src/services/billing.service.ts:718",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@731",
+      "terminalLocation": "services/api/src/services/billing.service.ts:731",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "cancelWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -25622,7 +25593,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -25765,6 +25736,74 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-cancellation.service.ts#PAYMENT.stripeRequest@162",
+      "terminalLocation": "services/api/src/services/billing/subscription-cancellation.service.ts:162",
+      "file": "services/api/src/services/billing/subscription-cancellation.service.ts",
+      "enclosingDeclaration": "requestSubscriptionCancellation",
+      "kind": "EXTERNAL",
+      "target": "PAYMENT",
+      "mutationKind": "stripeRequest",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/billing/storage-addons/cancel",
+        "POST /v1/billing/subscription/cancel"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-cancellation.service.ts#subscription.update@211",
+      "terminalLocation": "services/api/src/services/billing/subscription-cancellation.service.ts:211",
+      "file": "services/api/src/services/billing/subscription-cancellation.service.ts",
+      "enclosingDeclaration": "requestSubscriptionCancellation",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "update",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/billing/storage-addons/cancel",
+        "POST /v1/billing/subscription/cancel"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -62527,8 +62566,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/paypal.service.ts#PAYMENT.paypalRequest@208",
-      "terminalLocation": "services/api/src/services/paypal.service.ts:208",
+      "writerId": "services/api/src/services/paypal.service.ts#PAYMENT.paypalRequest@209",
+      "terminalLocation": "services/api/src/services/paypal.service.ts:209",
       "file": "services/api/src/services/paypal.service.ts",
       "enclosingDeclaration": "createPayPalOrder",
       "kind": "EXTERNAL",
@@ -62545,7 +62584,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -62560,8 +62599,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/paypal.service.ts#PAYMENT.paypalRequest@249",
-      "terminalLocation": "services/api/src/services/paypal.service.ts:249",
+      "writerId": "services/api/src/services/paypal.service.ts#PAYMENT.paypalRequest@250",
+      "terminalLocation": "services/api/src/services/paypal.service.ts:250",
       "file": "services/api/src/services/paypal.service.ts",
       "enclosingDeclaration": "createPayPalSubscription",
       "kind": "EXTERNAL",
@@ -62578,7 +62617,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -62593,8 +62632,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/paypal.service.ts#PAYMENT.paypalRequest@282",
-      "terminalLocation": "services/api/src/services/paypal.service.ts:282",
+      "writerId": "services/api/src/services/paypal.service.ts#PAYMENT.paypalRequest@303",
+      "terminalLocation": "services/api/src/services/paypal.service.ts:303",
       "file": "services/api/src/services/paypal.service.ts",
       "enclosingDeclaration": "createPayPalStorageAddonCheckout",
       "kind": "EXTERNAL",
@@ -62611,7 +62650,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -62711,6 +62750,9 @@
         "GET /v1/batch-analysis/:id",
         "GET /v1/batch-analysis/:id/export",
         "GET /v1/batch-analysis/:id/results",
+        "GET /v1/billing/accounts",
+        "GET /v1/billing/accounts/:type/:id",
+        "GET /v1/billing/accounts/:type/:id/history",
         "GET /v1/billing/overview",
         "GET /v1/billing/payments",
         "GET /v1/billing/status",
@@ -82943,11 +82985,202 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/billing/accounts",
+      "method": "GET",
+      "path": "/v1/billing/accounts",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:408",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "handler body -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
+      "secondarySecurityFamilies": [
+        "BILLING_OR_PAYMENT"
+      ],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "organization",
+        "organizationMembership",
+        "organizationSecurityPolicy",
+        "ssoConnection",
+        "team",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/billing/accounts/:type/:id",
+      "method": "GET",
+      "path": "/v1/billing/accounts/:type/:id",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:426",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
+      "secondarySecurityFamilies": [
+        "BILLING_OR_PAYMENT"
+      ],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "collaborationTeam",
+        "collaborationTeamInvite",
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
+        "evidenceCreditLedgerEntry",
+        "organization",
+        "organizationMembership",
+        "organizationSecurityPolicy",
+        "report",
+        "ssoConnection",
+        "subscription",
+        "team",
+        "teamMember",
+        "user",
+        "verificationPackage",
+        "workspaceStorageAddon"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "entitlement"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/billing/accounts/:type/:id/history",
+      "method": "GET",
+      "path": "/v1/billing/accounts/:type/:id/history",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:467",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ORGANIZATION_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
+      "secondarySecurityFamilies": [
+        "BILLING_OR_PAYMENT"
+      ],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "organization",
+        "organizationMembership",
+        "organizationSecurityPolicy",
+        "payment",
+        "ssoConnection",
+        "team",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/billing/overview",
       "method": "GET",
       "path": "/v1/billing/overview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:417",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:556",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -83069,7 +83302,7 @@
       "method": "GET",
       "path": "/v1/billing/payments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:476",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:615",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -83124,7 +83357,7 @@
       "method": "GET",
       "path": "/v1/billing/pricing",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:377",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:516",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -83172,7 +83405,7 @@
       "method": "GET",
       "path": "/v1/billing/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:434",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:573",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -83246,7 +83479,7 @@
       "method": "GET",
       "path": "/v1/billing/storage-addons",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:386",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:525",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -83301,7 +83534,7 @@
       "method": "GET",
       "path": "/v1/billing/subscription",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:528",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:667",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -111755,7 +111988,7 @@
       "method": "POST",
       "path": "/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/webhooks.routes.ts:677",
+      "registrationEvidence": "services/api/src/routes/webhooks.routes.ts:795",
       "authorizationClass": "WEBHOOK_SIGNATURE",
       "authorizationEvidence": [
         "verifyPayPalWebhook -> services/api/src/services/paypal.service.ts: reaches an inbound provider signature verifier (verifyPayPalWebhook)"
@@ -111767,7 +112000,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "WEBHOOK_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/webhooks.routes.ts:677 — verifyPayPalWebhook -> services/api/src/services/paypal.service.ts: reaches an inbound provider signature verifier (verifyPayPalWebhook)",
+      "dispositionEvidence": "services/api/src/routes/webhooks.routes.ts:795 — verifyPayPalWebhook -> services/api/src/services/paypal.service.ts: reaches an inbound provider signature verifier (verifyPayPalWebhook)",
       "dispositionReason": "authenticated by an inbound provider signature verifier; the caller is the provider",
       "replacement": null,
       "result": "DISPOSED_WEBHOOK_ENTRYPOINT",
@@ -111807,6 +112040,7 @@
         "services/api/src/services/billing.service.ts: payment.upsert — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/provider-subscription-binding.service.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: subscription.findUniqueOrThrow — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: subscription.upsert — no tenant or self predicate"
@@ -111822,7 +112056,7 @@
       "method": "POST",
       "path": "/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/webhooks.routes.ts:366",
+      "registrationEvidence": "services/api/src/routes/webhooks.routes.ts:398",
       "authorizationClass": "WEBHOOK_SIGNATURE",
       "authorizationEvidence": [
         "handler body -> handler: reaches an inbound provider signature verifier (auditWebhookSignatureVerification)"
@@ -111834,7 +112068,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "WEBHOOK_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/webhooks.routes.ts:366 — handler body -> handler: reaches an inbound provider signature verifier (auditWebhookSignatureVerification)",
+      "dispositionEvidence": "services/api/src/routes/webhooks.routes.ts:398 — handler body -> handler: reaches an inbound provider signature verifier (auditWebhookSignatureVerification)",
       "dispositionReason": "authenticated by an inbound provider signature verifier; the caller is the provider",
       "replacement": null,
       "result": "DISPOSED_WEBHOOK_ENTRYPOINT",
@@ -111875,7 +112109,8 @@
         "services/api/src/services/billing.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: subscription.findUnique — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: subscription.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/billing.service.ts: subscription.upsert — no tenant or self predicate"
+        "services/api/src/services/billing.service.ts: subscription.upsert — no tenant or self predicate",
+        "services/api/src/services/billing/provider-subscription-binding.service.ts: subscription.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -115777,12 +116012,14 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1017",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1172",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -115802,18 +116039,20 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [
         "BILLING_OR_PAYMENT"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "resource-owner-identity",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "organization",
+        "organizationMembership",
         "organizationSecurityPolicy",
         "ssoConnection",
         "team",
@@ -115825,10 +116064,12 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/billing.routes.ts: an owner column is compared against the session-bound actor (`ownerUserId === userId`) and the mismatch is refused (services/api/src/services/identity/identity-mode.service.ts)"
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate"
       ],
-      "tenantIdSource": "RESOURCE_OWNER_COLUMN",
-      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
@@ -115838,12 +116079,14 @@
       "method": "POST",
       "path": "/v1/billing/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:880",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1021",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -115863,18 +116106,20 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [
         "BILLING_OR_PAYMENT"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "resource-owner-identity",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "organization",
+        "organizationMembership",
         "organizationSecurityPolicy",
         "ssoConnection",
         "team",
@@ -115886,10 +116131,12 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/billing.routes.ts: an owner column is compared against the session-bound actor (`ownerUserId === userId`) and the mismatch is refused (services/api/src/services/identity/identity-mode.service.ts)"
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate"
       ],
-      "tenantIdSource": "RESOURCE_OWNER_COLUMN",
-      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
@@ -115899,7 +116146,7 @@
       "method": "POST",
       "path": "/v1/billing/plan",
       "productionRegistered": false,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1195",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1357",
       "authorizationClass": "DEVELOPMENT_ONLY",
       "authorizationEvidence": [
         "registered only inside `if (devAuthEnabled())` — production registration is zero"
@@ -115909,7 +116156,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "DEVELOPMENT_ONLY",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/billing.routes.ts:1195 — registered only inside `if (devAuthEnabled())` — production registration is zero",
+      "dispositionEvidence": "services/api/src/routes/billing.routes.ts:1357 — registered only inside `if (devAuthEnabled())` — production registration is zero",
       "dispositionReason": "registered only behind the development auth gate",
       "replacement": null,
       "result": "DISPOSED_DEVELOPMENT_ONLY",
@@ -115964,7 +116211,7 @@
       "method": "POST",
       "path": "/v1/billing/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:848",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:989",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116038,12 +116285,14 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:732",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:834",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -116063,34 +116312,47 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [
         "BILLING_OR_PAYMENT"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "resource-owner-identity",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "organization",
+        "organizationMembership",
+        "organizationSecurityPolicy",
+        "ssoConnection",
+        "subscription",
+        "team",
+        "user",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "analyticsEvent",
+        "subscription",
         "workspaceStorageAddon"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/billing.routes.ts: an owner column is compared against the session-bound actor (`ownerUserId === userId`) and the mismatch is refused (services/api/src/routes/billing.routes.ts)",
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
         "services/api/src/routes/billing.routes.ts: workspaceStorageAddon.findUnique — no tenant or self predicate",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
+        "services/api/src/routes/billing.routes.ts: subscription.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-cancellation.service.ts: subscription.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-cancellation.service.ts: subscription.update — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: workspaceStorageAddon.findUnique — no tenant or self predicate",
         "services/api/src/services/billing.service.ts: workspaceStorageAddon.update — no tenant or self predicate"
       ],
-      "tenantIdSource": "RESOURCE_OWNER_COLUMN",
-      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
@@ -116100,12 +116362,14 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1097",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1259",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -116125,21 +116389,22 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [
         "BILLING_OR_PAYMENT"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "inline-membership-status-check",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "enterpriseContract",
         "entitlement",
         "evidence",
         "organization",
+        "organizationMembership",
         "organizationSecurityPolicy",
         "report",
         "ssoConnection",
@@ -116155,7 +116420,9 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/services/workspace-usage.service.ts: teamMember.count paired with a lifecycle-status predicate (packages/shared-billing/src/plan-catalog.ts)",
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
@@ -116164,8 +116431,8 @@
         "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
       ],
-      "tenantIdSource": "MEMBERSHIP_LOOKUP",
-      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
@@ -116175,12 +116442,14 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:947",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1095",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -116200,21 +116469,22 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [
         "BILLING_OR_PAYMENT"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "inline-membership-status-check",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "enterpriseContract",
         "entitlement",
         "evidence",
         "organization",
+        "organizationMembership",
         "organizationSecurityPolicy",
         "report",
         "ssoConnection",
@@ -116230,7 +116500,9 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/services/workspace-usage.service.ts: teamMember.count paired with a lifecycle-status predicate (packages/shared-billing/src/plan-catalog.ts)",
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
@@ -116239,8 +116511,8 @@
         "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
       ],
-      "tenantIdSource": "MEMBERSHIP_LOOKUP",
-      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
@@ -116250,12 +116522,14 @@
       "method": "POST",
       "path": "/v1/billing/subscription/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:578",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:735",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ORGANIZATION_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -116275,51 +116549,40 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "ORGANIZATION_AUTHORIZED",
       "secondarySecurityFamilies": [
         "BILLING_OR_PAYMENT"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "inline-membership-status-check",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "ORGANIZATION_SCOPED",
+      "tenantType": "ORGANIZATION",
+      "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "enterpriseContract",
-        "entitlement",
-        "evidence",
         "organization",
-        "payment",
-        "report",
+        "organizationMembership",
+        "organizationSecurityPolicy",
+        "ssoConnection",
         "subscription",
         "team",
-        "teamMember",
-        "verificationPackage",
-        "workspaceStorageAddon"
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "analyticsEvent",
-        "entitlement",
-        "subscription",
-        "team",
-        "workspaceStorageAddon"
+        "subscription"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "packages/shared-runtime/src/billing/seat-occupancy.ts: teamMember.count paired with a lifecycle-status predicate (packages/shared-runtime/src/billing/seat-occupancy.ts)",
-        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
-        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
-        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
-        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
-        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
-        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
+        "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
+        "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
+        "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/subscription-cancellation.service.ts: subscription.findUnique — no tenant or self predicate"
       ],
-      "tenantIdSource": "MEMBERSHIP_LOOKUP",
-      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []

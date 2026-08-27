@@ -32,6 +32,20 @@ import {
   resolveCheckoutCurrency,
 } from "../services/billing-pricing.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the billing-ACCOUNT authority.
+// Every route below that names a subject resolves and authorizes it here, so a
+// wrong-workspace or cross-organization id is refused by ONE rule rather than
+// by whatever check each route happened to carry.
+import {
+  assertBillingCapability,
+  listBillingAccountsForViewer,
+  type BillingAccountType,
+} from "../services/billing/billing-accounts.service.js";
+import {
+  buildBillingAccountProjection,
+  readBillingHistoryForAccount,
+} from "../services/billing/billing-account-projection.service.js";
+import { requestSubscriptionCancellation } from "../services/billing/subscription-cancellation.service.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 
@@ -60,7 +74,13 @@ const CheckoutBody = z.object({
 
 const StorageAddonCheckoutBody = z.object({
   addonKey: StorageAddonKeySchema,
-  billingCycle: z.literal(prismaPkg.StorageAddonBillingCycle.ONE_TIME),
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — new add-ons are recurring.
+  // The legacy ONE_TIME cycle stays readable for grandfathered rows but can no
+  // longer be PURCHASED: a one-time payment cannot fund perpetual storage, and
+  // nothing in the codebase ever expired one.
+  billingCycle: z
+    .literal(prismaPkg.StorageAddonBillingCycle.MONTHLY)
+    .default(prismaPkg.StorageAddonBillingCycle.MONTHLY),
   currency: CurrencySchema.optional(),
   teamId: z.string().uuid().optional(),
 });
@@ -261,9 +281,9 @@ async function assertStorageAddonAllowed(params: {
   billingCycle: prismaPkg.StorageAddonBillingCycle;
   teamId?: string | null;
 }) {
-  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
     const err: Error & { statusCode?: number } = new Error(
-      "Storage add-ons are available only as one-time purchases"
+      "Storage add-ons are sold as recurring monthly subscriptions"
     );
     err.statusCode = 400;
     throw err;
@@ -272,9 +292,12 @@ async function assertStorageAddonAllowed(params: {
   const definition = getStorageAddonDefinition(params.addonKey);
 
   if (params.teamId) {
-    await assertOwnedTeamForCheckout(params.userId, params.teamId);
+    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the ownership check that
+    // stood here was a SECOND authorization authority. Both callers of this
+    // function now assert BILLING_ADDON_PURCHASE on the billing account first,
+    // which is the same question asked once, in the place that owns it.
 
-    // §9.7 — explicit WORKSPACE subject; ownership already asserted above.
+    // §9.7 — explicit WORKSPACE subject; authorization already asserted.
     const scope = (
       await resolveCommercialContext({ type: "WORKSPACE", teamId: params.teamId, requesterUserId: params.userId })
     ).scope;
@@ -374,6 +397,122 @@ async function assertStorageAddonAllowed(params: {
 }
 
 export async function billingRoutes(app: FastifyInstance) {
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the billing ACCOUNT surface.
+   *
+   * `/v1/billing/overview` returned one flat aggregate spanning every account
+   * the caller touches, with raw Prisma rows on the wire and no capability
+   * filtering. These three endpoints answer one question about ONE account for
+   * ONE viewer, with an explicitly-constructed DTO.
+   */
+  app.get(
+    "/v1/billing/accounts",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const accounts = await listBillingAccountsForViewer(userId);
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.accounts_list",
+        outcome: "success",
+        metadata: { count: accounts.length },
+      });
+
+      return reply.code(200).send({ accounts });
+    }
+  );
+
+  app.get(
+    "/v1/billing/accounts/:type/:id",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z
+        .object({
+          type: z.enum(["PERSONAL", "WORKSPACE", "ORGANIZATION"]),
+          id: z.string().min(1).max(200),
+        })
+        .safeParse(req.params ?? {});
+      if (!params.success) {
+        return reply.code(400).send({ error: { code: "invalid_params" } });
+      }
+
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: params.data.type,
+        id: params.data.id,
+        capability: "BILLING_ACCOUNT_VIEW",
+      });
+
+      const query = (req.query ?? {}) as { currency?: string };
+      const projection = await buildBillingAccountProjection({
+        account,
+        viewerUserId: userId,
+        requestedCurrency: query.currency ?? null,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.account_view",
+        outcome: "success",
+        workspaceId: account.type === "WORKSPACE" ? account.id : null,
+        metadata: { accountType: account.type, plan: projection.plan.planKey },
+      });
+
+      return reply.code(200).send(projection);
+    }
+  );
+
+  app.get(
+    "/v1/billing/accounts/:type/:id/history",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z
+        .object({
+          type: z.enum(["PERSONAL", "WORKSPACE", "ORGANIZATION"]),
+          id: z.string().min(1).max(200),
+        })
+        .safeParse(req.params ?? {});
+      if (!params.success) {
+        return reply.code(400).send({ error: { code: "invalid_params" } });
+      }
+
+      const query = z
+        .object({ limit: z.coerce.number().int().min(1).max(100).optional() })
+        .safeParse(req.query ?? {});
+      if (!query.success) {
+        return reply.code(400).send({ error: { code: "invalid_query" } });
+      }
+
+      // A viewer without BILLING_HISTORY_VIEW gets a 403 with a stable code —
+      // never a silent empty list, which is how a missing capability comes to
+      // look like "you have no payments".
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: params.data.type,
+        id: params.data.id,
+        capability: "BILLING_HISTORY_VIEW",
+      });
+
+      const items = await readBillingHistoryForAccount({
+        account,
+        limit: query.data.limit,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.account_history_view",
+        outcome: "success",
+        workspaceId: account.type === "WORKSPACE" ? account.id : null,
+        metadata: { accountType: account.type, count: items.length },
+      });
+
+      return reply.code(200).send({ items, count: items.length });
+    }
+  );
+
   app.get("/v1/billing/pricing", async (req, reply) => {
     const query = (req.query ?? {}) as { currency?: string };
     const currency = resolveCheckoutCurrency({
@@ -575,6 +714,24 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — cancellation, rebuilt.
+   *
+   * The route this replaces:
+   *   * called Stripe's `DELETE /subscriptions/{id}` — IMMEDIATE termination —
+   *     while the confirmation dialog promised "ends at the current period";
+   *   * caught a failed PayPal cancellation, logged a warning and then wrote
+   *     the local row as CANCELED ANYWAY, so the app reported a cancelled
+   *     subscription that PayPal was still billing;
+   *   * wrote local terminal state before any webhook had confirmed anything;
+   *   * authorized on `Team.ownerUserId`, so no other billing authority
+   *     existed.
+   *
+   * Now: the SUBJECT is a billing account and the capability is BILLING_CANCEL;
+   * the PROVIDER is asked first and a failure changes nothing locally; Stripe
+   * schedules at period end and the response says exactly when access ends;
+   * and the terminal CANCELED transition is left to the webhook.
+   */
   app.post(
     "/v1/billing/subscription/cancel",
     { preHandler: requireAuthAndLegal },
@@ -582,13 +739,22 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const body = CancelSubscriptionBody.parse(req.body ?? {});
 
-      if (body.teamId) {
-        await assertOwnedTeamForCheckout(userId, body.teamId);
-      }
+      const accountType: BillingAccountType = body.teamId
+        ? "WORKSPACE"
+        : "PERSONAL";
+      const accountId = body.teamId ?? userId;
+
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: accountType,
+        id: accountId,
+        capability: "BILLING_CANCEL",
+      });
 
       const subscription = await prisma.subscription.findFirst({
         where: {
-          userId,
+          teamId: body.teamId ?? null,
+          ...(body.teamId ? {} : { userId }),
           status: {
             in: [
               prismaPkg.SubscriptionStatus.ACTIVE,
@@ -596,9 +762,9 @@ export async function billingRoutes(app: FastifyInstance) {
               prismaPkg.SubscriptionStatus.TRIALING,
             ],
           },
-          teamId: body.teamId ?? null,
         },
         orderBy: { createdAt: "desc" },
+        select: { id: true, provider: true, providerSubId: true },
       });
 
       if (!subscription) {
@@ -608,126 +774,62 @@ export async function billingRoutes(app: FastifyInstance) {
           outcome: "failure",
           severity: "warning",
           workspaceId: body.teamId ?? null,
-          metadata: {
-            reason: "no_active_subscription",
-            teamId: body.teamId ?? null,
+          metadata: { reason: "no_active_subscription" },
+        });
+        return reply.code(404).send({
+          error: {
+            code: "SUBSCRIPTION_NOT_FOUND",
+            message: "There is no active subscription to cancel.",
           },
         });
-        return reply.code(404).send({ message: "No active subscription" });
       }
 
-      if (subscription.provider === prismaPkg.PaymentProvider.STRIPE) {
-        await stripeRequestRaw(
-          `/subscriptions/${subscription.providerSubId}`,
-          "DELETE"
-        );
-      } else if (subscription.provider === prismaPkg.PaymentProvider.PAYPAL) {
-        try {
-          await cancelPayPalSubscription(
-            subscription.providerSubId,
-            "Canceled by customer"
-          );
-        } catch (err) {
-          req.log.warn(
-            {
-              err,
-              providerSubId: subscription.providerSubId,
-              subscriptionStatus: subscription.status,
-              teamId: body.teamId ?? null,
-            },
-            "paypal.subscription_cancel.failed_remote_fallbacking_to_local_cancel"
-          );
-        }
-      } else {
-        auditBillingAction(req, {
-          userId,
-          action: "billing.subscription_cancel",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: subscription.id,
-          workspaceId: body.teamId ?? null,
-          providerEventId: subscription.providerSubId ?? null,
-          metadata: {
-            reason: "unsupported_provider",
-            provider: subscription.provider,
-            teamId: body.teamId ?? null,
-          },
-        });
-        return reply.code(400).send({ message: "Unsupported provider" });
-      }
-
-      const updated = await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { status: prismaPkg.SubscriptionStatus.CANCELED },
+      // The provider decides. A failure throws and NOTHING local changes.
+      const outcome = await requestSubscriptionCancellation({
+        subscriptionId: subscription.id,
       });
-
-      await prisma.workspaceStorageAddon.updateMany({
-        where: {
-          ownerUserId: userId,
-          externalSubscriptionId: subscription.providerSubId,
-          status: {
-            in: [
-              prismaPkg.WorkspaceStorageAddonStatus.PENDING,
-              prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
-              prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
-            ],
-          },
-        },
-        data: {
-          status: prismaPkg.WorkspaceStorageAddonStatus.CANCELED,
-          canceledAtUtc: new Date(),
-        },
-      });
-
-      if (body.teamId) {
-        await cancelTeamPlan({
-          teamId: body.teamId,
-          ownerUserId: userId,
-        });
-      } else {
-        await setPersonalPlan(userId, prismaPkg.PlanType.FREE);
-      }
 
       auditBillingAction(req, {
         userId,
         action: "billing.subscription_cancel",
         outcome: "success",
-        resourceId: updated.id,
+        resourceId: subscription.id,
         workspaceId: body.teamId ?? null,
-        providerEventId: subscription.providerSubId ?? null,
+        providerEventId: subscription.providerSubId,
         metadata: {
-          provider: updated.provider,
-          plan: updated.plan,
-          teamId: body.teamId ?? null,
+          mode: outcome.mode,
+          alreadyScheduled: outcome.alreadyScheduled,
+          accessEndsAtUtc: outcome.accessEndsAtUtc,
         },
       });
 
       fireBillingAnalyticsEvent({
-        eventType: "subscription_cancelled",
+        eventType: "subscription_cancellation_requested",
         userId,
         req,
-        entityId: updated.id,
-        metadata: {
-          provider: updated.provider,
-          plan: updated.plan,
-          teamId: body.teamId ?? null,
-        },
+        entityId: subscription.id,
+        metadata: { mode: outcome.mode, accountType: account.type },
       });
 
-      const overview = await readBillingOverview(userId);
-
-      return reply.code(200).send({
-        subscription: updated,
-        entitlement: overview.entitlement,
-        workspaces: overview.workspaces,
-      });
+      // A bounded, server-decided outcome the client renders verbatim. It never
+      // re-derives "is it cancelled?" from a plan string.
+      return reply.code(200).send({ cancellation: outcome });
     }
   );
 
   /**
-   * Legacy-only endpoint.
-   * New storage add-ons are one-time purchases and never create recurring subscriptions.
-   * This route exists only to clean up historical monthly storage add-ons if they still exist.
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — cancel a RECURRING storage
+   * add-on.
+   *
+   * This route carried a "Legacy-only" header and refused anything whose
+   * `billingCycle` was not MONTHLY — while no production path could create a
+   * MONTHLY add-on, so it was permanently unreachable and its button
+   * permanently dead. Now that an add-on IS a monthly subscription, it is the
+   * live cancellation path.
+   *
+   * A grandfathered ONE_TIME row is deliberately refused: there is no recurring
+   * charge to stop, and "cancelling" it would only take away capacity the
+   * customer already paid for outright.
    */
   app.post(
     "/v1/billing/storage-addons/cancel",
@@ -738,64 +840,96 @@ export async function billingRoutes(app: FastifyInstance) {
 
       const addon = await prisma.workspaceStorageAddon.findUnique({
         where: { id: body.addonId },
+        select: {
+          id: true,
+          ownerUserId: true,
+          teamId: true,
+          addonKey: true,
+          billingCycle: true,
+          paymentProvider: true,
+          externalSubscriptionId: true,
+        },
       });
 
-      if (!addon || addon.ownerUserId !== userId) {
-        auditBillingAction(req, {
-          userId,
-          action: "billing.storage_addon_cancel",
-          outcome: "failure",
-          severity: "warning",
-          metadata: {
-            addonId: body.addonId,
-            reason: "not_found_or_not_owned",
+      // Fail closed and indistinguishably: a caller must not be able to probe
+      // for other tenants' add-on ids.
+      if (!addon) {
+        return reply.code(404).send({
+          error: {
+            code: "STORAGE_ADDON_NOT_FOUND",
+            message: "That storage add-on is not available to your account.",
           },
         });
-
-        return reply.code(404).send({ message: "Storage addon not found" });
       }
 
-      if (addon.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
-        return reply.code(400).send({
-          message: "Only legacy recurring storage add-ons can be canceled",
+      // The add-on belongs to a billing ACCOUNT, and cancelling it is an
+      // add-on purchase-authority decision on that account.
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: addon.teamId ? "WORKSPACE" : "PERSONAL",
+        id: addon.teamId ?? userId,
+        capability: "BILLING_ADDON_PURCHASE",
+      });
+
+      if (
+        addon.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME
+      ) {
+        return reply.code(409).send({
+          error: {
+            code: "LEGACY_ONE_TIME_ADDON_NOT_CANCELLABLE",
+            message:
+              "This is a one-time storage purchase. It does not renew, and the storage it added stays with your account.",
+          },
         });
       }
 
       if (!addon.externalSubscriptionId || !addon.paymentProvider) {
-        return reply.code(400).send({
-          message: "This storage add-on has no linked provider subscription",
+        return reply.code(409).send({
+          error: {
+            code: "STORAGE_ADDON_NOT_LINKED",
+            message:
+              "This storage add-on is not linked to a payment subscription. Contact support so it can be reviewed.",
+          },
         });
       }
 
-      if (addon.paymentProvider === prismaPkg.PaymentProvider.STRIPE) {
+      // Provider FIRST. A failure throws a safe 502 and nothing local changes;
+      // there is no local-only fallback that could report a cancellation the
+      // provider never made.
+      const subscriptionRow = await prisma.subscription.findUnique({
+        where: {
+          provider_providerSubId: {
+            provider: addon.paymentProvider,
+            providerSubId: addon.externalSubscriptionId,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (subscriptionRow) {
+        await requestSubscriptionCancellation({
+          subscriptionId: subscriptionRow.id,
+        });
+      } else if (
+        addon.paymentProvider === prismaPkg.PaymentProvider.PAYPAL
+      ) {
+        // An add-on subscription this platform never recorded as a
+        // `Subscription` row still has to be stopped at the provider, and a
+        // failure must still surface rather than be swallowed.
+        await cancelPayPalSubscription(
+          addon.externalSubscriptionId,
+          "Canceled by customer",
+        );
+      } else {
         await stripeRequestRaw(
           `/subscriptions/${addon.externalSubscriptionId}`,
-          "DELETE"
+          "DELETE",
         );
-      } else if (addon.paymentProvider === prismaPkg.PaymentProvider.PAYPAL) {
-        try {
-          await cancelPayPalSubscription(
-            addon.externalSubscriptionId,
-            "Canceled by customer"
-          );
-        } catch (err) {
-          req.log.warn(
-            {
-              err,
-              addonId: addon.id,
-              externalSubscriptionId: addon.externalSubscriptionId,
-              teamId: addon.teamId ?? null,
-            },
-            "paypal.storage_addon_cancel.failed_remote_fallbacking_to_local_cancel"
-          );
-        }
-      } else {
-        return reply.code(400).send({ message: "Unsupported provider" });
       }
 
       const updated = await cancelWorkspaceStorageAddon({
         addonId: addon.id,
-        ownerUserId: userId,
+        ownerUserId: addon.ownerUserId,
       });
 
       auditBillingAction(req, {
@@ -804,10 +938,9 @@ export async function billingRoutes(app: FastifyInstance) {
         outcome: "success",
         resourceId: updated.id,
         workspaceId: updated.teamId ?? null,
-        providerEventId: addon.externalSubscriptionId ?? null,
+        providerEventId: addon.externalSubscriptionId,
         metadata: {
           addonKey: updated.addonKey,
-          teamId: updated.teamId ?? null,
           provider: updated.paymentProvider ?? null,
         },
       });
@@ -820,11 +953,19 @@ export async function billingRoutes(app: FastifyInstance) {
         metadata: {
           addonKey: updated.addonKey,
           teamId: updated.teamId ?? null,
-          provider: updated.paymentProvider ?? null,
         },
       });
 
-      return reply.code(200).send({ addon: updated });
+      // A bounded projection — never the raw Prisma row, which the previous
+      // implementation returned verbatim.
+      return reply.code(200).send({
+        addon: {
+          id: updated.id,
+          addonKey: updated.addonKey,
+          status: updated.status,
+          canceledAtUtc: updated.canceledAtUtc?.toISOString() ?? null,
+        },
+      });
     }
   );
 
@@ -894,9 +1035,16 @@ export async function billingRoutes(app: FastifyInstance) {
       // identities BEFORE creating any provider session.
       await assertPersonalCheckoutAllowed(userId, body.teamId);
 
-      if (body.teamId) {
-        await assertOwnedTeamForCheckout(userId, body.teamId);
-      }
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — capability, not just
+      // ownership. `assertOwnedTeamForCheckout` answered "are you
+      // Team.ownerUserId", which is one specific way of holding billing
+      // authority rather than the question itself.
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: body.teamId ? "WORKSPACE" : "PERSONAL",
+        id: body.teamId ?? userId,
+        capability: "BILLING_MANAGE",
+      });
 
       const result = await createStripeCheckoutSession({
         userId,
@@ -949,13 +1097,20 @@ export async function billingRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const body = StorageAddonCheckoutBody.parse(req.body ?? {});
-      if (body.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+      if (body.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
         return reply.code(400).send({
-          message: "Storage add-ons are available only as one-time purchases",
+          message: "Storage add-ons are sold as recurring monthly subscriptions",
         });
       }
 
       const userId = getAuthUserId(req);
+
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: body.teamId ? "WORKSPACE" : "PERSONAL",
+        id: body.teamId ?? userId,
+        capability: "BILLING_ADDON_PURCHASE",
+      });
 
       const { scope } = await assertStorageAddonAllowed({
         userId,
@@ -1031,9 +1186,16 @@ export async function billingRoutes(app: FastifyInstance) {
       // identities BEFORE creating any provider session.
       await assertPersonalCheckoutAllowed(userId, body.teamId);
 
-      if (body.teamId) {
-        await assertOwnedTeamForCheckout(userId, body.teamId);
-      }
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — capability, not just
+      // ownership. `assertOwnedTeamForCheckout` answered "are you
+      // Team.ownerUserId", which is one specific way of holding billing
+      // authority rather than the question itself.
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: body.teamId ? "WORKSPACE" : "PERSONAL",
+        id: body.teamId ?? userId,
+        capability: "BILLING_MANAGE",
+      });
 
       const result = await createPayPalCheckout({
         userId,
@@ -1099,13 +1261,20 @@ export async function billingRoutes(app: FastifyInstance) {
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const body = StorageAddonCheckoutBody.parse(req.body ?? {});
-      if (body.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
+      if (body.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
         return reply.code(400).send({
-          message: "Storage add-ons are available only as one-time purchases",
+          message: "Storage add-ons are sold as recurring monthly subscriptions",
         });
       }
 
       const userId = getAuthUserId(req);
+
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: body.teamId ? "WORKSPACE" : "PERSONAL",
+        id: body.teamId ?? userId,
+        capability: "BILLING_ADDON_PURCHASE",
+      });
 
       const { scope } = await assertStorageAddonAllowed({
         userId,
@@ -1123,10 +1292,11 @@ export async function billingRoutes(app: FastifyInstance) {
         workspacePlan: scope.plan,
       });
 
-      const resourceId =
-        "subscription" in result
-          ? String((result.subscription as { id?: string } | undefined)?.id ?? "")
-          : String((result.order as { id?: string } | undefined)?.id ?? "");
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on is a
+      // recurring SUBSCRIPTION, so there is no order branch left to take.
+      const resourceId = String(
+        (result.subscription as { id?: string } | undefined)?.id ?? "",
+      );
 
       auditBillingAction(req, {
         userId,
@@ -1163,18 +1333,10 @@ export async function billingRoutes(app: FastifyInstance) {
         },
       });
 
-      if ("subscription" in result) {
-        return reply.code(200).send({
-          provider: "PAYPAL",
-          mode: "subscription",
-          subscription: result.subscription,
-        });
-      }
-
       return reply.code(200).send({
         provider: "PAYPAL",
-        mode: "order",
-        order: result.order,
+        mode: "subscription",
+        subscription: result.subscription,
       });
     }
   );

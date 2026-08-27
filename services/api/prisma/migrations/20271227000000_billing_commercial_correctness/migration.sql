@@ -59,7 +59,7 @@ $$;
 -- below is idempotent in the same way but says so explicitly, and every
 -- subsequent column evolution has to be its own ALTER — which is what makes
 -- the loss impossible rather than merely unlikely.
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.tables
@@ -80,7 +80,7 @@ BEGIN
     );
   END IF;
 END
-$;
+$$;
 
 DO $$
 BEGIN

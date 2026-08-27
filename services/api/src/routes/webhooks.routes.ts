@@ -15,6 +15,14 @@ import {
 // through the canonical wallet, which writes the auditable ledger entry in the
 // same transaction as the balance and is idempotent on the provider payment id.
 import { grantEvidenceCredits } from "../services/billing/evidence-credits.service.js";
+// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — renewal ownership comes from
+// the AUTHORITATIVE STORED subscription row, not from provider metadata that
+// providers do not in fact put on renewal events.
+import {
+  paypalSubscriptionIdFromSale,
+  resolveSubjectFromProviderSubscription,
+  stripeSubscriptionIdFromInvoice,
+} from "../services/billing/provider-subscription-binding.service.js";
 import {
   parseStripeEvent,
   verifyStripeSignature,
@@ -268,6 +276,30 @@ async function assertWebhookStorageAddonAllowed(params: {
   }
 }
 
+/**
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on's status
+ * FOLLOWS its subscription's.
+ *
+ * ONE mapping, so a lapsed add-on cannot keep granting capacity on one provider
+ * while it stops on the other. PAST_DUE deliberately still grants: the canonical
+ * usage aggregate counts ACTIVE and PAST_DUE add-ons, which is the same bounded
+ * grace the base subscription gets rather than an instant cliff on a failed card.
+ */
+function storageAddonStatusFromSubscription(
+  status: prismaPkg.SubscriptionStatus,
+): prismaPkg.WorkspaceStorageAddonStatus {
+  switch (status) {
+    case prismaPkg.SubscriptionStatus.ACTIVE:
+      return prismaPkg.WorkspaceStorageAddonStatus.ACTIVE;
+    case prismaPkg.SubscriptionStatus.TRIALING:
+      return prismaPkg.WorkspaceStorageAddonStatus.PENDING;
+    case prismaPkg.SubscriptionStatus.PAST_DUE:
+      return prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
+    case prismaPkg.SubscriptionStatus.CANCELED:
+      return prismaPkg.WorkspaceStorageAddonStatus.CANCELED;
+  }
+}
+
 async function syncPlanForSubscription(params: {
   userId: string;
   plan: prismaPkg.PlanType;
@@ -502,27 +534,46 @@ export async function webhooksRoutes(app: FastifyInstance) {
             teamId,
           });
 
-          if (
-            !session.subscription &&
-            storageAddonBillingCycle ===
-              prismaPkg.StorageAddonBillingCycle.ONE_TIME
-          ) {
+          /**
+           * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on is
+           * a recurring subscription, so the SUBSCRIPTION id is its durable
+           * identity and the branch that required its ABSENCE is gone.
+           *
+           * The previous condition was `!session.subscription && cycle ===
+           * ONE_TIME`, which is now unreachable by construction: the checkout
+           * runs in subscription mode. Keeping it would have meant a completed
+           * add-on purchase activating nothing at all.
+           */
+          if (session.subscription) {
             await upsertWorkspaceStorageAddon({
               ownerUserId: userId,
               teamId,
               addonKey: storageAddonKey,
-              billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+              billingCycle:
+                storageAddonBillingCycle ??
+                prismaPkg.StorageAddonBillingCycle.MONTHLY,
               status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
               paymentProvider: prismaPkg.PaymentProvider.STRIPE,
+              // Keyed on the SUBSCRIPTION so every later renewal, failure and
+              // cancellation event finds the same row.
+              externalSubscriptionId: String(session.subscription),
               externalPaymentId: session.id,
               amountCents: effectiveAmountCents,
               currency: effectiveCurrency,
               metadata: {
                 source: "stripe.checkout.session.completed",
                 mode: session.mode ?? null,
-                subscriptionId: session.subscription ?? null,
               },
             });
+          } else {
+            req.log.warn(
+              {
+                provider: "STRIPE",
+                sessionId: session.id,
+                storageAddonKey,
+              },
+              "stripe.storage_addon_checkout_without_subscription_ignored"
+            );
           }
         } catch (err) {
           req.log.warn(
@@ -582,21 +633,34 @@ export async function webhooksRoutes(app: FastifyInstance) {
         });
       }
 
+      /**
+       * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on
+       * subscription HAS a lifecycle now: renewal, payment failure and
+       * cancellation all reach this handler, and all three used to be logged
+       * as "unsupported" and dropped.
+       */
       const parsedCycle = parseStorageAddonBillingCycle(
         subscription.metadata?.billingCycle
       );
-      if (storageAddonKey && parsedCycle !== null) {
-        req.log.warn(
-          {
-            provider: "STRIPE",
-            subscriptionId: subscription.id,
-            userId,
-            teamId,
-            storageAddonKey,
-            parsedCycle,
-          },
-          "unsupported.storage_addon_subscription_event_ignored"
-        );
+      if (userId && storageAddonKey && parsedCycle !== null) {
+        await upsertWorkspaceStorageAddon({
+          ownerUserId: userId,
+          teamId,
+          addonKey: storageAddonKey,
+          billingCycle: parsedCycle,
+          status: storageAddonStatusFromSubscription(stripeStatus),
+          paymentProvider: prismaPkg.PaymentProvider.STRIPE,
+          externalSubscriptionId: subscription.id,
+          currentPeriodEnd: subscription.current_period_end
+            ? new Date(subscription.current_period_end * 1000)
+            : null,
+          metadata: { source: event.type },
+        }).catch((err: unknown) => {
+          req.log.warn(
+            { err, provider: "STRIPE", subscriptionId: subscription.id },
+            "stripe.storage_addon_subscription_sync_failed"
+          );
+        });
       }
     }
 
@@ -608,7 +672,10 @@ export async function webhooksRoutes(app: FastifyInstance) {
         id: string;
         status?: string;
         amount_paid?: number;
+        amount_due?: number;
         currency?: string;
+        subscription?: unknown;
+        parent?: unknown;
         metadata?: {
           userId?: string;
           plan?: string;
@@ -618,9 +685,6 @@ export async function webhooksRoutes(app: FastifyInstance) {
         };
       };
 
-      const userId = invoice.metadata?.userId;
-      const plan = parsePlan(invoice.metadata?.plan);
-      const teamId = invoice.metadata?.teamId ?? null;
       const storageAddonKey = parseStorageAddonKey(
         invoice.metadata?.storageAddonKey
       );
@@ -628,35 +692,89 @@ export async function webhooksRoutes(app: FastifyInstance) {
         invoice.metadata?.billingCycle
       );
 
+      /**
+       * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — RENEWALS ARE NOW
+       * RECORDED.
+       *
+       * This block used to require `invoice.metadata.userId`. Stripe does not
+       * copy `subscription_data[metadata]` onto an invoice's top-level
+       * `metadata` — that metadata lands on the SUBSCRIPTION — so the field was
+       * empty on every renewal and the guard silently skipped the write. A
+       * customer's payment history therefore contained their first checkout and
+       * nothing else, for the life of the subscription.
+       *
+       * Ownership now resolves from the stored `Subscription` row keyed by the
+       * provider's own subscription id, which every invoice carries. Metadata
+       * is still honoured when present (the first invoice of a checkout does
+       * carry it) but is no longer required.
+       *
+       * An invoice this platform cannot bind to a stored subscription is NOT
+       * attributed: an unattributable provider event is a real state, and
+       * guessing an owner writes a guess into someone's financial history.
+       */
+      const metadataUserId = invoice.metadata?.userId;
+      const metadataPlan = parsePlan(invoice.metadata?.plan);
+
+      let subject:
+        | { userId: string; teamId: string | null; plan: prismaPkg.PlanType }
+        | null =
+        metadataUserId && metadataPlan
+          ? {
+              userId: metadataUserId,
+              teamId: invoice.metadata?.teamId ?? null,
+              plan: metadataPlan,
+            }
+          : null;
+
+      if (!subject) {
+        const stripeSubId = stripeSubscriptionIdFromInvoice(invoice);
+        if (stripeSubId) {
+          subject = await resolveSubjectFromProviderSubscription({
+            provider: prismaPkg.PaymentProvider.STRIPE,
+            providerSubId: stripeSubId,
+          });
+        }
+      }
+
       if (storageAddonKey && parsedCycle !== null) {
         req.log.warn(
           {
             provider: "STRIPE",
             invoiceId: invoice.id,
-            userId,
-            teamId,
+            userId: subject?.userId ?? null,
+            teamId: subject?.teamId ?? null,
             storageAddonKey,
             parsedCycle,
           },
-          "unsupported.storage_addon_invoice_event_ignored"
+          "stripe.storage_addon_invoice_recorded_as_payment"
         );
       }
 
-      if (userId && plan) {
-        const status =
-          invoice.status === "paid"
-            ? prismaPkg.PaymentStatus.SUCCEEDED
-            : prismaPkg.PaymentStatus.FAILED;
-
+      if (subject) {
+        const paid = invoice.status === "paid";
         await recordPayment({
-          userId,
+          userId: subject.userId,
           provider: prismaPkg.PaymentProvider.STRIPE,
           providerPaymentId: invoice.id,
-          amountCents: invoice.amount_paid ?? 0,
+          // A failed invoice has no `amount_paid`; report what was DUE so the
+          // history row states the amount the customer was charged for rather
+          // than a zero that reads as "free".
+          amountCents: paid
+            ? invoice.amount_paid ?? 0
+            : invoice.amount_due ?? invoice.amount_paid ?? 0,
           currency: (invoice.currency ?? "usd").toUpperCase(),
-          status,
-          teamId,
+          status: paid
+            ? prismaPkg.PaymentStatus.SUCCEEDED
+            : prismaPkg.PaymentStatus.FAILED,
+          teamId: subject.teamId,
         });
+      } else {
+        // Deliberately visible: an unbindable invoice is an operational signal,
+        // not something to silently drop.
+        req.log.warn(
+          { provider: "STRIPE", invoiceId: invoice.id },
+          "stripe.invoice.unattributable_no_stored_subscription"
+        );
       }
     }
 
@@ -954,6 +1072,60 @@ export async function webhooksRoutes(app: FastifyInstance) {
         return reply.code(200).send({ received: true });
       }
 
+      /**
+       * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — PayPal RENEWALS.
+       *
+       * A PayPal subscription renewal arrives as `PAYMENT.SALE.COMPLETED`,
+       * which this handler did not implement at all: only
+       * `PAYMENT.CAPTURE.COMPLETED` (the one-time order path) was handled, and
+       * only when its `custom_id` said PAYG. Every PayPal renewal was
+       * therefore invisible in payment history.
+       *
+       * `billing_agreement_id` on a recurring sale IS the subscription id this
+       * platform stored at checkout, so ownership is resolved from the stored
+       * row rather than from a payload field PayPal does not populate.
+       */
+      if (
+        event.event_type === "PAYMENT.SALE.COMPLETED" ||
+        event.event_type === "PAYMENT.SALE.DENIED"
+      ) {
+        const sale = event.resource as unknown as {
+          id?: string;
+          billing_agreement_id?: string;
+          amount?: { total?: string; currency?: string };
+        };
+        const providerSubId = paypalSubscriptionIdFromSale(sale);
+        const saleSubject = providerSubId
+          ? await resolveSubjectFromProviderSubscription({
+              provider: prismaPkg.PaymentProvider.PAYPAL,
+              providerSubId,
+            })
+          : null;
+
+        if (saleSubject && sale.id) {
+          await recordPayment({
+            userId: saleSubject.userId,
+            provider: prismaPkg.PaymentProvider.PAYPAL,
+            providerPaymentId: sale.id,
+            amountCents: Math.round(Number(sale.amount?.total ?? 0) * 100),
+            currency: (sale.amount?.currency ?? "USD").toUpperCase(),
+            status:
+              event.event_type === "PAYMENT.SALE.COMPLETED"
+                ? prismaPkg.PaymentStatus.SUCCEEDED
+                : prismaPkg.PaymentStatus.FAILED,
+            teamId: saleSubject.teamId,
+          });
+        } else {
+          req.log.warn(
+            { provider: "PAYPAL", saleId: sale.id ?? null, providerSubId },
+            "paypal.sale.unattributable_no_stored_subscription"
+          );
+        }
+
+        await markProcessed();
+        return reply.code(200).send({ received: true });
+      }
+
       if (
         event.event_type === "BILLING.SUBSCRIPTION.CREATED" ||
         event.event_type === "BILLING.SUBSCRIPTION.ACTIVATED" ||
@@ -1018,18 +1190,29 @@ export async function webhooksRoutes(app: FastifyInstance) {
           });
         }
 
+        // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — PayPal storage add-on
+        // subscriptions follow the same lifecycle as Stripe's. These events
+        // were previously logged as "unsupported" and discarded, so a
+        // cancelled or lapsed PayPal add-on kept granting capacity.
         if (addonContext.userId && addonContext.storageAddonKey) {
-          req.log.warn(
-            {
-              provider: "PAYPAL",
-              subscriptionId,
-              userId: addonContext.userId,
-              teamId: addonContext.teamId ?? null,
-              storageAddonKey: addonContext.storageAddonKey,
-              billingCycle: addonContext.billingCycle ?? null,
-            },
-            "unsupported.storage_addon_subscription_event_ignored"
-          );
+          await upsertWorkspaceStorageAddon({
+            ownerUserId: addonContext.userId,
+            teamId: addonContext.teamId ?? null,
+            addonKey: addonContext.storageAddonKey,
+            billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+            status: storageAddonStatusFromSubscription(paypalStatus),
+            paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
+            externalSubscriptionId: subscriptionId,
+            currentPeriodEnd: event.resource.billing_info?.next_billing_time
+              ? new Date(event.resource.billing_info.next_billing_time)
+              : null,
+            metadata: { source: event.event_type },
+          }).catch((err: unknown) => {
+            req.log.warn(
+              { err, provider: "PAYPAL", subscriptionId },
+              "paypal.storage_addon_subscription_sync_failed"
+            );
+          });
         }
 
         await markProcessed();

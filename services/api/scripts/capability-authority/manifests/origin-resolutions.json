@@ -16,10 +16,24 @@
   ],
   "entries": [
     {
-      "site": "apps/web/app/portal/sso/callback/[grantId]/route.ts:88",
+      "site": "apps/mobile/src/api.ts:34",
+      "verdict": "PLUMBING",
+      "originBinding": "base = process.env.EXPO_PUBLIC_API_BASE",
+      "evidence": "apps/mobile/src/api.ts:23 — the mobile apiFetch wrapper; paths come from its callers.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/(app)/operations/batch-analysis/page.tsx:167",
       "verdict": "OURS",
-      "originBinding": "const apiUrl = `${apiBase()}/v1/portal/sso/callback`",
-      "evidence": "Next.js route handler forwarding the portal SSO callback to the API; apiBase() is the web app's own API origin helper.",
+      "originBinding": "apiBase — the web app's API origin",
+      "evidence": "Batch-analysis export download built against the canonical API origin.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "apps/web/app/api/_marketing-leads.ts:314",
+      "verdict": "OURS",
+      "originBinding": "apiBase — the web app's API origin",
+      "evidence": "Server-side marketing-lead forwarder in the web app; the path segment is interpolated, so it contributes an origin but no resolvable route and is not credited to any route.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
@@ -44,17 +58,10 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/app/api/_marketing-leads.ts:314",
+      "site": "apps/web/app/portal/sso/callback/[grantId]/route.ts:88",
       "verdict": "OURS",
-      "originBinding": "apiBase — the web app's API origin",
-      "evidence": "Server-side marketing-lead forwarder in the web app; the path segment is interpolated, so it contributes an origin but no resolvable route and is not credited to any route.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "apps/web/app/(app)/operations/batch-analysis/page.tsx:167",
-      "verdict": "OURS",
-      "originBinding": "apiBase — the web app's API origin",
-      "evidence": "Batch-analysis export download built against the canonical API origin.",
+      "originBinding": "const apiUrl = `${apiBase()}/v1/portal/sso/callback`",
+      "evidence": "Next.js route handler forwarding the portal SSO callback to the API; apiBase() is the web app's own API origin helper.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
@@ -79,10 +86,129 @@
       "reviewedAtUtc": "2026-08-17"
     },
     {
-      "site": "apps/mobile/src/api.ts:34",
+      "site": "scripts/e2e-web-smoke.mjs:7",
       "verdict": "PLUMBING",
-      "originBinding": "base = process.env.EXPO_PUBLIC_API_BASE",
-      "evidence": "apps/mobile/src/api.ts:23 — the mobile apiFetch wrapper; paths come from its callers.",
+      "originBinding": "base — the smoke script's target origin, supplied per run",
+      "evidence": "scripts/e2e-web-smoke.mjs — an operator smoke script; its path is interpolated per scenario and it is not a product consumer.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:138",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:157",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:173",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/plans/:id.",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:190",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/subscriptions/:id.",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:209",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v2/checkout/orders.",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:250",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v1/billing/subscriptions (plan checkout).",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:303",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v1/billing/subscriptions for a RECURRING storage add-on. New in the billing commercial-correctness pass: the add-on used to create a one-time /v2/checkout/orders order, which granted capacity nothing ever expired. The path is PayPal's, not PROOVRA's.",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:335",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal subscription cancel.",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:366",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal webhook-signature verification API.",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:397",
+      "verdict": "EXTERNAL",
+      "originBinding": "PayPal apiBase()",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal order capture.",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/paypal.service.ts:85",
+      "verdict": "EXTERNAL",
+      "originBinding": "function apiBase() { return process.env.PAYPAL_API_BASE || \"https://api-m.paypal.com\" }",
+      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal's own REST origin. Its /v1/oauth2/token is PayPal's, not ours.",
+      "reviewedAtUtc": "2026-08-27"
+    },
+    {
+      "site": "services/api/src/services/stripe.service.ts:175",
+      "verdict": "EXTERNAL",
+      "originBinding": "stripeApiBase()",
+      "evidence": "services/api/src/services/stripe.service.ts",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/stripe.service.ts:32",
+      "verdict": "EXTERNAL",
+      "originBinding": "stripeApiBase()",
+      "evidence": "services/api/src/services/stripe.service.ts — Stripe's REST origin.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/api/src/services/stripe.service.ts:54",
+      "verdict": "EXTERNAL",
+      "originBinding": "stripeApiBase()",
+      "evidence": "services/api/src/services/stripe.service.ts",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/scripts/create-paypal-plans.mjs:20",
+      "verdict": "EXTERNAL",
+      "originBinding": "BASE — PayPal API base in an operator provisioning script",
+      "evidence": "services/worker/scripts/create-paypal-plans.mjs — creates PayPal billing plans via PayPal's own API.",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/scripts/create-paypal-plans.mjs:46",
+      "verdict": "EXTERNAL",
+      "originBinding": "BASE — PayPal API base",
+      "evidence": "services/worker/scripts/create-paypal-plans.mjs",
+      "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/scripts/create-paypal-plans.mjs:74",
+      "verdict": "EXTERNAL",
+      "originBinding": "BASE — PayPal API base",
+      "evidence": "services/worker/scripts/create-paypal-plans.mjs",
       "reviewedAtUtc": "2026-08-15"
     },
     {
@@ -118,118 +244,6 @@
       "verdict": "OURS",
       "originBinding": "const baseUrl = apiBaseUrl()",
       "evidence": "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:84,127 — this is the intended machine caller of POST /v1/reviewer-ops/reconcile, the route whose authorization FINAL-003 investigated.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:84",
-      "verdict": "EXTERNAL",
-      "originBinding": "function apiBase() { return process.env.PAYPAL_API_BASE || \"https://api-m.paypal.com\" }",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal's own REST origin. Its /v1/oauth2/token is PayPal's, not ours.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:137",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:156",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:172",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/plans/:id.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:189",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/subscriptions/:id.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:249",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:324",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal subscription cancel.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:355",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal webhook-signature verification API.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/paypal.service.ts:386",
-      "verdict": "EXTERNAL",
-      "originBinding": "PayPal apiBase()",
-      "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal /v2/checkout/orders capture.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/stripe.service.ts:32",
-      "verdict": "EXTERNAL",
-      "originBinding": "stripeApiBase()",
-      "evidence": "services/api/src/services/stripe.service.ts — Stripe's REST origin.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/stripe.service.ts:54",
-      "verdict": "EXTERNAL",
-      "originBinding": "stripeApiBase()",
-      "evidence": "services/api/src/services/stripe.service.ts",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/stripe.service.ts:175",
-      "verdict": "EXTERNAL",
-      "originBinding": "stripeApiBase()",
-      "evidence": "services/api/src/services/stripe.service.ts",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/worker/scripts/create-paypal-plans.mjs:20",
-      "verdict": "EXTERNAL",
-      "originBinding": "BASE — PayPal API base in an operator provisioning script",
-      "evidence": "services/worker/scripts/create-paypal-plans.mjs — creates PayPal billing plans via PayPal's own API.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/worker/scripts/create-paypal-plans.mjs:46",
-      "verdict": "EXTERNAL",
-      "originBinding": "BASE — PayPal API base",
-      "evidence": "services/worker/scripts/create-paypal-plans.mjs",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/worker/scripts/create-paypal-plans.mjs:74",
-      "verdict": "EXTERNAL",
-      "originBinding": "BASE — PayPal API base",
-      "evidence": "services/worker/scripts/create-paypal-plans.mjs",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "scripts/e2e-web-smoke.mjs:7",
-      "verdict": "PLUMBING",
-      "originBinding": "base — the smoke script's target origin, supplied per run",
-      "evidence": "scripts/e2e-web-smoke.mjs — an operator smoke script; its path is interpolated per scenario and it is not a product consumer.",
       "reviewedAtUtc": "2026-08-15"
     }
   ]

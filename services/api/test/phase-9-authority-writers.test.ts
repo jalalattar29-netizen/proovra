@@ -61,7 +61,19 @@ const AUTHORITY_WRITERS: Array<{
     write: /\.subscription\.(create|update|upsert|updateMany|delete|deleteMany)\b/,
     allowed: {
       "services/billing.service.ts": "canonical: upsertSubscription (the ONE provider-state writer)",
-      "routes/billing.routes.ts": "user-initiated cancel-at-period-end flag update",
+      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the cancel-at-period-end
+      // write MOVED out of the route and into a dedicated service, and the
+      // move is the point.
+      //
+      // In the route it sat after a Stripe `DELETE` (immediate termination,
+      // while the dialog promised a period end) and after a PayPal failure that
+      // was caught, logged and then written as CANCELED anyway. The service
+      // asks the provider FIRST, writes only what the provider CONFIRMED, and
+      // never writes the terminal CANCELED status at all — that stays the
+      // webhook's, because it is the provider's own statement about its own
+      // state.
+      "services/billing/subscription-cancellation.service.ts":
+        "canonical: provider-confirmed cancel-at-period-end (never the terminal CANCELED)",
     },
   },
   {
@@ -94,7 +106,6 @@ const AUTHORITY_WRITERS: Array<{
     write: /\.workspaceStorageAddon\.(create|update|upsert|updateMany|delete|deleteMany)\b/,
     allowed: {
       "services/billing.service.ts": "canonical: upsertWorkspaceStorageAddon/cancelWorkspaceStorageAddon",
-      "routes/billing.routes.ts": "storage add-on purchase/cancel route → billing.service",
     },
   },
 ];
@@ -130,6 +141,16 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
   "services/billing.service.ts": "PERSISTENCE: upsertSubscription status write",
   "routes/billing.routes.ts": "display subscription query filter + user cancel-at-period-end write",
   "routes/teams.routes.ts": "display: team subscription lookup query filter (no active/grace decision)",
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — both new entries are
+  // PRESENTATION and PROVIDER-INTERACTION, not a second active/grace decision.
+  // The projection maps a status to a lifecycle LABEL for the UI (and defers to
+  // `commercial-context`'s verdict for the grace question); the cancellation
+  // service compares against the terminal status to stay idempotent and never
+  // decides whether a subject is entitled to anything.
+  "services/billing/billing-account-projection.service.ts":
+    "DISPLAY: maps provider status → a lifecycle LABEL (grace verdict still comes from commercial-context)",
+  "services/billing/subscription-cancellation.service.ts":
+    "PROVIDER INTERACTION: idempotency check against the terminal status; no capability decision",
 };
 
 describe("Phase 9 STEP 5 — subscription-active decision is centralized (anti-divergence)", () => {

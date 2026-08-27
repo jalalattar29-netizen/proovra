@@ -101,11 +101,12 @@ export function getStripeStorageAddonPriceId(params: {
   billingCycle: prismaPkg.StorageAddonBillingCycle;
   currency: BillingCurrency;
 }): string | null {
-  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
-    return null;
-  }
-
-  const envKey = `STRIPE_STORAGE_${params.addonKey}_ONE_TIME_${params.currency}_PRICE_ID`;
+  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the price id is per CYCLE.
+  // This returned null for anything but ONE_TIME, so a recurring add-on could
+  // never resolve a configured Stripe Price and would silently fall back to an
+  // inline price with no recurring interval — a one-time charge wearing a
+  // subscription's name.
+  const envKey = `STRIPE_STORAGE_${params.addonKey}_${params.billingCycle}_${params.currency}_PRICE_ID`;
   return process.env[envKey]?.trim() || null;
 }
 

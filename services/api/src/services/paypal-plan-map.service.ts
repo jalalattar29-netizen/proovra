@@ -45,6 +45,28 @@ export function resolvePayPalPlanId(params: {
   );
 }
 
+/**
+ * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the storage add-on plan map.
+ *
+ * Twelve `PAYPAL_PLAN_STORAGE_<KEY>_<CURRENCY>` billing-plan ids were already
+ * configured in the environment and read by ZERO lines of code: the add-on
+ * checkout created a one-time ORDER instead, and the recurring code path had
+ * been deleted. Now that a storage add-on IS a recurring monthly subscription,
+ * these are the plans it subscribes to.
+ *
+ * `must()` is deliberate. A missing plan id must fail the checkout loudly
+ * rather than fall through to an inline one-time charge wearing a
+ * subscription's name — that silent downgrade is the exact shape of the defect
+ * this replaces.
+ */
+export function resolvePayPalStorageAddonPlanId(params: {
+  addonKey: string;
+  currency?: string | null;
+}): string {
+  const currency = normalizePayPalCurrency(params.currency);
+  return must(`PAYPAL_PLAN_STORAGE_${params.addonKey}_${currency}`);
+}
+
 export function isPayPalRecurringPlan(
   plan: prismaPkg.PlanType
 ): plan is PayPalRecurringPlan {

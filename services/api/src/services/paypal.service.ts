@@ -3,6 +3,7 @@ import {
   normalizePayPalCurrency,
   resolvePayPalPlanId,
   type PayPalRecurringPlan,
+  resolvePayPalStorageAddonPlanId,
 } from "./paypal-plan-map.service.js";
 import { buildPayPalCustomId } from "./paypal-checkout-policy.service.js";
 // Phase P2.0 — PAYPAL_SECRET is in the migrated set. Other PayPal env
@@ -271,36 +272,46 @@ export async function createPayPalStorageAddonCheckout(params: {
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
 }) {
-  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
-    throw new Error("Storage add-ons are available only as one-time purchases");
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a RECURRING subscription
+   * against the configured PayPal billing plan, not a one-time ORDER.
+   *
+   * This function used to create `/v2/checkout/orders` with intent CAPTURE:
+   * one payment, and a `workspace_storage_addons` row that nothing ever
+   * expired, granting capacity for ever. Meanwhile twelve
+   * `PAYPAL_PLAN_STORAGE_*` recurring plan ids sat configured in the
+   * environment, read by no code at all. Those plans are now what an add-on
+   * subscribes to, so the charge recurs exactly as the storage does.
+   */
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
+    throw new Error(
+      "Storage add-ons are sold as recurring monthly subscriptions",
+    );
   }
 
   const returnUrl = buildReturnUrl("/billing?checkout=success&kind=storage-addon");
   const cancelUrl = buildReturnUrl("/billing?checkout=cancel&kind=storage-addon");
   const normalizedCurrency = normalizePayPalCurrency(params.currency);
 
-  const order = await paypalRequest("/v2/checkout/orders", {
-    intent: "CAPTURE",
-    purchase_units: [
-      {
-        custom_id: buildStorageAddonCustomId({
-          userId: params.userId,
-          addonKey: params.addonKey,
-          billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
-          teamId: params.teamId ?? null,
-          workspacePlan: params.workspacePlan,
-        }),
-        description: `PROOVRA Storage Add-on ${params.addonKey}`,
-        amount: {
-          currency_code: normalizedCurrency,
-          value: params.amount,
-        },
-      },
-    ],
+  const planId = resolvePayPalStorageAddonPlanId({
+    addonKey: String(params.addonKey),
+    currency: normalizedCurrency,
+  });
+
+  await assertPayPalPlanIsActive(planId);
+
+  const subscription = await paypalRequest("/v1/billing/subscriptions", {
+    plan_id: planId,
+    custom_id: buildStorageAddonCustomId({
+      userId: params.userId,
+      addonKey: params.addonKey,
+      billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+      teamId: params.teamId ?? null,
+      workspacePlan: params.workspacePlan,
+    }),
     application_context: {
       brand_name: "PROOVRA",
-      shipping_preference: "NO_SHIPPING",
-      user_action: "PAY_NOW",
+      user_action: "SUBSCRIBE_NOW",
       return_url: returnUrl,
       cancel_url: cancelUrl,
     },
@@ -308,8 +319,8 @@ export async function createPayPalStorageAddonCheckout(params: {
 
   return {
     provider: "PAYPAL" as const,
-    mode: "order" as const,
-    order,
+    mode: "subscription" as const,
+    subscription,
     currency: normalizedCurrency,
     amountCents: Math.round(Number(params.amount) * 100),
   };

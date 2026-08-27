@@ -51,8 +51,10 @@ export async function createPayPalStorageAddonCheckout(params: {
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
 }) {
-  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
-    throw new Error("Storage add-ons are available only as one-time purchases");
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
+    throw new Error(
+      "Storage add-ons are sold as recurring monthly subscriptions",
+    );
   }
 
   const currency = getStorageAddonCurrency({
@@ -69,7 +71,7 @@ export async function createPayPalStorageAddonCheckout(params: {
   return createPayPalStorageAddonCheckoutApi({
     userId: params.userId,
     addonKey: params.addonKey,
-    billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+    billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
     currency,
     amount,
     teamId: params.teamId ?? null,
@@ -162,8 +164,20 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   teamId?: string | null;
   workspacePlan: prismaPkg.PlanType;
 }) {
-  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
-    throw new Error("Storage add-ons are available only as one-time purchases");
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on is a
+   * RECURRING MONTHLY subscription.
+   *
+   * The one-time SKU it replaces granted capacity that nothing ever expired:
+   * every row was written with `expiresAtUtc: null` and
+   * `WorkspaceStorageAddonStatus.EXPIRED` had no writer at all, so €2.99 bought
+   * 10 GB for ever, surviving cancellation of the base plan. Existing one-time
+   * rows are grandfathered and keep their capacity; no NEW one can be created.
+   */
+  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
+    throw new Error(
+      "Storage add-ons are sold as recurring monthly subscriptions",
+    );
   }
 
   const definition = getStorageAddonDefinition(params.addonKey);
@@ -176,7 +190,7 @@ export async function createStripeStorageAddonCheckoutSession(params: {
     currency,
   });
 
-  const mode = "payment";
+  const mode = "subscription";
   const appBase = normalizedBaseUrl();
 
   const searchParams = new URLSearchParams();
@@ -194,8 +208,23 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   searchParams.append("metadata[storageAddonKey]", params.addonKey);
   searchParams.append(
     "metadata[billingCycle]",
-    prismaPkg.StorageAddonBillingCycle.ONE_TIME
+    prismaPkg.StorageAddonBillingCycle.MONTHLY
   );
+  // The SAME metadata on the SUBSCRIPTION, so every renewal invoice can be
+  // bound back to this add-on without depending on invoice-level metadata
+  // that Stripe does not populate.
+  searchParams.append("subscription_data[metadata][userId]", params.userId);
+  searchParams.append(
+    "subscription_data[metadata][storageAddonKey]",
+    params.addonKey
+  );
+  searchParams.append(
+    "subscription_data[metadata][billingCycle]",
+    prismaPkg.StorageAddonBillingCycle.MONTHLY
+  );
+  if (params.teamId) {
+    searchParams.append("subscription_data[metadata][teamId]", params.teamId);
+  }
   searchParams.append("metadata[workspacePlan]", params.workspacePlan);
   searchParams.append("metadata[currency]", currency);
   searchParams.append("metadata[amountCents]", String(amountCents));
@@ -206,7 +235,7 @@ export async function createStripeStorageAddonCheckoutSession(params: {
 
   const priceId = getStripeStorageAddonPriceId({
     addonKey: params.addonKey,
-    billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+    billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
     currency,
   });
 
@@ -222,6 +251,13 @@ export async function createStripeStorageAddonCheckoutSession(params: {
     searchParams.append(
       "line_items[0][price_data][unit_amount]",
       String(amountCents)
+    );
+    // Without this the inline price is a ONE-TIME charge and Stripe rejects it
+    // in subscription mode — which is precisely the mismatch that would let a
+    // "monthly" add-on bill once and never again.
+    searchParams.append(
+      "line_items[0][price_data][recurring][interval]",
+      "month"
     );
     searchParams.append("line_items[0][quantity]", "1");
   }

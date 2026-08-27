@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "03b6b4d39d13415ab76c9d0548fe0ce8f9fb8ee2aa4142061596a67d261297e5",
+  "capabilityRouteInventoryHash": "abbf7d2309f5bcf1a60eb6c77de804da57eaf805309654e24b35fe057d1f34f8",
   "totals": {
-    "routes": 1100,
+    "routes": 1103,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -676,6 +676,24 @@
     },
     {
       "routeId": "GET /v1/batch-analysis/:id/results",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/billing/accounts",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/billing/accounts/:type/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/billing/accounts/:type/:id/history",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6682,5 +6700,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "a20ae013c06329c427e55601cd12ba8a392bf735137fcc26f6a0c155b0501cc1"
+  "contentHash": "86b12dcb7bbad4fc98b37711cd4afadd525c1ecf05ccf688c8e1f943157962a3"
 }

@@ -593,15 +593,21 @@ export async function upsertWorkspaceStorageAddon(params: {
   expiresAtUtc?: Date | null;
   metadata?: Record<string, unknown> | null;
 }) {
-  if (params.billingCycle !== prismaPkg.StorageAddonBillingCycle.ONE_TIME) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Only one-time storage add-ons are supported"
-    );
-    err.statusCode = 400;
-    err.code = "UNSUPPORTED_STORAGE_ADDON_BILLING_CYCLE";
-    throw err;
-  }
-
+  /**
+   * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — BOTH cycles are writable
+   * again, and the reason is not symmetry.
+   *
+   * This used to reject anything but ONE_TIME. A one-time payment cannot fund
+   * perpetual storage, and nothing ever expired one: `expiresAtUtc` was
+   * written `null` on every row and `WorkspaceStorageAddonStatus.EXPIRED` had
+   * no writer anywhere in the codebase. A single €2.99 purchase therefore
+   * granted 10 GB for ever — including after the base subscription was
+   * cancelled — which is an unbounded liability sold as a top-up.
+   *
+   * New purchases are MONTHLY subscriptions. ONE_TIME remains writable ONLY so
+   * that grandfathered rows can still be updated in place by their provider's
+   * webhooks; no checkout path can create one any more.
+   */
   const definition = getStorageAddonDefinition(params.addonKey);
 
   const existingBySubscription = params.externalSubscriptionId
@@ -628,7 +634,9 @@ export async function upsertWorkspaceStorageAddon(params: {
     teamId: params.teamId ?? null,
     addonKey: params.addonKey,
     extraStorageBytes: definition.storageBytes,
-    billingCycle: prismaPkg.StorageAddonBillingCycle.ONE_TIME,
+    // Honour the cycle the caller states. Hardcoding ONE_TIME here silently
+    // rewrote a recurring add-on's own identity on every webhook update.
+    billingCycle: params.billingCycle,
     status: params.status,
     paymentProvider: params.paymentProvider ?? null,
     externalSubscriptionId: params.externalSubscriptionId ?? null,
@@ -639,7 +647,12 @@ export async function upsertWorkspaceStorageAddon(params: {
       params.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE
         ? existing?.activatedAtUtc ?? new Date()
         : existing?.activatedAtUtc ?? null,
-    currentPeriodEnd: null,
+    // A recurring add-on HAS a period end; a grandfathered one-time row does
+    // not. Hardcoding null erased the renewal date for every recurring row.
+    currentPeriodEnd:
+      params.billingCycle === prismaPkg.StorageAddonBillingCycle.MONTHLY
+        ? params.currentPeriodEnd ?? existing?.currentPeriodEnd ?? null
+        : null,
     expiresAtUtc: params.expiresAtUtc ?? null,
     canceledAtUtc:
       params.status === prismaPkg.WorkspaceStorageAddonStatus.CANCELED
