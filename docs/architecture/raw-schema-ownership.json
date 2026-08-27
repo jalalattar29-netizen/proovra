@@ -66,6 +66,11 @@
       "ownership": "MIGRATION_MANAGED_RAW_SQL",
       "reason": "A PARTIAL index — `CREATE INDEX … WHERE <predicate>` — created by hand-written migration SQL. The Prisma schema language has NO syntax for an index predicate: `@@index([field], where: …)` is a validation error, so the datamodel cannot declare this object faithfully. Declaring the column list WITHOUT the predicate would be strictly worse than not declaring it, because `prisma migrate diff` does not compare `pg_index.indpred` at all — it reports a TOTAL index and a PARTIAL index over the same column as identical. The divergence would vanish from this verifier while the datamodel quietly claimed ownership of an object it cannot see, and the next datamodel-derived baseline would emit an UNFILTERED `CREATE INDEX` covering every NULL row. Registering it here keeps one authority and one truth: raw SQL creates it, only a forward migration may change it, and this verifier fails in both directions if it is dropped or its column list changes.",
       "risk": "none for correctness — a partial index bounds index size and accelerates the planner; it enforces no constraint and changes no result. Its LOSS is nevertheless detected, because the entry is verified in both directions. Its PREDICATE is invisible to `migrate diff`, so the predicate is pinned by the source-contract test in `test/phase-12-point4-raw-schema-ownership.test.ts` rather than left unheld."
+    },
+    "PARTIAL_UNIQUE_DECLARATION": {
+      "ownership": "MIGRATION_MANAGED_RAW_SQL",
+      "reason": "A PARTIAL UNIQUE index — `CREATE UNIQUE INDEX … WHERE <predicate>` — created by hand-written migration SQL. It is registered apart from PARTIAL_INDEX_DECLARATION because that category states its objects enforce no constraint, and this one does: it is a uniqueness guarantee that the runtime relies on the DATABASE to hold. Prisma cannot express it twice over — the schema language has no index predicate, and `@@unique` would declare an UNCONDITIONAL constraint over columns that are deliberately NULL on most rows, which would reject perfectly legal data. Declaring the column list without the predicate would also be strictly worse than not declaring it: `prisma migrate diff` does not read `pg_index.indpred`, so it reports a total and a partial index over the same columns as identical, the divergence would disappear from this verifier, and the next datamodel-derived baseline would emit an UNFILTERED unique index that fails to create. Registering it here keeps one authority: raw SQL creates it, only a forward migration may change it, and this verifier fails in both directions if it is dropped or its column list changes.",
+      "risk": "MEDIUM — the constraint is a real integrity guarantee and its loss would be silent at the application layer, which is exactly why the verifier fingerprints it. The PREDICATE remains invisible to `migrate diff`, so it is pinned by the source-contract test in `test/phase-12-point4-raw-schema-ownership.test.ts` rather than left unheld."
     }
   },
   "extensions": [
@@ -91,9 +96,10 @@
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1,
-    "PARTIAL_INDEX_DECLARATION": 1
+    "PARTIAL_INDEX_DECLARATION": 1,
+    "PARTIAL_UNIQUE_DECLARATION": 1
   },
-  "totalRegisteredObjects": 874,
+  "totalRegisteredObjects": 875,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -421,6 +427,51 @@
     },
     {
       "table": "automation_runs",
+      "sign": "-",
+      "object": "Removed index on columns (lease_expires_at_utc)",
+      "category": "INDEX_DECLARATION",
+      "indexName": "automation_runs_expired_lease_idx",
+      "columns": [
+        "lease_expires_at_utc"
+      ],
+      "unique": false,
+      "predicate": "status = 'RUNNING'",
+      "owningMigration": "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
+      "reason": "required Automation retry/lease/idempotency index — the reconciler's \"whose lease expired?\" scan, which is how a run stranded by a dead worker is found instead of staying RUNNING forever. PARTIAL; Prisma cannot express the predicate."
+    },
+    {
+      "table": "automation_runs",
+      "sign": "-",
+      "object": "Removed index on columns (next_attempt_at_utc, created_at)",
+      "category": "INDEX_DECLARATION",
+      "indexName": "automation_runs_due_idx",
+      "columns": [
+        "next_attempt_at_utc",
+        "created_at"
+      ],
+      "unique": false,
+      "predicate": "status IN ('PENDING', 'RETRY_SCHEDULED')",
+      "owningMigration": "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
+      "reason": "required Automation retry/lease/idempotency index — the sweep's \"what is due?\" scan, ordered so a retry scheduled into the future cannot starve a fresh run. PARTIAL, so it stays small next to a table whose overwhelming majority of rows are terminal; Prisma cannot express the predicate."
+    },
+    {
+      "table": "automation_runs",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, rule_id, source_event_id)",
+      "category": "UNIQUE_DECLARATION",
+      "indexName": "automation_runs_source_event_uniq",
+      "columns": [
+        "team_id",
+        "rule_id",
+        "source_event_id"
+      ],
+      "unique": true,
+      "predicate": "source_event_id IS NOT NULL",
+      "owningMigration": "services/api/prisma/migrations/20271131000000_automation_runtime_durability_contract/migration.sql",
+      "reason": "required Automation retry/lease/idempotency index — the constraint that makes a REPLAYED source event collapse to one run per rule. It is what lets the producer use ON CONFLICT DO NOTHING inside the caller's transaction instead of catching a violation that would poison it. PARTIAL so historical rows, which legitimately have no source event, are untouched; Prisma cannot express a partial unique index."
+    },
+    {
+      "table": "automation_runs",
       "sign": "*",
       "object": "Renamed index automation_runs_team_created_idx to automation_runs_team_id_created_at_idx",
       "category": "INDEX_NAME_CONVENTION"
@@ -442,6 +493,34 @@
       "sign": "*",
       "object": "Renamed index automation_runs_team_status_idx to automation_runs_team_id_status_idx",
       "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "automation_webhook_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (lease_expires_at_utc)",
+      "category": "INDEX_DECLARATION",
+      "indexName": "automation_webhook_deliveries_expired_lease_idx",
+      "columns": [
+        "lease_expires_at_utc"
+      ],
+      "unique": false,
+      "predicate": "status = 'DELIVERING'",
+      "owningMigration": "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
+      "reason": "required Automation retry/lease/idempotency index — finds deliveries abandoned mid-flight by a dead worker. Without it a DELIVERING row left by a crash is indistinguishable from one in flight and is never reclaimed. PARTIAL; Prisma cannot express the predicate."
+    },
+    {
+      "table": "automation_webhook_deliveries",
+      "sign": "-",
+      "object": "Removed index on columns (next_attempt_at)",
+      "category": "INDEX_DECLARATION",
+      "indexName": "automation_webhook_deliveries_due_idx + automation_webhook_deliveries_ambiguous_due_idx",
+      "columns": [
+        "next_attempt_at"
+      ],
+      "unique": false,
+      "predicate": "status IN ('PENDING', 'RETRY_SCHEDULED')  ·  status = 'AMBIGUOUS'",
+      "owningMigration": "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
+      "reason": "required Automation retry/lease/idempotency index — TWO partial indexes on the same column, which the residual diff reports as one line because it compares column sets rather than predicates. They are deliberately separate: the retry pass claims and RESENDS, the ambiguity reconciler must never do so, and an AMBIGUOUS delivery must therefore never share the retry pass's scan."
     },
     {
       "table": "automation_webhook_deliveries",
@@ -1784,6 +1863,21 @@
     {
       "table": "evidence",
       "sign": "-",
+      "object": "Removed index on columns (integrity_correlation_id)",
+      "category": "PARTIAL_INDEX_DECLARATION",
+      "indexName": "evidence_integrity_correlation_id_idx",
+      "columns": [
+        "integrity_correlation_id"
+      ],
+      "predicate": "integrity_correlation_id IS NOT NULL",
+      "createdBy": "20271217000000_evidence_integrity_correlation",
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it — an unfiltered `@@index` would be a false ownership claim, not a fix; see the category reason.",
+      "prismaExpressible": false,
+      "purpose": "Groups the failing records of one deliberate multi-record integrity execution. The column is NULL for ordinary per-record work, so the predicate keeps the index proportional to the rows that can actually form a correlation parent."
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
       "object": "Removed index on columns (public_verify_state)",
       "category": "INDEX_DECLARATION"
     },
@@ -1804,21 +1898,6 @@
       "sign": "-",
       "object": "Removed index on columns (team_id, organization_id)",
       "category": "INDEX_DECLARATION"
-    },
-    {
-      "table": "evidence",
-      "sign": "-",
-      "object": "Removed index on columns (integrity_correlation_id)",
-      "category": "PARTIAL_INDEX_DECLARATION",
-      "indexName": "evidence_integrity_correlation_id_idx",
-      "columns": [
-        "integrity_correlation_id"
-      ],
-      "predicate": "integrity_correlation_id IS NOT NULL",
-      "createdBy": "20271217000000_evidence_integrity_correlation",
-      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it — an unfiltered `@@index` would be a false ownership claim, not a fix; see the category reason.",
-      "prismaExpressible": false,
-      "purpose": "Groups the failing records of one deliberate multi-record integrity execution. The column is NULL for ordinary per-record work, so the predicate keeps the index proportional to the rows that can actually form a correlation parent."
     },
     {
       "table": "evidence",
@@ -1843,6 +1922,22 @@
       "sign": "+",
       "object": "Added index on columns (parent_annotation_id)",
       "category": "INDEX_DECLARATION"
+    },
+    {
+      "table": "evidence_credit_ledger_entries",
+      "sign": "-",
+      "object": "Removed unique index on columns (provider, provider_ref)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "evidence_credit_ledger_purchase_provider_ref_key",
+      "columns": [
+        "provider",
+        "provider_ref"
+      ],
+      "predicate": "entry_type = 'PURCHASE' AND provider IS NOT NULL AND provider_ref IS NOT NULL",
+      "createdBy": "20271227000000_billing_commercial_correctness",
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional `@@unique([provider, providerRef])` would reject every CONSUMPTION row, which legitimately carries neither value.",
+      "prismaExpressible": false,
+      "purpose": "THE durable idempotency guard on credit grants. One provider payment may grant credits exactly once: the webhook and the reconciliation path both write a PURCHASE row keyed to (provider, providerRef), and the database — not an in-memory lock and not a prior read — is what makes the second writer lose. The predicate scopes it to PURCHASE rows because CONSUMPTION rows carry no provider reference and would otherwise all collide on (NULL, NULL) under a total unique index."
     },
     {
       "table": "evidence_entities",
@@ -5319,79 +5414,6 @@
       "sign": "*",
       "object": "Renamed index workspace_notification_preferences_user_id_team_id_preferenc_ke to workspace_notification_preferences_user_id_team_id_preferen_key",
       "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "automation_runs",
-      "sign": "-",
-      "object": "Removed index on columns (next_attempt_at_utc, created_at)",
-      "category": "INDEX_DECLARATION",
-      "indexName": "automation_runs_due_idx",
-      "columns": [
-        "next_attempt_at_utc",
-        "created_at"
-      ],
-      "unique": false,
-      "predicate": "status IN ('PENDING', 'RETRY_SCHEDULED')",
-      "owningMigration": "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
-      "reason": "required Automation retry/lease/idempotency index — the sweep's \"what is due?\" scan, ordered so a retry scheduled into the future cannot starve a fresh run. PARTIAL, so it stays small next to a table whose overwhelming majority of rows are terminal; Prisma cannot express the predicate."
-    },
-    {
-      "table": "automation_runs",
-      "sign": "-",
-      "object": "Removed index on columns (lease_expires_at_utc)",
-      "category": "INDEX_DECLARATION",
-      "indexName": "automation_runs_expired_lease_idx",
-      "columns": [
-        "lease_expires_at_utc"
-      ],
-      "unique": false,
-      "predicate": "status = 'RUNNING'",
-      "owningMigration": "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
-      "reason": "required Automation retry/lease/idempotency index — the reconciler's \"whose lease expired?\" scan, which is how a run stranded by a dead worker is found instead of staying RUNNING forever. PARTIAL; Prisma cannot express the predicate."
-    },
-    {
-      "table": "automation_runs",
-      "sign": "-",
-      "object": "Removed unique index on columns (team_id, rule_id, source_event_id)",
-      "category": "UNIQUE_DECLARATION",
-      "indexName": "automation_runs_source_event_uniq",
-      "columns": [
-        "team_id",
-        "rule_id",
-        "source_event_id"
-      ],
-      "unique": true,
-      "predicate": "source_event_id IS NOT NULL",
-      "owningMigration": "services/api/prisma/migrations/20271131000000_automation_runtime_durability_contract/migration.sql",
-      "reason": "required Automation retry/lease/idempotency index — the constraint that makes a REPLAYED source event collapse to one run per rule. It is what lets the producer use ON CONFLICT DO NOTHING inside the caller's transaction instead of catching a violation that would poison it. PARTIAL so historical rows, which legitimately have no source event, are untouched; Prisma cannot express a partial unique index."
-    },
-    {
-      "table": "automation_webhook_deliveries",
-      "sign": "-",
-      "object": "Removed index on columns (next_attempt_at)",
-      "category": "INDEX_DECLARATION",
-      "indexName": "automation_webhook_deliveries_due_idx + automation_webhook_deliveries_ambiguous_due_idx",
-      "columns": [
-        "next_attempt_at"
-      ],
-      "unique": false,
-      "predicate": "status IN ('PENDING', 'RETRY_SCHEDULED')  ·  status = 'AMBIGUOUS'",
-      "owningMigration": "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
-      "reason": "required Automation retry/lease/idempotency index — TWO partial indexes on the same column, which the residual diff reports as one line because it compares column sets rather than predicates. They are deliberately separate: the retry pass claims and RESENDS, the ambiguity reconciler must never do so, and an AMBIGUOUS delivery must therefore never share the retry pass's scan."
-    },
-    {
-      "table": "automation_webhook_deliveries",
-      "sign": "-",
-      "object": "Removed index on columns (lease_expires_at_utc)",
-      "category": "INDEX_DECLARATION",
-      "indexName": "automation_webhook_deliveries_expired_lease_idx",
-      "columns": [
-        "lease_expires_at_utc"
-      ],
-      "unique": false,
-      "predicate": "status = 'DELIVERING'",
-      "owningMigration": "services/api/prisma/migrations/20271129000000_automation_runtime_durability_expand/migration.sql",
-      "reason": "required Automation retry/lease/idempotency index — finds deliveries abandoned mid-flight by a dead worker. Without it a DELIVERING row left by a crash is indistinguishable from one in flight and is never reclaimed. PARTIAL; Prisma cannot express the predicate."
     }
   ]
 }

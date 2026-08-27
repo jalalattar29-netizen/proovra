@@ -56,7 +56,10 @@ const MIGRATION = resolve(
 
 type Manifest = {
   invariants: { tablesProposedForRemoval: number; columnsProposedForRemoval: number };
-  categories: Record<string, { ownership: string; reason: string }>;
+  categories: Record<
+    string,
+    { ownership: string; reason: string; risk?: string }
+  >;
   extensions: Array<{
     name: string;
     owningMigration: string;
@@ -446,5 +449,117 @@ describe("Phase 12 Point 4 — schema ownership is single and explicit", () => {
     // class of them.
     expect(verifier).not.toMatch(/PARTIAL_INDEX_DECLARATION/);
     expect(verifier).not.toMatch(/category\s*===\s*"INDEX/);
+  });
+});
+
+// ===========================================================================
+// THE CREDIT-LEDGER PARTIAL UNIQUE INDEX
+// ===========================================================================
+//
+// `clean-db-boot` failed on a freshly migrated database with:
+//
+//   FAIL — 1 UNREGISTERED schema divergence(s) appeared:
+//     + evidence_credit_ledger_entries::-::Removed unique index on columns
+//       (provider, provider_ref)
+//
+// The migration that created the credit ledger also created a PARTIAL UNIQUE
+// index, and nothing registered it. `migrate diff` runs FROM the database TO
+// the datamodel, so an object the datamodel does not declare reads as "remove
+// this" — the signature of a raw-SQL-owned object.
+//
+// It is raw-owned because it must be, and for a reason the existing
+// PARTIAL_INDEX_DECLARATION category does not cover: this index ENFORCES A
+// CONSTRAINT. `@@unique([provider, providerRef])` would be unconditional, and
+// every CONSUMPTION row legitimately carries neither value — the second such
+// row would collide on (NULL, NULL) and be rejected. The predicate is the only
+// thing that makes the constraint expressible at all, and Prisma has no syntax
+// for one.
+//
+// The predicate is invisible to the verifier (`migrate diff` never reads
+// `pg_index.indpred`), so these assertions are the only thing holding it.
+describe("raw-schema ownership — the credit-ledger partial UNIQUE index", () => {
+  const CREDIT_UNIQUE_OBJECT =
+    "Removed unique index on columns (provider, provider_ref)";
+  const BILLING_MIGRATION = resolve(
+    API_ROOT,
+    "prisma/migrations/20271227000000_billing_commercial_correctness/migration.sql",
+  );
+
+  it("is REGISTERED, exactly once, under a category that admits it is a constraint", () => {
+    const matches = manifest.objects.filter(
+      (o) =>
+        o.table === "evidence_credit_ledger_entries" &&
+        o.sign === "-" &&
+        o.object === CREDIT_UNIQUE_OBJECT,
+    );
+    expect(
+      matches.length,
+      "the partial unique index on evidence_credit_ledger_entries must be " +
+        "registered exactly once, or clean-db-boot fails with an UNREGISTERED " +
+        "divergence",
+    ).toBe(1);
+
+    const entry = matches[0]!;
+    expect(entry.category).toBe("PARTIAL_UNIQUE_DECLARATION");
+
+    // Filed apart from PARTIAL_INDEX_DECLARATION on purpose: that category
+    // states its objects enforce no constraint, which is untrue of this one.
+    const category = manifest.categories.PARTIAL_UNIQUE_DECLARATION;
+    expect(category, "the category itself must be declared").toBeTruthy();
+    expect(category.ownership).toBe("MIGRATION_MANAGED_RAW_SQL");
+    expect(category.risk).toMatch(/MEDIUM/);
+    expect(manifest.categories.PARTIAL_INDEX_DECLARATION.risk).toMatch(
+      /enforces no constraint/i,
+    );
+  });
+
+  it("states its ownership POSITIVELY — creator, name, columns, predicate, mutation policy", () => {
+    const entry = manifest.objects.find(
+      (o) =>
+        o.table === "evidence_credit_ledger_entries" &&
+        o.object === CREDIT_UNIQUE_OBJECT,
+    )!;
+    expect(entry.indexName).toBe(
+      "evidence_credit_ledger_purchase_provider_ref_key",
+    );
+    expect(entry.columns).toEqual(["provider", "provider_ref"]);
+    expect(entry.predicate).toMatch(/entry_type = 'PURCHASE'/);
+    expect(entry.createdBy).toBe("20271227000000_billing_commercial_correctness");
+    expect(entry.prismaExpressible).toBe(false);
+    expect(entry.mayBeModifiedBy).toMatch(/forward migration/i);
+  });
+
+  it("the creating migration still declares that exact index, name and predicate", () => {
+    // THE PREDICATE'S ONLY GUARD — see the block comment above. Widening it to
+    // a total unique index would leave raw-schema-verify reporting OK while
+    // every CONSUMPTION row after the first became unwritable.
+    const sql = readFileSync(BILLING_MIGRATION, "utf8");
+    expect(sql).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS\s+"evidence_credit_ledger_purchase_provider_ref_key"/,
+    );
+    expect(sql).toMatch(
+      /ON\s+"evidence_credit_ledger_entries"\s*\(\s*"provider",\s*"provider_ref"\s*\)/,
+    );
+    expect(
+      sql,
+      "the predicate is what makes the constraint legal: CONSUMPTION rows " +
+        "carry no provider reference and would all collide on (NULL, NULL)",
+    ).toMatch(/WHERE\s+"entry_type"\s*=\s*'PURCHASE'/);
+    expect(sql).not.toMatch(/\bDROP\s+(TABLE|COLUMN|INDEX|CONSTRAINT)\b/i);
+  });
+
+  it("the datamodel does NOT declare it — an unconditional @@unique would reject legal rows", () => {
+    const start = SCHEMA.indexOf("model EvidenceCreditLedgerEntry {");
+    expect(start).toBeGreaterThan(-1);
+    const body = SCHEMA.slice(start, SCHEMA.indexOf("\n}", start));
+    // The COLUMNS are owned by the datamodel. Existence always is.
+    expect(body).toMatch(/provider/);
+    expect(body).toMatch(/providerRef/);
+    // The CONSTRAINT is not.
+    expect(
+      body,
+      "an unconditional @@unique([provider, providerRef]) would reject the " +
+        "second CONSUMPTION row, which carries neither value",
+    ).not.toMatch(/@@unique\(\[\s*provider\s*,\s*providerRef/);
   });
 });
