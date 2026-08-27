@@ -25,7 +25,6 @@ import {
   OCCURRENCE_WHILE_SUPPRESSED_EVENT,
   REOPENED_EVENT,
   reopenReasonFor,
-  isRegisteredOperationsSource,
   resolveConditionSource,
   RESOLUTION_EVENT_ORIGINS,
   type IncidentTransitionStatus,

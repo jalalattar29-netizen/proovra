@@ -297,21 +297,57 @@ test("SERVER: search matches every field the title cascade displays", () => {
   assert.match(block, /whereBase\.OR = \[/);
 });
 
-test("SERVER: all six lifecycle filters map to a real status field", () => {
-  const block = AGGREGATOR.slice(AGGREGATOR.indexOf("function filterByLifecycle"));
+test("SERVER: every lifecycle filter is a DATABASE predicate", () => {
+  // THIS USED TO READ THE WRONG FUNCTION.
+  //
+  // It asserted against `filterByLifecycle`, which ran AFTER pagination over
+  // the 25 rows the page had already fetched — so "Report pending" searched 25
+  // of 278 records and called the result the answer. That function was
+  // replaced by `lifecycleWhere`, a predicate the DATABASE applies, and the
+  // dead one was left behind. The test kept passing against code no caller
+  // reached, which is the same as not testing the filter at all.
+  //
+  // It now reads the live authority. Every branch below is checked against the
+  // relation or JSON test the query actually sends.
+  const block = AGGREGATOR.slice(AGGREGATOR.indexOf("function lifecycleWhere"));
   const cases: Array<[string, string]> = [
-    ["report_ready", 'i.report.state === "ready"'],
-    ["report_pending", 'i.report.state === "pending"'],
-    ["package_ready", 'i.package.state === "ready"'],
-    ["package_pending", 'i.package.state === "pending"'],
-    ["package_blocked", 'i.package.state === "blocked"'],
+    ["report_ready", "{ reports: { some: {} } }"],
+    ["report_pending", "{ reports: { none: {} } }"],
+    ["package_ready", "{ verificationPackages: { some: {} } }"],
   ];
   for (const [key, predicate] of cases) {
     assert.match(block, new RegExp(`case "${key}":`), `${key} has no branch`);
     assert.ok(block.includes(predicate), `${key} must filter on ${predicate}`);
   }
-  // `all` returns everything rather than filtering to nothing.
-  assert.match(block, /case "all":\s*\n\s*return items;/);
+
+  // The two that share a relation test and are separated by the JSON column.
+  // Asserted as a PAIR, because the whole risk is that they collapse into each
+  // other: a blocked package and a pending one both have no package row.
+  const pending = block.slice(
+    block.indexOf('case "package_pending":'),
+    block.indexOf('case "package_blocked":'),
+  );
+  const blocked = block.slice(block.indexOf('case "package_blocked":'));
+  assert.ok(
+    pending.includes("verificationPackages: { none: {} }") &&
+      pending.includes("NOT: { verificationPackageMetadata"),
+    "package_pending must EXCLUDE the blocked ones",
+  );
+  assert.ok(
+    blocked.includes("verificationPackages: { none: {} }") &&
+      blocked.includes('verificationPackageMetadata: { path: ["blocked"]'),
+    "package_blocked must select on the blocked flag",
+  );
+
+  // `all` widens to no predicate rather than filtering to nothing…
+  assert.match(block, /case "all":\s*\n\s*return null;/);
+  // …and `report_failed` stays TOTAL while matching nothing, because no
+  // persisted failure state exists inside this population. Returning null
+  // there would silently widen it to everything.
+  assert.ok(
+    block.includes('case "report_failed":') && block.includes("id: { in: [] }"),
+    "report_failed must match nothing rather than widen",
+  );
 });
 
 test("there is exactly ONE clear control on the search field", () => {

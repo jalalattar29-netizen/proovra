@@ -159,13 +159,13 @@ describe("§2.3 — an ambiguous legacy row fails closed", () => {
 });
 
 describe("§2.1 — the scope authority composes without collisions", () => {
-  it("no caller of workspaceIncidentWhere sets its own top-level AND", () => {
+  it("no caller of workspaceIncidentWhere sets its own top-level AND", async () => {
     // The tenant predicate now carries the PLATFORM_INTERNAL exclusion under
     // `AND`, and every caller composes it by object SPREAD. A caller that set
     // its own `AND` would silently overwrite it: the query would still run and
     // the exclusion would quietly stop applying. `workspaceIncidentWhereWith`
     // exists for callers that need one.
-    const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
+    const { execFileSync } = await import("node:child_process");
     const files = execFileSync("git", ["ls-files", "services/api/src"], {
       cwd: REPO,
       encoding: "utf8",

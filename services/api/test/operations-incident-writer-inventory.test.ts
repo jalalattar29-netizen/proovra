@@ -113,7 +113,7 @@ describe("§12 — the incident writer inventory is complete", () => {
     expect(WRITERS.length).toBeGreaterThan(0);
   });
 
-  it("every production module that writes the table is inventoried", () => {
+  it("every production module that writes the table is inventoried", async () => {
     // The search space: the two services' source trees and the shared package.
     // Tests are excluded — a fixture writing a row directly is how a test
     // reproduces a legacy state the product now refuses to create, and that is
@@ -124,7 +124,7 @@ describe("§12 — the incident writer inventory is complete", () => {
       "../../../packages/shared-runtime/src",
     ];
     const found = new Set<string>();
-    const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
+    const { execFileSync } = await import("node:child_process");
     const repo = fileURLToPath(new URL("../../..", import.meta.url));
     for (const root of roots) {
       const abs = fileURLToPath(new URL(root, import.meta.url));

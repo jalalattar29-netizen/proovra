@@ -1283,7 +1283,6 @@ export async function searchRoutes(app: FastifyInstance) {
       const evidenceTotal = healthFacts.evidenceTotal;
       const indexedByType = healthFacts.indexedByType;
       const indexedTotal = healthFacts.indexedTotal;
-      const lastIndexedAtUtc = healthFacts.lastIndexedAtUtc;
       const indexedEvidence = healthFacts.indexedEvidenceCount;
 
       // Sample query probe — same OR shape as executeSearch. Honors
@@ -1389,7 +1388,6 @@ export async function searchRoutes(app: FastifyInstance) {
       // Reaching this line means the actor already passed `requireSearchActor`,
       // so authorization is settled; an unauthorized actor never sees a count.
       const runSnapshot = healthFacts.run;
-      const unresolvedRemovals = healthFacts.unresolvedRemovals;
       const readiness = await resolveWorkspaceSearchReadiness(
         { teamId, degradedCapabilities, facts: healthFacts },
         prisma,

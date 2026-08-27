@@ -208,13 +208,6 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
     });
   }
 
-  async function backlogConditionOrNull(teamId: string) {
-    return prisma.operationalIncident.findFirst({
-      where: { teamId, fingerprint: backlogFingerprint(teamId) },
-      select: { id: true, status: true, metricSnapshot: true },
-    });
-  }
-
   async function eventTypes(incidentId: string): Promise<string[]> {
     const rows = await prisma.operationalIncidentEvent.findMany({
       where: { incidentId },

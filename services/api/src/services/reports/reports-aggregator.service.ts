@@ -615,25 +615,3 @@ function lifecycleWhere(
       };
   }
 }
-
-function filterByLifecycle(
-  items: ArtifactRow[],
-  filter: ReportLifecycleFilter,
-): ArtifactRow[] {
-  switch (filter) {
-    case "all":
-      return items;
-    case "report_ready":
-      return items.filter((i) => i.report.state === "ready");
-    case "report_pending":
-      return items.filter((i) => i.report.state === "pending");
-    case "report_failed":
-      return items.filter((i) => i.report.state === "failed");
-    case "package_ready":
-      return items.filter((i) => i.package.state === "ready");
-    case "package_pending":
-      return items.filter((i) => i.package.state === "pending");
-    case "package_blocked":
-      return items.filter((i) => i.package.state === "blocked");
-  }
-}
