@@ -287,7 +287,7 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23490;
 // report/package entitlement is resolved from how the completion was FUNDED
 // rather than from the account's recurring plan. The growth is that
 // settlement plus its explanation; no custody, signing or TSA step moved.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 49553;
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 49916;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.

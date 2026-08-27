@@ -208,7 +208,7 @@ describe("CR4 Group 1 — file-size guards", () => {
     // report/package entitlement is resolved from how the completion was FUNDED
     // rather than from the account's recurring plan. The growth is that
     // settlement plus its explanation; no custody, signing or TSA step moved.
-    expect(sz).toBe(49553);
+    expect(sz).toBe(49916);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {

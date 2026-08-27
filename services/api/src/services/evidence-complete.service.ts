@@ -4,7 +4,6 @@ import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 import { getEvidenceSigner } from "../signing/signer.js";
 import {
   assertWorkspaceAllowsStorageGrowth,
-  countPersonalEvidenceRecords,
   resolveEnforcementScopeForRequester,
   settleEvidenceCompletionFunding,
 } from "./billing-enforcement.service.js";
@@ -1109,18 +1108,20 @@ const captureMethod =
       // customer's credit. `tx` is now passed, so the spend and the completion
       // commit or roll back together, and the ledger's unique `evidence_id`
       // makes a retry for this same record a no-op rather than a second spend.
+      // BILLING PRODUCTION CLOSURE (2026-08-27) — the record count is no longer
+      // passed from here.
+      //
+      // The comment that stood in this place claimed the row "is already
+      // written inside `tx`, so the canonical count does not yet include it".
+      // That was false: this transaction CLAIMS a row `createEvidence`
+      // inserted and committed earlier (see the `evidence.updateMany` claim
+      // above), and `countPersonalEvidenceRecords` reads the global client. The
+      // count therefore included the record being funded, and FREE's third
+      // record — PRO's hundredth — asked for a paid credit it should never
+      // have needed. `settleEvidenceCompletionFunding` now takes the count
+      // itself, excluding this record by id.
       const settlement = await settleEvidenceCompletionFunding(
-        {
-          scope,
-          evidenceId: ev.id,
-          // Records held BEFORE this one. This row is already written inside
-          // `tx`, so the canonical count (which reads the committed snapshot)
-          // does not yet include it.
-          priorRecordCount:
-            scope.billingShape === "SHARED"
-              ? 0
-              : await countPersonalEvidenceRecords(scope.ownerUserId),
-        },
+        { scope, evidenceId: ev.id },
         tx,
       );
 

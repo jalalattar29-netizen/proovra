@@ -263,8 +263,18 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     {
       httpStatus: 409,
       publicCode: isFree ? "FREE_LIMIT_REACHED" : "EVIDENCE_RECORD_LIMIT_REACHED",
+      // BILLING PRODUCTION CLOSURE (2026-08-27) — the phrase "record limit" is
+      // restored to the FREE message.
+      //
+      // The previous pass rewrote it to "You have used the 3 records included
+      // in the Free plan", which reads better but dropped the words that
+      // `p7.obs.free_limit.denied_as_canonical_4xx_not_captured` pins as the
+      // proof that this denial reaches the customer as PRODUCT COPY and not as
+      // an internal error. That broke the integration gate, and the honest fix
+      // is the copy, not the assertion — nothing the rewrite added is lost
+      // here: the number, the reassurance and the remedy all remain.
       publicMessage: isFree
-        ? "You have used the 3 records included in the Free plan. Existing records remain available — buy evidence credits or upgrade to add more."
+        ? "You have reached the record limit included in the Free plan: 3 records. Existing records remain available — buy evidence credits or upgrade to add more."
         : "You have reached the record limit included in your current plan. Existing records remain available — buy evidence credits or upgrade to add more.",
       reportability: "EXPECTED_DENIAL",
       severity: "info",
@@ -289,11 +299,38 @@ export async function assertWorkspaceAllowsEvidenceCreation(
  */
 export async function countPersonalEvidenceRecords(
   ownerUserId: string,
+  options?: {
+    /**
+     * BILLING PRODUCTION CLOSURE (2026-08-27) — exclude ONE record from the
+     * count.
+     *
+     * The creation gate and the completion gate ask the same question — "how
+     * many records did this account hold BEFORE this one?" — from two
+     * different moments. At creation the row does not exist yet, so a plain
+     * count already answers it. At completion the row was inserted and
+     * COMMITTED by `createEvidence` in an earlier transaction, so a plain
+     * count includes the very record being funded and the account appears one
+     * record fuller than it is.
+     *
+     * That off-by-one made the LAST included record of every personal plan
+     * unfundable: on FREE the third record evaluated `3 < 3` and demanded a
+     * paid credit; with a credit banked it silently spent it on a record the
+     * plan already covered, and the fourth was then refused — so a purchased
+     * credit bought nothing.
+     *
+     * Exclusion rather than subtraction: `NOT: { id }` is exact whatever the
+     * row's state, needs no proof that the row is currently counted (a trashed
+     * or DESTROYED record is not), and cannot underflow.
+     */
+    excludeEvidenceId?: string | null;
+  },
 ): Promise<number> {
   const personalTeam = await prisma.team.findFirst({
     where: { ownerUserId, isPersonal: true },
     select: { id: true },
   });
+
+  const excludeEvidenceId = options?.excludeEvidenceId ?? null;
 
   return prisma.evidence.count({
     where: {
@@ -304,6 +341,7 @@ export async function countPersonalEvidenceRecords(
         { teamId: null },
         ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
       ],
+      ...(excludeEvidenceId ? { NOT: { id: excludeEvidenceId } } : {}),
     },
   });
 }
@@ -459,12 +497,6 @@ export async function settleEvidenceCompletionFunding(
   params: {
     scope: WorkspaceScope;
     evidenceId: string;
-    /**
-     * Records already held by this personal subject BEFORE this one, counted
-     * with the canonical predicate. Supplied by the caller so the count is
-     * taken once inside the completion transaction's read window.
-     */
-    priorRecordCount: number;
   },
   client: EvidenceCreditClient,
 ): Promise<{ funding: EvidenceFundingSource }> {
@@ -476,13 +508,51 @@ export async function settleEvidenceCompletionFunding(
     return { funding: "PLAN" };
   }
 
+  // BILLING PRODUCTION CLOSURE (2026-08-27) — a record that has ALREADY paid
+  // is settled, and settling it again asks no new commercial question.
+  //
+  // This check has to come before admission, not after. Admission asks "may
+  // this account fund one more record?", and by the time a credit-funded
+  // record is retried the answer is legitimately no: the credit it spent is
+  // gone and the allowance it exceeded is still exceeded. Running admission
+  // first therefore turned every retry of a paid record into a 402 — a
+  // completion that had already been paid for could not be re-driven after a
+  // transient failure, and a duplicate finalize surfaced as "insufficient
+  // credits" to a customer who had bought exactly the right number.
+  //
+  // The ledger row is the authority, read through the caller's own client so a
+  // spend made earlier in this same transaction is visible.
+  const settledEntry = await client.evidenceCreditLedgerEntry.findUnique({
+    where: { evidenceId: params.evidenceId },
+    select: { entryType: true },
+  });
+  if (settledEntry?.entryType === prismaPkg.EvidenceCreditEntryType.CONSUMPTION) {
+    return { funding: "EVIDENCE_CREDIT" };
+  }
+
   const caps = getPlanCapabilities(scope.plan);
   const effectiveLifetimeCap =
     scope.commercialLimits?.effectiveLifetimeRecordCap ?? caps.maxEvidenceRecords;
 
+  // BILLING PRODUCTION CLOSURE (2026-08-27) — the count is taken HERE, and the
+  // record being funded is excluded from it.
+  //
+  // It used to arrive as a `priorRecordCount` parameter the caller computed.
+  // The caller computed it with a plain count, taken at a moment when the row
+  // already existed and was committed, so it was not "prior" at all — it was
+  // the count INCLUDING this record, and the last included record of every
+  // personal plan therefore evaluated `cap < cap` and demanded a paid credit.
+  //
+  // Removing the parameter removes the class of error: there is no number a
+  // caller can get wrong, and the admission decision at completion now asks
+  // exactly the question the creation gate asks.
+  const priorRecordCount = await countPersonalEvidenceRecords(scope.ownerUserId, {
+    excludeEvidenceId: params.evidenceId,
+  });
+
   const admission = resolvePersonalEvidenceAdmission({
     plan: scope.plan,
-    currentRecordCount: params.priorRecordCount,
+    currentRecordCount: priorRecordCount,
     effectiveLifetimeRecordCap: effectiveLifetimeCap,
     availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
   });
@@ -547,9 +617,9 @@ export async function getWorkspaceBillingSummary(scope: WorkspaceScope) {
 // Plan-aware AI advisory monthly cap
 // ────────────────────────────────────────────────────────────────────
 
-const AI_USAGE_KEY = "ai_advisory_operations" as const;
+export const AI_USAGE_KEY = "ai_advisory_operations" as const;
 
-function startOfCurrentMonthUtc(): Date {
+export function startOfCurrentMonthUtc(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
@@ -672,8 +742,14 @@ export async function recordWorkspaceAiOperation(
 export async function getWorkspaceAiUsageThisMonth(
   scope: WorkspaceScope,
 ): Promise<{ consumed: number; cap: number | null }> {
-  const caps = getPlanCapabilities(scope.plan);
-  const cap = caps.aiAdvisoryMonthlyOperations;
+  // BILLING PRODUCTION CLOSURE (2026-08-27) — the cap comes from the SAME
+  // resolver the AI gate enforces with. It used to read the catalog row
+  // directly, so an ENTERPRISE contract that stated a monthly AI allowance was
+  // enforced at one number and displayed at another.
+  const cap = resolveEffectiveContractAiCap({
+    plan: scope.plan,
+    contract: scope.contractLimits,
+  });
   const tenantId = await resolveAiUsageTenantId(scope);
   if (!tenantId) return { consumed: 0, cap };
 

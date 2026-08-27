@@ -537,15 +537,14 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
     // unchanged: the fan-out still runs strictly AFTER the transaction commits,
     // which is what makes a rolled-back completion unable to produce a runnable
     // job.
-    // BILLING COMMERCIAL CORRECTNESS rebaseline (2026-08-27): 47,556 → 49,553.
-    // The credit settlement inside the finalize transaction replaced a
-    // fire-and-forget `consumeWorkspaceCompletionCredits(scope)` call that ran
-    // against the GLOBAL prisma client — so a rolled-back completion still
-    // burned the customer's credit. It now takes `tx`, and the record's
-    // report/package entitlement is resolved from how the completion was FUNDED
-    // rather than from the account's recurring plan. The growth is that
-    // settlement plus its explanation; no custody, signing or TSA step moved.
-    ).toBe(49553);
+    // BILLING PRODUCTION CLOSURE rebaseline (2026-08-27): 49,553 → 49,916.
+    // The settlement call SHRANK — it no longer computes and passes a record
+    // count — and the growth is entirely the comment recording why. The count
+    // that used to be passed from here included the record being completed, so
+    // FREE's third record and PRO's hundredth asked for a paid credit; the
+    // boundary now takes its own count and excludes the record by id. No
+    // custody, signing or TSA step moved.
+    ).toBe(49916);
   });
 
   it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {
