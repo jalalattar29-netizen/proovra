@@ -33,12 +33,13 @@
 
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(join(WEB_ROOT, rel), "utf8");
+const exists = (rel: string) => existsSync(join(WEB_ROOT, rel));
 
 const MEMBER_CONTROLS = "components/organizations/OrgMemberLifecycleControls.tsx";
 const WORKSPACE_CONTROLS =
@@ -225,52 +226,43 @@ test("org workspace suspend/resume: wired into the org detail workspaces list", 
 // POST /v1/teams
 // ---------------------------------------------------------------------------
 
-test("create workspace: the /workspaces page can finally do what it told people to do", () => {
-  const src = read(CREATE_WORKSPACE);
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the two create-workspace
+// tests were REPLACED by these two.
+//
+// They pinned a control that has been removed, and they pinned it well: the
+// call site, the body, the validation, the denial code, the re-read of the
+// envelope, the keyboard contract. None of that was wrong. What changed is
+// underneath it — self-service workspace creation is refused now, because
+// checkout has one subject and it is the person, so a workspace created there
+// could never be paid for and would refuse every piece of evidence recorded in
+// it.
+//
+// A test that keeps a removed capability alive is worse than no test: it makes
+// the removal look like a regression. These assert the ABSENCE instead, and —
+// the part that actually protects a customer — that the copy which sent people
+// to create one is gone with it.
 
-  assert.ok(
-    src.includes('apiFetch("/v1/teams", {'),
-    "the create-workspace call site is missing",
+test("create workspace: the control is GONE, not merely disabled", () => {
+  assert.equal(
+    exists(CREATE_WORKSPACE),
+    false,
+    "CreateWorkspaceCard still exists — a control for a capability that is refused",
   );
-  assert.match(src, /method: "POST"/);
-  assert.ok(
-    src.includes('JSON.stringify({ name: trimmed })'),
-    "the name never reaches the request body",
-  );
-
-  // The route's zod body is name 1..120 — validated before the request.
-  assert.match(src, /const MAX_NAME = 120/);
-  assert.match(src, /Give the workspace a name/);
-  assert.match(src, /aria-invalid=/);
-  assert.match(src, /disabled=\{busy \|\| name\.trim\(\)\.length === 0\}/);
-
-  // The plan limit is a real, stable, code-bearing denial.
-  assert.ok(src.includes("SHARED_WORKSPACE_LIMIT_REACHED"));
-  assert.match(src, /maxOwnedTeams/);
-
-  // The spaces list is server state: re-read the envelope, never patch it.
-  assert.ok(src.includes("usePlatformContext"), "no canonical context source");
-  assert.ok(src.includes("await refresh()"), "success does not re-read the envelope");
-
-  // Real buttons, keyboard-operable by construction.
-  assert.match(src, /<button\s+type="submit"/);
-  assert.match(src, /<button\s+type="button"/);
-
-  assertControlContract(CREATE_WORKSPACE, "create workspace");
+  const home = read("components/workspace-admin/WorkspaceAdministrationHome.tsx");
+  assert.equal(home.includes("<CreateWorkspaceCard />"), false);
+  assert.equal(home.includes("CreateWorkspaceCard"), false);
 });
 
-test("create workspace: mounted on the spaces surface the copy points at", () => {
-  const page = read(SPACES_PAGE);
-  assert.ok(
-    page.includes("<CreateWorkspaceCard />"),
-    "the spaces page still has no create control",
-  );
-  // The dead-end link that pointed at a page with no create control is gone.
-  assert.equal(
-    page.includes('href="/teams?action=create"'),
-    false,
-    "the create CTA still links to a page that cannot create anything",
-  );
+test("create workspace: the copy no longer says billing lives in a workspace", () => {
+  const home = read("components/workspace-admin/WorkspaceAdministrationHome.tsx");
+  // It read "members, roles, governance, reviewer ops, and billing live in it"
+  // — the obsolete model told to the user in the product's own words.
+  assert.equal(home.includes("and billing live in it"), false);
+  // JSX wraps prose across lines, so the copy is matched with whitespace
+  // collapsed rather than as a single literal.
+  const prose = home.replace(/\s+/g, " ");
+  assert.ok(prose.includes("lives in your Personal Workspace"));
+  assert.ok(prose.includes("part of an Enterprise agreement"));
 });
 
 // ---------------------------------------------------------------------------

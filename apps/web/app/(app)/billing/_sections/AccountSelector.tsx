@@ -27,7 +27,6 @@ import type {
 
 const KIND_LABEL: Record<BillingAccountType, string> = {
   PERSONAL: "Personal",
-  WORKSPACE: "Workspace",
   ORGANIZATION: "Organization",
 };
 

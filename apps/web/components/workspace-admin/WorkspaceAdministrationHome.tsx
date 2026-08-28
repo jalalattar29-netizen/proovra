@@ -34,7 +34,6 @@ import {
   usePersonalSpace,
 } from "../../lib/platform-context";
 import { WorkspaceAdminPanel } from "./WorkspaceAdminPanel";
-import { CreateWorkspaceCard } from "./CreateWorkspaceCard";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 
 export function WorkspaceAdministrationHome() {
@@ -130,13 +129,28 @@ export function WorkspaceAdministrationHome() {
           </h2>
         </header>
         {organizations.length === 0 ? (
+          /*
+           * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the create
+           * control and its copy were REMOVED together.
+           *
+           * The copy said members, roles, governance, reviewer ops "and
+           * billing" live in a workspace you should go and create. That is the
+           * obsolete model stated to the user: billing lives with the PERSON,
+           * collaboration is a tier of the workspace they already have, and an
+           * Organization is contracted rather than created here.
+           *
+           * The control had already stopped working — self-service workspace
+           * creation is refused, because a workspace created that way could
+           * never be paid for — so leaving it would have been a button that
+           * always failed, above copy that explained the wrong product.
+           */
           <div className="cases-empty" data-organizations-empty>
             <strong>You're not in any organizations yet.</strong>
             <p>
-              Create a workspace for collaborative investigations — members,
-              roles, governance, reviewer ops, and billing live in it.
+              An organization is set up with our team as part of an Enterprise
+              agreement. Everything else — your evidence, your collaboration
+              teams and your plan — lives in your Personal Workspace.
             </p>
-            <CreateWorkspaceCard />
           </div>
         ) : (
           <ul className="cases-list" data-organizations-list>
@@ -201,9 +215,9 @@ export function WorkspaceAdministrationHome() {
         <header className="cc-section-header">
           <h2 className="cc-section-title">Actions</h2>
         </header>
-        {/* PHASE 13 — the create control itself, not a link to a page that
-            never had one. POST /v1/teams creates an OWNED workspace. */}
-        <CreateWorkspaceCard />
+        {/* BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the create
+            control was removed with the capability. What remains here are the
+            actions that still exist. */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
           <Link
             href="/teams?action=join"

@@ -139,12 +139,19 @@ test("all 15 required Phase 7 surfaces compose the render-proven primitives", ()
     //
     // The drawer has no target picker at all: the page has already selected a
     // BILLING ACCOUNT, that account is what is being bought for, and the
-    // workspace id passed to the server is derived from it — never chosen
-    // again. The drawer states which account it applies to, and the server
-    // re-authorizes BILLING_MANAGE on that exact subject.
+    // drawer states which account it applies to. The server re-authorizes
+    // BILLING_MANAGE on that exact subject.
+    //
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the workspace-id
+    // derivation went with the subject that needed it, and the isolation
+    // property got stronger again. A checkout does not derive a workspace, it
+    // does not carry one, and the server refuses a body that names one: there
+    // is one payer, and it is the person. What is asserted here is therefore
+    // the ABSENCE — the drawer must not reintroduce a workspace target — plus
+    // the statement of subject that was always the point.
     [
       "app/(app)/billing/_sections/CheckoutDrawer.tsx",
-      [/projection\.account\.type === "WORKSPACE"/, /This applies to \$\{projection\.account\.displayName\}/],
+      [/This applies to \$\{projection\.account\.displayName\}/],
     ],
   ];
   // Share — N/A as a distinct authenticated form: sharing in this product

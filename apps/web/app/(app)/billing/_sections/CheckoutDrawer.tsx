@@ -53,7 +53,10 @@ export function CheckoutDrawer({
   const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
 
   const workspaceId =
-    projection.account.type === "WORKSPACE" ? projection.account.id : null;
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a checkout has no
+    // workspace target. A subscription is bought for the person, and the
+    // server refuses a body that names a workspace at all.
+    null;
   const currency = projection.plan.currency ?? "USD";
   const offers = projection.storageAddons?.offers ?? [];
   const planOffers = projection.planOffers ?? [];
@@ -235,22 +238,63 @@ export function CheckoutDrawer({
         ) : null}
 
         {intent === "CREDITS" && projection.wallet ? (
-          <section>
-            <h3 style={sectionHeading}>Your credits</h3>
-            <div style={optionBox}>
-              <div style={{ fontWeight: 600, color: "var(--text-strong, #172033)" }}>
-                {projection.wallet.availableCredits} available
+          /*
+           * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the BALANCE and
+           * the PURCHASE are two separate statements, in that order.
+           *
+           * They used to be one box headed "Your credits" showing "3
+           * available" and a unit price, directly above a Buy button — so the
+           * only quantity on screen was the one the customer already had, and
+           * how many this purchase would add was not stated anywhere. Someone
+           * reading "3 available" above "Buy" has every reason to think they
+           * are buying three.
+           */
+          <>
+            <section>
+              <h3 style={sectionHeading}>What you have now</h3>
+              <div style={optionBox}>
+                <div
+                  style={{ fontWeight: 600, color: "var(--text-strong, #172033)" }}
+                  data-billing-credit-balance
+                >
+                  <bdi>{projection.wallet.availableCredits}</bdi>{" "}
+                  {projection.wallet.availableCredits === 1 ? "credit" : "credits"} available
+                </div>
+                <p style={optionBlurb}>
+                  Each credit records one more evidence item once your included
+                  allowance is used. Credits do not expire.
+                </p>
               </div>
-              <p style={optionBlurb}>
-                {projection.wallet.unitPriceCents
-                  ? `Each credit is ${formatMoney(
-                      projection.wallet.unitPriceCents,
-                      projection.wallet.currency ?? currency,
-                    )} and records one evidence item.`
-                  : "Each credit records one evidence item."}
-              </p>
-            </div>
-          </section>
+            </section>
+
+            <section>
+              <h3 style={sectionHeading}>What you are buying</h3>
+              <div style={optionBox} data-billing-credit-purchase>
+                <div style={{ fontWeight: 600, color: "var(--text-strong, #172033)" }}>
+                  <bdi>{projection.wallet.creditsPerPurchase}</bdi>{" "}
+                  {projection.wallet.creditsPerPurchase === 1 ? "credit" : "credits"}
+                  {projection.wallet.unitPriceCents
+                    ? ` — ${formatMoney(
+                        projection.wallet.unitPriceCents *
+                          projection.wallet.creditsPerPurchase,
+                        projection.wallet.currency ?? currency,
+                      )}`
+                    : ""}
+                </div>
+                <p style={optionBlurb}>
+                  {/* The balance AFTER, said plainly, so the two numbers on
+                      screen cannot be mistaken for each other. */}
+                  You will have{" "}
+                  <bdi>
+                    {projection.wallet.availableCredits +
+                      projection.wallet.creditsPerPurchase}
+                  </bdi>{" "}
+                  once this payment settles. This is a one-time payment, not a
+                  subscription.
+                </p>
+              </div>
+            </section>
+          </>
         ) : null}
 
         {intent === "STORAGE" ? (

@@ -47,11 +47,13 @@ import {
   readBillingAccount,
   readBillingHistory,
   requestCancellation,
+  changePlan,
   reconcileAccount,
   retryStorageCancellation,
   type BillingAccountProjection,
   type BillingAccountRef,
   type BillingHistoryEntry,
+  type PlanOffer,
 } from "../../../lib/api/billing-accounts";
 import { AccountSelector } from "./_sections/AccountSelector";
 import {
@@ -81,7 +83,6 @@ import {
  * parser for one question, which is exactly what that module exists to prevent.
  */
 function toLocator(a: BillingAccountRef): BillingWorkspaceLocator {
-  if (a.type === "WORKSPACE") return { kind: "team", teamId: a.id };
   if (a.type === "ORGANIZATION") return { kind: "organization", organizationId: a.id };
   return { kind: "personal" };
 }
@@ -107,10 +108,16 @@ function accountFromLocator(
       ) ?? null
     );
   }
-  if (!locator.teamId) return null;
-  return (
-    accounts.find((a) => a.type === "WORKSPACE" && a.id === locator.teamId) ?? null
-  );
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a `?workspace=` link
+  // naming a team resolves to NOTHING, and the page falls back to Personal.
+  //
+  // The locator vocabulary is shared with pages that legitimately name a
+  // workspace, so the parser still understands the shape; what changed is that
+  // no workspace is a billing account, so none can be selected. Returning null
+  // rather than throwing keeps an old bookmark working — it lands on the
+  // account the customer actually has, instead of an error about a subject
+  // they never had.
+  return null;
 }
 
 export default function BillingPage() {
@@ -145,6 +152,9 @@ function BillingPageInner() {
 
   const [checkout, setCheckout] = useState<CheckoutIntent | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  // The plan key being changed to, so only that one button spins and a
+  // second change cannot be started while the first is with the provider.
+  const [changeBusyPlan, setChangeBusyPlan] = useState<string | null>(null);
   const [cancelAddonBusy, setCancelAddonBusy] = useState<string | null>(null);
   const [recheckBusy, setRecheckBusy] = useState(false);
 
@@ -297,7 +307,6 @@ function BillingPageInner() {
     // The copy states what the PROVIDER will actually do. The dialog this
     // replaces promised "ends at the current period" while the route called
     // Stripe's immediate DELETE.
-    const workspaceId = selected.type === "WORKSPACE" ? selected.id : null;
     const ok = await confirm({
       title: `Cancel the subscription for ${selected.displayName}?`,
       description:
@@ -311,7 +320,7 @@ function BillingPageInner() {
 
     setCancelBusy(true);
     try {
-      const outcome = await requestCancellation({ teamId: workspaceId });
+      const outcome = await requestCancellation();
       const ends = formatDate(outcome.accessEndsAtUtc);
       addToast(
         outcome.result === "ACTION_REQUIRED"
@@ -333,6 +342,71 @@ function BillingPageInner() {
       setCancelBusy(false);
     }
   }, [selected, projection, confirm, addToast, refresh]);
+
+  // ---- Plan change -------------------------------------------------------
+  //
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — moving between tiers on
+  // the subscription that already exists.
+  //
+  // The confirmation text is the SERVER's `effectSummary`, not a sentence
+  // assembled here from the plan names. What a change does — charged pro rata
+  // now, or taking effect when the paid period ends — depends on the
+  // subscription and the provider, neither of which the browser can see. The
+  // one thing this page adds is the promise that nothing is deleted, and even
+  // that comes from the server string.
+  const handleChangePlan = useCallback(
+    async (offer: PlanOffer) => {
+      if (changeBusyPlan) return;
+
+      const ok = await confirm({
+        title: offer.actionLabel + "?",
+        description: offer.effectSummary,
+        confirmLabel: offer.actionLabel,
+        cancelLabel: "Keep current plan",
+        // A downgrade is a WARNING, not a danger: nothing is destroyed by it,
+        // and dressing it in the same red as "cancel my subscription" would be
+        // telling the customer something untrue to discourage a legitimate
+        // choice. An upgrade needs no colour at all.
+        tone: offer.action === "DOWNGRADE" ? "warning" : "neutral",
+        testId: "billing-change-plan",
+      });
+      if (!ok) return;
+
+      setChangeBusyPlan(offer.planKey);
+      try {
+        const result = await changePlan({ plan: offer.planKey });
+
+        // PayPal cannot revise an agreement without the buyer's authorisation,
+        // so it hands back a link instead of a done deal. Saying "changed"
+        // here would be claiming something the provider has not agreed to.
+        if (result.approvalUrl) {
+          window.location.assign(result.approvalUrl);
+          return;
+        }
+
+        const on = formatDate(result.effectiveAtUtc ?? null);
+        addToast(
+          result.outcome === "UPGRADE"
+            ? `You are on ${offer.displayName}.`
+            : on
+              ? `You will move to ${offer.displayName} on ${on}. Nothing changes until then.`
+              : `You will move to ${offer.displayName} at the end of this billing period.`,
+          "success",
+        );
+        refresh();
+      } catch (err) {
+        captureException(err, { feature: "billing_change_plan" });
+        const safe = toSafeUserError(err, {
+          message:
+            "We could not reach your payment provider. Your plan has not changed — please try again shortly.",
+        });
+        addToast(safe.message, "error");
+      } finally {
+        setChangeBusyPlan(null);
+      }
+    },
+    [changeBusyPlan, confirm, addToast, refresh],
+  );
 
   const handleCancelAddon = useCallback(
     async (addonId: string) => {
@@ -382,9 +456,28 @@ function BillingPageInner() {
           </span>
         }
         primaryAction={
-          <Link href="/pricing" className="app-header-primary-action" data-billing-view-pricing>
+          /*
+           * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — Pricing opens in
+           * a NEW TAB.
+           *
+           * It is a reference page read WHILE deciding, not a destination. In
+           * the same tab it replaced the Billing page, so anyone who followed
+           * it to compare tiers lost their usage, their renewal date and any
+           * half-finished checkout, and came back by pressing Back.
+           *
+           * `rel` is not optional with `target="_blank"`: without
+           * `noopener` the opened page gets a `window.opener` handle back
+           * into this one.
+           */
+          <a
+            href="/pricing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="app-header-primary-action"
+            data-billing-view-pricing
+          >
             <span>View pricing</span>
-          </Link>
+          </a>
         }
       />
     ),
@@ -469,8 +562,10 @@ function BillingPageInner() {
             <PlanSummaryCard
               projection={projection}
               onManage={() => setCheckout("PLAN")}
+              onChangePlan={(offer) => void handleChangePlan(offer)}
               onCancel={() => void handleCancel()}
               cancelBusy={cancelBusy}
+              changeBusyPlan={changeBusyPlan}
             />
           </PageSection>
 
@@ -611,10 +706,24 @@ function BillingPageInner() {
               </p>
               <div style={{ marginTop: 12 }}>
                 <Link
+                  /*
+                   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) —
+                   * "/settings#privacy" was WRONG, and wrong in a way that
+                   * wasted the time of someone already having a problem: the
+                   * link said "Get help" about a billing discrepancy and
+                   * landed on the privacy section of Settings, which has
+                   * nothing to say about billing and no way to reach a human.
+                   *
+                   * "/support" is the destination the rest of the app already
+                   * uses for exactly this — the error boundaries, the
+                   * not-found page and the MFA challenge all send people
+                   * there — so this is joining the existing route, not adding
+                   * a second one.
+                   */
                   href={
                     projection.actions.contactAccountManager
                       ? "/contact-sales"
-                      : "/settings#privacy"
+                      : "/support"
                   }
                   className="app-header-primary-action"
                   data-billing-support-action

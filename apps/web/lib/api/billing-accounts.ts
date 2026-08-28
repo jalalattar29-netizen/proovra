@@ -21,7 +21,16 @@
 
 import { apiFetch } from "../api";
 
-export type BillingAccountType = "PERSONAL" | "WORKSPACE" | "ORGANIZATION";
+/*
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — WORKSPACE was REMOVED.
+ *
+ * A workspace never paid for anything. It appeared here because the server
+ * enumerated one billing account per Owned Workspace, each with its own plan
+ * card, checkout target, payment history and storage catalogue — a selector
+ * inviting a customer to choose which of their workspaces to pay for, when
+ * there is one Personal Workspace and TEAM is a tier of it.
+ */
+export type BillingAccountType = "PERSONAL" | "ORGANIZATION";
 
 export type BillingCapability =
   | "BILLING_ACCOUNT_VIEW"
@@ -89,6 +98,12 @@ export type PlanSummary = {
   paymentProviderLabel?: string | null;
   graceEndsAtUtc?: string | null;
   billingOwnerMissing: boolean;
+  /** A provider-accepted change that has not taken effect yet. */
+  scheduledChange?: {
+    planKey: string;
+    displayName: string;
+    effectiveAtUtc: string | null;
+  };
 };
 
 export type EnterpriseContractSummary = {
@@ -103,9 +118,12 @@ export type EnterpriseContractSummary = {
 };
 
 export type CollaborationUsage = {
-  ownedWorkspaces?: { used: number; limit: number };
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `ownedWorkspaces` was
+  // removed with the allowance it reported: no plan grants additional
+  // workspaces, so there is no meter to render.
   collaborationTeams?: { used: number; limit: number };
-  seats?: { used: number; limit: number; pendingInvites: number };
+  /** `limit: null` = the agreement is silent, not a limit of zero. */
+  seats?: { used: number; limit: number | null; pendingInvites: number };
 };
 
 export type PlanOffer = {
@@ -114,6 +132,18 @@ export type PlanOffer = {
   priceCents?: number;
   currency?: "USD" | "EUR";
   summary: string;
+  /**
+   * WHAT this offer does, decided by the server against a subscription the
+   * browser cannot see. The page renders the verb; it never works it out by
+   * comparing plan names, which would be a commercial decision made in a
+   * place that does not have the facts.
+   */
+  action: "CHECKOUT" | "UPGRADE" | "DOWNGRADE";
+  effect: "IMMEDIATE" | "AT_PERIOD_END";
+  /** The button's words. Composed by the server, rendered verbatim. */
+  actionLabel: string;
+  /** What will happen, shown before the customer commits. */
+  effectSummary: string;
 };
 
 export type StorageAddonOffer = {
@@ -152,6 +182,8 @@ export type BillingAccountProjection = {
     hasLedgerHistory: boolean;
     unitPriceCents?: number;
     currency?: "USD" | "EUR";
+    /** How many credits ONE purchase grants. Server-owned; never chosen here. */
+    creditsPerPurchase: number;
   };
   collaboration?: CollaborationUsage;
   contract?: EnterpriseContractSummary;
@@ -284,14 +316,49 @@ export async function retryStorageCancellation(
   )) as { outcome: "UPDATED" | "PENDING" | "ACTION_REQUIRED"; supportRequired: boolean };
 }
 
-export async function requestCancellation(input: {
-  teamId?: string | null;
-}): Promise<CancellationResult> {
+/**
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — cancellation takes NO
+ * argument.
+ *
+ * It took a `teamId`, which selected which of the caller's workspace
+ * subscriptions to cancel. There is one subscription per person now, the
+ * server knows which, and a client that could name a different one could name
+ * the wrong one.
+ */
+export async function requestCancellation(): Promise<CancellationResult> {
   const res = (await apiFetch("/v1/billing/subscription/cancel", {
     method: "POST",
-    body: JSON.stringify(input.teamId ? { teamId: input.teamId } : {}),
+    body: JSON.stringify({}),
   })) as { cancellation: CancellationResult };
   return res.cancellation;
+}
+
+/** What the server did about a requested plan change. */
+export type PlanChangeResult = {
+  outcome: "UPGRADE" | "DOWNGRADE" | "NO_CHANGE";
+  plan: string;
+  /** DOWNGRADE: when the lower tier takes over. UPGRADE: null — it already has. */
+  effectiveAtUtc?: string | null;
+  /** PayPal only, and only when the buyer must authorise the revised agreement. */
+  approvalUrl?: string | null;
+  providerConfirmed?: boolean;
+};
+
+/**
+ * Move the plan on the subscription that already exists.
+ *
+ * The request carries a TARGET and nothing else — not the current plan, not a
+ * direction, not a price. Every one of those is something the server already
+ * knows, and any of them accepted from a browser is a value a browser can be
+ * wrong about.
+ */
+export async function changePlan(input: {
+  plan: "PRO" | "TEAM";
+}): Promise<PlanChangeResult> {
+  return (await apiFetch("/v1/billing/subscription/plan", {
+    method: "POST",
+    body: JSON.stringify({ plan: input.plan }),
+  })) as PlanChangeResult;
 }
 
 /** A safe, server-decided reconciliation verdict. Never provider detail. */

@@ -141,13 +141,17 @@ test("the invalid 'Teams — N of M' metric and its source are gone", () => {
   assert.doesNotMatch(src, /useBillingSummary/);
 });
 
-test("owned workspaces, collaboration teams and members are three separate meters", () => {
+test("collaboration teams and members are two separate meters, and no workspace meter remains", () => {
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — there were three
+  // meters; the "Owned workspaces" one was removed with the allowance it
+  // reported. A meter is a promise that a plan grants something and that some
+  // of it is left, and no plan grants additional workspaces.
   const src = read(PLAN_USAGE);
-  assert.match(src, /Owned workspaces/);
+  assert.doesNotMatch(src, /label="Owned workspaces"/);
+  assert.doesNotMatch(src, /c\.ownedWorkspaces/);
   assert.match(src, /Collaboration teams/);
   assert.match(src, /Accepted members/);
-  // Each reads its OWN server field; none is derived from another.
-  assert.match(src, /c\.ownedWorkspaces/);
+  // Each reads its OWN server field; neither is derived from the other.
   assert.match(src, /c\.collaborationTeams/);
   assert.match(src, /c\.seats/);
 });
@@ -180,9 +184,6 @@ test("actions are read from the server projection, never from plan names", () =>
     "canRequestCancellation",
     "canBuyEvidenceCredits",
     "contactAccountManager",
-    // Even the manage button's WORD: "Upgrade" and "Change" are different
-    // claims about the account's commercial state.
-    "manageLabel",
   ]) {
     assert.match(
       src,
@@ -196,6 +197,20 @@ test("actions are read from the server projection, never from plan names", () =>
   assert.match(src, /addon\.canCancel/);
   // And whether the banner appears at all.
   assert.match(src, /projection\.actionRequired/);
+
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the plan card renders
+  // one button PER SERVER-LISTED OFFER, each carrying its own verb, so
+  // `actions.manageLabel` — a single word for a single button — was replaced by
+  // `offer.actionLabel`. The property is unchanged and now applies to more:
+  // "Subscribe to Pro", "Upgrade to Team" and "Switch to Pro" are three
+  // different claims about what pressing the button will do, and only the
+  // server can tell which is true, because only the server can see whether a
+  // subscription exists.
+  assert.match(src, /offer\.actionLabel/);
+  assert.match(src, /offer\.effectSummary/);
+  assert.match(src, /offer\.action === "CHECKOUT"/);
+  // The scheduled downgrade is a server fact too, not a date the page works out.
+  assert.match(src, /plan\.scheduledChange/);
 
   // No `plan === "PRO"` style branching anywhere.
   assert.doesNotMatch(src, /plan\s*===\s*["'](FREE|PRO|TEAM|ENTERPRISE)["']/);
@@ -357,11 +372,23 @@ test("Pricing describes the implemented PAYG credit product", () => {
   assert.doesNotMatch(src, /50 AI operations/);
 });
 
-test("Pricing states that additional workspaces do not inherit PRO", () => {
-  assert.match(
-    read(PRICING),
-    /additional workspaces need their own Team plan/,
-  );
+test("Pricing says the tiers apply to the ONE Personal Workspace", () => {
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — REPLACES a test that
+  // required the page to say "additional workspaces need their own Team plan".
+  //
+  // That sentence was true of the old model and it was the clearest statement
+  // of it anywhere in the product: it told a customer that TEAM was somewhere
+  // else they would have to go, and — read carefully — that their evidence
+  // would not be coming with them. The test correctly pinned the copy; the
+  // copy was describing the thing being corrected.
+  const src = read(PRICING);
+  assert.doesNotMatch(src, /additional workspaces need their own Team plan/);
+  assert.doesNotMatch(src, /Personal \+ owned workspaces/);
+  assert.doesNotMatch(src, /Owned team workspaces/);
+  assert.match(src, /Team upgrades the same one/);
+  assert.match(src, /Your Personal Workspace/);
+  // ENTERPRISE keeps the only Organization language on the page.
+  assert.match(src, /Enterprise Organization/);
 });
 
 test("Pricing names TEAM's rolling window and cumulative capacity", () => {
@@ -380,10 +407,14 @@ test("Pricing no longer sells entitlements the code refuses", () => {
   assert.doesNotMatch(src, /"Team governance"/);
 });
 
-test("Pricing separates the Owned Workspace cap from the Collaboration Team cap", () => {
+test("Pricing advertises the Collaboration Team cap and no workspace cap", () => {
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the comparison table
+  // published "Up to 2" and "Up to 5" additional workspaces on PRO and TEAM.
+  // That row was the page saying in plain words that a higher tier buys more
+  // workspaces; it buys higher allowances on the ONE Personal Workspace.
   const src = read(PRICING);
-  assert.match(src, /label: "Owned workspaces"/);
-  assert.match(src, /maxOwnedWorkspaces/);
+  assert.doesNotMatch(src, /label: "Owned workspaces"/);
+  assert.doesNotMatch(src, /maxOwnedWorkspaces/);
   assert.match(src, /maxCollaborationTeamsPerWorkspace/);
   assert.match(src, /accepted members per Team/);
   // The overloaded fields cannot come back.
@@ -412,4 +443,136 @@ test("Pricing renders no fabricated fallback for a served commercial value", () 
   // bounded placeholder, never an invented literal.
   assert.match(src, /const CATALOG_VALUE_UNAVAILABLE = "—"/);
   assert.match(src, /function catalogValue/);
+});
+
+// ===========================================================================
+// 6. The final PERSONAL/ORGANIZATION model on the page
+// ===========================================================================
+
+test("no workspace is a billing subject anywhere in the Billing UI", () => {
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28). There were three
+  // subjects and the middle one never paid for anything: the server
+  // enumerated one billing account per Owned Workspace, each with its own
+  // plan card, checkout target, payment history and storage catalogue.
+  const src = billingSources();
+  assert.doesNotMatch(src, /"WORKSPACE"/);
+  assert.doesNotMatch(src, /kind: "team"/);
+  // And the DTO the page reads from carries only the two real ones.
+  const dto = read("../lib/api/billing-accounts.ts");
+  assert.match(dto, /BillingAccountType = "PERSONAL" \| "ORGANIZATION"/);
+});
+
+test("a plan move states its own verb, its own effect, and comes from the server", () => {
+  const src = read(PLAN_USAGE);
+  // One button per server-listed offer, each carrying the server's words.
+  assert.match(src, /planOffers \?\? \[\]/);
+  assert.match(src, /offer\.actionLabel/);
+  assert.match(src, /data-billing-plan-offer-action=\{offer\.action\}/);
+  // A downgrade is not dressed as a destructive action; it destroys nothing.
+  assert.match(src, /offer\.action === "DOWNGRADE" \? "secondary" : "primary"/);
+  // The page never decides the direction itself.
+  assert.doesNotMatch(src, /=== "TEAM" \?/);
+});
+
+test("a scheduled downgrade is stated before the plan can be misread", () => {
+  const src = read(PLAN_USAGE);
+  assert.match(src, /data-billing-scheduled-change/);
+  assert.match(src, /plan\.scheduledChange/);
+  // "You keep everything you have now until then" — the promise that matters.
+  assert.match(src, /You keep everything you have now until then/);
+  // And no second move may be queued while one is outstanding.
+  assert.match(src, /!plan\.scheduledChange/);
+});
+
+test("changing plan is a different act from starting a checkout", () => {
+  const page = read(PAGE);
+  // Collapsing them is how a PRO customer wanting TEAM ended up paying twice.
+  assert.match(page, /changePlan\(\{ plan: offer\.planKey \}\)/);
+  assert.match(page, /onChangePlan=/);
+  // The confirmation text is the SERVER's, not a sentence assembled here.
+  assert.match(page, /description: offer\.effectSummary/);
+  // A PayPal approval link means the buyer has not agreed yet.
+  assert.match(page, /result\.approvalUrl/);
+});
+
+test("cancellation names no subject the client could get wrong", () => {
+  const page = read(PAGE);
+  const dto = read("../lib/api/billing-accounts.ts");
+  assert.match(page, /requestCancellation\(\)/);
+  assert.match(dto, /requestCancellation\(\): Promise<CancellationResult>/);
+  assert.doesNotMatch(dto, /teamId: input\.teamId/);
+});
+
+test("Pricing opens in a NEW TAB, safely", () => {
+  const page = read(PAGE);
+  // It is a reference read WHILE deciding. In the same tab it replaced the
+  // page, losing usage, renewal date and any half-finished checkout.
+  assert.match(page, /target="_blank"/);
+  assert.match(page, /rel="noopener noreferrer"/);
+  assert.match(page, /data-billing-view-pricing/);
+});
+
+test("the help link goes somewhere that can actually help", () => {
+  const page = read(PAGE);
+  // It pointed at the PRIVACY section of Settings, which has nothing to say
+  // about billing and no way to reach a person.
+  assert.doesNotMatch(page, /settings#privacy/);
+  assert.match(page, /"\/support"/);
+});
+
+test("being OVER an allowance is explained, not rendered as a broken sum", () => {
+  const src = read(FORMAT);
+  // "176 of 127" reads as a broken counter; it is a real and legitimate state.
+  assert.match(src, /meter\.used > meter\.limit/);
+  assert.match(src, /over the/);
+  assert.match(src, /Nothing has been removed/);
+});
+
+test("the credit balance and the credit purchase are two separate statements", () => {
+  const src = read(CHECKOUT);
+  // "3 available" directly above a Buy button was the only quantity on screen.
+  assert.match(src, /What you have now/);
+  assert.match(src, /What you are buying/);
+  assert.match(src, /data-billing-credit-balance/);
+  assert.match(src, /data-billing-credit-purchase/);
+  assert.match(src, /creditsPerPurchase/);
+  // The quantity is the server's; a browser-chosen one is one a browser can
+  // get wrong.
+  assert.doesNotMatch(src, /useState.*creditQuantity/);
+  // And it says plainly that this is not a subscription.
+  assert.match(src, /one-time payment, not a\s*\n?\s*subscription/);
+});
+
+test("no workspace allowance meter survives on the page", () => {
+  const src = billingSources();
+  assert.doesNotMatch(src, /ownedWorkspaces/);
+  assert.doesNotMatch(src, /maxOwnedWorkspaces/);
+});
+
+// ===========================================================================
+// 7. The Organization experience
+// ===========================================================================
+
+test("an Enterprise agreement offers no self-service move it cannot honour", () => {
+  // Enterprise is contracted. A checkout button that routes to Stripe would be
+  // offering to replace a signed agreement with a card payment.
+  const projection = read(
+    "../../../services/api/src/services/billing/billing-account-projection.service.ts",
+  );
+  assert.match(projection, /canStartCheckout: false/);
+  assert.match(projection, /contactAccountManager: true/);
+  // And the page's only Enterprise affordance names the person who can act.
+  const plan = read(PLAN_USAGE);
+  assert.match(plan, /data-billing-contact-account-manager/);
+});
+
+test("a silent agreement is never rendered as a limit of zero", () => {
+  // "12 of 0 accepted members" reads as a breach and is not one: an agreement
+  // is allowed to be silent about seats, and no number we could substitute
+  // would be the agreement's.
+  const plan = read(PLAN_USAGE);
+  assert.match(plan, /c\.seats\.limit === null/);
+  assert.match(plan, /Your agreement sets this allowance/);
+  const dto = read("../lib/api/billing-accounts.ts");
+  assert.match(dto, /limit: number \| null; pendingInvites/);
 });

@@ -100,6 +100,27 @@ export function describeMeter(meter: UsageMeter): {
           ratio: null,
         };
       }
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — being OVER the
+      // allowance is said in words, not left as an impossible-looking sum.
+      //
+      // "176 of 127" reads as a broken counter, and the first thing anyone
+      // does with it is stop trusting the page. It is not broken: holding more
+      // than your plan includes is a real and legitimate state — a customer who
+      // moved down a tier keeps everything they recorded on the higher one, and
+      // a grandfathered account can sit above a limit it was never subject to.
+      //
+      // What that state means is specific and worth saying: nothing was
+      // removed, and nothing more may be added until there is room. Saying it
+      // here also stops the number being read as a bill.
+      if (meter.used > meter.limit) {
+        const over = meter.used - meter.limit;
+        return {
+          headline: `${meter.used.toLocaleString()} ${suffix}`,
+          detail: `${over.toLocaleString()} over the ${meter.limit.toLocaleString()} your plan includes. Nothing has been removed — you can add more once you are back within the allowance.`,
+          ratio: 1,
+        };
+      }
+
       return {
         headline: `${meter.used.toLocaleString()} of ${meter.limit.toLocaleString()} ${suffix}`,
         detail: null,

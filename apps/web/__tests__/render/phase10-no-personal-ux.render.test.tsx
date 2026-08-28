@@ -217,7 +217,7 @@ describe("PHASE 10 CLOSURE FIX 3 — the Billing account selector", () => {
    * surface, because there is then nothing to reveal by any client route.
    */
   const account = (
-    type: "PERSONAL" | "WORKSPACE",
+    type: "PERSONAL" | "ORGANIZATION",
     id: string,
     displayName: string,
   ) => ({
@@ -233,8 +233,8 @@ describe("PHASE 10 CLOSURE FIX 3 — the Billing account selector", () => {
     // bills the viewer cannot see.
     const { container } = render(
       <AccountSelector
-        accounts={[account("WORKSPACE", "ws-1", "Acme")]}
-        selected={account("WORKSPACE", "ws-1", "Acme")}
+        accounts={[account("ORGANIZATION", "org-1", "Acme")]}
+        selected={account("ORGANIZATION", "org-1", "Acme")}
         onSelect={() => {}}
       />,
     );
@@ -244,7 +244,7 @@ describe("PHASE 10 CLOSURE FIX 3 — the Billing account selector", () => {
   it("renders a real listbox once there are two accounts", () => {
     const accounts = [
       account("PERSONAL", "user-1", "Jamie"),
-      account("WORKSPACE", "ws-1", "Acme"),
+      account("ORGANIZATION", "org-1", "Acme"),
     ];
     render(
       <AccountSelector
@@ -262,8 +262,8 @@ describe("PHASE 10 CLOSURE FIX 3 — the Billing account selector", () => {
     // The server omitted PERSONAL, so the selector cannot show it — there is no
     // client flag to get wrong.
     const accounts = [
-      account("WORKSPACE", "ws-1", "Acme"),
-      account("WORKSPACE", "ws-2", "Beta"),
+      account("ORGANIZATION", "org-1", "Acme"),
+      account("ORGANIZATION", "org-2", "Beta"),
     ];
     render(
       <AccountSelector

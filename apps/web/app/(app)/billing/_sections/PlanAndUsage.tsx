@@ -30,6 +30,7 @@ import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import type {
   BillingAccountProjection,
+  PlanOffer,
   StorageMeter,
   UsageMeter,
 } from "../../../../lib/api/billing-accounts";
@@ -262,15 +263,30 @@ export function ActionRequiredBanner({
 export function PlanSummaryCard({
   projection,
   onManage,
+  onChangePlan,
   onCancel,
   cancelBusy,
+  changeBusyPlan,
 }: {
   projection: BillingAccountProjection;
+  /** Opens the checkout drawer. Used only for a purchase. */
   onManage: () => void;
+  /**
+   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — moving between tiers on
+   * the subscription that already exists.
+   *
+   * Distinct from `onManage` because they are different acts, not two ways of
+   * doing one. A checkout creates a subscription; this changes one. Collapsing
+   * them is how a PRO customer wanting TEAM ended up with two live
+   * subscriptions and two monthly charges.
+   */
+  onChangePlan: (offer: PlanOffer) => void;
   onCancel: () => void;
   cancelBusy: boolean;
+  /** The plan key currently being changed to, so only that button spins. */
+  changeBusyPlan: string | null;
 }) {
-  const { plan, account, actions, contract } = projection;
+  const { plan, account, actions, contract, planOffers } = projection;
   const lifecycle = presentLifecycle(plan.lifecycle, {
     periodEndUtc: plan.currentPeriodEndUtc,
     graceEndsAtUtc: plan.graceEndsAtUtc,
@@ -358,6 +374,23 @@ export function PlanSummaryCard({
           </div>
         ) : null}
 
+        {/* A scheduled change is stated BEFORE the price and the actions are
+            read, because it changes what both of them mean. Without it the
+            card shows Team to someone who asked for Pro last week and has no
+            way to tell whether we heard them. */}
+        {plan.scheduledChange ? (
+          <div
+            style={{ fontSize: "0.9rem", color: "var(--text-muted, #475569)" }}
+            data-billing-scheduled-change
+          >
+            {plan.scheduledChange.effectiveAtUtc
+              ? `Moving to ${plan.scheduledChange.displayName} on ${formatDate(
+                  plan.scheduledChange.effectiveAtUtc,
+                )}. You keep everything you have now until then.`
+              : `Moving to ${plan.scheduledChange.displayName} at the end of this billing period. You keep everything you have now until then.`}
+          </div>
+        ) : null}
+
         {plan.paymentProviderLabel ? (
           <div style={{ fontSize: "0.86rem", color: "var(--text-muted, #5F6878)" }}>
             Paid by {plan.paymentProviderLabel}
@@ -373,15 +406,36 @@ export function PlanSummaryCard({
           gap: 10,
         }}
       >
-        {actions.canStartCheckout && actions.manageLabel ? (
-          <Button variant="primary" size="sm" onClick={onManage} data-billing-manage-plan>
-            {/* The SERVER chose this word. "Upgrade" and "Change" are different
-                claims about the account's commercial state, and choosing
-                between them in the browser is the browser holding commercial
-                logic. */}
-            {actions.manageLabel}
-          </Button>
-        ) : null}
+        {/* One button per move the SERVER says this account may make, in the
+            order the server listed them — which is the ladder, so a downgrade
+            reads below an upgrade rather than beside it.
+
+            Every word comes from the server. "Upgrade to Team", "Switch to
+            Pro" and "Subscribe to Pro" are three different claims about the
+            account's commercial state, and only the side that can see the
+            subscription knows which is true.
+
+            A scheduled change hides them all: offering a second move while the
+            first has not landed would let a customer queue two changes the
+            provider holds one schedule for. */}
+        {actions.canStartCheckout && !plan.scheduledChange
+          ? (planOffers ?? []).map((offer) => (
+              <Button
+                key={offer.planKey}
+                variant={offer.action === "DOWNGRADE" ? "secondary" : "primary"}
+                size="sm"
+                loading={changeBusyPlan === offer.planKey}
+                disabled={changeBusyPlan !== null}
+                onClick={() =>
+                  offer.action === "CHECKOUT" ? onManage() : onChangePlan(offer)
+                }
+                data-billing-plan-offer={offer.planKey}
+                data-billing-plan-offer-action={offer.action}
+              >
+                {offer.actionLabel}
+              </Button>
+            ))
+          : null}
 
         {actions.canRequestCancellation && !plan.cancelAtPeriodEnd ? (
           <Button
@@ -480,7 +534,7 @@ export function CollaborationUsageCard({
   projection: BillingAccountProjection;
 }) {
   const c = projection.collaboration;
-  if (!c || (!c.ownedWorkspaces && !c.collaborationTeams && !c.seats)) {
+  if (!c || (!c.collaborationTeams && !c.seats)) {
     return null;
   }
 
@@ -497,23 +551,12 @@ export function CollaborationUsageCard({
           gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
         }}
       >
-        {/* Three independently-named values. The metric these replace —
+        {/* Two independently-named values. The metric these replace —
             "Teams — Current usage: N of M" — compared a Collaboration Team
-            membership count against the account's Owned Workspace cap. */}
-        {c.ownedWorkspaces ? (
-          <Meter
-            label="Owned workspaces"
-            headline={`${c.ownedWorkspaces.used} of ${c.ownedWorkspaces.limit}`}
-            detail={null}
-            ratio={
-              c.ownedWorkspaces.limit > 0
-                ? Math.min(1, c.ownedWorkspaces.used / c.ownedWorkspaces.limit)
-                : null
-            }
-            testId="billing-meter-owned-workspaces"
-          />
-        ) : null}
+            membership count against the account's Owned Workspace cap.
 
+            BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the third,
+            "Owned workspaces", was removed with the allowance it reported. */}
         {c.collaborationTeams ? (
           <Meter
             label="Collaboration teams"
@@ -534,18 +577,29 @@ export function CollaborationUsageCard({
         {c.seats ? (
           <Meter
             label="Accepted members"
-            headline={`${c.seats.used} of ${c.seats.limit}`}
+            /* A null limit means the agreement does not name one. "12 of 0"
+               reads as a breach and is not one; there is no number we could
+               put there that would be the agreement's. */
+            headline={
+              c.seats.limit === null
+                ? `${c.seats.used}`
+                : `${c.seats.used} of ${c.seats.limit}`
+            }
             // Pending invitations are named separately and never folded into
             // the seat count — an invitation is not a member.
             detail={
-              c.seats.pendingInvites > 0
-                ? `${c.seats.pendingInvites} invitation${
-                    c.seats.pendingInvites === 1 ? "" : "s"
-                  } pending — not counted here.`
-                : null
+              c.seats.limit === null
+                ? "Your agreement sets this allowance."
+                : c.seats.pendingInvites > 0
+                  ? `${c.seats.pendingInvites} invitation${
+                      c.seats.pendingInvites === 1 ? "" : "s"
+                    } pending — not counted here.`
+                  : null
             }
             ratio={
-              c.seats.limit > 0 ? Math.min(1, c.seats.used / c.seats.limit) : null
+              c.seats.limit !== null && c.seats.limit > 0
+                ? Math.min(1, c.seats.used / c.seats.limit)
+                : null
             }
             testId="billing-meter-seats"
           />

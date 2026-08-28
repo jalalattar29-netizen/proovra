@@ -297,7 +297,12 @@ export default function MarketingPricingPage() {
         `${catalogValue(catalog?.pro?.storageLabel)} storage`,
         "Reports & verification packages included",
         `AI assistance: ${catalogValue(catalog?.pro?.aiAdvisoryMonthlyOperations)} operations / month`,
-        "Personal account — additional workspaces need their own Team plan",
+        // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — this line said
+        // "additional workspaces need their own Team plan", which is the
+        // obsolete model stated to the customer in the plainest possible
+        // terms: it told them TEAM was somewhere else they would have to go,
+        // and that their evidence would not be coming with them.
+        "Everything applies to your Personal Workspace — Team upgrades the same one",
       ],
     },
     {
@@ -320,7 +325,7 @@ export default function MarketingPricingPage() {
         `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} evidence records in any 30 days`,
         `${catalogValue(catalog?.team?.storageLabel)} cumulative storage`,
         `AI assistance: ${catalogValue(catalog?.team?.aiAdvisoryMonthlyOperations)} operations / month`,
-        "Shared workspace, review assignments, team governance",
+        "Collaboration teams, review assignments and team governance — on the workspace you already use",
         `Up to ${catalogValue(catalog?.team?.maxAcceptedMembersPerCollaborationTeam)} accepted members per Team`,
       ],
     },
@@ -506,16 +511,23 @@ export default function MarketingPricingPage() {
       values: ["Included", "Included", "Included", "Included", "Included"],
     },
     {
-      // P5 domain remediation (2026-07-21) — the self-service TEAM plan
-      // funds user-OWNED team workspaces; it is NOT an Enterprise
-      // Organization. "Organization" language is reserved for the
-      // sales-provisioned Enterprise tier.
-      label: "Workspace support",
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — this row said
+      // "Personal + owned workspaces" for PRO and "Owned team workspaces" for
+      // TEAM, which advertised a product that does not exist and, worse, told
+      // a TEAM customer their work lived somewhere other than where they had
+      // put it.
+      //
+      // There are two context kinds. Everyone gets one Personal Workspace and
+      // the self-service tiers are tiers OF it; ORGANIZATION is the second
+      // kind and it is contracted, not bought here. "Organization" language
+      // stays reserved for that tier, which is what the row's original note
+      // was protecting.
+      label: "Where your work lives",
       values: [
-        "Personal only",
-        "Personal only",
-        "Personal + owned workspaces",
-        "Owned team workspaces",
+        "Your Personal Workspace",
+        "Your Personal Workspace",
+        "Your Personal Workspace",
+        "Your Personal Workspace",
         "Enterprise Organization",
       ],
     },
@@ -699,20 +711,14 @@ export default function MarketingPricingPage() {
       ],
     },
     {
-      // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — its OWN row. This number
-      // used to be published as "Teams" and enforced over BOTH `Team` rows and
-      // `CollaborationTeam` rows, so one advertised "Up to 2" quietly granted a
-      // PRO account two owned workspaces AND two collaboration teams.
-      label: "Owned workspaces",
-      values: [
-        "Not included",
-        "Not included",
-        `Up to ${catalogValue(catalog?.pro?.maxOwnedWorkspaces)}`,
-        `Up to ${catalogValue(catalog?.team?.maxOwnedWorkspaces)}`,
-        "Custom",
-      ],
-    },
-    {
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the "Owned
+      // workspaces" comparison row was REMOVED from here. It published
+      // "Up to 2" on PRO and "Up to 5" on TEAM, read straight from
+      // `maxOwnedWorkspaces`, and it was the page telling people in plain
+      // words that a higher tier buys more workspaces. It does not: a higher
+      // tier raises the allowances of the ONE Personal Workspace they already
+      // have. The Collaboration Teams row above is the real collaboration
+      // capacity and is unchanged.
       label: "Commercial path",
       values: ["Self-serve", "Self-serve", "Self-serve", "Self-serve", "Sales-led"],
     },
