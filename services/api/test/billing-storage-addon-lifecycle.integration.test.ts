@@ -42,13 +42,6 @@ describe("BILLING — recurring storage add-on lifecycle (live PostgreSQL 16)", 
     return { fn, calls };
   };
 
-  /** The provider refuses. Nothing local may move. */
-  const refusingCanceller: StorageAddonProviderCanceller = async ({ mode }) => ({
-    ok: false as const,
-    mode,
-    reasonCode: "PROVIDER_UNAVAILABLE" as const,
-  });
-
   async function seedAddon(input: {
     ownerUserId: string;
     teamId?: string | null;
