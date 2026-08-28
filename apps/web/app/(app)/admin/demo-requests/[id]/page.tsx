@@ -25,7 +25,6 @@ import { Card } from "../../../../../components/ui/Card";
 import { Badge } from "../../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
-import AdminConsoleNav from "../../../../../components/admin/AdminConsoleNav";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -256,7 +255,6 @@ export default function AdminDemoRequestDetailPage({
         />
       }
     >
-      <AdminConsoleNav />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <div className="flex flex-wrap items-center justify-end gap-3">

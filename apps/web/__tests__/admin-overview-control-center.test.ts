@@ -40,31 +40,93 @@ test("overview renders honest 'Not measured' states (no fabricated numbers)", ()
   assert.match(src, /Traffic not connected|not-connected|not connected/i);
 });
 
-test("overview shows the seven control-center sections", () => {
+test("overview shows the control-plane sections", () => {
   const src = read(PAGE);
+  // ADM-002/003/004/009 — the section list changed with the populations it
+  // reports. "Quick actions" is GONE: the console nav (now in the layout) is
+  // the navigation, and every tile on this page is itself a drill-down link,
+  // which is a better answer to the same need than a row of buttons.
   for (const section of [
-    "Platform status",
+    "Platform posture",
     "Customers",
+    "Workspaces",
+    "Commercial attention",
     "Evidence operations",
     "Security",
-    "Billing",
     "Traffic",
-    "Quick actions",
   ]) {
     assert.match(src, new RegExp(section), `must have a "${section}" section`);
   }
 });
 
-test("every quick action routes to a real page on disk", () => {
+// ADM-002 — the Overview counts CUSTOMER organizations, never every
+// Organization row. The SYSTEM bootstrap container each workspace owns is not a
+// customer, and the copy has to say which population the reader is looking at.
+test("overview says its customer population excludes bootstrap containers", () => {
   const src = read(PAGE);
-  // Extract the QUICK_ACTIONS hrefs.
-  const hrefs = Array.from(src.matchAll(/href:\s*"(\/admin\/[a-z-]+)"/g)).map(
-    (m) => m[1],
+  assert.match(
+    src,
+    /bootstrap container/i,
+    "the Customers section must state that SYSTEM containers are excluded",
   );
-  assert.ok(hrefs.length >= 6, "expected several quick-action hrefs");
+});
+
+// ADM-004 — closed workspaces are excluded from every live figure.
+test("overview separates live workspaces from closed ones", () => {
+  const src = read(PAGE);
+  assert.match(src, /Live workspaces/, "a live-workspace figure");
+  assert.match(src, /Closed \(history\)/, "closed workspaces reported separately");
+});
+
+// §1.1 — NO DEAD LINKS.
+//
+// The drill-down destination now travels WITH each figure from the API
+// (`OverviewFigure.drillDown`), rather than being hard-coded in the page as the
+// old QUICK_ACTIONS array was. That is the better arrangement — a tile cannot be
+// added without someone deciding where it leads — but it moves the "does this
+// link exist?" question to the service, so that is where it is asked.
+//
+// Both halves are checked: the handful of destinations the PAGE still hard-codes
+// here, and every destination the SERVICE emits, below.
+test("every admin destination hard-coded in the overview page resolves", () => {
+  const src = read(PAGE);
+  const hrefs = new Set<string>();
+  for (const m of src.matchAll(
+    /["`](\/admin\/[A-Za-z0-9\-/]*)(?:\?[^"`]*)?["`]/g,
+  )) {
+    hrefs.add(m[1]!.replace(/\/$/, ""));
+  }
+  assert.ok(hrefs.size >= 1, "expected at least one hard-coded destination");
   for (const href of hrefs) {
     const page = resolve(APP_ROOT, `app/(app)${href}/page.tsx`);
     assert.ok(existsSync(page), `${href} must resolve to a page.tsx`);
+  }
+});
+
+test("every drill-down the overview SERVICE emits resolves to a real page", () => {
+  // The service lives in the API package; this test reads it as text for the
+  // same reason the rest of this file does — it is checking a cross-package
+  // contract (an admin path) that neither typechecker can see.
+  const service = readFileSync(
+    resolve(APP_ROOT, "../../services/api/src/services/admin/overview.service.ts"),
+    "utf8",
+  );
+  const hrefs = new Set<string>();
+  for (const m of service.matchAll(
+    /["`](\/admin\/[A-Za-z0-9\-/]*)(?:\?[^"`]*)?["`]/g,
+  )) {
+    hrefs.add(m[1]!.replace(/\/$/, ""));
+  }
+  assert.ok(
+    hrefs.size >= 6,
+    `expected the overview service to emit several drill-downs, saw ${hrefs.size}`,
+  );
+  for (const href of hrefs) {
+    const page = resolve(APP_ROOT, `app/(app)${href}/page.tsx`);
+    assert.ok(
+      existsSync(page),
+      `${href} is emitted as a drill-down but has no page.tsx — a drill-down that 404s is worse than a terminal number, because it looks like it worked`,
+    );
   }
 });
 

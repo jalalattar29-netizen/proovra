@@ -23,7 +23,6 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import {
   PageShell,
   PageHeader,
@@ -273,7 +272,6 @@ function AdminPlatformHealthPage() {
       }
     >
       <div data-testid="admin-platform-health">
-        <AdminConsoleNav />
 
         {error ? (
           <Card variant="status" tone="risk" padding="comfortable">

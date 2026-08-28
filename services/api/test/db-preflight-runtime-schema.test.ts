@@ -65,6 +65,7 @@ function databaseWith(present: {
   scopeColumn?: boolean;
   scopeIndex?: boolean;
   metricSnapshotColumn?: boolean;
+  workspaceClosedAtColumn?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -80,6 +81,11 @@ function databaseWith(present: {
     if (sql.includes("column_name = 'metric_snapshot'")) {
       return present.metricSnapshotColumn === true;
     }
+    // ADM-004 — THE workspace-liveness authority. Without it, every control
+    // plane population query cannot tell a closed workspace from a live one.
+    if (sql.includes("column_name = 'closed_at_utc'")) {
+      return present.workspaceClosedAtColumn === true;
+    }
     throw new Error(`unrecognised probe:\n${sql}`);
   };
 }
@@ -90,6 +96,7 @@ const FULLY_MIGRATED = {
   scopeColumn: true,
   scopeIndex: true,
   metricSnapshotColumn: true,
+  workspaceClosedAtColumn: true,
 };
 
 describe("runtime schema requirements", () => {
@@ -146,6 +153,7 @@ describe("runtime schema requirements", () => {
         scopeColumn: true,
         scopeIndex: true,
         metricSnapshotColumn: true,
+        workspaceClosedAtColumn: true,
       }),
     );
     expect(result.ok).toBe(false);

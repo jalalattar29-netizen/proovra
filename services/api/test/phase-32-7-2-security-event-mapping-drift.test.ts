@@ -1151,6 +1151,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // `security_events` column, index, enum or mapping is altered by it,
       // which is what this allowlist is about.
       "20271229000000_billing_dependent_cancellation_obligation",
+      // ADM-004 (2026-08-27) — WORKSPACE LIFECYCLE AUTHORITY. Expand-only: one
+      // nullable `teams.closed_at_utc` column plus its index, and a backfill
+      // that reads recorded closure/reopen history. It touches `teams` alone.
+      // No `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20271230000000_workspace_lifecycle_authority",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

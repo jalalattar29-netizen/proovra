@@ -20,6 +20,27 @@ const nextConfig = {
     return [
       { source: "/dashboard", destination: "/home", permanent: true },
       // ======================================================================
+      // ADM-033 (2026-08-27) — PLATFORM ADMIN VOCABULARY.
+      //
+      // `/admin/organizations` became `/admin/customers`. The page's population
+      // is `Organization.kind = 'CUSTOMER'`, which EXCLUDES the internal 1:1
+      // bootstrap container every workspace owns — and calling the surface
+      // "Organizations" is precisely what made counting those containers look
+      // reasonable for as long as it did. The word is the fix, so the word
+      // changes and the old path forwards rather than lingering as a second
+      // implementation.
+      // ======================================================================
+      {
+        source: "/admin/organizations",
+        destination: "/admin/customers",
+        permanent: true,
+      },
+      {
+        source: "/admin/organizations/:id",
+        destination: "/admin/customers/:id",
+        permanent: true,
+      },
+      // ======================================================================
       // ATTENTION ARCHITECTURE PHASE 5 (2026-08-22) — NOTIFICATION ROUTES.
       //
       // Two routes swapped meaning, and both old URLs keep working:

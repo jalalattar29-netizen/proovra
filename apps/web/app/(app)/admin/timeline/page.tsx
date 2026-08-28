@@ -32,7 +32,6 @@ import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Button } from "../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -208,7 +207,6 @@ export default function AdminTimelinePage() {
           }
         />
 
-        <AdminConsoleNav />
 
         <PageSection
           title="This is the PLATFORM timeline — not evidence custody"

@@ -42,7 +42,14 @@ test("adoption console renders through the shared PageShell (no marketing hero)"
     "must not render the marketing app-hero",
   );
   assert.doesNotMatch(src, /cc-page|btn-/, "must not use legacy cc-page/btn- classes");
-  assert.match(src, /AdminConsoleNav/, "must render the admin console nav");
+  assert.match(
+    readFileSync(
+      resolve(APP_ROOT, "app/(app)/admin/layout.tsx"),
+      "utf8",
+    ),
+    /AdminConsoleNav/,
+    "AdminConsoleNav moved to app/(app)/admin/layout.tsx (ADM-025) — asserted there, once, for every admin page",
+  );
   assert.match(src, /data-testid="admin-adoption"/, "must carry the admin-adoption test id");
 });
 

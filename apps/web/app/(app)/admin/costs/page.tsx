@@ -31,7 +31,6 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Button } from "../../../../components/ui/Button";
 import { useToast } from "../../../../components/ui";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -336,7 +335,6 @@ function AdminCostsInner() {
         }
       />
 
-      <AdminConsoleNav />
 
       {loading ? (
         <PageSection>

@@ -197,11 +197,16 @@ export async function buildPlatformContext(
   // -------------------------------------------------------------------------
   // Platform admin elevation
   // -------------------------------------------------------------------------
+  // ADM-001 — the authority is `userRow.platformRole`, which this function has
+  // ALREADY read from the database on this request. Passing it through avoids a
+  // second identical query while keeping the decision on current state; the
+  // `jwtRole` argument is diagnostic only and can no longer grant anything.
   let isPlatformAdmin = false;
   try {
     isPlatformAdmin = await resolveIsPlatformAdmin(
       userRow.id,
       input.jwtRole ?? null,
+      userRow.platformRole ?? null,
     );
   } catch {
     isPlatformAdmin = false;

@@ -40,7 +40,14 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, readdirSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  openSync,
+  rmSync,
+  readdirSync,
+  readFileSync,
+} from "node:fs";
 import { createConnection } from "node:net";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
@@ -454,18 +461,57 @@ function buildWeb() {
 
 const children = [];
 
+/**
+ * A long-lived stack process, with its output going STRAIGHT TO A FILE.
+ *
+ * THE DEFECT THIS SHAPE EXISTS TO PREVENT
+ * ---------------------------------------------------------------------------
+ * This used to be `stdio: ["ignore", "pipe", "pipe"]` drained by
+ * `child.stdout.on("data", ...)`. Those handlers are event-loop callbacks in
+ * THIS process — and `run()` invokes the browser layer with `spawnSync`, which
+ * blocks this process's event loop for the whole Playwright run. So for the
+ * entire browser layer, nothing drained the pipes.
+ *
+ * A pipe is a fixed-size OS buffer (~64 KB on Windows). The API fills it after
+ * roughly twenty requests' worth of request logs, and its next write to stdout
+ * BLOCKS — permanently, because the only reader is a blocked process. The API
+ * then sits at 0% CPU with a frozen heap, still holding port 8091 and its
+ * healthy Postgres and Redis connections, accepting TCP but answering nothing.
+ * Inbound sockets pile up in CLOSE_WAIT.
+ *
+ * Every browser spec after that point failed on a 60-second timeout, which read
+ * like sixty-eight independent product failures and was one blocked write. It
+ * also looked like an out-of-memory kill and was not: measured RSS at the wedge
+ * was 788 MB against a 4,288 MB heap limit, CPU was 0.02s per 5s, and no FATAL
+ * ERROR was ever printed.
+ *
+ * Writing to a file descriptor hands the draining to the OS, so it cannot
+ * depend on this process being responsive. Nothing is lost — the output lands
+ * in `.p7tmp/proc-logs/<label>.log` — and no assertion, fixture, timeout or
+ * spec moves.
+ */
 function startProcess(label, cmd, args, options) {
+  const logDir = resolve(TMP, "proc-logs");
+  mkdirSync(logDir, { recursive: true });
+  const logPath = resolve(logDir, `${label}.log`);
+  const fd = openSync(logPath, "a");
+
   const child = spawn(cmd, args, {
     cwd: options.cwd,
     env: { ...process.env, ...options.env },
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["ignore", fd, fd],
     shell: true,
   });
   children.push({ label, child });
-  child.stdout.on("data", (b) => process.stdout.write(`[${label}] ${b}`));
-  child.stderr.on("data", (b) => process.stderr.write(`[${label}] ${b}`));
-  child.on("exit", (code) => {
-    if (code !== 0 && code !== null) {
+  process.stdout.write(`[point7] ${label} logging to ${logPath}\n`);
+
+  // The SIGNAL as well as the code. A process killed by the OS reports
+  // `code === null` and a signal name, and the previous handler discarded both
+  // — which is why a stack process could die without leaving a word.
+  child.on("exit", (code, signal) => {
+    if (signal) {
+      process.stderr.write(`\n[point7] ${label} killed by ${signal}\n`);
+    } else if (code !== 0 && code !== null) {
       process.stderr.write(`\n[point7] ${label} exited ${code}\n`);
     }
   });

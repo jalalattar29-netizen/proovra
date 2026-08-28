@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   PageShell,
@@ -25,7 +25,6 @@ import type { DataTableColumn } from "../../../../components/ui";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Button } from "../../../../components/ui/Button";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -51,7 +50,13 @@ type OrgListItem = {
   createdAt: string;
   status: string;
   plan: string | null;
+  /** ADM-003 — TRUE only for an ACTIVE EnterpriseContract, never a plan string. */
   enterprise: boolean;
+  contract: {
+    status: string;
+    seatCount: number | null;
+    endsAtUtc: string | null;
+  } | null;
   workspaceCount: number;
   seats: { included: number; used: number };
   ownerEmail: string | null;
@@ -127,25 +132,37 @@ export default function AdminOrganizationsPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [search, setSearch] = useState("");
-  const [planFilter, setPlanFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [healthFilter, setHealthFilter] = useState("");
+  // ADM-017 — the Overview links here with a filter already chosen
+  // (`?status=SUSPENDED`, `?health=BLOCKED`, `?enterprise=true`). Seeding the
+  // filter state FROM the URL is what makes those tiles real drill-downs: a
+  // link that lands on an unfiltered page 1 shows a different population than
+  // the number that was clicked, which is worse than no link at all.
+  const params = useSearchParams();
+  const [search, setSearch] = useState(params.get("search") ?? "");
+  const [planFilter, setPlanFilter] = useState(params.get("plan") ?? "");
+  const [statusFilter, setStatusFilter] = useState(params.get("status") ?? "");
+  const [healthFilter, setHealthFilter] = useState(params.get("health") ?? "");
+  const [enterpriseFilter, setEnterpriseFilter] = useState(
+    params.get("enterprise") ?? "",
+  );
 
   const load = useCallback(
     async (targetPage: number) => {
       try {
         setLoading(true);
-        const params = new URLSearchParams();
-        params.set("page", String(targetPage));
-        params.set("limit", "20");
-        if (search.trim()) params.set("search", search.trim());
-        if (planFilter) params.set("plan", planFilter);
-        if (statusFilter) params.set("status", statusFilter);
-        if (healthFilter) params.set("health", healthFilter);
+        const qs = new URLSearchParams();
+        qs.set("page", String(targetPage));
+        qs.set("limit", "20");
+        if (search.trim()) qs.set("search", search.trim());
+        if (planFilter) qs.set("plan", planFilter);
+        if (statusFilter) qs.set("status", statusFilter);
+        if (healthFilter) qs.set("health", healthFilter);
+        // Enterprise is a CONTRACT fact, resolved server-side against the
+        // contract table — never a `billingPlan` string (ADM-003).
+        if (enterpriseFilter) qs.set("enterprise", enterpriseFilter);
 
         const data: ListResponse = await apiFetch(
-          `/v1/admin/organizations?${params.toString()}`,
+          `/v1/admin/customers?${qs.toString()}`,
         );
         setItems(Array.isArray(data?.items) ? data.items : []);
         setPage(data?.page ?? targetPage);
@@ -160,13 +177,13 @@ export default function AdminOrganizationsPage() {
         setLoading(false);
       }
     },
-    [addToast, search, planFilter, statusFilter, healthFilter],
+    [addToast, search, planFilter, statusFilter, healthFilter, enterpriseFilter],
   );
 
   useEffect(() => {
     void load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planFilter, statusFilter, healthFilter]);
+  }, [planFilter, statusFilter, healthFilter, enterpriseFilter]);
 
   const columns = useMemo<DataTableColumn<OrgListItem>[]>(
     () => [
@@ -207,7 +224,7 @@ export default function AdminOrganizationsPage() {
       },
       {
         key: "plan",
-        header: "Plan",
+        header: "Workspace plan",
         render: (row) =>
           row.plan ? (
             <Badge tone={row.enterprise ? "governance" : "info"}>
@@ -215,6 +232,28 @@ export default function AdminOrganizationsPage() {
             </Badge>
           ) : (
             <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+          ),
+      },
+      {
+        // ADM-003 / ADM-015 — the CONTRACT, which is what actually decides
+        // whether somebody is an enterprise customer. The Plan column beside it
+        // is the workspace projection and is labelled as such.
+        key: "contract",
+        header: "Enterprise contract",
+        render: (row) =>
+          row.contract ? (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <Badge tone={row.contract.status === "ACTIVE" ? "verified" : "risk"}>
+                {row.contract.status}
+              </Badge>
+              {row.contract.seatCount ? (
+                <Badge tone="neutral" subtle>
+                  {row.contract.seatCount} seats
+                </Badge>
+              ) : null}
+            </div>
+          ) : (
+            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>None</span>
           ),
       },
       {
@@ -287,12 +326,11 @@ export default function AdminOrganizationsPage() {
       header={
         <PageHeader
           eyebrow="Platform Control Center"
-          title="Customers / Organizations"
+          title="Customers"
           subtitle="Read-only roster of every customer organization: plan, workspaces, seat usage, owner, domain verification, SSO/SCIM posture, and onboarding health. Aggregated from live records — nothing here is fabricated."
         />
       }
     >
-      <AdminConsoleNav />
 
       <FilterBar
         actions={
@@ -324,7 +362,7 @@ export default function AdminOrganizationsPage() {
             { value: "FREE", label: "Free" },
             { value: "PAYG", label: "Pay as you go" },
             { value: "PRO", label: "Pro" },
-            { value: "TEAM", label: "Team" },
+            { value: "TEAM", label: "Team plan" },
             { value: "ENTERPRISE", label: "Enterprise" },
           ]}
         />
@@ -351,6 +389,16 @@ export default function AdminOrganizationsPage() {
             { value: "UNKNOWN", label: "Unknown" },
           ]}
         />
+        <FilterBar.Select
+          label="Enterprise"
+          value={enterpriseFilter}
+          onChange={setEnterpriseFilter}
+          options={[
+            { value: "", label: "All customers" },
+            { value: "true", label: "Has active contract" },
+            { value: "false", label: "No active contract" },
+          ]}
+        />
       </FilterBar>
 
       <DataTable
@@ -360,11 +408,11 @@ export default function AdminOrganizationsPage() {
         getRowId={(row) => row.id}
         loading={loading}
         onRowClick={(row) =>
-          router.push(`/admin/organizations/${encodeURIComponent(row.id)}`)
+          router.push(`/admin/customers/${encodeURIComponent(row.id)}`)
         }
         emptyState={
           <EmptyState
-            title="No organizations yet"
+            title="No customers yet"
             purpose="Customer organizations appear here once they exist. This roster is read-only and reflects live records."
           />
         }

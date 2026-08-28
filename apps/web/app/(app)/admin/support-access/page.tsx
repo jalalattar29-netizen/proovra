@@ -157,6 +157,25 @@ function Shell() {
     null,
   );
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * ADM-021 — MINTING a grant, which this console could not do.
+   *
+   * `/v1/support-access/start` and `/v1/break-glass/activate` were fully
+   * implemented, platform-staff gated, workspace-authorized, step-up protected
+   * and audited — and had no caller anywhere in the product. The console could
+   * only ENTER and REVOKE grants that something else had already created, and
+   * nothing else ever did: the page's own copy pointed at an "incident
+   * workflow" that does not exist in this codebase.
+   *
+   * These forms add NO authority. Every decision — who may mint, over which
+   * organization, with what second factor — still belongs to the route and the
+   * services behind it. What changes is that the capability is reachable.
+   */
+  const [mintOrgId, setMintOrgId] = useState("");
+  const [mintReason, setMintReason] = useState("");
+  const [mintAccessLevel, setMintAccessLevel] = useState("READ_ONLY");
+  const [emergencyUserId, setEmergencyUserId] = useState("");
+  const [emergencyRole, setEmergencyRole] = useState("EMERGENCY_READ_ONLY");
 
   /**
    * SECRET HELD OFF-RENDER. The opaque support-context token never enters React
@@ -318,6 +337,91 @@ function Shell() {
     [teamId, confirm, contextMeta, exitContext, loadSupportGrants],
   );
 
+
+  const startSupportGrant = useCallback(async () => {
+    if (!teamId) return;
+    const confirmed = await confirm({
+      title: "Grant support access to this customer?",
+      description:
+        "This mints a support grant over the named organization and is recorded against you. It does not enter support context — that is a separate, separately audited step.",
+      confirmLabel: "Create grant",
+      tone: "warning",
+      testId: "support-access-start",
+    });
+    if (!confirmed) return;
+    setMutating(true);
+    setMutationFailure(null);
+    setNotice(null);
+    try {
+      await apiFetch("/v1/support-access/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId,
+          organizationId: mintOrgId.trim(),
+          reason: mintReason.trim(),
+          accessLevel: mintAccessLevel,
+        }),
+      });
+      setNotice("Support grant created.");
+      setMintOrgId("");
+      setMintReason("");
+      await loadSupportGrants();
+    } catch (err) {
+      setMutationFailure(
+        classifyFailure(err, "Could not create the support grant."),
+      );
+    } finally {
+      setMutating(false);
+    }
+  }, [teamId, confirm, mintOrgId, mintReason, mintAccessLevel, loadSupportGrants]);
+
+  const activateBreakGlass = useCallback(async () => {
+    if (!teamId) return;
+    const confirmed = await confirm({
+      title: "Activate break-glass emergency access?",
+      description:
+        "Emergency access bypasses the ordinary permission model for the named identity. It is recorded against you, and it must be revoked as soon as the incident is contained.",
+      confirmLabel: "Activate emergency access",
+      tone: "danger",
+      testId: "break-glass-activate",
+    });
+    if (!confirmed) return;
+    setMutating(true);
+    setMutationFailure(null);
+    setNotice(null);
+    try {
+      await apiFetch("/v1/break-glass/activate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId,
+          organizationId: mintOrgId.trim(),
+          emergencyUserId: emergencyUserId.trim(),
+          reason: mintReason.trim(),
+          grantedRole: emergencyRole,
+        }),
+      });
+      setNotice("Break-glass access activated.");
+      setEmergencyUserId("");
+      setMintReason("");
+      await loadEmergencyGrants();
+    } catch (err) {
+      setMutationFailure(
+        classifyFailure(err, "Could not activate emergency access."),
+      );
+    } finally {
+      setMutating(false);
+    }
+  }, [
+    teamId,
+    confirm,
+    mintOrgId,
+    emergencyUserId,
+    mintReason,
+    emergencyRole,
+    loadEmergencyGrants,
+  ]);
   const revokeEmergency = useCallback(
     async (grant: EmergencyGrant) => {
       if (!teamId) return;
@@ -664,6 +768,105 @@ function Shell() {
       </PageSection>
 
       <PageSection
+        title="Grant access"
+        description="Mint a support grant, or activate break-glass emergency access, over a customer organization. Both are recorded against you and both remain revocable below."
+      >
+        <Card>
+          <div style={{ display: "grid", gap: 12, maxWidth: 640 }}>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={muted}>Organization ID</span>
+              <input
+                className="app-input"
+                value={mintOrgId}
+                onChange={(e) => setMintOrgId(e.target.value)}
+                placeholder="The customer organization this access is over"
+                data-testid="mint-organization-id"
+              />
+            </label>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={muted}>Reason (recorded, minimum 8 characters)</span>
+              <input
+                className="app-input"
+                value={mintReason}
+                onChange={(e) => setMintReason(e.target.value)}
+                placeholder="Why this access is needed"
+                data-testid="mint-reason"
+              />
+            </label>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+              <label style={{ display: "grid", gap: 4 }}>
+                <span style={muted}>Support access level</span>
+                <select
+                  className="app-input"
+                  value={mintAccessLevel}
+                  onChange={(e) => setMintAccessLevel(e.target.value)}
+                  data-testid="mint-access-level"
+                >
+                  <option value="READ_ONLY">Read only</option>
+                  <option value="ELEVATED">Elevated</option>
+                </select>
+              </label>
+              <Button
+                size="sm"
+                onClick={() => void startSupportGrant()}
+                disabled={
+                  mutating || !mintOrgId.trim() || mintReason.trim().length < 8
+                }
+              >
+                Create support grant
+              </Button>
+            </div>
+
+            <hr style={{ border: 0, borderTop: "1px solid var(--rule, #e2e8f0)", margin: "4px 0" }} />
+
+            <p style={{ ...muted, margin: 0 }}>
+              Break-glass is for an incident in which the ordinary permission
+              model cannot be used. It grants a pre-agreed emergency identity,
+              not you.
+            </p>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={muted}>Emergency user ID</span>
+              <input
+                className="app-input"
+                value={emergencyUserId}
+                onChange={(e) => setEmergencyUserId(e.target.value)}
+                placeholder="The identity that will hold emergency access"
+                data-testid="break-glass-user-id"
+              />
+            </label>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+              <label style={{ display: "grid", gap: 4 }}>
+                <span style={muted}>Emergency role</span>
+                <select
+                  className="app-input"
+                  value={emergencyRole}
+                  onChange={(e) => setEmergencyRole(e.target.value)}
+                  data-testid="break-glass-role"
+                >
+                  <option value="EMERGENCY_READ_ONLY">Emergency read only</option>
+                  <option value="EMERGENCY_OPERATOR">Emergency operator</option>
+                </select>
+              </label>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => void activateBreakGlass()}
+                disabled={
+                  mutating ||
+                  !mintOrgId.trim() ||
+                  !emergencyUserId.trim() ||
+                  mintReason.trim().length < 8
+                }
+              >
+                Activate break-glass
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </PageSection>
+
+      <PageSection
         title="Break-glass emergency grants"
         action={
           <FilterBar>
@@ -681,10 +884,9 @@ function Shell() {
         }
       >
         <p style={{ ...muted, marginTop: 0 }}>
-          Emergency access grants across the platform. Activation happens through
-          the incident workflow with a pre-configured emergency identity and a
-          recorded strong-auth proof; this console shows the lifecycle and cuts
-          access.
+          Emergency access grants across the platform. Activation is above and
+          requires a recorded strong-auth proof; this console also shows the
+          lifecycle and cuts access.
         </p>
         {emergencyFailure ? (
           <Card

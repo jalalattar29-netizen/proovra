@@ -26,7 +26,6 @@ import type { DataTableColumn } from "../../../../components/ui";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Button } from "../../../../components/ui/Button";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -213,7 +212,6 @@ function AdminAdoptionInner() {
         }
       />
 
-      <AdminConsoleNav />
 
       <PageSection
         title="Capability adoption"

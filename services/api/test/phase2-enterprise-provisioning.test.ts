@@ -834,6 +834,16 @@ describe("admin-provisioning route gate", () => {
     // isPlatformAdmin: deny.
     vi.doMock("../src/services/platform-admin.service.js", () => ({
       isPlatformAdmin: vi.fn(async () => false),
+      // ADM-001 — the gate now decides through `resolvePlatformAdmin`, which
+      // returns a DECISION (allowed + source + whether a stale admin claim was
+      // presented) rather than a bare boolean, because a withdrawn grant that
+      // is still being exercised is worth logging. Both exports are stubbed so
+      // this double matches the module's real shape.
+      resolvePlatformAdmin: vi.fn(async () => ({
+        allowed: false,
+        source: "NOT_ADMIN" as const,
+        claimedAdmin: false,
+      })),
     }));
 
     const Fastify = (await import("fastify")).default;

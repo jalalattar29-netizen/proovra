@@ -121,7 +121,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("adminGlobalSearch", () => {
-  it("searches organizations → typed result deep-linking to /admin/organizations/:id", async () => {
+  it("searches customers → typed result deep-linking to /admin/customers/:id", async () => {
     const client = makeClient({
       organizations: [
         { id: "org-1", name: "Acme Corp", status: "ACTIVE" },
@@ -138,7 +138,7 @@ describe("adminGlobalSearch", () => {
     expect(item.type).toBe("organization");
     expect(item.id).toBe("org-1");
     expect(item.label).toBe("Acme Corp");
-    expect(item.href).toBe("/admin/organizations/org-1");
+    expect(item.href).toBe("/admin/customers/org-1");
   });
 
   it("searches users by email → typed result, email is the only PII exposed", async () => {
@@ -164,7 +164,13 @@ describe("adminGlobalSearch", () => {
     expect(item.type).toBe("user");
     expect(item.id).toBe("u-1");
     expect(item.label).toBe("owner@acme.test");
-    expect(item.href).toContain("/admin/users?search=");
+    // ADM-017 — a REAL detail route. The old href was
+    // /admin/users?search=<email> because the roster had no :id detail, and the
+    // roster never read the parameter either, so the link silently landed on an
+    // unfiltered page 1 that might not contain the user searched for. Both
+    // halves are fixed: the detail page exists and the roster honours ?search=.
+    expect(item.href).toContain("/admin/users/");
+    expect(item.href).not.toContain("?search=");
     // The password hash must NOT appear anywhere in the projected result.
     expect(JSON.stringify(item)).not.toContain("SECRET_ARGON2_HASH");
   });
@@ -264,6 +270,16 @@ describe("admin-search route gate", () => {
     }));
     vi.doMock("../src/services/platform-admin.service.js", () => ({
       isPlatformAdmin: vi.fn(async () => false),
+      // ADM-001 — the gate now decides through `resolvePlatformAdmin`, which
+      // returns a DECISION (allowed + source + whether a stale admin claim was
+      // presented) rather than a bare boolean, because a withdrawn grant that
+      // is still being exercised is worth logging. Both exports are stubbed so
+      // this double matches the module's real shape.
+      resolvePlatformAdmin: vi.fn(async () => ({
+        allowed: false,
+        source: "NOT_ADMIN" as const,
+        claimedAdmin: false,
+      })),
     }));
 
     const Fastify = (await import("fastify")).default;
@@ -294,6 +310,13 @@ describe("admin-search route gate", () => {
     }));
     vi.doMock("../src/services/platform-admin.service.js", () => ({
       isPlatformAdmin: vi.fn(async () => true),
+      // ADM-001 — the gate reads `resolvePlatformAdmin`; this case is an
+      // ALLOWED admin, so the decision must say so.
+      resolvePlatformAdmin: vi.fn(async () => ({
+        allowed: true,
+        source: "DATABASE_ROLE" as const,
+        claimedAdmin: true,
+      })),
     }));
     vi.doMock("../src/services/admin/search.service.js", () => ({
       adminGlobalSearch: vi.fn(async () => ({ query: "", groups: [], total: 0 })),
@@ -361,5 +384,26 @@ describe("admin-search source contract", () => {
     ]) {
       expect(src.includes(forbidden)).toBe(false);
     }
+  });
+});
+
+describe("Phase P1 admin-search — ADM-022 accountability", () => {
+  it("records WHO searched and for WHAT", () => {
+    const src = readSource("../src/routes/admin-search.routes.ts");
+    // A platform admin can locate any person on the platform by email from
+    // this one route. "Who looked up whom" is exactly the signal an audit log
+    // exists to carry, so the lookup must leave a trace.
+    expect(src).toContain("emitPlatformAudit");
+    expect(src).toContain("admin.global_search_performed");
+    expect(src).toContain("query: q");
+  });
+
+  it("does not copy the RESULTS into the audit record", () => {
+    const src = readSource("../src/routes/admin-search.routes.ts");
+    // The term is the record. Writing the found subjects here would put a
+    // second copy of subject data into the audit log, which is the opposite
+    // of what auditing the read is for.
+    expect(src).not.toMatch(/metadata:\s*\{[^}]*results:/);
+    expect(src).not.toMatch(/metadata:\s*\{[^}]*groups:\s*result\.groups\b/);
   });
 });

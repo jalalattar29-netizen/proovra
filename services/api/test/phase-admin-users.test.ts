@@ -31,11 +31,34 @@ function read(rel: string): string {
 
 const ROUTE = read("src/routes/admin-users.routes.ts");
 
+/**
+ * ADM-028 (2026-08-27) — the roster's QUERY moved out of the route.
+ *
+ * `admin-users.routes.ts` is now a validator and a projection boundary; the
+ * pagination, the search predicate, the commercial filters and every batched
+ * rollup live in `services/admin/people.service.ts`. These contracts follow the
+ * logic rather than the path — asserting them against the route would pass
+ * vacuously the moment anything moved, which is the opposite of what they are for.
+ */
+const SERVICE = read("src/services/admin/people.service.ts");
+
+/**
+ * The whole users surface: the route plus the service behind it.
+ *
+ * ADM-028 (2026-08-27) — the roster's QUERY moved out of the route.
+ * `admin-users.routes.ts` is now a validator and a projection boundary; the
+ * pagination, the search predicate, the commercial filters and every batched
+ * rollup live in `people.service.ts`. These contracts follow the LOGIC rather
+ * than the path — asserting them against the route alone would pass vacuously
+ * the moment anything moved, which is the opposite of what they exist for.
+ */
+const SURFACE = `${ROUTE}\n${SERVICE}`;
+
 // The route's own doc comments name the forbidden fields (to explain
 // that they are deliberately excluded). For the no-secrets assertions
 // we inspect the CODE only, with block + line comments stripped, so the
 // documentation of the invariant does not trip the invariant.
-const ROUTE_CODE = ROUTE.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+const SURFACE_CODE = SURFACE.replace(/\/\*[\s\S]*?\*\//g, "").replace(
   /\/\/[^\n]*/g,
   ""
 );
@@ -46,8 +69,8 @@ describe("admin-users route — gating", () => {
   });
 
   it("gates the endpoint behind requirePlatformAdmin", () => {
-    expect(ROUTE).toMatch(/preHandler:\s*requirePlatformAdmin/);
-    expect(ROUTE).toMatch(
+    expect(SURFACE).toMatch(/preHandler:\s*requirePlatformAdmin/);
+    expect(SURFACE).toMatch(
       /import \{ requirePlatformAdmin \} from "\.\.\/middleware\/require-platform-admin\.js"/
     );
   });
@@ -55,69 +78,75 @@ describe("admin-users route — gating", () => {
 
 describe("admin-users route — pagination / search / filter", () => {
   it("supports page + pageSize pagination with skip/take", () => {
-    expect(ROUTE).toMatch(/page:\s*z\.coerce\.number\(\)/);
-    expect(ROUTE).toMatch(/pageSize:\s*z\.coerce/);
-    expect(ROUTE).toMatch(/skip,/);
-    expect(ROUTE).toMatch(/take:\s*pageSize/);
+    expect(SURFACE).toMatch(/page:\s*z\.coerce\.number\(\)/);
+    expect(SURFACE).toMatch(/pageSize:\s*z\.coerce/);
+    expect(SERVICE).toMatch(/skip: \(page - 1\) \* pageSize/);
+    expect(SURFACE).toMatch(/take:\s*pageSize/);
     // Returns total + totalPages so the client can paginate honestly.
-    expect(ROUTE).toMatch(/prisma\.user\.count\(\{ where \}\)/);
-    expect(ROUTE).toMatch(/totalPages/);
+    expect(SURFACE).toContain("user.count({ where })");
+    expect(SURFACE).toMatch(/totalPages/);
   });
 
   it("searches by email and name (case-insensitive)", () => {
-    expect(ROUTE).toMatch(/email:\s*\{ contains:\s*search,\s*mode:\s*"insensitive" \}/);
-    expect(ROUTE).toMatch(/displayName:\s*\{ contains:\s*search/);
-    expect(ROUTE).toMatch(/firstName:\s*\{ contains:\s*search/);
-    expect(ROUTE).toMatch(/lastName:\s*\{ contains:\s*search/);
+    expect(SURFACE).toMatch(/email: \{ contains: q, mode: "insensitive" \}/);
+    expect(SURFACE).toMatch(/displayName: \{ contains: q/);
+    expect(SURFACE).toMatch(/firstName: \{ contains: q/);
+    expect(SURFACE).toMatch(/lastName: \{ contains: q/);
   });
 
-  it("filters by platformRole, provider, and suspended", () => {
-    expect(ROUTE).toMatch(/platformRole:\s*z\.enum\(\["admin"\]\)/);
-    expect(ROUTE).toMatch(/provider:\s*z\.enum\(\["GOOGLE",\s*"APPLE",\s*"GUEST",\s*"EMAIL"\]\)/);
-    expect(ROUTE).toMatch(/suspended:/);
-    // suspended → TeamMember.status SUSPENDED/REVOKED relation predicate.
-    expect(ROUTE).toMatch(/TeamMemberStatus\.SUSPENDED/);
-    expect(ROUTE).toMatch(/TeamMemberStatus\.REVOKED/);
+  it("filters by platformRole, provider, and the commercial dimension", () => {
+    expect(SURFACE).toMatch(/platformRole:\s*z\.enum\(\["admin"\]\)/);
+    expect(SURFACE).toMatch(/provider:\s*z\.enum\(\["GOOGLE",\s*"APPLE",\s*"GUEST",\s*"EMAIL"\]\)/);
+    // ADM-028 — the `suspended` filter is deliberately GONE. It was derived
+    // from `TeamMember.status` across ALL of a user’s memberships and
+    // presented as an ACCOUNT state; `User` models no account-level disable
+    // at all, so someone suspended from one workspace and active in five read
+    // as suspended platform-wide. Membership states are now reported AS
+    // memberships, and the filters that replaced it are commercial.
+    expect(SURFACE).toMatch(/tier: z\.enum/);
+    expect(SURFACE).toMatch(/subscriptionStatus/);
+    expect(SURFACE).toMatch(/pendingCancellation/);
+    expect(SURFACE).toMatch(/memberships: \{/);
+    expect(SURFACE).not.toMatch(/suspended: z\./);
   });
 });
 
 describe("admin-users route — NO secrets ever leave the endpoint", () => {
   it("never selects passwordHash", () => {
-    expect(ROUTE_CODE).not.toMatch(/passwordHash/);
+    expect(SURFACE_CODE).not.toMatch(/passwordHash/);
   });
 
   it("never reads MFA secret material (ciphertext / iv / auth tag / kek)", () => {
-    expect(ROUTE_CODE).not.toMatch(/secretCiphertext/);
-    expect(ROUTE_CODE).not.toMatch(/secretIv/);
-    expect(ROUTE_CODE).not.toMatch(/secretAuthTag/);
-    expect(ROUTE_CODE).not.toMatch(/secretKekId/);
+    expect(SURFACE_CODE).not.toMatch(/secretCiphertext/);
+    expect(SURFACE_CODE).not.toMatch(/secretIv/);
+    expect(SURFACE_CODE).not.toMatch(/secretAuthTag/);
+    expect(SURFACE_CODE).not.toMatch(/secretKekId/);
   });
 
   it("never selects tokens or generic secret columns as data fields", () => {
     // No selected/emitted field is a token or secret. `: true` is the
     // Prisma select shape; `xxx:` is an emitted response field.
-    expect(ROUTE_CODE).not.toMatch(/token[A-Za-z]*:\s*true/i);
-    expect(ROUTE_CODE).not.toMatch(/secret[A-Za-z]*:\s*true/i);
-    expect(ROUTE_CODE).not.toMatch(/token[A-Za-z]*:\s*[a-z]/i);
-    expect(ROUTE_CODE).not.toMatch(/secret[A-Za-z]*:\s*[a-z]/i);
+    expect(SURFACE_CODE).not.toMatch(/token[A-Za-z]*:\s*true/i);
+    expect(SURFACE_CODE).not.toMatch(/secret[A-Za-z]*:\s*true/i);
+    expect(SURFACE_CODE).not.toMatch(/token[A-Za-z]*:\s*[a-z]/i);
+    expect(SURFACE_CODE).not.toMatch(/secret[A-Za-z]*:\s*[a-z]/i);
   });
 
   it("derives mfaEnrolled from a COUNT of factors, not their secrets", () => {
-    expect(ROUTE).toMatch(/mfaFactors:\s*\{/);
-    expect(ROUTE).toMatch(/mfaEnrolled:\s*u\._count\.mfaFactors > 0/);
+    expect(SURFACE).toMatch(/mfaFactors:\s*\{/);
+    expect(SURFACE).toMatch(/mfaEnrolled:\s*u\._count\.mfaFactors > 0/);
   });
 });
 
 describe("admin-users route — lastLoginAt is real-or-null (never fabricated)", () => {
   it("derives lastLoginAt from the login_completed analytics event", () => {
-    expect(ROUTE).toMatch(/eventType:\s*"login_completed"/);
-    expect(ROUTE).toMatch(/prisma\.analyticsEvent\.groupBy/);
-    expect(ROUTE).toMatch(/_max:\s*\{ createdAt: true \}/);
+    expect(SURFACE).toMatch(/eventType:\s*"login_completed"/);
+    expect(SURFACE).toMatch(/analyticsEvent\.groupBy/);
+    expect(SURFACE).toMatch(/_max:\s*\{ createdAt: true \}/);
   });
 
   it("falls back to null (never Date.now / synthetic) when no login event exists", () => {
-    expect(ROUTE).toMatch(/lastLoginByUser\.get\(u\.id\) \?\? null/);
-    expect(ROUTE).toMatch(/lastLoginAt \? lastLoginAt\.toISOString\(\) : null/);
+    expect(SURFACE).toMatch(/lastLoginByUser\.get\(u\.id\)\?\.toISOString\(\) \?\? null/);
     // No fabricated timestamp default.
     expect(ROUTE).not.toMatch(/lastLoginAt:\s*new Date\(\)/);
   });
@@ -125,16 +154,16 @@ describe("admin-users route — lastLoginAt is real-or-null (never fabricated)",
 
 describe("admin-users route — honest nulls for unmeasured signals", () => {
   it("returns riskStatus as null (no per-user risk model yet)", () => {
-    expect(ROUTE).toMatch(/riskStatus:\s*null/);
+    expect(SURFACE).toMatch(/riskStatus:\s*null/);
   });
 
   it("emits country / timezone as real-or-null (?? null), not empty string", () => {
-    expect(ROUTE).toMatch(/country:\s*u\.country \?\? null/);
-    expect(ROUTE).toMatch(/timezone:\s*u\.timezone \?\? null/);
+    expect(SURFACE).toMatch(/country:\s*u\.country \?\? null/);
+    expect(SURFACE).toMatch(/timezone:\s*u\.timezone \?\? null/);
   });
 
   it("uses real membership counts from _count (not hardcoded numbers)", () => {
-    expect(ROUTE).toMatch(/orgMembershipsCount:\s*u\._count\.organizationMemberships/);
-    expect(ROUTE).toMatch(/workspaceMembershipsCount:\s*u\._count\.teamMembers/);
+    expect(SURFACE).toMatch(/orgMembershipsCount:\s*u\._count\.organizationMemberships/);
+    expect(SURFACE).toMatch(/workspaceMembershipsCount:\s*u\._count\.teamMembers/);
   });
 });

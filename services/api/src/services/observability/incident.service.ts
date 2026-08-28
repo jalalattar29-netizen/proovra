@@ -806,8 +806,25 @@ export type IncidentActorContext = {
   resolutionNote?: string | null;
 };
 
+/**
+ * WHICH incident a transition is allowed to find (ADM-011).
+ *
+ * `WORKSPACE` is the tenant path and is unchanged: the workspace predicate is
+ * in the WHERE clause, so a cross-workspace id is simply not found. Callers
+ * that omit `scope` get it, which keeps every existing tenant call site correct
+ * without edit.
+ *
+ * `PLATFORM_ADMIN` looks up by id alone. It is reachable ONLY from routes behind
+ * `requirePlatformAdmin`, where the platform gate IS the authorization boundary
+ * — the same contract every other `/v1/admin/*` route carries. It does not
+ * relax any transition rule; it only widens what can be located.
+ */
+export type IncidentTransitionTarget =
+  | { incidentId: string; teamId: string; scope?: "WORKSPACE" }
+  | { incidentId: string; teamId?: undefined; scope: "PLATFORM_ADMIN" };
+
 export async function acknowledgeIncident(
-  input: { incidentId: string; teamId: string } & IncidentActorContext,
+  input: IncidentTransitionTarget & IncidentActorContext,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.OperationalIncident> {
   return transitionIncident(
@@ -819,7 +836,7 @@ export async function acknowledgeIncident(
 }
 
 export async function resolveIncident(
-  input: { incidentId: string; teamId: string } & IncidentActorContext,
+  input: IncidentTransitionTarget & IncidentActorContext,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.OperationalIncident> {
   return transitionIncident(
@@ -831,7 +848,7 @@ export async function resolveIncident(
 }
 
 export async function suppressIncident(
-  input: { incidentId: string; teamId: string } & IncidentActorContext,
+  input: IncidentTransitionTarget & IncidentActorContext,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.OperationalIncident> {
   return transitionIncident(
@@ -865,15 +882,19 @@ export async function suppressIncident(
  */
 export async function assignIncident(
   input: {
-    incidentId: string;
-    teamId: string;
     /** NULL unassigns. */
     assigneeUserId: string | null;
-  } & IncidentActorContext,
+  } & IncidentTransitionTarget &
+    IncidentActorContext,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.OperationalIncident> {
+  // ADM-011 — same two lookup scopes as `transitionIncident`, same reason. The
+  // assignment write, the event and the audit below are shared.
   const existing = await client.operationalIncident.findFirst({
-    where: { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
+    where:
+      input.scope === "PLATFORM_ADMIN"
+        ? { id: input.incidentId }
+        : { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
   });
   if (!existing) throw new IncidentError("incident_not_found");
   // Captured BEFORE the write, so the audit event can record what the
@@ -978,15 +999,39 @@ export async function probeConditionActivity(
 }
 
 async function transitionIncident(
-  input: { incidentId: string; teamId: string } & IncidentActorContext,
+  input: IncidentTransitionTarget & IncidentActorContext,
   next: prismaPkg.IncidentStatus,
   eventType: "acknowledged" | "resolved" | "suppressed",
   client: PrismaClient,
 ): Promise<prismaPkg.OperationalIncident> {
+  // ADM-011 (2026-08-27) — ONE transition authority, TWO lookup scopes.
+  //
+  // Only the WHERE clause differs. Everything below it — the allowed-transition
+  // table, the source-truth resolution probe, the SLA-cycle close, the event
+  // write and the audit — is shared, because a platform operator resolving a
+  // condition must obey exactly the rules a workspace operator does. A separate
+  // platform mutator would have been a second lifecycle to keep in step with
+  // this one, which is how the two drift.
+  //
+  // PLATFORM scope deliberately drops `platformInternalExclusion()` as well as
+  // the tenant predicate: a `platform.worker_heartbeat_stale` condition is
+  // written per-workspace but owned by nobody, so it was invisible to every
+  // tenant surface AND unactionable from the platform one. That is the class of
+  // condition this scope exists to let someone close.
   const existing = await client.operationalIncident.findFirst({
-    where: { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
+    where:
+      input.scope === "PLATFORM_ADMIN"
+        ? { id: input.incidentId }
+        : { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
   });
   if (!existing) throw new IncidentError("incident_not_found");
+
+  // The condition's OWN tenant, taken from the row rather than from the caller.
+  // In WORKSPACE scope the two are identical by construction — the predicate
+  // matched on it. In PLATFORM_ADMIN scope the caller supplied none, and for a
+  // PLATFORM or LEGACY_UNSCOPED condition there is none to supply.
+  const subjectTeamId: string | null = existing.teamId ?? null;
+
   if (
     !isAllowedIncidentStatusTransition(
       existing.status as IncidentStatus,
@@ -1034,7 +1079,7 @@ async function transitionIncident(
       reportUnregisteredConditionSource({
         sourceId: existing.sourceId,
         category: existing.category,
-        teamId: input.teamId,
+        teamId: subjectTeamId,
         writer: "api.manualResolution",
       });
     }
@@ -1049,15 +1094,25 @@ async function transitionIncident(
         input.resolutionNote.trim().length > 0,
       activity:
         lifecycle.resolutionAuthority === "SOURCE_TRUTH"
-          ? await probeConditionActivity(
-              {
-                sourceId: existing.sourceId,
-                category: existing.category,
-                fingerprint: existing.fingerprint,
-                teamId: input.teamId,
-              },
-              client,
-            )
+          ? // A SOURCE_TRUTH condition is resolvable only when its source can
+            // be READ and says it has recovered. Every probe is workspace-
+            // scoped, so a condition with no owning workspace (PLATFORM or
+            // LEGACY_UNSCOPED) has nothing to probe — and "we could not check"
+            // is UNKNOWN, which refuses. That is the same fail-closed answer an
+            // unreadable source gets, reached the same way: it is deliberately
+            // NOT a special case that lets a platform operator declare a
+            // condition over without evidence.
+            subjectTeamId === null
+            ? "UNKNOWN"
+            : await probeConditionActivity(
+                {
+                  sourceId: existing.sourceId,
+                  category: existing.category,
+                  fingerprint: existing.fingerprint,
+                  teamId: subjectTeamId,
+                },
+                client,
+              )
           : null,
       notApplicableDisposition: lifecycle.notApplicableDisposition,
     });
@@ -1404,6 +1459,26 @@ export async function listIncidents(
 
 export type IncidentProjection = {
   id: string;
+  /**
+   * ADM-010 (2026-08-27) — WHOSE CONDITION IS THIS?
+   *
+   * The projection carried lifecycle, severity, category, fingerprint,
+   * timestamps, related record ids, runbook and assignment — everything except
+   * the tenant. The platform-admin incident feed reads THIS function across all
+   * tenants, so an operator looking at forty open incidents could not tell
+   * whether they belonged to forty customers or to one. The security-event feed
+   * on the very same page has always carried `teamId`; this was an asymmetry,
+   * not a policy.
+   *
+   * Adding it is not a tenant-isolation widening: every tenant read is already
+   * bounded by `workspaceIncidentWhere(teamId)` in its WHERE clause, so a
+   * tenant can only ever receive rows whose `teamId` it already knows.
+   *
+   * NULL for `PLATFORM` and `LEGACY_UNSCOPED` conditions, which have no owning
+   * workspace by definition — `scope` says which of the three this is.
+   */
+  teamId: string | null;
+  scope: string;
   category: string;
   severity: string;
   status: string;
@@ -1511,6 +1586,9 @@ export function projectIncident(
   });
   return {
     id: i.id,
+    // ADM-010 — the tenant this condition belongs to. See the type comment.
+    teamId: i.teamId ?? null,
+    scope: String(i.scope),
     lifecycle: {
       sourceId: lifecycle.sourceId,
       sourceMatch: match,

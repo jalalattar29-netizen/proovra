@@ -24,6 +24,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import {
   adminGlobalSearch,
   ALL_SEARCH_TYPES,
@@ -81,6 +82,35 @@ export async function adminSearchRoutes(app: FastifyInstance) {
         types: parseTypes(types),
         perTypeLimit: limit,
       });
+
+      // ADM-022 — global search IS audited, because "who looked up whom" is
+      // exactly the accountability signal an audit log exists to carry. A
+      // platform admin can find any person on the platform by email from here;
+      // that lookup must leave a trace naming the operator and the term.
+      //
+      // The ROSTERS are deliberately not audited — they are bounded pages of
+      // metadata with no single subject, and a row per page render buries the
+      // targeted reads that matter. This is the same rule the user- and
+      // workspace-detail routes follow, applied to the one aggregate read that
+      // takes an operator-supplied term.
+      await emitPlatformAudit({
+        action: "admin.global_search_performed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.user?.sub ?? null,
+        resourceType: "platform_search",
+        resourceId: null,
+        correlationId: req.id,
+        metadata: {
+          // The TERM, because that is the point of the record. No result rows,
+          // no identifiers of what was found — the search surface already
+          // returns those to the caller, and duplicating them here would put a
+          // second copy of subject data in the audit log.
+          query: q,
+          types: parseTypes(types) ?? null,
+          resultGroups: result.groups?.length ?? 0,
+        },
+      }).catch(() => null);
 
       return reply.code(200).send(result);
     },

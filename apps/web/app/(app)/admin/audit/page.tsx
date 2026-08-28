@@ -12,7 +12,6 @@ import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { useTenantGuard } from "../../../../lib/platform-context";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { formatUtcAuditDateTime } from "../../../../lib/date";
 
 type AuditRow = {
@@ -298,7 +297,6 @@ export default function AdminAuditPage() {
         />
       }
     >
-      <AdminConsoleNav />
 
       <div
         style={{

@@ -1,4 +1,8 @@
 import { prisma } from "../../db.js";
+import {
+  customerOrganizationWhere,
+  liveWorkspaceWhere,
+} from "@proovra/shared-runtime";
 
 /**
  * PROOVRA Platform Admin — Executive Dashboard aggregation (READ-ONLY).
@@ -58,6 +62,13 @@ export type PeriodCount = {
   lastMonth: number;
 };
 
+/** A money total in exactly ONE currency. Never aggregated across currencies. */
+export type CurrencyPeriodTotal = {
+  currency: string;
+  amountCents: number;
+  payments: number;
+};
+
 export type TopCustomer = {
   teamId: string;
   name: string;
@@ -77,15 +88,25 @@ export type AtRiskCustomer = {
 
 export type ExecutiveDashboard = {
   generatedAtUtc: string;
-  currency: string;
+  // ADM-012 — the top-level `currency: "EUR"` field is REMOVED. It was a
+  // constant asserting a denomination for a cross-currency sum, which is the
+  // exact shape of the defect. Currency now travels WITH each amount.
 
   revenue: {
-    /** REAL — sum of SUCCEEDED Payment.amountCents, all-time. */
-    grossRevenueCentsAllTime: number;
-    /** REAL — SUCCEEDED payments in the current calendar month. */
-    grossRevenueCentsThisMonth: number;
-    /** REAL — SUCCEEDED payments in the previous calendar month. */
-    grossRevenueCentsLastMonth: number;
+    /**
+     * REAL — SUCCEEDED payment totals, ONE ENTRY PER CURRENCY (ADM-012).
+     *
+     * `Payment.amountCents` is a minor-unit integer denominated by
+     * `Payment.currency`. Summing across currencies produces a number that is
+     * not money in any of them, and the previous single `grossRevenueCents*`
+     * fields did exactly that before the page rendered the result as EUR. No
+     * FX conversion is performed: this codebase has no rate authority, and
+     * inventing one to make a single headline number would be the same class of
+     * fabrication the honesty contract forbids everywhere else.
+     */
+    allTimeByCurrency: CurrencyPeriodTotal[];
+    thisMonthByCurrency: CurrencyPeriodTotal[];
+    lastMonthByCurrency: CurrencyPeriodTotal[];
     successfulPaymentsAllTime: number;
     /** HONEST NULL — no MRR/ARR baseline → growth rate not derivable. */
     growthRatePct: NotMeasured;
@@ -99,12 +120,12 @@ export type ExecutiveDashboard = {
   renewalRiskCents: NotMeasured;
 
   customers: {
-    /** REAL — Organization rows with status = ACTIVE. */
-    activeOrganizations: number;
-    /** REAL — Team rows with billingStatus = ACTIVE. */
-    activeBillingTeams: number;
-    /** REAL — Team rows on the ENTERPRISE plan. */
-    enterpriseTeams: number;
+    /** REAL — CUSTOMER organizations with status = ACTIVE (ADM-002). */
+    activeCustomers: number;
+    /** REAL — LIVE workspaces with billingStatus = ACTIVE (ADM-004). */
+    activeBillingWorkspaces: number;
+    /** REAL — EnterpriseContract rows with status = ACTIVE (ADM-003). */
+    enterpriseContracts: number;
   };
 
   leads: {
@@ -191,30 +212,49 @@ export async function buildExecutiveDashboard(
     ssoOutages,
     recentFailedPayments,
   ] = await Promise.all([
-    // REAL gross revenue — SUCCEEDED payment amount sum (all-time).
-    prisma.payment.aggregate({
+    // REAL gross revenue — SUCCEEDED payment totals GROUPED BY CURRENCY
+    // (ADM-012). Never one cross-currency sum.
+    prisma.payment.groupBy({
+      by: ["currency"],
       where: { status: "SUCCEEDED" },
       _sum: { amountCents: true },
       _count: { _all: true },
     }),
-    prisma.payment.aggregate({
+    prisma.payment.groupBy({
+      by: ["currency"],
       where: {
         status: "SUCCEEDED",
         createdAt: { gte: thisMonthStart, lt: nextMonthStart },
       },
       _sum: { amountCents: true },
+      _count: { _all: true },
     }),
-    prisma.payment.aggregate({
+    prisma.payment.groupBy({
+      by: ["currency"],
       where: {
         status: "SUCCEEDED",
         createdAt: { gte: lastMonthStart, lt: thisMonthStart },
       },
       _sum: { amountCents: true },
+      _count: { _all: true },
     }),
     // REAL active-customer counts.
-    prisma.organization.count({ where: { status: "ACTIVE" } }),
-    prisma.team.count({ where: { billingStatus: "ACTIVE" } }),
-    prisma.team.count({ where: { billingPlan: "ENTERPRISE" } }),
+    //
+    // ADM-002 / ADM-003 / ADM-004 (2026-08-27) — three corrections:
+    //   * CUSTOMER organizations only. Without the `kind` predicate this
+    //     counted the 1:1 SYSTEM container every workspace owns, so "active
+    //     customers" was approximately the workspace count.
+    //   * LIVE workspaces only. Closure writes neither `billingPlan` nor
+    //     `billingStatus`, so a closed workspace on a paid plan kept reporting
+    //     as an active billing customer indefinitely.
+    //   * Enterprise is the CONTRACT, never `billingPlan === 'ENTERPRISE'`.
+    prisma.organization.count({
+      where: { ...customerOrganizationWhere(), status: "ACTIVE" },
+    }),
+    prisma.team.count({
+      where: { ...liveWorkspaceWhere(), billingStatus: "ACTIVE" },
+    }),
+    prisma.enterpriseContract.count({ where: { status: "ACTIVE" } }),
     // REAL leads.
     prisma.demoRequest.groupBy({
       by: ["status"],
@@ -278,9 +318,13 @@ export async function buildExecutiveDashboard(
     prisma.evidence.count({
       where: { deletedAt: null, verificationStatus: "FAILED" },
     }),
-    // At-risk signal 1 — PAST_DUE billing.
+    // At-risk signal 1 — PAST_DUE billing on a LIVE workspace.
+    //
+    // ADM-004 — a closed workspace mid-cancellation is not a retention target;
+    // surfacing it as "at risk" sends an operator to chase a customer who has
+    // already gone, and buries the ones who have not.
     prisma.team.findMany({
-      where: { billingStatus: "PAST_DUE" },
+      where: { ...liveWorkspaceWhere(), billingStatus: "PAST_DUE" },
       select: {
         id: true,
         name: true,
@@ -310,11 +354,30 @@ export async function buildExecutiveDashboard(
     }),
   ]);
 
-  // ---- Revenue (REAL) ------------------------------------------------------
-  const grossRevenueCentsAllTime = revenueAllTime._sum.amountCents ?? 0;
-  const grossRevenueCentsThisMonth = revenueThisMonth._sum.amountCents ?? 0;
-  const grossRevenueCentsLastMonth = revenueLastMonth._sum.amountCents ?? 0;
-  const successfulPaymentsAllTime = revenueAllTime._count._all ?? 0;
+  // ---- Revenue (REAL, per currency) ---------------------------------------
+  const toCurrencyTotals = (
+    rows: Array<{
+      currency: string | null;
+      _sum: { amountCents: number | null };
+      _count: { _all: number };
+    }>,
+  ): CurrencyPeriodTotal[] =>
+    rows
+      .map((r) => ({
+        currency: (r.currency ?? "").toUpperCase() || "UNKNOWN",
+        amountCents: r._sum.amountCents ?? 0,
+        payments: r._count._all,
+      }))
+      .sort((a, b) => b.amountCents - a.amountCents);
+
+  const allTimeByCurrency = toCurrencyTotals(revenueAllTime);
+  const thisMonthByCurrency = toCurrencyTotals(revenueThisMonth);
+  const lastMonthByCurrency = toCurrencyTotals(revenueLastMonth);
+  // A COUNT is currency-free, so this one total remains meaningful.
+  const successfulPaymentsAllTime = allTimeByCurrency.reduce(
+    (sum, r) => sum + r.payments,
+    0,
+  );
 
   // ---- Leads (REAL) --------------------------------------------------------
   const demoRequestsByStatus: Record<string, number> = {};
@@ -415,12 +478,11 @@ export async function buildExecutiveDashboard(
 
   return {
     generatedAtUtc: now.toISOString(),
-    currency: "EUR",
 
     revenue: {
-      grossRevenueCentsAllTime,
-      grossRevenueCentsThisMonth,
-      grossRevenueCentsLastMonth,
+      allTimeByCurrency,
+      thisMonthByCurrency,
+      lastMonthByCurrency,
       successfulPaymentsAllTime,
       // HONEST NULL — no MRR/ARR baseline → no derivable growth rate.
       growthRatePct: notMeasured(
@@ -440,9 +502,9 @@ export async function buildExecutiveDashboard(
     ),
 
     customers: {
-      activeOrganizations,
-      activeBillingTeams,
-      enterpriseTeams,
+      activeCustomers: activeOrganizations,
+      activeBillingWorkspaces: activeBillingTeams,
+      enterpriseContracts: enterpriseTeams,
     },
 
     leads: {

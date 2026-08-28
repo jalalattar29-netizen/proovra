@@ -65,3 +65,11 @@ export * from "./evidence-analysis-revision.js";
 // they never performed. Every trigger in both processes now calls this.
 export * from "./evidence-destruction/executor.js";
 export * from "./evidence-destruction/approval.js";
+
+// ADM-002 / ADM-004 / ADM-007 / ADM-008 — THE control-plane population
+// authority. "Which rows is a platform-wide count actually about?" was answered
+// differently in every place the Platform Admin console asked it; this is the
+// one place it is answered now. Pure Prisma `where` fragments — no I/O, no
+// authorization, no commercial truth (that stays with resolveCommercialContext
+// and resolveEnterpriseContract).
+export * from "./control-plane-population.js";

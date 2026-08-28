@@ -135,6 +135,17 @@ vi.mock("../src/middleware/require-legal-acceptance.js", () => ({
 
 vi.mock("../src/services/platform-admin.service.js", () => ({
   isPlatformAdmin: async () => H.platformAdmin,
+  // ADM-001 (2026-08-27) — the gate decides through `resolvePlatformAdmin`,
+  // which returns a DECISION rather than a bare boolean: a token presenting a
+  // withdrawn `role: "admin"` claim is refused AND logged, which an unadorned
+  // `false` could not distinguish from an ordinary non-admin. Both exports are
+  // stubbed so this double matches the module's real shape; the harness's
+  // `H.platformAdmin` switch continues to drive both.
+  resolvePlatformAdmin: async () => ({
+    allowed: H.platformAdmin,
+    source: H.platformAdmin ? ("DATABASE_ROLE" as const) : ("NOT_ADMIN" as const),
+    claimedAdmin: H.platformAdmin,
+  }),
 }));
 
 // THE canonical authorization primitive. Presence and communications must

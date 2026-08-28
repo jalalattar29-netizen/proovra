@@ -5,7 +5,7 @@
  *
  * READ-ONLY platform-admin detail surface. Inherits the `platform.admin`
  * PageRouteGate from admin/layout.tsx (no conflicting gate added here).
- * Backed by /v1/admin/organizations/:id. Every value is a live record or
+ * Backed by /v1/admin/customers/:id. Every value is a live record or
  * an honest null → "—" / "Not measured" / "Not connected". No secrets, no
  * IdP key material, no SCIM token. No app-hero/cc-page/btn- classes.
  */
@@ -18,8 +18,8 @@ import type { DataTableColumn } from "../../../../../components/ui";
 import { Card } from "../../../../../components/ui/Card";
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import type { BadgeTone } from "../../../../../components/ui/Badge";
-import AdminConsoleNav from "../../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -75,6 +75,27 @@ type Detail = {
     notModelled: string[];
   };
   workspaces: DetailWorkspace[];
+  /**
+   * ADM-015 — the canonical enterprise contract, from resolveEnterpriseContract.
+   * Null when this customer holds none. `legacyDerived` means the row does NOT
+   * exist and the projection was synthesised by the compatibility adapter.
+   */
+  enterpriseContract: {
+    status: string;
+    activationState: string | null;
+    effectiveAtUtc: string | null;
+    endsAtUtc: string | null;
+    seatCount: number | null;
+    storageGb: number | null;
+    evidenceRecordsPerMonth: number | null;
+    aiOperationsPerMonth: number | null;
+    region: string | null;
+    planVersion: string | null;
+    billingCustomerRef: string | null;
+    billingSubscriptionRef: string | null;
+    contractOwnerUserId: string | null;
+    legacyDerived: boolean;
+  } | null;
   overview: {
     id: string;
     name: string;
@@ -274,17 +295,73 @@ export default function AdminOrganizationDetailPage({
 }) {
   const { id } = use(params);
   const { addToast } = useToast();
+  const { confirm } = useConfirmAction();
 
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  /**
+   * ADM-020 — organization suspend / resume.
+   *
+   * Both routes were fully implemented, platform-admin gated and audited, and
+   * had NO caller anywhere in the product: the only way to suspend a customer
+   * was to craft the request by hand. A control plane that can see a customer
+   * in trouble and cannot act on it is a dashboard.
+   *
+   * The button does not decide anything. `suspendOrganization` /
+   * `resumeOrganization` remain the single authority for what suspension
+   * means and what it cascades to; this only asks them, and the confirm step
+   * exists because the effect reaches every member of the organization.
+   */
+  const [lifecycleBusy, setLifecycleBusy] = useState<null | "suspend" | "resume">(
+    null,
+  );
+
+  const runLifecycle = async (leg: "suspend" | "resume") => {
+    const ok = await confirm({
+      title: leg === "suspend" ? "Suspend this customer?" : "Resume this customer?",
+      description:
+        leg === "suspend"
+          ? "Suspending the organization takes effect for every member immediately. It does not cancel billing and does not delete anything."
+          : "Resuming restores the organization to ACTIVE. Anything the suspension cascaded to is restored by the same authority that suspended it.",
+      confirmLabel: leg === "suspend" ? "Suspend" : "Resume",
+      tone: leg === "suspend" ? "danger" : "neutral",
+    });
+    if (!ok) return;
+
+    setLifecycleBusy(leg);
+    try {
+      await apiFetch(`/v1/admin/orgs/${encodeURIComponent(id)}/${leg}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      addToast(
+        leg === "suspend" ? "Organization suspended." : "Organization resumed.",
+        "success",
+      );
+      await load();
+    } catch (err) {
+      addToast(
+        toSafeUserError(err, {
+          message:
+            leg === "suspend"
+              ? "The organization was not suspended."
+              : "The organization was not resumed.",
+        }).message,
+        "error",
+      );
+    } finally {
+      setLifecycleBusy(null);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setNotFound(false);
       const data: Detail = await apiFetch(
-        `/v1/admin/organizations/${encodeURIComponent(id)}`,
+        `/v1/admin/customers/${encodeURIComponent(id)}`,
       );
       setDetail(data);
     } catch (err) {
@@ -361,8 +438,30 @@ export default function AdminOrganizationDetailPage({
           eyebrow="Platform Control Center"
           title={detail?.overview.name ?? "Organization"}
           subtitle="Read-only customer detail: overview, identity posture, evidence operations, governance, billing, and provisioning history. Aggregated from live records; unmeasured fields are shown honestly."
+          primaryAction={
+            detail ? (
+              detail.overview.status === "SUSPENDED" ? (
+                <Button
+                  size="sm"
+                  onClick={() => void runLifecycle("resume")}
+                  disabled={lifecycleBusy !== null}
+                >
+                  {lifecycleBusy === "resume" ? "Resuming…" : "Resume customer"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => void runLifecycle("suspend")}
+                  disabled={lifecycleBusy !== null}
+                >
+                  {lifecycleBusy === "suspend" ? "Suspending…" : "Suspend customer"}
+                </Button>
+              )
+            ) : null
+          }
           secondaryActions={
-            <Link href="/admin/organizations" style={{ textDecoration: "none" }}>
+            <Link href="/admin/customers" style={{ textDecoration: "none" }}>
               <Button variant="ghost" size="sm">
                 ← Back to roster
               </Button>
@@ -371,7 +470,6 @@ export default function AdminOrganizationDetailPage({
         />
       }
     >
-      <AdminConsoleNav />
 
       {loading ? (
         <Card>Loading organization…</Card>
@@ -397,9 +495,101 @@ export default function AdminOrganizationDetailPage({
       ) : (
         <>
           {/* Overview */}
+          {/* ADM-015 — contract terms were entirely unreadable from admin.
+              Rendered BEFORE the plan projection because the contract is what
+              actually governs an enterprise customer. */}
+          <Card
+            title="Enterprise contract"
+            subtitle="The canonical contract authority. The workspace plan below is a projection and does not decide enterprise status."
+          >
+            {detail.enterpriseContract ? (
+              <>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                  <Badge
+                    tone={
+                      detail.enterpriseContract.status === "ACTIVE" ? "verified" : "risk"
+                    }
+                    dot
+                  >
+                    {detail.enterpriseContract.status}
+                  </Badge>
+                  {detail.enterpriseContract.activationState ? (
+                    <Badge tone="neutral" subtle>
+                      {detail.enterpriseContract.activationState}
+                    </Badge>
+                  ) : null}
+                </div>
+                {fieldGrid(
+                  <>
+                    <Field label="Contracted seats">
+                      {detail.enterpriseContract.seatCount ?? "Contract-managed"}
+                    </Field>
+                    <Field label="Contracted storage">
+                      {detail.enterpriseContract.storageGb
+                        ? `${detail.enterpriseContract.storageGb} GB`
+                        : "Contract-managed"}
+                    </Field>
+                    <Field label="Evidence records / month">
+                      {detail.enterpriseContract.evidenceRecordsPerMonth ??
+                        "Catalog default"}
+                    </Field>
+                    <Field label="AI operations / month">
+                      {detail.enterpriseContract.aiOperationsPerMonth ?? "Catalog default"}
+                    </Field>
+                    <Field label="Region">
+                      {detail.enterpriseContract.region ?? "—"}
+                    </Field>
+                    <Field label="Plan version">
+                      {detail.enterpriseContract.planVersion ?? "—"}
+                    </Field>
+                    <Field label="Effective from">
+                      {detail.enterpriseContract.effectiveAtUtc
+                        ? ts(detail.enterpriseContract.effectiveAtUtc)
+                        : "—"}
+                    </Field>
+                    <Field label="Term ends">
+                      {detail.enterpriseContract.endsAtUtc
+                        ? ts(detail.enterpriseContract.endsAtUtc)
+                        : "—"}
+                    </Field>
+                    <Field label="Billing customer ref">
+                      {detail.enterpriseContract.billingCustomerRef ?? "—"}
+                    </Field>
+                    <Field label="Billing subscription ref">
+                      {detail.enterpriseContract.billingSubscriptionRef ?? "—"}
+                    </Field>
+                  </>,
+                )}
+                {detail.enterpriseContract.legacyDerived ? (
+                  <div
+                    role="note"
+                    style={{
+                      marginTop: 16,
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: "1px solid var(--warning-border, #e0b070)",
+                      background: "var(--warning-surface, #fdf6ec)",
+                      fontSize: 13,
+                    }}
+                  >
+                    <strong>No stored contract row.</strong> This projection was derived
+                    from the organization&apos;s status by the compatibility adapter that
+                    remains in place until the contract backfill completes. It is a
+                    placeholder for a contract, not a contract.
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div style={{ fontSize: 13.5, color: "var(--ink-secondary, #475569)" }}>
+                This customer holds no enterprise contract. That is the normal state for a
+                self-service customer.
+              </div>
+            )}
+          </Card>
+
           <Card
             title="Overview"
-            subtitle="Identity, plan, ownership, and setup completion."
+            subtitle="Identity, workspace plan projection, ownership, and setup completion."
           >
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               <Badge tone={HEALTH_TONE[detail.overview.onboardingStatus]} dot>

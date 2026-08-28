@@ -1,235 +1,249 @@
-import type { FastifyInstance } from "fastify";
-import { Prisma, TeamMemberStatus, MfaFactorStatus } from "@prisma/client";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+
 import { prisma } from "../db.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import {
+  getAdminPersonDetail,
+  listAdminPeople,
+  PersonNotFoundError,
+} from "../services/admin/people.service.js";
 
 /**
- * Platform Control Center P1 — Platform Users roster.
+ * PLATFORM ADMIN — People directory (ADM-028, ADM-016, ADM-031).
  *
- * GET /v1/admin/users — a READ-ONLY roster over the EXISTING identity
- * models. Every field is either a REAL value read from the database or
- * `null` ("Not measured" in the UI). Nothing is fabricated.
+ *   GET /v1/admin/users            — roster with commercial filters
+ *   GET /v1/admin/users/:id        — per-person detail
+ *   GET /v1/admin/lifecycle-requests — account closure / data-export queue
  *
- * HONESTY / SECURITY invariants (locked by phase-admin-users.test.ts):
- *   • NO password hash, NO MFA secret material, NO tokens, NO secrets of
- *     any kind ever leave this endpoint. The User.select list below is an
- *     explicit allow-list; `passwordHash` and every MfaFactor secret
- *     column are deliberately absent.
- *   • `mfaEnrolled` is a boolean derived from the EXISTENCE of a
- *     non-revoked MfaFactor row — we count factors, we never read their
- *     secret ciphertext / IV / auth-tag / KEK id.
- *   • `lastLoginAt` is DERIVED. The schema has no `User.lastLoginAt`
- *     column and no `Session` model. The authoritative successful-login
- *     signal is the `login_completed` AnalyticsEvent written on every
- *     successful auth (see auth.routes.ts `fireLoginCompletedAnalytics`
- *     → analytics-event.service `writeAnalyticsEvent`). We take the
- *     newest such event's `createdAt` per user; if a user has never
- *     produced one, `lastLoginAt` is `null` — never guessed.
- *   • `suspended` / `deactivated` are derived from TeamMember.status
- *     (SUSPENDED / REVOKED). A user with no memberships, or only ACTIVE
- *     ones, reports `false`. When there is no membership signal at all we
- *     still return `false` (not suspended) rather than inventing a state.
- *   • `riskStatus` — there is no per-user risk score model, so it is
- *     always `null` (honestly "Not measured") until such a signal exists.
+ * The roster's security posture is UNCHANGED and deliberately so: an explicit
+ * column allow-list, no `passwordHash`, no MFA secret material, no tokens, and
+ * `riskStatus: null` because no per-user risk model exists. What it gained is
+ * the commercial dimension it never had — the tier, the provider subscription,
+ * pending cancellation, the personal workspace, and a `:id` route to open.
+ *
+ * "Which of our users are PRO?" is now `?tier=PRO`.
+ *
+ * TENANT_SCOPE_EXCEPTION: platform_admin_global — cross-tenant reads gated by
+ * `requirePlatformAdmin`, which IS the authorization boundary here.
  */
 
-const PAGE_SIZE_DEFAULT = 25;
-const PAGE_SIZE_MAX = 100;
-
-const listQuerySchema = z.object({
+const ListQuery = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(PAGE_SIZE_MAX)
-    .optional()
-    .default(PAGE_SIZE_DEFAULT),
+  pageSize: z.coerce.number().int().min(1).max(100).optional().default(25),
   search: z.string().trim().max(200).optional(),
   platformRole: z.enum(["admin"]).optional(),
   provider: z.enum(["GOOGLE", "APPLE", "GUEST", "EMAIL"]).optional(),
-  suspended: z
+  tier: z.enum(["FREE", "PAYG", "PRO", "TEAM", "ENTERPRISE"]).optional(),
+  subscriptionStatus: z
+    .enum(["ACTIVE", "TRIALING", "PAST_DUE", "CANCELED"])
+    .optional(),
+  pendingCancellation: z
     .union([z.literal("true"), z.literal("false")])
     .optional()
-    .transform((value) => {
-      if (value === undefined) return undefined;
-      return value === "true";
-    }),
+    .transform((v) => (v === undefined ? undefined : v === "true")),
+  organizationId: z.string().uuid().optional(),
+  teamId: z.string().uuid().optional(),
 });
 
-// TENANT_SCOPE_EXCEPTION: platform_admin_global -- every route in this plugin is
-// gated by requirePlatformAdmin and reads GLOBAL cross-tenant aggregates. It is
-// intentionally NOT scoped to a single tenant; the platform-admin gate IS the
-// authorization boundary. No per-tenant authorizeOrFail applies here.
+const UuidParam = z.string().uuid();
+
 export async function adminUsersRoutes(app: FastifyInstance) {
   app.get(
     "/v1/admin/users",
     { preHandler: requirePlatformAdmin },
-    async (req, reply) => {
-      const parsed = listQuerySchema.safeParse(req.query ?? {});
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const parsed = ListQuery.safeParse(req.query ?? {});
       if (!parsed.success) {
         return reply.code(400).send(
           createErrorResponse(
             ErrorCode.VALIDATION_ERROR,
             req.id,
             { reason: parsed.error.message },
-            "Invalid users query"
-          )
+            "Invalid users query",
+          ),
         );
       }
+      const q = parsed.data;
+      const result = await listAdminPeople({
+        page: q.page,
+        pageSize: q.pageSize,
+        search: q.search,
+        platformRole: q.platformRole,
+        provider: q.provider,
+        tier: q.tier,
+        subscriptionStatus: q.subscriptionStatus,
+        pendingCancellation: q.pendingCancellation,
+        organizationId: q.organizationId,
+        teamId: q.teamId,
+      });
+      return reply.code(200).send(result);
+    },
+  );
 
-      const { page, pageSize, search, platformRole, provider, suspended } =
-        parsed.data;
+  app.get(
+    "/v1/admin/users/:id",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const idParse = UuidParam.safeParse((req.params as { id?: unknown }).id);
+      if (!idParse.success) {
+        return reply.code(400).send(
+          createErrorResponse(
+            ErrorCode.VALIDATION_ERROR,
+            req.id,
+            { reason: "invalid user id" },
+            "Invalid user id",
+          ),
+        );
+      }
+      const userId = idParse.data;
 
-      // Base filter — email/name search, platformRole, provider are all
-      // direct User-column predicates. `suspended` is a TeamMember.status
-      // signal, so it is expressed as a relation predicate.
-      const where: Prisma.UserWhereInput = {
-        ...(platformRole ? { platformRole } : {}),
-        ...(provider ? { provider } : {}),
-        ...(search
-          ? {
-              OR: [
-                { email: { contains: search, mode: "insensitive" } },
-                { displayName: { contains: search, mode: "insensitive" } },
-                { firstName: { contains: search, mode: "insensitive" } },
-                { lastName: { contains: search, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-        ...(suspended === true
-          ? {
-              teamMembers: {
-                some: {
-                  status: { in: [TeamMemberStatus.SUSPENDED, TeamMemberStatus.REVOKED] },
-                },
-              },
-            }
-          : {}),
-        ...(suspended === false
-          ? {
-              NOT: {
-                teamMembers: {
-                  some: {
-                    status: { in: [TeamMemberStatus.SUSPENDED, TeamMemberStatus.REVOKED] },
-                  },
-                },
-              },
-            }
-          : {}),
-      };
-
-      const skip = (page - 1) * pageSize;
-
-      const [total, users] = await Promise.all([
-        prisma.user.count({ where }),
-        prisma.user.findMany({
-          where,
-          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-          skip,
-          take: pageSize,
-          // Explicit allow-list. NO passwordHash. NO secret material.
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
-            firstName: true,
-            lastName: true,
-            createdAt: true,
-            provider: true,
-            platformRole: true,
-            country: true,
-            timezone: true,
-            _count: {
-              select: {
-                organizationMemberships: true,
-                // teamMembers is the workspace-membership relation.
-                teamMembers: true,
-                // A user is "MFA enrolled" if they have >=1 non-revoked
-                // authenticator. We count rows only — never read secrets.
-                mfaFactors: {
-                  where: {
-                    status: {
-                      in: [MfaFactorStatus.ACTIVE, MfaFactorStatus.ENROLLING],
-                    },
-                  },
-                },
-              },
-            },
-            // Access-lifecycle signal for suspended/deactivated. We read
-            // ONLY the status column, no reasons/actors needed for the roster.
-            teamMembers: {
-              select: { status: true },
-            },
-          },
-        }),
-      ]);
-
-      const userIds = users.map((u) => u.id);
-
-      // Derive lastLoginAt from the newest `login_completed` AnalyticsEvent
-      // per user. groupBy _max(createdAt) gives us one row per user in a
-      // single query; users with no login event are simply absent → null.
-      const lastLoginRows =
-        userIds.length > 0
-          ? await prisma.analyticsEvent.groupBy({
-              by: ["userId"],
-              where: {
-                userId: { in: userIds },
-                eventType: "login_completed",
-              },
-              _max: { createdAt: true },
-            })
-          : [];
-
-      const lastLoginByUser = new Map<string, Date>();
-      for (const row of lastLoginRows) {
-        if (row.userId && row._max.createdAt) {
-          lastLoginByUser.set(row.userId, row._max.createdAt);
+      let detail;
+      try {
+        detail = await getAdminPersonDetail(userId);
+      } catch (err) {
+        if (err instanceof PersonNotFoundError) {
+          return reply
+            .code(404)
+            .send({ error: { code: "user_not_found", message: "User not found" } });
         }
+        throw err;
       }
 
-      const items = users.map((u) => {
-        const statuses = u.teamMembers.map((m) => m.status);
-        const suspendedFlag = statuses.includes(TeamMemberStatus.SUSPENDED);
-        const deactivatedFlag = statuses.includes(TeamMemberStatus.REVOKED);
+      // ADM-022 — reading ONE named person's commercial and workspace footprint
+      // is a targeted cross-tenant read and is audited, matching the policy the
+      // customer-detail route already follows. The paged roster is not: it has
+      // no single subject, and auditing every page render buries the reads that
+      // matter under noise.
+      await emitPlatformAudit({
+        action: "admin.user_detail_viewed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.user?.sub ?? null,
+        resourceType: "user",
+        resourceId: userId,
+        correlationId: req.id,
+        metadata: { accountTier: detail.accountTier },
+      }).catch(() => null);
 
-        const composedName =
-          [u.firstName, u.lastName].filter(Boolean).join(" ").trim() || null;
-        const name = u.displayName ?? composedName;
+      return reply.code(200).send(detail);
+    },
+  );
 
-        const lastLoginAt = lastLoginByUser.get(u.id) ?? null;
+  // ---------------------------------------------------------------------------
+  // GET /v1/admin/lifecycle-requests — ADM-031.
+  //
+  // `AccountClosureRequest` and `AccountDataExportRequest` are both real, both
+  // driven by existing state machines, and both were invisible to Platform
+  // Admin: an operator could not see who had asked for erasure or for their
+  // data, which is a compliance-relevant blind spot rather than a convenience
+  // gap.
+  //
+  // READ-ONLY, and deliberately so. Both machines are owned by their own
+  // services with cooling-off windows, blocker preflights and cron execution;
+  // an admin button that wrote a status directly would be exactly the "direct DB
+  // state hacking from UI" this remediation forbids.
+  // ---------------------------------------------------------------------------
+  const LifecycleQuery = z.object({
+    kind: z.enum(["CLOSURE", "DATA_EXPORT", "ALL"]).optional().default("ALL"),
+    status: z.string().trim().max(32).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+  });
 
-        return {
-          id: u.id,
-          email: u.email ?? null,
-          name,
-          createdAt: u.createdAt,
-          provider: u.provider,
-          platformRole: u.platformRole ?? null,
-          orgMembershipsCount: u._count.organizationMemberships,
-          workspaceMembershipsCount: u._count.teamMembers,
-          mfaEnrolled: u._count.mfaFactors > 0,
-          lastLoginAt: lastLoginAt ? lastLoginAt.toISOString() : null,
-          // Access-lifecycle: suspended (temporary) vs deactivated (revoked).
-          suspended: suspendedFlag,
-          deactivated: deactivatedFlag,
-          country: u.country ?? null,
-          timezone: u.timezone ?? null,
-          // No per-user risk model exists yet → honestly "Not measured".
-          riskStatus: null as string | null,
-        };
-      });
+  app.get(
+    "/v1/admin/lifecycle-requests",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const parsed = LifecycleQuery.safeParse(req.query ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send(
+          createErrorResponse(
+            ErrorCode.VALIDATION_ERROR,
+            req.id,
+            { reason: parsed.error.message },
+            "Invalid lifecycle-requests query",
+          ),
+        );
+      }
+      const { kind, status, limit } = parsed.data;
+
+      const wantClosure = kind === "ALL" || kind === "CLOSURE";
+      const wantExport = kind === "ALL" || kind === "DATA_EXPORT";
+
+      const [closures, exports] = await Promise.all([
+        wantClosure
+          ? prisma.accountClosureRequest.findMany({
+              where: { ...(status ? { status } : {}) },
+              orderBy: { requestedAtUtc: "desc" },
+              take: limit,
+              select: {
+                id: true,
+                userId: true,
+                status: true,
+                reason: true,
+                requestedAtUtc: true,
+                coolingOffEndsAtUtc: true,
+                completedAtUtc: true,
+                cancelledAtUtc: true,
+                failureCode: true,
+                blockersJson: true,
+                user: { select: { email: true } },
+              },
+            })
+          : Promise.resolve([]),
+        wantExport
+          ? prisma.accountDataExportRequest.findMany({
+              where: { ...(status ? { status } : {}) },
+              orderBy: { requestedAtUtc: "desc" },
+              take: limit,
+              // packageJson / packageSha256 DELIBERATELY omitted — the export
+              // package is the user's own data and a queue view has no business
+              // carrying it.
+              select: {
+                id: true,
+                userId: true,
+                status: true,
+                requestedAtUtc: true,
+                startedAtUtc: true,
+                completedAtUtc: true,
+                expiresAtUtc: true,
+                failureCode: true,
+                downloadCount: true,
+                user: { select: { email: true } },
+              },
+            })
+          : Promise.resolve([]),
+      ]);
 
       return reply.code(200).send({
-        items,
-        page,
-        pageSize,
-        total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+        closure: closures.map((c) => ({
+          id: c.id,
+          userId: c.userId,
+          userEmail: c.user?.email ?? null,
+          status: c.status,
+          reason: c.reason ?? null,
+          requestedAtUtc: c.requestedAtUtc.toISOString(),
+          coolingOffEndsAtUtc: c.coolingOffEndsAtUtc?.toISOString() ?? null,
+          completedAtUtc: c.completedAtUtc?.toISOString() ?? null,
+          cancelledAtUtc: c.cancelledAtUtc?.toISOString() ?? null,
+          failureCode: c.failureCode ?? null,
+          blockers: c.blockersJson ?? null,
+        })),
+        dataExport: exports.map((e) => ({
+          id: e.id,
+          userId: e.userId,
+          userEmail: e.user?.email ?? null,
+          status: e.status,
+          requestedAtUtc: e.requestedAtUtc.toISOString(),
+          startedAtUtc: e.startedAtUtc?.toISOString() ?? null,
+          completedAtUtc: e.completedAtUtc?.toISOString() ?? null,
+          expiresAtUtc: e.expiresAtUtc?.toISOString() ?? null,
+          failureCode: e.failureCode ?? null,
+          downloadCount: e.downloadCount,
+        })),
       });
-    }
+    },
   );
 }

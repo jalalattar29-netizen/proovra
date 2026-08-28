@@ -3,6 +3,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   PageShell,
   PageHeader,
@@ -16,7 +17,6 @@ import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { Button } from "../../../../components/ui/Button";
 import { EmptyState } from "../../../../components/ui/EmptyState";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 
@@ -293,6 +293,11 @@ function JsonBlock({ value }: { value: unknown }) {
 
 export default function AdminDemoRequestsPage() {
   const { addToast } = useToast();
+  // ADM-026 — the detail page's back-link carries `?id=`. The list never read
+  // it, so "back to the list" silently dropped the record the operator had
+  // been looking at and returned an unselected page. A link whose parameter
+  // nothing consumes is an inert link, not a navigation.
+  const params = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -310,7 +315,9 @@ export default function AdminDemoRequestsPage() {
     ARCHIVED: 0,
   });
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    params.get("id"),
+  );
   const [details, setDetails] = useState<DemoRequestDetails | null>(null);
 
   const [statusFilter, setStatusFilter] = useState("");
@@ -514,6 +521,17 @@ export default function AdminDemoRequestsPage() {
     void loadList();
   }, [loadList]);
 
+  // A seeded selection must actually OPEN. Runs once for the id the URL
+  // arrived with; later selections load through the click handler.
+  const seededIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const incoming = params.get("id");
+    if (!incoming || seededIdRef.current === incoming) return;
+    seededIdRef.current = incoming;
+    void loadDetails(incoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
   const activeFollowUps = items.filter((x) => x.followUpStatus === "ACTIVE").length;
   const spamCount = items.filter((x) => x.isSpam).length;
   const enterpriseCount = items.filter((x) => x.leadTrack === "ENTERPRISE").length;
@@ -575,7 +593,6 @@ export default function AdminDemoRequestsPage() {
         />
       }
     >
-      <AdminConsoleNav />
 
       <div
         style={{

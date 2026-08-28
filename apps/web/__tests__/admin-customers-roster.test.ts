@@ -5,7 +5,7 @@
  * style. Pins that the roster + detail pages:
  *   • exist and render through the shared PageShell (no marketing hero,
  *     no legacy cc-page / btn- / app-hero chrome);
- *   • call the real /v1/admin/organizations endpoints via apiFetch;
+ *   • call the real /v1/admin/customers endpoints via apiFetch;
  *   • surface errors ONLY through toSafeUserError;
  *   • render honest null states ("—" / "Not measured" / "Not connected")
  *     rather than fabricated values.
@@ -20,8 +20,8 @@ import { fileURLToPath } from "node:url";
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
 
-const ROSTER = "app/(app)/admin/organizations/page.tsx";
-const DETAIL = "app/(app)/admin/organizations/[id]/page.tsx";
+const ROSTER = "app/(app)/admin/customers/page.tsx";
+const DETAIL = "app/(app)/admin/customers/[id]/page.tsx";
 
 const stripComments = (src: string): string =>
   src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
@@ -31,8 +31,14 @@ test("roster + detail pages exist and render through the shared PageShell", () =
     const src = read(p);
     assert.match(src, /PageShell/, `${p} must use the shared PageShell`);
     assert.match(src, /PageHeader/, `${p} must render a PageHeader`);
-    assert.match(src, /AdminConsoleNav/, `${p} must render the admin console nav`);
   }
+});
+
+// ADM-025 — the console nav moved from each page to app/(app)/admin/layout.tsx,
+// so every admin page inherits it and none can be added without one.
+test("the admin layout provides the console nav these pages inherit", () => {
+  const layout = read("app/(app)/admin/layout.tsx");
+  assert.match(layout, /AdminConsoleNav/, "layout must render the console nav");
 });
 
 test("roster uses FilterBar + DataTable + EmptyState primitives", () => {
@@ -40,7 +46,7 @@ test("roster uses FilterBar + DataTable + EmptyState primitives", () => {
   assert.match(src, /FilterBar/, "must use FilterBar");
   assert.match(src, /DataTable/, "must use DataTable");
   assert.match(src, /EmptyState/, "must use an honest EmptyState");
-  assert.match(src, /No organizations yet/, "honest empty title");
+  assert.match(src, /No customers yet/, "honest empty title");
 });
 
 test("pages do NOT use marketing hero or legacy chrome", () => {
@@ -52,27 +58,45 @@ test("pages do NOT use marketing hero or legacy chrome", () => {
   }
 });
 
-test("pages call the real /v1/admin/organizations endpoints via apiFetch", () => {
+test("pages call the real /v1/admin/customers endpoints via apiFetch", () => {
   const roster = read(ROSTER);
   assert.match(roster, /apiFetch\(/, "roster must fetch through apiFetch");
-  assert.match(roster, /\/v1\/admin\/organizations\?/, "roster must call the list endpoint");
+  assert.match(roster, /\/v1\/admin\/customers\?/, "roster must call the list endpoint");
 
   const detail = read(DETAIL);
   assert.match(detail, /apiFetch\(/, "detail must fetch through apiFetch");
   assert.match(
     detail,
-    /\/v1\/admin\/organizations\/\$\{encodeURIComponent\(id\)\}/,
+    /\/v1\/admin\/customers\/\$\{encodeURIComponent\(id\)\}/,
     "detail must call the by-id endpoint",
   );
 });
 
-test("roster supports search + plan/status/health filters + pagination", () => {
+test("roster supports search + plan/status/health/enterprise filters + pagination", () => {
   const src = read(ROSTER);
   assert.match(src, /FilterBar\.Search/, "search control");
-  assert.match(src, /params\.set\("plan"/, "plan filter param");
-  assert.match(src, /params\.set\("status"/, "status filter param");
-  assert.match(src, /params\.set\("health"/, "health filter param");
-  assert.match(src, /params\.set\("page"/, "pagination param");
+  // The local URLSearchParams is named `qs` because the page also reads the
+  // INCOMING params via useSearchParams. What matters is that each filter is
+  // sent to the API, not what the builder variable is called.
+  for (const key of ["plan", "status", "health", "enterprise", "page"]) {
+    assert.ok(
+      src.includes('qs.set("' + key + '"'),
+      key + " filter must reach the API",
+    );
+  }
+});
+
+// ADM-017 — a drill-down that lands on an unfiltered page 1 shows a different
+// population than the number that was clicked, with nothing saying so.
+test("roster SEEDS its filters from the incoming URL", () => {
+  const src = read(ROSTER);
+  assert.match(src, /useSearchParams/, "must read the incoming URL");
+  for (const key of ["status", "health", "enterprise"]) {
+    assert.ok(
+      src.includes('params.get("' + key + '"'),
+      "?" + key + "= must seed the roster filter",
+    );
+  }
 });
 
 test("pages surface errors through toSafeUserError (no raw message)", () => {

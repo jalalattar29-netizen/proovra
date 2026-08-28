@@ -1113,6 +1113,24 @@ model Team {
   billingCanceledAt    DateTime?         @map("billing_canceled_at") @db.Timestamptz(6)
   storageBytesOverride BigInt?           @map("storage_bytes_override")
 
+  /// ADM-004 (2026-08-27) — THE workspace-liveness authority. NULL = live.
+  ///
+  /// `executeWorkspaceClosure` revoked every membership and left this row
+  /// byte-for-byte identical to a live workspace, so every Platform Admin
+  /// population query counted closed workspaces as live — and closure does not
+  /// touch `billingPlan`/`billingStatus` either, so a closed workspace on a
+  /// paid plan kept reporting as an active paying customer.
+  ///
+  /// Deriving liveness from a COMPLETED `WorkspaceClosureRequest` instead is
+  /// provably wrong here: `reopenClosedWorkspace` leaves that row in place as
+  /// history, so a derived predicate would mark every reopened workspace closed
+  /// forever. Closure sets this; reopen clears it. Billing state is NOT
+  /// lifecycle state and must never be substituted for it.
+  ///
+  /// Read it through `liveWorkspaceWhere()` / `workspaceLifecycleWhere()` in
+  /// `@proovra/shared-runtime`, never by hand.
+  closedAtUtc          DateTime?         @map("closed_at_utc") @db.Timestamptz(6)
+
   owner        User  @relation("TeamOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   billingOwner User? @relation("TeamBillingOwner", fields: [billingOwnerUserId], references: [id], onDelete: SetNull)
 
@@ -1302,6 +1320,7 @@ model Team {
   @@index([verifiedAtUtc])
   @@index([workspaceCategory])
   @@index([workspaceKind])
+  @@index([closedAtUtc])
   @@map("teams")
 }
 

@@ -86,6 +86,15 @@ export async function executeWorkspaceClosure(input: {
       data: { currentWorkspaceId: null },
     });
 
+    // ADM-004 — THE lifecycle write. Inside the SAME transaction as the
+    // membership revocation, so a workspace can never be dark to its members
+    // while still counting as live in the control plane; that divergence is
+    // precisely the state the finding describes.
+    await tx.team.update({
+      where: { id: teamId },
+      data: { closedAtUtc: now },
+    });
+
     await tx.teamActivity.create({
       data: {
         teamId,

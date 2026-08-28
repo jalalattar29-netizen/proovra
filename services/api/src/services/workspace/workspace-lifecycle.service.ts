@@ -253,6 +253,15 @@ export async function reopenClosedWorkspace(input: {
       actorUserId,
     });
 
+    // ADM-004 — clear THE lifecycle marker in the same transaction that
+    // restores access. The COMPLETED closure request above is deliberately left
+    // in place as history, which is exactly why liveness cannot be derived from
+    // it and lives on `Team.closedAtUtc` instead.
+    await tx.team.update({
+      where: { id: teamId },
+      data: { closedAtUtc: null },
+    });
+
     // DELIBERATELY NOT RESTORED (safe-by-default reopen policy):
     //   * other members — REVOKED; the owner re-invites;
     //   * API credentials — REVOKED; secrets must be re-issued;

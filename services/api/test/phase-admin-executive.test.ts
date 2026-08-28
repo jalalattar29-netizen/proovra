@@ -62,14 +62,16 @@ describe("Phase admin-executive — platform-admin gate + read-only", () => {
 
 describe("Phase admin-executive — REAL revenue from Payment", () => {
   it("derives gross revenue from SUCCEEDED Payment.amountCents", () => {
-    expect(SERVICE).toContain("prisma.payment.aggregate");
+    // ADM-012 — per-currency totals, never one cross-currency sum.
+    expect(SERVICE).toContain("prisma.payment.groupBy");
+    expect(SERVICE).toContain('by: ["currency"]');
     expect(SERVICE).toMatch(/status:\s*"SUCCEEDED"/);
     expect(SERVICE).toMatch(/_sum:\s*\{\s*amountCents:\s*true\s*\}/);
   });
 
   it("computes this-month vs last-month gross revenue windows", () => {
-    expect(SERVICE).toMatch(/grossRevenueCentsThisMonth/);
-    expect(SERVICE).toMatch(/grossRevenueCentsLastMonth/);
+    expect(SERVICE).toMatch(/thisMonthByCurrency/);
+    expect(SERVICE).toMatch(/lastMonthByCurrency/);
   });
 });
 
@@ -78,7 +80,11 @@ describe("Phase admin-executive — REAL customer / lead / usage counts", () => 
     expect(SERVICE).toMatch(/prisma\.organization\.count/);
     expect(SERVICE).toMatch(/status:\s*"ACTIVE"/);
     expect(SERVICE).toMatch(/billingStatus:\s*"ACTIVE"/);
-    expect(SERVICE).toMatch(/billingPlan:\s*"ENTERPRISE"/);
+    // ADM-002 / ADM-003 / ADM-004 — CUSTOMER organizations, LIVE workspaces,
+    // and enterprise from the CONTRACT rather than a plan string.
+    expect(SERVICE).toContain("customerOrganizationWhere");
+    expect(SERVICE).toContain("liveWorkspaceWhere");
+    expect(SERVICE).toContain("enterpriseContract.count");
   });
 
   it("counts leads from DemoRequest + ContactSalesRequest by status", () => {

@@ -28,6 +28,8 @@
 
 import type { PrismaClient } from "@prisma/client";
 
+import { customerOrganizationWhere } from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
 
 // Uniform, secret-free result shape returned for every entity type.
@@ -123,7 +125,14 @@ export async function adminGlobalSearch(
   ] = await Promise.all([
     wants("organization")
       ? client.organization.findMany({
+          // CUSTOMER only. A SYSTEM organization is the 1:1 bootstrap
+          // container behind a workspace, not a company anyone sells to,
+          // and this result links to `/admin/customers/:id`, a surface that
+          // is itself CUSTOMER-scoped. Returning SYSTEM rows here therefore
+          // both misrepresented a container as a customer AND produced a
+          // result that dead-ended in a 404 when opened.
           where: {
+            ...customerOrganizationWhere(),
             OR: [{ name: insensitive(q) }, { legalName: insensitive(q) }],
           },
           take: limit,
@@ -292,7 +301,7 @@ export async function adminGlobalSearch(
         id: o.id,
         label: firstNonEmpty(o.name, o.legalName) ?? o.id,
         sublabel: o.status ?? null,
-        href: `/admin/organizations/${encodeURIComponent(o.id)}`,
+        href: `/admin/customers/${encodeURIComponent(o.id)}`,
       })),
     );
   }
@@ -305,11 +314,13 @@ export async function adminGlobalSearch(
         id: u.id,
         label: firstNonEmpty(u.email, u.displayName) ?? u.id,
         sublabel: u.platformRole ? "Platform admin" : firstNonEmpty(u.displayName),
-        // Deep-link to the users roster pre-filtered by email (the roster
-        // has no /:id detail; search is the honest deep-link target).
-        href: `/admin/users?search=${encodeURIComponent(
-          firstNonEmpty(u.email, u.displayName) ?? u.id,
-        )}`,
+        // ADM-017 — a REAL detail route. This used to emit
+        // `/admin/users?search=<email>` because the roster had no `:id`
+        // detail — and the roster never read the parameter either, so the link
+        // silently landed on an unfiltered page 1 that might not even contain
+        // the user searched for. Both halves are fixed: the detail page exists
+        // and the roster honours `?search=`.
+        href: `/admin/users/${encodeURIComponent(u.id)}`,
       })),
     );
   }
@@ -322,11 +333,11 @@ export async function adminGlobalSearch(
         id: t.id,
         label: firstNonEmpty(t.name, t.legalName) ?? t.id,
         sublabel: t.billingPlan ?? null,
-        // Workspaces have no dedicated admin detail; deep-link to the
-        // organizations roster search (workspace name is a reasonable needle).
-        href: `/admin/organizations?search=${encodeURIComponent(
-          firstNonEmpty(t.name, t.legalName) ?? t.id,
-        )}`,
+        // ADM-018 — the workspace's OWN detail route. This used to point at
+        // the customer roster, whose search matches an organization name or an
+        // owner email and never a workspace name — so a workspace search could
+        // not match even in principle. A workspace directory now exists.
+        href: `/admin/workspaces/${encodeURIComponent(t.id)}`,
       })),
     );
   }
@@ -367,10 +378,11 @@ export async function adminGlobalSearch(
         label:
           firstNonEmpty(e.title, e.displayFileName, e.originalFileName) ?? e.id,
         sublabel: e.type ?? null,
-        // No per-evidence admin page exists (evidence detail is workspace-
-        // scoped, not a platform-admin surface); link to the platform
-        // evidence-operations console. The evidence id stays visible above.
-        href: `/admin/evidence-ops`,
+        // ADM-019 — the id SURVIVES the click. This used to be a bare
+        // `/admin/evidence-ops`, a page of global counters that discarded the
+        // record entirely: the operator searched for one piece of evidence and
+        // landed somewhere it did not appear in any form.
+        href: `/admin/evidence-ops/records?evidenceId=${encodeURIComponent(e.id)}`,
       })),
     );
   }
@@ -383,8 +395,9 @@ export async function adminGlobalSearch(
         id: r.id,
         label: firstNonEmpty(r.displayTitleSnapshot) ?? `Report ${r.id}`,
         sublabel: `v${r.version}`,
-        // No per-evidence admin page; link to the evidence-operations console.
-        href: `/admin/evidence-ops`,
+        // ADM-019 — a report is ABOUT a piece of evidence, so the drill-down
+        // resolves that record rather than dropping the identity.
+        href: `/admin/evidence-ops/records?evidenceId=${encodeURIComponent(r.evidenceId)}`,
       })),
     );
   }
@@ -397,8 +410,8 @@ export async function adminGlobalSearch(
         id: p.id,
         label: firstNonEmpty(p.packageType) ?? `Package ${p.id}`,
         sublabel: `v${p.version}`,
-        // No per-evidence admin page; link to the evidence-operations console.
-        href: `/admin/evidence-ops`,
+        // ADM-019 — same rule for a verification package.
+        href: `/admin/evidence-ops/records?evidenceId=${encodeURIComponent(p.evidenceId)}`,
       })),
     );
   }

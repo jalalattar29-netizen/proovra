@@ -1,5 +1,6 @@
 "use client";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import Link from "next/link";
 
 import { useEffect, useMemo, useState } from "react";
 import { PageShell, PageHeader, PageSection, DataTable } from "../../../../components/ui";
@@ -8,7 +9,6 @@ import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { formatUserDateTime } from "../../../../lib/date";
 
 type AdminSummary = {
@@ -19,7 +19,13 @@ type AdminSummary = {
   usersWithEvidence: number;
   totalEvidence: number;
   reportsGenerated: number;
-  subscriptionBreakdown: {
+  /**
+   * ADM-009 — ACCOUNT tiers. An Entitlement row is keyed by userId, so every
+   * number here counts USERS. The old field was named `subscriptionBreakdown`
+   * and its `team` value was rendered as "Team-Plan Workspaces", which it has
+   * never been.
+   */
+  accountTierBreakdown: {
     free: number;
     payg: number;
     pro: number;
@@ -39,9 +45,15 @@ type AdminSummary = {
     successfulPayments: number;
     failedPayments: number;
     refundedPayments: number;
-    grossRevenueCents: number;
+    /** ADM-012 — one total PER CURRENCY. Never one cross-currency sum. */
+    grossRevenueByCurrency: Array<{
+      currency: string;
+      amountCents: number;
+      payments: number;
+    }>;
   };
-  teams: {
+  /** ADM-004 — LIVE workspaces only. Closed workspaces are excluded. */
+  workspaces: {
     total: number;
     active: number;
     pastDue: number;
@@ -140,14 +152,6 @@ function formatTimestamp(value: string) {
   return formatUserDateTime(value);
 }
 
-function formatMoneyCents(cents: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format((cents || 0) / 100);
-}
-
 function formatCount(value: number | null | undefined) {
   if (value == null || Number.isNaN(value)) return null;
   return new Intl.NumberFormat().format(value);
@@ -170,14 +174,22 @@ function MetricTile({
   value,
   sub,
   accent,
+  href,
 }: {
   label: string;
   value: string | null;
   sub?: string;
   accent?: string;
+  /**
+   * §1.1 — an actionable aggregate leads to its records. A tile without one is
+   * a terminal number, which is the defect class this remediation removes; the
+   * prop is optional only because a few tiles here (page views, session counts)
+   * genuinely have no record list behind them.
+   */
+  href?: string;
 }) {
   const measured = value != null;
-  return (
+  const card = (
     <Card padding="comfortable" style={{ minWidth: 0 }}>
       <div
         style={{
@@ -215,8 +227,30 @@ function MetricTile({
       >
         {measured ? sub ?? "" : "Not measured — this signal is not in the analytics bundle."}
       </div>
+      {href && measured ? (
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            color: "var(--accent-600, #1d4ed8)",
+          }}
+        >
+          View records →
+        </div>
+      ) : null}
     </Card>
   );
+
+  if (href && measured) {
+    return (
+      <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
+        {card}
+      </Link>
+    );
+  }
+  return card;
 }
 
 // A small labelled distribution row (subscription mix, evidence mix, …).
@@ -304,16 +338,19 @@ export default function AdminDashboardPage() {
         accent: "#1e3a5f",
       },
       {
-        label: "Workspaces",
-        value: formatCount(s.teams.total),
-        sub: `${formatCount(s.teams.active) ?? 0} active · ${formatCount(s.teams.pastDue) ?? 0} past due`,
+        label: "Live Workspaces",
+        value: formatCount(s.workspaces.total),
+        sub: `${formatCount(s.workspaces.active) ?? 0} billing active · ${formatCount(s.workspaces.pastDue) ?? 0} past due`,
         accent: "#1e3a5f",
+        href: "/admin/workspaces?lifecycle=LIVE",
       },
       {
-        label: "Team-Plan Workspaces",
-        value: formatCount(s.subscriptionBreakdown.team),
-        sub: "Active entitlements on the Team plan",
+        // ADM-009 — an Entitlement is per USER. Labelled for what it counts.
+        label: "Team-tier Accounts",
+        value: formatCount(s.accountTierBreakdown.team),
+        sub: "People holding an active Team entitlement",
         accent: "#1e3a5f",
+        href: "/admin/users?tier=TEAM",
       },
       {
         label: "Evidence Created",
@@ -327,11 +364,17 @@ export default function AdminDashboardPage() {
         sub: "Verification reports produced",
         accent: "#1e3a5f",
       },
+      // ADM-012 — gross revenue is reported per currency on the Overview and
+      // in Billing. A single tile cannot honestly show several currencies, so
+      // this one links there instead of picking one and mislabelling it.
       {
-        label: "Gross Revenue",
-        value: formatMoneyCents(s.billing.grossRevenueCents),
-        sub: `${formatCount(s.billing.successfulPayments) ?? 0} successful payments`,
+        label: "Successful Payments",
+        value: formatCount(s.billing.successfulPayments),
+        sub: `Across ${s.billing.grossRevenueByCurrency.length} currenc${
+          s.billing.grossRevenueByCurrency.length === 1 ? "y" : "ies"
+        } — see Billing for totals`,
         accent: "#1e3a5f",
+        href: "/admin/billing",
       },
       {
         label: "Active Subscriptions",
@@ -357,9 +400,9 @@ export default function AdminDashboardPage() {
     ];
   }, [bundle]);
 
-  const subscriptionMix = useMemo(() => {
+  const accountTierMix = useMemo(() => {
     if (!bundle) return [];
-    const b = bundle.summary.subscriptionBreakdown;
+    const b = bundle.summary.accountTierBreakdown;
     return [
       { label: "Free", value: b.free, tone: "neutral" as BadgeTone },
       { label: "Pay-as-you-go", value: b.payg, tone: "info" as BadgeTone },
@@ -382,14 +425,14 @@ export default function AdminDashboardPage() {
   const workspaceHealth = useMemo(() => {
     if (!bundle) return [];
     const w = bundle.summary.workspaceHealth;
-    const t = bundle.summary.teams;
+    const t = bundle.summary.workspaces;
     return [
       { label: "Storage near limit", value: w.storageNearLimitTeams, tone: "pending" as BadgeTone },
       { label: "Storage limit reached", value: w.storageLimitReachedTeams, tone: "risk" as BadgeTone },
       { label: "Seats near limit", value: w.seatNearLimitTeams, tone: "pending" as BadgeTone },
       { label: "Seat limit reached", value: w.seatLimitReachedTeams, tone: "risk" as BadgeTone },
       { label: "Over seat limit", value: t.overSeatLimit, tone: "risk" as BadgeTone },
-      { label: "Canceled workspaces", value: t.canceled, tone: "neutral" as BadgeTone },
+      { label: "Billing canceled", value: t.canceled, tone: "neutral" as BadgeTone },
     ];
   }, [bundle]);
 
@@ -448,7 +491,6 @@ export default function AdminDashboardPage() {
         primaryAction={rangeAction}
       />
 
-      <AdminConsoleNav />
 
       {loading ? (
         <PageSection>
@@ -512,6 +554,7 @@ export default function AdminDashboardPage() {
                   value={m.value}
                   sub={m.sub}
                   accent={m.accent}
+                  href={"href" in m ? (m as { href?: string }).href : undefined}
                 />
               ))}
             </div>
@@ -718,9 +761,13 @@ export default function AdminDashboardPage() {
                 gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
               }}
             >
-              <Card title="Subscription mix" subtitle="Active entitlements by plan." padding="comfortable">
+              <Card
+                title="Account tier mix"
+                subtitle="People holding an active entitlement on each tier — accounts, not workspaces."
+                padding="comfortable"
+              >
                 <div style={{ display: "grid", gap: 8 }} data-testid="admin-subscription-mix">
-                  {subscriptionMix.map((s) => (
+                  {accountTierMix.map((s) => (
                     <StatRow key={s.label} label={s.label} value={s.value} tone={s.tone} />
                   ))}
                 </div>

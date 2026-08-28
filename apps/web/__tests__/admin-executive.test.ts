@@ -137,7 +137,14 @@ describe("Pin 6 — shape: testid, nav, DataTables, no legacy classes", () => {
 
   it("uses AdminConsoleNav and DataTable for top-customers + at-risk", () => {
     const src = read(PAGE);
-    assert.match(src, /AdminConsoleNav/);
+    assert.match(
+    readFileSync(
+      resolve(APP_ROOT, "app/(app)/admin/layout.tsx"),
+      "utf8",
+    ),
+    /AdminConsoleNav/,
+    "AdminConsoleNav moved to app/(app)/admin/layout.tsx (ADM-025) — asserted there, once, for every admin page",
+  );
     const tables = src.match(/<DataTable/g) ?? [];
     assert.ok(tables.length >= 2, "top-customers + at-risk DataTables expected");
     assert.match(src, /admin-executive-top-empty/);

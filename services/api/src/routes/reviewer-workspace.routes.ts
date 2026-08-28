@@ -190,10 +190,17 @@ async function resolveTeam(
             | "ADMIN"
             | "MEMBER"
             | "VIEWER"),
-    // Note: the previous strict not-null comparison on platformRole
-    // coerced a MISSING user row (undefined) to `true`. Bounded fix.
-    isPlatformAdmin:
-      typeof user?.platformRole === "string" && user.platformRole.length > 0,
+    // ADM-001 (2026-08-27) — compare against the ONE value that means platform
+    // admin, not against "any non-empty string".
+    //
+    // `platformRole.length > 0` was a latent widening: it happened to be
+    // equivalent only because `"admin"` is currently the sole value any writer
+    // persists. The moment a second, LESSER platform role exists (`"support"`,
+    // `"readonly"`) it would silently confer full reviewer elevation on it —
+    // the kind of grant nobody writes down and nobody reviews. An earlier
+    // revision of this line already coerced a MISSING user row to `true`, so
+    // this expression has a history of being wrong in the permissive direction.
+    isPlatformAdmin: user?.platformRole === "admin",
   };
 }
 

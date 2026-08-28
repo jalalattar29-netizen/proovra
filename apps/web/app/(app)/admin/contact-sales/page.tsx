@@ -20,7 +20,6 @@ import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { Button } from "../../../../components/ui/Button";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 
@@ -217,7 +216,6 @@ export default function AdminContactSalesPage() {
         />
       }
     >
-      <AdminConsoleNav />
 
       <Card>
         {summary ? (

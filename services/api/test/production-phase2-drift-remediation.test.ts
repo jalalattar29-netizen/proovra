@@ -1131,7 +1131,27 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // undisposed route the moment its consumer disappeared.
 //
 // Lowered rather than removed, on the Phase-7 precedent immediately above.
-const ROUTE_COUNT_PHASE_2_BASELINE = 125;
+//
+// ADM-027 (2026-08-27) — 125 -> 126, ONE ADD, argued here.
+//
+// `admin-workspaces.routes.ts` registers the workspace directory:
+// `GET /v1/admin/workspaces` and `GET /v1/admin/workspaces/:id`. The workspace
+// is this platform's central commercial and tenancy object — it owns the plan,
+// the seats, the storage quota, the evidence, the governance policy and the
+// incidents — and it was the one entity with no Platform Admin surface at all.
+// The dashboard's workspace count was a terminal number: the only route from it
+// to a record was a manual database query.
+//
+// Both routes are gated by `requirePlatformAdmin`, carry the
+// `TENANT_SCOPE_EXCEPTION: platform_admin_global` marker, are read-only, and
+// expose operational metadata only — never evidence content, and never a full
+// provider subscription reference. The detail read is audited.
+//
+// A NEW FILE rather than an addition to an existing one, because the two other
+// candidates are the wrong homes: `admin-organizations.routes.ts` is about
+// CUSTOMER organizations (a different population), and `teams.routes.ts` is the
+// tenant-facing workspace API whose every route is workspace-scoped.
+const ROUTE_COUNT_PHASE_2_BASELINE = 126;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

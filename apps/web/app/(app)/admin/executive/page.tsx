@@ -43,7 +43,6 @@ import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Button } from "../../../../components/ui/Button";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
@@ -67,13 +66,22 @@ type AtRiskCustomer = {
   reasons: string[];
 };
 
+/** A money total in exactly ONE currency. Never aggregated across currencies. */
+type CurrencyTotal = {
+  currency: string;
+  amountCents: number;
+  payments: number;
+};
+
 type ExecutiveDashboard = {
   generatedAtUtc: string;
-  currency: string;
+  // ADM-012 — the top-level `currency` constant is GONE. It asserted a
+  // denomination for a cross-currency sum, which is the shape of the defect.
+  // Currency now travels with each amount.
   revenue: {
-    grossRevenueCentsAllTime: number;
-    grossRevenueCentsThisMonth: number;
-    grossRevenueCentsLastMonth: number;
+    allTimeByCurrency: CurrencyTotal[];
+    thisMonthByCurrency: CurrencyTotal[];
+    lastMonthByCurrency: CurrencyTotal[];
     successfulPaymentsAllTime: number;
     growthRatePct: NotMeasured;
   };
@@ -81,9 +89,12 @@ type ExecutiveDashboard = {
   arrCents: NotMeasured;
   renewalRiskCents: NotMeasured;
   customers: {
-    activeOrganizations: number;
-    activeBillingTeams: number;
-    enterpriseTeams: number;
+    /** CUSTOMER organizations with status ACTIVE (ADM-002). */
+    activeCustomers: number;
+    /** LIVE workspaces with billingStatus ACTIVE (ADM-004). */
+    activeBillingWorkspaces: number;
+    /** EnterpriseContract rows with status ACTIVE (ADM-003). */
+    enterpriseContracts: number;
   };
   leads: {
     demoRequestsByStatus: Record<string, number>;
@@ -227,36 +238,66 @@ function ExecutiveDashboardBody() {
     void load();
   }, [load]);
 
-  const currency = data?.currency ?? "EUR";
+  /**
+   * ADM-012 — revenue is reported per currency.
+   *
+   * The headline tiles show the LARGEST currency by volume and say so; the full
+   * per-currency breakdown is rendered underneath. Picking one silently, or
+   * summing them, is the defect this replaced.
+   */
+  const primaryRevenue = data?.revenue.allTimeByCurrency[0] ?? null;
 
   const revenueMetrics = useMemo(() => {
     if (!data) return [];
     return [
       {
-        label: "Gross revenue (all-time)",
-        value: formatMoneyCents(data.revenue.grossRevenueCentsAllTime, currency),
-        sub: `${formatCount(data.revenue.successfulPaymentsAllTime) ?? 0} successful payments`,
+        label: primaryRevenue
+          ? `Gross revenue (all-time, ${primaryRevenue.currency})`
+          : "Gross revenue (all-time)",
+        value: primaryRevenue
+          ? formatMoneyCents(primaryRevenue.amountCents, primaryRevenue.currency)
+          : null,
+        sub: `${formatCount(data.revenue.successfulPaymentsAllTime) ?? 0} successful payments${
+          data.revenue.allTimeByCurrency.length > 1
+            ? ` across ${data.revenue.allTimeByCurrency.length} currencies`
+            : ""
+        }`,
         accent: "#1e3a5f",
         testId: "admin-executive-revenue-all-time",
       },
       {
-        label: "Gross revenue (MoM)",
-        value: formatMoneyCents(data.revenue.grossRevenueCentsThisMonth, currency),
-        sub: `${formatMoneyCents(data.revenue.grossRevenueCentsLastMonth, currency) ?? "—"} last month`,
+        label: primaryRevenue
+          ? `Gross revenue (this month, ${primaryRevenue.currency})`
+          : "Gross revenue (this month)",
+        value: (() => {
+          if (!primaryRevenue) return null;
+          const row = data.revenue.thisMonthByCurrency.find(
+            (r) => r.currency === primaryRevenue.currency,
+          );
+          return formatMoneyCents(row?.amountCents ?? 0, primaryRevenue.currency);
+        })(),
+        sub: (() => {
+          if (!primaryRevenue) return "—";
+          const row = data.revenue.lastMonthByCurrency.find(
+            (r) => r.currency === primaryRevenue.currency,
+          );
+          return `${formatMoneyCents(row?.amountCents ?? 0, primaryRevenue.currency) ?? "—"} last month`;
+        })(),
         accent: "#1e3a5f",
         testId: "admin-executive-revenue-mom",
       },
       {
         label: "Active customers",
-        value: formatCount(data.customers.activeOrganizations),
-        sub: `${formatCount(data.customers.activeBillingTeams) ?? 0} teams billing ACTIVE`,
+        value: formatCount(data.customers.activeCustomers),
+        sub: `${formatCount(data.customers.activeBillingWorkspaces) ?? 0} live workspaces billing ACTIVE`,
         accent: "#1e3a5f",
         testId: "admin-executive-active-customers",
       },
       {
         label: "Enterprise customers",
-        value: formatCount(data.customers.enterpriseTeams),
-        sub: "Workspaces on the ENTERPRISE plan",
+        value: formatCount(data.customers.enterpriseContracts),
+        // ADM-003 — the contract, not a plan string.
+        sub: "Customers holding an ACTIVE enterprise contract",
         accent: "#1e3a5f",
         testId: "admin-executive-enterprise",
       },
@@ -270,7 +311,7 @@ function ExecutiveDashboardBody() {
         testId: "admin-executive-leads",
       },
     ];
-  }, [data, currency]);
+  }, [data, primaryRevenue]);
 
   const usageMetrics = useMemo(() => {
     if (!data) return [];
@@ -415,7 +456,6 @@ function ExecutiveDashboardBody() {
         }
       />
 
-      <AdminConsoleNav />
 
       {loading ? (
         <PageSection>

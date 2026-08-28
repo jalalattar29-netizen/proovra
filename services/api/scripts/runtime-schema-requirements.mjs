@@ -86,6 +86,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "aggregate conditions carry their CURRENT value here, refreshed on every observation. The writer selects it to compute previousValue and delta, and the queue reads it; without the column the number returns to the title, where recordIncident never rewrote it and a backlog of 26 stayed 26 for the life of the condition",
     suppliedBy: "20271225000000_operational_incident_metric_snapshot",
   },
+  {
+    id: "teams.closed_at_utc",
+    kind: "column",
+    detail: 'column public."teams"."closed_at_utc" must exist',
+    requiredBy:
+      "THE workspace-liveness authority. Every Platform Admin population query filters on it through liveWorkspaceWhere()/workspaceLifecycleWhere(), executeWorkspaceClosure writes it inside the closure transaction and reopenClosedWorkspace clears it. Without the column the console cannot distinguish a closed workspace from a live one — the exact defect the column exists to remove — and every one of those readers fails on the first request rather than degrading",
+    suppliedBy: "20271230000000_workspace_lifecycle_authority",
+  },
 ]);
 
 /**
@@ -96,6 +104,13 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
  * tables, and must not be able to write anything.
  */
 const PROBES = Object.freeze({
+  "teams.closed_at_utc": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'teams'
+       AND column_name = 'closed_at_utc'
+     LIMIT 1`,
   "governance_reconciliation_kind.workspace_operations": `
     SELECT 1
       FROM pg_type t

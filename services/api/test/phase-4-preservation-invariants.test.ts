@@ -141,12 +141,35 @@ describe("Phase 4 — closures preserve evidence structurally", () => {
       (memberMass!.args[0] as { data: { status: string } }).data.status,
     ).toBe("REVOKED");
 
-    // The Team row itself is never mutated by closure (no update at all).
-    expect(
-      H.calls.filter(
-        (c) => c.model === "tx.team" && c.method !== "findMany",
-      ),
-    ).toEqual([]);
+    // ADM-004 (2026-08-27) — closure writes EXACTLY ONE field on the Team row:
+    // the lifecycle marker.
+    //
+    // This assertion used to be "closure performs no Team write at all", which
+    // was true only because there was nothing to write — and that absence was
+    // the defect: a closed workspace was byte-for-byte indistinguishable from a
+    // live one, so every Platform Admin population query counted it as live.
+    //
+    // The invariant this test actually exists to protect is preservation: the
+    // row is never DELETED, evidence is never touched, and closure never
+    // rewrites the workspace's identity or its commercial state. So that is
+    // what is asserted — precisely — rather than a blanket no-write rule that
+    // the correct fix necessarily violates.
+    const teamWrites = H.calls.filter(
+      (c) => c.model === "tx.team" && c.method !== "findMany" && c.method !== "findUnique",
+    );
+    expect(teamWrites.map((c) => c.method)).toEqual(["update"]);
+    const written = (teamWrites[0]!.args[0] as { data: Record<string, unknown> })
+      .data;
+    // ONE key. A closure that also reset billing, renamed the workspace or
+    // cleared its owner would fail here.
+    expect(Object.keys(written)).toEqual(["closedAtUtc"]);
+    expect(written.closedAtUtc).toBeInstanceOf(Date);
+
+    // And the marker is NOT billing state. Billing lifecycle and workspace
+    // lifecycle are different concepts; substituting one for the other is what
+    // ADM-004 rejected.
+    expect(written).not.toHaveProperty("billingStatus");
+    expect(written).not.toHaveProperty("billingPlan");
   });
 
   it("organization closure: org ARCHIVED (never deleted), memberships REVOKED, evidence untouched", async () => {

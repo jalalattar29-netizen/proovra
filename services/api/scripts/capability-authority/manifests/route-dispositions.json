@@ -704,20 +704,6 @@
       "machineCallerEvidence": "reg services/api/src/routes/admin-audit.routes.ts:70 app.post(\"/v1/admin/audit-log\", { preHandler: requirePlatformAdmin, bodyLimit: 12_288 }); services/api/src/services/audit/tenant-audit.service.ts:355-367 \"Admin MANUAL audit-write passthrough ... The POST /v1/admin/audit-log endpoint lets a platform admin record a manual audit entry ... category is CLOSED to platform_admin_manual ... always PLATFORM-scoped\"; admin console reads only: apps/web/app/(app)/admin/audit/page.tsx:158 GET `/v1/admin/audit-log?${params}`, :191 /export, :223 /verify; docs/product/PHASE_2_3_ENTERPRISE_GOVERNANCE.md:108"
     },
     {
-      "routeId": "POST /v1/admin/orgs/:id/resume",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "platform org resume has no control (same loop registration as suspend)",
-      "evidence": "reg services/api/src/routes/admin-provisioning.routes.ts:232 services/api/src/routes/admin-provisioning.routes.ts:231 app.post(`/v1/admin/orgs/:id/${leg}`) with leg=\"resume\"; apps/web/app/(app)/admin/provisioning/page.tsx:663 only calls /plan; docs/architecture/program-ledger.md:72",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
-      "routeId": "POST /v1/admin/orgs/:id/suspend",
-      "disposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "reason": "platform org suspend has no control; the provisioning console wires only the plan route",
-      "evidence": "reg services/api/src/routes/admin-provisioning.routes.ts:232 services/api/src/routes/admin-provisioning.routes.ts:215-232 for (const [leg, run] of [[\"suspend\", ...], [\"resume\", ...]]) app.post(`/v1/admin/orgs/:id/${leg}`, { preHandler: requirePlatformAdmin }); apps/web/app/(app)/admin/provisioning/page.tsx:18 documents and :663 calls only `/v1/admin/orgs/${encodeURIComponent(id)}/plan`; docs/architecture/program-ledger.md:72 \"Routes POST /v1/admin/orgs/:id/suspend|resume (requirePlatformAdmin + step-up)\" with no runbook procedure",
-      "reviewedAtUtc": "2026-08-16"
-    },
-    {
       "routeId": "POST /v1/auth/saml/acs",
       "disposition": "EXTERNAL_API",
       "reason": "IdP-posted SAML assertion consumer service; the ACS URL is published to admins for IdP registration",
@@ -1381,6 +1367,22 @@
       "reason": "The 'Ask in plain language' card was WITHDRAWN from /search for every workspace type after an audit of what it displayed, so this route is deliberately unmounted rather than accidentally orphaned. Two defects, both in runStateQuery: (1) two of its seven presets synthesise titles instead of reading the record's name — REVIEW_BACKLOG renders 'Review <id8>… (STATUS)' and REPORTS_RECENT renders 'Report v<n>' while routing to /evidence/:id; (2) the state presets query prisma.evidence / evidenceReviewWorkflow / report directly on teamId alone, bypassing the reviewer-restriction gate executeSearch applies twice, so a non-reviewer saw rows ordinary Search withholds. Cross-workspace leakage was NOT possible — authorizeOrFail verifies ACTIVE membership in body.teamId and every state query carries it. The route is retained (registered, authorized, rate-limited, audited) because this repository does not delete routes; the TEXT_SEARCH branch is unaffected as it delegates to executeSearch. Reintroduction requires: state presets through the authorized search path, canonical display names, a real total rather than the page length, and demonstrated value over ordinary Search.",
       "evidence": "reg services/api/src/routes/ai-search.routes.ts app.post(\"/v1/ai/search/nl\", { preHandler: requireAuth }) with authorizeOrFail({ permission: \"intelligence.read\", antiEnumeration: true }); the sole product consumer apps/web/components/ai-copilot/NlSearchBox.tsx was deleted in this change and its mount removed from apps/web/app/(app)/search/page.tsx; 0 call sites remain in apps/web + apps/mobile; the withdrawal and its four reintroduction conditions are documented in the route's own docstring and asserted by e2e/search-layout/search-experience.spec.ts \"the plain-language card is gone from the console\"",
       "reviewedAtUtc": "2026-08-22"
+    },
+    {
+      "routeId": "GET /v1/admin/organizations",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "ADM-033 compatibility alias. The customer roster moved to /v1/admin/customers because the population is Organization.kind = 'CUSTOMER', which EXCLUDES the internal 1:1 bootstrap container every workspace owns — and calling the surface 'organizations' is what made counting those containers look reasonable for as long as it did. This path is registered with the SAME requirePlatformAdmin gate and the SAME handler so no existing consumer breaks mid-flight; the web console calls the canonical path and next.config.js permanently redirects the page route. Zero product consumers is therefore the CORRECT state for it.",
+      "evidence": "reg services/api/src/routes/admin-organizations.routes.ts — both the canonical /v1/admin/customers pair and this alias pair are registered with { preHandler: requirePlatformAdmin } and share one handler (listCustomers / customerDetail). apps/web/next.config.js redirects /admin/organizations and /admin/organizations/:id permanently to /admin/customers. The alias gate is proven by executed test services/api/test/phase-admin-organizations.test.ts ('replies 403 for a non-admin caller') which injects BOTH paths.",
+      "reviewedAtUtc": "2026-08-27",
+      "replacement": "GET /v1/admin/customers"
+    },
+    {
+      "routeId": "GET /v1/admin/organizations/:id",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "ADM-033 compatibility alias. The customer roster moved to /v1/admin/customers because the population is Organization.kind = 'CUSTOMER', which EXCLUDES the internal 1:1 bootstrap container every workspace owns — and calling the surface 'organizations' is what made counting those containers look reasonable for as long as it did. This path is registered with the SAME requirePlatformAdmin gate and the SAME handler so no existing consumer breaks mid-flight; the web console calls the canonical path and next.config.js permanently redirects the page route. Zero product consumers is therefore the CORRECT state for it.",
+      "evidence": "reg services/api/src/routes/admin-organizations.routes.ts — both the canonical /v1/admin/customers pair and this alias pair are registered with { preHandler: requirePlatformAdmin } and share one handler (listCustomers / customerDetail). apps/web/next.config.js redirects /admin/organizations and /admin/organizations/:id permanently to /admin/customers. The alias gate is proven by executed test services/api/test/phase-admin-organizations.test.ts ('replies 403 for a non-admin caller') which injects BOTH paths.",
+      "reviewedAtUtc": "2026-08-27",
+      "replacement": "GET /v1/admin/customers/:id"
     }
   ]
 }

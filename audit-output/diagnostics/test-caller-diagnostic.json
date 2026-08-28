@@ -4,10 +4,10 @@
   "coverage": "LOWER BOUND, and deliberately so. These are call sites the analyzer RESOLVED through a request primitive (fetch / apiFetch / apiRequest / request / authedFetch). Fastify `app.inject({ url })` is not a request primitive and is not counted, so an API suite that exercises a route through inject does not appear here. The retired scanner's numbers were substring occurrences of the route path anywhere in a test file, which counted comments and prefixes and was not a measurement of anything; these are fewer and mean something. Read `testCallerCount = 0` as \"no resolved request-primitive call site\", never as \"no suite exercises this route\".",
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
-  "analyzerHash": "a22ac4820cdc5b21083d14fa55d67e99ebb15897a594c85051ce79dae0b1694b",
-  "capabilityRouteInventoryHash": "540d3c2f755000c4a3ffa5ecae43759d8794c42097738dd7dd53873bf873ccc6",
+  "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
+  "capabilityRouteInventoryHash": "a3148aa5198cb0150a85dccc19c5aeb456afb9700303a5b414e0420d39506a6a",
   "totals": {
-    "routes": 1103,
+    "routes": 1113,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -399,6 +399,18 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/admin/customers",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/customers/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/admin/demo-requests",
       "testCallerCount": 0,
       "testOnly": false,
@@ -412,6 +424,12 @@
     },
     {
       "routeId": "GET /v1/admin/evidence-health",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/evidence-health/records",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -477,6 +495,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/admin/lifecycle-requests",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/admin/organizations",
       "testCallerCount": 0,
       "testOnly": false,
@@ -520,6 +544,24 @@
     },
     {
       "routeId": "GET /v1/admin/users",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/users/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/workspaces",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/workspaces/:id",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -3567,6 +3609,24 @@
     },
     {
       "routeId": "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/admin/incidents/:id/acknowledge",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/admin/incidents/:id/assign",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/admin/incidents/:id/resolve",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6700,5 +6760,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "144384d87654ffd71c98c35eba2de9b4649d99c4db5b9e79cc1cab24a6145e9e"
+  "contentHash": "7056746f558d5d6c009280cc4351d9199689b6b13d85aa8762fa822e4bdbcc13"
 }

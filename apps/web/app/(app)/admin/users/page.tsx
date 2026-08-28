@@ -1,60 +1,79 @@
 "use client";
 
 /**
- * Platform Control Center P1 — Platform Users roster (/admin/users).
+ * PLATFORM ADMIN — People (ADM-028, ADM-016, ADM-017).
  *
- * READ-ONLY roster over the EXISTING identity models, served by
- * GET /v1/admin/users (services/api/src/routes/admin-users.routes.ts).
+ * WHAT CHANGED
+ * ---------------------------------------------------------------------------
+ * This roster was a well-built view of the WRONG dimension: identity and
+ * security only, with no plan, no subscription, no workspace and no detail
+ * route. The console could show a PRO count and could not name a single PRO
+ * customer.
  *
- * Honesty rules enforced here:
- *   • Every absent value renders as "—" (cells) or "Not measured"
- *     (signals we cannot yet source, e.g. riskStatus). NOTHING is faked.
- *   • `lastLoginAt` is real-or-null: the backend derives it from the
- *     newest `login_completed` analytics event; a user who never logged
- *     in shows "—", never a guessed timestamp.
- *   • Errors flow ONLY through `toSafeUserError` (the sole sanctioned
- *     error-display path). No raw error.message passthrough.
- *   • No legacy chrome (no app-hero / cc-page / btn- classes). Renders
- *     through the shared PageShell + the platform.admin gate inherited
- *     from admin/layout.tsx.
+ * Three things are new and each closes a specific finding:
+ *   • commercial columns and filters — "list our PRO users" is `?tier=PRO`;
+ *   • pending cancellation is its own visible state, not an ordinary ACTIVE;
+ *   • rows open a real detail page, and `?search=` from global search is
+ *     actually READ (it used to be emitted and ignored, so the deep link landed
+ *     on an unfiltered page 1 that might not contain the person searched for).
+ *
+ * The security posture is unchanged: the API's column allow-list still excludes
+ * every password hash, MFA secret and token, and `riskStatus` stays honestly
+ * null because no per-user risk model exists.
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import { PageShell, PageHeader, FilterBar, DataTable } from "../../../../components/ui";
-import type { DataTableColumn } from "../../../../components/ui";
-import { Card } from "../../../../components/ui/Card";
+import {
+  PageShell,
+  PageHeader,
+  FilterBar,
+  DataTable,
+  useToast,
+  type DataTableColumn,
+} from "../../../../components/ui";
+import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
 import { Button } from "../../../../components/ui/Button";
-import { Badge } from "../../../../components/ui/Badge";
+import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
-import { useToast } from "../../../../components/ui";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
+import { LifecycleRequestQueue } from "./_sections/LifecycleRequestQueue";
 import { apiFetch } from "../../../../lib/api";
-import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../lib/date";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-type PlatformProvider = "GOOGLE" | "APPLE" | "GUEST" | "EMAIL";
-
-type PlatformUserRow = {
+type PersonRow = {
   id: string;
   email: string | null;
   name: string | null;
   createdAt: string;
-  provider: PlatformProvider;
+  provider: string;
   platformRole: string | null;
-  orgMembershipsCount: number;
+  accountTier: string | null;
+  subscriptions: Array<{
+    id: string;
+    provider: string;
+    plan: string;
+    status: string;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: string | null;
+  }>;
+  pendingCancellation: boolean;
+  hasLiveSubscription: boolean;
+  personalWorkspaceId: string | null;
+  ownedWorkspaceCount: number;
   workspaceMembershipsCount: number;
+  orgMembershipsCount: number;
   mfaEnrolled: boolean;
   lastLoginAt: string | null;
-  suspended: boolean;
-  deactivated: boolean;
+  memberships: { active: number; suspended: number; revoked: number };
   country: string | null;
   timezone: string | null;
-  riskStatus: string | null;
+  riskStatus: null;
 };
 
-type UsersResponse = {
-  items: PlatformUserRow[];
+type Response = {
+  items: PersonRow[];
   page: number;
   pageSize: number;
   total: number;
@@ -63,136 +82,198 @@ type UsersResponse = {
 
 const PAGE_SIZE = 25;
 
-const PROVIDER_LABEL: Record<PlatformProvider, string> = {
-  GOOGLE: "Google",
-  APPLE: "Apple",
-  GUEST: "Guest",
-  EMAIL: "Email",
+const TIER_TONE: Record<string, BadgeTone> = {
+  FREE: "neutral",
+  PAYG: "info",
+  PRO: "verified",
+  TEAM: "governance",
+  ENTERPRISE: "governance",
 };
 
-function dash(value?: string | null): string {
-  const trimmed = typeof value === "string" ? value.trim() : "";
-  return trimmed.length > 0 ? trimmed : "—";
+function dash(v?: string | null): string {
+  const t = typeof v === "string" ? v.trim() : "";
+  return t.length > 0 ? t : "—";
 }
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return formatUserDateTime(value);
-}
-
-function statusLabel(row: PlatformUserRow): {
-  label: string;
-  tone: "verified" | "risk" | "neutral";
-} {
-  if (row.deactivated) return { label: "Deactivated", tone: "risk" };
-  if (row.suspended) return { label: "Suspended", tone: "risk" };
-  return { label: "Active", tone: "verified" };
-}
-
-export default function AdminUsersPage() {
+export default function AdminPeoplePage() {
   const { addToast } = useToast();
+  const router = useRouter();
+  const params = useSearchParams();
+
+  const [search, setSearch] = useState(params.get("search") ?? "");
+  const [applied, setApplied] = useState(params.get("search") ?? "");
+  const [tier, setTier] = useState(params.get("tier") ?? "");
+  const [provider, setProvider] = useState(params.get("provider") ?? "");
+  const [subscriptionStatus, setSubscriptionStatus] = useState(
+    params.get("subscriptionStatus") ?? "",
+  );
+  const [pendingCancellation, setPendingCancellation] = useState(
+    params.get("pendingCancellation") === "true",
+  );
+  const [platformRole, setPlatformRole] = useState(params.get("platformRole") ?? "");
 
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<PlatformUserRow[]>([]);
-  const [total, setTotal] = useState(0);
+  const [data, setData] = useState<Response | null>(null);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
 
-  // Filter inputs. `appliedSearch` is what we actually query with, so
-  // typing in the search box does not fire a request on every keystroke.
-  const [search, setSearch] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [providerFilter, setProviderFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-
-  const loadUsers = useCallback(async () => {
-    try {
+  const load = useCallback(
+    async (targetPage: number) => {
       setLoading(true);
+      try {
+        const qs = new URLSearchParams();
+        qs.set("page", String(targetPage));
+        qs.set("pageSize", String(PAGE_SIZE));
+        if (applied.trim()) qs.set("search", applied.trim());
+        if (tier) qs.set("tier", tier);
+        if (provider) qs.set("provider", provider);
+        if (subscriptionStatus) qs.set("subscriptionStatus", subscriptionStatus);
+        if (pendingCancellation) qs.set("pendingCancellation", "true");
+        if (platformRole) qs.set("platformRole", platformRole);
 
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("pageSize", String(PAGE_SIZE));
-      if (appliedSearch.trim()) params.set("search", appliedSearch.trim());
-      if (roleFilter) params.set("platformRole", roleFilter);
-      if (providerFilter) params.set("provider", providerFilter);
-      if (statusFilter) params.set("suspended", statusFilter);
+        const res = (await apiFetch(`/v1/admin/users?${qs.toString()}`)) as Response;
+        setData(res ?? null);
+        setPage(res?.page ?? targetPage);
 
-      const data: UsersResponse = await apiFetch(
-        `/v1/admin/users?${params.toString()}`
-      );
-
-      setItems(Array.isArray(data?.items) ? data.items : []);
-      setTotal(typeof data?.total === "number" ? data.total : 0);
-      setTotalPages(typeof data?.totalPages === "number" ? data.totalPages : 0);
-    } catch (err) {
-      const message = toSafeUserError(err, {
-        message: "Failed to load platform users",
-      }).message;
-      addToast(message, "error");
-      setItems([]);
-      setTotal(0);
-      setTotalPages(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, appliedSearch, roleFilter, providerFilter, statusFilter, addToast]);
+        const shareable = new URLSearchParams(qs);
+        shareable.delete("page");
+        shareable.delete("pageSize");
+        router.replace(
+          shareable.toString() ? `/admin/users?${shareable.toString()}` : "/admin/users",
+          { scroll: false },
+        );
+      } catch (err) {
+        addToast(
+          toSafeUserError(err, { message: "Failed to load platform people" }).message,
+          "error",
+        );
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      addToast,
+      applied,
+      tier,
+      provider,
+      subscriptionStatus,
+      pendingCancellation,
+      platformRole,
+      router,
+    ],
+  );
 
   useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+    void load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applied, tier, provider, subscriptionStatus, pendingCancellation, platformRole]);
 
-  // Any filter change resets to page 1.
-  useEffect(() => {
-    setPage(1);
-  }, [appliedSearch, roleFilter, providerFilter, statusFilter]);
-
-  const columns: DataTableColumn<PlatformUserRow>[] = [
+  const columns: DataTableColumn<PersonRow>[] = [
     {
       key: "email",
-      header: "Email",
-      render: (row) => dash(row.email),
+      header: "Person",
+      render: (r) => (
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 620 }}>{dash(r.email)}</div>
+          <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+            {dash(r.name)} · joined {formatUserDateTime(r.createdAt)}
+          </div>
+        </div>
+      ),
     },
     {
-      key: "name",
-      header: "Name",
-      render: (row) => dash(row.name),
+      key: "tier",
+      header: "Account tier",
+      render: (r) =>
+        r.accountTier ? (
+          <Badge tone={TIER_TONE[r.accountTier] ?? "neutral"}>{r.accountTier}</Badge>
+        ) : (
+          <span style={{ color: "var(--ink-muted, #94a3b8)" }}>None</span>
+        ),
     },
     {
-      key: "provider",
-      header: "Provider (IdP)",
-      render: (row) => PROVIDER_LABEL[row.provider] ?? dash(row.provider),
+      key: "subscription",
+      header: "Subscription",
+      render: (r) => {
+        if (r.subscriptions.length === 0) {
+          return <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>;
+        }
+        const live = r.subscriptions.filter(
+          (s) => s.status === "ACTIVE" || s.status === "TRIALING",
+        );
+        const shown = live.length > 0 ? live : r.subscriptions.slice(0, 1);
+        return (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {shown.map((s) => (
+              <Badge
+                key={s.id}
+                tone={s.status === "ACTIVE" ? "verified" : "neutral"}
+                subtle
+              >
+                {s.provider} {s.plan} · {s.status}
+              </Badge>
+            ))}
+            {r.pendingCancellation ? (
+              <Badge tone="pending" title="Active, but will not renew">
+                Cancels at period end
+              </Badge>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      key: "workspaces",
+      header: "Workspaces",
+      align: "right",
+      render: (r) => (
+        <span title={`${r.ownedWorkspaceCount} owned · ${r.orgMembershipsCount} org memberships`}>
+          {r.workspaceMembershipsCount}
+        </span>
+      ),
+    },
+    {
+      key: "memberships",
+      header: "Membership states",
+      render: (r) => (
+        // ADM-028 — these are MEMBERSHIP states. They were previously rendered
+        // as "Account suspended" / "Deactivated", which the data never
+        // supported: `User` models no account-level disable at all.
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
+          <Badge tone="verified" subtle>
+            {r.memberships.active} active
+          </Badge>
+          {r.memberships.suspended > 0 ? (
+            <Badge tone="pending" subtle>
+              {r.memberships.suspended} suspended
+            </Badge>
+          ) : null}
+          {r.memberships.revoked > 0 ? (
+            <Badge tone="risk" subtle>
+              {r.memberships.revoked} revoked
+            </Badge>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: "platformRole",
       header: "Platform role",
-      render: (row) =>
-        row.platformRole ? (
+      render: (r) =>
+        r.platformRole ? (
           <Badge tone="governance">Admin</Badge>
         ) : (
           <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
         ),
     },
     {
-      key: "orgs",
-      header: "Orgs",
-      align: "right",
-      render: (row) => row.orgMembershipsCount,
-    },
-    {
-      key: "workspaces",
-      header: "Workspaces",
-      align: "right",
-      render: (row) => row.workspaceMembershipsCount,
-    },
-    {
       key: "mfa",
       header: "MFA",
-      render: (row) =>
-        row.mfaEnrolled ? (
-          <Badge tone="verified">Enrolled</Badge>
+      render: (r) =>
+        r.mfaEnrolled ? (
+          <Badge tone="verified" subtle>
+            Enrolled
+          </Badge>
         ) : (
           <Badge tone="neutral" subtle>
             None
@@ -203,155 +284,183 @@ export default function AdminUsersPage() {
       key: "lastLoginAt",
       header: "Last login",
       nowrap: true,
-      render: (row) => formatTimestamp(row.lastLoginAt),
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (row) => {
-        const { label, tone } = statusLabel(row);
-        return <Badge tone={tone}>{label}</Badge>;
-      },
+      render: (r) => (r.lastLoginAt ? formatUserDateTime(r.lastLoginAt) : "—"),
     },
   ];
 
+  const clear = () => {
+    setSearch("");
+    setApplied("");
+    setTier("");
+    setProvider("");
+    setSubscriptionStatus("");
+    setPendingCancellation(false);
+    setPlatformRole("");
+  };
+
+  const total = data?.total ?? 0;
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const rangeEnd = Math.min(page * PAGE_SIZE, total);
 
   return (
     <PageShell
+      width="full"
       header={
         <PageHeader
-          eyebrow="Platform Control Center"
-          title="Users"
-          subtitle="Read-only roster of every platform user, sourced directly from the identity models. Fields that cannot yet be measured are shown honestly rather than filled in."
+          eyebrow="Platform control center"
+          title="People"
+          subtitle="Every person on the platform, with the commercial context that answers 'what do they pay for?'. Membership states are shown as memberships — this platform models no account-level disable, so nothing here claims one."
         />
       }
     >
-      <AdminConsoleNav />
+
+      <FilterBar
+        actions={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => void load(page)}>
+              Refresh
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clear}>
+              Clear
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setApplied(search);
+          }}
+          style={{ display: "contents" }}
+        >
+          <FilterBar.Search
+            label="Search people by email or name"
+            value={search}
+            onChange={setSearch}
+            onBlur={() => setApplied(search)}
+            placeholder="Email or name…"
+          />
+        </form>
+
+        <FilterBar.Select
+          label="Account tier"
+          value={tier}
+          onChange={setTier}
+          options={[
+            { value: "", label: "All tiers" },
+            { value: "FREE", label: "Free" },
+            { value: "PAYG", label: "Pay-as-you-go" },
+            { value: "PRO", label: "Pro" },
+            { value: "TEAM", label: "Team plan" },
+            { value: "ENTERPRISE", label: "Enterprise" },
+          ]}
+        />
+
+        <FilterBar.Select
+          label="Subscription status"
+          value={subscriptionStatus}
+          onChange={setSubscriptionStatus}
+          options={[
+            { value: "", label: "Any" },
+            { value: "ACTIVE", label: "Active" },
+            { value: "TRIALING", label: "Trialing" },
+            { value: "PAST_DUE", label: "Past due" },
+            { value: "CANCELED", label: "Canceled" },
+          ]}
+        />
+
+        <FilterBar.Select
+          label="Cancellation"
+          value={pendingCancellation ? "true" : ""}
+          onChange={(v) => setPendingCancellation(v === "true")}
+          options={[
+            { value: "", label: "Any" },
+            { value: "true", label: "Pending cancellation" },
+          ]}
+        />
+
+        <FilterBar.Select
+          label="Provider"
+          value={provider}
+          onChange={setProvider}
+          options={[
+            { value: "", label: "All providers" },
+            { value: "EMAIL", label: "Email" },
+            { value: "GOOGLE", label: "Google" },
+            { value: "APPLE", label: "Apple" },
+            { value: "GUEST", label: "Guest" },
+          ]}
+        />
+
+        <FilterBar.Select
+          label="Platform role"
+          value={platformRole}
+          onChange={setPlatformRole}
+          options={[
+            { value: "", label: "All roles" },
+            { value: "admin", label: "Platform admin" },
+          ]}
+        />
+      </FilterBar>
 
       <Card>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <FilterBar
-            actions={
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => void loadUsers()}
-                disabled={loading}
-              >
-                {loading ? "Refreshing…" : "Refresh"}
-              </Button>
-            }
-          >
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setAppliedSearch(search);
-              }}
-              style={{ display: "contents" }}
+        <DataTable<PersonRow>
+          ariaLabel="Platform people"
+          columns={columns}
+          rows={data?.items ?? []}
+          getRowId={(r) => r.id}
+          loading={loading}
+          onRowClick={(r) => router.push(`/admin/users/${encodeURIComponent(r.id)}`)}
+          emptyState={
+            <EmptyState
+              title="No people found"
+              purpose="No platform user matches the current filters. Adjust the search or filters above."
+            />
+          }
+        />
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            fontSize: 13,
+            color: "var(--ink-secondary, #475569)",
+            marginTop: 16,
+          }}
+        >
+          <span>
+            {total === 0
+              ? "No people"
+              : `Showing ${rangeStart}–${rangeEnd} of ${total} person${total === 1 ? "" : "s"}`}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void load(page - 1)}
+              disabled={loading || page <= 1}
             >
-              <FilterBar.Search
-                label="Search users by email or name"
-                value={search}
-                onChange={setSearch}
-                onBlur={() => setAppliedSearch(search)}
-                placeholder="Search email or name…"
-              />
-            </form>
-
-            <FilterBar.Select
-              label="Platform role"
-              value={roleFilter}
-              onChange={setRoleFilter}
-              options={[
-                { value: "", label: "All roles" },
-                { value: "admin", label: "Platform admin" },
-              ]}
-            />
-
-            <FilterBar.Select
-              label="Provider"
-              value={providerFilter}
-              onChange={setProviderFilter}
-              options={[
-                { value: "", label: "All providers" },
-                { value: "GOOGLE", label: "Google" },
-                { value: "APPLE", label: "Apple" },
-                { value: "EMAIL", label: "Email" },
-                { value: "GUEST", label: "Guest" },
-              ]}
-            />
-
-            <FilterBar.Select
-              label="Status"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={[
-                { value: "", label: "All statuses" },
-                { value: "true", label: "Suspended / deactivated" },
-                { value: "false", label: "Active only" },
-              ]}
-            />
-          </FilterBar>
-
-          <DataTable<PlatformUserRow>
-            ariaLabel="Platform users"
-            columns={columns}
-            rows={items}
-            getRowId={(row) => row.id}
-            loading={loading}
-            emptyState={
-              <EmptyState
-                title="No users found"
-                purpose="No platform users match the current filters. Adjust the search or filters above."
-              />
-            }
-          />
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-              fontSize: 13,
-              color: "var(--ink-secondary, #475569)",
-            }}
-          >
-            <span>
-              {total === 0
-                ? "No users"
-                : `Showing ${rangeStart}–${rangeEnd} of ${total} user${
-                    total === 1 ? "" : "s"
-                  }`}
+              Previous
+            </Button>
+            <span style={{ minWidth: 90, textAlign: "center" }}>
+              Page {data?.totalPages === 0 ? 0 : page} of {data?.totalPages ?? 0}
             </span>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={loading || page <= 1}
-              >
-                Previous
-              </Button>
-              <span style={{ minWidth: 90, textAlign: "center" }}>
-                Page {totalPages === 0 ? 0 : page} of {totalPages}
-              </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setPage((p) => (totalPages ? Math.min(totalPages, p + 1) : p))}
-                disabled={loading || totalPages === 0 || page >= totalPages}
-              >
-                Next
-              </Button>
-            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void load(page + 1)}
+              disabled={loading || page >= (data?.totalPages ?? 0)}
+            >
+              Next
+            </Button>
           </div>
         </div>
       </Card>
+
+      <LifecycleRequestQueue />
     </PageShell>
   );
 }

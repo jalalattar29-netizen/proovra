@@ -119,6 +119,17 @@ describe("Phase CR0 — every (app) page wraps in <PageRouteGate> OR is document
     // other /admin page above). /admin/organizations{,/[id]} additionally
     // self-wrap PageRouteGate so they are not listed here.
     { page: "admin/users/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    // ADM-013 / ADM-027 / ADM-028 / ADM-029 (2026-08-27) — the control-plane
+    // surfaces added by the Platform Admin remediation. Same exemption, same
+    // reason as every other `/admin/*` page: the `platform.admin` gate is
+    // mounted ONCE in `app/(app)/admin/layout.tsx`, above the page boundary, so
+    // no page under it can be added without one. Repeating <PageRouteGate> per
+    // page would be a second gate to keep in step with the first.
+    { page: "admin/workspaces/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    { page: "admin/workspaces/[id]/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    { page: "admin/users/[id]/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    { page: "admin/operations/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
+    { page: "admin/evidence-ops/records/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/evidence-ops/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/security/page.tsx", reason: "platform admin", revisitPhase: "CR1" },
     { page: "admin/billing/page.tsx", reason: "platform admin", revisitPhase: "CR1" },

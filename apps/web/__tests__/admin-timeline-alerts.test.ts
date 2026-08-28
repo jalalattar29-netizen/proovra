@@ -42,7 +42,11 @@ test("both pages render through the shared PageShell + admin nav (no marketing h
   for (const rel of [TIMELINE, ALERTS]) {
     const src = read(rel);
     assert.match(src, /PageShell/, `${rel} must use the shared PageShell`);
-    assert.match(src, /AdminConsoleNav/, `${rel} must render the admin console nav`);
+    assert.match(
+      readFileSync(resolve(APP_ROOT, "app/(app)/admin/layout.tsx"), "utf8"),
+      /AdminConsoleNav/,
+      "AdminConsoleNav moved to app/(app)/admin/layout.tsx (ADM-025): one nav for every admin page, so none can be added without one",
+    );
     assert.doesNotMatch(
       src,
       /app-hero-full|className="app-hero/,

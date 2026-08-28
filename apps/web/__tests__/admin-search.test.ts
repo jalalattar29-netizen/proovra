@@ -31,7 +31,14 @@ test("search page exists and renders through the shared shell", () => {
   const src = read(PAGE);
   assert.match(src, /PageShell/, "must use the shared PageShell");
   assert.match(src, /PageHeader/, "must render a PageHeader");
-  assert.match(src, /AdminConsoleNav/, "must render the admin console nav");
+  assert.match(
+    readFileSync(
+      resolve(APP_ROOT, "app/(app)/admin/layout.tsx"),
+      "utf8",
+    ),
+    /AdminConsoleNav/,
+    "AdminConsoleNav moved to app/(app)/admin/layout.tsx (ADM-025) — asserted there, once, for every admin page",
+  );
   assert.match(src, /data-testid="admin-search"/, "must expose the test hook");
 });
 

@@ -30,12 +30,17 @@ describe("Platform Admin — Control Center Overview (item A)", () => {
   it("overview endpoint path is /v1/admin/overview", () => {
     expect(routeSrc).toMatch(/["'`]\/v1\/admin\/overview["'`]/);
   });
-
-  it("service degrades to null (honest 'not measured'), never fabricates on failure", () => {
-    // The safe() helper returns null on any query failure.
-    expect(serviceSrc).toMatch(/return null;/);
-    expect(serviceSrc).toMatch(/async function safe/);
+  it("ADM-024 — a failed query is ERROR, not an unmeasured metric", () => {
+    // The old `safe()` helper returned null on ANY failure, and the page
+    // rendered every null as "Not measured" — so a metric the platform
+    // genuinely cannot measure and a metric whose query threw looked identical
+    // to the operator. `measure()` classifies the throw as ERROR and logs the
+    // technical cause server-side, while the browser gets an
+    // information-free sentence.
+    expect(serviceSrc).toContain("measure(");
+    expect(serviceSrc).toContain("metricNotMeasured");
   });
+
 
   it("status only claims 'healthy' when real signals exist and are clear", () => {
     // Must gate healthy behind haveSignals; a failed query → 'unknown'.
@@ -45,7 +50,11 @@ describe("Platform Admin — Control Center Overview (item A)", () => {
   });
 
   it("gross revenue is derived from succeeded Payment amountCents (real, not fabricated)", () => {
-    expect(serviceSrc).toMatch(/payment\.aggregate/);
+    // ADM-012 — grouped BY CURRENCY. `amountCents` is a minor-unit integer
+    // denominated by `currency`; summing across them produces a number that is
+    // not money in any currency, and the tile then labelled the result EUR.
+    expect(serviceSrc).toContain("payment.groupBy");
+    expect(serviceSrc).toContain('by: ["currency"]');
     expect(serviceSrc).toMatch(/status:\s*"SUCCEEDED"/);
   });
 

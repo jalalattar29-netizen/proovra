@@ -50,8 +50,14 @@ test("platform-health page carries the required data-testid", () => {
   assert.match(read(PAGE), /data-testid="admin-platform-health"/);
 });
 
-test("platform-health page renders AdminConsoleNav", () => {
-  assert.match(read(PAGE), /AdminConsoleNav/);
+test("the admin layout provides the console nav this page inherits", () => {
+  // AdminConsoleNav moved to app/(app)/admin/layout.tsx (ADM-025): one nav for every admin page, so none can be added without one
+  assert.match(read("app/(app)/admin/layout.tsx"), /AdminConsoleNav/);
+  assert.doesNotMatch(
+    read(PAGE),
+    /<AdminConsoleNav/,
+    "a page-level nav would double-render beneath the layout’s",
+  );
 });
 
 test("platform-health page does NOT use the marketing hero or banned classes", () => {

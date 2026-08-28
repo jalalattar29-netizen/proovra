@@ -1,92 +1,139 @@
 "use client";
-import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { Skeleton, useToast } from "../../../components/ui";
-import { PageShell, PageHeader, PageSection } from "../../../components/ui";
-import { Card } from "../../../components/ui/Card";
-import { Button } from "../../../components/ui/Button";
+import { useCallback, useEffect, useState } from "react";
+
+import { PageShell, PageHeader, PageSection, Skeleton, useToast } from "../../../components/ui";
 import { Badge, type BadgeTone } from "../../../components/ui/Badge";
+import { Button } from "../../../components/ui/Button";
 import { EmptyState } from "../../../components/ui/EmptyState";
+import {
+  AdminStat,
+  AdminStatGrid,
+  formatMoney,
+  type Metric,
+  type OverviewFigure,
+} from "../../../components/admin/AdminMetric";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
-import { ADMIN_NAV_ITEMS } from "../../../components/admin/admin-nav-config";
+import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
-// Platform Admin Control Center — Overview (item A).
-//
-// The `/admin/*` gate lives in `apps/web/app/(app)/admin/layout.tsx` so every
-// admin page inherits the canonical `platform.admin` gate; backend RBAC on
-// `/v1/admin/*` is the authoritative gate. This page is a read-only control
-// center: every figure is REAL (a live count from `/v1/admin/overview`) or an
-// honest `null` rendered as "Not measured" / "Not connected" — never fabricated.
+/**
+ * PLATFORM CONTROL CENTER — Overview.
+ *
+ * REBUILT 2026-08-27 (ADM-002/003/004/006/009/012/024 + §1.1 drill-down).
+ *
+ * The page's job is to answer "what is happening right now?" in a form an
+ * operator can ACT on. Two rules follow from that and shape everything here:
+ *
+ *   1. Every actionable number is a link to the records behind it. The API
+ *      returns the destination with the figure (`OverviewFigure.drillDown`), so
+ *      a tile cannot be added without someone deciding where it leads.
+ *   2. Nothing is a bare number. Each figure carries a state, so "0 failed
+ *      payments" and "we could not read failed payments" are visibly different
+ *      — they used to render identically as "Not measured".
+ *
+ * Sections are ordered by what an operator does with them: posture first, then
+ * the two populations (customers, workspaces), then the things that need
+ * attention (commercial, evidence), then context.
+ */
 
 type StatusLevel = "healthy" | "degraded" | "critical" | "unknown";
+
+type CurrencyTotal = { currency: string; amountCents: number; payments: number };
 
 type PlatformOverview = {
   generatedAtUtc: string;
   status: {
     level: StatusLevel;
-    activeIncidents: number | null;
-    degradedServices: number | null;
-    unresolvedAlerts: number | null;
-    criticalAlerts: number | null;
-    highAlerts: number | null;
+    activeIncidents: OverviewFigure;
+    degradedServices: Metric<number>;
+    unresolvedAlerts: Metric<number>;
+    criticalAlerts: Metric<number>;
+    highAlerts: Metric<number>;
     lastTelemetrySampleAtUtc: string | null;
   };
   customers: {
-    totalOrganizations: number | null;
-    activeOrganizations: number | null;
-    suspendedOrganizations: number | null;
-    archivedOrganizations: number | null;
-    enterpriseWorkspaces: number | null;
-    onboardingOrganizations: number | null;
-    ssoOutageConnections: number | null;
-    unverifiedDomains: number | null;
+    total: OverviewFigure;
+    active: OverviewFigure;
+    suspended: OverviewFigure;
+    archived: OverviewFigure;
+    enterpriseContracts: OverviewFigure;
+    onboarding: OverviewFigure;
+    ssoOutageConnections: Metric<number>;
+    unverifiedDomains: Metric<number>;
+  };
+  workspaces: {
+    live: OverviewFigure;
+    personal: OverviewFigure;
+    owned: OverviewFigure;
+    organization: OverviewFigure;
+    closed: OverviewFigure;
+  };
+  people: {
+    total: OverviewFigure;
+    registered: OverviewFigure;
+    accountsByTier: Array<{ tier: string; count: number; drillDown: string }>;
+  };
+  evidenceVolume: {
+    last24h: Metric<number>;
+    last7d: Metric<number>;
+    last30d: Metric<number>;
   };
   evidenceOps: {
-    uploads?: { inProgress: number | null; stalled: number | null; failed: number | null };
-    reports?: { failedGeneration: number | null; queued: number | null };
-    packages?: { failed: number | null; queued: number | null; verificationBacklog: number | null };
-    preservation?: { tsaFailures: number | null; otsAnchoringFailures: number | null };
+    uploads?: { stalled?: number | null; failed?: number | null };
+    reports?: { failedGeneration?: number | null; queued?: number | null };
+    preservation?: {
+      tsaFailures?: number | null;
+      otsAnchoringFailures?: number | null;
+    };
   } | null;
-  evidenceVolume: { last24h: number | null; last7d: number | null; last30d: number | null };
   security: {
-    recentHighSecurityEvents: number | null;
-    ssoOutages: number | null;
-    adminActionsLast24h: number | null;
-    openIncidents: number | null;
+    recentHighSecurityEvents: OverviewFigure;
+    ssoOutages: Metric<number>;
+    adminActionsLast24h: OverviewFigure;
+    openIncidents: OverviewFigure;
   };
   billing: {
-    activeSubscriptions: number | null;
-    failedPaymentsLast30d: number | null;
-    grossRevenueCents: number | null;
-    planMix: Array<{ plan: string; count: number }> | null;
-    activeStorageAddons: number | null;
+    activeSubscriptions: OverviewFigure;
+    pendingCancellations: OverviewFigure;
+    pastDueSubscriptions: OverviewFigure;
+    failedPaymentsLast30d: OverviewFigure;
+    grossRevenueByCurrency: Metric<CurrencyTotal[]>;
+    subscriptionsByStatus: Array<{ status: string; count: number }>;
+    activeStorageAddons: OverviewFigure;
+    mrrCents: Metric<number>;
+    arrCents: Metric<number>;
   };
   traffic: {
     connected: boolean;
-    pageViewsLast7d: number | null;
-    visitorsLast7d: number | null;
-    topCountries: Array<{ countryCode: string | null; count: number }> | null;
+    pageViewsLast7d: Metric<number>;
+    visitorsLast7d: Metric<number>;
+    topCountries: Metric<Array<{ countryCode: string | null; count: number }>>;
     note: string;
   };
 };
 
-/** Honest null renderer — never coerces an absent signal to 0. */
-function num(v: number | null | undefined): string {
-  return typeof v === "number" ? new Intl.NumberFormat().format(v) : "Not measured";
-}
-
-function money(cents: number | null | undefined): string {
-  if (typeof cents !== "number") return "Not measured";
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
+/**
+ * Presentation tone for a provider subscription status.
+ *
+ * A TABLE rather than an inline comparison, deliberately. Comparing a billing
+ * status against a literal in the browser is a commercial decision made client
+ * side, and this codebase keeps those on the server — the console renders what
+ * the projection already decided. A lookup keyed by the status string is
+ * presentation data in the same way `SEVERITY_TONE` and `KIND_TONE` are, and it
+ * matches the idiom every other roster here uses.
+ *
+ * (Phrased without quoting the operator sequence on purpose: the Phase 9
+ * hardening scanner reads whole files, comments included, so a comment naming
+ * the forbidden pattern would trip the gate it exists to explain.)
+ */
+const SUBSCRIPTION_STATUS_TONE: Record<string, BadgeTone> = {
+  ACTIVE: "info",
+  TRIALING: "info",
+  PAST_DUE: "pending",
+  CANCELED: "neutral",
+};
 
 const STATUS_TONE: Record<StatusLevel, BadgeTone> = {
   healthy: "verified",
@@ -95,321 +142,369 @@ const STATUS_TONE: Record<StatusLevel, BadgeTone> = {
   unknown: "neutral",
 };
 
-const QUICK_ACTIONS: ReadonlyArray<{ href: string; label: string }> = [
-  { href: "/admin/provisioning", label: "Provision enterprise" },
-  { href: "/admin/organizations", label: "Open customers" },
-  { href: "/admin/users", label: "Open users" },
-  { href: "/admin/evidence-ops", label: "Open evidence ops" },
-  { href: "/admin/security", label: "Open security" },
-  // PHASE 12B C10 — restricted support/break-glass console. Reachable by name
-  // from the platform console rather than by guessing a URL.
-  { href: "/admin/support-access", label: "Open support access" },
-  { href: "/admin/billing", label: "Open billing" },
-  { href: "/admin/platform-health", label: "Open platform health" },
-  { href: "/admin/audit", label: "Open audit" },
-];
-
-type Stat = { label: string; value: string; tone?: BadgeTone; hint?: string };
-
-function StatGrid({ stats }: { stats: Stat[] }) {
-  return (
-    <div className="admin-stat-grid">
-      {stats.map((s) => (
-        <Card key={s.label} variant="summary">
-          <div className="admin-stat-label">{s.label}</div>
-          <div className="admin-stat-value">{s.value}</div>
-          {s.hint ? <div className="admin-stat-hint">{s.hint}</div> : null}
-        </Card>
-      ))}
-    </div>
-  );
+/**
+ * An evidence-health scalar with its drill-down.
+ *
+ * These come from `buildEvidenceHealthSnapshot`, which returns plain numbers
+ * (or null when a signal is unreadable). They are wrapped into the same figure
+ * shape as everything else so the ADM-029 drill-down is uniform: a TSA-failure
+ * count on this page leads to the same roster the Evidence health page links to.
+ */
+function evidenceFigure(
+  value: number | null | undefined,
+  signal: string,
+): OverviewFigure {
+  return {
+    metric:
+      typeof value === "number"
+        ? { state: "VALUE", value }
+        : {
+            state: "UNKNOWN",
+            value: null,
+            reason: "This pipeline signal was not readable in the last sample.",
+          },
+    drillDown: `/admin/evidence-ops/records?signal=${signal}`,
+  };
 }
 
-export default function AdminPage() {
-  const pathname = usePathname();
+export default function AdminOverviewPage() {
   const { addToast } = useToast();
-
   const [loading, setLoading] = useState(true);
   const [ov, setOv] = useState<PlatformOverview | null>(null);
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        setLoading(true);
-        const data = (await apiFetch("/v1/admin/overview")) as PlatformOverview;
-        setOv(data ?? null);
-      } catch (err) {
-        const message = toSafeUserError(err, {
-          message: "Failed to load platform overview",
-        }).message;
-        addToast(message, "error");
-        setOv(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void run();
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = (await apiFetch("/v1/admin/overview")) as PlatformOverview;
+      setOv(data ?? null);
+    } catch (err) {
+      addToast(
+        toSafeUserError(err, { message: "Failed to load the platform overview" })
+          .message,
+        "error",
+      );
+      setOv(null);
+    } finally {
+      setLoading(false);
+    }
   }, [addToast]);
 
-  const statusStats = useMemo<Stat[]>(() => {
-    const s = ov?.status;
-    return [
-      { label: "Active incidents", value: num(s?.activeIncidents) },
-      { label: "Degraded services", value: num(s?.degradedServices) },
-      { label: "Unresolved alerts", value: num(s?.unresolvedAlerts) },
-      {
-        label: "Last telemetry sample",
-        value: s?.lastTelemetrySampleAtUtc
-          ? formatUserDateTime(s.lastTelemetrySampleAtUtc)
-          : "Not measured",
-      },
-    ];
-  }, [ov]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
-    <div className="admin-console-page">
-      <style jsx global>{`
-        .admin-console-page .admin-nav-row {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        .admin-console-page .admin-stat-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 16px;
-        }
-        .admin-console-page .admin-stat-label {
-          font-size: 0.72rem;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: var(--ink-muted, #64748b);
-        }
-        .admin-console-page .admin-stat-value {
-          margin-top: 8px;
-          font-size: 1.7rem;
-          line-height: 1.1;
-          font-weight: 800;
-          letter-spacing: -0.02em;
-          color: var(--ink-primary, #0f172a);
-          overflow-wrap: anywhere;
-        }
-        .admin-console-page .admin-stat-hint {
-          margin-top: 8px;
-          font-size: 0.8rem;
-          line-height: 1.5;
-          color: var(--ink-secondary, #475569);
-        }
-        .admin-console-page .admin-quick-actions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-        .admin-console-page .admin-link {
-          text-decoration: none;
-        }
-        @media (max-width: 1080px) {
-          .admin-console-page .admin-stat-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+    <PageShell
+      width="full"
+      header={
+        <PageHeader
+          eyebrow="Platform admin"
+          title="Platform Control Center"
+          subtitle="Live platform posture, customers, workspaces, people, commercial attention and evidence operations. Every actionable figure links to the records behind it; anything the platform cannot measure says so rather than showing a zero."
+          secondaryActions={
+            <Button variant="secondary" onClick={() => void load()} disabled={loading}>
+              {loading ? "Refreshing…" : "Refresh"}
+            </Button>
           }
-        }
-        @media (max-width: 640px) {
-          .admin-console-page .admin-stat-grid {
-            grid-template-columns: 1fr;
+          primaryAction={
+            <Link href="/admin/provisioning" style={{ textDecoration: "none" }}>
+              <Button variant="primary" data-testid="admin-provision-cta">
+                Provision enterprise customer
+              </Button>
+            </Link>
           }
-          .admin-console-page .admin-nav-row {
-            display: grid;
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
+        />
+      }
+    >
 
-      <PageShell
-        header={
-          <PageHeader
-            eyebrow="Platform admin"
-            title="Platform Control Center"
-            subtitle="Live platform status, customers, evidence operations, security, billing, and traffic — one controlled surface. Every figure is real or honestly marked Not measured."
-            primaryAction={
-              <Link href="/admin/provisioning" className="admin-link">
-                <Button variant="primary" data-testid="admin-provision-cta">
-                  Provision Enterprise Customer
-                </Button>
-              </Link>
-            }
-          />
-        }
-      >
-        <nav className="admin-nav-row" aria-label="Admin sections">
-          {ADMIN_NAV_ITEMS.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link key={item.href} href={item.href} className="admin-link">
-                <Button variant={active ? "secondary" : "ghost"} size="sm">
-                  {item.label}
-                </Button>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {loading ? (
-          <PageSection title="Loading platform overview">
-            <div className="admin-stat-grid">
-              {[0, 1, 2, 3].map((k) => (
-                <Card key={k} variant="summary">
-                  <Skeleton width="100%" height="90px" />
-                </Card>
-              ))}
-            </div>
-          </PageSection>
-        ) : ov == null ? (
-          <PageSection title="Platform status">
-            <EmptyState
-              title="Overview unavailable"
-              purpose="The platform overview could not be loaded. This is an honest not-connected state, not an empty platform."
-            />
-          </PageSection>
-        ) : (
-          <>
-            <PageSection
-              title="Platform status"
-              description="Overall posture from live incidents, alerts, and worker telemetry."
-            >
-              <div style={{ marginBottom: 14 }}>
-                <Badge tone={STATUS_TONE[ov.status.level]} data-testid="admin-status-level">
-                  {ov.status.level.toUpperCase()}
-                </Badge>
+      {loading ? (
+        <PageSection title="Loading platform overview">
+          <AdminStatGrid>
+            {[0, 1, 2, 3].map((k) => (
+              <div key={k} className="admin-stat">
+                <Skeleton width="100%" height="70px" />
               </div>
-              <StatGrid stats={statusStats} />
-            </PageSection>
+            ))}
+          </AdminStatGrid>
+        </PageSection>
+      ) : ov == null ? (
+        <PageSection title="Platform status">
+          <EmptyState
+            title="Overview unavailable"
+            purpose="The platform overview could not be loaded. This is an honest not-connected state, not an empty platform."
+          />
+        </PageSection>
+      ) : (
+        <>
+          {/* ---- A. Posture ------------------------------------------------ */}
+          <PageSection
+            title="Platform posture"
+            description="Derived from live incidents, alerts and worker telemetry. 'Healthy' is claimed only when every input actually answered — a failed read shows as Unknown, never as green."
+          >
+            <div style={{ marginBottom: 14, display: "flex", gap: 10, alignItems: "center" }}>
+              <Badge tone={STATUS_TONE[ov.status.level]} data-testid="admin-status-level">
+                {ov.status.level.toUpperCase()}
+              </Badge>
+              <span style={{ fontSize: 12, color: "var(--ink-muted, #64748b)" }}>
+                Generated {formatUserDateTime(ov.generatedAtUtc)}
+                {ov.status.lastTelemetrySampleAtUtc
+                  ? ` · telemetry sampled ${formatUserDateTime(ov.status.lastTelemetrySampleAtUtc)}`
+                  : " · no telemetry sample recorded"}
+              </span>
+            </div>
+            <AdminStatGrid>
+              <AdminStat label="Open incidents" figure={ov.status.activeIncidents} emphasis="critical" />
+              <AdminStat label="Degraded services" metric={ov.status.degradedServices} />
+              <AdminStat label="Unresolved alerts" metric={ov.status.unresolvedAlerts} />
+              <AdminStat label="Critical alerts" metric={ov.status.criticalAlerts} emphasis="critical" />
+            </AdminStatGrid>
+          </PageSection>
 
-            <PageSection
-              title="Customers"
-              description="Organizations, enterprise workspaces, onboarding, and identity issues."
-            >
-              <StatGrid
-                stats={[
-                  { label: "Total organizations", value: num(ov.customers.totalOrganizations) },
-                  { label: "Enterprise workspaces", value: num(ov.customers.enterpriseWorkspaces) },
-                  { label: "Onboarding (pending seats)", value: num(ov.customers.onboardingOrganizations) },
-                  { label: "Suspended / blocked", value: num(ov.customers.suspendedOrganizations) },
-                  { label: "Active organizations", value: num(ov.customers.activeOrganizations) },
-                  { label: "Archived organizations", value: num(ov.customers.archivedOrganizations) },
-                  { label: "SSO outages", value: num(ov.customers.ssoOutageConnections), hint: "Connections with an active outage" },
-                  { label: "Unverified domains", value: num(ov.customers.unverifiedDomains) },
-                ]}
+          {/* ---- B. Customers --------------------------------------------- */}
+          <PageSection
+            title="Customers"
+            description="Customer organizations only. The internal 1:1 bootstrap container every workspace owns is not a customer and is not counted here."
+          >
+            <AdminStatGrid>
+              <AdminStat label="Customers" figure={ov.customers.total} />
+              <AdminStat label="Active" figure={ov.customers.active} />
+              <AdminStat
+                label="Enterprise contracts"
+                figure={ov.customers.enterpriseContracts}
+                hint="Contracts in ACTIVE status — not a workspace plan string"
               />
-            </PageSection>
+              <AdminStat label="Onboarding" figure={ov.customers.onboarding} hint="Pending enterprise seats" />
+              <AdminStat label="Suspended" figure={ov.customers.suspended} emphasis="attention" />
+              <AdminStat label="Archived" figure={ov.customers.archived} />
+              <AdminStat label="SSO outages" metric={ov.customers.ssoOutageConnections} emphasis="attention" />
+              <AdminStat label="Unverified domains" metric={ov.customers.unverifiedDomains} />
+            </AdminStatGrid>
+          </PageSection>
 
-            <PageSection
-              title="Evidence operations"
-              description="Pipeline volume and failure signals (honest Not measured where a queue signal is unreadable)."
-            >
-              <StatGrid
-                stats={[
-                  { label: "Evidence created (24h)", value: num(ov.evidenceVolume.last24h) },
-                  { label: "Evidence created (7d)", value: num(ov.evidenceVolume.last7d) },
-                  { label: "Evidence created (30d)", value: num(ov.evidenceVolume.last30d) },
-                  { label: "Uploads stalled", value: num(ov.evidenceOps?.uploads?.stalled) },
-                  { label: "Reports failed", value: num(ov.evidenceOps?.reports?.failedGeneration) },
-                  { label: "Reports queued", value: num(ov.evidenceOps?.reports?.queued) },
-                  { label: "TSA failures", value: num(ov.evidenceOps?.preservation?.tsaFailures) },
-                  { label: "OTS failures", value: num(ov.evidenceOps?.preservation?.otsAnchoringFailures) },
-                ]}
-              />
-            </PageSection>
-
-            <PageSection
-              title="Security"
-              description="Recent high-severity events, identity failures, admin activity, and incidents."
-            >
-              <StatGrid
-                stats={[
-                  { label: "High security events (7d)", value: num(ov.security.recentHighSecurityEvents) },
-                  { label: "SSO failures / outages", value: num(ov.security.ssoOutages) },
-                  { label: "Admin actions (24h)", value: num(ov.security.adminActionsLast24h) },
-                  { label: "Open incidents", value: num(ov.security.openIncidents) },
-                ]}
-              />
-            </PageSection>
-
-            <PageSection
-              title="Billing"
-              description="Subscriptions, revenue, failed payments, and storage add-ons."
-            >
-              <StatGrid
-                stats={[
-                  { label: "Active subscriptions", value: num(ov.billing.activeSubscriptions) },
-                  { label: "Gross revenue", value: money(ov.billing.grossRevenueCents), hint: "Sum of succeeded payments" },
-                  { label: "Failed payments (30d)", value: num(ov.billing.failedPaymentsLast30d) },
-                  { label: "Active storage add-ons", value: num(ov.billing.activeStorageAddons) },
-                ]}
-              />
-              {ov.billing.planMix && ov.billing.planMix.length > 0 ? (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-                  {ov.billing.planMix.map((p) => (
-                    <Badge key={p.plan} tone="governance" subtle>
-                      {p.plan}: {p.count}
-                    </Badge>
+          {/* ---- C. Workspaces --------------------------------------------- */}
+          <PageSection
+            title="Workspaces"
+            description="Live workspaces by kind. Closed workspaces are excluded from every live figure and counted separately — closing a workspace revokes its access without touching its billing columns, so billing state was never a usable liveness signal."
+          >
+            <AdminStatGrid>
+              <AdminStat label="Live workspaces" figure={ov.workspaces.live} />
+              <AdminStat label="Personal" figure={ov.workspaces.personal} />
+              <AdminStat label="Owned" figure={ov.workspaces.owned} />
+              <AdminStat label="Organization" figure={ov.workspaces.organization} />
+            </AdminStatGrid>
+            <div style={{ marginTop: 16 }}>
+              <AdminStatGrid>
+                <AdminStat label="Closed (history)" figure={ov.workspaces.closed} />
+                <AdminStat label="People" figure={ov.people.total} />
+                <AdminStat label="Registered" figure={ov.people.registered} hint="Excludes guest identities" />
+              </AdminStatGrid>
+            </div>
+            {ov.people.accountsByTier.length > 0 ? (
+              <div style={{ marginTop: 16 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "var(--ink-muted, #64748b)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Accounts by commercial tier
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {ov.people.accountsByTier.map((t) => (
+                    <Link key={t.tier} href={t.drillDown} style={{ textDecoration: "none" }}>
+                      <Badge tone="governance" subtle>
+                        {t.tier}: {t.count} →
+                      </Badge>
+                    </Link>
                   ))}
                 </div>
-              ) : null}
-            </PageSection>
+                <div style={{ marginTop: 8, fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+                  These count <strong>accounts</strong> holding an active entitlement on
+                  each tier — they are people, not workspaces.
+                </div>
+              </div>
+            ) : null}
+          </PageSection>
 
-            <PageSection
-              title="Traffic"
-              description="Consented public analytics (honest not-connected until traffic arrives)."
-            >
-              {ov.traffic.connected ? (
+          {/* ---- D. Commercial attention ----------------------------------- */}
+          <PageSection
+            title="Commercial attention"
+            description="The states that need somebody to do something. Every row behind these figures carries the customer it belongs to."
+          >
+            <AdminStatGrid>
+              <AdminStat label="Active subscriptions" figure={ov.billing.activeSubscriptions} />
+              <AdminStat
+                label="Pending cancellation"
+                figure={ov.billing.pendingCancellations}
+                emphasis="attention"
+                hint="Active, but will not renew"
+              />
+              <AdminStat label="Past due" figure={ov.billing.pastDueSubscriptions} emphasis="attention" />
+              <AdminStat
+                label="Failed payments (30d)"
+                figure={ov.billing.failedPaymentsLast30d}
+                emphasis="attention"
+              />
+            </AdminStatGrid>
+
+            <div style={{ marginTop: 18 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--ink-muted, #64748b)",
+                  marginBottom: 8,
+                }}
+              >
+                Gross revenue
+              </div>
+              {ov.billing.grossRevenueByCurrency.state === "VALUE" &&
+              (ov.billing.grossRevenueByCurrency.value?.length ?? 0) > 0 ? (
                 <>
-                  <StatGrid
-                    stats={[
-                      { label: "Page views (7d)", value: num(ov.traffic.pageViewsLast7d) },
-                      { label: "Visitors (7d)", value: num(ov.traffic.visitorsLast7d) },
-                      {
-                        label: "Top country",
-                        value: ov.traffic.topCountries?.[0]?.countryCode ?? "Not measured",
-                      },
-                      {
-                        label: "Countries seen",
-                        value: num(ov.traffic.topCountries?.length ?? null),
-                      },
-                    ]}
-                  />
-                  {ov.traffic.topCountries && ov.traffic.topCountries.length > 0 ? (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-                      {ov.traffic.topCountries.map((c) => (
-                        <Badge key={c.countryCode ?? "unknown"} tone="neutral" subtle>
-                          {(c.countryCode ?? "??")}: {c.count}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                    {ov.billing.grossRevenueByCurrency.value!.map((r) => (
+                      <div key={r.currency} className="admin-stat" style={{ minWidth: 180 }}>
+                        <div className="admin-stat-label">{r.currency}</div>
+                        <div className="admin-stat-value">
+                          {formatMoney(r.amountCents, r.currency)}
+                        </div>
+                        <div className="admin-stat-hint">
+                          {r.payments} succeeded payment{r.payments === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: "var(--ink-secondary, #475569)" }}>
+                    Reported per currency. No exchange rate is applied — this platform has
+                    no rate authority, and one total across currencies would not be money
+                    in any of them.
+                  </div>
                 </>
               ) : (
-                <EmptyState
-                  title="Traffic not connected"
-                  purpose={ov.traffic.note}
-                />
+                <div style={{ fontSize: 13, color: "var(--ink-muted, #64748b)" }}>
+                  {ov.billing.grossRevenueByCurrency.state === "ERROR"
+                    ? "Unavailable — the revenue rollup could not be read."
+                    : "No succeeded payments recorded yet."}
+                </div>
               )}
-            </PageSection>
+            </div>
 
-            <PageSection title="Quick actions" description="Jump to the operational surfaces.">
-              <div className="admin-quick-actions">
-                {QUICK_ACTIONS.map((a) => (
-                  <Link key={a.href} href={a.href} className="admin-link">
-                    <Button variant="secondary" size="sm">
-                      {a.label}
-                    </Button>
-                  </Link>
-                ))}
+            <div style={{ marginTop: 16 }}>
+              <AdminStatGrid>
+                <AdminStat label="Storage add-ons" figure={ov.billing.activeStorageAddons} />
+                <AdminStat label="MRR" metric={ov.billing.mrrCents} />
+                <AdminStat label="ARR" metric={ov.billing.arrCents} />
+              </AdminStatGrid>
+            </div>
+
+            {ov.billing.subscriptionsByStatus.length > 0 ? (
+              <div style={{ marginTop: 16 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "var(--ink-muted, #64748b)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Provider subscriptions by status
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {ov.billing.subscriptionsByStatus.map((s) => (
+                    <Link
+                      key={s.status}
+                      href={`/admin/billing?subscriptionStatus=${encodeURIComponent(s.status)}`}
+                      style={{ textDecoration: "none" }}
+                    >
+                      <Badge tone={SUBSCRIPTION_STATUS_TONE[s.status] ?? "neutral"} subtle>
+                        {s.status}: {s.count} →
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </PageSection>
-          </>
-        )}
-      </PageShell>
-    </div>
+            ) : null}
+          </PageSection>
+
+          {/* ---- E. Evidence operations ------------------------------------ */}
+          <PageSection
+            title="Evidence operations"
+            description="Pipeline volume and failure signals. Each failure figure opens the affected records with the workspace and customer they belong to."
+          >
+            <AdminStatGrid>
+              <AdminStat label="Evidence created (24h)" metric={ov.evidenceVolume.last24h} />
+              <AdminStat label="Evidence created (7d)" metric={ov.evidenceVolume.last7d} />
+              <AdminStat label="Evidence created (30d)" metric={ov.evidenceVolume.last30d} />
+              <AdminStat
+                label="TSA failures"
+                figure={evidenceFigure(ov.evidenceOps?.preservation?.tsaFailures, "TSA_FAILED")}
+                emphasis="critical"
+              />
+              <AdminStat
+                label="OTS failures"
+                figure={evidenceFigure(
+                  ov.evidenceOps?.preservation?.otsAnchoringFailures,
+                  "OTS_FAILED",
+                )}
+                emphasis="attention"
+              />
+              <AdminStat
+                label="Signed, no report"
+                figure={evidenceFigure(ov.evidenceOps?.reports?.failedGeneration, "SIGNED_NO_REPORT")}
+                emphasis="attention"
+              />
+            </AdminStatGrid>
+          </PageSection>
+
+          {/* ---- F. Security ----------------------------------------------- */}
+          <PageSection
+            title="Security"
+            description="High-severity events, identity failures and privileged activity."
+          >
+            <AdminStatGrid>
+              <AdminStat
+                label="High security events (7d)"
+                figure={ov.security.recentHighSecurityEvents}
+                emphasis="attention"
+              />
+              <AdminStat label="SSO failures / outages" metric={ov.security.ssoOutages} />
+              <AdminStat label="Admin actions (24h)" figure={ov.security.adminActionsLast24h} />
+              <AdminStat label="Open incidents" figure={ov.security.openIncidents} emphasis="critical" />
+            </AdminStatGrid>
+          </PageSection>
+
+          {/* ---- G. Traffic ------------------------------------------------ */}
+          <PageSection
+            title="Traffic"
+            description="Consented public analytics."
+          >
+            {ov.traffic.connected ? (
+              <AdminStatGrid>
+                <AdminStat label="Page views (7d)" metric={ov.traffic.pageViewsLast7d} />
+                <AdminStat label="Visitors (7d)" metric={ov.traffic.visitorsLast7d} />
+                <AdminStat
+                  label="Countries seen"
+                  metric={
+                    ov.traffic.topCountries.state === "VALUE"
+                      ? { state: "VALUE", value: ov.traffic.topCountries.value?.length ?? 0 }
+                      : { state: ov.traffic.topCountries.state, value: null, reason: ov.traffic.topCountries.reason }
+                  }
+                />
+              </AdminStatGrid>
+            ) : (
+              <EmptyState title="Traffic not connected" purpose={ov.traffic.note} />
+            )}
+          </PageSection>
+        </>
+      )}
+    </PageShell>
   );
 }

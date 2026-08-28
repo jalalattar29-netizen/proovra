@@ -36,7 +36,6 @@ import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
@@ -160,7 +159,6 @@ export default function AdminSearchPage() {
           />
         }
       >
-        <AdminConsoleNav />
 
         <Card>
           <div

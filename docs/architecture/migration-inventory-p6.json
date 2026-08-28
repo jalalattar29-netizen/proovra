@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 250,
-    "classifiedMigrations": 250,
+    "filesystemMigrations": 251,
+    "classifiedMigrations": 251,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 250,
+    "productionSnapshotUnknown": 251,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 250,
-    "classifiedMigrations": 250,
+    "filesystemMigrations": 251,
+    "classifiedMigrations": 251,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 250,
+    "productionSnapshotUnknown": 251,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 33,
+      "EXPAND": 34,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 42,
+      "SAFE_TO_APPLY_NOW": 43,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 250
+    "ProductionMigrationStateUnknown": 251
   },
   "gateFailures": [],
   "migrations": [
@@ -19696,8 +19696,79 @@
       "evidence": "BILLING DEPENDENT-CANCELLATION CONVERGENCE — expand-only, no backfill, no row rewritten: one new enum (DependentCancellationState) and nine columns on workspace_storage_addons, plus one PARTIAL index over the unresolved states. A recurring Storage add-on is its OWN provider subscription, so when a customer cancels PRO or TEAM the add-on must be stopped by a SEPARATE remote call that cannot be atomic with the first. Until now a failed dependent call left NOTHING behind — the failure lived in an in-memory counter that died with the HTTP response — so the add-on kept renewing, no retry existed, no alert existed, and no query could find it: a single provider blip charged a customer indefinitely for storage they had cancelled. These columns make the OBLIGATION durable, and they extend the existing add-on authority rather than opening a parallel ledger because the obligation is a property of the add-on itself. NO BACKFILL, deliberately: every existing row defaults to NONE with attempt count 0, which is exactly true — nobody has asked for it to be cancelled — and synthesising an obligation for a historical row would invent a customer intention that was never expressed. A legacy ONE_TIME add-on is not a provider subscription and never leaves NONE. The partial index is scoped to the four unresolved states so it stays proportional to outstanding work rather than to every add-on ever sold, and it is registered in docs/architecture/raw-schema-ownership.json because Prisma cannot declare an index predicate. Nothing is dropped, renamed, retyped or narrowed; no Stripe or PayPal identifier is stored; no evidence, custody, signature, TSA or OTS data is touched."
     },
     {
-      "name": "email_password_auth",
+      "name": "20271230000000_workspace_lifecycle_authority",
       "order": 249,
+      "sqlPresent": true,
+      "byteLength": 3887,
+      "checksumSha256": "35de71f44195b344ab63e1e003e52c92dbb99fc5897592007cb7aaf78e0605ad",
+      "checksumSha256Raw": "35de71f44195b344ab63e1e003e52c92dbb99fc5897592007cb7aaf78e0605ad",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): teams",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "teams"
+        ],
+        "addedColumns": [
+          "closed_at_utc"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "teams_closed_at_utc_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "teams"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "teams"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing",
+        "20260324120000_add_team_activity",
+        "20270922000000_workspace_closure_requests"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "ADM-004 WORKSPACE LIFECYCLE AUTHORITY — expand-only: ONE nullable column, teams.closed_at_utc, plus its plain index. Nothing is dropped, narrowed or deleted, and NULL means 'live', so every existing row keeps today's meaning until the backfill in the same file says otherwise. WHY IT EXISTS: executeWorkspaceClosure revoked every membership, revoked API credentials, disabled webhooks and cleared switcher pointers, and left the teams row byte-for-byte indistinguishable from a live workspace. Every Platform Admin population query therefore counted closed workspaces as live, and closure touches neither billing_plan nor billing_status, so a closed workspace on a paid plan kept reporting as an active paying customer. WHY A COLUMN AND NOT A DERIVED PREDICATE: deriving liveness from 'has no COMPLETED workspace_closure_requests row' is provably wrong against this codebase — reopenClosedWorkspace deliberately leaves that row in place as history, so a derived predicate would mark every reopened workspace closed forever. Closure sets the column; reopen clears it. Billing state is NOT lifecycle state and is not substituted for it. THE BACKFILL is idempotent and reads the system's own recorded history: a workspace is claimed closed only when its newest COMPLETED closure request is newer than its newest workspace_reopened team_activities row (or no such row exists). It writes only where closed_at_utc IS NULL, so re-running it changes nothing. A workspace whose history is ambiguous stays LIVE — the direction that over-reports rather than hiding a real tenant from its operator. SAFE BEFORE CODE DEPLOYMENT: the column is additive and nullable, so pre-deployment application leaves running code unaffected; readers that do not know about it behave exactly as they do today."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 250,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

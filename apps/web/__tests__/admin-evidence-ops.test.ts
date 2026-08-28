@@ -38,8 +38,14 @@ test("evidence-ops page does NOT use the marketing hero or banned classes", () =
   assert.doesNotMatch(src, /className="btn-|"btn-/, "no btn- classes");
 });
 
-test("evidence-ops page renders AdminConsoleNav (platform.admin gate inheritance)", () => {
-  assert.match(read(PAGE), /AdminConsoleNav/);
+test("the admin layout provides the console nav this page inherits", () => {
+  // AdminConsoleNav moved to app/(app)/admin/layout.tsx (ADM-025): one nav for every admin page, so none can be added without one
+  assert.match(read("app/(app)/admin/layout.tsx"), /AdminConsoleNav/);
+  assert.doesNotMatch(
+    read(PAGE),
+    /<AdminConsoleNav/,
+    "a page-level nav would double-render beneath the layout’s",
+  );
 });
 
 test("evidence-ops page renders honest null / not-connected states", () => {

@@ -93,6 +93,12 @@ describe("Phase P1 admin-security — NO secrets / tokens / raw IP / metadata", 
     expect(SRC).toContain(
       'from "../services/observability/incident.service.js"',
     );
-    expect(SRC).toContain("rows.map(projectIncident)");
+    // ADM-010 — still the canonical projectIncident; each row is then ENRICHED
+    // with the workspace and customer it affects, because the projection omitted
+    // teamId entirely and an operator looking at forty open incidents could not
+    // tell whether they belonged to forty customers or to one. The enrichment
+    // adds names; it removes nothing and re-derives no incident field.
+    expect(SRC).toContain("projectIncident(row)");
+    expect(SRC).toContain("affected");
   });
 });

@@ -355,8 +355,17 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // canonical name. This is the pricing tier, NOT a Collaboration Team
   // and NOT a Workspace — renaming it would break the pricing mirror.
   // -------------------------------------------------------------------
-  "app/(app)/admin/organizations/page.tsx",
+  // ADM-033 (2026-08-27) — renamed from `admin/organizations/page.tsx`. Same
+  // page, same reason: it renders the FREE / PAYG / PRO / TEAM / ENTERPRISE
+  // plan ladder, where "Team" is the product tier's canonical name.
+  "app/(app)/admin/customers/page.tsx",
   "app/(app)/admin/billing/page.tsx",
+  // ADM-027 / ADM-028 — the two new control-plane rosters offer the SAME plan
+  // filter, for the same reason. The stored `value` stays "TEAM" (the pricing
+  // mirror depends on it); only the visible label is spelled "Team plan", so
+  // that beside "Pro" and "Enterprise" it cannot be misread as the workspace.
+  "app/(app)/admin/workspaces/page.tsx",
+  "app/(app)/admin/users/page.tsx",
 ]);
 
 describe("Phase G5.2 — Team → Workspace carryover", () => {

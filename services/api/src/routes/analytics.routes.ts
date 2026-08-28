@@ -23,7 +23,11 @@ import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
-import { workspaceEvidenceWhereMany } from "@proovra/shared-runtime";
+import {
+  liveWorkspaceWhere,
+  seatConsumingMemberCountArgs,
+  workspaceEvidenceWhereMany,
+} from "@proovra/shared-runtime";
 
 type TrendBucket = {
   date: string;
@@ -77,7 +81,17 @@ type SummaryTotals = {
   usersWithEvidence: number;
   totalEvidence: number;
   reportsGenerated: number;
-  subscriptionBreakdown: {
+  /**
+   * ADM-009 — ACCOUNT tiers. An `Entitlement` row is keyed by `userId`, so
+   * every number here counts USERS holding an active entitlement on that plan.
+   *
+   * Renamed from `subscriptionBreakdown` because it counts neither
+   * subscriptions nor workspaces, and the dashboard rendered its `team` field
+   * under the heading "Team-Plan Workspaces" — a label that was wrong twice
+   * over. The word "accounts" in the field name is the point: it makes the
+   * population visible at every call site.
+   */
+  accountTierBreakdown: {
     free: number;
     payg: number;
     pro: number;
@@ -97,9 +111,27 @@ type SummaryTotals = {
     successfulPayments: number;
     failedPayments: number;
     refundedPayments: number;
-    grossRevenueCents: number;
+    /**
+     * ADM-012 — SUCCEEDED payment totals, ONE ENTRY PER CURRENCY.
+     *
+     * This was a single `grossRevenueCents` accumulated with `+=` across every
+     * currency group, which produces a number that is not money in any
+     * currency. No FX conversion is performed — there is no rate authority in
+     * this codebase, and inventing one to keep a single headline figure would
+     * be a fabrication.
+     */
+    grossRevenueByCurrency: Array<{
+      currency: string;
+      amountCents: number;
+      payments: number;
+    }>;
   };
-  teams: {
+  /**
+   * ADM-004 / ADM-033 — LIVE workspaces only, and named for what they are.
+   * Closure writes no billing state, so a closed workspace on a paid plan used
+   * to land in `active` here and in the tile above it.
+   */
+  workspaces: {
     total: number;
     active: number;
     pastDue: number;
@@ -291,8 +323,23 @@ function isTeamBillingActive(status: string | null | undefined): boolean {
   return status === "ACTIVE" || status === "PAST_DUE";
 }
 
+/**
+ * Workspace population + capacity health for the platform analytics dashboard.
+ *
+ * ADM-004 / ADM-008 (2026-08-27) — this function produced the number the
+ * dashboard renders as "Workspaces", and it was `prisma.team.findMany()` with
+ * NO predicate at all. It therefore counted closed workspaces as live —
+ * `executeWorkspaceClosure` writes no lifecycle state a reader could see, and
+ * touches neither `billingPlan` nor `billingStatus`, so a closed workspace on a
+ * paid plan also landed in the `active` billing bucket underneath the tile.
+ *
+ * Seat capacity had the matching defect: `_count.members` counted SUSPENDED and
+ * REVOKED members, so a workspace could report "seat limit reached" while every
+ * seat over the line belonged to somebody already denied access.
+ */
 async function computeTeamWorkspaceHealth() {
   const teams = await prisma.team.findMany({
+    where: liveWorkspaceWhere(),
     select: {
       id: true,
       billingPlan: true,
@@ -302,7 +349,9 @@ async function computeTeamWorkspaceHealth() {
       storageBytesOverride: true,
       _count: {
         select: {
-          members: true,
+          // ADM-008 — the canonical seat rule: an ACTIVE member consumes a
+          // seat; SUSPENDED and REVOKED members are denied access and do not.
+          members: seatConsumingMemberCountArgs(),
         },
       },
     },
@@ -310,7 +359,7 @@ async function computeTeamWorkspaceHealth() {
 
   if (teams.length === 0) {
     return {
-      teams: {
+      workspaces: {
         total: 0,
         active: 0,
         pastDue: 0,
@@ -470,7 +519,7 @@ async function computeTeamWorkspaceHealth() {
   }
 
   return {
-    teams: {
+    workspaces: {
       total: teams.length,
       active,
       pastDue,
@@ -559,9 +608,12 @@ async function getSummary(): Promise<SummaryTotals> {
       _count: { status: true },
     }),
 
+    // ADM-012 — grouped by (status, currency) so revenue never crosses
+    // denominations. The status counts fold over the currency dimension; the
+    // money totals do not.
     prisma.payment.groupBy({
-      by: ["status"],
-      _count: { status: true },
+      by: ["status", "currency"],
+      _count: { _all: true },
       _sum: { amountCents: true },
     }),
 
@@ -583,7 +635,7 @@ async function getSummary(): Promise<SummaryTotals> {
     });
   }
 
-  const subscriptionBreakdown = {
+  const accountTierBreakdown = {
     free: 0,
     payg: 0,
     pro: 0,
@@ -591,10 +643,10 @@ async function getSummary(): Promise<SummaryTotals> {
   };
 
   for (const row of entitlements) {
-    if (row.plan === "FREE") subscriptionBreakdown.free = row._count.plan;
-    if (row.plan === "PAYG") subscriptionBreakdown.payg = row._count.plan;
-    if (row.plan === "PRO") subscriptionBreakdown.pro = row._count.plan;
-    if (row.plan === "TEAM") subscriptionBreakdown.team = row._count.plan;
+    if (row.plan === "FREE") accountTierBreakdown.free = row._count.plan;
+    if (row.plan === "PAYG") accountTierBreakdown.payg = row._count.plan;
+    if (row.plan === "PRO") accountTierBreakdown.pro = row._count.plan;
+    if (row.plan === "TEAM") accountTierBreakdown.team = row._count.plan;
   }
 
   const evidenceByType = {
@@ -613,6 +665,10 @@ async function getSummary(): Promise<SummaryTotals> {
     else evidenceByType.other += c;
   }
 
+  const revenueByCurrency = new Map<
+    string,
+    { currency: string; amountCents: number; payments: number }
+  >();
   const billing = {
     activeSubscriptions: 0,
     trialingSubscriptions: 0,
@@ -621,7 +677,11 @@ async function getSummary(): Promise<SummaryTotals> {
     successfulPayments: 0,
     failedPayments: 0,
     refundedPayments: 0,
-    grossRevenueCents: 0,
+    grossRevenueByCurrency: [] as Array<{
+      currency: string;
+      amountCents: number;
+      payments: number;
+    }>,
   };
 
   for (const row of subscriptionsGrouped) {
@@ -631,18 +691,29 @@ async function getSummary(): Promise<SummaryTotals> {
     if (row.status === "CANCELED") billing.canceledSubscriptions = row._count.status;
   }
 
+  // Payment rows are now grouped by (status, currency). COUNTS fold across the
+  // currency dimension because a count of payments is currency-free; MONEY does
+  // not fold, and is accumulated per currency instead (ADM-012).
   for (const row of paymentsGrouped) {
+    const count = row._count._all;
     if (row.status === "SUCCEEDED") {
-      billing.successfulPayments = row._count.status;
-      billing.grossRevenueCents += row._sum.amountCents ?? 0;
+      billing.successfulPayments += count;
+      const currency = (row.currency ?? "").toUpperCase() || "UNKNOWN";
+      const bucket = revenueByCurrency.get(currency) ?? {
+        currency,
+        amountCents: 0,
+        payments: 0,
+      };
+      bucket.amountCents += row._sum.amountCents ?? 0;
+      bucket.payments += count;
+      revenueByCurrency.set(currency, bucket);
     }
-    if (row.status === "FAILED") {
-      billing.failedPayments = row._count.status;
-    }
-    if (row.status === "REFUNDED") {
-      billing.refundedPayments = row._count.status;
-    }
+    if (row.status === "FAILED") billing.failedPayments += count;
+    if (row.status === "REFUNDED") billing.refundedPayments += count;
   }
+  billing.grossRevenueByCurrency = Array.from(revenueByCurrency.values()).sort(
+    (a, b) => b.amountCents - a.amountCents,
+  );
 
   const usersWithEvidence = usersWithEvidenceRows.length;
   const totalUsers = registeredUsers + guestUsers;
@@ -659,10 +730,10 @@ async function getSummary(): Promise<SummaryTotals> {
       evidenceByType.documents +
       evidenceByType.other,
     reportsGenerated,
-    subscriptionBreakdown,
+    accountTierBreakdown,
     evidenceByType,
     billing,
-    teams: teamHealth.teams,
+    workspaces: teamHealth.workspaces,
     workspaceHealth: teamHealth.workspaceHealth,
   };
 }

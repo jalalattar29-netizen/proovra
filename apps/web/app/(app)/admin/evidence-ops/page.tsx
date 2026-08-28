@@ -21,7 +21,6 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import {
   PageShell,
   PageHeader,
@@ -215,7 +214,6 @@ export default function AdminEvidenceOpsPage() {
         />
       }
     >
-      <AdminConsoleNav />
 
       {error ? (
         <Card variant="status" tone="risk" padding="comfortable">

@@ -2121,3 +2121,127 @@ html[dir="rtl"] .legal-content a::after {
     max-width: calc(100% + 460px);
   }
 }
+
+/* =========================================================
+   PLATFORM ADMIN CONTROL PLANE
+   ADM-024 / ADM-025 (2026-08-27)
+
+   ONE stat/metric system for every admin surface. It used to be
+   re-declared inline with `<style jsx global>` on the /admin landing
+   page only, so no other admin page could use it and the landing page
+   carried ~90 lines of CSS in its component file.
+
+   The `data-state` attribute is the ADM-024 contract made visible: a
+   metric whose query FAILED must not look like a metric the platform
+   deliberately does not measure. VALUE is ink; NOT_MEASURED and UNKNOWN
+   are muted; ERROR is the risk tone, because it is the only one of the
+   four that means something is wrong right now.
+   ========================================================= */
+
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-stat {
+  display: block;
+  padding: 16px 18px;
+  border: 1px solid var(--border-default, #e2e8f0);
+  border-radius: 12px;
+  background: var(--surface-card, #ffffff);
+  text-decoration: none;
+  color: inherit;
+}
+
+.admin-stat[data-problem="true"] {
+  border-color: var(--risk-border, #e3b7b7);
+  background: var(--risk-surface, #fdf4f4);
+}
+
+a.admin-stat--link {
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+a.admin-stat--link:hover,
+a.admin-stat--link:focus-visible {
+  border-color: var(--accent-500, #2563eb);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.admin-stat-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #64748b);
+}
+
+.admin-stat-value {
+  margin-top: 8px;
+  font-size: 1.7rem;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary, #0f172a);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The four metric states, visually distinct. */
+.admin-stat-value[data-state="NOT_MEASURED"],
+.admin-stat-value[data-state="UNKNOWN"] {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink-muted, #64748b);
+  letter-spacing: 0;
+}
+
+.admin-stat-value[data-state="ERROR"] {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--risk-strong, #a4243b);
+  letter-spacing: 0;
+}
+
+.admin-stat-value[data-emphasis="attention"] {
+  color: var(--warning-strong, #a3560f);
+}
+
+.admin-stat-value[data-emphasis="critical"] {
+  color: var(--risk-strong, #a4243b);
+}
+
+.admin-stat-hint {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ink-secondary, #475569);
+}
+
+.admin-stat-reason {
+  margin-top: 6px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--ink-muted, #64748b);
+}
+
+.admin-stat-drill {
+  margin-top: 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent-600, #1d4ed8);
+}
+
+@media (max-width: 1080px) {
+  .admin-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-stat-grid {
+    grid-template-columns: 1fr;
+  }
+}

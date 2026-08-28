@@ -3,21 +3,21 @@
   "generatorVersion": "2.0.0",
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
-  "generatorHash": "fcaf49fbd0277e3d5586085b944b926ceba1e3196f398b9971b27399f691130d",
-  "routeInventoryHash": "540d3c2f755000c4a3ffa5ecae43759d8794c42097738dd7dd53873bf873ccc6",
-  "consumerInventoryHash": "4f0f8ca07e41719a3c85b18c50c2caa5c3a0ed35ca460f16acf576a3de7aa353",
-  "dispositionsHash": "57b1dc947d2dcce5e0ee11272e021a4279c6fadd7be8b55480d53201535bd7e9",
+  "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
+  "routeInventoryHash": "a3148aa5198cb0150a85dccc19c5aeb456afb9700303a5b414e0420d39506a6a",
+  "consumerInventoryHash": "a5f31777e6db5ff557c67faf9b1a3fd9a00684598f9e2d92d3db0ba8584badef",
+  "dispositionsHash": "6e3e484b1f3f70688fb4ba751b5a5cfb7801da6f177635c2c8fa844b01e39fa7",
   "totals": {
-    "RegisteredRoutes": 1103,
-    "ProductionRegisteredRoutes": 1102,
+    "RegisteredRoutes": 1113,
+    "ProductionRegisteredRoutes": 1112,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 874,
-    "NonProductDispositionedRoutes": 228,
+    "ProductConsumedRoutes": 886,
+    "NonProductDispositionedRoutes": 226,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 874,
+    "ProductConsumerRoutes": 886,
     "MachineOnlyConsumerRoutes": 4,
-    "NoConsumerRoutes": 225,
+    "NoConsumerRoutes": 223,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 20,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -49,16 +49,16 @@
       "EXTERNAL_API": 5,
       "MACHINE_OR_CRON": 2,
       "WEBHOOK": 0,
-      "ADMIN_OPERATOR": 19,
-      "COMPATIBILITY_TOMBSTONE": 21,
+      "ADMIN_OPERATOR": 17,
+      "COMPATIBILITY_TOMBSTONE": 23,
       "INTENTIONALLY_BACKEND_ONLY": 3,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 124
+      "MISSING_PRODUCT_UI_POST_RELEASE": 122
     },
-    "TerminalWriters": 1240,
-    "ReachableSensitiveMutations": 1232,
-    "ClassifiedSensitiveMutations": 1232,
+    "TerminalWriters": 1242,
+    "ReachableSensitiveMutations": 1234,
+    "ClassifiedSensitiveMutations": 1234,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 8,
@@ -74,7 +74,7 @@
       "ACCOUNT_SESSION_SECURITY": 218,
       "ORGANIZATION": 32,
       "ORGANIZATION_MEMBERSHIP": 29,
-      "WORKSPACE": 54,
+      "WORKSPACE": 56,
       "WORKSPACE_MEMBERSHIP_INVITATION": 62,
       "CASE": 85,
       "EVIDENCE_CUSTODY_FINALIZATION": 280,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1120,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1122,
       "JOB_ATTRIBUTED_REACHABLE": 106,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8057,
-      "UNRESOLVED_IDENTIFIER": 1024
+      "METHOD_ON_VALUE": 8173,
+      "UNRESOLVED_IDENTIFIER": 1032
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -134,19 +134,19 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 874,
+      "PRODUCT_CONNECTED": 886,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
-      "ADMIN_OPERATOR": 19,
-      "COMPATIBILITY_TOMBSTONE": 24,
+      "ADMIN_OPERATOR": 17,
+      "COMPATIBILITY_TOMBSTONE": 26,
       "INTENTIONALLY_BACKEND_ONLY": 5,
       "DEAD_REMOVE": 0,
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
-      "MISSING_PRODUCT_UI_POST_RELEASE": 124
+      "MISSING_PRODUCT_UI_POST_RELEASE": 122
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1101,
+    "TenantBindingResolved": 1111,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 15,
@@ -154,18 +154,18 @@
       "PLATFORM_GLOBAL": 52,
       "WORKSPACE_SCOPED": 732,
       "ORGANIZATION_SCOPED": 101,
-      "MULTI_TENANT_PLATFORM_ADMIN": 69,
+      "MULTI_TENANT_PLATFORM_ADMIN": 79,
       "TOKEN_SCOPED": 45,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 15,
       "NO_DATA_ACCESS": 11
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 190,
+    "OrganizationRoutesMeasured": 194,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1101,
+    "ClassifiedSecurityRoutes": 1111,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -191,8 +191,8 @@
         "tagged": 101
       },
       "PLATFORM_ADMIN": {
-        "primary": 69,
-        "tagged": 69
+        "primary": 79,
+        "tagged": 79
       },
       "API_KEY_SCOPED": {
         "primary": 14,
@@ -240,24 +240,24 @@
       }
     }
   },
-  "totalRoutes": 1103,
+  "totalRoutes": 1113,
   "classificationCounts": {
     "COMPATIBILITY_TEMPORARY": 3,
-    "INTERNAL_REQUIRED": 226,
-    "TARGET_COMPLETE": 874
+    "INTERNAL_REQUIRED": 224,
+    "TARGET_COMPLETE": 886
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 171
+    "UNPROVEN": 181
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 377,
+    "PLATFORM_CORE": 387,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -903,7 +903,7 @@
       "method": "GET",
       "route": "/v1/admin/adoption",
       "registeringFile": "services/api/src/routes/admin-adoption.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/adoption/page.tsx:88",
+      "productConsumer": "apps/web/app/(app)/admin/adoption/page.tsx:87",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -915,7 +915,7 @@
       "method": "GET",
       "route": "/v1/admin/alerts",
       "registeringFile": "services/api/src/routes/admin-alerts.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/alerts/page.tsx:105",
+      "productConsumer": "apps/web/app/(app)/admin/alerts/page.tsx:104",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -927,7 +927,7 @@
       "method": "GET",
       "route": "/v1/admin/analytics/dashboard",
       "registeringFile": "services/api/src/routes/analytics.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/dashboard/page.tsx:268",
+      "productConsumer": "apps/web/app/(app)/admin/dashboard/page.tsx:302",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -939,7 +939,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:158",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:157",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -951,7 +951,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log/export",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:190",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:189",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -963,7 +963,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log/verify",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:223",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:222",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -975,7 +975,7 @@
       "method": "GET",
       "route": "/v1/admin/billing/detail",
       "registeringFile": "services/api/src/routes/admin-billing.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/billing/page.tsx:245",
+      "productConsumer": "apps/web/app/(app)/admin/billing/page.tsx:206",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -987,7 +987,7 @@
       "method": "GET",
       "route": "/v1/admin/contact-sales",
       "registeringFile": "services/api/src/routes/admin-contact-sales.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/contact-sales/page.tsx:143",
+      "productConsumer": "apps/web/app/(app)/admin/contact-sales/page.tsx:142",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -999,7 +999,7 @@
       "method": "GET",
       "route": "/v1/admin/contact-sales/:id",
       "registeringFile": "services/api/src/routes/admin-contact-sales.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:177",
+      "productConsumer": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:176",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1011,11 +1011,35 @@
       "method": "GET",
       "route": "/v1/admin/costs",
       "registeringFile": "services/api/src/routes/admin-costs.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/costs/page.tsx:203",
+      "productConsumer": "apps/web/app/(app)/admin/costs/page.tsx:202",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/customers",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/customers",
+      "registeringFile": "services/api/src/routes/admin-organizations.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/customers/page.tsx:164",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/customers/:id",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/customers/:id",
+      "registeringFile": "services/api/src/routes/admin-organizations.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:363",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/admin/demo-requests",
@@ -1023,7 +1047,7 @@
       "method": "GET",
       "route": "/v1/admin/demo-requests",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:356",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:363",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1035,7 +1059,7 @@
       "method": "GET",
       "route": "/v1/admin/demo-requests/:id",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx:191",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx:190",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1047,11 +1071,23 @@
       "method": "GET",
       "route": "/v1/admin/evidence-health",
       "registeringFile": "services/api/src/routes/admin-evidence-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/page.tsx:176",
+      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/page.tsx:175",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/evidence-health/records",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/evidence-health/records",
+      "registeringFile": "services/api/src/routes/admin-evidence-ops.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx:119",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/admin/executive",
@@ -1059,7 +1095,7 @@
       "method": "GET",
       "route": "/v1/admin/executive",
       "registeringFile": "services/api/src/routes/admin-executive.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/executive/page.tsx:214",
+      "productConsumer": "apps/web/app/(app)/admin/executive/page.tsx:225",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1167,11 +1203,23 @@
       "method": "GET",
       "route": "/v1/admin/incidents",
       "registeringFile": "services/api/src/routes/admin-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/PlatformIncidentFeedSection.tsx:178",
+      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:128",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/lifecycle-requests",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/lifecycle-requests",
+      "registeringFile": "services/api/src/routes/admin-users.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/users/_sections/LifecycleRequestQueue.tsx:96",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/admin/organizations",
@@ -1179,10 +1227,10 @@
       "method": "GET",
       "route": "/v1/admin/organizations",
       "registeringFile": "services/api/src/routes/admin-organizations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/organizations/page.tsx:147",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "TARGET_COMPLETE",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
@@ -1191,10 +1239,10 @@
       "method": "GET",
       "route": "/v1/admin/organizations/:id",
       "registeringFile": "services/api/src/routes/admin-organizations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/organizations/[id]/page.tsx:286",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "TARGET_COMPLETE",
+      "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
@@ -1203,7 +1251,7 @@
       "method": "GET",
       "route": "/v1/admin/overview",
       "registeringFile": "services/api/src/routes/admin-overview.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/page.tsx:139",
+      "productConsumer": "apps/web/app/(app)/admin/page.tsx:178",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1215,7 +1263,7 @@
       "method": "GET",
       "route": "/v1/admin/platform-health",
       "registeringFile": "services/api/src/routes/admin-platform-health.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform-health/page.tsx:239",
+      "productConsumer": "apps/web/app/(app)/admin/platform-health/page.tsx:238",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1227,7 +1275,7 @@
       "method": "GET",
       "route": "/v1/admin/search",
       "registeringFile": "services/api/src/routes/admin-search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/search/page.tsx:125",
+      "productConsumer": "apps/web/app/(app)/admin/search/page.tsx:124",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1239,7 +1287,7 @@
       "method": "GET",
       "route": "/v1/admin/security-events",
       "registeringFile": "services/api/src/routes/admin-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/PlatformIncidentFeedSection.tsx:177",
+      "productConsumer": "apps/web/app/(app)/admin/operations/_sections/PlatformSecurityEvents.tsx:86",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1251,7 +1299,7 @@
       "method": "GET",
       "route": "/v1/admin/timeline",
       "registeringFile": "services/api/src/routes/admin-timeline.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/timeline/page.tsx:127",
+      "productConsumer": "apps/web/app/(app)/admin/timeline/page.tsx:126",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1263,11 +1311,47 @@
       "method": "GET",
       "route": "/v1/admin/users",
       "registeringFile": "services/api/src/routes/admin-users.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/users/page.tsx:123",
+      "productConsumer": "apps/web/app/(app)/admin/users/page.tsx:133",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/users/:id",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/users/:id",
+      "registeringFile": "services/api/src/routes/admin-users.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/users/[id]/page.tsx:164",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/workspaces",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/workspaces",
+      "registeringFile": "services/api/src/routes/admin-workspaces.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/workspaces/page.tsx:114",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/workspaces/:id",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/workspaces/:id",
+      "registeringFile": "services/api/src/routes/admin-workspaces.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx:181",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/ai/qc/samples",
@@ -1659,7 +1743,7 @@
       "method": "GET",
       "route": "/v1/break-glass/grants",
       "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:206",
+      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:225",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5967,7 +6051,7 @@
       "method": "GET",
       "route": "/v1/support-access/grants",
       "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:183",
+      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:202",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6507,7 +6591,7 @@
       "method": "PATCH",
       "route": "/v1/admin/contact-sales/:id",
       "registeringFile": "services/api/src/routes/admin-contact-sales.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:211",
+      "productConsumer": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:210",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6519,7 +6603,7 @@
       "method": "PATCH",
       "route": "/v1/admin/demo-requests/:id",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:410",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:417",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6531,7 +6615,7 @@
       "method": "PATCH",
       "route": "/v1/admin/orgs/:id/plan",
       "registeringFile": "services/api/src/routes/admin-provisioning.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/provisioning/page.tsx:662",
+      "productConsumer": "apps/web/app/(app)/admin/provisioning/page.tsx:660",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7059,7 +7143,7 @@
       "method": "POST",
       "route": "/v1/admin/demo-requests/:id/follow-up/send",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:465",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:472",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7071,7 +7155,7 @@
       "method": "POST",
       "route": "/v1/admin/demo-requests/:id/route",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:440",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:447",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7083,7 +7167,7 @@
       "method": "POST",
       "route": "/v1/admin/demo-requests/follow-up/run",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:489",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:496",
       "machineConsumer": "services/worker/src/index.ts:412",
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7095,7 +7179,7 @@
       "method": "POST",
       "route": "/v1/admin/enterprise/provision",
       "registeringFile": "services/api/src/routes/admin-provisioning.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/provisioning/page.tsx:396",
+      "productConsumer": "apps/web/app/(app)/admin/provisioning/page.tsx:394",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7282,15 +7366,51 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
+      "capabilityId": "POST:/v1/admin/incidents/:id/acknowledge",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/admin/incidents/:id/acknowledge",
+      "registeringFile": "services/api/src/routes/admin-security.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:173",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/admin/incidents/:id/assign",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/admin/incidents/:id/assign",
+      "registeringFile": "services/api/src/routes/admin-security.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:173",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/admin/incidents/:id/resolve",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/admin/incidents/:id/resolve",
+      "registeringFile": "services/api/src/routes/admin-security.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/operations/page.tsx:173",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "POST:/v1/admin/orgs/:id/resume",
       "vertical": "PLATFORM_CORE",
       "method": "POST",
       "route": "/v1/admin/orgs/:id/resume",
       "registeringFile": "services/api/src/routes/admin-provisioning.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:335",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -7299,10 +7419,10 @@
       "method": "POST",
       "route": "/v1/admin/orgs/:id/suspend",
       "registeringFile": "services/api/src/routes/admin-provisioning.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:335",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -7839,10 +7959,10 @@
       "method": "POST",
       "route": "/v1/break-glass/activate",
       "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:394",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
@@ -7863,7 +7983,7 @@
       "method": "POST",
       "route": "/v1/break-glass/revoke",
       "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:337",
+      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:441",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12783,7 +12903,7 @@
       "method": "POST",
       "route": "/v1/support-access/enter",
       "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:255",
+      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:274",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12795,7 +12915,7 @@
       "method": "POST",
       "route": "/v1/support-access/revoke",
       "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:304",
+      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:323",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12807,10 +12927,10 @@
       "method": "POST",
       "route": "/v1/support-access/start",
       "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
-      "productConsumer": null,
+      "productConsumer": "apps/web/app/(app)/admin/support-access/page.tsx:356",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "INTERNAL_REQUIRED",
+      "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
@@ -23716,6 +23836,8 @@
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
+        "GET /v1/admin/users/:id",
+        "GET /v1/admin/workspaces/:id",
         "GET /v1/auth/sso/callback",
         "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
@@ -23813,6 +23935,8 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/admin-users.routes.ts",
+        "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai.routes.ts",
         "MODULE services/api/src/routes/analytics.routes.ts",
         "MODULE services/api/src/routes/auth.routes.ts",
@@ -23878,6 +24002,8 @@
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
+        "GET /v1/admin/users/:id",
+        "GET /v1/admin/workspaces/:id",
         "GET /v1/auth/sso/callback",
         "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
@@ -23975,6 +24101,8 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/admin-users.routes.ts",
+        "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai.routes.ts",
         "MODULE services/api/src/routes/analytics.routes.ts",
         "MODULE services/api/src/routes/auth.routes.ts",
@@ -24040,6 +24168,8 @@
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
+        "GET /v1/admin/users/:id",
+        "GET /v1/admin/workspaces/:id",
         "GET /v1/auth/sso/callback",
         "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
@@ -24137,6 +24267,8 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/admin-users.routes.ts",
+        "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai.routes.ts",
         "MODULE services/api/src/routes/analytics.routes.ts",
         "MODULE services/api/src/routes/auth.routes.ts",
@@ -25260,6 +25392,8 @@
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
+        "GET /v1/admin/users/:id",
+        "GET /v1/admin/workspaces/:id",
         "GET /v1/auth/sso/callback",
         "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
@@ -25325,6 +25459,8 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/admin-users.routes.ts",
+        "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai.routes.ts",
         "MODULE services/api/src/routes/billing.routes.ts",
         "MODULE services/api/src/routes/cases.routes.ts",
@@ -43106,6 +43242,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -43482,6 +43621,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -43588,8 +43728,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1081",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1081",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@1136",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1136",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -43948,6 +44088,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -44323,6 +44466,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -44789,6 +44933,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -45165,6 +45312,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -45632,6 +45780,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -46007,6 +46158,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -46474,6 +46626,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -46849,6 +47004,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -46955,8 +47111,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@883",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:883",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.update@904",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:904",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncident",
       "kind": "DATABASE",
@@ -47315,6 +47471,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -47690,6 +47849,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -47795,8 +47955,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1086",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1086",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1141",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1141",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -48155,6 +48315,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -48530,6 +48693,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -48996,6 +49160,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -49372,6 +49539,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -49839,6 +50007,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -50214,6 +50385,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -50320,8 +50492,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@894",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:894",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@915",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:915",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncident",
       "kind": "DATABASE",
@@ -50680,6 +50852,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -51055,6 +51230,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -52035,6 +52211,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -52410,6 +52589,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -52877,6 +53057,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -53252,6 +53435,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -53719,6 +53903,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -54094,6 +54281,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -54561,6 +54749,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -54936,6 +55127,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -55403,6 +55595,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -55778,6 +55973,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -56245,6 +56441,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -56621,6 +56820,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -57088,6 +57288,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -57464,6 +57667,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -57931,6 +58135,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -58306,6 +58513,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -58773,6 +58981,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -59149,6 +59360,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -59616,6 +59828,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -59991,6 +60206,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -60458,6 +60674,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/case/:caseId/copilot",
@@ -60834,6 +61053,7 @@
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -63141,6 +63361,7 @@
         "GET /v1/admin/audit-log",
         "GET /v1/admin/audit-log/export",
         "GET /v1/admin/audit-log/verify",
+        "GET /v1/admin/customers/:id",
         "GET /v1/admin/demo-requests",
         "GET /v1/admin/demo-requests/:id",
         "GET /v1/admin/identity/permission-matrix",
@@ -63152,6 +63373,9 @@
         "GET /v1/admin/identity/sessions",
         "GET /v1/admin/identity/timeline",
         "GET /v1/admin/organizations/:id",
+        "GET /v1/admin/search",
+        "GET /v1/admin/users/:id",
+        "GET /v1/admin/workspaces/:id",
         "GET /v1/ai/qc/samples",
         "GET /v1/analytics/artifacts",
         "GET /v1/analytics/automation",
@@ -63519,6 +63743,9 @@
         "POST /v1/admin/identity/sessions/:id/score",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/incidents/:id/acknowledge",
+        "POST /v1/admin/incidents/:id/assign",
+        "POST /v1/admin/incidents/:id/resolve",
         "POST /v1/admin/orgs/:id/resume",
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/ai/capture/analyze-session",
@@ -63954,6 +64181,10 @@
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-organizations.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/admin-search.routes.ts",
+        "MODULE services/api/src/routes/admin-security.routes.ts",
+        "MODULE services/api/src/routes/admin-users.routes.ts",
+        "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai-case.routes.ts",
         "MODULE services/api/src/routes/ai-evidence.routes.ts",
         "MODULE services/api/src/routes/ai-reviewer.routes.ts",
@@ -64063,8 +64294,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@344",
-      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:344",
+      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@349",
+      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:349",
       "file": "services/api/src/services/platform-context/platform-context.service.ts",
       "enclosingDeclaration": "buildPlatformContext",
       "kind": "DATABASE",
@@ -64097,8 +64328,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@426",
-      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:426",
+      "writerId": "services/api/src/services/platform-context/platform-context.service.ts#user.update@431",
+      "terminalLocation": "services/api/src/services/platform-context/platform-context.service.ts:431",
       "file": "services/api/src/services/platform-context/platform-context.service.ts",
       "enclosingDeclaration": "buildPlatformContext",
       "kind": "DATABASE",
@@ -72456,8 +72687,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#teamActivity.create@89",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:89",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#team.update@93",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:93",
+      "file": "services/api/src/services/workspace/workspace-closure.service.ts",
+      "enclosingDeclaration": "executeWorkspaceClosure",
+      "kind": "DATABASE",
+      "target": "team",
+      "mutationKind": "update",
+      "primaryFamily": "WORKSPACE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/notifications/run-digests"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/notifications.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#teamActivity.create@98",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:98",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "executeWorkspaceClosure",
       "kind": "DATABASE",
@@ -72555,8 +72819,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.update@150",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:150",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.update@159",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:159",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "processWorkspaceClosures",
       "kind": "DATABASE",
@@ -72588,8 +72852,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.update@166",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:166",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.update@175",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:175",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "processWorkspaceClosures",
       "kind": "DATABASE",
@@ -72621,8 +72885,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@120",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:120",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@129",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:129",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "processWorkspaceClosures",
       "kind": "DATABASE",
@@ -72654,8 +72918,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@139",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:139",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@148",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:148",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "processWorkspaceClosures",
       "kind": "DATABASE",
@@ -72720,6 +72984,39 @@
       }
     },
     {
+      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#team.update@260",
+      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:260",
+      "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
+      "enclosingDeclaration": "reopenClosedWorkspace",
+      "kind": "DATABASE",
+      "target": "team",
+      "mutationKind": "update",
+      "primaryFamily": "WORKSPACE",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/teams/:id/reopen"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@170",
       "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:170",
       "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
@@ -72753,8 +73050,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@261",
-      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:261",
+      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@270",
+      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:270",
       "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
       "enclosingDeclaration": "reopenClosedWorkspace",
       "kind": "DATABASE",
@@ -72786,8 +73083,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@354",
-      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:354",
+      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@363",
+      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:363",
       "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
       "enclosingDeclaration": "suspendOrganizationWorkspace",
       "kind": "DATABASE",
@@ -72820,8 +73117,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@422",
-      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:422",
+      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#teamActivity.create@431",
+      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:431",
       "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
       "enclosingDeclaration": "resumeOrganizationWorkspace",
       "kind": "DATABASE",
@@ -72854,8 +73151,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#user.updateMany@343",
-      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:343",
+      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#user.updateMany@352",
+      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:352",
       "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
       "enclosingDeclaration": "suspendOrganizationWorkspace",
       "kind": "DATABASE",
@@ -72888,8 +73185,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#webhookEndpoint.updateMany@349",
-      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:349",
+      "writerId": "services/api/src/services/workspace/workspace-lifecycle.service.ts#webhookEndpoint.updateMany@358",
+      "terminalLocation": "services/api/src/services/workspace/workspace-lifecycle.service.ts:358",
       "file": "services/api/src/services/workspace/workspace-lifecycle.service.ts",
       "enclosingDeclaration": "suspendOrganizationWorkspace",
       "kind": "DATABASE",
@@ -79778,7 +80075,7 @@
       "registrationEvidence": "services/api/src/routes/admin-adoption.routes.ts:23",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -79788,7 +80085,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/adoption/page.tsx",
-          "line": 88,
+          "line": 87,
           "caller": "AdminAdoptionInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -79798,7 +80095,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/adoption/page.tsx:88 (AdminAdoptionInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/adoption/page.tsx:87 (AdminAdoptionInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -79856,7 +80153,7 @@
       "registrationEvidence": "services/api/src/routes/admin-alerts.routes.ts:28",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -79866,7 +80163,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/alerts/page.tsx",
-          "line": 105,
+          "line": 104,
           "caller": "AdminAlertsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -79876,7 +80173,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/alerts/page.tsx:105 (AdminAlertsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/alerts/page.tsx:104 (AdminAlertsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -79922,10 +80219,10 @@
       "method": "GET",
       "path": "/v1/admin/analytics/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/analytics.routes.ts:1199",
+      "registrationEvidence": "services/api/src/routes/analytics.routes.ts:1270",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -79935,7 +80232,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/dashboard/page.tsx",
-          "line": 268,
+          "line": 302,
           "caller": "run",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -79945,7 +80242,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/dashboard/page.tsx:268 (run, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/dashboard/page.tsx:302 (run, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -79996,7 +80293,7 @@
       "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:164",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80006,7 +80303,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 158,
+          "line": 157,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80016,7 +80313,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:158 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:157 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80052,7 +80349,7 @@
       "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:239",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80062,7 +80359,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 190,
+          "line": 189,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80072,7 +80369,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:190 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:189 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80110,7 +80407,7 @@
       "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:336",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80120,7 +80417,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 223,
+          "line": 222,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80130,7 +80427,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:223 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:222 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80163,10 +80460,10 @@
       "method": "GET",
       "path": "/v1/admin/billing/detail",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:91",
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:39",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80176,7 +80473,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/billing/page.tsx",
-          "line": 245,
+          "line": 206,
           "caller": "AdminBillingPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80186,7 +80483,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/billing/page.tsx:245 (AdminBillingPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/billing/page.tsx:206 (AdminBillingPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80199,23 +80496,29 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "governanceReconciliationRun",
         "payment",
         "paypalWebhookEvent",
         "stripeWebhookEvent",
         "subscription",
+        "team",
+        "user",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)",
-        "services/api/src/routes/admin-billing.routes.ts: subscription.groupBy — no tenant or self predicate",
-        "services/api/src/routes/admin-billing.routes.ts: subscription.groupBy — no tenant or self predicate",
-        "services/api/src/routes/admin-billing.routes.ts: payment.groupBy — no tenant or self predicate",
-        "services/api/src/routes/admin-billing.routes.ts: payment.findMany — no tenant or self predicate",
-        "services/api/src/routes/admin-billing.routes.ts: payment.findMany — no tenant or self predicate",
-        "services/api/src/routes/admin-billing.routes.ts: workspaceStorageAddon.findMany — no tenant or self predicate",
-        "services/api/src/routes/admin-billing.routes.ts: subscription.findMany — no tenant or self predicate"
+        "services/api/src/services/admin/billing.service.ts: subscription.groupBy — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: subscription.count — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: payment.findMany — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: payment.groupBy — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: workspaceStorageAddon.findMany — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: governanceReconciliationRun.findMany — no tenant or self predicate",
+        "services/api/src/services/admin/billing.service.ts: subscription.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -80231,7 +80534,7 @@
       "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:57",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80241,7 +80544,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/contact-sales/page.tsx",
-          "line": 143,
+          "line": 142,
           "caller": "load",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80251,7 +80554,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/page.tsx:143 (load, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/page.tsx:142 (load, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80285,7 +80588,7 @@
       "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:140",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80295,7 +80598,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx",
-          "line": 177,
+          "line": 176,
           "caller": "AdminContactSalesDetailPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80303,7 +80606,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/contact-sales/page.tsx",
-          "line": 169,
+          "line": 168,
           "caller": "openDetails",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80313,7 +80616,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:177 (AdminContactSalesDetailPage, WEB); apps/web/app/(app)/admin/contact-sales/page.tsx:169 (openDetails, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:176 (AdminContactSalesDetailPage, WEB); apps/web/app/(app)/admin/contact-sales/page.tsx:168 (openDetails, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80347,7 +80650,7 @@
       "registrationEvidence": "services/api/src/routes/admin-costs.routes.ts:34",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80357,7 +80660,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/costs/page.tsx",
-          "line": 203,
+          "line": 202,
           "caller": "AdminCostsInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80367,7 +80670,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/costs/page.tsx:203 (AdminCostsInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/costs/page.tsx:202 (AdminCostsInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80406,6 +80709,152 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/admin/customers",
+      "method": "GET",
+      "path": "/v1/admin/customers",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-organizations.routes.ts:91",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/customers/page.tsx",
+          "line": 164,
+          "caller": "AdminOrganizationsPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/customers/page.tsx:164 (AdminOrganizationsPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "enterpriseContract",
+        "evidence",
+        "organization",
+        "organizationAuditEvent",
+        "organizationDomain",
+        "organizationMembership",
+        "scimProvisioningToken",
+        "ssoConnection",
+        "team"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-organizations.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/organization/admin-organizations.service.ts: organization.count — no tenant or self predicate",
+        "services/api/src/services/organization/admin-organizations.service.ts: organization.findMany — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/customers/:id",
+      "method": "GET",
+      "path": "/v1/admin/customers/:id",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-organizations.routes.ts:151",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/customers/[id]/page.tsx",
+          "line": 363,
+          "caller": "AdminOrganizationDetailPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:363 (AdminOrganizationDetailPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "analyticsEvent",
+        "case",
+        "destructionRequest",
+        "enterpriseContract",
+        "evidence",
+        "evidenceLegalHold",
+        "operationalIncident",
+        "organization",
+        "organizationAuditEvent",
+        "organizationDomain",
+        "organizationMembership",
+        "organizationPolicy",
+        "payment",
+        "report",
+        "scimProvisioningToken",
+        "ssoCallbackAttempt",
+        "ssoConnection",
+        "subscription",
+        "team",
+        "user",
+        "verificationPackage"
+      ],
+      "modelsWritten": [
+        "adminAuditLog"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-organizations.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/organization/admin-organizations.service.ts: organization.findUnique — no tenant or self predicate",
+        "services/api/src/services/security/sso-health.service.ts: ssoCallbackAttempt.findMany — no tenant or self predicate",
+        "services/api/src/services/organization/admin-organizations.service.ts: case.count — no tenant or self predicate",
+        "services/api/src/services/organization/admin-organizations.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/organization/admin-organizations.service.ts: report.count — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/admin/demo-requests",
       "method": "GET",
       "path": "/v1/admin/demo-requests",
@@ -80413,7 +80862,7 @@
       "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:127",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80423,7 +80872,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 356,
+          "line": 363,
           "caller": "AdminDemoRequestsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80433,7 +80882,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:356 (AdminDemoRequestsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:363 (AdminDemoRequestsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80470,7 +80919,7 @@
       "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:280",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80480,7 +80929,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx",
-          "line": 191,
+          "line": 190,
           "caller": "AdminDemoRequestDetailPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80488,7 +80937,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 380,
+          "line": 387,
           "caller": "loadDetails",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80498,7 +80947,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx:191 (AdminDemoRequestDetailPage, WEB); apps/web/app/(app)/admin/demo-requests/page.tsx:380 (loadDetails, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx:190 (AdminDemoRequestDetailPage, WEB); apps/web/app/(app)/admin/demo-requests/page.tsx:387 (loadDetails, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80532,10 +80981,10 @@
       "method": "GET",
       "path": "/v1/admin/evidence-health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-evidence-ops.routes.ts:41",
+      "registrationEvidence": "services/api/src/routes/admin-evidence-ops.routes.ts:46",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80545,7 +80994,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/evidence-ops/page.tsx",
-          "line": 176,
+          "line": 175,
           "caller": "AdminEvidenceOpsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80555,7 +81004,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/page.tsx:176 (AdminEvidenceOpsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/page.tsx:175 (AdminEvidenceOpsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80594,6 +81043,64 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/admin/evidence-health/records",
+      "method": "GET",
+      "path": "/v1/admin/evidence-health/records",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-evidence-ops.routes.ts:100",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx",
+          "line": 119,
+          "caller": "AdminEvidenceRecordsPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx:119 (AdminEvidenceRecordsPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "evidence",
+        "team",
+        "user"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-evidence-ops.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/admin/evidence-records.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/admin/evidence-records.service.ts: team.findMany — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/admin/executive",
       "method": "GET",
       "path": "/v1/admin/executive",
@@ -80601,7 +81108,7 @@
       "registrationEvidence": "services/api/src/routes/admin-executive.routes.ts:29",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -80611,7 +81118,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/executive/page.tsx",
-          "line": 214,
+          "line": 225,
           "caller": "ExecutiveDashboardBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80621,7 +81128,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/executive/page.tsx:214 (ExecutiveDashboardBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/executive/page.tsx:225 (ExecutiveDashboardBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80636,6 +81143,7 @@
       "modelsRead": [
         "contactSalesRequest",
         "demoRequest",
+        "enterpriseContract",
         "evidence",
         "organization",
         "payment",
@@ -80647,12 +81155,12 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/routes/admin-executive.routes.ts: platform-admin scope (multi-tenant by design)",
-        "services/api/src/services/admin/executive.service.ts: payment.aggregate — no tenant or self predicate",
-        "services/api/src/services/admin/executive.service.ts: payment.aggregate — no tenant or self predicate",
-        "services/api/src/services/admin/executive.service.ts: payment.aggregate — no tenant or self predicate",
+        "services/api/src/services/admin/executive.service.ts: payment.groupBy — no tenant or self predicate",
+        "services/api/src/services/admin/executive.service.ts: payment.groupBy — no tenant or self predicate",
+        "services/api/src/services/admin/executive.service.ts: payment.groupBy — no tenant or self predicate",
         "services/api/src/services/admin/executive.service.ts: organization.count — no tenant or self predicate",
         "services/api/src/services/admin/executive.service.ts: team.count — no tenant or self predicate",
-        "services/api/src/services/admin/executive.service.ts: team.count — no tenant or self predicate",
+        "services/api/src/services/admin/executive.service.ts: enterpriseContract.count — no tenant or self predicate",
         "services/api/src/services/admin/executive.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/admin/executive.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/admin/executive.service.ts: report.count — no tenant or self predicate",
@@ -81206,10 +81714,10 @@
       "method": "GET",
       "path": "/v1/admin/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:260",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:264",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -81218,9 +81726,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/admin/security/_sections/PlatformIncidentFeedSection.tsx",
-          "line": 178,
-          "caller": "PlatformIncidentFeedSection",
+          "file": "apps/web/app/(app)/admin/operations/page.tsx",
+          "line": 128,
+          "caller": "AdminOperationsPage",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -81229,7 +81737,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/PlatformIncidentFeedSection.tsx:178 (PlatformIncidentFeedSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:128 (AdminOperationsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81242,7 +81750,8 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "operationalIncident"
+        "operationalIncident",
+        "team"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
@@ -81250,7 +81759,63 @@
         "services/api/src/routes/admin-security.routes.ts: platform-admin scope (multi-tenant by design)",
         "services/api/src/routes/admin-security.routes.ts: operationalIncident.findMany — no tenant or self predicate",
         "services/api/src/routes/admin-security.routes.ts: operationalIncident.groupBy — no tenant or self predicate",
-        "services/api/src/routes/admin-security.routes.ts: operationalIncident.groupBy — no tenant or self predicate"
+        "services/api/src/routes/admin-security.routes.ts: operationalIncident.groupBy — no tenant or self predicate",
+        "services/api/src/routes/admin-security.routes.ts: team.findMany — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/lifecycle-requests",
+      "method": "GET",
+      "path": "/v1/admin/lifecycle-requests",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-users.routes.ts:155",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/users/_sections/LifecycleRequestQueue.tsx",
+          "line": 96,
+          "caller": "LifecycleRequestQueue",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/users/_sections/LifecycleRequestQueue.tsx:96 (LifecycleRequestQueue, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "accountClosureRequest",
+        "accountDataExportRequest"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-users.routes.ts: platform-admin scope (multi-tenant by design)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -81263,33 +81828,24 @@
       "method": "GET",
       "path": "/v1/admin/organizations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-organizations.routes.ts:57",
+      "registrationEvidence": "services/api/src/routes/admin-organizations.routes.ts:100",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
         "ADMIN_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/app/(app)/admin/organizations/page.tsx",
-          "line": 147,
-          "caller": "AdminOrganizationsPage",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/organizations/page.tsx:147 (AdminOrganizationsPage, WEB)",
-      "dispositionReason": "reached from a product surface",
-      "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/admin-organizations.routes.ts — both the canonical /v1/admin/customers pair and this alias pair are registered with { preHandler: requirePlatformAdmin } and share one handler (listCustomers / customerDetail). apps/web/next.config.js redirects /admin/organizations and /admin/organizations/:id permanently to /admin/customers. The alias gate is proven by executed test services/api/test/phase-admin-organizations.test.ts ('replies 403 for a non-admin caller') which injects BOTH paths.",
+      "dispositionReason": "ADM-033 compatibility alias. The customer roster moved to /v1/admin/customers because the population is Organization.kind = 'CUSTOMER', which EXCLUDES the internal 1:1 bootstrap container every workspace owns — and calling the surface 'organizations' is what made counting those containers look reasonable for as long as it did. This path is registered with the SAME requirePlatformAdmin gate and the SAME handler so no existing consumer breaks mid-flight; the web console calls the canonical path and next.config.js permanently redirects the page route. Zero product consumers is therefore the CORRECT state for it.",
+      "replacement": "GET /v1/admin/customers",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -81299,6 +81855,7 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "enterpriseContract",
         "evidence",
         "organization",
         "organizationAuditEvent",
@@ -81312,6 +81869,7 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/routes/admin-organizations.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/organization/admin-organizations.service.ts: organization.count — no tenant or self predicate",
         "services/api/src/services/organization/admin-organizations.service.ts: organization.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
@@ -81325,33 +81883,24 @@
       "method": "GET",
       "path": "/v1/admin/organizations/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-organizations.routes.ts:86",
+      "registrationEvidence": "services/api/src/routes/admin-organizations.routes.ts:158",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
         "ADMIN_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/app/(app)/admin/organizations/[id]/page.tsx",
-          "line": 286,
-          "caller": "AdminOrganizationDetailPage",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/organizations/[id]/page.tsx:286 (AdminOrganizationDetailPage, WEB)",
-      "dispositionReason": "reached from a product surface",
-      "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primaryDisposition": "COMPATIBILITY_TOMBSTONE",
+      "dispositionSource": "REVIEWED",
+      "dispositionEvidence": "reg services/api/src/routes/admin-organizations.routes.ts — both the canonical /v1/admin/customers pair and this alias pair are registered with { preHandler: requirePlatformAdmin } and share one handler (listCustomers / customerDetail). apps/web/next.config.js redirects /admin/organizations and /admin/organizations/:id permanently to /admin/customers. The alias gate is proven by executed test services/api/test/phase-admin-organizations.test.ts ('replies 403 for a non-admin caller') which injects BOTH paths.",
+      "dispositionReason": "ADM-033 compatibility alias. The customer roster moved to /v1/admin/customers because the population is Organization.kind = 'CUSTOMER', which EXCLUDES the internal 1:1 bootstrap container every workspace owns — and calling the surface 'organizations' is what made counting those containers look reasonable for as long as it did. This path is registered with the SAME requirePlatformAdmin gate and the SAME handler so no existing consumer breaks mid-flight; the web console calls the canonical path and next.config.js permanently redirects the page route. Zero product consumers is therefore the CORRECT state for it.",
+      "replacement": "GET /v1/admin/customers/:id",
+      "result": "DISPOSED_COMPATIBILITY_TOMBSTONE",
       "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -81365,6 +81914,7 @@
         "analyticsEvent",
         "case",
         "destructionRequest",
+        "enterpriseContract",
         "evidence",
         "evidenceLegalHold",
         "operationalIncident",
@@ -81391,7 +81941,6 @@
         "services/api/src/routes/admin-organizations.routes.ts: platform-admin scope (multi-tenant by design)",
         "services/api/src/services/organization/admin-organizations.service.ts: organization.findUnique — no tenant or self predicate",
         "services/api/src/services/security/sso-health.service.ts: ssoCallbackAttempt.findMany — no tenant or self predicate",
-        "services/api/src/services/organization/admin-organizations.service.ts: adminAuditLog.findMany — no tenant or self predicate",
         "services/api/src/services/organization/admin-organizations.service.ts: case.count — no tenant or self predicate",
         "services/api/src/services/organization/admin-organizations.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/organization/admin-organizations.service.ts: report.count — no tenant or self predicate"
@@ -81410,7 +81959,7 @@
       "registrationEvidence": "services/api/src/routes/admin-overview.routes.ts:11",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -81420,8 +81969,8 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/page.tsx",
-          "line": 139,
-          "caller": "run",
+          "line": 178,
+          "caller": "AdminOverviewPage",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -81430,7 +81979,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/page.tsx:139 (run, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/page.tsx:178 (AdminOverviewPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81445,6 +81994,8 @@
       "modelsRead": [
         "adminAuditLog",
         "analyticsEvent",
+        "enterpriseContract",
+        "entitlement",
         "evidence",
         "operationalIncident",
         "organization",
@@ -81456,6 +82007,7 @@
         "subscription",
         "team",
         "uploadSession",
+        "user",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [],
@@ -81487,7 +82039,7 @@
       "registrationEvidence": "services/api/src/routes/admin-platform-health.routes.ts:30",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -81497,7 +82049,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform-health/page.tsx",
-          "line": 239,
+          "line": 238,
           "caller": "AdminPlatformHealthPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81507,7 +82059,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform-health/page.tsx:239 (AdminPlatformHealthPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform-health/page.tsx:238 (AdminPlatformHealthPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81555,10 +82107,10 @@
       "method": "GET",
       "path": "/v1/admin/search",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-search.routes.ts:60",
+      "registrationEvidence": "services/api/src/routes/admin-search.routes.ts:61",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -81568,7 +82120,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/search/page.tsx",
-          "line": 125,
+          "line": 124,
           "caller": "AdminSearchPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81578,7 +82130,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/search/page.tsx:125 (AdminSearchPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/search/page.tsx:124 (AdminSearchPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81591,6 +82143,7 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "adminAuditLog",
         "contactSalesRequest",
         "demoRequest",
         "evidence",
@@ -81600,7 +82153,9 @@
         "user",
         "verificationPackage"
       ],
-      "modelsWritten": [],
+      "modelsWritten": [
+        "adminAuditLog"
+      ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/routes/admin-search.routes.ts: platform-admin scope (multi-tenant by design)",
@@ -81621,10 +82176,10 @@
       "method": "GET",
       "path": "/v1/admin/security-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:91",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:95",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -81633,9 +82188,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/admin/security/_sections/PlatformIncidentFeedSection.tsx",
-          "line": 177,
-          "caller": "PlatformIncidentFeedSection",
+          "file": "apps/web/app/(app)/admin/operations/_sections/PlatformSecurityEvents.tsx",
+          "line": 86,
+          "caller": "PlatformSecurityEvents",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -81644,7 +82199,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/PlatformIncidentFeedSection.tsx:177 (PlatformIncidentFeedSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/_sections/PlatformSecurityEvents.tsx:86 (PlatformSecurityEvents, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81684,7 +82239,7 @@
       "registrationEvidence": "services/api/src/routes/admin-timeline.routes.ts:49",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -81694,7 +82249,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/timeline/page.tsx",
-          "line": 127,
+          "line": 126,
           "caller": "AdminTimelinePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81704,7 +82259,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/timeline/page.tsx:127 (AdminTimelinePage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/timeline/page.tsx:126 (AdminTimelinePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81742,10 +82297,10 @@
       "method": "GET",
       "path": "/v1/admin/users",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-users.routes.ts:67",
+      "registrationEvidence": "services/api/src/routes/admin-users.routes.ts:54",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -81755,8 +82310,8 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/users/page.tsx",
-          "line": 123,
-          "caller": "AdminUsersPage",
+          "line": 133,
+          "caller": "AdminPeoplePage",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -81765,7 +82320,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/users/page.tsx:123 (AdminUsersPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/users/page.tsx:133 (AdminPeoplePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81779,6 +82334,9 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "analyticsEvent",
+        "entitlement",
+        "subscription",
+        "team",
         "user"
       ],
       "modelsWritten": [],
@@ -81789,6 +82347,215 @@
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/users/:id",
+      "method": "GET",
+      "path": "/v1/admin/users/:id",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-users.routes.ts:86",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/users/[id]/page.tsx",
+          "line": 164,
+          "caller": "AdminPersonDetailPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/users/[id]/page.tsx:164 (AdminPersonDetailPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "accountClosureRequest",
+        "accountDataExportRequest",
+        "analyticsEvent",
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
+        "organization",
+        "organizationMembership",
+        "payment",
+        "report",
+        "subscription",
+        "team",
+        "teamMember",
+        "user",
+        "verificationPackage",
+        "workspaceStorageAddon"
+      ],
+      "modelsWritten": [
+        "entitlement"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-users.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/workspaces",
+      "method": "GET",
+      "path": "/v1/admin/workspaces",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-workspaces.routes.ts:54",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/workspaces/page.tsx",
+          "line": 114,
+          "caller": "AdminWorkspacesPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/workspaces/page.tsx:114 (AdminWorkspacesPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "evidence",
+        "operationalIncident",
+        "team"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-workspaces.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/admin/workspaces.service.ts: team.count — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/workspaces/:id",
+      "method": "GET",
+      "path": "/v1/admin/workspaces/:id",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-workspaces.routes.ts:80",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx",
+          "line": 181,
+          "caller": "AdminWorkspaceDetailPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx:181 (AdminWorkspaceDetailPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
+        "operationalIncident",
+        "organization",
+        "report",
+        "subscription",
+        "team",
+        "teamActivity",
+        "teamMember",
+        "verificationPackage",
+        "workspaceStorageAddon"
+      ],
+      "modelsWritten": [
+        "entitlement"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-workspaces.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -83856,7 +84623,7 @@
       "method": "GET",
       "path": "/v1/break-glass/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:327",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:330",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformStaff -> services/api/src/routes/enterprise-security.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -83869,7 +84636,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/support-access/page.tsx",
-          "line": 206,
+          "line": 225,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -83879,7 +84646,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:206 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:225 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -85480,7 +86247,7 @@
       "method": "GET",
       "path": "/v1/coding/schemas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:323",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:330",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -85546,7 +86313,7 @@
       "method": "GET",
       "path": "/v1/coding/schemas/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:374",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:381",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -98696,7 +99463,7 @@
       "registrationEvidence": "services/api/src/routes/operations-readiness.routes.ts:45",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -104881,7 +105648,7 @@
       "method": "GET",
       "path": "/v1/reviewer/disagreements",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:529",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:536",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -104947,7 +105714,7 @@
       "method": "GET",
       "path": "/v1/reviewer/evidence/:evidenceId/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:667",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:674",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -105014,7 +105781,7 @@
       "method": "GET",
       "path": "/v1/reviewer/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:308",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:315",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -105083,7 +105850,7 @@
       "method": "GET",
       "path": "/v1/reviewer/qc/samples",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:600",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:607",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -105204,7 +105971,7 @@
       "method": "GET",
       "path": "/v1/reviewer/work/:workflowId/coding",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:485",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:492",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -105272,7 +106039,7 @@
       "method": "GET",
       "path": "/v1/reviewer/workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:280",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:287",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -106099,7 +106866,7 @@
       "method": "GET",
       "path": "/v1/security-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:217",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:220",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgPolicyAdmin -> services/api/src/routes/enterprise-security.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -106157,7 +106924,7 @@
       "method": "GET",
       "path": "/v1/security-policy/high-security/readiness",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:263",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:266",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgPolicyAdmin -> services/api/src/routes/enterprise-security.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -106704,7 +107471,7 @@
       "method": "GET",
       "path": "/v1/support-access/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:400",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:403",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformStaff -> services/api/src/routes/enterprise-security.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -106717,7 +107484,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/support-access/page.tsx",
-          "line": 183,
+          "line": 202,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106727,7 +107494,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:183 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:202 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109462,7 +110229,7 @@
       "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:166",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -109472,7 +110239,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx",
-          "line": 211,
+          "line": 210,
           "caller": "patchStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109480,7 +110247,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/contact-sales/page.tsx",
-          "line": 186,
+          "line": 185,
           "caller": "patchStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109490,7 +110257,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:211 (patchStatus, WEB); apps/web/app/(app)/admin/contact-sales/page.tsx:186 (patchStatus, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:210 (patchStatus, WEB); apps/web/app/(app)/admin/contact-sales/page.tsx:185 (patchStatus, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109528,7 +110295,7 @@
       "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:393",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -109538,7 +110305,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 410,
+          "line": 417,
           "caller": "saveCurrent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109548,7 +110315,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:410 (saveCurrent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:417 (saveCurrent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109586,7 +110353,7 @@
       "registrationEvidence": "services/api/src/routes/admin-provisioning.routes.ts:73",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -109596,7 +110363,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/provisioning/page.tsx",
-          "line": 662,
+          "line": 660,
           "caller": "GrantPlanPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109606,7 +110373,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/page.tsx:662 (GrantPlanPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/page.tsx:660 (GrantPlanPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111731,7 +112498,7 @@
       "method": "PATCH",
       "path": "/v1/security-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:239",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:242",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgPolicyAdmin -> services/api/src/routes/enterprise-security.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -112441,7 +113208,7 @@
       "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:70",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -112488,7 +113255,7 @@
       "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:659",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -112498,7 +113265,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 465,
+          "line": 472,
           "caller": "sendFollowUp",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112508,7 +113275,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:465 (sendFollowUp, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:472 (sendFollowUp, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112554,7 +113321,7 @@
       "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:565",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -112564,7 +113331,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 440,
+          "line": 447,
           "caller": "saveRouting",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112574,7 +113341,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:440 (saveRouting, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:447 (saveRouting, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112612,7 +113379,7 @@
       "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:733",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdminOrInternalKey -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdminOrInternalKey -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdminOrInternalKey -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -112622,7 +113389,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 489,
+          "line": 496,
           "caller": "runDueFollowUps",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112640,7 +113407,7 @@
       ],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:489 (runDueFollowUps, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:496 (runDueFollowUps, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112685,7 +113452,7 @@
       "registrationEvidence": "services/api/src/routes/admin-provisioning.routes.ts:136",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -112695,7 +113462,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/provisioning/page.tsx",
-          "line": 396,
+          "line": 394,
           "caller": "ProvisionPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112705,7 +113472,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/page.tsx:396 (ProvisionPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/page.tsx:394 (ProvisionPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113862,6 +114629,174 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "POST /v1/admin/incidents/:id/acknowledge",
+      "method": "POST",
+      "path": "/v1/admin/incidents/:id/acknowledge",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:532",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/operations/page.tsx",
+          "line": 173,
+          "caller": "AdminOperationsPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:173 (AdminOperationsPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog"
+      ],
+      "modelsWritten": [
+        "adminAuditLog"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-security.routes.ts: platform-admin scope (multi-tenant by design)"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/admin/incidents/:id/assign",
+      "method": "POST",
+      "path": "/v1/admin/incidents/:id/assign",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:532",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/operations/page.tsx",
+          "line": 173,
+          "caller": "AdminOperationsPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:173 (AdminOperationsPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog"
+      ],
+      "modelsWritten": [
+        "adminAuditLog"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-security.routes.ts: platform-admin scope (multi-tenant by design)"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/admin/incidents/:id/resolve",
+      "method": "POST",
+      "path": "/v1/admin/incidents/:id/resolve",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:532",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/operations/page.tsx",
+          "line": 173,
+          "caller": "AdminOperationsPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/page.tsx:173 (AdminOperationsPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog"
+      ],
+      "modelsWritten": [
+        "adminAuditLog"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-security.routes.ts: platform-admin scope (multi-tenant by design)"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "POST /v1/admin/orgs/:id/resume",
       "method": "POST",
       "path": "/v1/admin/orgs/:id/resume",
@@ -113869,21 +114804,30 @@
       "registrationEvidence": "services/api/src/routes/admin-provisioning.routes.ts:232",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
         "ADMIN_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/customers/[id]/page.tsx",
+          "line": 335,
+          "caller": "runLifecycle",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/admin-provisioning.routes.ts:232 services/api/src/routes/admin-provisioning.routes.ts:231 app.post(`/v1/admin/orgs/:id/${leg}`) with leg=\"resume\"; apps/web/app/(app)/admin/provisioning/page.tsx:663 only calls /plan; docs/architecture/program-ledger.md:72",
-      "dispositionReason": "platform org resume has no control (same loop registration as suspend)",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:335 (runLifecycle, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -113937,21 +114881,30 @@
       "registrationEvidence": "services/api/src/routes/admin-provisioning.routes.ts:232",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
         "ADMIN_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/customers/[id]/page.tsx",
+          "line": 335,
+          "caller": "runLifecycle",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "MISSING_PRODUCT_UI_POST_RELEASE",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/admin-provisioning.routes.ts:232 services/api/src/routes/admin-provisioning.routes.ts:215-232 for (const [leg, run] of [[\"suspend\", ...], [\"resume\", ...]]) app.post(`/v1/admin/orgs/:id/${leg}`, { preHandler: requirePlatformAdmin }); apps/web/app/(app)/admin/provisioning/page.tsx:18 documents and :663 calls only `/v1/admin/orgs/${encodeURIComponent(id)}/plan`; docs/architecture/program-ledger.md:72 \"Routes POST /v1/admin/orgs/:id/suspend|resume (requirePlatformAdmin + step-up)\" with no runbook procedure",
-      "dispositionReason": "platform org suspend has no control; the provisioning console wires only the plan route",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:335 (runLifecycle, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -114627,7 +115580,7 @@
       "method": "POST",
       "path": "/v1/analytics/track",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/analytics.routes.ts:1093",
+      "registrationEvidence": "services/api/src/routes/analytics.routes.ts:1164",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "resolveTrackUserId -> services/api/src/routes/analytics.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117094,7 +118047,7 @@
       "method": "POST",
       "path": "/v1/break-glass/activate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:289",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:292",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -117106,14 +118059,23 @@
         "ADMIN_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/support-access/page.tsx",
+          "line": 394,
+          "caller": "Shell",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "ADMIN_OPERATOR",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/enterprise-security.routes.ts:289 app.post(\"/v1/break-glass/activate\", { preHandler: requireAuth }) then requirePlatformStaff(req, reply) + authorizeOrFail(identity.org_policy.manage) + requireStepUpForSensitiveAction; apps/web/app/(app)/admin/support-access/page.tsx:31-36 \"This page mints nothing itself: starting a support grant requires a customer approver identity and a reason, and activating break-glass requires a pre-configured emergency identity — both are deliberately performed through the incident workflow, not casually from a console. What this page adds is VISIBILITY, ENTRY and REVOCATION\"; that console calls only :184 /v1/support-access/grants, :207 /v1/break-glass/grants, :255 /v1/support-access/enter, :304 /v1/support-access/revoke, :337 /v1/break-glass/revoke",
-      "dispositionReason": "platform-staff emergency activation performed out of console by explicit product decision",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:394 (Shell, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_ADMIN_OPERATOR",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -117161,7 +118123,7 @@
       "method": "POST",
       "path": "/v1/break-glass/emergency/sessions/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:441",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:444",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWithEmergencyOverlay -> services/api/src/middleware/authorize-emergency.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -117225,7 +118187,7 @@
       "method": "POST",
       "path": "/v1/break-glass/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:310",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:313",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -117240,7 +118202,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/support-access/page.tsx",
-          "line": 337,
+          "line": 441,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -117250,7 +118212,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:337 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:441 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -118686,7 +119648,7 @@
       "method": "POST",
       "path": "/v1/coding/schemas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:347",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:354",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118749,7 +119711,7 @@
       "method": "POST",
       "path": "/v1/coding/schemas/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:404",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:411",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118807,7 +119769,7 @@
       "method": "POST",
       "path": "/v1/coding/schemas/:id/publish",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:390",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:397",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -118865,7 +119827,7 @@
       "method": "POST",
       "path": "/v1/coding/schemas/seed-defaults",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:418",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:425",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -135425,6 +136387,7 @@
         "organizationMembership",
         "revokedSession",
         "securityEvent",
+        "team",
         "teamActivity",
         "teamMember",
         "user",
@@ -143737,7 +144700,7 @@
       "method": "POST",
       "path": "/v1/reviewer/annotations/:id/reply",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:685",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:692",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -143804,7 +144767,7 @@
       "method": "POST",
       "path": "/v1/reviewer/annotations/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:707",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:714",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -143871,7 +144834,7 @@
       "method": "POST",
       "path": "/v1/reviewer/annotations/bulk-resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:725",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:732",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -143938,7 +144901,7 @@
       "method": "POST",
       "path": "/v1/reviewer/bulk/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:748",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:755",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144023,7 +144986,7 @@
       "method": "POST",
       "path": "/v1/reviewer/bulk/code",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:802",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:809",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144094,7 +145057,7 @@
       "method": "POST",
       "path": "/v1/reviewer/bulk/decide",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:774",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:781",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144165,7 +145128,7 @@
       "method": "POST",
       "path": "/v1/reviewer/disagreements/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:575",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:582",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144232,7 +145195,7 @@
       "method": "POST",
       "path": "/v1/reviewer/qc/samples/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:623",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:630",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144290,7 +145253,7 @@
       "method": "POST",
       "path": "/v1/reviewer/qc/samples/:id/verdict",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:642",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:649",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144357,7 +145320,7 @@
       "method": "POST",
       "path": "/v1/reviewer/work/:workflowId/bind-schema",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:459",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:466",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144416,7 +145379,7 @@
       "method": "POST",
       "path": "/v1/reviewer/work/:workflowId/code",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:502",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:509",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -144487,7 +145450,7 @@
       "method": "POST",
       "path": "/v1/reviewer/work/:workflowId/disagree",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:552",
+      "registrationEvidence": "services/api/src/routes/reviewer-workspace.routes.ts:559",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveTeam -> services/api/src/routes/reviewer-workspace.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -145014,7 +145977,7 @@
       "registrationEvidence": "services/api/src/routes/search.routes.ts:708",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -145068,7 +146031,7 @@
       "method": "POST",
       "path": "/v1/security-policy/high-security/activate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:271",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:274",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgPolicyAdmin -> services/api/src/routes/enterprise-security.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145259,7 +146222,7 @@
       "method": "POST",
       "path": "/v1/support-access/enter",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:483",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:486",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145274,7 +146237,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/support-access/page.tsx",
-          "line": 255,
+          "line": 274,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -145284,7 +146247,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:255 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:274 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145328,7 +146291,7 @@
       "method": "POST",
       "path": "/v1/support-access/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:388",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:391",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145343,7 +146306,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/support-access/page.tsx",
-          "line": 304,
+          "line": 323,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -145353,7 +146316,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:304 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:323 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145398,7 +146361,7 @@
       "method": "POST",
       "path": "/v1/support-access/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:349",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:352",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -145412,14 +146375,23 @@
         "ADMIN_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/support-access/page.tsx",
+          "line": 356,
+          "caller": "Shell",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
       "nonProductConsumers": [],
-      "primaryDisposition": "ADMIN_OPERATOR",
-      "dispositionSource": "REVIEWED",
-      "dispositionEvidence": "reg services/api/src/routes/enterprise-security.routes.ts:349 app.post(\"/v1/support-access/start\", { preHandler: requireAuth }) then requirePlatformStaff + authorizeOrFail(identity.org_policy.manage) + verified approvedByUserId; apps/web/app/(app)/admin/support-access/page.tsx:31-36 \"This page mints nothing itself: starting a support grant requires a customer approver identity and a reason, and activating break-glass requires a pre-configured emergency identity — both are deliberately performed through the incident workflow, not casually from a console. What this page adds is VISIBILITY, ENTRY and REVOCATION\"; that console calls only :184 /v1/support-access/grants, :207 /v1/break-glass/grants, :255 /v1/support-access/enter, :304 /v1/support-access/revoke, :337 /v1/break-glass/revoke",
-      "dispositionReason": "platform-staff support-grant start performed out of console by explicit product decision",
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/support-access/page.tsx:356 (Shell, WEB)",
+      "dispositionReason": "reached from a product surface",
       "replacement": null,
-      "result": "DISPOSED_ADMIN_OPERATOR",
+      "result": "DISPOSED_PRODUCT_CONSUMED",
       "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -145854,6 +146826,7 @@
       "modelsWritten": [
         "adminAuditLog",
         "membershipGrant",
+        "team",
         "teamActivity",
         "teamMember"
       ],

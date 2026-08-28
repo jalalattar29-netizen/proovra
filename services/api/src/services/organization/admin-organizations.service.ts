@@ -31,7 +31,7 @@
  *     (email + displayName only — never a payment instrument).
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
@@ -43,9 +43,13 @@ import {
   type LifecycleStage,
 } from "../admin/customer-lifecycle.js";
 import {
+  customerOrganizationWhere,
+  liveWorkspaceWhere,
+  seatConsumingMemberCountArgs,
   workspaceCaseWhere,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
+import { resolveEnterpriseContract } from "./enterprise-contract.service.js";
 
 // Plans considered "paid" for lifecycle provisioning derivation.
 const PAID_PLANS = new Set(["PAYG", "PRO", "TEAM", "ENTERPRISE"]);
@@ -89,12 +93,28 @@ export type AdminOrgListItem = {
   createdAt: string;
   status: string;
   /**
-   * Org-level plan derived from the workspaces: "ENTERPRISE" if ANY
-   * non-personal workspace is on ENTERPRISE, else the highest-tier plan
-   * present, else null when the org has no workspaces.
+   * Highest workspace `billingPlan` present across the customer's LIVE
+   * workspaces, or null when it has none.
+   *
+   * This is the workspace commercial PROJECTION and is labelled as such in the
+   * UI. It is deliberately NOT the answer to "is this an enterprise customer" —
+   * see `contract` below, which is (ADM-003).
    */
   plan: string | null;
+  /**
+   * TRUE only when the customer holds an ACTIVE `EnterpriseContract`.
+   *
+   * Previously `plans.includes("ENTERPRISE")`, which reported a customer whose
+   * contract had been terminated — but whose workspace still carried the plan
+   * string — as a live enterprise customer.
+   */
   enterprise: boolean;
+  /** The canonical contract facts, or null when the customer holds none. */
+  contract: {
+    status: string;
+    seatCount: number | null;
+    endsAtUtc: string | null;
+  } | null;
   workspaceCount: number;
   seats: { included: number; used: number };
   ownerEmail: string | null;
@@ -132,6 +152,13 @@ export type AdminOrgListFilters = {
   plan?: string;
   status?: string;
   health?: OnboardingHealth;
+  /**
+   * Filter on the CONTRACT, not on a plan string. `true` selects customers
+   * holding an ACTIVE `EnterpriseContract`; `false` selects everyone else,
+   * including a customer whose contract lapsed while its workspace kept the
+   * `ENTERPRISE` plan.
+   */
+  enterprise?: boolean;
 };
 
 // Plan tier ordering for "highest plan present" derivation.
@@ -143,13 +170,24 @@ const PLAN_RANK: Record<string, number> = {
   ENTERPRISE: 4,
 };
 
-function derivePlan(plans: string[]): { plan: string | null; enterprise: boolean } {
-  if (plans.length === 0) return { plan: null, enterprise: false };
+/**
+ * The highest workspace plan present, or null when the customer has none.
+ *
+ * ADM-003 — this used to ALSO return `enterprise: plans.includes("ENTERPRISE")`,
+ * and that flag was what the roster and the detail page reported as "is this an
+ * enterprise customer". Both call sites now take the answer from
+ * `resolveEnterpriseContract` instead, so the flag was dead — and a dead,
+ * plan-string-derived `enterprise` field sitting on a shared helper is exactly
+ * the thing that gets picked up again by the next reader who needs one. Removed
+ * rather than left for them to find.
+ */
+function derivePlan(plans: string[]): { plan: string | null } {
+  if (plans.length === 0) return { plan: null };
   let best = plans[0]!;
   for (const p of plans) {
     if ((PLAN_RANK[p] ?? -1) > (PLAN_RANK[best] ?? -1)) best = p;
   }
-  return { plan: best, enterprise: plans.includes("ENTERPRISE") };
+  return { plan: best };
 }
 
 function deriveOnboarding(input: {
@@ -163,7 +201,45 @@ function deriveOnboarding(input: {
 }
 
 // ---------------------------------------------------------------------------
-// List (roster)
+// List (customer roster)
+//
+// ADM-002 / ADM-014 (2026-08-27) — REWRITTEN.
+//
+// WHAT WAS WRONG
+// ---------------------------------------------------------------------------
+// Two defects that compounded each other.
+//
+// CORRECTNESS: the roster's only predicates were `status` and `search`. It
+// never constrained `Organization.kind`, and `Team.organizationId` has been NOT
+// NULL since Phase 2.7X — so every workspace, including every free personal
+// space, owns an Organization row. A page titled "roster of every customer
+// organization" was therefore listing one row per workspace-bootstrap container,
+// each with `plan: null`, `ownerEmail: null` and `onboardingStatus: BLOCKED`.
+// The schema comment on `Organization.kind` says SYSTEM containers must never
+// surface as Organizations in product UI; the tenant product honours that in
+// four places and admin honoured it in none.
+//
+// PERFORMANCE: it fetched EVERY organization, then called a `buildListItem`
+// that awaited seven queries one after another inside a `for` loop, then
+// paginated the result in memory. The code justified this as "org count is
+// bounded (platform tenant roster)" — but with SYSTEM containers included that
+// bound IS the total workspace count, so the page was O(workspaces x 7)
+// serialised round-trips. Filtering to CUSTOMER fixes the correctness defect
+// and removes most of the performance one; batching finishes the job.
+//
+// HOW IT WORKS NOW
+// ---------------------------------------------------------------------------
+// Every filter is a database predicate, including the two that used to be
+// applied after aggregation:
+//
+//   plan    -> `workspaces: { some: { billingPlan } }` over LIVE workspaces
+//   health  -> the three presence checks the badge is defined by, expressed
+//              directly (a workspace, an ORG_OWNER, a verified domain)
+//
+// Pagination is `skip`/`take` with a matching `count()`, so "total" is the real
+// total rather than the length of an array we happened to build. The page's
+// twenty rows are then enriched by EIGHT batched queries — not one hundred and
+// forty serialised ones.
 // ---------------------------------------------------------------------------
 
 export async function listAdminOrganizations(
@@ -173,183 +249,310 @@ export async function listAdminOrganizations(
   const page = Math.max(1, filters.page);
   const limit = Math.min(100, Math.max(1, filters.limit));
 
-  // Base org filter: name search + status.
-  const orgWhere: Record<string, unknown> = {};
-  if (filters.status) orgWhere.status = filters.status;
-  if (filters.search && filters.search.trim()) {
-    const q = filters.search.trim();
-    // Search by org name OR owner email (email requires a membership join).
-    orgWhere.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      {
-        memberships: {
-          some: {
-            role: "ORG_OWNER",
-            user: { email: { contains: q, mode: "insensitive" } },
-          },
-        },
-      },
-    ];
-  }
+  const where = buildCustomerWhere(filters);
 
-  // We must apply plan/health filters AFTER aggregation (they are derived,
-  // not columns). To keep pagination honest we fetch the full candidate set
-  // for the org-level filter, aggregate, filter, then page in memory. Org
-  // count is bounded (platform tenant roster), so this is acceptable and
-  // keeps every derived field truthful.
-  const orgs = await client.organization.findMany({
-    where: orgWhere,
-    select: {
-      id: true,
-      name: true,
-      status: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [total, orgs] = await Promise.all([
+    client.organization.count({ where }),
+    client.organization.findMany({
+      where,
+      select: { id: true, name: true, status: true, createdAt: true },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
 
-  const enriched: AdminOrgListItem[] = [];
-  for (const org of orgs) {
-    const item = await buildListItem(org, client);
-    enriched.push(item);
-  }
+  const items = await enrichCustomerRows(orgs, client);
 
-  // Derived filters.
-  let filtered = enriched;
-  if (filters.plan) {
-    filtered = filtered.filter((o) => o.plan === filters.plan);
-  }
-  if (filters.health) {
-    filtered = filtered.filter((o) => o.onboardingStatus === filters.health);
-  }
-
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-  const start = (page - 1) * limit;
-  const items = filtered.slice(start, start + limit);
-
-  return { items, page, limit, total, totalPages };
+  return {
+    items,
+    page,
+    limit,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+  };
 }
 
-async function buildListItem(
-  org: { id: string; name: string; status: string; createdAt: Date },
+/**
+ * Every roster filter as ONE database predicate.
+ *
+ * The `health` arm deserves a note: `onboardingStatus` is not a stored column,
+ * it is a verdict over three presence checks. Rather than compute it for every
+ * organization and filter afterwards — which is what forced the full scan — the
+ * verdict is inverted into the predicate that produces it. BLOCKED is "missing a
+ * live workspace OR missing an owner"; ATTENTION is "has both, lacks a verified
+ * domain"; HEALTHY is all three. `deriveOnboarding` remains the single
+ * definition and this is its query form; a change to one without the other
+ * would show a row under a filter that its own badge contradicts, so they are
+ * covered by the same test.
+ */
+function buildCustomerWhere(
+  filters: AdminOrgListFilters,
+): Prisma.OrganizationWhereInput {
+  const and: Prisma.OrganizationWhereInput[] = [customerOrganizationWhere()];
+
+  if (filters.status) and.push({ status: filters.status as never });
+
+  if (filters.search && filters.search.trim()) {
+    const q = filters.search.trim();
+    and.push({
+      OR: [
+        { name: { contains: q, mode: "insensitive" } },
+        { legalName: { contains: q, mode: "insensitive" } },
+        {
+          memberships: {
+            some: {
+              role: "ORG_OWNER",
+              user: { email: { contains: q, mode: "insensitive" } },
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  if (filters.plan) {
+    and.push({
+      workspaces: {
+        some: { ...liveWorkspaceWhere(), billingPlan: filters.plan as never },
+      },
+    });
+  }
+
+  // Enterprise is a CONTRACT fact, never a plan string (ADM-003). The roster's
+  // enterprise filter therefore asks the contract table, not `billingPlan`.
+  if (filters.enterprise === true) {
+    and.push({ enterpriseContract: { is: { status: "ACTIVE" } } });
+  } else if (filters.enterprise === false) {
+    and.push({
+      OR: [
+        { enterpriseContract: { is: null } },
+        { enterpriseContract: { isNot: { status: "ACTIVE" } } },
+      ],
+    });
+  }
+
+  const hasLiveWorkspace: Prisma.OrganizationWhereInput = {
+    workspaces: { some: liveWorkspaceWhere() },
+  };
+  const hasOwner: Prisma.OrganizationWhereInput = {
+    memberships: { some: { role: "ORG_OWNER" } },
+  };
+  const hasVerifiedDomain: Prisma.OrganizationWhereInput = {
+    domains: { some: { verifiedAt: { not: null } } },
+  };
+
+  if (filters.health === "BLOCKED") {
+    and.push({ OR: [{ NOT: hasLiveWorkspace }, { NOT: hasOwner }] });
+  } else if (filters.health === "ATTENTION") {
+    and.push(hasLiveWorkspace, hasOwner, { NOT: hasVerifiedDomain });
+  } else if (filters.health === "HEALTHY") {
+    and.push(hasLiveWorkspace, hasOwner, hasVerifiedDomain);
+  }
+
+  return and.length === 1 ? and[0]! : { AND: and };
+}
+
+/**
+ * Enrich exactly the rows on this page, in eight batched queries.
+ *
+ * Everything here is grouped or `in`-filtered over the page's ids. Nothing
+ * loops a query. The previous implementation's per-org `buildSsoHealthSnapshot`
+ * call is deliberately NOT reproduced: the roster only needs "is SSO
+ * configured", which is a count, and the full health snapshot (cert expiry
+ * bands, per-connection failure timestamps) belongs on the detail page that can
+ * afford it and actually displays it.
+ */
+async function enrichCustomerRows(
+  orgs: Array<{ id: string; name: string; status: string; createdAt: Date }>,
   client: PrismaClient,
-): Promise<AdminOrgListItem> {
+): Promise<AdminOrgListItem[]> {
+  if (orgs.length === 0) return [];
+  const orgIds = orgs.map((o) => o.id);
+
+  // Live workspaces of every org on the page, with ACTIVE-only seat counts
+  // (ADM-008 — the canonical seat rule, not `_count.members`).
   const workspaces = await client.team.findMany({
-    where: { organizationId: org.id, isPersonal: false },
+    where: { organizationId: { in: orgIds }, ...liveWorkspaceWhere() },
     select: {
       id: true,
+      organizationId: true,
       billingPlan: true,
       billingStatus: true,
       billingActivatedAt: true,
       billingCanceledAt: true,
       includedSeats: true,
-      _count: { select: { members: true } },
+      _count: { select: { members: seatConsumingMemberCountArgs() } },
     },
   });
-
-  let includedSeats = 0;
-  let usedSeats = 0;
-  const plans: string[] = [];
-  const billingStatuses: string[] = [];
-  let anyPaidPlan = false;
-  let anyActivatedAt = false;
-  let anyCanceledAt = false;
-  for (const ws of workspaces) {
-    includedSeats += ws.includedSeats ?? 0;
-    usedSeats += ws._count.members;
-    const wsPlan = String(ws.billingPlan ?? "FREE");
-    plans.push(wsPlan);
-    if (PAID_PLANS.has(wsPlan)) anyPaidPlan = true;
-    billingStatuses.push(String(ws.billingStatus ?? "INACTIVE"));
-    if (ws.billingActivatedAt) anyActivatedAt = true;
-    if (ws.billingCanceledAt) anyCanceledAt = true;
-  }
-  const { plan, enterprise } = derivePlan(plans);
-
-  const owner = await client.organizationMembership.findFirst({
-    where: { organizationId: org.id, role: "ORG_OWNER" },
-    select: { user: { select: { email: true } } },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const verifiedDomainsCount = await client.organizationDomain.count({
-    where: { organizationId: org.id, verifiedAt: { not: null } },
-  });
-
-  // SSO / SCIM presence — booleans only, scoped to the org's workspaces.
-  // ssoConfigured: any non-revoked SsoConnection on any workspace.
-  // scimConfigured: any ACTIVE ScimProvisioningToken on any workspace.
   const workspaceIds = workspaces.map((w) => w.id);
-  let ssoConfigured = false;
-  let scimConfigured = false;
-  if (workspaceIds.length > 0) {
-    const ssoCount = await client.ssoConnection.count({
-      where: {
-        teamId: { in: workspaceIds },
-        status: { notIn: ["REVOKED"] },
+
+  const [
+    owners,
+    verifiedDomains,
+    ssoRows,
+    scimRows,
+    lastEvents,
+    evidencePresence,
+    contracts,
+  ] = await Promise.all([
+    client.organizationMembership.findMany({
+      where: { organizationId: { in: orgIds }, role: "ORG_OWNER" },
+      select: {
+        organizationId: true,
+        createdAt: true,
+        user: { select: { email: true } },
       },
-    });
-    ssoConfigured = ssoCount > 0;
-    const scimCount = await client.scimProvisioningToken.count({
-      where: { teamId: { in: workspaceIds }, status: "ACTIVE" },
-    });
-    scimConfigured = scimCount > 0;
+      orderBy: { createdAt: "asc" },
+    }),
+    client.organizationDomain.groupBy({
+      by: ["organizationId"],
+      where: { organizationId: { in: orgIds }, verifiedAt: { not: null } },
+      _count: { _all: true },
+    }),
+    workspaceIds.length
+      ? client.ssoConnection.findMany({
+          where: { teamId: { in: workspaceIds }, status: { notIn: ["REVOKED"] } },
+          select: { teamId: true },
+        })
+      : Promise.resolve([] as Array<{ teamId: string | null }>),
+    workspaceIds.length
+      ? client.scimProvisioningToken.findMany({
+          where: { teamId: { in: workspaceIds }, status: "ACTIVE" },
+          select: { teamId: true },
+        })
+      : Promise.resolve([] as Array<{ teamId: string | null }>),
+    client.organizationAuditEvent.groupBy({
+      by: ["organizationId"],
+      where: { organizationId: { in: orgIds } },
+      _max: { createdAt: true },
+    }),
+    client.evidence.groupBy({
+      by: ["organizationId"],
+      where: { organizationId: { in: orgIds }, deletedAt: null },
+      _count: { _all: true },
+    }),
+    client.enterpriseContract.findMany({
+      where: { organizationId: { in: orgIds } },
+      select: {
+        organizationId: true,
+        status: true,
+        seatCount: true,
+        endsAtUtc: true,
+      },
+    }),
+  ]);
+
+  // ---- Index the batches by their owning organization -----------------------
+  const workspacesByOrg = new Map<string, typeof workspaces>();
+  for (const ws of workspaces) {
+    const list = workspacesByOrg.get(ws.organizationId) ?? [];
+    list.push(ws);
+    workspacesByOrg.set(ws.organizationId, list);
   }
-
-  const lastEvent = await client.organizationAuditEvent.findFirst({
-    where: { organizationId: org.id },
-    select: { createdAt: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const onboardingStatus = deriveOnboarding({
-    hasWorkspace: workspaces.length > 0,
-    hasOwner: Boolean(owner),
-    hasVerifiedDomain: verifiedDomainsCount > 0,
-  });
-
-  // Evidence activity presence — a single existence probe (not a full count).
-  const evidenceActivityCount = await safeCall(
-    () =>
-      client.evidence.count({
-        where: { organizationId: org.id, deletedAt: null },
-      }),
-    0,
+  const orgIdByWorkspace = new Map(
+    workspaces.map((w) => [w.id, w.organizationId] as const),
   );
+  const ownerEmailByOrg = new Map<string, string | null>();
+  for (const o of owners) {
+    if (!ownerEmailByOrg.has(o.organizationId)) {
+      ownerEmailByOrg.set(o.organizationId, o.user?.email ?? null);
+    }
+  }
+  const verifiedDomainsByOrg = new Map(
+    verifiedDomains.map((d) => [d.organizationId, d._count._all] as const),
+  );
+  const ssoOrgIds = new Set(
+    ssoRows
+      .map((r) => (r.teamId ? orgIdByWorkspace.get(r.teamId) : undefined))
+      .filter((v): v is string => typeof v === "string"),
+  );
+  const scimOrgIds = new Set(
+    scimRows
+      .map((r) => (r.teamId ? orgIdByWorkspace.get(r.teamId) : undefined))
+      .filter((v): v is string => typeof v === "string"),
+  );
+  const lastEventByOrg = new Map(
+    lastEvents.map((e) => [e.organizationId, e._max.createdAt] as const),
+  );
+  const evidenceCountByOrg = new Map(
+    evidencePresence
+      .filter((e) => e.organizationId != null)
+      .map((e) => [e.organizationId as string, e._count._all] as const),
+  );
+  const contractByOrg = new Map(contracts.map((c) => [c.organizationId, c] as const));
 
-  // "most advanced" billing status across the org's workspaces for lifecycle.
-  const rollupBillingStatus = pickBillingStatus(billingStatuses);
+  return orgs.map((org) => {
+    const ws = workspacesByOrg.get(org.id) ?? [];
 
-  const lifecycle = deriveCustomerLifecycle({
-    hasOrganization: true,
-    organizationStatus: org.status,
-    hasWorkspace: workspaces.length > 0,
-    billingStatus: rollupBillingStatus,
-    onPaidPlan: anyPaidPlan,
-    billingActivatedAt: anyActivatedAt ? new Date() : null,
-    billingCanceledAt: anyCanceledAt ? new Date() : null,
-    hasEvidenceActivity: evidenceActivityCount > 0,
+    let includedSeats = 0;
+    let usedSeats = 0;
+    const plans: string[] = [];
+    const billingStatuses: string[] = [];
+    let anyPaidPlan = false;
+    let anyActivatedAt = false;
+    let anyCanceledAt = false;
+    for (const w of ws) {
+      includedSeats += w.includedSeats ?? 0;
+      usedSeats += w._count.members;
+      const plan = String(w.billingPlan ?? "FREE");
+      plans.push(plan);
+      if (PAID_PLANS.has(plan)) anyPaidPlan = true;
+      billingStatuses.push(String(w.billingStatus ?? "INACTIVE"));
+      if (w.billingActivatedAt) anyActivatedAt = true;
+      if (w.billingCanceledAt) anyCanceledAt = true;
+    }
+
+    const { plan } = derivePlan(plans);
+    const contract = contractByOrg.get(org.id) ?? null;
+    const ownerEmail = ownerEmailByOrg.get(org.id) ?? null;
+    const verifiedDomainsCount = verifiedDomainsByOrg.get(org.id) ?? 0;
+
+    const lifecycle = deriveCustomerLifecycle({
+      hasOrganization: true,
+      organizationStatus: org.status,
+      hasWorkspace: ws.length > 0,
+      billingStatus: pickBillingStatus(billingStatuses),
+      onPaidPlan: anyPaidPlan,
+      billingActivatedAt: anyActivatedAt ? new Date() : null,
+      billingCanceledAt: anyCanceledAt ? new Date() : null,
+      hasEvidenceActivity: (evidenceCountByOrg.get(org.id) ?? 0) > 0,
+    });
+
+    return {
+      id: org.id,
+      name: org.name,
+      createdAt: org.createdAt.toISOString(),
+      status: org.status,
+      plan,
+      // ADM-003 — enterprise is the CONTRACT, not a plan string. A workspace
+      // still carrying `billingPlan: 'ENTERPRISE'` after its contract was
+      // terminated is exactly the row this distinction exists to stop
+      // reporting as a live enterprise customer.
+      enterprise: contract?.status === "ACTIVE",
+      contract: contract
+        ? {
+            status: contract.status,
+            seatCount: contract.seatCount,
+            endsAtUtc: contract.endsAtUtc?.toISOString() ?? null,
+          }
+        : null,
+      workspaceCount: ws.length,
+      seats: { included: includedSeats, used: usedSeats },
+      ownerEmail,
+      verifiedDomainsCount,
+      ssoConfigured: ssoOrgIds.has(org.id),
+      scimConfigured: scimOrgIds.has(org.id),
+      onboardingStatus: deriveOnboarding({
+        hasWorkspace: ws.length > 0,
+        hasOwner: Boolean(ownerEmail),
+        hasVerifiedDomain: verifiedDomainsCount > 0,
+      }),
+      lastActivityAt: lastEventByOrg.get(org.id)?.toISOString() ?? null,
+      lifecycleStage: lifecycle.stage,
+      lifecycleReasons: lifecycle.reasons,
+    };
   });
-
-  return {
-    id: org.id,
-    name: org.name,
-    createdAt: org.createdAt.toISOString(),
-    status: org.status,
-    plan,
-    enterprise,
-    workspaceCount: workspaces.length,
-    seats: { included: includedSeats, used: usedSeats },
-    ownerEmail: owner?.user?.email ?? null,
-    verifiedDomainsCount,
-    ssoConfigured,
-    scimConfigured,
-    onboardingStatus,
-    lastActivityAt: lastEvent?.createdAt.toISOString() ?? null,
-    lifecycleStage: lifecycle.stage,
-    lifecycleReasons: lifecycle.reasons,
-  };
 }
 
 // Precedence for rolling up multiple workspace billing statuses into a single
@@ -370,7 +573,6 @@ function pickBillingStatus(statuses: string[]): string | null {
   }
   return statuses[0] ?? null;
 }
-
 // ---------------------------------------------------------------------------
 // Detail
 // ---------------------------------------------------------------------------
@@ -420,6 +622,35 @@ export type AdminOrgDetail = {
   };
   /** Platform Map — the org → workspaces hierarchy with per-workspace counts. */
   workspaces: AdminOrgDetailWorkspace[];
+  /**
+   * ADM-015 — the canonical enterprise contract, from `resolveEnterpriseContract`.
+   *
+   * Null when this customer holds no contract at all. The resolver returns null
+   * for any non-CUSTOMER organization by construction, so a SYSTEM container can
+   * never present one.
+   *
+   * `legacyDerived` is surfaced deliberately and must stay surfaced: it means
+   * the row does NOT exist and the projection was synthesised from org status by
+   * the compatibility adapter that is load-bearing until the contract backfill
+   * completes. An operator reading "ACTIVE" needs to know whether they are
+   * reading a contract or a guess.
+   */
+  enterpriseContract: {
+    status: string;
+    activationState: string | null;
+    effectiveAtUtc: string | null;
+    endsAtUtc: string | null;
+    seatCount: number | null;
+    storageGb: number | null;
+    evidenceRecordsPerMonth: number | null;
+    aiOperationsPerMonth: number | null;
+    region: string | null;
+    planVersion: string | null;
+    billingCustomerRef: string | null;
+    billingSubscriptionRef: string | null;
+    contractOwnerUserId: string | null;
+    legacyDerived: boolean;
+  } | null;
   overview: {
     id: string;
     name: string;
@@ -534,16 +765,32 @@ export async function getAdminOrganizationDetail(
   });
   if (!org) throw new OrgNotFoundError();
 
-  // --- Workspaces + seat rollup (mirror governance billing rollup) ---
+  // --- Workspaces + seat rollup ---
+  //
+  // ADM-004 / ADM-008 / ADM-033 — three corrections in one query.
+  //
+  //   * `isPersonal: false` was the legacy discriminator. `workspaceKind` has
+  //     been the canonical one since it was made NOT NULL by 20271125000000,
+  //     and the two are not synonyms: a CUSTOMER organization's operational
+  //     workspaces are `ORGANIZATION`, and asking for "not personal" also
+  //     admits any `OWNED` workspace that happens to hang off the org.
+  //   * closed workspaces were counted as part of the customer's estate.
+  //   * `_count.members` counted SUSPENDED and REVOKED members as seats,
+  //     contradicting the canonical ACTIVE-only seat rule that
+  //     `workspace-usage.service.ts` and enterprise provisioning both apply.
   const workspaces = await client.team.findMany({
-    where: { organizationId: org.id, isPersonal: false },
+    where: {
+      organizationId: org.id,
+      workspaceKind: "ORGANIZATION",
+      ...liveWorkspaceWhere(),
+    },
     select: {
       id: true,
       name: true,
       billingPlan: true,
       billingStatus: true,
       includedSeats: true,
-      _count: { select: { members: true } },
+      _count: { select: { members: seatConsumingMemberCountArgs() } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -576,8 +823,40 @@ export async function getAdminOrganizationDetail(
       overSeat,
     };
   });
-  const { plan, enterprise } = derivePlan(plans);
+  const { plan } = derivePlan(plans);
   const workspaceIds = workspaces.map((w) => w.id);
+
+  // --- Enterprise contract (ADM-003 / ADM-015) ---
+  //
+  // THE canonical authority, not a plan string. `resolveEnterpriseContract`
+  // returns null for any non-CUSTOMER organization by construction, reads the
+  // `EnterpriseContract` row when one exists, and otherwise synthesises a
+  // `legacyDerived: true` projection from org status via the compatibility
+  // adapter that stays load-bearing until the contract backfill completes.
+  // That flag is passed straight through: an operator must be able to tell a
+  // contract from a stand-in for one.
+  const contract = await safeCall(
+    () => resolveEnterpriseContract(org.id, client),
+    null,
+  );
+  const contractProjection: AdminOrgDetail["enterpriseContract"] = contract
+    ? {
+        status: contract.status,
+        activationState: contract.activationState ?? null,
+        effectiveAtUtc: contract.effectiveAtUtc?.toISOString() ?? null,
+        endsAtUtc: contract.endsAtUtc?.toISOString() ?? null,
+        seatCount: contract.seatCount ?? null,
+        storageGb: contract.storageGb ?? null,
+        evidenceRecordsPerMonth: contract.evidenceRecordsPerMonth ?? null,
+        aiOperationsPerMonth: contract.aiOperationsPerMonth ?? null,
+        region: contract.region ?? null,
+        planVersion: contract.planVersion ?? null,
+        billingCustomerRef: contract.billingCustomerRef ?? null,
+        billingSubscriptionRef: contract.billingSubscriptionRef ?? null,
+        contractOwnerUserId: contract.contractOwnerUserId ?? null,
+        legacyDerived: contract.legacyDerived === true,
+      }
+    : null;
 
   // --- Owner + admins (memberships; identity only, never secrets) ---
   const memberships = await client.organizationMembership.findMany({
@@ -1000,13 +1279,16 @@ export async function getAdminOrganizationDetail(
       notModelled: NOT_MODELLED_NOTES,
     },
     workspaces: workspaceMap,
+    enterpriseContract: contractProjection,
     overview: {
       id: org.id,
       name: org.name,
       legalName: org.legalName ?? null,
       status: org.status,
       plan,
-      enterprise,
+      // ADM-003 — the CONTRACT decides, not the plan string. `derivePlan`'s
+      // `enterprise` flag is deliberately discarded here.
+      enterprise: contractProjection?.status === "ACTIVE",
       createdAt: org.createdAt.toISOString(),
       onboardingStatus,
       setupCompletion: {

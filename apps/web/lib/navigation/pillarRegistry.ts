@@ -267,9 +267,14 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // PHASE 12B C10 — restricted internal-staff support/break-glass surface.
   ["platform.support_access", "ADMIN"],
   // Platform Admin Control Center — read-only admin surfaces.
-  ["platform.organizations", "ADMIN"],
-  ["platform.organization_detail", "ADMIN"],
+  ["platform.customers", "ADMIN"],
+  ["platform.customer_detail", "ADMIN"],
+  ["platform.workspaces", "ADMIN"],
+  ["platform.workspace_detail", "ADMIN"],
   ["platform.users", "ADMIN"],
+  ["platform.person_detail", "ADMIN"],
+  ["platform.operations", "ADMIN"],
+  ["platform.evidence_records", "ADMIN"],
   ["platform.evidence_ops", "ADMIN"],
   ["platform.security", "ADMIN"],
   ["platform.billing", "ADMIN"],

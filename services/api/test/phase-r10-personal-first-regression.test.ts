@@ -733,10 +733,23 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     // apps/web/app/(app)/settings/legal/[slug]/page.tsx (Next.js [slug]
     // convention); the registry uses /:slug documentation syntax.
     "/settings/legal/:slug",
-    // Platform Admin Control Center — customer organization detail. The page
-    // lives at apps/web/app/(app)/admin/organizations/[id]/page.tsx (Next.js
-    // [id] convention); the registry uses /:id documentation syntax.
-    "/admin/organizations/:id",
+    // Platform Admin Control Center — dynamic detail routes. Each page lives at
+    // the Next.js `[id]` path; the registry uses `/:id` documentation syntax,
+    // which is why they need an allowlist entry rather than a disk check.
+    //
+    // ADM-033 (2026-08-27) — `/admin/organizations/:id` became
+    // `/admin/customers/:id`. The page's population is
+    // `Organization.kind = 'CUSTOMER'`, which excludes the internal 1:1
+    // bootstrap container every workspace owns, and calling the surface
+    // "Organizations" is what made counting those containers look reasonable.
+    // The old path forwards via a permanent redirect in next.config.js.
+    "/admin/customers/:id",
+    // ADM-027 — the workspace directory's detail route. The platform's central
+    // commercial and tenancy object had no admin surface at all before this.
+    "/admin/workspaces/:id",
+    // ADM-028 — the person detail route. The console could show a PRO count and
+    // could not name a single PRO customer without one.
+    "/admin/users/:id",
   ]);
 
   function pageExistsForHref(href: string): boolean {

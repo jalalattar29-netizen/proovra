@@ -1559,11 +1559,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   {
-    id: "platform.organizations",
-    href: "/admin/organizations",
-    label: "Customers & organizations",
+    // ADM-033 — renamed from platform.organizations. The population is
+    // Organization.kind = 'CUSTOMER'; the SYSTEM bootstrap container every
+    // workspace owns is NOT a customer and is excluded.
+    id: "platform.customers",
+    href: "/admin/customers",
+    label: "Customers",
     description:
-      "Platform roster of every customer organization (PLATFORM_ADMIN only): plan, seats, owner, domains, SSO/SCIM health, evidence/report volume, billing posture. Read-only aggregation.",
+      "Platform roster of every CUSTOMER organization (PLATFORM_ADMIN only): enterprise contract, workspace plan projection, seats, owner, domains, SSO/SCIM health, billing posture. Read-only aggregation.",
     domain: "PLATFORM_ADMIN",
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",
@@ -1575,9 +1578,9 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   {
-    id: "platform.organization_detail",
-    href: "/admin/organizations/:id",
-    label: "Customer organization detail",
+    id: "platform.customer_detail",
+    href: "/admin/customers/:id",
+    label: "Customer detail",
     description:
       "Deep-dive on a single customer organization (PLATFORM_ADMIN only): identity health, provisioning history, evidence/billing posture. Read-only.",
     domain: "PLATFORM_ADMIN",
@@ -1591,12 +1594,97 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     allToolsVisible: false,
     sidebarEligible: false,
   },
+  // ADM-027 — THE workspace directory. The platform's central commercial and
+  // tenancy object had no admin surface at all before this route.
+  {
+    id: "platform.workspaces",
+    href: "/admin/workspaces",
+    label: "Workspaces",
+    description:
+      "Platform roster of every workspace (PLATFORM_ADMIN only): kind, lifecycle, customer, owner, seats, evidence and open incidents. Read-only aggregation.",
+    domain: "PLATFORM_ADMIN",
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    id: "platform.workspace_detail",
+    href: "/admin/workspaces/:id",
+    label: "Workspace detail",
+    description:
+      "Deep-dive on one workspace (PLATFORM_ADMIN only): canonical commercial context, seats, storage, subscriptions, incidents. Read-only. No evidence content.",
+    domain: "PLATFORM_ADMIN",
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
+    id: "platform.person_detail",
+    href: "/admin/users/:id",
+    label: "Person detail",
+    description:
+      "Deep-dive on one person (PLATFORM_ADMIN only): canonical commercial context, subscriptions, workspaces, payments, lifecycle requests. Read-only. No secrets.",
+    domain: "PLATFORM_ADMIN",
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  // ADM-011 / ADM-034 — platform operations, separated from the workspace
+  // security page it used to share.
+  {
+    id: "platform.operations",
+    href: "/admin/operations",
+    label: "Platform operations",
+    description:
+      "Every operational condition on the platform (PLATFORM_ADMIN only), with the workspace and customer it affects, plus acknowledge/resolve through the canonical incident lifecycle.",
+    domain: "PLATFORM_ADMIN",
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  // ADM-029 / ADM-019 — the evidence-health drill-down.
+  {
+    id: "platform.evidence_records",
+    href: "/admin/evidence-ops/records",
+    label: "Affected evidence records",
+    description:
+      "The evidence records behind one health signal (PLATFORM_ADMIN only), with workspace and customer attribution. Operational metadata only — never evidence content.",
+    domain: "PLATFORM_ADMIN",
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
   {
     id: "platform.users",
     href: "/admin/users",
-    label: "Users & identity",
+    label: "People",
     description:
-      "Platform roster of every user (PLATFORM_ADMIN only): org membership, roles, MFA enrolment, last login. Read-only aggregation. No secrets.",
+      "Platform roster of every person (PLATFORM_ADMIN only): account tier, provider subscription, pending cancellation, personal workspace, memberships, MFA, last login. Read-only aggregation. No secrets.",
     domain: "PLATFORM_ADMIN",
     requiredCapabilities: ["PLATFORM_ADMIN"],
     requiredActiveSpace: "PLATFORM_ADMIN",

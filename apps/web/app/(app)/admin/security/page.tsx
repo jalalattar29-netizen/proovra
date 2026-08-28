@@ -33,9 +33,8 @@
  * anti-enumeration, so a cross-Organization id is a concealed 404.
  */
 
-import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
+import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { useTeamId } from "../../../../lib/platform-context";
 
 import { MfaDigestPreferencesSection } from "./_sections/MfaDigestPreferencesSection";
@@ -43,7 +42,6 @@ import { MfaEventsSection } from "./_sections/MfaEventsSection";
 import { MfaMemberPostureSection } from "./_sections/MfaMemberPostureSection";
 import { MfaPolicySection } from "./_sections/MfaPolicySection";
 import { MfaSelfCheckSection } from "./_sections/MfaSelfCheckSection";
-import { PlatformIncidentFeedSection } from "./_sections/PlatformIncidentFeedSection";
 import { WorkspaceSecurityPostureSection } from "./_sections/WorkspaceSecurityPostureSection";
 
 export default function AdminSecurityPage() {
@@ -52,18 +50,28 @@ export default function AdminSecurityPage() {
   return (
     <PageShell width="full">
       <PageHeader
-        eyebrow="Security operations"
-        title="Security Center"
-        subtitle="Multi-factor posture, member factor lifecycle, security events and platform incidents in one place. No secrets, authenticator seeds, recovery codes, session tokens or device fingerprints are surfaced anywhere on this page — every number is read live from the backend and every change is authorized, step-up gated and audited on the server."
+        eyebrow="Workspace security"
+        title="Workspace Security Center"
+        subtitle="Multi-factor posture, member factor lifecycle and security events for the workspace you are currently in. No secrets, authenticator seeds, recovery codes, session tokens or device fingerprints are surfaced here — every change is authorized, step-up gated and audited on the server."
       />
 
-      <AdminConsoleNav />
+      {/*
+        ADM-034 — this page used to carry the PLATFORM incident feed as its last
+        section, so one surface served two audiences at two scopes: a workspace
+        administrator configuring their own MFA policy, and a platform operator
+        triaging every tenant's incidents. Those are different jobs and the mix
+        made the page's scope ambiguous in both directions.
 
+        The platform half now lives at /admin/operations, where it also gained
+        tenant attribution and the ability to act. What remains here is what this
+        page has always actually been: WORKSPACE security administration.
+      */}
       <Card padding="compact" style={{ marginBottom: 4 }}>
         <p style={{ margin: 0, fontSize: 12.5, color: "var(--ink-muted, #64748b)" }}>
-          The sections below act on the workspace you are currently in
-          {teamId ? "" : " — none is selected yet"}. The platform incident feed
-          at the bottom is platform-wide and read-only.
+          Every section on this page acts on the workspace you are currently in
+          {teamId ? "" : " — none is selected yet"}. Platform-wide security events
+          and operational incidents live in{" "}
+          <a href="/admin/operations">Operations</a>.
         </p>
       </Card>
 
@@ -73,12 +81,6 @@ export default function AdminSecurityPage() {
       <MfaEventsSection />
       <MfaDigestPreferencesSection />
       <MfaSelfCheckSection />
-
-      <PageSection
-        title="Platform-wide"
-        description="Everything below is aggregated across every workspace on the platform and is read-only."
-      />
-      <PlatformIncidentFeedSection />
     </PageShell>
   );
 }

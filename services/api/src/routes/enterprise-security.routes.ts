@@ -114,8 +114,11 @@ async function requireOrgPolicyAdmin(
  * The gate is now: platform staff (`isPlatformAdmin`) AND, for the routes that
  * still need a workspace anchor, the canonical `authorizeOrFail` chain. Staff
  * status is resolved from the persisted `User.platformRole` / the env allowlist
- * — never from a request field or a JWT claim the client can set beyond the
- * existing `admin` role claim the auth layer already validates.
+ * — never from a request field, and (since ADM-001, 2026-08-27) never from the
+ * JWT `role` claim either: that claim is a login-time snapshot with a 30-day
+ * lifetime, so a withdrawn grant would otherwise have kept minting support
+ * grants over customer organizations for a month. `isPlatformAdmin` re-reads
+ * the authoritative row on every request and fails closed.
  *
  * Denial is a flat 404 so a customer admin probing these paths cannot even
  * learn that the support surface exists.

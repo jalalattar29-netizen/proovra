@@ -21,8 +21,8 @@ import { fileURLToPath } from "node:url";
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
 
-const ROSTER = "app/(app)/admin/organizations/page.tsx";
-const DETAIL = "app/(app)/admin/organizations/[id]/page.tsx";
+const ROSTER = "app/(app)/admin/customers/page.tsx";
+const DETAIL = "app/(app)/admin/customers/[id]/page.tsx";
 
 test("roster renders a Lifecycle column with a lifecycle Badge", () => {
   const src = read(ROSTER);

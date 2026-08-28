@@ -37,7 +37,6 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
@@ -171,7 +170,6 @@ function AdminIdentityConsoleInner() {
       data-admin-identity-console
       header={
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <AdminConsoleNav />
           <PageHeader
             eyebrow="Identity operations"
             title="Identity administration"

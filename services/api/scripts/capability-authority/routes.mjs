@@ -134,7 +134,25 @@ const TERMINAL_MARKERS = Object.freeze([
   {
     class: "ADMIN_GATED",
     why: "reaches the platform-administrator lookup",
-    identifiers: ["isPlatformAdmin"],
+    // ADM-001 (2026-08-27) — BOTH exports of the platform-admin authority.
+    //
+    // `requirePlatformAdmin` was rewritten to call `resolvePlatformAdmin`, which
+    // returns a DECISION (allowed + source + whether a stale admin claim was
+    // presented) rather than a bare boolean, so a withdrawn grant that is still
+    // being exercised can be logged. Listing only `isPlatformAdmin` here meant
+    // this analyzer stopped seeing the gate the moment the middleware switched
+    // export: every `/v1/admin/*` route silently reclassified from
+    // PLATFORM_ADMIN to SESSION_AUTHENTICATED, and two of them fell out of
+    // TenantBindingResolved with it.
+    //
+    // Nothing about the runtime gate changed — it is the same middleware on the
+    // same routes, and the executed authorization matrix in
+    // `admin-authorization-matrix.integration.test.ts` proves it refuses
+    // anonymous, ordinary, tenant-admin and stale-claim callers. What broke was
+    // the platform's ability to SEE the gate, which is its own kind of defect:
+    // a security instrument that cannot recognise a control reports a system it
+    // is not looking at.
+    identifiers: ["isPlatformAdmin", "resolvePlatformAdmin"],
     strings: [],
   },
   {

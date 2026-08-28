@@ -1,254 +1,216 @@
 "use client";
 
 /**
- * Platform Control Center P1 — Billing & Revenue detail console.
+ * PLATFORM ADMIN — Billing (ADM-012, ADM-016, ADM-030, ADM-032).
  *
- * READ-ONLY aggregation over EXISTING billing models. Renders:
- *   - metric Cards: active subscriptions, gross revenue, failed payments,
- *     storage add-ons, and MRR/ARR (honest "Not measured" when a value is
- *     not safely derivable from the schema),
- *   - plan-mix distribution (FREE / PAYG / PRO / TEAM / ENTERPRISE),
- *   - webhook-status Cards for Stripe + PayPal (healthy / degraded /
- *     "Not connected" — honest, from real processingStatus rows),
- *   - a recent-payments DataTable (email is the ONLY PII; no card tokens or
- *     Stripe secrets),
- *   - honest EmptyState when a source is absent.
+ * REBUILT 2026-08-27. The previous page was accurate about money and useless
+ * about people: its renewal rows carried no customer at all, its failed-payment
+ * rows carried an email with no id to open, `cancelAtPeriodEnd` was never shown
+ * so a subscriber who had already left looked like an ordinary active one, and
+ * gross revenue was a single cross-currency sum rendered as EUR.
  *
- * Inherits the `platform.admin` gate from app/(app)/admin/layout.tsx. Errors
- * surface via `toSafeUserError`.
+ * The page is organised around ATTENTION rather than around tables: the four
+ * lists at the top are the ones somebody has to act on, and every row in them
+ * names the person, the workspace and the customer it belongs to.
+ *
+ * FOUR CONCEPTS, KEPT APART
+ * ---------------------------------------------------------------------------
+ * Account entitlement, provider subscription, workspace projection and
+ * enterprise contract are different things that can legitimately disagree. This
+ * page never merges them into one "status" word.
  */
 
-import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
-import { PageShell, PageHeader, PageSection, DataTable } from "../../../../components/ui";
-import type { DataTableColumn } from "../../../../components/ui";
-import { Card } from "../../../../components/ui/Card";
-import { Badge } from "../../../../components/ui/Badge";
-import type { BadgeTone } from "../../../../components/ui/Badge";
-import { EmptyState } from "../../../../components/ui/EmptyState";
+import {
+  PageShell,
+  PageHeader,
+  PageSection,
+  DataTable,
+  Skeleton,
+  useToast,
+  type DataTableColumn,
+} from "../../../../components/ui";
+import { Badge, type BadgeTone } from "../../../../components/ui/Badge";
 import { Button } from "../../../../components/ui/Button";
+import { Card } from "../../../../components/ui/Card";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { formatMoney } from "../../../../components/admin/AdminMetric";
 import { apiFetch } from "../../../../lib/api";
-import { useToast } from "../../../../components/ui";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import { formatUserDateTime } from "../../../../lib/date";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
-type WebhookHealth = "healthy" | "degraded" | "not-connected";
-
-type WebhookStatus = {
-  provider: "STRIPE" | "PAYPAL";
-  health: WebhookHealth;
-  total: number;
-  failed: number;
-  lastReceivedAt: string | null;
+type Subject = {
+  userId: string | null;
+  userEmail: string | null;
+  workspaceId: string | null;
+  workspaceName: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  billingOwnerUserId: string | null;
+  billingOwnerEmail: string | null;
 };
 
-type PaymentRow = {
+type AddonRow = Subject & {
+  id: string;
+  amountCents: number;
+  currency: string | null;
+  billingCycle: string;
+  orphaned: boolean;
+};
+
+type AttentionRow = Subject & {
+  id: string;
+  provider: string;
+  plan: string;
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+  canceledAtUtc: string | null;
+  providerStateAtUtc: string | null;
+  providerSubRefMasked: string;
+};
+
+type PaymentRow = Subject & {
   id: string;
   provider: string;
   amountCents: number;
   currency: string;
   status: string;
   createdAt: string;
-  userEmail: string | null;
 };
 
-type BillingDetail = {
-  activeSubscriptions: number;
-  subscriptionStatus: Record<string, number>;
-  planMix: Record<string, number>;
-  revenue: {
-    grossRevenueCents: number;
-    currencies: string[];
-    successfulPayments: number;
-    failedPayments: number;
+type Detail = {
+  generatedAtUtc: string;
+  subscriptions: {
+    byStatus: Array<{ status: string; count: number }>;
+    pendingCancellation: number;
+  };
+  revenueByCurrency: Array<{
+    currency: string;
+    succeededCents: number;
+    succeededPayments: number;
     refundedPayments: number;
+    failedPayments: number;
+  }>;
+  attention: {
+    pendingCancellation: AttentionRow[];
+    pastDue: AttentionRow[];
+    renewalWindow: AttentionRow[];
+    failedPayments: PaymentRow[];
   };
-  mrr: {
-    subscriptionMrrCents: number | null;
-    subscriptionArrCents: number | null;
-    storageAddonMrrCents: number | null;
-    derivable: boolean;
-    note: string | null;
+  storageAddons: {
+    activeCount: number;
+    mrrByCurrency: Array<{ currency: string; amountCents: number }>;
+    orphanedCount: number;
+    rows: AddonRow[];
+    truncated: boolean;
   };
-  failedPayments: { count: number; items: PaymentRow[] };
-  recentPaymentEvents: PaymentRow[];
-  stripeWebhookStatus: WebhookStatus;
-  paypalWebhookStatus: WebhookStatus;
-  storageAddons: { activeCount: number; mrrContributionCents: number | null };
-  renewalPressure: {
-    windowDays: number;
-    count: number;
-    items: Array<{
-      id: string;
-      plan: string;
-      status: string;
-      currentPeriodEnd: string | null;
-    }>;
+  webhooks: {
+    stripe: { total: number; failed: number; lastReceivedAt: string | null };
+    paypal: { total: number; failed: number; lastReceivedAt: string | null };
   };
+  reconciliation: {
+    runHistory: {
+      state: string;
+      value: Array<{
+        id: string;
+        kind: string;
+        status: string;
+        startedAtUtc: string;
+        finishedAtUtc: string | null;
+        scanned: number;
+        failed: number;
+      }> | null;
+      reason?: string;
+    };
+    providerAgreement: {
+      subscriptionsWithProviderState: number;
+      subscriptionsNeverConfirmed: number;
+      oldestConfirmationAtUtc: string | null;
+      note: string;
+    };
+  };
+  mrrCents: { state: string; value: number | null; reason?: string };
+  arrCents: { state: string; value: number | null; reason?: string };
 };
 
-const INK_PRIMARY = "var(--ink-primary, #0f172a)";
-const INK_SECONDARY = "var(--ink-secondary, #475569)";
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
+const STATUS_TONE: Record<string, BadgeTone> = {
+  ACTIVE: "verified",
+  TRIALING: "info",
+  PAST_DUE: "pending",
+  CANCELED: "risk",
+  SUCCEEDED: "verified",
+  FAILED: "risk",
+  REFUNDED: "neutral",
+};
 
-function formatMoneyCents(cents: number | null | undefined, currency = "EUR") {
-  if (cents == null) return null;
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
-}
-
-function formatCount(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) return null;
-  return new Intl.NumberFormat().format(value);
-}
-
-function formatTimestamp(value: string) {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return formatUserDateTime(value);
-}
-
-function paymentStatusTone(status: string): BadgeTone {
-  const v = status.toUpperCase();
-  if (v === "SUCCEEDED") return "verified";
-  if (v === "FAILED") return "risk";
-  if (v === "REFUNDED") return "neutral";
-  return "pending";
-}
-
-// A metric tile — `value === null` renders an honest "Not measured".
-function MetricTile({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string | null;
-  sub?: string;
-  accent?: string;
-}) {
-  const measured = value != null;
+/**
+ * THE column every attention row needed and did not have (ADM-030).
+ *
+ * Renders the affected party as a chain: person → workspace → customer, each a
+ * link. "Who is affected?" has to be answerable without leaving the row.
+ */
+function SubjectCell({ s }: { s: Subject }) {
+  if (!s.userId && !s.workspaceId) {
+    return <span style={{ color: "var(--ink-muted, #94a3b8)" }}>Unattributed</span>;
+  }
   return (
-    <Card padding="comfortable" style={{ minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: INK_MUTED,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: 30,
-          lineHeight: 1.05,
-          fontWeight: 750,
-          letterSpacing: "-0.02em",
-          color: measured ? accent ?? INK_PRIMARY : INK_MUTED,
-          overflowWrap: "anywhere",
-        }}
-      >
-        {measured ? value : "—"}
-      </div>
-      <div
-        style={{
-          marginTop: 8,
-          fontSize: 12.5,
-          lineHeight: 1.5,
-          color: measured ? INK_SECONDARY : INK_MUTED,
-        }}
-      >
-        {measured ? sub ?? "" : "Not measured — not safely derivable from the billing schema."}
-      </div>
-    </Card>
-  );
-}
-
-function StatRow({ label, value, tone }: { label: string; value: number; tone: BadgeTone }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        padding: "10px 12px",
-        borderRadius: 10,
-        border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-        background: "var(--surface-muted, #f1f4f9)",
-      }}
-    >
-      <span style={{ fontSize: 13.5, fontWeight: 600, color: INK_PRIMARY }}>{label}</span>
-      <Badge tone={tone}>{formatCount(value) ?? "0"}</Badge>
-    </div>
-  );
-}
-
-function webhookTone(health: WebhookHealth): BadgeTone {
-  if (health === "healthy") return "verified";
-  if (health === "degraded") return "risk";
-  return "neutral";
-}
-
-function webhookLabel(health: WebhookHealth): string {
-  if (health === "healthy") return "Healthy";
-  if (health === "degraded") return "Degraded";
-  return "Not connected";
-}
-
-function WebhookCard({ status }: { status: WebhookStatus }) {
-  const providerLabel = status.provider === "STRIPE" ? "Stripe" : "PayPal";
-  return (
-    <Card
-      title={`${providerLabel} webhooks`}
-      headerAction={<Badge tone={webhookTone(status.health)} dot>{webhookLabel(status.health)}</Badge>}
-      padding="comfortable"
-    >
-      {status.health === "not-connected" ? (
-        <EmptyState
-          compact
-          title="Not connected"
-          purpose={`No ${providerLabel} webhook events have been received. Once the provider delivers events, processing health appears here.`}
-          data-testid={`admin-billing-${status.provider.toLowerCase()}-not-connected`}
-        />
+    <div style={{ minWidth: 0 }}>
+      {s.userId ? (
+        <Link href={`/admin/users/${encodeURIComponent(s.userId)}`}>
+          {s.userEmail ?? "View person"}
+        </Link>
       ) : (
-        <div style={{ display: "grid", gap: 8 }}>
-          <div style={{ fontSize: 13, color: INK_SECONDARY }}>
-            {formatCount(status.total)} received · {formatCount(status.failed)} failed
-          </div>
-          <div style={{ fontSize: 12, color: INK_MUTED }}>
-            Last received: {status.lastReceivedAt ? formatTimestamp(status.lastReceivedAt) : "—"}
-          </div>
-        </div>
+        <span style={{ color: "var(--ink-muted, #94a3b8)" }}>No account</span>
       )}
-    </Card>
+      <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+        {s.workspaceId ? (
+          <Link href={`/admin/workspaces/${encodeURIComponent(s.workspaceId)}`}>
+            {s.workspaceName ?? "workspace"}
+          </Link>
+        ) : (
+          "Personal account"
+        )}
+        {s.customerId ? (
+          <>
+            {" · "}
+            <Link href={`/admin/customers/${encodeURIComponent(s.customerId)}`}>
+              {s.customerName}
+            </Link>
+          </>
+        ) : null}
+      </div>
+      {s.billingOwnerEmail && s.billingOwnerUserId !== s.userId ? (
+        <div style={{ fontSize: 11.5, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+          Billed to {s.billingOwnerEmail}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 export default function AdminBillingPage() {
   const { addToast } = useToast();
-  const [detail, setDetail] = useState<BillingDetail | null>(null);
+  const params = useSearchParams();
+  const focus = params.get("subscriptionStatus") ?? params.get("paymentStatus") ?? null;
+
   const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<Detail | null>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const data = await apiFetch(`/v1/admin/billing/detail`);
+      const data = (await apiFetch("/v1/admin/billing/detail")) as Detail;
       setDetail(data ?? null);
     } catch (err) {
-      const message = toSafeUserError(err, {
-        message: "We couldn't load the billing detail aggregate.",
-      }).message;
-      addToast(message, "error");
+      addToast(
+        toSafeUserError(err, { message: "We couldn't load billing." }).message,
+        "error",
+      );
+      setDetail(null);
     } finally {
       setLoading(false);
     }
@@ -258,237 +220,491 @@ export default function AdminBillingPage() {
     void load();
   }, [load]);
 
-  const revenueCurrency = detail?.revenue.currencies?.[0] ?? "EUR";
+  // ADM-017 — the Overview links here with a section in mind
+  // (`?pendingCancellation=true`, `?tab=addons`, `?subscriptionStatus=PAST_DUE`).
+  // Landing at the top of a long page is the same failure as landing on an
+  // unfiltered roster: the operator has to go find the number they clicked.
+  useEffect(() => {
+    if (loading || !detail) return;
+    const target =
+      params.get("tab") === "addons"
+        ? "addons"
+        : params.get("pendingCancellation") === "true"
+          ? "pendingCancellation"
+          : params.get("paymentStatus")
+            ? "paymentStatus"
+            : params.get("subscriptionStatus")
+              ? "subscriptionStatus"
+              : null;
+    if (!target) return;
+    document
+      .getElementById(target)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [loading, detail, params]);
 
-  const metrics = useMemo(() => {
-    if (!detail) return [];
-    return [
-      {
-        label: "Active subscriptions",
-        value: formatCount(detail.activeSubscriptions),
-        sub: `${formatCount(detail.subscriptionStatus?.TRIALING) ?? 0} trialing · ${formatCount(detail.subscriptionStatus?.PAST_DUE) ?? 0} past due`,
-        accent: "#1e3a5f",
-      },
-      {
-        label: "Gross revenue",
-        value: formatMoneyCents(detail.revenue.grossRevenueCents, revenueCurrency),
-        sub: `${formatCount(detail.revenue.successfulPayments) ?? 0} successful payments`,
-        accent: "#1e3a5f",
-      },
-      {
-        // Subscription MRR is NOT derivable — kept honest.
-        label: "Subscription MRR",
-        value: formatMoneyCents(detail.mrr.subscriptionMrrCents, revenueCurrency),
-        sub: undefined,
-        accent: "#1e3a5f",
-      },
-      {
-        label: "Subscription ARR",
-        value: formatMoneyCents(detail.mrr.subscriptionArrCents, revenueCurrency),
-        sub: undefined,
-        accent: "#1e3a5f",
-      },
-      {
-        label: "Storage add-on MRR",
-        value: formatMoneyCents(detail.mrr.storageAddonMrrCents, revenueCurrency),
-        sub: `${formatCount(detail.storageAddons.activeCount) ?? 0} active add-ons`,
-        accent: "#1e3a5f",
-      },
-      {
-        label: "Failed payments",
-        value: formatCount(detail.revenue.failedPayments),
-        sub: `${formatCount(detail.revenue.refundedPayments) ?? 0} refunded`,
-        accent: "#8f4c4c",
-      },
-    ];
-  }, [detail, revenueCurrency]);
-
-  const planMix = useMemo(() => {
-    if (!detail) return [];
-    const p = detail.planMix;
-    return [
-      { label: "Free", value: p.FREE ?? 0, tone: "neutral" as BadgeTone },
-      { label: "Pay-as-you-go", value: p.PAYG ?? 0, tone: "info" as BadgeTone },
-      { label: "Pro", value: p.PRO ?? 0, tone: "verified" as BadgeTone },
-      { label: "Team", value: p.TEAM ?? 0, tone: "governance" as BadgeTone },
-      { label: "Enterprise", value: p.ENTERPRISE ?? 0, tone: "pending" as BadgeTone },
-    ];
-  }, [detail]);
-
-  const paymentColumns: DataTableColumn<PaymentRow>[] = [
+  const attentionColumns: DataTableColumn<AttentionRow>[] = [
+    { key: "subject", header: "Affected", render: (r) => <SubjectCell s={r} /> },
     {
-      key: "createdAt",
-      header: "When",
-      nowrap: true,
+      key: "plan",
+      header: "Plan",
       render: (r) => (
-        <span style={{ fontSize: 12, color: INK_MUTED }}>
-          {formatTimestamp(r.createdAt)}
-        </span>
-      ),
-    },
-    {
-      key: "userEmail",
-      header: "Customer",
-      render: (r) => (
-        <span style={{ fontSize: 12.5, overflowWrap: "anywhere" }}>
-          {r.userEmail ?? "—"}
-        </span>
-      ),
-    },
-    {
-      key: "provider",
-      header: "Provider",
-      render: (r) => (
-        <span style={{ fontSize: 12, color: INK_SECONDARY }}>{r.provider}</span>
-      ),
-    },
-    {
-      key: "amount",
-      header: "Amount",
-      nowrap: true,
-      render: (r) => (
-        <span style={{ fontWeight: 600 }}>
-          {formatMoneyCents(r.amountCents, r.currency || revenueCurrency)}
+        <span>
+          {r.provider} {r.plan}
         </span>
       ),
     },
     {
       key: "status",
       header: "Status",
-      render: (r) => <Badge tone={paymentStatusTone(r.status)}>{r.status}</Badge>,
+      render: (r) => (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Badge>
+          {r.cancelAtPeriodEnd ? (
+            <Badge tone="pending" title="Provider-confirmed: will not renew">
+              Cancels at period end
+            </Badge>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "period",
+      header: "Period ends",
+      nowrap: true,
+      render: (r) => (r.currentPeriodEnd ? formatUserDateTime(r.currentPeriodEnd) : "—"),
+    },
+    {
+      key: "ref",
+      header: "Provider ref",
+      render: (r) => (
+        <span style={{ fontFamily: "monospace", fontSize: 12 }}>
+          {r.providerSubRefMasked}
+        </span>
+      ),
+    },
+  ];
+
+  const addonColumns: DataTableColumn<AddonRow>[] = [
+    { key: "subject", header: "Affected", render: (r) => <SubjectCell s={r} /> },
+    {
+      key: "amount",
+      header: "Amount",
+      nowrap: true,
+      render: (r) => (
+        <span style={{ fontWeight: 600 }}>
+          {formatMoney(r.amountCents, r.currency ?? "EUR")}
+        </span>
+      ),
+    },
+    {
+      key: "billingCycle",
+      header: "Cycle",
+      nowrap: true,
+      render: (r) => (
+        <Badge tone={r.billingCycle === "MONTHLY" ? "info" : "neutral"} subtle>
+          {r.billingCycle}
+        </Badge>
+      ),
+    },
+    {
+      key: "orphaned",
+      header: "State",
+      nowrap: true,
+      render: (r) =>
+        r.orphaned ? (
+          <Badge tone="risk" dot title="Live workspace, no active subscription">
+            Orphaned
+          </Badge>
+        ) : (
+          <Badge tone="verified" subtle>
+            Attached
+          </Badge>
+        ),
+    },
+  ];
+
+  const paymentColumns: DataTableColumn<PaymentRow>[] = [
+    { key: "subject", header: "Affected", render: (r) => <SubjectCell s={r} /> },
+    {
+      key: "amount",
+      header: "Amount",
+      nowrap: true,
+      render: (r) => (
+        <span style={{ fontWeight: 600 }}>{formatMoney(r.amountCents, r.currency)}</span>
+      ),
+    },
+    { key: "provider", header: "Provider", render: (r) => r.provider },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Badge>,
+    },
+    {
+      key: "createdAt",
+      header: "When",
+      nowrap: true,
+      render: (r) => formatUserDateTime(r.createdAt),
     },
   ];
 
   return (
-    <PageShell width="full">
-      <PageHeader
-        eyebrow="Platform admin"
-        title="Billing & Revenue"
-        subtitle="Read-only billing aggregate across every workspace. Gross revenue reuses the platform analytics computation. MRR/ARR that is not safely derivable from the schema is shown as “Not measured” — never estimated. No card tokens or provider secrets are surfaced; email is the only customer field."
-        secondaryActions={
-          <Button variant="secondary" onClick={() => void load()}>
-            Refresh
-          </Button>
-        }
-      />
-
-      <AdminConsoleNav />
+    <PageShell
+      width="full"
+      header={
+        <PageHeader
+          eyebrow="Platform control center"
+          title="Billing"
+          subtitle="Who pays for what, and what needs attention. Every attention row names the person, workspace and customer behind it. Revenue is reported per currency — no exchange rate is applied, because this platform has no rate authority."
+          secondaryActions={
+            <Button variant="secondary" onClick={() => void load()} disabled={loading}>
+              {loading ? "Refreshing…" : "Refresh"}
+            </Button>
+          }
+        />
+      }
+    >
 
       {loading ? (
-        <PageSection>
-          <div
-            style={{
-              display: "grid",
-              gap: 16,
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-            }}
-          >
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} padding="comfortable" data-testid="admin-billing-loading-tile">
-                <div
-                  aria-hidden="true"
-                  style={{
-                    height: 76,
-                    borderRadius: 10,
-                    background: "var(--surface-muted, #f1f4f9)",
-                  }}
-                />
-              </Card>
-            ))}
-          </div>
-        </PageSection>
+        <Card>
+          <Skeleton width="100%" height="220px" />
+        </Card>
       ) : !detail ? (
-        <PageSection>
-          <Card variant="empty" padding="none">
-            <EmptyState
-              framed
-              title="Billing not connected"
-              purpose="No billing aggregate was returned. Once Subscription / Payment / webhook rows exist, revenue, plan mix, webhook health and recent payments appear here."
-              data-testid="admin-billing-not-connected"
-            />
-          </Card>
-        </PageSection>
+        <EmptyState
+          title="Billing unavailable"
+          purpose="The billing aggregate could not be loaded. This is a not-connected state, not an empty platform."
+        />
       ) : (
         <>
           <PageSection
-            title="Top-line billing metrics"
-            description="Every value is read live from the billing aggregate. Values not safely derivable from the schema render as “Not measured”."
+            title="Revenue"
+            description="Succeeded payment totals, one per currency."
           >
-            <div
-              data-testid="admin-billing-metric-grid"
-              style={{
-                display: "grid",
-                gap: 16,
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              }}
-            >
-              {metrics.map((m) => (
-                <MetricTile
-                  key={m.label}
-                  label={m.label}
-                  value={m.value}
-                  sub={m.sub}
-                  accent={m.accent}
-                />
-              ))}
-            </div>
-            {detail.mrr.note ? (
-              <div style={{ marginTop: 12, fontSize: 12.5, color: INK_MUTED }}>
-                {detail.mrr.note}
+            {detail.revenueByCurrency.length === 0 ? (
+              <EmptyState
+                title="No payments recorded"
+                purpose="No succeeded payment exists yet. This is a real zero, not an unmeasured signal."
+              />
+            ) : (
+              <div className="admin-stat-grid">
+                {detail.revenueByCurrency.map((r) => (
+                  <div key={r.currency} className="admin-stat">
+                    <div className="admin-stat-label">{r.currency} gross</div>
+                    <div className="admin-stat-value">
+                      {formatMoney(r.succeededCents, r.currency)}
+                    </div>
+                    <div className="admin-stat-hint">
+                      {r.succeededPayments} succeeded · {r.failedPayments} failed ·{" "}
+                      {r.refundedPayments} refunded
+                    </div>
+                  </div>
+                ))}
               </div>
+            )}
+
+            <div style={{ marginTop: 16 }} className="admin-stat-grid">
+              <div className="admin-stat">
+                <div className="admin-stat-label">MRR</div>
+                <div className="admin-stat-value" data-state={detail.mrrCents.state}>
+                  Not measured
+                </div>
+                <div className="admin-stat-reason">{detail.mrrCents.reason}</div>
+              </div>
+              {detail.storageAddons.mrrByCurrency.length === 0 ? (
+                <div className="admin-stat">
+                  <div className="admin-stat-label">Storage add-on MRR</div>
+                  <div className="admin-stat-value">
+                    {formatMoney(0, "EUR")}
+                  </div>
+                  <div className="admin-stat-hint">
+                    No monthly add-on is active. A real zero.
+                  </div>
+                </div>
+              ) : (
+                detail.storageAddons.mrrByCurrency.map((m) => (
+                  <div key={m.currency} className="admin-stat">
+                    <div className="admin-stat-label">
+                      {m.currency} storage add-on MRR
+                    </div>
+                    <div className="admin-stat-value">
+                      {formatMoney(m.amountCents, m.currency)}
+                    </div>
+                    <div className="admin-stat-hint">
+                      Derivable because add-ons DO carry a billed amount — and
+                      reported per currency, because they carry that too
+                    </div>
+                  </div>
+                ))
+              )}
+              <div className="admin-stat">
+                <div className="admin-stat-label">Orphaned add-ons</div>
+                <div
+                  className="admin-stat-value"
+                  data-emphasis={detail.storageAddons.orphanedCount > 0 ? "attention" : undefined}
+                >
+                  {detail.storageAddons.orphanedCount}
+                </div>
+                <div className="admin-stat-hint">
+                  Active add-on on a workspace with no live subscription
+                </div>
+              </div>
+            </div>
+          </PageSection>
+
+          <PageSection
+            id="subscriptionStatus"
+            title="Subscriptions"
+            description="Provider subscription rows by their provider-confirmed status. A cancelled subscription is shown as cancelled and is never counted as an active one."
+          >
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {detail.subscriptions.byStatus.map((s) => (
+                <Badge
+                  key={s.status}
+                  tone={STATUS_TONE[s.status] ?? "neutral"}
+                  subtle={focus !== s.status}
+                >
+                  {s.status}: {s.count}
+                </Badge>
+              ))}
+              {detail.subscriptions.pendingCancellation > 0 ? (
+                <Badge tone="pending">
+                  Pending cancellation: {detail.subscriptions.pendingCancellation}
+                </Badge>
+              ) : null}
+            </div>
+          </PageSection>
+
+          <PageSection
+            id="pendingCancellation"
+            title="Pending cancellation"
+            description="Active subscriptions the provider has confirmed will not renew. These are customers who have already left; the paid period is simply still running."
+          >
+            <Card>
+              <DataTable
+                ariaLabel="Pending cancellations"
+                columns={attentionColumns}
+                rows={detail.attention.pendingCancellation}
+                getRowId={(r) => r.id}
+                emptyState={
+                  <EmptyState
+                    title="No pending cancellations"
+                    purpose="No active subscription is currently set to cancel at the end of its period."
+                  />
+                }
+              />
+            </Card>
+          </PageSection>
+
+          <PageSection
+            title="Past due"
+            description="Subscriptions the provider reports as past due."
+          >
+            <Card>
+              <DataTable
+                ariaLabel="Past due subscriptions"
+                columns={attentionColumns}
+                rows={detail.attention.pastDue}
+                getRowId={(r) => r.id}
+                emptyState={
+                  <EmptyState
+                    title="Nothing past due"
+                    purpose="No subscription is currently in a past-due state."
+                  />
+                }
+              />
+            </Card>
+          </PageSection>
+
+          <PageSection
+            id="paymentStatus"
+            title="Failed payments"
+            description="Recent failed payments, with the account and workspace behind each one."
+          >
+            <Card>
+              <DataTable
+                ariaLabel="Failed payments"
+                columns={paymentColumns}
+                rows={detail.attention.failedPayments}
+                getRowId={(r) => r.id}
+                emptyState={
+                  <EmptyState
+                    title="No failed payments"
+                    purpose="No payment has failed. This is a real zero."
+                  />
+                }
+              />
+            </Card>
+          </PageSection>
+
+          <PageSection
+            title="Renewal window"
+            description="Subscriptions whose period ends soon."
+          >
+            <Card>
+              <DataTable
+                ariaLabel="Renewal window"
+                columns={attentionColumns}
+                rows={detail.attention.renewalWindow}
+                getRowId={(r) => r.id}
+                emptyState={
+                  <EmptyState
+                    title="No renewals in the window"
+                    purpose="No subscription renews in the configured window."
+                  />
+                }
+              />
+            </Card>
+          </PageSection>
+
+          <PageSection
+            id="addons"
+            title="Storage add-ons"
+            description="Every active storage add-on, orphans first. An orphan is an add-on still billing on a live workspace that carries no active subscription — the condition the count above names, now with the rows behind it."
+          >
+            <Card>
+              <DataTable
+                ariaLabel="Storage add-ons"
+                columns={addonColumns}
+                rows={detail.storageAddons.rows}
+                getRowId={(r) => r.id}
+                emptyState={
+                  <EmptyState
+                    title="No active storage add-ons"
+                    purpose="No workspace currently carries a storage add-on. This is a real zero, not an unmeasured signal."
+                  />
+                }
+              />
+            </Card>
+            {detail.storageAddons.truncated ? (
+              <p className="admin-stat-reason" style={{ marginTop: 8 }}>
+                Showing the first {detail.storageAddons.rows.length} of{" "}
+                {detail.storageAddons.activeCount} active add-ons, orphans first.
+                The counts above are exact.
+              </p>
             ) : null}
           </PageSection>
 
           <PageSection
-            title="Plan mix"
-            description="Subscription distribution across billing plans (real counts)."
+            title="Provider webhooks"
+            description="Delivery health from real processing-status rows."
           >
-            <div
-              style={{
-                display: "grid",
-                gap: 10,
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              }}
-            >
-              {planMix.map((p) => (
-                <StatRow key={p.label} label={p.label} value={p.value} tone={p.tone} />
-              ))}
+            <div className="admin-stat-grid">
+              {(["stripe", "paypal"] as const).map((p) => {
+                const w = detail.webhooks[p];
+                return (
+                  <div key={p} className="admin-stat" data-problem={w.failed > 0 || undefined}>
+                    <div className="admin-stat-label">{p}</div>
+                    <div
+                      className="admin-stat-value"
+                      data-state={w.total === 0 ? "UNKNOWN" : "VALUE"}
+                      data-emphasis={w.failed > 0 ? "critical" : undefined}
+                    >
+                      {w.total === 0 ? "Not connected" : `${w.failed} failed`}
+                    </div>
+                    <div className="admin-stat-hint">
+                      {w.total} event{w.total === 1 ? "" : "s"} received
+                      {w.lastReceivedAt
+                        ? ` · last ${formatUserDateTime(w.lastReceivedAt)}`
+                        : ""}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </PageSection>
 
           <PageSection
-            title="Webhook health"
-            description="Honest processing health from real StripeWebhookEvent / PaypalWebhookEvent rows. Zero rows reads as “Not connected”."
+            title="Reconciliation"
+            description="What the platform can honestly say about provider agreement."
           >
-            <div
-              style={{
-                display: "grid",
-                gap: 16,
-                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              }}
-            >
-              <WebhookCard status={detail.stripeWebhookStatus} />
-              <WebhookCard status={detail.paypalWebhookStatus} />
-            </div>
-          </PageSection>
+            <Card>
+              <div
+                role="note"
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-default, #e2e8f0)",
+                  background: "var(--surface-muted, #f8fafc)",
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  marginBottom: 16,
+                }}
+              >
+                {detail.reconciliation.providerAgreement.note}
+              </div>
 
-          <PageSection
-            title="Recent payments"
-            description="Most recent payment events across the platform. Email is the only customer field; provider payment tokens are never exposed."
-          >
-            <DataTable
-              columns={paymentColumns}
-              rows={detail.recentPaymentEvents}
-              getRowId={(r) => r.id}
-              ariaLabel="Recent platform payments"
-              emptyState={
-                <EmptyState
-                  title="No payments recorded"
-                  purpose="No payment events were returned. Once the Payment table records activity, recent payments appear here."
-                  data-testid="admin-billing-payments-empty"
-                />
-              }
-            />
+              <div className="admin-stat-grid">
+                <div className="admin-stat">
+                  <div className="admin-stat-label">Provider-confirmed</div>
+                  <div className="admin-stat-value">
+                    {detail.reconciliation.providerAgreement.subscriptionsWithProviderState}
+                  </div>
+                  <div className="admin-stat-hint">
+                    Subscriptions carrying a provider state timestamp
+                  </div>
+                </div>
+                <div className="admin-stat">
+                  <div className="admin-stat-label">Never confirmed</div>
+                  <div
+                    className="admin-stat-value"
+                    data-emphasis={
+                      detail.reconciliation.providerAgreement.subscriptionsNeverConfirmed > 0
+                        ? "attention"
+                        : undefined
+                    }
+                  >
+                    {detail.reconciliation.providerAgreement.subscriptionsNeverConfirmed}
+                  </div>
+                  <div className="admin-stat-hint">
+                    No reconciliation or webhook has ever stamped these
+                  </div>
+                </div>
+                <div className="admin-stat">
+                  <div className="admin-stat-label">Oldest confirmation</div>
+                  <div
+                    className="admin-stat-value"
+                    data-state={
+                      detail.reconciliation.providerAgreement.oldestConfirmationAtUtc
+                        ? "VALUE"
+                        : "UNKNOWN"
+                    }
+                    style={{ fontSize: "1.05rem" }}
+                  >
+                    {detail.reconciliation.providerAgreement.oldestConfirmationAtUtc
+                      ? formatUserDateTime(
+                          detail.reconciliation.providerAgreement.oldestConfirmationAtUtc,
+                        )
+                      : "None recorded"}
+                  </div>
+                </div>
+              </div>
+
+              {detail.reconciliation.runHistory.state === "VALUE" &&
+              (detail.reconciliation.runHistory.value?.length ?? 0) > 0 ? (
+                <div style={{ marginTop: 20 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: "var(--ink-muted, #64748b)",
+                      marginBottom: 10,
+                    }}
+                  >
+                    Recent governance reconciliation runs
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
+                    {detail.reconciliation.runHistory.value!.map((r) => (
+                      <li key={r.id} style={{ marginBottom: 6 }}>
+                        <strong>{r.kind}</strong> · {r.status} · scanned {r.scanned}
+                        {r.failed > 0 ? `, ${r.failed} failed` : ""} ·{" "}
+                        {formatUserDateTime(r.startedAtUtc)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </Card>
           </PageSection>
         </>
       )}

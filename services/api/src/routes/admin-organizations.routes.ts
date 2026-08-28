@@ -44,6 +44,11 @@ const ListQuery = z.object({
   plan: z.enum(["FREE", "PAYG", "PRO", "TEAM", "ENTERPRISE"]).optional(),
   status: z.enum(["ACTIVE", "SUSPENDED", "ARCHIVED"]).optional(),
   health: z.enum(["HEALTHY", "ATTENTION", "BLOCKED", "UNKNOWN"]).optional(),
+  // ADM-003 — filter on the CONTRACT, never on a plan string.
+  enterprise: z
+    .union([z.literal("true"), z.literal("false")])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
 });
 
 // TENANT_SCOPE_EXCEPTION: platform_admin_global -- every route in this plugin is
@@ -52,41 +57,57 @@ const ListQuery = z.object({
 // authorization boundary. No per-tenant authorizeOrFail applies here.
 export async function adminOrganizationsRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
-  // GET /v1/admin/organizations — roster.
+  // GET /v1/admin/customers — THE customer roster.
+  //
+  // ADM-033 — "customers" is what this surface is about. The population is
+  // `Organization.kind = 'CUSTOMER'`, which excludes the 1:1 SYSTEM container
+  // every workspace owns; calling it "organizations" is what made counting those
+  // containers look reasonable. `/v1/admin/organizations` remains registered
+  // below as a byte-identical alias so no existing consumer breaks.
   // ---------------------------------------------------------------------------
+  const listCustomers = async (req: FastifyRequest, reply: FastifyReply) => {
+    const parsed = ListQuery.safeParse(req.query);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: {
+          code: "validation_error",
+          detail: parsed.error.flatten(),
+        },
+      });
+    }
+    const q = parsed.data;
+    const result = await listAdminOrganizations({
+      page: q.page,
+      limit: q.limit,
+      search: q.search,
+      plan: q.plan,
+      status: q.status,
+      health: q.health as OnboardingHealth | undefined,
+      enterprise: q.enterprise,
+    });
+    return reply.code(200).send(result);
+  };
+
+  app.get(
+    "/v1/admin/customers",
+    { preHandler: requirePlatformAdmin },
+    listCustomers,
+  );
+
+  // Compatibility alias — same handler, same gate, same payload. Retained so
+  // this remediation does not break a consumer mid-flight; the web console now
+  // calls `/v1/admin/customers`.
   app.get(
     "/v1/admin/organizations",
     { preHandler: requirePlatformAdmin },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const parsed = ListQuery.safeParse(req.query);
-      if (!parsed.success) {
-        return reply.code(400).send({
-          error: {
-            code: "validation_error",
-            detail: parsed.error.flatten(),
-          },
-        });
-      }
-      const q = parsed.data;
-      const result = await listAdminOrganizations({
-        page: q.page,
-        limit: q.limit,
-        search: q.search,
-        plan: q.plan,
-        status: q.status,
-        health: q.health as OnboardingHealth | undefined,
-      });
-      return reply.code(200).send(result);
-    },
+    listCustomers,
   );
 
   // ---------------------------------------------------------------------------
-  // GET /v1/admin/organizations/:id — read-only detail.
+  // GET /v1/admin/customers/:id — read-only customer detail.
+  // (`/v1/admin/organizations/:id` is registered below as an alias.)
   // ---------------------------------------------------------------------------
-  app.get(
-    "/v1/admin/organizations/:id",
-    { preHandler: requirePlatformAdmin },
-    async (req: FastifyRequest, reply: FastifyReply) => {
+  const customerDetail = async (req: FastifyRequest, reply: FastifyReply) => {
       const idParse = UuidParam.safeParse((req.params as { id?: unknown }).id);
       if (!idParse.success) {
         return reply.code(400).send({
@@ -125,6 +146,18 @@ export async function adminOrganizationsRoutes(app: FastifyInstance) {
       }
 
       return reply.code(200).send(detail);
-    },
+  };
+
+  app.get(
+    "/v1/admin/customers/:id",
+    { preHandler: requirePlatformAdmin },
+    customerDetail,
+  );
+
+  // Compatibility alias for the pre-rename path.
+  app.get(
+    "/v1/admin/organizations/:id",
+    { preHandler: requirePlatformAdmin },
+    customerDetail,
   );
 }

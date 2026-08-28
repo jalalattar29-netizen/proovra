@@ -48,7 +48,6 @@ import {
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
-import AdminConsoleNav from "../../../../components/admin/AdminConsoleNav";
 import {
   PageShell,
   PageHeader,
@@ -141,7 +140,6 @@ function AdminProvisioningInner() {
       data-testid="admin-provisioning"
       header={
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <AdminConsoleNav />
           <PageHeader
             eyebrow="Platform admin"
             title="Provision enterprise customer"
