@@ -384,6 +384,24 @@ export type BillingAccountProjection = {
     active: ActiveStorageAddon[];
   };
   /**
+   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — why storage add-ons are
+   * NOT on offer, when a higher tier would put them there.
+   *
+   * FREE cannot buy storage: the server refuses it, so the surface offered
+   * nothing — and said nothing either. A customer looking at a full 250 MB
+   * meter with no way to add capacity and no explanation has been left to
+   * guess whether the feature is missing, broken, or simply not theirs.
+   *
+   * Composed HERE because "which tier unlocks this" is a commercial fact. The
+   * page renders the sentence and the action; it does not work out either.
+   * Absent whenever add-ons ARE available, so its presence is the condition.
+   */
+  storageAddonsLocked?: {
+    reason: string;
+    /** The lowest tier that includes them. Null when nothing self-service does. */
+    unlockedByPlan: string | null;
+  };
+  /**
    * BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — storage add-ons
    * whose cancellation the provider has not confirmed.
    *
@@ -1138,6 +1156,19 @@ export async function buildBillingAccountProjection(input: {
             currency,
             showAmounts,
           }),
+        }
+      : {}),
+    // Not eligible, but a self-service tier would make it so — say so.
+    // ENTERPRISE is excluded deliberately: its capacity comes from the
+    // contract, and offering an "upgrade" would be offering to replace a
+    // signed agreement with a card payment.
+    ...(!addonsEligible && account.type === "PERSONAL" && scope.plan === "FREE"
+      ? {
+          storageAddonsLocked: {
+            reason:
+              "Extra storage is part of Pro and Team. Your plan includes its own storage, and you can add more once you move up.",
+            unlockedByPlan: "PRO",
+          },
         }
       : {}),
     ...(addonsEligible

@@ -214,6 +214,11 @@ export type BillingAccountProjection = {
     supportRequired: boolean;
   };
   storageAddons?: { offers: StorageAddonOffer[]; active: ActiveStorageAddon[] };
+  /**
+   * Why storage add-ons are NOT on offer, and which tier includes them.
+   * Present only while they are unavailable, so its presence is the condition.
+   */
+  storageAddonsLocked?: { reason: string; unlockedByPlan: string | null };
   actions: {
     canStartCheckout: boolean;
     canBuyEvidenceCredits: boolean;

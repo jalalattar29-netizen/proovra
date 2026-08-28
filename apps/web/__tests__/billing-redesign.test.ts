@@ -576,3 +576,17 @@ test("a silent agreement is never rendered as a limit of zero", () => {
   const dto = read("../lib/api/billing-accounts.ts");
   assert.match(dto, /limit: number \| null; pendingInvites/);
 });
+
+test("FREE explains why storage add-ons are absent, and offers the move", () => {
+  // Found in browser verification: a FREE customer saw a full 250 MB meter,
+  // no way to add capacity, and no explanation — left to guess whether the
+  // feature was missing, broken, or simply not theirs.
+  const storage = read(STORAGE_HISTORY);
+  assert.match(storage, /data-billing-storage-locked/);
+  assert.match(storage, /storageAddonsLocked/);
+  assert.match(storage, /data-billing-storage-upgrade/);
+  // The sentence and the tier come from the SERVER; the page renders them.
+  assert.match(storage, /\{locked\.reason\}/);
+  assert.match(storage, /locked\.unlockedByPlan/);
+  assert.doesNotMatch(storage, /Extra storage is part of Pro and Team/);
+});

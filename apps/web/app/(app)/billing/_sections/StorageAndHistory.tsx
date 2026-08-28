@@ -50,6 +50,40 @@ export function StorageAddonsSection({
   onCancelAddon: (addonId: string) => void;
   cancelBusyId: string | null;
 }) {
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — when add-ons are not
+  // available, say why and offer the move that changes it, rather than
+  // rendering nothing and leaving the customer to guess whether the feature is
+  // missing, broken, or simply not theirs.
+  const locked = projection.storageAddonsLocked;
+  if (locked) {
+    return (
+      <Card variant="summary" title="Storage" data-billing-storage-locked>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "0.92rem",
+            lineHeight: 1.6,
+            color: "var(--text-muted, #475569)",
+          }}
+        >
+          {locked.reason}
+        </p>
+        {locked.unlockedByPlan ? (
+          <div style={{ marginTop: 12 }}>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onBuy}
+              data-billing-storage-upgrade
+            >
+              See plans
+            </Button>
+          </div>
+        ) : null}
+      </Card>
+    );
+  }
+
   const addons = projection.storageAddons;
   if (!addons) return null;
 
