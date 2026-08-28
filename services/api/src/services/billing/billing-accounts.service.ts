@@ -103,15 +103,14 @@ export const ALL_BILLING_CAPABILITIES: readonly BillingCapability[] = [
 /** Full financial control — the account's own payer. */
 const OWNER_CAPABILITIES: readonly BillingCapability[] = ALL_BILLING_CAPABILITIES;
 
-/**
- * A workspace administrator who is NOT the billing owner. They operate the
- * workspace, so they may see which plan governs it and how much of its
- * allowance is used — and nothing financial. No amounts, no history, no
- * purchase, no cancellation, no provider.
+/*
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `OPERATIONAL_ADMIN_CAPABILITIES`
+ * was DELETED with the subject it described.
+ *
+ * It gave a workspace ADMINISTRATOR who is not the billing owner a view-only
+ * capability set on that workspace's billing account. No workspace is a
+ * billing account, so nobody can hold a capability on one.
  */
-const OPERATIONAL_ADMIN_CAPABILITIES: readonly BillingCapability[] = [
-  "BILLING_ACCOUNT_VIEW",
-];
 
 /**
  * An Organization billing administrator. Enterprise is contract-managed, so

@@ -58,7 +58,6 @@ import { evaluateWorkspaceClosurePreflight } from "../services/identity/account-
 import { purgeWorkspaceAiRecords } from "../services/ai/ai-retention.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import {
-  grantOrganizationMembership,
   provisionMembership,
   purgeWorkspaceMembershipsForTeamDeletion,
   removeWorkspaceMembershipPhysical,

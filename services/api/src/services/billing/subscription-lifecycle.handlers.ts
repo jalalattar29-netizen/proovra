@@ -24,9 +24,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
-import { isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive } from "@proovra/shared-billing";
 
-import { prisma } from "../../db.js";
 // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `activateTeamPlan` and
 // `cancelTeamPlan` are no longer imported. They write a WORKSPACE's commercial
 // columns, and a self-service subscription no longer has a workspace to write.

@@ -16252,8 +16252,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/billing.routes.ts#PAYMENT.createStripeCheckoutSession@1278",
-      "terminalLocation": "services/api/src/routes/billing.routes.ts:1278",
+      "writerId": "services/api/src/routes/billing.routes.ts#PAYMENT.createStripeCheckoutSession@1239",
+      "terminalLocation": "services/api/src/routes/billing.routes.ts:1239",
       "file": "services/api/src/routes/billing.routes.ts",
       "enclosingDeclaration": "billingRoutes",
       "kind": "EXTERNAL",
@@ -16285,8 +16285,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/billing.routes.ts#workspaceStorageAddon.update@1079",
-      "terminalLocation": "services/api/src/routes/billing.routes.ts:1079",
+      "writerId": "services/api/src/routes/billing.routes.ts#workspaceStorageAddon.update@1040",
+      "terminalLocation": "services/api/src/routes/billing.routes.ts:1040",
       "file": "services/api/src/routes/billing.routes.ts",
       "enclosingDeclaration": "billingRoutes",
       "kind": "DATABASE",
@@ -20485,8 +20485,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@1965",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1965",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@1964",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1964",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20518,8 +20518,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2032",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2032",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2031",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2031",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20551,8 +20551,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@1563",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1563",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@1562",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1562",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20584,8 +20584,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@905",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:905",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@904",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:904",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20617,8 +20617,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@2439",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2439",
+      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@2438",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2438",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20650,8 +20650,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@1555",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1555",
+      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@1554",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1554",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20683,8 +20683,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#team.delete@921",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:921",
+      "writerId": "services/api/src/routes/teams.routes.ts#team.delete@920",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:920",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20716,8 +20716,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#team.update@773",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:773",
+      "writerId": "services/api/src/routes/teams.routes.ts#team.update@772",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:772",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20749,8 +20749,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@195",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:195",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@194",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:194",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "createActivity",
       "kind": "DATABASE",
@@ -20788,8 +20788,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@2457",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2457",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@2456",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2456",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20821,8 +20821,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.create@1106",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1106",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.create@1105",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1105",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20854,8 +20854,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.delete@1210",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1210",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.delete@1209",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1209",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20887,8 +20887,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.deleteMany@894",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:894",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.deleteMany@893",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:893",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20920,8 +20920,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.updateMany@1740",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1740",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamInvite.updateMany@1739",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1739",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20953,8 +20953,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@2871",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2871",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@2870",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2870",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -20986,8 +20986,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@2901",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2901",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@2900",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2900",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -21019,8 +21019,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@2940",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2940",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@2939",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2939",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -25326,8 +25326,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#entitlement.create@142",
-      "terminalLocation": "services/api/src/services/billing.service.ts:142",
+      "writerId": "services/api/src/services/billing.service.ts#entitlement.create@140",
+      "terminalLocation": "services/api/src/services/billing.service.ts:140",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "ensureEntitlement",
       "kind": "DATABASE",
@@ -25451,8 +25451,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#entitlement.updateMany@224",
-      "terminalLocation": "services/api/src/services/billing.service.ts:224",
+      "writerId": "services/api/src/services/billing.service.ts#entitlement.updateMany@222",
+      "terminalLocation": "services/api/src/services/billing.service.ts:222",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "setPersonalPlan",
       "kind": "DATABASE",
@@ -25488,8 +25488,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#payment.upsert@289",
-      "terminalLocation": "services/api/src/services/billing.service.ts:289",
+      "writerId": "services/api/src/services/billing.service.ts#payment.upsert@287",
+      "terminalLocation": "services/api/src/services/billing.service.ts:287",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "recordPayment",
       "kind": "DATABASE",
@@ -25524,8 +25524,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#subscription.upsert@403",
-      "terminalLocation": "services/api/src/services/billing.service.ts:403",
+      "writerId": "services/api/src/services/billing.service.ts#subscription.upsert@401",
+      "terminalLocation": "services/api/src/services/billing.service.ts:401",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "upsertSubscription",
       "kind": "DATABASE",
@@ -25561,8 +25561,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#team.update@683",
-      "terminalLocation": "services/api/src/services/billing.service.ts:683",
+      "writerId": "services/api/src/services/billing.service.ts#team.update@681",
+      "terminalLocation": "services/api/src/services/billing.service.ts:681",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "refreshTeamSeatState",
       "kind": "DATABASE",
@@ -25595,8 +25595,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.create@561",
-      "terminalLocation": "services/api/src/services/billing.service.ts:561",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.create@559",
+      "terminalLocation": "services/api/src/services/billing.service.ts:559",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "upsertWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -25629,8 +25629,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@557",
-      "terminalLocation": "services/api/src/services/billing.service.ts:557",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@555",
+      "terminalLocation": "services/api/src/services/billing.service.ts:555",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "upsertWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -25663,8 +25663,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@623",
-      "terminalLocation": "services/api/src/services/billing.service.ts:623",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@621",
+      "terminalLocation": "services/api/src/services/billing.service.ts:621",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "cancelWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -79220,7 +79220,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:808",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:807",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -79292,7 +79292,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/cases/:caseId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1994",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1993",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -79351,7 +79351,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/external-grants/:grantId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2386",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2385",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -79402,7 +79402,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1172",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1171",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -79460,7 +79460,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1414",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1413",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -84254,7 +84254,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:525",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:486",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -84335,7 +84335,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts/:type/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:543",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:504",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -84437,7 +84437,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts/:type/:id/history",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:583",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:544",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -84504,7 +84504,7 @@
       "method": "GET",
       "path": "/v1/billing/overview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:653",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:614",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -84602,7 +84602,7 @@
       "method": "GET",
       "path": "/v1/billing/pricing",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:631",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:592",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -84650,7 +84650,7 @@
       "method": "GET",
       "path": "/v1/billing/subscription",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:686",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:647",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -102319,7 +102319,7 @@
       "method": "GET",
       "path": "/v1/platform/rbac/matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2500",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2499",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107600,7 +107600,7 @@
       "method": "GET",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:425",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:424",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107655,7 +107655,7 @@
       "method": "GET",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:505",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:504",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107763,7 +107763,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2219",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2218",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107821,7 +107821,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1801",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1800",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107895,7 +107895,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/cases",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:658",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:657",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107952,7 +107952,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2773",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2772",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108010,7 +108010,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/external-collaborators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2084",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2083",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108058,7 +108058,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:702",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:701",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -108114,7 +108114,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members/:memberId/removal-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1325",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1324",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112703,7 +112703,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:752",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:751",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112768,7 +112768,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1230",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1229",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -117311,7 +117311,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1162",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1123",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117403,7 +117403,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/retry-storage-cancellation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1347",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1308",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117473,7 +117473,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1610",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1571",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117540,7 +117540,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1241",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1202",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117607,7 +117607,7 @@
       "method": "POST",
       "path": "/v1/billing/credits/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1490",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1451",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117672,7 +117672,7 @@
       "method": "POST",
       "path": "/v1/billing/credits/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1447",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1408",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117737,7 +117737,7 @@
       "method": "POST",
       "path": "/v1/billing/plan",
       "productionRegistered": false,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1806",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1767",
       "authorizationClass": "DEVELOPMENT_ONLY",
       "authorizationEvidence": [
         "registered only inside `if (devAuthEnabled())` — production registration is zero"
@@ -117747,7 +117747,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "DEVELOPMENT_ONLY",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/billing.routes.ts:1806 — registered only inside `if (devAuthEnabled())` — production registration is zero",
+      "dispositionEvidence": "services/api/src/routes/billing.routes.ts:1767 — registered only inside `if (devAuthEnabled())` — production registration is zero",
       "dispositionReason": "registered only behind the development auth gate",
       "replacement": null,
       "result": "DISPOSED_DEVELOPMENT_ONLY",
@@ -117801,7 +117801,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:978",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:939",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117873,7 +117873,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1705",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1666",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -117953,7 +117953,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1530",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1491",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -118033,7 +118033,7 @@
       "method": "POST",
       "path": "/v1/billing/subscription/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:867",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:828",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -118110,7 +118110,7 @@
       "method": "POST",
       "path": "/v1/billing/subscription/plan",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:769",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:730",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -146579,7 +146579,7 @@
       "method": "POST",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:363",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:362",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146640,7 +146640,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/cases/link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1902",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1901",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146701,7 +146701,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2805",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2804",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146770,7 +146770,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2928",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2927",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146827,7 +146827,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:943",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:942",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146906,7 +146906,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3039",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3038",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146970,7 +146970,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2986",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2985",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147037,7 +147037,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1622",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1621",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

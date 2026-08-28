@@ -46,7 +46,6 @@ import {
   NAVIGATION_SCHEMA_VERSION,
 } from "../../lib/platform-context/types";
 import { AccountSelector } from "../../app/(app)/billing/_sections/AccountSelector";
-import { ToastProvider } from "../../components/ui";
 
 // ---------------------------------------------------------------------------
 // Envelope builder

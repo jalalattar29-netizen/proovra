@@ -20,7 +20,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
-import { seedPersonalTenant, seedUser, type FixtureDeps } from "./point7/product-fixtures.js";
+import { seedPersonalTenant, type FixtureDeps } from "./point7/product-fixtures.js";
 import type {
   BillingReconciliationProvider,
   PaymentObservation,

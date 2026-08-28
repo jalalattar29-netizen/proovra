@@ -51,7 +51,6 @@ const TRANSFER_CARD =
 
 const MEMBERS_PAGE = "app/(app)/organizations/[id]/admin/members/page.tsx";
 const ORG_PAGE = "app/(app)/organizations/[id]/page.tsx";
-const SPACES_PAGE = "components/workspace-admin/WorkspaceAdministrationHome.tsx";
 const TEAM_PAGE = "app/(app)/teams/[id]/page.tsx";
 
 /**

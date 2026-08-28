@@ -2,9 +2,7 @@ import { prisma } from "../db.js";
 // PHASE 12 REMEDIATION §6.1 (2026-08-06) — the ONE seat-OCCUPANCY authority,
 // shared with the worker. The seat-CEILING comparison stays
 // `computeOverSeatLimit` in this file — one quantity, one comparison.
-import { countActiveSeatOccupancy } from "@proovra/shared-runtime";
 import * as prismaPkg from "@prisma/client";
-import { getPlanCapabilities } from "./plan-catalog.service.js";
 import { writeAnalyticsEvent } from "./analytics-event.service.js";
 
 const GB = 1024n * 1024n * 1024n;

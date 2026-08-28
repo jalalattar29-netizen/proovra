@@ -261,49 +261,10 @@ function fireBillingAnalyticsEvent(params: {
   }).catch(() => null);
 }
 
-async function assertOwnedTeamForCheckout(userId: string, teamId: string) {
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: {
-      id: true,
-      ownerUserId: true,
-      name: true,
-    },
-  });
-
-  if (!team) {
-    const err: Error & { statusCode?: number } = new Error("Team not found");
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (team.ownerUserId !== userId) {
-    const err: Error & { statusCode?: number } = new Error(
-      "Only the team owner can purchase or manage this team subscription"
-    );
-    err.statusCode = 403;
-    throw err;
-  }
-
-  return team;
-}
-
-/**
- * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a self-service checkout
- * targets the PERSONAL subject, and nothing else.
- *
- * This function used to REQUIRE a `teamId` for TEAM and REFUSE one for PRO,
- * which is the obsolete model written as a precondition: TEAM was literally
- * unbuyable without first creating a separate workspace to point it at. A
- * customer on PRO who wanted TEAM had to make a second workspace, subscribe
- * that, and leave their evidence in the first.
- *
- * FREE → PRO, FREE → TEAM and PRO → TEAM are now all upgrades of the same
- * Personal Workspace, so no checkout carries a workspace target at all. A
- * `teamId` on a checkout body is refused outright rather than quietly
- * ignored: accepting a field that no longer means anything is how a stale
- * client keeps believing in a model the server has abandoned.
- */
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `assertOwnedTeamForCheckout`
+// was DELETED. It answered "does this user own the workspace they are buying
+// for", and a checkout has no workspace to buy for: `assertCheckoutTarget`
+// refuses a `teamId` outright, so there is no target left to own.
 function assertCheckoutTarget(params: {
   plan: prismaPkg.PlanType;
   teamId?: string;

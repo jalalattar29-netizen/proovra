@@ -10,7 +10,7 @@
  * asked BEFORE anything local is written, that no local-only fallback exists).
  */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   ALL_BILLING_CAPABILITIES,
