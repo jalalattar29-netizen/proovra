@@ -21,7 +21,6 @@ import { devAuthEnabled } from "../dev/dev-login.js";
 // `activateTeamPlan` and `setPersonalPlan` remain, used ONLY by the dev-only
 // `POST /v1/billing/plan` route below (registered behind `devAuthEnabled()`).
 import {
-  activateTeamPlan,
   cancelWorkspaceStorageAddon,
   getStorageAddonDefinition,
   setPersonalPlan,
@@ -59,6 +58,14 @@ import {
   readBillingHistoryForAccount,
 } from "../services/billing/billing-account-projection.service.js";
 import { requestSubscriptionCancellation } from "../services/billing/subscription-cancellation.service.js";
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the ONE authority that
+// decides what a requested plan change IS. No route compares plans itself.
+import {
+  applyPersonalPlanChange,
+  assertSelfServicePlan,
+  findLivePersonalSubscription,
+  resolvePersonalPlanTransition,
+} from "../services/billing/plan-transition.service.js";
 import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
 import { cancelStorageAddonAtProvider } from "../services/billing/storage-addon-cancellation.service.js";
 import {
@@ -130,9 +137,35 @@ const StorageAddonCheckoutBody = z.object({
   teamId: z.string().uuid().optional(),
 });
 
-const CancelSubscriptionBody = z.object({
-  teamId: z.string().uuid().optional(),
+/**
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a plan change takes a
+ * TARGET, and nothing else.
+ *
+ * FREE is accepted here and refused by the route with the reason: moving to
+ * Free is a cancellation, and cancellation has its own contract — provider
+ * first, period-end promise, dependent add-ons taken down with it. Rejecting
+ * FREE at the schema would have made that a validation error instead of an
+ * explanation, and the customer's request is perfectly sensible.
+ *
+ * No current plan, no direction, no price and no workspace: every one of those
+ * is something the server already knows, and any of them accepted from a
+ * client is a value a client can lie about.
+ */
+const ChangePlanBody = z.object({
+  plan: z.enum(["FREE", "PRO", "TEAM"]),
+  currency: CurrencySchema.optional(),
 });
+
+/**
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `teamId` was REMOVED.
+ *
+ * It selected an Owned Workspace's own TEAM subscription to cancel. TEAM is a
+ * tier of the personal subscription now, so there is exactly one thing a
+ * person can cancel and the server already knows which it is. Leaving the
+ * field accepted-but-ignored would let a stale client keep believing it was
+ * cancelling one of several workspaces.
+ */
+const CancelSubscriptionBody = z.object({});
 
 const CancelStorageAddonBody = z.object({
   addonId: z.string().uuid(),
@@ -255,27 +288,32 @@ async function assertOwnedTeamForCheckout(userId: string, teamId: string) {
   return team;
 }
 
+/**
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a self-service checkout
+ * targets the PERSONAL subject, and nothing else.
+ *
+ * This function used to REQUIRE a `teamId` for TEAM and REFUSE one for PRO,
+ * which is the obsolete model written as a precondition: TEAM was literally
+ * unbuyable without first creating a separate workspace to point it at. A
+ * customer on PRO who wanted TEAM had to make a second workspace, subscribe
+ * that, and leave their evidence in the first.
+ *
+ * FREE → PRO, FREE → TEAM and PRO → TEAM are now all upgrades of the same
+ * Personal Workspace, so no checkout carries a workspace target at all. A
+ * `teamId` on a checkout body is refused outright rather than quietly
+ * ignored: accepting a field that no longer means anything is how a stale
+ * client keeps believing in a model the server has abandoned.
+ */
 function assertCheckoutTarget(params: {
   plan: prismaPkg.PlanType;
   teamId?: string;
 }) {
-  /**
-   * TEAM checkout is still the only subscription checkout that targets a specific team.
-   * PRO remains a personal/base plan, while team creation limits are enforced elsewhere.
-   */
-  if (params.plan === prismaPkg.PlanType.TEAM && !params.teamId) {
-    const err: Error & { statusCode?: number } = new Error(
-      "teamId is required for TEAM checkout"
+  if (params.teamId) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "A subscription is bought for your Personal Workspace; it does not take a workspace target",
     );
     err.statusCode = 400;
-    throw err;
-  }
-
-  if (params.plan !== prismaPkg.PlanType.TEAM && params.teamId) {
-    const err: Error & { statusCode?: number } = new Error(
-      "teamId is only allowed for TEAM checkout"
-    );
-    err.statusCode = 400;
+    err.code = "CHECKOUT_TARGET_NOT_SUPPORTED";
     throw err;
   }
 }
@@ -293,6 +331,48 @@ async function assertPersonalCheckoutAllowed(userId: string, teamId?: string) {
   if (!teamId) {
     await assertPersonalSpaceAllowed(userId);
   }
+}
+
+/**
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a person may hold ONE
+ * live subscription.
+ *
+ * Both checkout routes pass through here before any provider session is
+ * created. Before this existed, a PRO customer who wanted TEAM opened a second
+ * checkout and got a second live provider subscription: the provider had no
+ * reason to refuse, and nothing on our side looked. They were then billed
+ * twice, for one Personal Workspace, indefinitely.
+ *
+ * The refusal names the endpoint that CAN do what they asked, because "you
+ * already have a subscription" on its own reads as a dead end to a customer
+ * who is trying to give us more money.
+ */
+async function duplicateSubscriptionRefusal(
+  userId: string,
+  plan: prismaPkg.PlanType,
+): Promise<{
+  message: string;
+  code: string;
+  details: Record<string, unknown>;
+} | null> {
+  const live = await findLivePersonalSubscription(userId);
+  if (!live) return null;
+
+  // An EXPLICIT reply rather than a throw. This refusal is an expected,
+  // actionable answer — like `CHECKOUT_REQUIRED` and `CANCELLATION_REQUIRED`
+  // beside it — and its whole value is the `changeEndpoint` it carries. A
+  // thrown error keeps its status but loses its code and details to whichever
+  // handler catches it, which would leave the customer with "409" and nothing
+  // to do about it.
+  return {
+    message:
+      "You already have a subscription. Change your plan instead of buying a second one.",
+    code: "SUBSCRIPTION_ALREADY_ACTIVE",
+    details: {
+      requestedPlan: plan,
+      changeEndpoint: "/v1/billing/subscription/plan",
+    },
+  };
 }
 
 function assertPurchasablePlan(plan: prismaPkg.PlanType) {
@@ -467,7 +547,7 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const params = z
         .object({
-          type: z.enum(["PERSONAL", "WORKSPACE", "ORGANIZATION"]),
+          type: z.enum(["PERSONAL", "ORGANIZATION"]),
           id: z.string().min(1).max(200),
         })
         .safeParse(req.params ?? {});
@@ -493,7 +573,6 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         action: "billing.account_view",
         outcome: "success",
-        workspaceId: account.type === "WORKSPACE" ? account.id : null,
         metadata: { accountType: account.type, plan: projection.plan.planKey },
       });
 
@@ -508,7 +587,7 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const params = z
         .object({
-          type: z.enum(["PERSONAL", "WORKSPACE", "ORGANIZATION"]),
+          type: z.enum(["PERSONAL", "ORGANIZATION"]),
           id: z.string().min(1).max(200),
         })
         .safeParse(req.params ?? {});
@@ -542,7 +621,6 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         action: "billing.account_history_view",
         outcome: "success",
-        workspaceId: account.type === "WORKSPACE" ? account.id : null,
         metadata: { accountType: account.type, count: items.length },
       });
 
@@ -673,17 +751,135 @@ export async function billingRoutes(app: FastifyInstance) {
    * schedules at period end and the response says exactly when access ends;
    * and the terminal CANCELED transition is left to the webhook.
    */
+  /**
+   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — change the plan on the
+   * subscription you already have.
+   *
+   * This endpoint did not exist, and could not have: while TEAM was a
+   * WORKSPACE's plan and PRO was a PERSON's, they were not two points on one
+   * ladder and there was no move between them to make. The only way "up" was a
+   * second checkout, which bought a second live subscription; the only way
+   * "down" was cancelling to FREE and buying again, losing the paid remainder
+   * of the period.
+   *
+   * The direction is decided by the server, from the subscription the server
+   * can see. The client sends a target plan and nothing else — not the current
+   * plan, not whether it believes this is an upgrade, not a price.
+   */
+  app.post(
+    "/v1/billing/subscription/plan",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const body = ChangePlanBody.parse(req.body ?? {});
+      const userId = getAuthUserId(req);
+
+      await assertBillingCapability({
+        viewerUserId: userId,
+        type: "PERSONAL",
+        id: userId,
+        capability: "BILLING_MANAGE",
+      });
+
+      // A managed enterprise identity has no personal space, so it has no
+      // personal plan to change. Denied before any provider is contacted.
+      await assertPersonalCheckoutAllowed(userId, undefined);
+
+      const transition = await resolvePersonalPlanTransition({
+        userId,
+        targetPlan: body.plan,
+      });
+
+      if (transition.kind === "NO_CHANGE") {
+        return reply.code(200).send({
+          outcome: "NO_CHANGE",
+          plan: transition.currentPlan,
+        });
+      }
+
+      if (transition.kind === "NEW_SUBSCRIPTION") {
+        // Nothing live to change. This is a purchase, and a purchase needs a
+        // payment method, which needs a checkout — so the answer names the
+        // route that can do it rather than pretending to have done anything.
+        return reply.code(409).send({
+          error: {
+            code: "CHECKOUT_REQUIRED",
+            message:
+              "You do not have a subscription yet. Start a checkout to subscribe.",
+          },
+          plan: transition.targetPlan,
+        });
+      }
+
+      if (transition.kind === "CANCELLATION") {
+        // FREE is not bought, it is what remains after cancelling. Routing it
+        // here rather than duplicating the cancellation contract keeps ONE
+        // implementation of provider-first cancellation, dependent add-on
+        // teardown and the period-end promise.
+        return reply.code(409).send({
+          error: {
+            code: "CANCELLATION_REQUIRED",
+            message:
+              "Moving to Free means cancelling your subscription. Use the cancel action so we can tell you exactly what happens and when.",
+          },
+        });
+      }
+
+      // The provider decides. A failure throws and NOTHING local changes.
+      const outcome = await applyPersonalPlanChange({
+        transition,
+        currency: body.currency ?? null,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.subscription_plan_changed",
+        outcome: "success",
+        resourceId: transition.subscription.id,
+        providerEventId: transition.subscription.providerSubId,
+        metadata: {
+          kind: outcome.kind,
+          fromPlan: transition.subscription.plan,
+          toPlan: outcome.targetPlan,
+          effectiveAtUtc: outcome.effectiveAtUtc,
+          providerConfirmed: outcome.providerConfirmed,
+          approvalRequired: outcome.approvalUrl !== null,
+        },
+      });
+
+      fireBillingAnalyticsEvent({
+        eventType: "subscription_plan_changed",
+        userId,
+        req,
+        entityId: transition.subscription.id,
+        metadata: { kind: outcome.kind, toPlan: outcome.targetPlan },
+      });
+
+      return reply.code(200).send({
+        outcome: outcome.kind,
+        plan: outcome.targetPlan,
+        effectiveAtUtc: outcome.effectiveAtUtc,
+        approvalUrl: outcome.approvalUrl,
+        providerConfirmed: outcome.providerConfirmed,
+      });
+    },
+  );
+
   app.post(
     "/v1/billing/subscription/cancel",
     { preHandler: requireAuthAndLegal },
     async (req, reply) => {
       const userId = getAuthUserId(req);
-      const body = CancelSubscriptionBody.parse(req.body ?? {});
+      // Parsed to REFUSE unknown keys rather than to read anything: the body
+      // carries nothing, and a client still sending a teamId should learn that
+      // here instead of having it silently ignored.
+      CancelSubscriptionBody.parse(req.body ?? {});
 
-      const accountType: BillingAccountType = body.teamId
-        ? "WORKSPACE"
-        : "PERSONAL";
-      const accountId = body.teamId ?? userId;
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — cancellation is
+      // always a PERSONAL act. A `teamId` in the body used to redirect it at
+      // an Owned Workspace's own TEAM subscription; TEAM is now a tier of the
+      // personal subscription, so there is only one thing to cancel.
+      const accountType: BillingAccountType = "PERSONAL";
+      const accountId = userId;
 
       const account = await assertBillingCapability({
         viewerUserId: userId,
@@ -692,21 +888,14 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_CANCEL",
       });
 
-      const subscription = await prisma.subscription.findFirst({
-        where: {
-          teamId: body.teamId ?? null,
-          ...(body.teamId ? {} : { userId }),
-          status: {
-            in: [
-              prismaPkg.SubscriptionStatus.ACTIVE,
-              prismaPkg.SubscriptionStatus.PAST_DUE,
-              prismaPkg.SubscriptionStatus.TRIALING,
-            ],
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, provider: true, providerSubId: true },
-      });
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the SAME lookup the
+      // transition authority uses, so "which subscription is yours" has one
+      // answer everywhere. It used to key on the request BODY: a teamId
+      // selected a workspace's subscription, its absence the personal one. A
+      // legacy row still carrying a teamId is found by this too — it is that
+      // person's subscription, and cancelling it is exactly what they asked
+      // for.
+      const subscription = await findLivePersonalSubscription(userId);
 
       if (!subscription) {
         auditBillingAction(req, {
@@ -714,7 +903,6 @@ export async function billingRoutes(app: FastifyInstance) {
           action: "billing.subscription_cancel",
           outcome: "failure",
           severity: "warning",
-          workspaceId: body.teamId ?? null,
           metadata: { reason: "no_active_subscription" },
         });
         return reply.code(404).send({
@@ -735,7 +923,6 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.subscription_cancel",
         outcome: "success",
         resourceId: subscription.id,
-        workspaceId: body.teamId ?? null,
         providerEventId: subscription.providerSubId,
         metadata: {
           mode: outcome.mode,
@@ -823,8 +1010,9 @@ export async function billingRoutes(app: FastifyInstance) {
       // add-on purchase-authority decision on that account.
       await assertBillingCapability({
         viewerUserId: userId,
-        type: addon.teamId ? "WORKSPACE" : "PERSONAL",
-        id: addon.teamId ?? userId,
+        // The payer is the add-on's owner. A stored `teamId` is tenancy.
+        type: "PERSONAL",
+        id: addon.ownerUserId,
         capability: "BILLING_ADDON_PURCHASE",
       });
 
@@ -978,7 +1166,7 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const params = z
         .object({
-          type: z.enum(["PERSONAL", "WORKSPACE", "ORGANIZATION"]),
+          type: z.enum(["PERSONAL", "ORGANIZATION"]),
           id: z.string().min(1).max(200),
         })
         .safeParse(req.params ?? {});
@@ -1033,7 +1221,6 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         action: "billing.account_reconciled",
         outcome: "success",
-        workspaceId: account.type === "WORKSPACE" ? account.id : null,
         metadata: {
           accountType: account.type,
           result: summary.outcome,
@@ -1059,10 +1246,15 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       assertPurchasablePlan(body.plan);
+      assertSelfServicePlan(body.plan);
       assertCheckoutTarget({
         plan: body.plan,
         teamId: body.teamId,
       });
+      // A checkout is for someone who has nothing live. Anyone who does has a
+      // plan CHANGE, which goes to the provider's own subscription API.
+      const duplicate = await duplicateSubscriptionRefusal(userId, body.plan);
+      if (duplicate) return reply.code(409).send(duplicate);
 
       // PHASE 10 §13.2 STEP 6 — deny personal (no-teamId) checkout for managed
       // identities BEFORE creating any provider session.
@@ -1074,8 +1266,12 @@ export async function billingRoutes(app: FastifyInstance) {
       // authority rather than the question itself.
       await assertBillingCapability({
         viewerUserId: userId,
-        type: body.teamId ? "WORKSPACE" : "PERSONAL",
-        id: body.teamId ?? userId,
+        // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the subject is
+        // the PERSONAL account, always. A `teamId` in the body used to select
+        // an Owned Workspace as the payer, which is how TEAM became a
+        // purchase for a different workspace instead of an upgrade of this one.
+        type: "PERSONAL",
+        id: userId,
         capability: "BILLING_MANAGE",
       });
 
@@ -1091,7 +1287,6 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.checkout_stripe_created",
         outcome: "success",
         resourceId: String(result.session?.id ?? ""),
-        workspaceId: body.teamId ?? null,
         providerEventId: result.session?.id ? String(result.session.id) : null,
         metadata: {
           plan: body.plan,
@@ -1156,7 +1351,7 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
       const params = z
         .object({
-          type: z.enum(["PERSONAL", "WORKSPACE", "ORGANIZATION"]),
+          type: z.enum(["PERSONAL", "ORGANIZATION"]),
           id: z.string().min(1).max(200),
         })
         .safeParse(req.params ?? {});
@@ -1228,7 +1423,6 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         action: "billing.storage_addon_cancellation_retry",
         outcome: "success",
-        workspaceId: account.type === "WORKSPACE" ? account.id : null,
         metadata: {
           accountType: account.type,
           attempted: attempt.attempted,
@@ -1348,8 +1542,12 @@ export async function billingRoutes(app: FastifyInstance) {
 
       await assertBillingCapability({
         viewerUserId: userId,
-        type: body.teamId ? "WORKSPACE" : "PERSONAL",
-        id: body.teamId ?? userId,
+        // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the subject is
+        // the PERSONAL account, always. A `teamId` in the body used to select
+        // an Owned Workspace as the payer, which is how TEAM became a
+        // purchase for a different workspace instead of an upgrade of this one.
+        type: "PERSONAL",
+        id: userId,
         capability: "BILLING_ADDON_PURCHASE",
       });
 
@@ -1374,7 +1572,6 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.storage_addon_checkout_stripe_created",
         outcome: "success",
         resourceId: String(result.session?.id ?? ""),
-        workspaceId: body.teamId ?? null,
         providerEventId: result.session?.id ? String(result.session.id) : null,
         metadata: {
           addonKey: body.addonKey,
@@ -1418,10 +1615,15 @@ export async function billingRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       assertPurchasablePlan(body.plan);
+      assertSelfServicePlan(body.plan);
       assertCheckoutTarget({
         plan: body.plan,
         teamId: body.teamId,
       });
+      // A checkout is for someone who has nothing live. Anyone who does has a
+      // plan CHANGE, which goes to the provider's own subscription API.
+      const duplicate = await duplicateSubscriptionRefusal(userId, body.plan);
+      if (duplicate) return reply.code(409).send(duplicate);
 
       // PHASE 10 §13.2 STEP 6 — deny personal (no-teamId) checkout for managed
       // identities BEFORE creating any provider session.
@@ -1433,8 +1635,12 @@ export async function billingRoutes(app: FastifyInstance) {
       // authority rather than the question itself.
       await assertBillingCapability({
         viewerUserId: userId,
-        type: body.teamId ? "WORKSPACE" : "PERSONAL",
-        id: body.teamId ?? userId,
+        // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the subject is
+        // the PERSONAL account, always. A `teamId` in the body used to select
+        // an Owned Workspace as the payer, which is how TEAM became a
+        // purchase for a different workspace instead of an upgrade of this one.
+        type: "PERSONAL",
+        id: userId,
         capability: "BILLING_MANAGE",
       });
 
@@ -1455,7 +1661,6 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.checkout_paypal_created",
         outcome: "success",
         resourceId,
-        workspaceId: body.teamId ?? null,
         providerEventId: resourceId || null,
         metadata: {
           mode: result.mode,
@@ -1512,8 +1717,12 @@ export async function billingRoutes(app: FastifyInstance) {
 
       await assertBillingCapability({
         viewerUserId: userId,
-        type: body.teamId ? "WORKSPACE" : "PERSONAL",
-        id: body.teamId ?? userId,
+        // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the subject is
+        // the PERSONAL account, always. A `teamId` in the body used to select
+        // an Owned Workspace as the payer, which is how TEAM became a
+        // purchase for a different workspace instead of an upgrade of this one.
+        type: "PERSONAL",
+        id: userId,
         capability: "BILLING_ADDON_PURCHASE",
       });
 
@@ -1544,7 +1753,6 @@ export async function billingRoutes(app: FastifyInstance) {
         action: "billing.storage_addon_checkout_paypal_created",
         outcome: "success",
         resourceId,
-        workspaceId: body.teamId ?? null,
         providerEventId: resourceId || null,
         metadata: {
           addonKey: body.addonKey,
@@ -1613,36 +1821,32 @@ export async function billingRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 
-      if (body.plan === prismaPkg.PlanType.TEAM) {
-        if (!body.teamId) {
-          return reply
-            .code(400)
-            .send({ message: "teamId is required for TEAM plan" });
-        }
-
-        await assertOwnedTeamForCheckout(userId, body.teamId);
-
-        await activateTeamPlan({
-          teamId: body.teamId,
-          ownerUserId: userId,
-          plan: prismaPkg.PlanType.TEAM,
-          status: prismaPkg.TeamBillingStatus.ACTIVE,
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the dev route sets
+      // the PERSONAL plan, for every tier.
+      //
+      // It used to fork: TEAM activated a workspace's commercial state and
+      // demanded a `teamId`, everything else wrote the personal entitlement.
+      // That fork was the obsolete model in the one place a developer sets up a
+      // local account — so a dev could not put themselves on TEAM without
+      // first creating a workspace, and the state they ended up in was not the
+      // state a real customer would have.
+      //
+      // `setPersonalPlan` now accepts TEAM, so all three self-service tiers go
+      // through one writer.
+      if (body.teamId) {
+        return reply.code(400).send({
+          message:
+            "A plan applies to your Personal Workspace; it does not take a workspace target",
         });
-      } else {
-        if (body.teamId) {
-          return reply
-            .code(400)
-            .send({ message: "teamId is only allowed for TEAM plan" });
-        }
-
-        // PHASE 10 §13.2 STEP 6 (2026-07-23) — dev-only direct personal-plan
-        // change is still a personal-scope mutation; deny for managed
-        // identities before the plan write (defense-in-depth alongside the
-        // checkout-provider guards above; this route is 403'd in production).
-        await assertPersonalCheckoutAllowed(userId, undefined);
-
-        await setPersonalPlan(userId, body.plan);
       }
+
+      // PHASE 10 §13.2 STEP 6 (2026-07-23) — dev-only direct personal-plan
+      // change is still a personal-scope mutation; deny for managed
+      // identities before the plan write (defense-in-depth alongside the
+      // checkout-provider guards above; this route is 403'd in production).
+      await assertPersonalCheckoutAllowed(userId, undefined);
+
+      await setPersonalPlan(userId, body.plan);
 
       const overview = await readBillingOverview(userId);
 
@@ -1650,7 +1854,6 @@ export async function billingRoutes(app: FastifyInstance) {
         userId,
         action: "billing.plan_changed",
         outcome: "success",
-        workspaceId: body.teamId ?? null,
         metadata: { plan: body.plan, teamId: body.teamId ?? null },
       });
 

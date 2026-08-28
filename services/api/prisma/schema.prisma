@@ -2165,6 +2165,17 @@ model Subscription {
   /// Reconciliation discards an observation older than it, so a slow poll
   /// cannot overwrite a newer webhook. NULL = none recorded yet (accept).
   providerStateAtUtc DateTime?        @map("provider_state_at_utc") @db.Timestamptz(6)
+  /// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a PROVIDER-CONFIRMED
+  /// scheduled plan change, for the period-end downgrade.
+  ///
+  /// The plan field stays the plan IN FORCE; this is the one that takes over
+  /// on pendingPlanEffectiveAtUtc. Writing the future plan into it would make
+  /// enforcement, the usage meters and the plan card apply a downgrade the
+  /// customer has already paid the current period for. Both columns are set
+  /// only after the provider accepts the schedule, and are cleared by the
+  /// webhook that applies it.
+  pendingPlan       PlanType?         @map("pending_plan")
+  pendingPlanEffectiveAtUtc DateTime? @map("pending_plan_effective_at_utc") @db.Timestamptz(6)
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   teamId           String?            @map("team_id") @db.Uuid
