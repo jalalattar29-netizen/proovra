@@ -268,10 +268,17 @@ describe("workspace, collaboration-team and member limits are independent", () =
     }
   });
 
-  it("exposes four separately-named limits on every plan", () => {
+  it("exposes three separately-named limits on every plan, and no workspace allowance", () => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — this asserted FOUR
+    // limits, the first being `maxOwnedWorkspaces`. The point of the test is
+    // that each container has its OWN number rather than one overloaded
+    // integer, and that point is unchanged; there is simply no longer a
+    // workspace-count container to have one, because no plan sells additional
+    // workspaces. Asserting its ABSENCE keeps the test non-vacuous and stops
+    // the field being reintroduced by a merge.
     for (const plan of ALL_PLANS) {
       const caps = getPlanCapabilities(plan);
-      expect(typeof caps.maxOwnedWorkspaces, plan).toBe("number");
+      expect(Object.keys(caps), plan).not.toContain("maxOwnedWorkspaces");
       expect(typeof caps.maxCollaborationTeamsPerWorkspace, plan).toBe("number");
       expect(typeof caps.maxAcceptedMembersPerCollaborationTeam, plan).toBe(
         "number",
@@ -287,10 +294,9 @@ describe("workspace, collaboration-team and member limits are independent", () =
     expect(getPlanCapabilities("TEAM").maxWorkspaceSeats).toBe(5);
   });
 
-  it("FREE and PAYG include no owned workspaces and no collaboration teams", () => {
+  it("FREE and PAYG include no collaboration teams", () => {
     for (const plan of ["FREE", "PAYG"] as const) {
       const caps = getPlanCapabilities(plan);
-      expect(caps.maxOwnedWorkspaces, plan).toBe(0);
       expect(caps.maxCollaborationTeamsPerWorkspace, plan).toBe(0);
       expect(caps.maxAcceptedMembersPerCollaborationTeam, plan).toBe(0);
     }
@@ -325,8 +331,17 @@ describe("workspace, collaboration-team and member limits are independent", () =
       "utf8",
     );
 
-    expect(teams).toMatch(/caps\.maxOwnedWorkspaces/);
-    expect(teams).toMatch(/prisma\.team\.count/);
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the owned-workspace
+    // half of this pairing is now an ABSENCE. There is no workspace allowance
+    // to count against, so the file holds neither the cap nor a count; what
+    // matters for the test's purpose is that the two decisions have not
+    // re-merged, and the collaboration cap must still live only in the guard.
+    // Narrow on purpose: the file still NAMES the retired field, in the
+    // comment explaining why the quota went away. Prose is not a read — what
+    // must not come back is the lookup.
+    expect(teams).not.toMatch(/caps.maxOwnedWorkspaces/);
+    expect(teams).not.toMatch(/getPlanCapabilities([^)]*).maxOwnedWorkspaces/);
+    expect(teams).toMatch(/WORKSPACE_CREATION_NOT_SELF_SERVICE/);
     expect(teams).not.toMatch(/maxCollaborationTeamsPerWorkspace/);
 
     expect(guards).toMatch(/maxCollaborationTeamsPerWorkspace/);

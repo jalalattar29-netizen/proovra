@@ -117,27 +117,25 @@ describe("Phase 2 — creation paths write canonical kinds", () => {
     expect(src).toMatch(/workspaceKind:\s*"PERSONAL"/);
   });
 
-  it("self-service workspace creation → SYSTEM container + OWNED workspace", () => {
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the self-service
+  // workspace CREATION path was removed from `POST /v1/teams`, so there is no
+  // longer a `team.create` there to state a kind.
+  //
+  // The reason is commercial and it is decisive: checkout has ONE subject and
+  // it is the person, so a workspace created on that path could never be paid
+  // for. It would resolve FREE permanently and the shared-workspace admission
+  // rule would refuse every piece of evidence recorded in it. The route
+  // refuses instead of minting something unusable.
+  //
+  // The property this test defends is unchanged and is asserted on the two
+  // paths that still create workspaces — the personal bootstrap and Enterprise
+  // provisioning, each in its own test here. What is asserted for this file is
+  // the ABSENCE, so the removal is pinned rather than silently forgotten.
+  it("self-service workspace creation no longer exists — the route refuses", () => {
     const src = read("src/routes/teams.routes.ts");
-    expect(src).toMatch(/kind:\s*"SYSTEM"/);
-    expect(src).toMatch(/workspaceKind:\s*"OWNED"/);
-    // Self-service must NEVER MINT a CUSTOMER organization.
-    //
-    // STALE_SOURCE_PIN (POINT 7): this was a bare `not.toMatch(/kind:
-    // "CUSTOMER"/)` over the whole file, which is a proxy for "no CUSTOMER org
-    // is created here" that cannot tell a CREATE from a WHERE. The owned-
-    // workspace cap now excludes provisioned Organization workspaces with
-    // `NOT: { organization: { kind: "CUSTOMER" } }` — a read filter — and the
-    // proxy read that as a violation. The pin now asserts the property it
-    // meant: every `organization.create` in this file writes SYSTEM.
-    const creates = [...src.matchAll(/organization\.create\(\{[\s\S]{0,600}?\n\s*\}\)/g)].map(
-      (m) => m[0],
-    );
-    expect(creates.length).toBeGreaterThan(0);
-    for (const block of creates) {
-      expect(block).toMatch(/kind:\s*"SYSTEM"/);
-      expect(block).not.toMatch(/kind:\s*"CUSTOMER"/);
-    }
+    expect(src).not.toMatch(/(?:tx|prisma)\.team\.create\(/);
+    expect(src).not.toMatch(/organization\.create\(/);
+    expect(src).toMatch(/WORKSPACE_CREATION_NOT_SELF_SERVICE/);
   });
 
   it("enterprise provisioning → CUSTOMER org + ORGANIZATION workspaces", () => {

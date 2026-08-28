@@ -68,7 +68,9 @@ export function useEnterpriseSurfaceAccess(): boolean {
  * operation is ALLOWED to do.
  */
 export type ServerWorkspaceLimits = {
-  maxOwnedWorkspaces: number;
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — see
+  // `platform-context/types.ts`: no plan grants additional workspaces, so
+  // there is no such limit to project or badge.
   maxCollaborationTeamsPerWorkspace: number;
   maxAcceptedMembersPerCollaborationTeam: number;
   maxWorkspaceSeats: number;

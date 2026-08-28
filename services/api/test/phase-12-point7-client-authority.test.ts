@@ -203,7 +203,6 @@ describe("PHASE 12 POINT 7 STEP 5 — client-authority metrics", () => {
       "utf8",
     );
     expect(types).toMatch(/limits:\s*\{/);
-    expect(types).toMatch(/maxOwnedWorkspaces:\s*number/);
     // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — one overloaded
     // `maxMembersPerTeam` became three separately-named limits, because a
     // workspace seat, a Collaboration Team seat and an Owned Workspace slot are
@@ -219,7 +218,6 @@ describe("PHASE 12 POINT 7 STEP 5 — client-authority metrics", () => {
       ),
       "utf8",
     );
-    expect(service).toMatch(/maxOwnedWorkspaces:\s*planCaps\.maxOwnedWorkspaces/);
     expect(service).toMatch(
       /maxCollaborationTeamsPerWorkspace:\s*\n?\s*planCaps\.maxCollaborationTeamsPerWorkspace/,
     );

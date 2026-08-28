@@ -151,7 +151,6 @@ function projectPublishedPlan<P extends "FREE" | "PAYG" | "PRO" | "TEAM">(
     aiAdvisoryMonthlyOperations: caps.aiAdvisoryMonthlyOperations,
     seats: caps.includedSeats,
     billingShape: caps.billingShape,
-    maxOwnedWorkspaces: caps.maxOwnedWorkspaces,
     maxCollaborationTeamsPerWorkspace: caps.maxCollaborationTeamsPerWorkspace,
     maxAcceptedMembersPerCollaborationTeam:
       caps.maxAcceptedMembersPerCollaborationTeam,

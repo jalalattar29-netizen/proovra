@@ -679,7 +679,6 @@ export async function buildPlatformContext(
      * the ACTIVE workspace. The client renders them; it no longer derives them.
      */
     limits: {
-      maxOwnedWorkspaces: planCaps.maxOwnedWorkspaces,
       maxCollaborationTeamsPerWorkspace:
         planCaps.maxCollaborationTeamsPerWorkspace,
       maxAcceptedMembersPerCollaborationTeam:

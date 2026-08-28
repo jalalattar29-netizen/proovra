@@ -183,13 +183,30 @@ export type PlanCapabilities = {
    * Four questions, four fields. None is derived from another.
    */
 
-  /**
-   * How many OWNED WORKSPACES (`Team` rows, `workspaceKind: OWNED`) this
-   * ACCOUNT may create. A PERSONAL_ACCOUNT-subject decision, enforced by
-   * `assertUserCanCreateAnotherOwnedWorkspace`. Excludes the bootstrap
-   * Personal Space and provisioned Organization workspaces.
+  /*
+   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `maxOwnedWorkspaces`
+   * was REMOVED from the commercial catalog.
+   *
+   * It answered "how many additional workspaces does this plan sell?", and in
+   * the final model no self-service plan sells any. There is ONE Personal
+   * Workspace per account, and FREE → PRO → TEAM are tiers OF that workspace,
+   * not a licence to acquire more of them. A number that said 2 for PRO and 5
+   * for TEAM was the clearest remaining statement of the opposite model, and
+   * it was read straight onto the Pricing page.
+   *
+   * Nothing about additional workspaces is enforced commercially any more, so
+   * the enforcement did not move to another field — it stopped being a
+   * commercial question. `teams.routes.ts` now refuses self-service workspace
+   * creation as a platform rule, for a reason no catalog integer could carry:
+   * a workspace created there could never be paid for, since checkout has one
+   * subject and it is the person. Multi-workspace tenancy remains real and is
+   * created by Enterprise PROVISIONING against an Organization contract, which
+   * never consulted this field.
+   *
+   * The two Collaboration-Team capacities below are unaffected: they were
+   * separated from this field in 2026-08-27 precisely because they are a
+   * different question about a different container.
    */
-  maxOwnedWorkspaces: number;
 
   /**
    * How many ACTIVE Collaboration Teams may exist INSIDE ONE WORKSPACE.
@@ -283,7 +300,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 0,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
-    maxOwnedWorkspaces: 0,
     maxCollaborationTeamsPerWorkspace: 0,
     maxAcceptedMembersPerCollaborationTeam: 0,
     maxWorkspaceSeats: 0,
@@ -327,7 +343,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 50,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
-    maxOwnedWorkspaces: 0,
     maxCollaborationTeamsPerWorkspace: 0,
     maxAcceptedMembersPerCollaborationTeam: 0,
     maxWorkspaceSeats: 0,
@@ -357,7 +372,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 100,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
-    maxOwnedWorkspaces: 2,
     maxCollaborationTeamsPerWorkspace: 2,
     maxAcceptedMembersPerCollaborationTeam: 5,
     maxWorkspaceSeats: 5,
@@ -387,7 +401,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: 500,
     allowsPersonalWorkspacePurchase: false,
     allowsSharedWorkspace: true,
-    maxOwnedWorkspaces: 5,
     maxCollaborationTeamsPerWorkspace: 5,
     maxAcceptedMembersPerCollaborationTeam: 5,
     maxWorkspaceSeats: 5,
@@ -417,7 +430,6 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     aiAdvisoryMonthlyOperations: null,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: true,
-    maxOwnedWorkspaces: 1000,
     maxCollaborationTeamsPerWorkspace: 1000,
     maxAcceptedMembersPerCollaborationTeam: 500,
     maxWorkspaceSeats: 500,
@@ -490,8 +502,8 @@ export type NormalizedWorkspaceKind =
  *                         plan string on an OWNED row is LEGACY AMBIGUITY →
  *                         FAIL CLOSED (FREE + reason); otherwise FREE.
  *                         The owner's Personal plan NEVER covers an existing
- *                         Owned Workspace (maxOwnedWorkspaces governs CREATION
- *                         allowance only, at the PERSONAL_ACCOUNT subject).
+ *                         Owned Workspace. Legacy rows only: nothing creates
+ *                         a self-service Owned Workspace any more.
  *   ORGANIZATION        → the parent CUSTOMER Organization's contract
  *                         coverage, represented by the provisioned
  *                         ENTERPRISE workspace billing; any other live plan

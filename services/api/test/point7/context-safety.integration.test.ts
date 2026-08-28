@@ -471,87 +471,118 @@ describe("POINT 7 — context safety (live PostgreSQL 16)", () => {
   // =========================================================================
 
   describe("over-limit", () => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — both scenarios were
+    // RETARGETED from Owned-Workspace creation to Collaboration Teams.
+    //
+    // Neither scenario is about workspaces. They are the two general
+    // properties every capacity limit in the product owes: two requests at the
+    // edge cannot both pass, and freeing capacity restores the operation
+    // without anything having been destroyed to make room. They were proven
+    // through workspace creation only because that was a limit with a route.
+    //
+    // No plan grants additional workspaces any more, so that limit is gone and
+    // the proof moved to one that is live: `maxCollaborationTeamsPerWorkspace`,
+    // which is 2 on PRO, enforced per workspace by
+    // `assertCanCreateCollaborationTeam` on POST /v1/collaboration-teams.
+
     it("p7.overlimit.concurrent_edge_cannot_both_pass", async () => {
-      // A PRO account one slot below its Owned-Workspace limit, with TWO
+      // A PRO workspace one slot below its Collaboration Team limit, with TWO
       // creations issued simultaneously. Sequential repetition cannot observe
       // two writers interleaving; this can.
       const t = await seedPersonalTenant(deps, "PRO");
-      const limit = t.expected.maxOwnedWorkspaces;
+      const limit = 2; // PRO — the canonical per-workspace Collaboration Team cap.
+      const workspace = await prisma.team.findFirstOrThrow({
+        where: { ownerUserId: t.owner.userId, isPersonal: true },
+        select: { id: true },
+      });
+
       for (let i = 0; i < limit - 1; i += 1) {
-        await seedOwnedWorkspace(deps, {
-          ownerUserId: t.owner.userId,
-          name: `p7-race-seed-${i}`,
+        const seeded = await inject({
+          method: "POST",
+          url: "/v1/collaboration-teams",
+          token: t.owner.token,
+          payload: { name: `p7 race seed ${i} ${deps.tag}` },
         });
+        expect(seeded.statusCode, seeded.body).toBeLessThan(300);
       }
 
       const results = await Promise.all([
         inject({
           method: "POST",
-          url: "/v1/teams",
+          url: "/v1/collaboration-teams",
           token: t.owner.token,
           payload: { name: `p7 race a ${deps.tag}` },
         }),
         inject({
           method: "POST",
-          url: "/v1/teams",
+          url: "/v1/collaboration-teams",
           token: t.owner.token,
           payload: { name: `p7 race b ${deps.tag}` },
         }),
       ]);
 
-      const created = await prisma.team.count({
-        where: {
-          ownerUserId: t.owner.userId,
-          isPersonal: false,
-          NOT: { organization: { kind: "CUSTOMER" } },
-        },
+      const created = await prisma.collaborationTeam.count({
+        where: { workspaceId: workspace.id, status: "ACTIVE", archivedAtUtc: null },
       });
       // The observable consequence is what matters: the limit is not exceeded.
       expect(
         created,
-        `two concurrent creations produced ${created} workspaces against a limit of ${limit}`,
+        `two concurrent creations produced ${created} teams against a limit of ${limit}`,
       ).toBeLessThanOrEqual(limit);
-      expect(results.filter((r) => r.statusCode < 300).length).toBeLessThanOrEqual(1 + 0);
+      expect(results.filter((r) => r.statusCode < 300).length).toBeLessThanOrEqual(1);
       provenScenario("SERVER", "p7.overlimit.concurrent_edge_cannot_both_pass");
     });
 
     it("p7.overlimit.reducing_usage_restores_operation", async () => {
       const t = await seedPersonalTenant(deps, "PRO");
-      const limit = t.expected.maxOwnedWorkspaces;
+      const limit = 2;
+      const workspace = await prisma.team.findFirstOrThrow({
+        where: { ownerUserId: t.owner.userId, isPersonal: true },
+        select: { id: true },
+      });
+
       const seeded: string[] = [];
       for (let i = 0; i < limit; i += 1) {
-        const ws = await seedOwnedWorkspace(deps, {
-          ownerUserId: t.owner.userId,
-          name: `p7-restore-${i}`,
+        const res = await inject({
+          method: "POST",
+          url: "/v1/collaboration-teams",
+          token: t.owner.token,
+          payload: { name: `p7 restore ${i} ${deps.tag}` },
         });
-        seeded.push(ws.teamId);
+        expect(res.statusCode, res.body).toBeLessThan(300);
       }
+      const rows = await prisma.collaborationTeam.findMany({
+        where: { workspaceId: workspace.id, status: "ACTIVE", archivedAtUtc: null },
+        select: { id: true },
+      });
+      seeded.push(...rows.map((r) => r.id));
+      expect(seeded.length).toBe(limit);
+
       // At the limit — denied.
       await denyWithoutSideEffects({
         method: "POST",
-        url: "/v1/teams",
+        url: "/v1/collaboration-teams",
         token: t.owner.token,
-        payload: { name: "p7 restore blocked" },
+        payload: { name: `p7 restore blocked ${deps.tag}` },
       });
 
-      // Usage drops (the workspace changes hands to another owner — a real
-      // reduction, and one that deletes nothing).
-      const newOwner = await seedUser(deps, "restore-new-owner");
-      await prisma.team.update({
+      // Usage drops (one team is ARCHIVED — a real reduction, and one that
+      // deletes nothing: the row and its history stay exactly where they are).
+      await prisma.collaborationTeam.update({
         where: { id: seeded[0] },
-        data: { ownerUserId: newOwner.userId },
+        data: { status: "ARCHIVED", archivedAtUtc: new Date() },
       });
 
       const res = await inject({
         method: "POST",
-        url: "/v1/teams",
+        url: "/v1/collaboration-teams",
         token: t.owner.token,
         payload: { name: `p7 restore allowed ${deps.tag}` },
       });
       expect(res.statusCode, res.body).toBeLessThan(300);
       // Nothing was destroyed to make room.
       expect(
-        await prisma.team.count({ where: { id: { in: seeded } } }),
+        await prisma.collaborationTeam.count({ where: { id: { in: seeded } } }),
       ).toBe(seeded.length);
       provenScenario(
         "SERVER",

@@ -246,8 +246,12 @@ describe("Phase R14 — Stage 11: plan limits", () => {
   it("ships the exact limits table for every plan tier", () => {
     for (const [plan, want] of Object.entries(CANONICAL)) {
       const caps = getPlanCapabilities(plan as keyof typeof CANONICAL);
-      expect(caps.maxOwnedWorkspaces, `${plan}.maxOwnedWorkspaces`).toBe(
-        want.workspaces,
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the workspaces
+      // column was removed from this table with the capability it described.
+      // `want.workspaces` is asserted as an ABSENCE instead, so the table stays
+      // a complete description of the plan rather than quietly dropping a row.
+      expect(Object.keys(caps), `${plan}.maxOwnedWorkspaces`).not.toContain(
+        "maxOwnedWorkspaces",
       );
       expect(
         caps.maxCollaborationTeamsPerWorkspace,
@@ -271,9 +275,6 @@ describe("Phase R14 — Stage 11: plan limits", () => {
     for (let i = 1; i < order.length; i += 1) {
       const lower = getPlanCapabilities(order[i - 1]);
       const higher = getPlanCapabilities(order[i]);
-      expect(lower.maxOwnedWorkspaces).toBeLessThanOrEqual(
-        higher.maxOwnedWorkspaces,
-      );
       expect(lower.maxCollaborationTeamsPerWorkspace).toBeLessThanOrEqual(
         higher.maxCollaborationTeamsPerWorkspace,
       );
@@ -288,12 +289,19 @@ describe("Phase R14 — Stage 11: plan limits", () => {
     expect(getPlanCapabilities("PAYG").maxCollaborationTeamsPerWorkspace).toBe(0);
   });
 
-  it("the Owned Workspace cap and the Collaboration Team cap are separate fields", () => {
-    // Not that they must DIFFER — today they happen to match on PRO and TEAM —
-    // but that neither is derived from the other, so a future commercial change
-    // to one cannot silently move the other.
+  it("no plan carries a workspace-count allowance, and the Collaboration Team cap is its own field", () => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — this test used to
+    // assert that the Owned Workspace cap and the Collaboration Team cap were
+    // SEPARATE fields, because they had once been a single overloaded integer
+    // that granted a PRO account two workspaces AND two collaboration teams.
+    //
+    // The conflation it guards against can no longer be reintroduced by
+    // merging the two, because there is only one of them left: no plan sells
+    // additional workspaces. So the test now asserts the stronger thing —
+    // that the workspace count is absent entirely — while keeping the
+    // collaboration cap's independence from the two retired overloaded names.
     const caps = getPlanCapabilities("PRO");
-    expect(Object.keys(caps)).toContain("maxOwnedWorkspaces");
+    expect(Object.keys(caps)).not.toContain("maxOwnedWorkspaces");
     expect(Object.keys(caps)).toContain("maxCollaborationTeamsPerWorkspace");
     expect(Object.keys(caps)).not.toContain("maxOwnedTeams");
     expect(Object.keys(caps)).not.toContain("maxMembersPerTeam");

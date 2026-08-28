@@ -364,68 +364,41 @@ test.describe("PAYG", () => {
 // ===========================================================================
 
 test.describe("PRO", () => {
-  test("p7.pro.owned_workspace.created_within_limit", async ({ page }) => {
+  test("p7.pro.owned_workspace.creation_unavailable", async ({ page }) => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — REPLACES
+    // `created_within_limit` and `limit_reached_denied`, which drove a PRO
+    // account through creating two workspaces and being refused the third.
+    // A tier does not buy workspaces, so the browser layer proves the refusal
+    // and — the part only this layer can show — that the refusal does not
+    // leave the switcher offering a context that was never created.
     const account = await createAccount({ label: "pro-create", plan: "PRO" });
     await login(page, account);
 
-    // The canonical PRO allowance is two. Before Point 7 the second was
-    // refused twice over — once because the bootstrap Personal Team was
-    // counted against the cap, and once by a second, product-line-keyed quota
-    // whose default was one.
-    for (let i = 0; i < 2; i += 1) {
-      const res = await directApiCall(page, {
-        method: "POST",
-        path: "/v1/teams",
-        body: { name: `p7 browser pro ws ${i}` },
-      });
-      expect(res.status, `owned workspace ${i + 1}/2: ${res.body}`).toBeLessThan(300);
-    }
+    const before = await countRows(
+      "teams",
+      "owner_user_id = $1 AND is_personal = false",
+      [account.userId],
+    );
+
+    const res = await directApiCall(page, {
+      method: "POST",
+      path: "/v1/teams",
+      body: { name: "p7 browser pro ws" },
+    });
+    expect(res.status, res.body).toBeGreaterThanOrEqual(400);
+    expect(res.body).toContain(DENIAL_CODES.ownedWorkspaceCreationNotAllowed);
+
     expect(
       await countRows("teams", "owner_user_id = $1 AND is_personal = false", [
         account.userId,
       ]),
-    ).toBe(2);
+    ).toBe(before);
 
-    // And the browser is offered them as real switchable contexts.
     const envelope = (await envelopeFromBrowser(page)) as {
       contextOptions: { ownedWorkspaces: Array<{ workspaceId: string }> };
     };
-    expect(envelope.contextOptions.ownedWorkspaces.length).toBe(2);
-    proven("p7.pro.owned_workspace.created_within_limit");
-  });
-
-  test("p7.pro.owned_workspace.limit_reached_denied", async ({ page }) => {
-    const account = await createAccount({ label: "pro-limit", plan: "PRO" });
-    await login(page, account);
-    for (let i = 0; i < 2; i += 1) {
-      const ok = await directApiCall(page, {
-        method: "POST",
-        path: "/v1/teams",
-        body: { name: `p7 browser pro cap ${i}` },
-      });
-      expect(ok.status, ok.body).toBeLessThan(300);
-    }
-    const atLimit = await sql<{ id: string }>(
-      `SELECT id FROM teams WHERE owner_user_id = $1 AND is_personal = false`,
-      [account.userId],
-    );
-
-    const denied = await directApiCall(page, {
-      method: "POST",
-      path: "/v1/teams",
-      body: { name: "p7 browser pro over" },
-    });
-    expect(denied.status).toBeGreaterThanOrEqual(400);
-    expect(denied.body).toContain(DENIAL_CODES.ownedWorkspaceLimitReached);
-    // Over-limit denies the additive action; the existing workspaces survive.
-    const after = await sql<{ id: string }>(
-      `SELECT id FROM teams WHERE owner_user_id = $1 AND is_personal = false`,
-      [account.userId],
-    );
-    expect(after.map((r) => r.id).sort()).toEqual(
-      atLimit.map((r) => r.id).sort(),
-    );
-    proven("p7.pro.owned_workspace.limit_reached_denied");
+    expect(envelope.contextOptions.ownedWorkspaces.length).toBe(before);
+    proven("p7.pro.owned_workspace.creation_unavailable");
   });
 
   test("p7.pro.members.limit_enforced_by_server", async ({ page }) => {

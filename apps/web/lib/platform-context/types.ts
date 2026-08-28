@@ -61,8 +61,10 @@ export type PlatformContextPlanFeatures = {
    * UNKNOWN and render the honest unknown state rather than a fabricated cap.
    */
   limits?: {
-    /** Owned Workspaces this ACCOUNT may create. */
-    maxOwnedWorkspaces: number;
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the server stopped
+    // projecting `maxOwnedWorkspaces`, because no plan grants additional
+    // workspaces. Removed here in lockstep: a client type that still declared
+    // it would be describing a field that never arrives.
     /** ACTIVE Collaboration Teams allowed inside ONE workspace. */
     maxCollaborationTeamsPerWorkspace: number;
     /** ACCEPTED members allowed in ONE Collaboration Team. */

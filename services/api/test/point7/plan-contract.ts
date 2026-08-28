@@ -45,8 +45,13 @@ export type PlanContractRow = {
   intake: boolean;
   /** Reviewer operations + review queues. */
   reviewerOperations: boolean;
-  /** Owned Workspaces this account may CREATE. 0 = the capability is absent. */
-  maxOwnedWorkspaces: number;
+  /*
+   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `maxOwnedWorkspaces`
+   * was REMOVED from the contract along with the catalog field it mirrors. No
+   * plan sells additional workspaces: there is one Personal Workspace, and the
+   * tiers are tiers OF it. The absence is asserted in `plan-matrix` so this
+   * removal cannot be undone by a merge that quietly restores the field.
+   */
   /** Members per collaboration team. */
   maxWorkspaceSeats: number;
   /** Lifetime evidence-record cap; null = uncapped. */
@@ -63,16 +68,15 @@ export type PlanContractRow = {
  * The contract. Read it as prose:
  *
  *   FREE        capture / evidence / verify / basic reads, 3 records, nothing
- *               collaborative, no Owned Workspace, no Organization.
+ *               collaborative, no Organization.
  *   PAYG        a PERSONAL commercial MODE: it buys operations (reports,
  *               packages, intake), never a collaboration workspace and never a
- *               recurring workspace plan. `maxOwnedWorkspaces: 0` is the whole
- *               "PAYG must not create an Owned or Organization Workspace"
- *               clause expressed as a number.
- *   PRO         personal-professional: cases, intake, professional surfaces,
- *               and up to two Owned Workspaces — but NOT reviewer operations.
- *   TEAM        the collaboration plan: reviewer operations and review queues
- *               on top of PRO, commercial state on the Workspace.
+ *               recurring workspace plan.
+ *   PRO         personal-professional: cases, intake and professional surfaces
+ *               on the SAME Personal Workspace — but NOT reviewer operations.
+ *   TEAM        the collaboration tier of that same Personal Workspace:
+ *               reviewer operations and review queues on top of PRO. A tier,
+ *               not a second workspace.
  *   ENTERPRISE  contract-governed: everything, plus the governance block
  *               (SSO/SCIM, MFA enforcement, access reviews, legal hold,
  *               retention, org audit logs, Object Lock).
@@ -84,7 +88,6 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: false,
     intake: false,
     reviewerOperations: false,
-    maxOwnedWorkspaces: 0,
     maxWorkspaceSeats: 0,
     lifetimeRecordCap: 3,
     monthlyRecordCap: null,
@@ -97,7 +100,6 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: false,
-    maxOwnedWorkspaces: 0,
     maxWorkspaceSeats: 0,
     lifetimeRecordCap: null,
     monthlyRecordCap: null,
@@ -110,7 +112,6 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: false,
-    maxOwnedWorkspaces: 2,
     maxWorkspaceSeats: 5,
     lifetimeRecordCap: 100,
     monthlyRecordCap: null,
@@ -123,7 +124,6 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: true,
-    maxOwnedWorkspaces: 5,
     maxWorkspaceSeats: 5,
     lifetimeRecordCap: null,
     monthlyRecordCap: 500,
@@ -136,7 +136,6 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
     reports: true,
     intake: true,
     reviewerOperations: true,
-    maxOwnedWorkspaces: 1000,
     maxWorkspaceSeats: 500,
     lifetimeRecordCap: null,
     monthlyRecordCap: null,
@@ -155,7 +154,12 @@ export const PLAN_CONTRACT: Record<CanonicalPlan, PlanContractRow> = {
 export const DENIAL_CODES = {
   planHasNoTeams: "TEAM_PLAN_REQUIRED",
   teamLimitReached: "TEAM_LIMIT_REACHED",
-  ownedWorkspaceCreationNotAllowed: "TEAM_CREATION_NOT_ALLOWED",
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — one code replaces
+  // two. There used to be a "your plan includes none" refusal and a "you have
+  // used them all" refusal; with no plan granting any, every account gets the
+  // same answer for the same reason, and a second code would imply a quota
+  // somebody could still be under.
+  ownedWorkspaceCreationNotAllowed: "WORKSPACE_CREATION_NOT_SELF_SERVICE",
   // ARCH-001 (2026-08-07) — the code names the workspace SHAPE, not a kind
   // called "team" that has never existed. Old clients still receive the legacy
   // spelling through the bounded adapter in @proovra/shared.

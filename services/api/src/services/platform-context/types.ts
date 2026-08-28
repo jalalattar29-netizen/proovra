@@ -75,8 +75,12 @@ export type PlatformContextPlanFeatures = {
    * capacity belongs to its WORKSPACE, not to the account that owns it.
    */
   limits: {
-    /** Owned Workspaces this ACCOUNT may create. */
-    maxOwnedWorkspaces: number;
+    /*
+     * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `maxOwnedWorkspaces`
+     * was REMOVED from the envelope. No plan grants additional workspaces, so
+     * there is no limit for a client to render, and a client that still had
+     * the number would render an allowance nothing can spend.
+     */
     /** ACTIVE Collaboration Teams allowed inside ONE workspace. */
     maxCollaborationTeamsPerWorkspace: number;
     /** ACCEPTED members allowed in ONE Collaboration Team. */

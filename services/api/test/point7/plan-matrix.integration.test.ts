@@ -185,7 +185,6 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
             reports: caps.reportsIncluded,
             intake: caps.intakeIncluded,
             reviewerOperations: caps.reviewerOperationsIncluded,
-            maxOwnedWorkspaces: caps.maxOwnedWorkspaces,
             maxWorkspaceSeats: caps.maxWorkspaceSeats,
             lifetimeRecordCap: caps.maxEvidenceRecords,
             monthlyRecordCap: caps.maxEvidenceRecordsPerMonth,
@@ -356,7 +355,6 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
 
     it("p7.free.owned_workspace.creation_unavailable", async () => {
       const t = await seedPersonalTenant(deps, "FREE");
-      expect(t.expected.maxOwnedWorkspaces).toBe(0);
       const res = await denyWithoutSideEffects({
         method: "POST",
         url: "/v1/teams",
@@ -560,7 +558,6 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
 
     it("p7.payg.collaboration.locked", async () => {
       const t = await seedPersonalTenant(deps, "PAYG", { credits: 10 });
-      expect(t.expected.maxOwnedWorkspaces).toBe(0);
       const collab = await denyWithoutSideEffects({
         method: "POST",
         url: "/v1/collaboration-teams",
@@ -670,65 +667,47 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
   // =========================================================================
 
   describe("PRO", () => {
-    it("p7.pro.owned_workspace.created_within_limit", async () => {
+    it("p7.pro.owned_workspace.creation_unavailable", async () => {
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — REPLACES
+      // `created_within_limit` and `limit_reached_denied`. PRO is a tier of the
+      // ONE Personal Workspace, so there is no allowance to spend and no limit
+      // to reach: the first attempt is refused, exactly like the fifth.
       const t = await seedPersonalTenant(deps, "PRO");
-      const limit = t.expected.maxOwnedWorkspaces;
-      expect(limit).toBeGreaterThan(0);
-      // The whole canonical allowance, through the real route. Before Point 7
-      // this failed on the SECOND one: the bootstrap Personal Team was being
-      // counted against `maxOwnedWorkspaces`, so the published limit and the
-      // enforced limit differed by exactly one.
-      for (let i = 0; i < limit; i += 1) {
-        const res = await inject({
-          method: "POST",
-          url: "/v1/teams",
-          token: t.owner.token,
-          payload: { name: `p7 pro ws ${i}` },
-        });
-        expect(
-          res.statusCode,
-          `owned workspace ${i + 1}/${limit} was refused: ${res.body}`,
-        ).toBeLessThan(300);
-      }
-      const owned = await prisma.team.count({
-        where: {
-          ownerUserId: t.owner.userId,
-          isPersonal: false,
-          NOT: { organization: { kind: "CUSTOMER" } },
-        },
-      });
-      expect(owned).toBe(limit);
-      provenScenario("SERVER", "p7.pro.owned_workspace.created_within_limit");
-    });
 
-    it("p7.pro.owned_workspace.limit_reached_denied", async () => {
-      const t = await seedPersonalTenant(deps, "PRO");
-      const limit = t.expected.maxOwnedWorkspaces;
-      for (let i = 0; i < limit; i += 1) {
-        await seedOwnedWorkspace(deps, {
-          ownerUserId: t.owner.userId,
-          name: `p7-pro-at-limit-${i}`,
-        });
-      }
+      // Whatever the account already owns is the baseline — a refusal must not
+      // be a downgrade in disguise.
+      const ownedWhere = {
+        ownerUserId: t.owner.userId,
+        isPersonal: false,
+        NOT: { organization: { kind: "CUSTOMER" as const } },
+      };
+      const before = await prisma.team.count({ where: ownedWhere });
+
       const res = await denyWithoutSideEffects({
         method: "POST",
         url: "/v1/teams",
         token: t.owner.token,
-        payload: { name: "p7 pro over limit" },
+        payload: { name: "p7 pro ws" },
       });
       expect(JSON.stringify(res.json())).toContain(
-        DENIAL_CODES.ownedWorkspaceLimitReached,
+        DENIAL_CODES.ownedWorkspaceCreationNotAllowed,
       );
-      // Over-limit denies the ADDITIVE action; it destroys nothing.
-      const still = await prisma.team.count({
-        where: {
-          ownerUserId: t.owner.userId,
-          isPersonal: false,
-          NOT: { organization: { kind: "CUSTOMER" } },
-        },
+
+      // Nothing was created, and nothing that existed was removed.
+      expect(await prisma.team.count({ where: ownedWhere })).toBe(before);
+
+      // And the personal entitlement — the thing PRO actually buys — is
+      // untouched by the denial.
+      const { resolveCommercialContext } = await import(
+        "../../src/services/billing/commercial-context.service.js"
+      );
+      const personal = await resolveCommercialContext({
+        type: "PERSONAL_ACCOUNT",
+        userId: t.owner.userId,
       });
-      expect(still).toBe(limit);
-      provenScenario("SERVER", "p7.pro.owned_workspace.limit_reached_denied");
+      expect(personal.plan).toBe("PRO");
+
+      provenScenario("SERVER", "p7.pro.owned_workspace.creation_unavailable");
     });
 
     it("p7.pro.owned_workspace.does_not_inherit_owner_plan", async () => {
@@ -751,8 +730,9 @@ describe("POINT 7 — five-plan server matrix (live PostgreSQL 16)", () => {
         userId: t.owner.userId,
       });
       expect(personal.plan).toBe("PRO");
-      // The workspace's OWN commercial state governs it. `maxOwnedWorkspaces`
-      // governs CREATION allowance at the account subject, not coverage.
+      // The workspace's OWN commercial state governs it. An owner's personal
+      // tier never covered a separate workspace, and now cannot create one
+      // either — this asserts the coverage half, on a legacy row.
       expect(ws.plan).toBe("FREE");
       provenScenario(
         "SERVER",

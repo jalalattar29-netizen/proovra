@@ -370,10 +370,14 @@ export const SCENARIOS: ReadonlyArray<ScenarioSpec> = [
     "Another workspace of the same user does not inherit the PAYG credit.", SERVER_ONLY),
 
   // ----------------------------------------------------------------- PRO ---
-  S("p7.pro.owned_workspace.created_within_limit", "PRO",
-    "A PRO account creates Owned Workspaces up to the canonical limit.", BOTH),
-  S("p7.pro.owned_workspace.limit_reached_denied", "PRO",
-    "At the limit the next Owned Workspace is denied and nothing is deleted.", BOTH),
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — two scenarios became
+  // one. They described a PRO account creating Owned Workspaces up to a limit
+  // and being denied at it; both described the obsolete model, in which a tier
+  // bought additional workspaces. PRO is a tier of the ONE Personal Workspace,
+  // so the behaviour to prove is that the attempt is refused at all — and,
+  // just as importantly, that the refusal takes nothing away.
+  S("p7.pro.owned_workspace.creation_unavailable", "PRO",
+    "A PRO account cannot create an additional workspace; its tier applies to its Personal Workspace, and nothing it owns is affected.", BOTH),
   S("p7.pro.owned_workspace.does_not_inherit_owner_plan", "PRO",
     "An Owned Workspace does not inherit the owner's personal PRO plan.", SERVER_ONLY),
   S("p7.pro.two_workspaces_diverge_commercially", "PRO",

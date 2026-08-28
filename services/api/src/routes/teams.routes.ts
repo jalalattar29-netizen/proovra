@@ -311,70 +311,52 @@ function fireTeamAnalyticsEvent(params: {
   }).catch(() => null);
 }
 
+/**
+ * Refuse self-service workspace creation.
+ *
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — this was a plan-derived
+ * quota: `PlanCapabilities.maxOwnedWorkspaces`, resolved at the
+ * PERSONAL_ACCOUNT subject, allowing 0 for FREE, 2 for PRO, 5 for TEAM and
+ * 1000 for ENTERPRISE, then re-checked inside the creating transaction under a
+ * per-owner advisory lock. The field is gone from the catalog, and the quota
+ * with it.
+ *
+ * It is not that the number changed. There are exactly two product-facing
+ * context kinds — PERSONAL and ORGANIZATION — and neither is acquired here. A
+ * person has ONE Personal Workspace, and FREE → PRO → TEAM are tiers of that
+ * same workspace; an Organization workspace is created by Enterprise
+ * PROVISIONING against a signed contract, on a path that never called this.
+ *
+ * The decisive fact is what such a workspace could have become. Checkout now
+ * has ONE subject and it is the person, so a workspace created here could
+ * never be paid for: it would resolve FREE forever, and the shared-workspace
+ * admission rule in `billing-enforcement` would refuse every piece of evidence
+ * anyone tried to record in it. The route would return 201 for something
+ * permanently unusable, which is worse than refusing.
+ *
+ * EXISTING Owned Workspaces are untouched — not archived, not downgraded, not
+ * hidden. They keep whatever commercial state they hold, and this function
+ * never had anything to say about them.
+ */
 async function assertUserCanCreateAnotherOwnedWorkspace(ownerUserId: string) {
-  // §9.7 — Owned-Workspace CREATION allowance is a PERSONAL_ACCOUNT decision.
-  const personalScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId: ownerUserId })).scope;
-  const caps = getPlanCapabilities(personalScope.plan);
-  const maxOwnedWorkspaces = Math.max(0, caps.maxOwnedWorkspaces ?? 0);
+  // Resolved for the error body only: the caller is told which plan they are
+  // on, because "your plan does not include this" is otherwise unactionable.
+  // Nothing branches on it — every self-service plan gets the same answer.
+  const personalScope = (
+    await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId: ownerUserId })
+  ).scope;
 
-  if (maxOwnedWorkspaces <= 0) {
-    const err: Error & {
-      statusCode?: number;
-      code?: string;
-      details?: Record<string, unknown>;
-    } = new Error("Your current plan does not allow team creation");
-    err.statusCode = 409;
-    err.code = "TEAM_CREATION_NOT_ALLOWED";
-    err.details = {
-      plan: personalScope.plan,
-      maxOwnedWorkspaces,
-    };
-    throw err;
-  }
-
-  // PHASE 12 — POINT 7 (2026-08-05). `maxOwnedWorkspaces` caps OWNED workspaces.
-  // This counted EVERY `Team` row the user owns, which is three different
-  // kinds of thing: the Personal Space (bootstrapped for every account, always
-  // present, and never an "owned team"), provisioned ORGANIZATION workspaces
-  // (governed by the Organization's contract, not by the owner's personal
-  // plan), and the OWNED workspaces the cap is actually about. A PRO account
-  // (`maxOwnedWorkspaces: 2`) therefore reached the cap after creating ONE owned
-  // workspace, because its Personal Space had already consumed the other slot
-  // — the published limit and the enforced limit differed by exactly the
-  // bootstrap.
-  //
-  // The canonical kind classifier is the discriminator. `isPersonal` excludes
-  // the Personal Space; a CUSTOMER-organization parent excludes provisioned
-  // Organization workspaces. What remains is the OWNED set.
-  const ownedTeamCount = await prisma.team.count({
-    where: {
-      ownerUserId,
-      isPersonal: false,
-      NOT: { organization: { kind: "CUSTOMER" } },
-    },
-  });
-
-  if (ownedTeamCount >= maxOwnedWorkspaces) {
-    const err: Error & {
-      statusCode?: number;
-      code?: string;
-      details?: Record<string, unknown>;
-    } = new Error("Team limit reached for current plan");
-    err.statusCode = 409;
-    err.code = "SHARED_WORKSPACE_LIMIT_REACHED";
-    err.details = {
-      plan: personalScope.plan,
-      maxOwnedWorkspaces,
-      ownedTeamCount,
-    };
-    throw err;
-  }
-
-  return {
-    plan: personalScope.plan,
-    maxOwnedWorkspaces,
-    ownedTeamCount,
-  };
+  const err: Error & {
+    statusCode?: number;
+    code?: string;
+    details?: Record<string, unknown>;
+  } = new Error(
+    "Additional workspaces are not part of any plan. Your Personal Workspace is where PRO and TEAM apply.",
+  );
+  err.statusCode = 409;
+  err.code = "WORKSPACE_CREATION_NOT_SELF_SERVICE";
+  err.details = { plan: personalScope.plan };
+  throw err;
 }
 
 export async function teamsRoutes(app: FastifyInstance) {
@@ -383,157 +365,22 @@ export async function teamsRoutes(app: FastifyInstance) {
     const ownerUserId = getAuthUserId(req);
 
     try {
-      const ownershipState = await assertUserCanCreateAnotherOwnedWorkspace(ownerUserId);
-
-      // PHASE 12 — POINT 7 (2026-08-05): ONE authority for the owned-workspace
-      // count.
+      // Always throws — the creation body below it was DELETED with the
+      // allowance it enforced, rather than left unreachable. It built an
+      // Organization, a governance membership and a Team inside one
+      // transaction under an advisory lock; Enterprise provisioning already
+      // has its own correct implementation of that shape, so nothing is lost
+      // by removing this one, and a dead copy of a transaction is how the next
+      // one gets rebuilt wrong.
       //
-      // This route used to run a SECOND, independent limit on the same
-      // decision: `assertQuotaEntitlement("QUOTA_WORKSPACES")`, from the
-      // packaging entitlement engine, whose table is keyed on PRODUCT LINE and
-      // whose default is **1**. `assertUserCanCreateAnotherOwnedWorkspace` above is
-      // keyed on the COMMERCIAL PLAN and says 2 for PRO, 5 for TEAM, 1000 for
-      // ENTERPRISE. The two disagreed on every plan, the stricter one won
-      // silently, and the published limit was therefore unreachable: a PRO
-      // account allowed two Owned Workspaces was refused the second with
-      // `QUOTA_EXCEEDED / QUOTA_WORKSPACES` — a denial code naming an
-      // entitlement the pricing page never mentions.
-      //
-      // The canonical authority for "how many Owned Workspaces may this
-      // account create" is `PlanCapabilities.maxOwnedWorkspaces`, resolved at the
-      // PERSONAL_ACCOUNT commercial subject (Phase 9 §9.7). The duplicate
-      // DECISION is removed here rather than reconciled, because reconciling
-      // two tables leaves two tables. Usage is still RECORDED so the packaging
-      // engine keeps its counters for reporting — recording is not deciding.
-      try {
-        const personalTeam = await prisma.team.findFirst({
-          where: { ownerUserId, isPersonal: true },
-          select: { id: true },
-        });
-        if (personalTeam) {
-          const { recordEntitlementUsage } = await import(
-            "../services/packaging/entitlement.service.js"
-          );
-          recordEntitlementUsage({
-            prisma,
-            teamId: personalTeam.id,
-            key: "QUOTA_WORKSPACES",
-            amount: 1,
-          }).catch(() => null);
-        }
-      } catch {
-        /* entitlement usage recording is best-effort and never blocks */
-      }
+      // The audit/analytics writes that followed went with it: there is no
+      // creation left to record, and the refusal is audited by the `blocked`
+      // branch below, which was already the path every denial took.
+      await assertUserCanCreateAnotherOwnedWorkspace(ownerUserId);
 
-      // Phase 2.7X Stage 6 — atomically create the bound Organization
-      // so the team is never observed with a NULL `organization_id`.
-      // This keeps the Stage 7-eligible NOT NULL tightening safe.
-      const team = await prisma.$transaction(async (tx) => {
-        // PHASE 12 — POINT 7 (2026-08-05): the limit is RE-EVALUATED inside the
-        // creating transaction, under a per-owner advisory lock.
-        //
-        // `assertUserCanCreateAnotherOwnedWorkspace` above is a count followed, some
-        // milliseconds later, by an unrelated INSERT. Two requests arriving
-        // together both counted `limit - 1`, both passed, and both created:
-        // a PRO account allowed two Owned Workspaces ended up with three.
-        // There is no unique constraint that could have caught it, because
-        // "at most N rows for this owner" is not expressible as one.
-        //
-        // `pg_advisory_xact_lock` is the repository's canonical serialisation
-        // primitive for exactly this shape (see
-        // `establishOrganizationSessionContext`): transaction-scoped, released
-        // on commit or rollback, and effective across API instances rather
-        // than merely across one process's event loop. The pre-flight check
-        // stays where it is so the common denial keeps its rich error body
-        // without paying for a transaction; this is the authority.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`owned-workspace-create:${ownerUserId}`}))`;
-        const liveOwnedCount = await tx.team.count({
-          where: {
-            ownerUserId,
-            isPersonal: false,
-            NOT: { organization: { kind: "CUSTOMER" } },
-          },
-        });
-        if (liveOwnedCount >= ownershipState.maxOwnedWorkspaces) {
-          const err: Error & {
-            statusCode?: number;
-            code?: string;
-            details?: Record<string, unknown>;
-          } = new Error("Team limit reached for current plan");
-          err.statusCode = 409;
-          err.code = "SHARED_WORKSPACE_LIMIT_REACHED";
-          err.details = {
-            plan: ownershipState.plan,
-            maxOwnedWorkspaces: ownershipState.maxOwnedWorkspaces,
-            ownedTeamCount: liveOwnedCount,
-          };
-          throw err;
-        }
-
-        const org = await tx.organization.create({
-          data: {
-            name: body.name.trim(),
-            billingOwnerUserId: ownerUserId,
-            status: "ACTIVE",
-            // P1 domain remediation (2026-07-21) — self-service workspaces
-            // get an internal SYSTEM container org, never a customer
-            // Enterprise Organization.
-            kind: "SYSTEM",
-          },
-          select: { id: true },
-        });
-        // PHASE 3 (2026-07-21) — canonical orchestrator (SYSTEM-container
-        // governance row for the self-service owner).
-        await grantOrganizationMembership(tx, {
-          organizationId: org.id,
-          userId: ownerUserId,
-          role: "ORG_OWNER",
-          source: "SELF_SERVICE_OWNER",
-          intent: "OWNED_WORKSPACE_OWNER",
-        });
-        return tx.team.create({
-          data: {
-            name: body.name.trim(),
-            ownerUserId,
-            organizationId: org.id,
-            // P1 domain remediation (2026-07-21) — a self-service created
-            // workspace is OWNED, regardless of plan. Never presented as an
-            // "Organization" merely because isPersonal=false.
-            workspaceKind: "OWNED",
-            members: {
-              create: {
-                userId: ownerUserId,
-                role: prismaPkg.TeamRole.OWNER,
-              },
-            },
-          },
-        });
-      });
-
-      auditTeamAction(req, {
-        userId: ownerUserId,
-        action: "teams.create",
-        outcome: "success",
-        resourceId: team.id,
-        metadata: {
-          name: team.name,
-          plan: ownershipState.plan,
-          ownedTeamCountBeforeCreate: ownershipState.ownedTeamCount,
-          maxOwnedWorkspaces: ownershipState.maxOwnedWorkspaces,
-        },
-      });
-
-      fireTeamAnalyticsEvent({
-        eventType: "team_created",
-        userId: ownerUserId,
-        req,
-        entityId: team.id,
-        metadata: {
-          plan: ownershipState.plan,
-        },
-      });
-
-      return reply.code(201).send(team);
+      // Unreachable. Fastify requires the handler to return a reply, and TS
+      // cannot see that the line above never comes back.
+      return reply.code(409).send({ code: "WORKSPACE_CREATION_NOT_SELF_SERVICE" });
     } catch (err) {
       const statusCode =
         typeof (err as { statusCode?: number })?.statusCode === "number"

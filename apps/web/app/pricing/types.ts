@@ -34,8 +34,12 @@ export type PricingCatalogPlan = {
    * workspace KIND.
    */
   billingShape?: "SINGLE_OCCUPANT" | "SHARED" | "BOTH";
-  /** Owned Workspaces this ACCOUNT may create. */
-  maxOwnedWorkspaces?: number;
+  /*
+   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `maxOwnedWorkspaces`
+   * was REMOVED. Pricing advertised "Up to 2" and "Up to 5" additional
+   * workspaces on PRO and TEAM; no plan sells additional workspaces, and the
+   * comparison row that rendered these went with the field.
+   */
   /** ACTIVE Collaboration Teams allowed inside ONE workspace. */
   maxCollaborationTeamsPerWorkspace?: number;
   /** ACCEPTED members allowed in ONE Collaboration Team. */

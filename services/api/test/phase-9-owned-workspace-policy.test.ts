@@ -6,7 +6,7 @@
  *   PERSONAL      → owner entitlement (the personal-space subject);
  *   OWNED         → ONLY the workspace's own commercial state (owner's
  *                   Personal plan NEVER covers an existing Owned Workspace;
- *                   `maxOwnedWorkspaces` governs CREATION allowance only);
+ *                   creation of new ones is refused outright — 2026-08-28);
  *   ORGANIZATION  → contract-provisioned coverage;
  *   OWNED+ENTERPRISE plan string → LEGACY AMBIGUITY, FAIL CLOSED;
  *   UNKNOWN       → FAIL CLOSED.
@@ -38,11 +38,15 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
       .toEqual({ plan: "FREE", source: "NONE" });
   });
 
-  it("3. Owner FREE→PRO changes maxOwnedWorkspaces (creation allowance) only — existing workspace stays FREE", () => {
-    // Creation allowance moves 0 → 2 …
-    expect(getPlanCapabilities("FREE").maxOwnedWorkspaces).toBe(0);
-    expect(getPlanCapabilities("PRO").maxOwnedWorkspaces).toBe(2);
-    // … but the existing workspace's effective plan is UNCHANGED by the owner upgrade.
+  it("3. Owner FREE→PRO does not reach an existing Owned Workspace at all — it stays FREE", () => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — this used to open by
+    // showing the creation allowance moving 0 → 2, then show that the existing
+    // workspace was unaffected by the same upgrade. The allowance is gone: no
+    // plan grants additional workspaces, so an upgrade now changes NOTHING
+    // about workspaces in either direction, which is a simpler statement of
+    // the same separation and the one worth asserting.
+    expect(getPlanCapabilities("PRO")).not.toHaveProperty("maxOwnedWorkspaces");
+    // The existing workspace's effective plan is UNCHANGED by the owner upgrade.
     const before = resolveWorkspaceEffectivePlan({ ...OWNED_UNPAID, ownerPlan: "FREE" });
     const after = resolveWorkspaceEffectivePlan({ ...OWNED_UNPAID, ownerPlan: "PRO" });
     expect(after).toEqual(before);
@@ -117,12 +121,17 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
     expect(Object.keys(r).sort()).toEqual(["plan", "source"]);
   });
 
-  it("14. Account maxOwnedWorkspaces creation enforcement is intact (published values unchanged)", () => {
-    expect(getPlanCapabilities("PRO").maxOwnedWorkspaces).toBe(2);
-    expect(getPlanCapabilities("TEAM").maxOwnedWorkspaces).toBe(5);
-    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the OWNED WORKSPACE
-    // creation guard is still an ACCOUNT-subject decision, and it lives in
-    // teams.routes.ts where it counts `Team` rows.
+  it("14. Self-service workspace creation is refused, and the Collaboration Team guard is a different decision", () => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — this asserted that
+    // the account-subject CREATION allowance was intact at its published
+    // values, 2 on PRO and 5 on TEAM. The allowance is gone: a tier applies to
+    // the ONE Personal Workspace, and a workspace created here could never be
+    // paid for, since checkout has a single subject and it is the person.
+    //
+    // What the test still owes is the same thing it always owed — that the
+    // decision is made in ONE place, and that the Collaboration Team guard is
+    // not that place. The conflation those two guards once had is exactly why
+    // this file exists.
     const teams = readFileSync(
       fileURLToPath(new URL("../src/routes/teams.routes.ts", import.meta.url)),
       "utf8",
@@ -130,13 +139,15 @@ describe("Phase 9 §9.4 corrected — Owned Workspace never inherits the owner's
     const createWorkspace = teams.slice(
       teams.indexOf("async function assertUserCanCreateAnotherOwnedWorkspace"),
     );
-    expect(createWorkspace.slice(0, 800)).toMatch(
-      /resolveCommercialContext\(\{\s*type:\s*"PERSONAL_ACCOUNT"/,
+    // It refuses, unconditionally — no plan, count or capability is consulted
+    // to decide, only to explain.
+    expect(createWorkspace.slice(0, 1200)).toMatch(
+      /WORKSPACE_CREATION_NOT_SELF_SERVICE/,
     );
-    expect(createWorkspace.slice(0, 800)).toMatch(/caps\.maxOwnedWorkspaces/);
+    expect(createWorkspace.slice(0, 1200)).not.toMatch(/maxOwnedWorkspaces/);
 
     // The COLLABORATION TEAM guard is a different decision over a different
-    // table, and it no longer reads this cap at all — that conflation is what
+    // table, and it never read the workspace cap — that conflation is what
     // gave a PRO account two owned workspaces AND two collaboration teams.
     const guards = readFileSync(
       fileURLToPath(new URL("../src/services/collaboration-team/billing-guards.ts", import.meta.url)),

@@ -43,8 +43,12 @@ const CLASSIFIER = "packages/shared/src/workspace-kind.ts";
  * Every module that creates a Workspace row. Pinned as DATA so a new writer is
  * a deliberate addition; the count check below fails if one appears elsewhere.
  */
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `teams.routes.ts` left
+// this set. It no longer creates workspaces: self-service creation was removed
+// with the commercial allowance that permitted it, because a workspace created
+// there could never be paid for. Two writers remain, and the "no writer outside
+// the pinned set" test below independently proves the set is complete.
 const WORKSPACE_WRITERS = [
-  "services/api/src/routes/teams.routes.ts",
   "services/api/src/services/enterprise-provisioning.service.ts",
   "services/api/src/services/platform-context/workspace-bootstrap.service.ts",
 ] as const;
