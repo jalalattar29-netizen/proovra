@@ -114,9 +114,29 @@ export function describeMeter(meter: UsageMeter): {
       // here also stops the number being read as a bill.
       if (meter.used > meter.limit) {
         const over = meter.used - meter.limit;
+
+        // The RESOLUTION differs by what kind of allowance this is, and saying
+        // the wrong one is worse than saying nothing.
+        //
+        // A ROLLING allowance refills: records age out of the window on their
+        // own, so "wait" is a real answer and the customer needs to know that
+        // is what is happening.
+        //
+        // A LIFETIME allowance does NOT refill. The first version of this text
+        // told everyone they could "add more once you are back within the
+        // allowance", which for a lifetime cap describes a mechanism the
+        // product does not offer — there is no supported way to get back under
+        // it, and a customer who waited would wait for ever. The honest answer
+        // there is the one that actually works: move up a tier, or buy a
+        // credit for the next record.
+        const resolution =
+          meter.window === "ROLLING_30_DAYS"
+            ? "Records leave this window as they age, and capacity returns with them."
+            : "This allowance does not reset. Moving up a plan, or buying an evidence credit, is what makes room for the next record.";
+
         return {
           headline: `${meter.used.toLocaleString()} ${suffix}`,
-          detail: `${over.toLocaleString()} over the ${meter.limit.toLocaleString()} your plan includes. Nothing has been removed — you can add more once you are back within the allowance.`,
+          detail: `${over.toLocaleString()} over the ${meter.limit.toLocaleString()} your plan includes. Nothing has been removed. ${resolution}`,
           ratio: 1,
         };
       }

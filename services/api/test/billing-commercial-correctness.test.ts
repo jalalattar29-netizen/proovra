@@ -462,3 +462,71 @@ describe("Enterprise contract limits are enforced, not merely displayed", () => 
     expect(limits.legacyDerived).toBe(true);
   });
 });
+
+// =============================================================================
+// 6. The Billing projection asks the SAME questions as the gate
+// =============================================================================
+//
+// Both cases below were found by fetching the real projection from a running
+// API for a TEAM personal account, not by reading code. Each was a surface
+// answering a question a second time and getting a different answer.
+
+describe("the Billing projection does not re-derive commercial facts", () => {
+  it("storage offers are keyed on the PLAN, from the one catalogue authority", async () => {
+    // It filtered `listStorageAddonDefinitions()` by billing SHAPE. A personal
+    // workspace is SINGLE_OCCUPANT on every tier, so a TEAM customer was
+    // offered the PRO catalogue (+10/+50/+200 GB) and could not buy the
+    // capacity their plan sells (+100/+500 GB/+1 TB).
+    const fs = await import("node:fs/promises");
+    const projection = await fs.readFile(
+      new URL("../src/services/billing/billing-account-projection.service.ts", import.meta.url),
+      "utf8",
+    );
+
+    expect(projection).toMatch(/storageAddonOffersForPlan/);
+    expect(projection).toMatch(/offersFor\(\{\s*plan:\s*scope\.plan/);
+    // The shape-keyed list must not come back.
+    expect(projection).not.toMatch(/offersFor\(\{\s*shape:/);
+    expect(projection).not.toMatch(/filter\(\(d\) => d\.billingShape === params\.shape\)/);
+
+    // And the authority it delegates to is the one enforcement uses.
+    const usage = await fs.readFile(
+      new URL("../src/services/workspace-usage.service.ts", import.meta.url),
+      "utf8",
+    );
+    expect(usage).toMatch(/export function storageAddonOffersForPlan/);
+    expect(usage).toMatch(/function getAvailableStorageAddonOffers\(scope: WorkspaceScope\) \{\s*\n\s*return storageAddonOffersForPlan\(scope\.plan\);/);
+  });
+
+  it("a personal evidence meter reports the window the GATE enforces", async () => {
+    // TEAM's allowance is 500 records in any 30 days and it has no lifetime
+    // cap. The personal branch always reported LIFETIME with
+    // `effectiveLifetimeRecordCap` — null on TEAM — so the page said "no
+    // limit" while billing-enforcement refused at 500.
+    const fs = await import("node:fs/promises");
+    const projection = await fs.readFile(
+      new URL("../src/services/billing/billing-account-projection.service.ts", import.meta.url),
+      "utf8",
+    );
+
+    // The personal branch resolves the SAME cap the gate resolves...
+    const personalBranch = projection.slice(
+      projection.indexOf("const used = await countPersonalEvidenceRecords") - 4000,
+    );
+    expect(projection).toMatch(/resolveEffectiveContractEvidenceCap/);
+    // ...and counts over the SAME window when one applies.
+    expect(projection).toMatch(
+      /countPersonalEvidenceRecords\(account\.id,\s*\{\s*\n?\s*createdSince: since,?\s*\n?\s*\}\)/,
+    );
+    expect(projection).toMatch(/window: "ROLLING_30_DAYS"/);
+    void personalBranch;
+
+    // The gate it must agree with, unchanged.
+    const enforcement = await fs.readFile(
+      new URL("../src/services/billing-enforcement.service.ts", import.meta.url),
+      "utf8",
+    );
+    expect(enforcement).toMatch(/resolveEffectiveContractEvidenceCap/);
+    expect(enforcement).toMatch(/createdSince: since/);
+  });
+});

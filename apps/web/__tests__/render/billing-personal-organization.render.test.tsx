@@ -446,3 +446,63 @@ describe("the surface exposes no internal vocabulary", () => {
     }
   });
 });
+
+// ===========================================================================
+// 7. Over-limit copy is truthful for the KIND of allowance
+// ===========================================================================
+
+describe("an exhausted allowance names a resolution that exists", () => {
+  it("a LIFETIME cap does not promise a return to the allowance", () => {
+    // Found in the browser-verification pass. The first version told everyone
+    // they could "add more once you are back within the allowance" — for a
+    // lifetime cap that describes a mechanism the product does not offer, and
+    // a customer who waited would wait for ever.
+    const { container } = render(
+      <UsageAndLimits
+        projection={personal({
+          usage: {
+            ...personal().usage,
+            evidence: { state: "MEASURED", used: 176, limit: 127, window: "LIFETIME" },
+          },
+        })}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/back within the allowance/);
+    expect(text).toMatch(/does not reset/);
+    // The resolutions that DO work are named.
+    expect(text).toMatch(/Moving up a plan|evidence credit/);
+  });
+
+  it("a ROLLING allowance says capacity comes back, because it does", () => {
+    const { container } = render(
+      <UsageAndLimits
+        projection={personal({
+          usage: {
+            ...personal().usage,
+            evidence: { state: "MEASURED", used: 512, limit: 500, window: "ROLLING_30_DAYS" },
+          },
+        })}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).toMatch(/leave this window as they age/);
+    expect(text).not.toMatch(/does not reset/);
+  });
+
+  it("both say plainly that nothing was removed", () => {
+    for (const window of ["LIFETIME", "ROLLING_30_DAYS"] as const) {
+      const { container } = render(
+        <UsageAndLimits
+          projection={personal({
+            usage: {
+              ...personal().usage,
+              evidence: { state: "MEASURED", used: 10, limit: 5, window },
+            },
+          })}
+        />,
+      );
+      expect(container.textContent ?? "", window).toMatch(/Nothing has been removed/);
+    }
+  });
+});

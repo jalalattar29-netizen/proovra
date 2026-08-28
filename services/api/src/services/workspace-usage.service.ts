@@ -105,8 +105,21 @@ function maxBigInt(a: bigint, b: bigint): bigint {
  * on the plan. The `billingShape` on each offer row stays as the catalog's own
  * grouping label; it is no longer read as a statement about the workspace.
  */
-function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
-  switch (scope.plan) {
+/**
+ * Which storage add-ons a PLAN may buy.
+ *
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — EXPORTED, because the
+ * Billing projection was answering the same question a second time and
+ * getting a different answer.
+ *
+ * It keyed its own list on the billing SHAPE, and a personal workspace is
+ * SINGLE_OCCUPANT whatever tier it is on — so a TEAM customer was offered the
+ * PRO catalogue (+10/+50/+200 GB) instead of theirs (+100/+500 GB/+1 TB).
+ * Shape was the right key while TEAM meant a shared workspace; it stopped
+ * being right the moment TEAM became a tier of the personal one.
+ */
+export function storageAddonOffersForPlan(plan: prismaPkg.PlanType) {
+  switch (plan) {
     case prismaPkg.PlanType.TEAM:
       // The TEAM catalog: +100 GB, +500 GB, +1 TB. On the Personal subject.
       return STORAGE_ADDON_OFFERS.filter(
@@ -135,6 +148,10 @@ function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
     default:
       return [];
   }
+}
+
+function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
+  return storageAddonOffersForPlan(scope.plan);
 }
 
 function getSuggestedUpgradePlan(

@@ -61,6 +61,10 @@ import {
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the ONE plan -> storage
+// catalogue decision, and the ONE personal-evidence counter, both shared with
+// the enforcement path so the meter cannot disagree with the gate.
+import { storageAddonOffersForPlan } from "../workspace-usage.service.js";
 import {
   getPlanPriceCents,
   getStorageAddonPriceCents,
@@ -714,12 +718,21 @@ function describeOffer(
   };
 }
 
+/**
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — keyed on the PLAN, and
+ * the list comes from the ONE authority rather than being re-derived here.
+ *
+ * This filtered `listStorageAddonDefinitions()` by billing SHAPE. A personal
+ * workspace is SINGLE_OCCUPANT on every tier, so a TEAM customer opening the
+ * storage drawer was offered the PRO catalogue — +10/+50/+200 GB instead of
+ * +100/+500 GB/+1 TB — and could not buy the capacity their plan sells.
+ * Measured against the running API, not inferred.
+ */
 function offersFor(params: {
-  shape: "SINGLE_OCCUPANT" | "SHARED";
+  plan: prismaPkg.PlanType;
   currency: BillingCurrency;
 }): StorageAddonOffer[] {
-  return listStorageAddonDefinitions()
-    .filter((d) => d.billingShape === params.shape)
+  return storageAddonOffersForPlan(params.plan)
     .map((d) => ({
       key: d.key,
       label: d.label,
@@ -887,14 +900,47 @@ export async function buildBillingAccountProjection(input: {
       };
     }
   } else {
-    const used = await countPersonalEvidenceRecords(account.id);
-    const lifetimeCap = ctx.limits.effectiveLifetimeRecordCap;
-    evidence = {
-      state: "MEASURED",
-      used,
-      limit: lifetimeCap,
-      window: "LIFETIME",
-    };
+    // ========================================================================
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a personal account
+    // can now hold a ROLLING allowance, and this branch only knew about
+    // lifetime ones.
+    // ========================================================================
+    //
+    // TEAM's allowance is 500 evidence records in any 30 days; it has no
+    // lifetime cap at all. This reported the LIFETIME window with
+    // `effectiveLifetimeRecordCap`, which is null on TEAM — so the page told a
+    // TEAM customer they had NO limit while `billing-enforcement` refused them
+    // at 500. A meter disagreeing with the gate is the defect the workspace
+    // branch above already carries a comment about; TEAM only became reachable
+    // on a personal account in this change, so this branch had never had to
+    // handle it.
+    //
+    // The cap comes from `resolveEffectiveContractEvidenceCap` — the SAME
+    // authority the gate calls — and the count is taken over the same window,
+    // through the same personal counter, so the two cannot drift.
+    const monthlyCap = resolveEffectiveContractEvidenceCap({
+      plan: scope.plan,
+      contract: scope.contractLimits,
+    });
+
+    if (monthlyCap !== null && monthlyCap > 0) {
+      const since = new Date(Date.now() - THIRTY_DAYS_MS);
+      evidence = {
+        state: "MEASURED",
+        used: await countPersonalEvidenceRecords(account.id, {
+          createdSince: since,
+        }),
+        limit: monthlyCap,
+        window: "ROLLING_30_DAYS",
+      };
+    } else {
+      evidence = {
+        state: "MEASURED",
+        used: await countPersonalEvidenceRecords(account.id),
+        limit: ctx.limits.effectiveLifetimeRecordCap,
+        window: "LIFETIME",
+      };
+    }
   }
 
   // ---- Storage meter ------------------------------------------------------
@@ -1098,7 +1144,7 @@ export async function buildBillingAccountProjection(input: {
       ? {
           storageAddons: {
             offers: canAddon
-              ? offersFor({ shape: scope.billingShape, currency })
+              ? offersFor({ plan: scope.plan, currency })
               : [],
             active: await activeAddonsFor({
               ownerUserId: scope.ownerUserId,
