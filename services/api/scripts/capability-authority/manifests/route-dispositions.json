@@ -1383,6 +1383,14 @@
       "evidence": "reg services/api/src/routes/admin-organizations.routes.ts — both the canonical /v1/admin/customers pair and this alias pair are registered with { preHandler: requirePlatformAdmin } and share one handler (listCustomers / customerDetail). apps/web/next.config.js redirects /admin/organizations and /admin/organizations/:id permanently to /admin/customers. The alias gate is proven by executed test services/api/test/phase-admin-organizations.test.ts ('replies 403 for a non-admin caller') which injects BOTH paths.",
       "reviewedAtUtc": "2026-08-27",
       "replacement": "GET /v1/admin/customers/:id"
+    },
+    {
+      "routeId": "POST /v1/teams",
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "Self-service workspace creation was removed with the commercial allowance that permitted it; every path through the route now refuses, and it is retained so a stale client gets a code-bearing explanation instead of a 404.",
+      "evidence": "BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28). reg services/api/src/routes/teams.routes.ts app.post(\"/v1/teams\", { preHandler: requireAuthAndLegal }) — the handler's first statement is `await assertUserCanCreateAnotherOwnedWorkspace(ownerUserId)`, which ALWAYS throws 409 WORKSPACE_CREATION_NOT_SELF_SERVICE. The creation body it guarded (organization.create + grantOrganizationMembership + team.create in one transaction under an advisory lock) was DELETED rather than left unreachable, which is why services/api/test/p1-workspace-kind.test.ts and services/api/test/phase-2-domain-classification.test.ts now assert the ABSENCE of any team.create in this file, and services/api/test/phase-12-arch-002-workspace-kind-authority.test.ts no longer lists it as a workspace writer. WHY IT REFUSES: checkout has ONE subject and it is the person (assertCheckoutTarget refuses any teamId with CHECKOUT_TARGET_NOT_SUPPORTED), so a workspace created here could never be paid for — it would resolve FREE permanently and the shared-workspace admission rule in billing-enforcement.service.ts would refuse every piece of evidence recorded in it; returning 201 for something permanently unusable is worse than refusing. ZERO PRODUCT CONSUMERS, deliberately: apps/web/components/workspace-admin/CreateWorkspaceCard.tsx was its only caller and was DELETED in the same change, because a control for a capability the server refuses is a button that always fails. EXISTING Owned Workspaces are untouched — not archived, not downgraded, not hidden — and multi-workspace tenancy remains real, created by Enterprise provisioning against a contract on a path that never used this route.",
+      "reviewedAtUtc": "2026-08-28",
+      "replacement": null
     }
   ]
 }

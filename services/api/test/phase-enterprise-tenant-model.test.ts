@@ -438,10 +438,23 @@ describe("ENTERPRISE TENANT MODEL — /teams page", () => {
     expect(WEB_TEAMS_HOME).toMatch(/data-workspace-admin-section="organizations"/);
     // Rebaselined 2026-08-17 — PHASE 13 §2. The Actions block used to carry a
     // `create_organization` LINK to `/teams?action=create`, a query the page
-    // never handled: the control existed and did nothing. It is now the real
-    // create control — `CreateWorkspaceCard`, which POSTs /v1/teams — so the
-    // assertion follows the working control rather than the dead link.
-    expect(WEB_TEAMS_HOME).toMatch(/<CreateWorkspaceCard\s*\/>/);
+    // never handled: the control existed and did nothing. It became the real
+    // create control, `CreateWorkspaceCard`, which POSTed /v1/teams.
+    //
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — that control is GONE,
+    // and the assertion is now its absence.
+    //
+    // The server refuses self-service workspace creation: checkout has one
+    // subject and it is the person, so a workspace created there could never
+    // be paid for — it would resolve FREE permanently and the
+    // shared-workspace admission rule would refuse every piece of evidence
+    // recorded in it. A control for a capability the server refuses is a
+    // button that always fails, which is a worse state than the dead link this
+    // assertion was written to replace.
+    //
+    // The rest of the Actions block is unchanged and still asserted below, so
+    // this test still proves the section renders rather than vanishing.
+    expect(WEB_TEAMS_HOME).not.toMatch(/CreateWorkspaceCard/);
     expect(WEB_TEAMS_HOME).toMatch(/data-workspace-action="join_organization"/);
   });
 
