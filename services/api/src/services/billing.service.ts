@@ -171,12 +171,30 @@ export async function setPersonalPlan(
   userId: string,
   plan: prismaPkg.PlanType
 ) {
-  if (plan === prismaPkg.PlanType.TEAM) {
+  // ===========================================================================
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — TEAM IS A PERSONAL PLAN.
+  // ===========================================================================
+  //
+  // This function used to refuse TEAM outright, with the code
+  // `TEAM_NOT_ALLOWED_FOR_PERSONAL_WORKSPACE`. That single line was where the
+  // obsolete model was codified: it made TEAM unreachable on the workspace a
+  // customer actually works in, so buying it meant creating a SECOND workspace
+  // and leaving your evidence behind in the first.
+  //
+  // The product model has exactly two context kinds — PERSONAL and
+  // ORGANIZATION — and the self-service progression FREE → PRO → TEAM applies
+  // to the same Personal Workspace throughout. TEAM is a tier, not a place.
+  //
+  // PAYG is still refused, and that refusal is unrelated: it is a legacy
+  // resolution row, never an assignable plan. ENTERPRISE is refused too — it is
+  // an Organization contract, provisioned by Sales, and a personal entitlement
+  // claiming it would be a self-service Enterprise grant.
+  if (plan === prismaPkg.PlanType.ENTERPRISE) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
-      "TEAM is not a valid personal plan"
+      "ENTERPRISE is an Organization contract, not a personal plan"
     );
     err.statusCode = 409;
-    err.code = "TEAM_NOT_ALLOWED_FOR_PERSONAL_WORKSPACE";
+    err.code = "ENTERPRISE_NOT_SELF_SERVICE";
     throw err;
   }
 
@@ -230,205 +248,34 @@ export async function setPersonalPlan(
   return next;
 }
 
-export async function activateTeamPlan(params: {
-  teamId: string;
-  ownerUserId: string;
-  plan: prismaPkg.PlanType;
-  status?: prismaPkg.TeamBillingStatus;
-}) {
-  if (params.plan !== prismaPkg.PlanType.TEAM) {
-    const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Only TEAM can activate a team workspace plan"
-    );
-    err.statusCode = 409;
-    err.code = "INVALID_TEAM_PLAN";
-    throw err;
-  }
-
-  const team = await prisma.team.findUnique({
-    where: { id: params.teamId },
-    select: {
-      id: true,
-      ownerUserId: true,
-      // P5 domain remediation (2026-07-21) — seat counting is ACTIVE-only
-      // (suspended/revoked members are access-denied and release their seat).
-      _count: { select: { members: { where: { status: "ACTIVE" } } } },
-    },
-  });
-
-  if (!team) {
-    const err: Error & { statusCode?: number } = new Error("Team not found");
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (team.ownerUserId !== params.ownerUserId) {
-    const err: Error & { statusCode?: number } = new Error(
-      "Only the team owner can manage this team billing"
-    );
-    err.statusCode = 403;
-    throw err;
-  }
-
-  const caps = getPlanCapabilities(prismaPkg.PlanType.TEAM);
-  const includedSeats = caps.includedSeats;
-  // PHASE 12 POINT 4 PASS C — third implementation of the same rule, folded
-  // into the shared policy. This one already counted ACTIVE members only, but
-  // it still lacked the `includedSeats > 0` unlimited guard, so a plan whose
-  // catalog entry carries no seat ceiling would have marked every workspace
-  // over the limit on activation.
-  const overSeatLimit = computeOverSeatLimit({
-    activeMemberCount: team._count.members,
-    includedSeats,
-  });
-
-  const updated = await prisma.team.update({
-    where: { id: params.teamId },
-    data: {
-      billingOwnerUserId: params.ownerUserId,
-      billingPlan: prismaPkg.PlanType.TEAM,
-      billingStatus: params.status ?? prismaPkg.TeamBillingStatus.ACTIVE,
-      includedSeats,
-      overSeatLimit,
-      billingActivatedAt: new Date(),
-      billingCanceledAt: null,
-    },
-  });
-
-  await trackBillingEvent({
-    eventType: "team_plan_activated",
-    userId: params.ownerUserId,
-    teamId: params.teamId,
-    plan: prismaPkg.PlanType.TEAM,
-    metadata: {
-      billingStatus: updated.billingStatus,
-      includedSeats,
-      memberCount: team._count.members,
-      overSeatLimit,
-    },
-  });
-
-  if (overSeatLimit) {
-    await trackBillingEvent({
-      eventType: "team_seat_limit_reached",
-      userId: params.ownerUserId,
-      teamId: params.teamId,
-      plan: prismaPkg.PlanType.TEAM,
-      metadata: {
-        memberCount: team._count.members,
-        includedSeats,
-      },
-    });
-  }
-
-  return updated;
-}
-
-export async function cancelTeamPlan(params: {
-  teamId: string;
-  ownerUserId: string;
-}) {
-  const team = await prisma.team.findUnique({
-    where: { id: params.teamId },
-    select: {
-      id: true,
-      ownerUserId: true,
-    },
-  });
-
-  if (!team) {
-    const err: Error & { statusCode?: number } = new Error("Team not found");
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (team.ownerUserId !== params.ownerUserId) {
-    const err: Error & { statusCode?: number } = new Error(
-      "Only the team owner can manage this team billing"
-    );
-    err.statusCode = 403;
-    throw err;
-  }
-
-  // PHASE 12 REMEDIATION — COMM-001 (2026-08-06). TWO defects, one fix.
-  //
-  //  1. COUNTING. This was `teamMember.count({ where: { teamId } })` with no
-  //     status predicate, so SUSPENDED and REVOKED members occupied seats in
-  //     the arithmetic. Occupancy now comes from the ONE shared authority
-  //     (`countActiveSeatOccupancy`), which counts only memberships that
-  //     currently grant access — the same predicate the access-policy engine
-  //     and `rbac.service.ts` (the invite-time enforcer) already use, and the
-  //     same one the worker's reconciliation now uses.
-  //
-  //  2. DUPLICATE CEILING RULE. The comparison here was the inline
-  //     `memberCount > 0`, a SECOND seat-ceiling rule that contradicted the
-  //     canonical `computeOverSeatLimit` below — under which `includedSeats:
-  //     0` means NO CEILING. The two disagreed about the very row this
-  //     function writes: `refreshTeamSeatState`, running afterwards over the
-  //     same workspace, would compute `false` where this wrote `true`. The
-  //     inline rule is deleted; there is now one comparison authority, and
-  //     the value this function persists is the value the canonical
-  //     refresher will agree with.
-  const activeSeats = await countActiveSeatOccupancy(
-    { teamId: params.teamId },
-    prisma,
-  );
-  const canceledIncludedSeats = 0;
-
-  const updated = await prisma.team.update({
-    where: { id: params.teamId },
-    data: {
-      billingOwnerUserId: null,
-      billingPlan: prismaPkg.PlanType.FREE,
-      billingStatus: prismaPkg.TeamBillingStatus.CANCELED,
-      includedSeats: canceledIncludedSeats,
-      overSeatLimit: computeOverSeatLimit({
-        activeMemberCount: activeSeats,
-        includedSeats: canceledIncludedSeats,
-      }),
-      billingCanceledAt: new Date(),
-    },
-  });
-
-  await trackBillingEvent({
-    eventType: "team_plan_canceled",
-    userId: params.ownerUserId,
-    teamId: params.teamId,
-    plan: prismaPkg.PlanType.FREE,
-    metadata: {
-      // COMM-001 — reported quantity now matches the enforced one.
-      activeSeats,
-      overSeatLimit: updated.overSeatLimit,
-      billingStatus: updated.billingStatus,
-    },
-  });
-
-  return updated;
-}
-
-// =============================================================================
-// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — `addCredits` and
-// `consumeCredits` were DELETED here. Their replacement is the canonical
-// evidence-credit wallet in `services/billing/evidence-credits.service.ts`.
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `activateTeamPlan` was
+// DELETED, with zero-consumer proof.
 //
-// Both were unsafe for the thing they were used for:
+// After TEAM became a tier of the Personal Workspace, its only remaining
+// caller was the DEV-ONLY plan route, which is 403'd in production — the
+// capability analyzer classified the write as MODULE_SCOPED rather than
+// route-attributed, which is the map's way of saying "no production path
+// reaches this". Enterprise provisioning does not use it either: that service
+// writes `billingPlan` on its own `team.create`/`team.update`, in three
+// places, and always has.
 //
-//   `addCredits`      incremented the balance with NO idempotency and NO
-//                     ledger, so a re-delivered provider event double-credited
-//                     a wallet and nothing recorded which payment bought what.
-//   `consumeCredits`  read the balance, compared it in application memory,
-//                     then decremented in a SEPARATE statement. Two concurrent
-//                     completions could both read "1 credit" and both decrement
-//                     it, and it accepted no transaction client, so its caller
-//                     inside the evidence-completion transaction was in fact
-//                     writing outside that transaction — a rolled-back
-//                     completion still burned the credit.
+// A workspace's commercial columns are therefore written by exactly one thing
+// now — Enterprise provisioning — which is the only remaining reason a
+// workspace has a plan at all.
+
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `cancelTeamPlan` was
+// DELETED, with zero-consumer proof.
 //
-// The wallet replaces both with a conditional decrement
-// (`credits: { gte: required }` in the WHERE) plus an immutable ledger entry
-// written in the caller's own transaction, with a UNIQUE `evidence_id` making
-// consumption idempotent per Evidence record.
-// =============================================================================
+// Its only live caller was the webhook's TEAM branch, which applied a cancelled
+// TEAM subscription to a WORKSPACE's billing columns. TEAM is now a tier of the
+// Personal Workspace, so a cancellation writes the personal entitlement and
+// there is no workspace state to clear. `workspace-closure.service.ts` never
+// called it, and no other module did.
+//
+// The safety property it carried — a billing cancellation deletes no Evidence
+// and purges no memberships — is NOT retired with it: the assertion moves to
+// `activateTeamPlan`, which survives for Enterprise provisioning and writes the
+// same columns. See `phase-9-commercial-invariants.test.ts`.
 
 export async function recordPayment(params: {
   userId: string;
@@ -509,6 +356,9 @@ export async function upsertSubscription(params: {
       teamId: true,
       currentPeriodEnd: true,
       userId: true,
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — read so a landed
+      // schedule can be cleared below.
+      pendingPlan: true,
     },
   });
 
@@ -562,6 +412,27 @@ export async function upsertSubscription(params: {
       plan: params.plan,
       currentPeriodEnd: params.currentPeriodEnd ?? null,
       teamId: params.teamId ?? null,
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a SCHEDULED plan
+      // change is cleared the moment it stops being in the future.
+      //
+      // Two ways that happens, and both are the provider telling us: the
+      // scheduled plan is now the plan in force, or the subscription ended
+      // before it could be. A `pendingPlan` left behind after either would
+      // keep the Billing page promising a change that has already happened or
+      // can no longer happen — the second being the worse of the two, since it
+      // would tell someone who has cancelled that they are moving to Pro next
+      // month.
+      //
+      // It is cleared HERE, in the one writer every provider fact passes
+      // through, rather than by whichever caller happened to notice. This
+      // function is not the place that decides a plan change; it is the place
+      // that records what the provider says is true, and "the schedule is no
+      // longer pending" is part of that same statement.
+      ...(existing?.pendingPlan &&
+      (existing.pendingPlan === params.plan ||
+        params.status === prismaPkg.SubscriptionStatus.CANCELED)
+        ? { pendingPlan: null, pendingPlanEffectiveAtUtc: null }
+        : {}),
     },
     create: {
       userId: params.userId,
@@ -773,40 +644,11 @@ export async function cancelWorkspaceStorageAddon(params: {
   return updated;
 }
 
-export async function syncTeamBillingSnapshot(params: {
-  teamId: string;
-  ownerUserId: string;
-  plan: prismaPkg.PlanType;
-  status: prismaPkg.TeamBillingStatus;
-}) {
-  if (params.plan === prismaPkg.PlanType.TEAM) {
-    return activateTeamPlan({
-      teamId: params.teamId,
-      ownerUserId: params.ownerUserId,
-      plan: prismaPkg.PlanType.TEAM,
-      status: params.status,
-    });
-  }
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `syncTeamBillingSnapshot`
+// was DELETED. Zero consumers. It branched on `plan === TEAM` to activate or
+// cancel a WORKSPACE's commercial state — the obsolete model exactly: a TEAM
+// subscription no longer has a workspace whose state it could sync.
 
-  return cancelTeamPlan({
-    teamId: params.teamId,
-    ownerUserId: params.ownerUserId,
-  });
-}
-
-/**
- * PHASE 12 POINT 4 PASS C — the ONE seat-limit policy.
- *
- * This rule was implemented twice with different behaviour: the canonical path
- * below counted ACTIVE members only (the P5 domain remediation) and treated
- * `includedSeats: 0` as unlimited, while the enterprise org-plan grant loop
- * recomputed it inline over ALL members with no zero-guard. A suspended or
- * revoked member therefore inflated the count on the provisioning path and
- * could mark a workspace over its seat limit when it was not — a false
- * commercial restriction, applied silently.
- *
- * Both callers now share this function so the two paths cannot diverge again.
- */
 export function computeOverSeatLimit(input: {
   activeMemberCount: number;
   includedSeats: number;
@@ -861,12 +703,6 @@ export async function refreshTeamSeatState(teamId: string) {
   return updated;
 }
 
-export async function markTeamBillingCanceled(
-  teamId: string,
-  ownerUserId: string
-) {
-  return cancelTeamPlan({
-    teamId,
-    ownerUserId,
-  });
-}
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `markTeamBillingCanceled`
+// was DELETED. Zero consumers: a one-line wrapper over `cancelTeamPlan` that
+// nothing outside this file ever called.

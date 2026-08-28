@@ -190,10 +190,27 @@ describe("§9.10 — stale/out-of-order provider events cannot restore old entit
     const webhooks = readFileSync(join(SRC, "routes", "webhooks.routes.ts"), "utf8");
     // parsePlan validates against the Prisma enum and rejects unknowns.
     expect(webhooks).toMatch(/function parsePlan/);
-    // Team activation still asserts the acting owner (billing.service
-    // activateTeamPlan enforces ownerUserId === team.ownerUserId).
+
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the second half of
+    // this test asserted that team activation re-checked the acting owner,
+    // against a writer that has since been deleted along with the model that
+    // needed it. A workspace is no longer a checkout target, so there is no
+    // longer an owner to re-check at this point.
+    //
+    // What replaces it is the stronger half of the same concern. Passing the
+    // enum is not sufficient to be MINTED: two of its members are not
+    // self-service plans at all, and the single writer every webhook path ends
+    // at refuses them by name. A provider metadata string reading
+    // "ENTERPRISE" therefore cannot hand an account a contract nobody signed,
+    // and one reading "PAYG" cannot hand it a legacy row grandfathered terms
+    // no purchase pays for.
     const billing = readFileSync(join(SRC, "services", "billing.service.ts"), "utf8");
-    expect(billing).toMatch(/Only the team owner can manage this team billing/);
+    const writer = billing.slice(
+      billing.indexOf("export async function setPersonalPlan"),
+      billing.indexOf("export async function recordPayment"),
+    );
+    expect(writer).toMatch(/ENTERPRISE_NOT_SELF_SERVICE/);
+    expect(writer).toMatch(/PAYG_NOT_ASSIGNABLE/);
   });
 });
 

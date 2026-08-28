@@ -144,14 +144,16 @@ export async function selectReconciliationCandidates(
     if (grantedKeys.has(`${String(p.provider)}:${p.providerPaymentId}`)) continue;
     push("PERSONAL", p.userId);
   }
-  for (const sub of subscriptions) {
-    if (sub.teamId) push("WORKSPACE", sub.teamId);
-    else push("PERSONAL", sub.userId);
-  }
-  for (const addon of addons) {
-    if (addon.teamId) push("WORKSPACE", addon.teamId);
-    else push("PERSONAL", addon.ownerUserId);
-  }
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — every self-service
+  // binding reconciles against its OWNER's personal account.
+  //
+  // A stored `teamId` on a subscription or add-on is tenancy — including on
+  // rows written under the obsolete model, where a TEAM subscription was bound
+  // to an Owned Workspace. Those rows still have an owner, and the owner's
+  // personal account is the subject that can now be reconciled, so historical
+  // bindings keep converging rather than being stranded by the model change.
+  for (const sub of subscriptions) push("PERSONAL", sub.userId);
+  for (const addon of addons) push("PERSONAL", addon.ownerUserId);
 
   return out;
 }

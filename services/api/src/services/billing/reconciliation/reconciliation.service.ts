@@ -202,14 +202,11 @@ async function convergeDependentCancellations(ctx: {
   summary: ReconciliationSummary;
   cancelAddonAtProvider?: StorageAddonProviderCanceller;
 }): Promise<void> {
-  const subject =
-    ctx.account.type === "PERSONAL"
-      ? { ownerUserId: ctx.account.id, teamId: null as string | null }
-      : ctx.account.type === "WORKSPACE"
-        ? null
-        : undefined;
-  // An ORGANIZATION account is contract-managed and has no self-service add-on.
-  if (subject === undefined) return;
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — one self-service
+  // subject. An ORGANIZATION account is contract-managed and owns no
+  // self-service add-on, so it has nothing to converge here.
+  if (ctx.account.type !== "PERSONAL") return;
+  const subject = { ownerUserId: ctx.account.id, teamId: null as string | null };
 
   // A WORKSPACE subject is identified by its team id; the owner is read from
   // the workspace's own add-on rows so a personal id can never leak in.
@@ -429,12 +426,12 @@ async function reconcileSubscriptions(ctx: {
 }): Promise<void> {
   // The bindings belonging to THIS account and no other. A personal account
   // owns its `teamId: null` subscriptions; a workspace owns its own.
+  // Self-service subscriptions belong to the PERSONAL subject. An
+  // ORGANIZATION reconciles its contract, never a plan checkout.
   const where =
     ctx.account.type === "PERSONAL"
       ? { userId: ctx.account.id, teamId: null }
-      : ctx.account.type === "WORKSPACE"
-        ? { teamId: ctx.account.id }
-        : null;
+      : null;
   // An ORGANIZATION account is contract-managed and has no self-service
   // provider subscription to reconcile.
   if (!where) return;
@@ -632,9 +629,7 @@ async function reconcileStorageAddons(ctx: {
   const where =
     ctx.account.type === "PERSONAL"
       ? { ownerUserId: ctx.account.id, teamId: null }
-      : ctx.account.type === "WORKSPACE"
-        ? { teamId: ctx.account.id }
-        : null;
+      : null;
   if (!where) return;
 
   const addons = await prisma.workspaceStorageAddon.findMany({

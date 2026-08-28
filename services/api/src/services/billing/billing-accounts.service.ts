@@ -52,7 +52,21 @@ import { DomainError } from "../../errors.js";
 import { checkOrgAccess } from "../organization/org-access.js";
 import { assertPersonalSpaceAllowed } from "../identity/identity-mode.service.js";
 
-export type BillingAccountType = "PERSONAL" | "WORKSPACE" | "ORGANIZATION";
+/**
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — exactly TWO subjects.
+ *
+ * `WORKSPACE` was a third, and it was wrong. It expressed a model in which
+ * TEAM belonged to a separate Owned Workspace with its own billing account,
+ * which meant a customer upgrading from PRO to TEAM had to create a new
+ * workspace and leave their evidence behind in the old one. The product has
+ * exactly two context kinds, and the self-service progression FREE → PRO →
+ * TEAM applies to the same Personal Workspace throughout.
+ *
+ * An internal `Team` row still carries tenancy, and an ORGANIZATION account
+ * still resolves the workspaces beneath it — but neither is a billing subject
+ * a customer can select, and neither appears on this union.
+ */
+export type BillingAccountType = "PERSONAL" | "ORGANIZATION";
 
 /**
  * Granular billing capabilities.
@@ -176,72 +190,19 @@ export async function listBillingAccountsForViewer(
     });
   }
 
-  // ---- WORKSPACE ----------------------------------------------------------
-  // Owned Workspaces only. A workspace under a CUSTOMER organization bills
-  // through that organization's contract and must not appear as its own
-  // account — that is how an Enterprise tenant ends up with one fabricated
-  // contract per workspace.
-  const workspaces = await prisma.team.findMany({
-    where: {
-      isPersonal: false,
-      NOT: { organization: { kind: "CUSTOMER" } },
-      OR: [
-        { ownerUserId: viewerUserId },
-        { billingOwnerUserId: viewerUserId },
-        {
-          members: {
-            some: {
-              userId: viewerUserId,
-              status: prismaPkg.TeamMemberStatus.ACTIVE,
-              role: { in: [prismaPkg.TeamRole.OWNER, prismaPkg.TeamRole.ADMIN] },
-            },
-          },
-        },
-      ],
-    },
-    select: {
-      id: true,
-      name: true,
-      ownerUserId: true,
-      billingOwnerUserId: true,
-      billingPlan: true,
-      createdAt: true,
-      members: {
-        where: { userId: viewerUserId },
-        select: { role: true, status: true },
-        take: 1,
-      },
-    },
-    orderBy: { createdAt: "asc" },
-  });
-
-  for (const ws of workspaces) {
-    // THE billing-authority rule for a workspace: the persisted billing owner
-    // when one is assigned, otherwise the workspace owner. `billingOwnerUserId`
-    // is nulled by `cancelTeamPlan`, so falling back to `ownerUserId` is what
-    // keeps a cancelled workspace manageable by the person who owns it.
-    const isBillingOwner =
-      ws.billingOwnerUserId === viewerUserId ||
-      (ws.billingOwnerUserId === null && ws.ownerUserId === viewerUserId);
-
-    const membership = ws.members[0];
-    const isOperationalAdmin =
-      membership?.status === prismaPkg.TeamMemberStatus.ACTIVE &&
-      (membership.role === prismaPkg.TeamRole.OWNER ||
-        membership.role === prismaPkg.TeamRole.ADMIN);
-
-    if (!isBillingOwner && !isOperationalAdmin) continue;
-
-    accounts.push({
-      type: "WORKSPACE",
-      id: ws.id,
-      displayName: ws.name,
-      capabilities: isBillingOwner
-        ? [...OWNER_CAPABILITIES]
-        : [...OPERATIONAL_ADMIN_CAPABILITIES],
-      billingOwnerMissing: ws.billingOwnerUserId === null && !isBillingOwner,
-    });
-  }
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the WORKSPACE
+  // enumeration was DELETED here.
+  //
+  // It listed every Owned Workspace the viewer owned or administered as its
+  // own billing account, each with its own plan card, its own checkout target,
+  // its own payment history and its own storage catalogue. That is the
+  // obsolete model in its most visible form: a selector inviting a customer to
+  // choose which of their workspaces to pay for, when there is one Personal
+  // Workspace and TEAM is a tier of it.
+  //
+  // Owned Workspaces remain a TENANCY concept in the platform. They are not a
+  // commercial subject, so they are not enumerated, not selectable, and not
+  // billable on their own.
 
   // ---- ORGANIZATION -------------------------------------------------------
   // CUSTOMER organizations where the viewer holds ORG_BILLING_ADMIN or higher.
@@ -364,8 +325,7 @@ export function paymentWhereForAccount(input: {
     case "PERSONAL":
       // A personal payment carries no teamId. Nothing else may match.
       return { userId: input.account.id, teamId: null };
-    case "WORKSPACE":
-      return { teamId: input.account.id };
+
     case "ORGANIZATION": {
       const ids = input.organizationWorkspaceIds ?? [];
       // An organization with no workspaces must match NOTHING rather than

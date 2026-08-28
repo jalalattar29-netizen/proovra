@@ -43,35 +43,52 @@ describe("Phase 9 §12 — Organization join never changes the personal plan", (
 });
 
 describe("Phase 9 §12.6 — billing failure/cancellation never deletes Evidence", () => {
-  it("cancelTeamPlan mutates only team billing fields — no evidence/membership deletion", () => {
-    const billing = read("services/billing.service.ts");
-    const at = billing.indexOf("export async function cancelTeamPlan");
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — RETARGETED from
+  // `cancelTeamPlan`, which was deleted with zero-consumer proof once TEAM
+  // stopped being a workspace's commercial state.
+  //
+  // The invariant is the reason this suite exists and it is unchanged: losing
+  // a subscription costs a customer CAPACITY, never their evidence. Only the
+  // location moved. A cancelled subscription used to fork — personal
+  // entitlement one way, a workspace's billing columns the other — and the
+  // second branch is gone, so a cancellation is now exactly one thing:
+  // `syncPlanForSubscription` sees CANCELED and writes the personal
+  // entitlement down to FREE.
+  //
+  // Asserting it here rather than in `setPersonalPlan` is deliberate. The
+  // dangerous statement is the one that decides what a cancellation DOES, and
+  // that decision lives in the handler; `setPersonalPlan` cannot tell a
+  // downgrade from an upgrade.
+  it("a CANCELED subscription downgrades the plan and does nothing else — no evidence/membership deletion", () => {
+    const handlers = read("services/billing/subscription-lifecycle.handlers.ts");
+    const at = handlers.indexOf("export async function syncPlanForSubscription");
     expect(at).toBeGreaterThan(-1);
-    // PHASE 12 REMEDIATION — COMM-001 (2026-08-06). STALE WINDOW, not a
-    // contract change.
-    //
-    //   OLD: slice(at, at + 1600)
-    //   NEW: slice(at, at + 3200)
-    //
-    // The 1600 was never a property — it was a proxy for "the body of
-    // cancelTeamPlan". COMM-001 replaced the function's status-blind
-    // `teamMember.count({ where: { teamId } })` and its inline
-    // `memberCount > 0` seat-ceiling rule with the shared occupancy
-    // authority plus the canonical `computeOverSeatLimit`, and documented
-    // why. That pushed `billingPlan: PlanType.FREE` past character 1600, so
-    // the window stopped covering the statement it was written to check.
-    //
-    // Widening it restores the intended coverage and STRENGTHENS the three
-    // negative assertions below (`not.toMatch`), which now apply to the whole
-    // function rather than to its first 1600 characters. No asserted property
-    // is relaxed: cancellation still mutates only team billing fields, still
-    // deletes no evidence, and still purges no memberships.
-    const fn = billing.slice(at, at + 3200);
-    // The only mutation is team.update with billing fields.
-    expect(fn).toMatch(/billingPlan:\s*prismaPkg\.PlanType\.FREE/);
-    expect(fn).toMatch(/billingStatus:\s*prismaPkg\.TeamBillingStatus\.CANCELED/);
+    const fn = handlers.slice(at);
+
+    // Cancellation writes the plan down to FREE, and that is the whole action.
+    expect(fn).toMatch(
+      /SubscriptionStatus\.CANCELED\)\s*\{\s*await setPersonalPlan\(\s*params\.userId,\s*prismaPkg\.PlanType\.FREE,?\s*\);\s*return;/,
+    );
+
     // NEVER deletes evidence or purges memberships on cancellation.
     expect(fn).not.toMatch(/evidence\.(delete|deleteMany|update)/i);
+    expect(fn).not.toMatch(/teamMember\.(delete|deleteMany)/i);
+    expect(fn).not.toMatch(/massRevoke|purgeWorkspace/);
+  });
+
+  // The plan writer the handler ends at carries the same obligation, and it is
+  // the only writer of `entitlements.plan` — so this closes the path rather
+  // than restating it.
+  it("the plan writer itself deletes no evidence and purges no memberships", () => {
+    const billing = read("services/billing.service.ts");
+    const at = billing.indexOf("export async function setPersonalPlan");
+    expect(at).toBeGreaterThan(-1);
+    const next = billing.indexOf("export async function recordPayment");
+    expect(next).toBeGreaterThan(at);
+    const fn = billing.slice(at, next);
+
+    expect(fn).toMatch(/entitlement\.updateMany/);
+    expect(fn).not.toMatch(/evidence\.(delete|deleteMany)/i);
     expect(fn).not.toMatch(/teamMember\.(delete|deleteMany)/i);
     expect(fn).not.toMatch(/massRevoke|purgeWorkspace/);
   });

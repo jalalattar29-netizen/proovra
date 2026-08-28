@@ -168,6 +168,20 @@ export type PlanSummary = {
   graceEndsAtUtc?: string | null;
   /** True when this account has no assigned billing owner. */
   billingOwnerMissing: boolean;
+  /**
+   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a PROVIDER-ACCEPTED
+   * change that has not taken effect yet.
+   *
+   * Present only while one is outstanding, so its absence means "nothing
+   * scheduled" rather than "we did not look". Without it the plan card would
+   * show TEAM to a customer who scheduled a downgrade last week and has no way
+   * to tell whether we heard them.
+   */
+  scheduledChange?: {
+    planKey: string;
+    displayName: string;
+    effectiveAtUtc: string | null;
+  };
 };
 
 export type EnterpriseContractSummary = {
@@ -189,12 +203,25 @@ export type EnterpriseContractSummary = {
 };
 
 export type CollaborationUsage = {
-  ownedWorkspaces?: { used: number; limit: number };
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `ownedWorkspaces` was
+  // REMOVED from the DTO, not merely left unset, so no client can render a
+  // workspace allowance that no plan grants.
   collaborationTeams?: { used: number; limit: number };
   seats?: {
     /** ACCEPTED members only. */
     used: number;
-    limit: number;
+    /**
+     * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — NULLABLE, because an
+     * Enterprise agreement is allowed to be silent about seats.
+     *
+     * It was `number`, and the organization projection passed
+     * `contract.seatCount ?? 0` into it — so a contract that simply does not
+     * name a seat count rendered "12 of 0 accepted members". That is the
+     * fabricated zero this projection already learned not to publish on the AI
+     * meter, in a place nobody had looked: it reads as a breach, it is not one,
+     * and no number we could substitute would be the agreement's.
+     */
+    limit: number | null;
     /** Counted and reported SEPARATELY — an invite is not a member. */
     pendingInvites: number;
   };
@@ -212,7 +239,7 @@ export type CollaborationUsage = {
  * platform envelope.
  */
 export type PlanOffer = {
-  /** The plan key the checkout route accepts. */
+  /** The plan key the checkout and change routes accept. */
   planKey: "PRO" | "TEAM";
   displayName: string;
   /** Present ONLY with BILLING_AMOUNT_VIEW. */
@@ -220,6 +247,41 @@ export type PlanOffer = {
   currency?: BillingCurrency;
   /** Server-composed from the canonical catalog. Never written in the client. */
   summary: string;
+  /**
+   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — WHAT this offer does,
+   * decided here.
+   *
+   * The list used to hold only plans ABOVE the current one, and the page
+   * turned every one of them into "start a checkout" because that was the only
+   * verb it had. Two things were therefore impossible to express: that a
+   * customer with a live subscription is CHANGING it rather than buying a
+   * second one, and that a lower tier is an offer at all.
+   *
+   *   CHECKOUT   nothing live — a purchase, through the provider's hosted page
+   *   UPGRADE    a live subscription moving UP, effective immediately
+   *   DOWNGRADE  a live subscription moving DOWN, effective at period end
+   *
+   * The client renders the verb; it never derives it by comparing plan names,
+   * which is the same comparison the server has already made against a
+   * subscription the browser cannot see.
+   */
+  action: "CHECKOUT" | "UPGRADE" | "DOWNGRADE";
+  /** When it takes effect, in the customer's terms. */
+  effect: "IMMEDIATE" | "AT_PERIOD_END";
+  /**
+   * The button's words, composed HERE.
+   *
+   * "Upgrade to Team", "Switch to Pro" and "Subscribe to Pro" are three
+   * different claims about what pressing it will do, and only the server knows
+   * which is true — it is the side that can see whether a subscription exists.
+   * A browser choosing between them is a browser holding commercial logic.
+   */
+  actionLabel: string;
+  /**
+   * What happens, in one sentence, before the customer commits. Shown in the
+   * confirmation. Never assembled in the client.
+   */
+  effectSummary: string;
 };
 
 export type StorageAddonOffer = {
@@ -277,6 +339,21 @@ export type BillingAccountProjection = {
     hasLedgerHistory: boolean;
     unitPriceCents?: number;
     currency?: BillingCurrency;
+    /**
+     * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — how many credits ONE
+     * purchase grants.
+     *
+     * The purchase surface showed the BALANCE and the unit price and nothing
+     * else, so "3 available" sat directly above a Buy button and the only
+     * quantity on screen was the one the customer already had. Whether
+     * pressing it bought one credit, three, or topped something up to a round
+     * number was not stated anywhere.
+     *
+     * It comes from the canonical product definition, never from the client:
+     * a quantity a browser could choose is a quantity a browser could get
+     * wrong, and this product sells a fixed one.
+     */
+    creditsPerPurchase: number;
   };
   collaboration?: CollaborationUsage;
   contract?: EnterpriseContractSummary;
@@ -501,20 +578,113 @@ async function activeAddonsFor(params: {
 }
 
 /**
- * The plans this ACCOUNT may buy, with their published limits described from
- * the canonical catalog.
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the tiers ABOVE the one
+ * the customer is on.
  *
- * A WORKSPACE buys TEAM — a TEAM subscription is for exactly one Owned
- * Workspace. A PERSONAL account buys PRO. An ORGANIZATION buys nothing here:
- * Enterprise is contract-managed.
+ * This used to return exactly one offer, chosen by account type: a WORKSPACE
+ * was offered TEAM and a PERSONAL account was offered PRO. That is the
+ * obsolete model stated as a function — TEAM was not something a person could
+ * buy for the workspace they work in, so a PRO customer wanting more capacity
+ * was told to create a second workspace.
+ *
+ * The self-service progression is FREE → PRO → TEAM on ONE Personal Workspace,
+ * so the offers are simply the tiers above the current one:
+ *
+ *   FREE  →  PRO, TEAM      (either, directly)
+ *   PRO   →  TEAM           (never PRO again — it is already active)
+ *   TEAM  →  nothing        (the top self-service tier)
+ *
+ * An ORGANIZATION is contract-managed and reaches this with no offers at all.
+ */
+/**
+ * The plan moves this account may make, and what each one WOULD do.
+ *
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — this returned only the
+ * tiers ABOVE the current one, which encoded two assumptions that are no
+ * longer true: that the only direction is up, and that every offer is bought
+ * through a checkout. Both came from the old model, where TEAM was a different
+ * WORKSPACE's plan rather than the next tier of this one — there was no "down"
+ * to offer and nothing to change, only more things to buy.
+ *
+ * A customer on TEAM who needs less should be able to say so and keep what
+ * they paid for until the period ends. That is a first-class offer here, not
+ * an absence they have to work around by cancelling and re-buying.
  */
 function planOffersFor(params: {
-  accountType: "PERSONAL" | "WORKSPACE";
+  currentPlan: prismaPkg.PlanType;
+  /**
+   * True when the account has a live subscription. It decides the VERB, not
+   * the list: with one, a move is a change on that subscription; without one,
+   * it is a purchase. Deriving this from the plan instead would be wrong in
+   * exactly the case that matters — a FREE account whose subscription is
+   * PAST_DUE still has one, and must not be sent to buy a second.
+   */
+  hasLiveSubscription: boolean;
   currency: BillingCurrency;
   showAmounts: boolean;
 }): PlanOffer[] {
-  const planKey: "PRO" | "TEAM" =
-    params.accountType === "WORKSPACE" ? "TEAM" : "PRO";
+  const LADDER: ReadonlyArray<"PRO" | "TEAM"> = ["PRO", "TEAM"];
+
+  const rank = (plan: prismaPkg.PlanType): number => {
+    switch (plan) {
+      case prismaPkg.PlanType.PRO:
+        return 1;
+      case prismaPkg.PlanType.TEAM:
+        return 2;
+      // FREE, and the grandfathered PAYG credit overlay, which sits ON a FREE
+      // account. Credits are a wallet; they are not a tier.
+      default:
+        return 0;
+    }
+  };
+
+  // ENTERPRISE is contracted. Offering it a self-service move would offer to
+  // replace a signed agreement with a card payment.
+  if (params.currentPlan === prismaPkg.PlanType.ENTERPRISE) return [];
+
+  const current = rank(params.currentPlan);
+
+  return LADDER.filter((planKey) => rank(planKey) !== current).map((planKey) => {
+    const up = rank(planKey) > current;
+    const action = !params.hasLiveSubscription
+      ? ("CHECKOUT" as const)
+      : up
+        ? ("UPGRADE" as const)
+        : ("DOWNGRADE" as const);
+
+    const described = describeOffer(planKey, params.currency, params.showAmounts);
+
+    return {
+      ...described,
+      action,
+      // A purchase and an upgrade both start now. Only a downgrade waits, and
+      // it waits because the current period is already paid for.
+      effect: action === "DOWNGRADE" ? ("AT_PERIOD_END" as const) : ("IMMEDIATE" as const),
+      actionLabel:
+        action === "CHECKOUT"
+          ? `Subscribe to ${described.displayName}`
+          : action === "UPGRADE"
+            ? `Upgrade to ${described.displayName}`
+            : `Switch to ${described.displayName}`,
+      effectSummary:
+        action === "CHECKOUT"
+          ? `You will be taken to your payment provider to subscribe to ${described.displayName}.`
+          : action === "UPGRADE"
+            ? `${described.displayName} starts straight away. Your provider charges the difference for the rest of this period, and nothing you have already recorded changes.`
+            : `You keep ${
+                params.currentPlan === prismaPkg.PlanType.TEAM ? "Team" : "your current plan"
+              } until the end of the period you have already paid for, then move to ${
+                described.displayName
+              }. Nothing is deleted — your evidence, teams and members all stay.`,
+    };
+  });
+}
+
+function describeOffer(
+  planKey: "PRO" | "TEAM",
+  currency: BillingCurrency,
+  showAmounts: boolean,
+): Omit<PlanOffer, "action" | "effect" | "actionLabel" | "effectSummary"> {
   const caps = getPlanCapabilities(planKey);
 
   const records =
@@ -531,22 +701,17 @@ function planOffersFor(params: {
         ? `${caps.aiAdvisoryMonthlyOperations} AI operations a month`
         : null;
 
-  return [
-    {
-      planKey,
-      displayName: caps.displayName,
-      summary: [records, storage, ai].filter(Boolean).join(", "),
-      ...(params.showAmounts
-        ? {
-            priceCents: getPlanPriceCents(
-              planKey as prismaPkg.PlanType,
-              params.currency,
-            ),
-            currency: params.currency,
-          }
-        : {}),
-    },
-  ];
+  return {
+    planKey,
+    displayName: caps.displayName,
+    summary: [records, storage, ai].filter(Boolean).join(", "),
+    ...(showAmounts
+      ? {
+          priceCents: getPlanPriceCents(planKey as prismaPkg.PlanType, currency),
+          currency,
+        }
+      : {}),
+  };
 }
 
 function offersFor(params: {
@@ -632,6 +797,10 @@ export async function buildBillingAccountProjection(input: {
       status: true,
       currentPeriodEnd: true,
       cancelAtPeriodEnd: true,
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the scheduled
+      // change, so the plan card can say what is coming and when.
+      pendingPlan: true,
+      pendingPlanEffectiveAtUtc: true,
     },
   });
 
@@ -667,6 +836,15 @@ export async function buildBillingAccountProjection(input: {
     currentPeriodEndUtc: iso(subscription?.currentPeriodEnd ?? null),
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
     billingOwnerMissing: account.billingOwnerMissing,
+    ...(subscription?.pendingPlan
+      ? {
+          scheduledChange: {
+            planKey: subscription.pendingPlan,
+            displayName: getPlanCapabilities(subscription.pendingPlan).displayName,
+            effectiveAtUtc: iso(subscription.pendingPlanEffectiveAtUtc ?? null),
+          },
+        }
+      : {}),
     ...(showAmounts
       ? {
           priceCents: caps.monthlyPriceCents,
@@ -755,16 +933,14 @@ export async function buildBillingAccountProjection(input: {
   // ---- Collaboration ------------------------------------------------------
   const collaboration: CollaborationUsage = {};
   if (account.type === "PERSONAL") {
-    if (caps.maxOwnedWorkspaces > 0) {
-      const used = await prisma.team.count({
-        where: {
-          ownerUserId: account.id,
-          isPersonal: false,
-          NOT: { organization: { kind: "CUSTOMER" } },
-        },
-      });
-      collaboration.ownedWorkspaces = { used, limit: caps.maxOwnedWorkspaces };
-    }
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the "Owned
+    // workspaces: 1 of 2" meter was REMOVED from the Billing page.
+    //
+    // A meter is a promise: it says this is an allowance your plan grants and
+    // this is how much of it you have left. No plan grants additional
+    // workspaces, so the meter measured an allowance that does not exist and
+    // invited people to spend it. The Collaboration Teams meter below is the
+    // real collaboration allowance and stays.
     if (caps.maxCollaborationTeamsPerWorkspace > 0) {
       const personalTeam = await prisma.team.findFirst({
         where: { ownerUserId: account.id, isPersonal: true },
@@ -886,6 +1062,7 @@ export async function buildBillingAccountProjection(input: {
             purchasedCredits: wallet.purchasedCredits,
             consumedCredits: wallet.consumedCredits,
             hasLedgerHistory: wallet.hasLedgerHistory,
+            creditsPerPurchase: EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase,
             ...(showAmounts
               ? {
                   unitPriceCents: EVIDENCE_CREDIT_PRODUCT.unitPriceCents,
@@ -899,7 +1076,19 @@ export async function buildBillingAccountProjection(input: {
     ...(canManage
       ? {
           planOffers: planOffersFor({
-            accountType: account.type === "WORKSPACE" ? "WORKSPACE" : "PERSONAL",
+            // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a
+            // self-service account is always PERSONAL. The ternary that stood
+            // here picked a WORKSPACE subject and, with it, a different plan
+            // offer set: that is what made TEAM an offer for a DIFFERENT
+            // workspace rather than the next tier of this one.
+            currentPlan: scope.plan,
+            // A subscription that has not reached its terminal state is live —
+            // PAST_DUE and TRIALING included. Treating those as "no
+            // subscription" would send a customer to buy a second one.
+            hasLiveSubscription: Boolean(
+              subscription &&
+                subscription.status !== prismaPkg.SubscriptionStatus.CANCELED,
+            ),
             currency,
             showAmounts,
           }),
@@ -1061,7 +1250,8 @@ async function buildOrganizationProjection(input: {
     collaboration: {
       seats: {
         used: seatsUsed,
-        limit: limits.seats ?? 0,
+        // NULL where the agreement is silent — never a substituted zero.
+        limit: limits.seats ?? null,
         pendingInvites: 0,
       },
     },

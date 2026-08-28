@@ -27,12 +27,12 @@ import * as prismaPkg from "@prisma/client";
 import { isWorkspaceSubscriptionActive as isPaidTeamSubscriptionActive } from "@proovra/shared-billing";
 
 import { prisma } from "../../db.js";
-import {
-  activateTeamPlan,
-  cancelTeamPlan,
-  setPersonalPlan,
-  upsertSubscription,
-} from "../billing.service.js";
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `activateTeamPlan` and
+// `cancelTeamPlan` are no longer imported. They write a WORKSPACE's commercial
+// columns, and a self-service subscription no longer has a workspace to write.
+// They remain in `billing.service` for the Enterprise provisioning path, which
+// legitimately does set an organization workspace's plan.
+import { setPersonalPlan, upsertSubscription } from "../billing.service.js";
 
 /**
  * The add-on status a provider subscription status implies.
@@ -82,58 +82,25 @@ export async function syncPlanForSubscription(params: {
     teamId: params.teamId ?? null,
   });
 
-  if (params.plan === prismaPkg.PlanType.TEAM) {
-    if (!params.teamId) return;
-
-    if (params.status === prismaPkg.SubscriptionStatus.CANCELED) {
-      await cancelTeamPlan({
-        teamId: params.teamId,
-        ownerUserId: params.userId,
-      });
-      return;
-    }
-
-    if (params.status === prismaPkg.SubscriptionStatus.ACTIVE) {
-      await activateTeamPlan({
-        teamId: params.teamId,
-        ownerUserId: params.userId,
-        plan: prismaPkg.PlanType.TEAM,
-        status: prismaPkg.TeamBillingStatus.ACTIVE,
-      });
-      return;
-    }
-
-    if (params.status === prismaPkg.SubscriptionStatus.PAST_DUE) {
-      const existingTeam = await prisma.team.findUnique({
-        where: { id: params.teamId },
-        select: {
-          billingPlan: true,
-          billingStatus: true,
-        },
-      });
-
-      // PHASE 9 §12 — canonical commercial decision (no raw plan literals).
-      const alreadyActivated = existingTeam
-        ? isPaidTeamSubscriptionActive({
-            billingPlan: existingTeam.billingPlan,
-            billingStatus: existingTeam.billingStatus,
-          })
-        : false;
-
-      if (alreadyActivated) {
-        await activateTeamPlan({
-          teamId: params.teamId,
-          ownerUserId: params.userId,
-          plan: prismaPkg.PlanType.TEAM,
-          status: prismaPkg.TeamBillingStatus.PAST_DUE,
-        });
-      }
-
-      return;
-    }
-
-    return;
-  }
+  // ===========================================================================
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — TEAM is a PERSONAL tier.
+  // ===========================================================================
+  //
+  // A whole branch stood here that treated a TEAM subscription as the
+  // commercial state of a WORKSPACE: it called `activateTeamPlan` /
+  // `cancelTeamPlan` against `params.teamId`, refusing to do anything at all
+  // when there was no team id. That is the obsolete model at the point where
+  // provider truth enters the system — a TEAM subscription that belonged to a
+  // person could not be applied, because the handler had nowhere to put it.
+  //
+  // TEAM is now the higher tier of the same Personal Workspace, so PRO and
+  // TEAM take exactly the same path below and differ only in which plan value
+  // is written. There is no workspace to activate.
+  //
+  // A LEGACY row still carrying a `teamId` — written under the obsolete model,
+  // for a workspace the customer really did pay for — is still applied to its
+  // owner's personal entitlement rather than dropped. The paid right survives
+  // the model change; only where it is recorded moves.
 
   if (params.status === prismaPkg.SubscriptionStatus.CANCELED) {
     await setPersonalPlan(params.userId, prismaPkg.PlanType.FREE);

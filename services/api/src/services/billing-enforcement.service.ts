@@ -131,52 +131,71 @@ export async function assertWorkspaceAllowsEvidenceCreation(
   assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
 
+  // A SHARED workspace still requires a plan that PERMITS a shared workspace.
+  //
+  // This is a tenancy rule, and it is unaffected by TEAM becoming a personal
+  // tier: an Organization workspace — or a legacy owned one — whose own plan is
+  // FREE may not record evidence, because nobody is paying for the workspace
+  // the evidence would live in. It sits above the cap logic deliberately, since
+  // "may this workspace be used at all?" precedes "how much may it hold?".
   if (scope.billingShape === "SHARED" && !caps.allowsSharedWorkspace) {
     const err: Error & { statusCode?: number; code?: string } = new Error(
-      "Current plan does not include team workspace evidence creation"
+      "Current plan does not include shared workspace evidence creation",
     );
     err.statusCode = 409;
     err.code = "TEAM_PLAN_REQUIRED";
     throw err;
   }
 
-  if (scope.billingShape === "SHARED") {
-    // Rolling 30-day cap on TEAM workspaces. ENTERPRISE workspaces have
-    // null monthly cap and skip the count. The team's `evidence_team_id_created_at_idx`
-    // compound index covers this query.
-    // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a contracted allowance
-    // governs; the catalog default applies only when the contract is silent.
-    const monthlyCap = resolveEffectiveContractEvidenceCap({
-      plan: scope.plan,
-      contract: scope.contractLimits,
-    });
-    if (monthlyCap === null || monthlyCap <= 0) {
-      return;
-    }
+  // ===========================================================================
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the CAP WINDOW comes
+  // from the PLAN, not from the workspace's tenancy shape.
+  // ===========================================================================
+  //
+  // This gate used to branch on `scope.billingShape`, which answers a TENANCY
+  // question — "does more than one person occupy this workspace?" — and then
+  // used the answer to pick a COMMERCIAL rule. Those are different questions,
+  // and conflating them is what made TEAM mean "a separate workspace": the
+  // rolling 30-day allowance was reachable only through a SHARED shape, so a
+  // customer could not buy TEAM for the Personal Space they actually work in.
+  //
+  // The catalog has always expressed the commercial rule correctly and
+  // per-plan:
+  //
+  //   PRO         maxEvidenceRecords: 100      lifetime
+  //   TEAM        maxEvidenceRecordsPerMonth:  500 in a rolling 30 days
+  //   ENTERPRISE  neither, contract-resolved
+  //
+  // So the plan is asked directly. TEAM on a Personal Workspace now gets the
+  // TEAM allowance, measured over the same personal record population every
+  // other personal rule counts — which is the whole point of TEAM being a
+  // TIER rather than a place.
+  const contractedMonthlyCap = resolveEffectiveContractEvidenceCap({
+    plan: scope.plan,
+    contract: scope.contractLimits,
+  });
 
-    if (!scope.teamId) {
-      // Defence-in-depth: TEAM scope without teamId is a schema
-      // violation; refuse rather than silently allowing.
-      const err: Error & { statusCode?: number; code?: string } = new Error(
-        "TEAM scope missing teamId"
-      );
-      err.statusCode = 409;
-      err.code = "TEAM_PLAN_REQUIRED";
-      throw err;
-    }
-
+  if (contractedMonthlyCap !== null && contractedMonthlyCap > 0) {
+    // A ROLLING-WINDOW plan (TEAM, or an ENTERPRISE contract that states a
+    // monthly allowance). The population is the subject's own records: a
+    // shared workspace counts by team id, a Personal subject counts the
+    // personal population through the canonical predicate.
     const since = new Date(Date.now() - THIRTY_DAYS_MS);
-    const monthlyCount = await prisma.evidence.count({
-      where: {
-        teamId: scope.teamId,
-        deletedAt: null,
-        createdAt: { gte: since },
-      },
-    });
+    const monthlyCount = scope.teamId
+      ? await prisma.evidence.count({
+          where: {
+            teamId: scope.teamId,
+            deletedAt: null,
+            createdAt: { gte: since },
+          },
+        })
+      : await countPersonalEvidenceRecords(scope.ownerUserId, {
+          createdSince: since,
+        });
 
-    if (monthlyCount >= monthlyCap) {
+    if (monthlyCount >= contractedMonthlyCap) {
       const err: Error & { statusCode?: number; code?: string } = new Error(
-        "Team monthly evidence-record limit reached"
+        "Monthly evidence-record limit reached for current plan"
       );
       err.statusCode = 409;
       err.code = "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED";
@@ -186,7 +205,14 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     return;
   }
 
-  // PERSONAL scope below.
+  if (scope.billingShape === "SHARED") {
+    // A shared workspace on a plan with NO monthly allowance — ENTERPRISE
+    // whose contract is silent. Uncapped by record count; storage and the
+    // contract's own limits still apply.
+    if (caps.maxEvidenceRecords === null) return;
+  }
+
+  // LIFETIME-ALLOWANCE plans below (FREE, PRO), and the credit wallet.
   //
   // Phase HOME-DATA-OWNERSHIP — personal records are no longer
   // `teamId NULL`-only: new captures stamp the owner's personal Team
@@ -323,6 +349,16 @@ export async function countPersonalEvidenceRecords(
      * or DESTROYED record is not), and cannot underflow.
      */
     excludeEvidenceId?: string | null;
+    /**
+     * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — bound the count to a
+     * rolling window.
+     *
+     * TEAM is a TIER of the Personal Workspace, and its allowance is 500
+     * records in a rolling 30 days rather than a lifetime total. The
+     * population is the same one every other personal rule counts; only the
+     * window differs, so the predicate stays in one place.
+     */
+    createdSince?: Date | null;
   },
 ): Promise<number> {
   const personalTeam = await prisma.team.findFirst({
@@ -342,6 +378,7 @@ export async function countPersonalEvidenceRecords(
         ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
       ],
       ...(excludeEvidenceId ? { NOT: { id: excludeEvidenceId } } : {}),
+      ...(options?.createdSince ? { createdAt: { gte: options.createdSince } } : {}),
     },
   });
 }

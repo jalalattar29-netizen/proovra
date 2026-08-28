@@ -293,9 +293,12 @@ const CONCERNS: Concern[] = [
     status: "ENFORCED",
     wave: "B",
     // Team billing-column authoritative writer (mirrors phase-9-authority-writers).
-    write: /billing(Plan|Status):\s*prismaPkg\.(PlanType|TeamBillingStatus)\.\w/,
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — kept in lockstep with
+    // that suite: one writer, Enterprise provisioning, because an ORGANIZATION
+    // workspace is now the only workspace with commercial state of its own.
+    write: /billing(?:Plan|Status):\s*(?:prismaPkg\.)?(?:PlanType|TeamBillingStatus)\.\w/,
     allowed: {
-      "services/billing.service.ts": "canonical Team-billing writer (see phase-9-authority-writers)",
+      "services/enterprise-provisioning.service.ts": "canonical Team-billing writer (see phase-9-authority-writers)",
     },
   },
   // ── WAVE C — url, audit, repo convergence ──────────────────────────────

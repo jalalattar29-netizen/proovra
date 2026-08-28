@@ -69,13 +69,22 @@ describe("billing accounts — three kinds, and a Collaboration Team is not one"
     expect(src).toMatch(/prisma\.team\.findMany/);
   });
 
-  it("excludes CUSTOMER-organization workspaces from the WORKSPACE list", async () => {
+  it("enumerates exactly TWO billing subjects — a workspace is not one", async () => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — REPLACES a test that
+    // asserted the WORKSPACE list excluded CUSTOMER-organization workspaces.
+    //
+    // That test policed the boundaries of a list that should not have existed.
+    // Its concern — an Enterprise tenant must not get one fabricated contract
+    // per workspace — is now structural: there is no workspace list to leak
+    // into, because a workspace is not a billing subject at all.
     const src = await readSource(
       "../src/services/billing/billing-accounts.service.ts",
     );
-    // An Enterprise tenant must not get one fabricated contract per workspace:
-    // its workspaces roll up to the ORGANIZATION account.
-    expect(src).toMatch(/NOT:\s*\{\s*organization:\s*\{\s*kind:\s*"CUSTOMER"\s*\}\s*\}/);
+    expect(src).toMatch(
+      /BillingAccountType\s*=\s*"PERSONAL"\s*\|\s*"ORGANIZATION"/,
+    );
+    // And no enumeration may reintroduce one.
+    expect(src).not.toMatch(/type:\s*"WORKSPACE"/);
   });
 
   it("fails closed on an account the viewer cannot see", async () => {
@@ -102,15 +111,19 @@ describe("payment history is scoped to ONE billing account", () => {
     ).toEqual({ userId: "user-1", teamId: null });
   });
 
-  it("a WORKSPACE account matches that workspace's payments and no others", () => {
-    // Deliberately NOT scoped by userId as well: a workspace's payments belong
-    // to the workspace, whoever happened to hold the card at the time. Adding
-    // `userId` would hide history from a transferred billing owner.
-    expect(
-      paymentWhereForAccount({
-        account: ref("WORKSPACE", "ws-1", ["BILLING_HISTORY_VIEW"]),
-      }),
-    ).toEqual({ teamId: "ws-1" });
+  it("there is no WORKSPACE payment scope to target", async () => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — REPLACES a test that
+    // asserted `paymentWhereForAccount` scoped a WORKSPACE account to that
+    // workspace's payments.
+    //
+    // The property it protected — one account's history never contains
+    // another's — is unchanged and still asserted for PERSONAL and
+    // ORGANIZATION above. What is gone is the third subject: a workspace has
+    // no payment history of its own, because it never pays for anything.
+    const src = await readSource(
+      "../src/services/billing/billing-accounts.service.ts",
+    );
+    expect(src).not.toMatch(/case\s+"WORKSPACE"/);
   });
 
   it("an ORGANIZATION account matches its constituent workspaces", () => {
@@ -133,17 +146,26 @@ describe("payment history is scoped to ONE billing account", () => {
     ).toEqual({ id: { in: [] } });
   });
 
-  it("REGRESSION: personal and workspace payments are never merged", () => {
+  it("REGRESSION: personal and organization payments are never merged", () => {
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the second subject
+    // here was WORKSPACE, which no longer exists. The regression it guards is
+    // the same one and is the reason this predicate exists at all: the
+    // projection it replaced returned ONE array containing every payment,
+    // labelled by `teamId` in the UI, so one payer's total sat under another
+    // payer's plan. ORGANIZATION is now the only other subject, so it is the
+    // one the personal scope must stay disjoint from.
     const personal = paymentWhereForAccount({
       account: ref("PERSONAL", "user-1", []),
     });
-    const workspace = paymentWhereForAccount({
-      account: ref("WORKSPACE", "ws-1", []),
+    const organization = paymentWhereForAccount({
+      account: ref("ORGANIZATION", "org-1", []),
+      organizationWorkspaceIds: ["ws-1"],
     });
-    // The previous projection returned ONE array containing both, labelled by
-    // `teamId` in the UI — so one payer's total sat under another payer's plan.
-    expect(personal).not.toEqual(workspace);
+    expect(personal).not.toEqual(organization);
     expect(JSON.stringify(personal)).not.toContain("ws-1");
+    // And the personal scope is pinned to its own payer, with no workspace
+    // payment able to satisfy it.
+    expect(personal).toEqual({ userId: "user-1", teamId: null });
   });
 
   it("returns nothing at all without BILLING_HISTORY_VIEW", async () => {

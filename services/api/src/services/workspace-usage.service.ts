@@ -93,32 +93,57 @@ function maxBigInt(a: bigint, b: bigint): bigint {
   return a > b ? a : b;
 }
 
+/**
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — offers follow the TIER.
+ *
+ * This selected the SHARED catalog whenever the workspace was shared, which
+ * meant the TEAM storage offers were reachable only from a separate workspace.
+ * A customer on TEAM — a tier of their own Personal Workspace — was shown the
+ * PRO catalog, or nothing at all.
+ *
+ * The offer catalog is a property of what the customer BOUGHT, so it is keyed
+ * on the plan. The `billingShape` on each offer row stays as the catalog's own
+ * grouping label; it is no longer read as a statement about the workspace.
+ */
 function getAvailableStorageAddonOffers(scope: WorkspaceScope) {
-  if (scope.billingShape === "SHARED") {
-    return STORAGE_ADDON_OFFERS.filter((offer) => offer.billingShape === "SHARED");
-  }
+  switch (scope.plan) {
+    case prismaPkg.PlanType.TEAM:
+      // The TEAM catalog: +100 GB, +500 GB, +1 TB. On the Personal subject.
+      return STORAGE_ADDON_OFFERS.filter(
+        (offer) => offer.billingShape === "SHARED",
+      );
 
-  if (scope.plan === prismaPkg.PlanType.PAYG) {
-    return STORAGE_ADDON_OFFERS.filter(
-      (offer) =>
-        offer.key === prismaPkg.StorageAddonKey.PERSONAL_10_GB ||
-        offer.key === prismaPkg.StorageAddonKey.PERSONAL_50_GB
-    );
-  }
+    case prismaPkg.PlanType.PRO:
+      // The PRO catalog: +10 GB, +50 GB, +200 GB.
+      return STORAGE_ADDON_OFFERS.filter(
+        (offer) => offer.billingShape === "SINGLE_OCCUPANT",
+      );
 
-  if (scope.plan === prismaPkg.PlanType.PRO) {
-    return STORAGE_ADDON_OFFERS.filter(
-      (offer) => offer.billingShape === "SINGLE_OCCUPANT"
-    );
-  }
+    case prismaPkg.PlanType.PAYG:
+      // The grandfathered credit-overlay row keeps the two offers it has
+      // always had. It buys no NEW recurring storage — the Billing surface
+      // explains that recurring add-ons need PRO or TEAM.
+      return STORAGE_ADDON_OFFERS.filter(
+        (offer) =>
+          offer.key === prismaPkg.StorageAddonKey.PERSONAL_10_GB ||
+          offer.key === prismaPkg.StorageAddonKey.PERSONAL_50_GB,
+      );
 
-  return [];
+    // FREE buys no recurring storage, and ENTERPRISE is contract-managed:
+    // an Organization's capacity comes from its contract, never a
+    // self-service catalogue.
+    default:
+      return [];
+  }
 }
 
 function getSuggestedUpgradePlan(
   scope: WorkspaceScope
 ): prismaPkg.PlanType | null {
-  if (scope.billingShape === "SHARED") {
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — ENTERPRISE is the only
+  // plan with no self-service next step. It used to be "any shared workspace",
+  // which silenced the upgrade path for TEAM.
+  if (scope.plan === prismaPkg.PlanType.ENTERPRISE) {
     return null;
   }
 

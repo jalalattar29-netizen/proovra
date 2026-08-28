@@ -767,8 +767,21 @@ describe("PLATFORM_CORE §1b — commercial subject matrix (direct plan mutation
     expect(H.writes).toEqual([]);
   });
 
-  it.each(["FREE", "PAYG", "PRO", "ENTERPRISE"] as const)(
-    "%s is a PERSONAL/account subject — it can never be pinned to an owned workspace",
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — TEAM joined both lists.
+  //
+  // It used to sit outside them, in four tests of its own, because it was the
+  // one plan that named a WORKSPACE: refused without a `teamId`, 403 for
+  // someone else's workspace, 404 for an unknown one, and written onto the
+  // workspace when the id checked out. Those four tests were an accurate
+  // description of the obsolete model, which is exactly why they had to go
+  // rather than be adjusted.
+  //
+  // TEAM is now the top self-service tier of the same Personal Workspace, so it
+  // is a personal subject like every other plan and belongs in the same
+  // parameterised rows. What replaces the three workspace-target tests is the
+  // single test below, which is a stronger statement than any of them.
+  it.each(["FREE", "PAYG", "PRO", "TEAM", "ENTERPRISE"] as const)(
+    "%s is a PERSONAL/account subject — it can never be pinned to a workspace",
     async (plan) => {
       app = await devApp();
       const res = await app.inject({
@@ -782,7 +795,7 @@ describe("PLATFORM_CORE §1b — commercial subject matrix (direct plan mutation
     },
   );
 
-  it.each(["PAYG", "PRO", "ENTERPRISE"] as const)(
+  it.each(["PAYG", "PRO", "TEAM", "ENTERPRISE"] as const)(
     "%s applies to the SESSION's personal account only",
     async (plan) => {
       app = await devApp();
@@ -797,55 +810,36 @@ describe("PLATFORM_CORE §1b — commercial subject matrix (direct plan mutation
     },
   );
 
-  it("TEAM is a WORKSPACE subject — it is refused without a target workspace", async () => {
+  it("no workspace is a commercial subject — yours, another's and an unknown one are refused IDENTICALLY, ZERO write", async () => {
+    // The three cases used to be told apart: 200, 403 and 404 respectively.
+    // That difference was a property of the old model and, incidentally, an
+    // enumeration oracle — the status code alone answered "does this workspace
+    // exist, and is it mine?" for any id an attacker cared to try.
+    //
+    // With no workspace-shaped commercial subject left, the request is
+    // malformed before ownership is ever consulted, so all three answers are
+    // the same one and nothing is leaked. Asserting the responses are equal to
+    // EACH OTHER, not merely equal to 400, is the point: it fails if a future
+    // change reintroduces a workspace lookup here, whatever code it returns.
     app = await devApp();
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/billing/plan",
-      headers: JSON_HEADERS,
-      payload: { plan: "TEAM" },
-    });
-    expect(res.statusCode).toBe(400);
-    expect(H.writes).toEqual([]);
-  });
+    H.plan = "PRO"; // the caller's own personal entitlement, left untouched
+    H.ownedTeamIds = [TEAM_A];
 
-  it("cross-account denial — a workspace owned by someone else is refused, ZERO write", async () => {
-    app = await devApp();
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/billing/plan",
-      headers: JSON_HEADERS,
-      payload: { plan: "TEAM", teamId: TEAM_B },
-    });
-    expect(res.statusCode).toBe(403);
-    expect(H.writes).toEqual([]);
-  });
+    const statuses: number[] = [];
+    for (const teamId of [TEAM_A, TEAM_B, TEAM_UNKNOWN]) {
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/billing/plan",
+        headers: JSON_HEADERS,
+        payload: { plan: "TEAM", teamId },
+      });
+      statuses.push(res.statusCode);
+      // No provider id, workspace name or internal reason escapes either.
+      expect(res.body).not.toMatch(/activateTeamPlan|ownerUserId/);
+    }
 
-  it("unknown workspace — 404 (never a silent personal fallback), ZERO write", async () => {
-    app = await devApp();
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/billing/plan",
-      headers: JSON_HEADERS,
-      payload: { plan: "TEAM", teamId: TEAM_UNKNOWN },
-    });
-    expect(res.statusCode).toBe(404);
+    expect(statuses).toEqual([400, 400, 400]);
     expect(H.writes).toEqual([]);
-  });
-
-  it("OWNED workspace persists its OWN commercial state — keyed by teamId, never the owner's plan", async () => {
-    app = await devApp();
-    H.plan = "PRO"; // owner's personal entitlement
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/billing/plan",
-      headers: JSON_HEADERS,
-      payload: { plan: "TEAM", teamId: TEAM_A },
-    });
-    expect(res.statusCode).toBe(200);
-    expect(H.writes).toEqual([`activateTeamPlan:${TEAM_A}:TEAM`]);
-    // No owner-plan fallback write leaked onto the workspace.
-    expect(H.writes.some((w) => w.startsWith("setPersonalPlan"))).toBe(false);
   });
 
   it("managed identity has NO personal space — a personal plan change fails closed, ZERO write", async () => {

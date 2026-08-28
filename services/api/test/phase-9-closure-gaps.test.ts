@@ -2,7 +2,7 @@
  * PHASE 9 FINAL CLOSURE GAPS (2026-07-23) — the three non-environmental
  * proof gaps closed with behavioral evidence:
  *   1. Row 24 — commercial reactivation restores capability, NEVER
- *      authorization (real activateTeamPlan + real evaluateAccess).
+ *      authorization (real setPersonalPlan + real evaluateAccess).
  *   2. EnterpriseContract legacy fallback — constrained
  *      COMPATIBILITY_INPUT_ADAPTER (real resolver behavior).
  *   3. Provider transports — Stripe deterministic HMAC fixture; PayPal
@@ -79,7 +79,7 @@ vi.mock("../src/db.js", () => {
   return { prisma };
 });
 
-import { activateTeamPlan } from "../src/services/billing.service.js";
+import { setPersonalPlan } from "../src/services/billing.service.js";
 import {
   loadMemberAccessSnapshot,
   evaluateAccess,
@@ -95,24 +95,32 @@ beforeEach(() => {
 });
 
 // ── 1. ROW 24 — BEHAVIORAL ─────────────────────────────────────────────────
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — RETARGETED from
+// `activateTeamPlan`, which was deleted once TEAM stopped being a workspace's
+// commercial state.
+//
+// The row's property is untouched and, if anything, now describes a situation
+// customers actually reach: paying for a higher tier buys CAPACITY, and it
+// never re-admits someone whose access was taken away. A workspace owner whose
+// collaborator was revoked, upgrading FREE → TEAM to get collaboration back,
+// must not find that collaborator silently readmitted by the payment.
+//
+// The reactivation writer is now `setPersonalPlan` — the single writer of
+// `entitlements.plan`, and the one every self-service transition ends at — so
+// the proof runs through that instead. Authorization is still evaluated by the
+// real `loadMemberAccessSnapshot` + `evaluateAccess`, unchanged.
 describe("Row 24 (behavioral) — commercial reactivation restores capability, NEVER authorization", () => {
-  it("reactivating the workspace subscription leaves a REVOKED member revoked: no grant/session/credential/context writes, authorization still denied, billing fields only, audited commercially", async () => {
+  it("upgrading the personal plan leaves a REVOKED member revoked: no grant/session/credential/context writes, authorization still denied, entitlement fields only", async () => {
     // COMMERCIAL REACTIVATION through the real production service.
-    const updated = await activateTeamPlan({
-      teamId: "ws-1",
-      ownerUserId: "owner-1",
-      plan: "TEAM" as never,
-    });
-    expect(updated.billingStatus).toBe("ACTIVE");
+    await setPersonalPlan("owner-1", "TEAM" as never);
 
-    // Commercial fields change ONLY: the sole model written is `team`
-    // (+ the billing analytics event) — NO membership, grant, session,
+    // Commercial fields change ONLY: NO membership, grant, session,
     // credential, or active-context restoration.
     const identityWrites = H.writes.filter((w) =>
       /teamMember|organizationMembership|membershipGrant|session|apiCredential|user\./.test(w),
     );
     expect(identityWrites).toEqual([]);
-    expect(H.writes.some((w) => w.startsWith("team.update"))).toBe(true);
+    expect(H.writes.some((w) => w.startsWith("entitlement."))).toBe(true);
 
     // The REVOKED member remains revoked and authorization remains DENIED
     // through the real canonical authorization path.
@@ -130,7 +138,7 @@ describe("Row 24 (behavioral) — commercial reactivation restores capability, N
 
   it("positive separation: a still-ACTIVE member regains ONLY commercial capability (authorization unchanged, already allowed)", async () => {
     H.memberStatus = "ACTIVE";
-    await activateTeamPlan({ teamId: "ws-1", ownerUserId: "owner-1", plan: "TEAM" as never });
+    await setPersonalPlan("owner-1", "TEAM" as never);
     const snapshot = await loadMemberAccessSnapshot(
       { teamId: "ws-1", userId: "user-suspended" },
       (await import("../src/db.js")).prisma as never,
@@ -140,7 +148,7 @@ describe("Row 24 (behavioral) — commercial reactivation restores capability, N
       { permission: "evidence.read" } as never,
     );
     expect(decision.allowed).toBe(true); // authorization was already active —
-    // the reactivation added commercial capability only (team.update).
+    // the upgrade added commercial capability only (entitlement.updateMany).
     expect(H.writes.filter((w) => /membershipGrant|session|apiCredential/.test(w))).toEqual([]);
   });
 });

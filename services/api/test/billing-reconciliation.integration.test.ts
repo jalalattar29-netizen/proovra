@@ -105,7 +105,7 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
   let deps: FixtureDeps;
   let reconcile: typeof import("../src/services/billing/reconciliation/reconciliation.service.js")["reconcileBillingAccount"];
 
-  const accountRef = (type: "PERSONAL" | "WORKSPACE", id: string) => ({
+  const accountRef = (type: "PERSONAL" | "ORGANIZATION", id: string) => ({
     type,
     id,
     displayName: "",
@@ -344,11 +344,17 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
       expect(await creditsOf(victim.owner.userId)).toBe(0);
     });
 
-    it("a workspace account never reconciles personal credit bindings", async () => {
+    it("a non-personal account never reconciles personal credit bindings", async () => {
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the subject was
+      // WORKSPACE, which no longer exists. The isolation being proved is not
+      // about workspaces: it is that reconciliation reaches a credit wallet
+      // ONLY from the account that owns it, and a wallet is owned by a person.
+      // ORGANIZATION is now the only non-personal subject, so it is the one
+      // that must come back empty-handed.
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
       const ref = await seedLostCreditPurchase(t.owner.userId, "STRIPE");
-      const workspace = await prisma.team.findFirstOrThrow({
-        where: { ownerUserId: t.owner.userId, isPersonal: true },
+      const organization = await prisma.organization.findFirstOrThrow({
+        where: { billingOwnerUserId: t.owner.userId },
         select: { id: true },
       });
 
@@ -356,11 +362,12 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
         [ref]: settledCredit("STRIPE", ref),
       });
       await reconcile({
-        account: accountRef("WORKSPACE", workspace.id),
+        account: accountRef("ORGANIZATION", organization.id),
         providers: { STRIPE: adapter } as never,
       });
 
-      // A credit wallet has no workspace. The workspace pass must not reach it.
+      // The provider was never even ASKED about the reference — the isolation
+      // is structural, not a check that happened to reject.
       expect(adapter.asked).not.toContain(ref);
       expect(await creditsOf(t.owner.userId)).toBe(0);
     });

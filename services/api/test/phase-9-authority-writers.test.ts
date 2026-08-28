@@ -87,16 +87,51 @@ const AUTHORITY_WRITERS: Array<{
       // `upsertSubscription` take an argument only one caller ever uses.
       "services/billing/reconciliation/reconciliation.service.ts":
         "canonical: providerStateAtUtc ordering stamp only — every lifecycle transition goes through syncPlanForSubscription",
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the SCHEDULED-CHANGE
+      // columns, and nothing else.
+      //
+      // The transition authority does not write the plan: an upgrade it has
+      // just had confirmed is applied through `syncPlanForSubscription`, the
+      // same handler the webhook calls, so there is still exactly one writer of
+      // the plan in force. What it writes directly is `pendingPlan` and
+      // `pendingPlanEffectiveAtUtc` — a change the PROVIDER has accepted for a
+      // future date, which by definition is not yet a fact about the current
+      // plan and so cannot be expressed through the writer that records one.
+      //
+      // Clearing them is NOT here: that happens in `upsertSubscription`, when
+      // the provider reports the scheduled plan is now in force or the
+      // subscription has ended.
+      "services/billing/plan-transition.service.ts":
+        "canonical: provider-accepted scheduled plan change (pendingPlan) — the plan in force still goes through syncPlanForSubscription",
     },
   },
   {
-    surface: "Team billing columns (owned-workspace commercial state)",
-    // Concrete enum-member assignment only — excludes type annotations
-    // (`billingPlan: prismaPkg.PlanType;`) and read projections
-    // (`billingStatus: teamWorkspace.billingStatus`).
-    write: /billing(Plan|Status):\s*prismaPkg\.(PlanType|TeamBillingStatus)\.\w/,
+    surface: "Team billing columns (organization commercial state)",
+    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the writer set for a
+    // workspace's commercial columns shrank to ONE file, and the regex was
+    // widened to keep matching the writes that remain.
+    //
+    // Both changes are the same fact. Self-service TEAM is a tier of the
+    // Personal Workspace now, so nothing in `billing.service.ts` writes a
+    // workspace's plan any more; the only workspaces that still carry
+    // commercial state are ORGANIZATION workspaces, and the only thing that
+    // grants it is Enterprise provisioning. That service writes the columns on
+    // its own `team.create`/`team.update` and always has — it never called the
+    // deleted writers — so this is a NARROWING of the allowlist, not a new
+    // authority.
+    //
+    // The old regex REQUIRED the `prismaPkg.` qualifier, which the surviving
+    // writer does not use — it imports `TeamBillingStatus` directly. Left as it
+    // was it would have matched nothing, and the surface would have silently
+    // stopped being enforced. Making the qualifier optional is the whole of the
+    // widening: it is still concrete-enum-member assignment only, so read
+    // projections (`billingPlan: true` in a `select`), DTO construction
+    // (`billingStatus: team.billingStatus`) and query filters
+    // (`where: { billingPlan: "ENTERPRISE" }` in the admin consoles) stay out.
+    write: /billing(?:Plan|Status):\s*(?:prismaPkg\.)?(?:PlanType|TeamBillingStatus)\.\w/,
     allowed: {
-      "services/billing.service.ts": "canonical: activateTeamPlan/cancelTeamPlan/syncTeamBillingSnapshot/refreshTeamSeatState",
+      "services/enterprise-provisioning.service.ts":
+        "canonical: the ONLY writer of a workspace's commercial columns — contract-managed ORGANIZATION grant, seat change and revocation",
     },
   },
   {
@@ -196,7 +231,18 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
     "CANONICAL: the shared lifecycle handler the webhook and reconciliation both call",
   "routes/webhooks.routes.ts": "PROVIDER PROJECTION: normalizes Stripe/PayPal event strings → SubscriptionStatus + write routing (no capability decision)",
   "services/billing.service.ts": "PERSISTENCE: upsertSubscription status write",
-  "routes/billing.routes.ts": "display subscription query filter + user cancel-at-period-end write",
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `routes/billing.routes.ts`
+  // LEFT this allowlist, which is the direction that matters: it now names no
+  // subscription status at all.
+  //
+  // Its entry read "display subscription query filter + user
+  // cancel-at-period-end write", and the query filter was the last of it: the
+  // cancel route open-coded "which of this person's subscriptions is live" by
+  // listing ACTIVE/PAST_DUE/TRIALING inline, keyed off a `teamId` in the
+  // request body. That is a route deciding which subscription a request is
+  // about — a small enough decision to look harmless, and one more place for
+  // the answer to differ. It calls `findLivePersonalSubscription` now, which is
+  // the same lookup the transition authority uses.
   "routes/teams.routes.ts": "display: team subscription lookup query filter (no active/grace decision)",
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — both new entries are
   // PRESENTATION and PROVIDER-INTERACTION, not a second active/grace decision.
@@ -208,6 +254,13 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
     "DISPLAY: maps provider status → a lifecycle LABEL (grace verdict still comes from commercial-context)",
   "services/billing/subscription-cancellation.service.ts":
     "PROVIDER INTERACTION: idempotency check against the terminal status; no capability decision",
+  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — SELECTION and
+  // PROVIDER INTERACTION. The transition authority names the three live
+  // statuses to find the ONE subscription a person holds, and hands the status
+  // it applies to `syncPlanForSubscription`. It makes no active/grace decision:
+  // that stays `commercial-context.service.ts`.
+  "services/billing/plan-transition.service.ts":
+    "SELECTION: finds the one live subscription; applies status through the shared handler — no active/grace decision",
 };
 
 describe("Phase 9 STEP 5 — subscription-active decision is centralized (anti-divergence)", () => {

@@ -10,6 +10,7 @@ const H = vi.hoisted(() => ({
   activeMembers: 0,
   includedSeats: 1,
   writes: [] as string[],
+  orgMemberships: [] as unknown[],
 }));
 
 vi.mock("../src/db.js", () => {
@@ -40,6 +41,16 @@ vi.mock("../src/db.js", () => {
                   };
                 if (String(model) === "teamMember" && method === "count")
                   return H.activeMembers;
+                // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — rows 19
+                // and 23 now exercise the billing-account capability
+                // chokepoint, which reads the viewer and their organization
+                // memberships.
+                if (String(model) === "user" && method === "findUnique")
+                  return { displayName: "Viewer", email: "viewer@example.test" };
+                if (String(model) === "organizationMembership" && method === "findMany")
+                  return H.orgMemberships;
+                if (String(model) === "organization" && method === "findUnique")
+                  return { id: "org-1", kind: "CUSTOMER", status: "ACTIVE" };
                 if (method === "findMany") return [];
                 if (method === "count") return 0;
                 if (method === "aggregate") return { _sum: {} };
@@ -56,12 +67,26 @@ vi.mock("../src/db.js", () => {
 });
 
 import { assertTeamSeatAvailable } from "../src/services/workspace-usage.service.js";
-import { activateTeamPlan } from "../src/services/billing.service.js";
+import { assertBillingCapability } from "../src/services/billing/billing-accounts.service.js";
+
+vi.mock("../src/services/organization/org-access.js", () => ({
+  checkOrgAccess: async () => ({ kind: "ok" }),
+}));
+
+vi.mock("../src/services/identity/identity-mode.service.js", () => ({
+  assertPersonalSpaceAllowed: async () => undefined,
+}));
 
 beforeEach(() => {
   H.writes.length = 0;
   H.activeMembers = 0;
   H.includedSeats = 1;
+  H.orgMemberships = [
+    {
+      organizationId: "org-1",
+      organization: { name: "Acme", billingOwnerUserId: "payer-1" },
+    },
+  ];
 });
 
 describe("Row 14 — seat exhaustion is DETERMINISTIC (same state → same denial, zero mutation)", () => {
@@ -91,26 +116,88 @@ describe("Row 14 — seat exhaustion is DETERMINISTIC (same state → same denia
   });
 });
 
-describe("Row 19 — members cannot manage owner-only payments (real billing.service)", () => {
-  it("a NON-owner activating team billing → 403, ZERO billing writes", async () => {
+// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — rows 19 and 23 were
+// RETARGETED from `activateTeamPlan`, which was deleted once TEAM stopped
+// being a workspace's commercial state.
+//
+// Both rows are about the same two properties, and both properties survive the
+// model change intact: someone who is not the payer cannot make a financial
+// change, and a denial writes nothing at all. What changed is where those
+// properties are decided. They used to live inside a workspace-plan writer
+// that re-checked `ownerUserId` itself; they now live in
+// `assertBillingCapability`, the single chokepoint every billing route passes
+// through before touching a subject. That is a strictly better place for them
+// — one rule instead of one per writer — so the rows follow it there rather
+// than being retired with the function they happened to be written against.
+//
+// The subject used here is an ORGANIZATION account, because that is the one
+// remaining account a viewer can reach without being its payer: Enterprise is
+// contract-managed, so an organization billing admin sees the plan, the
+// amounts and the history, and holds no self-service manage or cancel.
+
+describe("Row 19 — a non-payer cannot manage owner-only billing (real chokepoint)", () => {
+  it("an ORG billing admin managing the subscription → 403, ZERO billing writes", async () => {
     await expect(
-      activateTeamPlan({
-        teamId: "ws-1",
-        ownerUserId: "member-2", // not the owner
-        plan: "TEAM" as never,
+      assertBillingCapability({
+        viewerUserId: "org-admin-1",
+        type: "ORGANIZATION",
+        id: "org-1",
+        capability: "BILLING_MANAGE",
       }),
-    ).rejects.toMatchObject({ statusCode: 403 });
-    expect(H.writes.filter((w) => w.startsWith("team."))).toEqual([]);
+    ).rejects.toMatchObject({ httpStatus: 403 });
+    expect(H.writes).toEqual([]);
+  });
+
+  it("the same viewer cancelling → 403, ZERO billing writes", async () => {
+    await expect(
+      assertBillingCapability({
+        viewerUserId: "org-admin-1",
+        type: "ORGANIZATION",
+        id: "org-1",
+        capability: "BILLING_CANCEL",
+      }),
+    ).rejects.toMatchObject({ httpStatus: 403 });
+    expect(H.writes).toEqual([]);
+  });
+
+  it("positive separation: the SAME viewer may still READ that account", async () => {
+    // Non-vacuous. A denial that came from the account being unreachable
+    // rather than from the capability would deny this too.
+    await expect(
+      assertBillingCapability({
+        viewerUserId: "org-admin-1",
+        type: "ORGANIZATION",
+        id: "org-1",
+        capability: "BILLING_HISTORY_VIEW",
+      }),
+    ).resolves.toMatchObject({ type: "ORGANIZATION", id: "org-1" });
+    expect(H.writes).toEqual([]);
   });
 });
 
-describe("Row 23 — commercial denial performs ZERO partial mutation (activation path)", () => {
-  it("denied activation leaves no team/billing/subscription writes behind", async () => {
-    await activateTeamPlan({
-      teamId: "ws-1",
-      ownerUserId: "not-owner",
-      plan: "TEAM" as never,
+describe("Row 23 — commercial denial performs ZERO partial mutation", () => {
+  it("a denied capability leaves no team/billing/subscription writes behind", async () => {
+    await assertBillingCapability({
+      viewerUserId: "org-admin-1",
+      type: "ORGANIZATION",
+      id: "org-1",
+      capability: "BILLING_ADDON_PURCHASE",
     }).catch(() => null);
+    expect(H.writes).toEqual([]);
+  });
+
+  it("an account the viewer cannot see is 404 — not a silent fallback, and ZERO writes", async () => {
+    // Fails CLOSED and indistinguishably: a cross-tenant id must not be
+    // usable to enumerate other tenants' organizations.
+    H.orgMemberships = [];
+    await expect(
+      assertBillingCapability({
+        viewerUserId: "outsider-1",
+        type: "ORGANIZATION",
+        id: "org-someone-else",
+        capability: "BILLING_ACCOUNT_VIEW",
+      }),
+    ).rejects.toMatchObject({ httpStatus: 404 });
     expect(H.writes).toEqual([]);
   });
 });
