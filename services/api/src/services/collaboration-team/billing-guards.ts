@@ -240,6 +240,67 @@ export function assertTeamsFeatureIncluded(plan: PlanType): void {
  * Replaces the inline check at collaboration-team.service.ts:327-337
  * so the assertion is reusable from routes and webhook downgrade flows.
  */
+/**
+ * The SAME capacity refusal, re-evaluated inside the creating transaction and
+ * serialised per workspace.
+ *
+ * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `assertCanCreateCollaborationTeam`
+ * is a COUNT followed, some milliseconds later, by an unrelated INSERT. Two
+ * requests arriving together both counted `limit - 1`, both passed, and both
+ * created: a PRO workspace allowed two Collaboration Teams ended up with
+ * three. No unique constraint could have caught it, because "at most N rows
+ * for this workspace" is not expressible as one.
+ *
+ * Measured, not theorised — the Point-7 concurrency scenario produced exactly
+ * three teams against a limit of two, against live PostgreSQL, the first time
+ * it was pointed at this path.
+ *
+ * `pg_advisory_xact_lock` is the repository's canonical serialisation
+ * primitive for this shape: transaction-scoped, released on commit or
+ * rollback, and effective across API instances rather than merely across one
+ * process's event loop. The key is the WORKSPACE, because the cap is per
+ * workspace — two workspaces creating teams at the same moment must not queue
+ * behind each other.
+ *
+ * It lives HERE, beside the pre-flight guard, so there is ONE statement of
+ * what "too many Teams" means and one error shape for it. A caller cannot tell
+ * which of the two refused, and does not need to: the answer is identical and
+ * the customer's next step is the same either way.
+ */
+export async function lockAndAssertCollaborationTeamCapacity(
+  tx: Pick<PrismaClient, "$executeRaw" | "collaborationTeam">,
+  input: {
+    workspaceId: string;
+    plan: PlanType;
+    maxCollaborationTeamsPerWorkspace: number;
+  },
+): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`collaboration-team-create:${input.workspaceId}`}))`;
+
+  const workspaceTeamCount = await tx.collaborationTeam.count({
+    where: {
+      workspaceId: input.workspaceId,
+      status: "ACTIVE",
+      archivedAtUtc: null,
+    },
+  });
+
+  if (workspaceTeamCount >= input.maxCollaborationTeamsPerWorkspace) {
+    throwBillingError({
+      code: "TEAM_LIMIT_REACHED",
+      message: `This workspace's ${planDisplayName(input.plan)} plan includes up to ${
+        input.maxCollaborationTeamsPerWorkspace
+      } Team${input.maxCollaborationTeamsPerWorkspace === 1 ? "" : "s"}. Upgrade to create another Team.`,
+      details: {
+        plan: input.plan,
+        maxCollaborationTeamsPerWorkspace: input.maxCollaborationTeamsPerWorkspace,
+        workspaceTeamCount,
+        workspaceId: input.workspaceId,
+      },
+    });
+  }
+}
+
 export async function assertCanCreateCollaborationTeam(
   input: { workspaceId: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,

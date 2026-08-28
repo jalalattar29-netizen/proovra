@@ -53,6 +53,7 @@ import {
   assertCanCreateCollaborationTeam,
   assertCanInviteCollaborationTeamMember,
   assertCollaborationTeamMemberLimit,
+  lockAndAssertCollaborationTeamCapacity,
 } from "./billing-guards.js";
 
 // =============================================================================
@@ -363,12 +364,25 @@ export async function createCollaborationTeam(
   if (!ws) throw E.notFound("Workspace");
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the cap is per WORKSPACE,
   // so the guard takes the workspace, not the owner's account.
-  await assertCanCreateCollaborationTeam(
+  // The cap and the resolved plan come back from the guard so the in-transaction
+  // re-check below compares against the SAME numbers, resolved once. Resolving
+  // them twice would be two answers to one commercial question.
+  const cap = await assertCanCreateCollaborationTeam(
     { workspaceId: input.workspaceId, actorUserId: input.actorUserId },
     client,
   );
 
   const result = await client.$transaction(async (tx) => {
+    // The limit is RE-EVALUATED here, inside the creating transaction and
+    // under a per-workspace advisory lock. The guard above is a count followed
+    // by an unrelated insert; this is the authority. See
+    // `lockAndAssertCollaborationTeamCapacity`.
+    await lockAndAssertCollaborationTeamCapacity(tx, {
+      workspaceId: input.workspaceId,
+      plan: cap.plan,
+      maxCollaborationTeamsPerWorkspace: cap.maxCollaborationTeamsPerWorkspace,
+    });
+
     const team = await tx.collaborationTeam.create({
       data: {
         workspaceId: input.workspaceId,
