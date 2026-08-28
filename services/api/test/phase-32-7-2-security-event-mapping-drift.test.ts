@@ -1157,6 +1157,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // No `security_events` column, index, enum or mapping is altered by it,
       // which is what this allowlist is about.
       "20271230000000_workspace_lifecycle_authority",
+      // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — expand-only: two
+      // nullable columns recording a PROVIDER-ACCEPTED plan change that has
+      // not taken effect yet, so a period-end downgrade can be honoured
+      // without taking away capacity the customer has already paid for. It
+      // touches `subscriptions` alone. No `security_events` column, index,
+      // enum or mapping is altered by it, which is what this allowlist is
+      // about.
+      "20271231000000_billing_scheduled_plan_change",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
