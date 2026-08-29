@@ -1,0 +1,308 @@
+/**
+ * Settings layout gate — fixtures.
+ *
+ * The API is intercepted and only the web tier is real, as in the other
+ * `*-layout` projects. What this one measures is information architecture:
+ * which destinations the shell offers a given actor, what the landing pane
+ * does and does not render, and whether the rail is usable at 390px. Those are
+ * facts about the rendered page, and jsdom answers none of them.
+ *
+ * Two actors, because the whole point of the navigation resolver is that they
+ * see different maps: an ORGANIZATION owner with the workspace capabilities,
+ * and a PERSONAL-space member with none of them.
+ */
+
+import type { Page } from "@playwright/test";
+
+import { envelopeFor } from "../attention-layout/_fixtures";
+
+export type SettingsActor = "org-owner" | "personal";
+
+const ORG_CAPABILITIES = [
+  // The route gate itself (routeRegistry `account.settings`).
+  "ACCOUNT_SETTINGS_VIEW",
+  "SETTINGS_VIEW",
+  "SETTINGS_MANAGE",
+  "BILLING_VIEW",
+  "BILLING_MANAGE",
+  "SECURITY_CENTER_VIEW",
+  "INTEGRATIONS_MANAGE",
+  "GOVERNANCE_VIEW",
+  "ACCOUNT_BILLING_VIEW",
+  "RETENTION_MANAGE",
+];
+
+function settingsEnvelope(actor: SettingsActor): Record<string, unknown> {
+  const base = envelopeFor("team-admin") as Record<string, unknown>;
+  const caps = { ...(base.capabilities as Record<string, boolean>) };
+
+  if (actor === "org-owner") {
+    for (const key of ORG_CAPABILITIES) caps[key] = true;
+    return {
+      ...base,
+      capabilities: caps,
+      activeSpace: {
+        type: "ORGANIZATION",
+        id: "org-1",
+        displayName: "Proovra Insurance",
+      },
+      organizations: [
+        { id: "org-1", name: "Proovra Insurance", role: "OWNER", plan: "TEAM" },
+      ],
+      workspace: {
+        ...((base.workspace as Record<string, unknown>) ?? {}),
+        membership: { role: "OWNER", isOwner: true, isAdmin: true },
+      },
+      flags: {
+        ...((base.flags as Record<string, unknown>) ?? {}),
+        isEnterpriseWorkspace: true,
+      },
+    };
+  }
+
+  // A personal space: no membership, no roles, no workspace policy. Every
+  // workspace capability is explicitly false rather than absent, so the test
+  // is about the resolver's answer and not about a missing key.
+  for (const key of ORG_CAPABILITIES) caps[key] = false;
+  caps.ACCOUNT_SETTINGS_VIEW = true;
+  return {
+    ...base,
+    capabilities: caps,
+    activeSpace: { type: "PERSONAL", id: "user-1", displayName: "Personal Space" },
+    organizations: [],
+    workspace: {
+      ...((base.workspace as Record<string, unknown>) ?? {}),
+      membership: { role: null, isOwner: false, isAdmin: false },
+    },
+    flags: {
+      ...((base.flags as Record<string, unknown>) ?? {}),
+      isEnterpriseWorkspace: false,
+    },
+  };
+}
+
+/** The RBAC catalog, in the shape `GET /v1/platform/rbac/matrix` returns. */
+function rbacMatrix() {
+  return {
+    version: "2026.09",
+    generatedAt: "2026-09-01T00:00:00.000Z",
+    roles: [
+      { id: "OWNER", label: "Owner", rank: 1 },
+      { id: "ADMIN", label: "Admin", rank: 2 },
+      { id: "MEMBER", label: "Member", rank: 3 },
+      { id: "VIEWER", label: "Viewer", rank: 4 },
+    ],
+    categories: [
+      {
+        id: "evidence",
+        label: "Evidence",
+        capabilities: [
+          {
+            id: "EVIDENCE_VIEW",
+            label: "View evidence",
+            description: "Open evidence records in this workspace.",
+            roles: ["OWNER", "ADMIN", "MEMBER", "VIEWER"],
+          },
+          {
+            id: "EVIDENCE_MANAGE",
+            label: "Manage evidence",
+            description: null,
+            roles: ["OWNER", "ADMIN", "MEMBER"],
+          },
+        ],
+      },
+      {
+        id: "governance",
+        label: "Team governance",
+        capabilities: [
+          {
+            id: "SETTINGS_MANAGE",
+            label: "Change workspace settings",
+            description: null,
+            roles: ["OWNER", "ADMIN"],
+          },
+          {
+            id: "BILLING_MANAGE",
+            label: "Manage billing",
+            description: null,
+            roles: ["OWNER"],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export async function installSettingsApi(
+  page: Page,
+  actor: SettingsActor = "org-owner",
+): Promise<void> {
+  const json = (body: unknown) => ({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(body),
+  });
+
+  // Production-host seal, registered FIRST so the specific handlers below win.
+  await page.route("**/api.proovra.com/**", (route) =>
+    route.fulfill(
+      json({
+        status: "HEALTHY",
+        ranAtUtc: "2026-01-01T00:00:00.000Z",
+        subsystems: [],
+        incidents: [],
+        escalations: [],
+        items: [],
+        data: null,
+      }),
+    ),
+  );
+
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/v1/platform/context")) {
+      return route.fulfill(json(settingsEnvelope(actor)));
+    }
+    if (path.endsWith("/v1/platform/rbac/matrix")) {
+      return route.fulfill(json(rbacMatrix()));
+    }
+    // The auth provider's own read. Without it `user` stays null and the
+    // account security summary never runs, so the Security card would sit in
+    // its loading state and this project would measure a spinner.
+    if (path.endsWith("/v1/auth/me")) {
+      return route.fulfill(
+        json({
+          user: {
+            id: "user-1",
+            email: "operator@example.invalid",
+            firstName: "Jamie",
+            lastName: "Okonkwo",
+          },
+        }),
+      );
+    }
+    if (path.endsWith("/v1/users/me")) {
+      return route.fulfill(
+        json({
+          id: "user-1",
+          email: "operator@example.invalid",
+          firstName: "Jamie",
+          lastName: "Okonkwo",
+          roles: [],
+        }),
+      );
+    }
+    // The three reads `useAccountSecuritySummary` composes. Without them the
+    // Security and Activity cards sit in their loading state forever, and this
+    // project would be measuring a spinner rather than the layout.
+    if (path.endsWith("/v1/identity/links")) {
+      return route.fulfill(
+        json({ providers: [{ provider: "google", linked: true }], hasPassword: true }),
+      );
+    }
+    if (path.endsWith("/v1/identity/mfa/factors")) {
+      return route.fulfill(json({ hasMfa: true, factors: [{ type: "TOTP" }] }));
+    }
+    if (path.endsWith("/v1/identity-security/my-sessions")) {
+      return route.fulfill(
+        json({
+          sessions: [
+            { isCurrent: true, issuedAtUtc: "2026-08-29T14:42:00.000Z" },
+            { isCurrent: false, issuedAtUtc: "2026-08-20T09:10:00.000Z" },
+            { isCurrent: false, issuedAtUtc: "2026-08-11T18:02:00.000Z" },
+          ],
+        }),
+      );
+    }
+    // Each pane's own reads, in the shape its consumer expects. A bare {}
+    // is what dropped four of them into the error boundary: a component that
+    // maps an array the fixture never sent throws during render, and this
+    // project would then be measuring an error page.
+    if (path.endsWith("/v1/communications/preferences")) {
+      return route.fulfill(json({ preferences: [], channels: [] }));
+    }
+    if (path.endsWith("/v1/me/notification-preferences")) {
+      return route.fulfill(json({ preferences: [], categories: [], items: [] }));
+    }
+    if (path.endsWith("/v1/me/notification-schedule")) {
+      return route.fulfill(
+        json({ quietHours: null, digestCadence: "DAILY", timezone: "UTC" }),
+      );
+    }
+    if (path.includes("/v1/workspaces/ai-policy")) {
+      return route.fulfill(
+        json({
+          policy: {
+            mode: "ASSISTED",
+            operations: {},
+            updatedAtUtc: "2026-08-01T00:00:00.000Z",
+          },
+          operations: {},
+          availableModes: [],
+        }),
+      );
+    }
+    if (path.endsWith("/v1/users/cookie-consent/latest")) {
+      return route.fulfill(json({ consent: null, categories: {} }));
+    }
+    if (path.endsWith("/v1/users/legal-acceptance")) {
+      return route.fulfill(json({ acceptances: [], documents: [], required: {} }));
+    }
+    if (path.endsWith("/v1/identity/data-export")) {
+      return route.fulfill(json({ exports: [], items: [] }));
+    }
+    if (path.endsWith("/v1/identity/account-closure")) {
+      return route.fulfill(json({ requests: [], items: [], active: null }));
+    }
+    if (path.endsWith("/v1/me/inbox/summary")) {
+      return route.fulfill(
+        json({ unread: 0, critical: 0, high: 0, total: 0, items: [] }),
+      );
+    }
+    return route.fulfill(
+      json({
+        items: [],
+        data: null,
+        sessions: [],
+        devices: [],
+        methods: [],
+        entries: [],
+        preferences: [],
+        categories: [],
+        providers: [],
+        factors: [],
+        exports: [],
+        requests: [],
+        acceptances: [],
+        documents: [],
+        operations: {},
+        subsystems: [],
+        incidents: [],
+        escalations: [],
+      }),
+    );
+  });
+
+  await page.route("**/auth/**", (route) =>
+    route.fulfill(
+      json({ user: { id: "user-1", email: "operator@example.invalid" } }),
+    ),
+  );
+}
+
+export async function openSettings(
+  page: Page,
+  actor: SettingsActor = "org-owner",
+  hash = "",
+): Promise<void> {
+  await installSettingsApi(page, actor);
+  await page.goto(`/settings${hash}`);
+  await page.waitForSelector("[data-settings-shell]", { timeout: 30_000 });
+}
+
+export const WIDTHS = [
+  { name: "desktop-1440", width: 1440, height: 900 },
+  { name: "tablet-1024", width: 1024, height: 900 },
+  { name: "tablet-768", width: 768, height: 1024 },
+  { name: "mobile-390", width: 390, height: 844 },
+] as const;

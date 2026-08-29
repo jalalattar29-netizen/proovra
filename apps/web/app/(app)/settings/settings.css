@@ -1,0 +1,591 @@
+/* ===========================================================================
+   SETTINGS — the shell, its map, and the surfaces inside it
+   ===========================================================================
+
+   Written for the redesigned Settings: a sticky in-page rail beside one pane
+   of content, on the application background rather than on a white sheet.
+
+   The rule throughout: the page background is the base, a surface exists only
+   where it groups something, and separation is a border and spacing rather
+   than a shadow. Values come from the product's own tokens; the fallbacks are
+   the canonical values those tokens hold.
+=========================================================================== */
+
+.settings-page-shell {
+  --set-panel: rgba(255, 255, 255, 0.55);
+  --set-line: rgba(16, 24, 40, 0.09);
+  --set-line-strong: rgba(16, 24, 40, 0.14);
+  --set-ink: var(--ink-primary, #101828);
+  --set-muted: var(--ink-secondary, #667085);
+  --set-accent: var(--accent-600, #6d28d9);
+  --set-accent-soft: var(--accent-050, #f4f0ff);
+  --set-radius: 14px;
+
+  /* Settings sits on the app background like every other workspace surface;
+     it does not paint a page-sized white sheet of its own. */
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   THE SHELL
+--------------------------------------------------------------------------- */
+
+.set-shell {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  width: 100%;
+}
+
+.set-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ---------------------------------------------------------------------------
+   THE MAP
+--------------------------------------------------------------------------- */
+
+.set-nav__mobile {
+  display: none;
+}
+
+.set-nav__rail {
+  position: sticky;
+  /* Clear of the app header, and no taller than the viewport so a long map
+     scrolls inside itself rather than pushing the page. */
+  top: 84px;
+  max-height: calc(100vh - 104px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-inline-end: 4px;
+}
+
+.set-nav__title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--set-muted);
+}
+
+.set-nav__group-label {
+  margin: 0 0 6px;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--set-muted);
+}
+
+.set-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.set-nav__item {
+  display: block;
+  width: 100%;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--set-muted);
+  font-size: 0.875rem;
+  font-weight: 550;
+  text-align: start;
+  cursor: pointer;
+}
+
+.set-nav__item:hover {
+  background: rgba(16, 24, 40, 0.04);
+  color: var(--set-ink);
+}
+
+/* Selected: the product accent, subtly. One indicator, not a pill per item. */
+.set-nav__item[aria-current="page"] {
+  background: var(--set-accent-soft);
+  color: var(--set-accent);
+  font-weight: 700;
+}
+
+.set-nav__item:focus-visible {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 1px;
+}
+
+.set-nav__help {
+  margin-top: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--set-line);
+  border-radius: var(--set-radius);
+  background: var(--set-panel);
+}
+
+.set-nav__help-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--set-ink);
+}
+
+.set-nav__help-copy {
+  margin: 5px 0 10px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--set-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   PANES
+--------------------------------------------------------------------------- */
+
+.set-pane-head h2 {
+  margin: 0;
+  font-size: 1.32rem;
+  font-weight: 760;
+  letter-spacing: -0.01em;
+  color: var(--set-ink);
+}
+
+.set-pane-head p {
+  margin: 6px 0 0;
+  max-width: 76ch;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--set-muted);
+}
+
+.set-overview,
+.set-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.set-section__title {
+  margin: 0 0 12px;
+  font-size: 1.02rem;
+  font-weight: 720;
+  color: var(--set-ink);
+}
+
+.set-note {
+  margin: 0;
+  max-width: 84ch;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--set-muted);
+}
+
+.set-note a {
+  color: var(--set-accent);
+  font-weight: 650;
+}
+
+.set-muted {
+  color: var(--set-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   CARDS
+
+   One surface treatment. Summary cards and destination cards differ in what
+   they contain, not in how they are painted.
+--------------------------------------------------------------------------- */
+
+.set-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.set-grid--summary {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 208px), 1fr));
+}
+
+.set-grid--links {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+
+.set-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--set-line);
+  border-radius: var(--set-radius);
+  background: var(--set-panel);
+}
+
+.set-card__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.set-card__head h3 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 720;
+  color: var(--set-ink);
+}
+
+.set-card__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--set-accent-soft);
+  color: var(--set-accent);
+}
+
+.set-card__headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--set-ink);
+}
+
+.set-card__action {
+  margin-top: auto;
+  padding-top: 2px;
+}
+
+/* Label / value rows. No box per value — the card already groups them. */
+.set-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+}
+
+.set-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.set-facts dt {
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--set-muted);
+}
+
+.set-facts dd {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 620;
+  line-height: 1.4;
+  color: var(--set-ink);
+  overflow-wrap: anywhere;
+}
+
+/* A destination, as a card. Buttons because they switch panes in place. */
+.set-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 15px 16px;
+  border: 1px solid var(--set-line);
+  border-radius: var(--set-radius);
+  background: var(--set-panel);
+  text-align: start;
+  cursor: pointer;
+}
+
+.set-link-card:hover {
+  border-color: var(--set-line-strong);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.set-link-card:focus-visible {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 2px;
+}
+
+.set-link-card__label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--set-ink);
+}
+
+.set-link-card__hint {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--set-muted);
+}
+
+/* ---------------------------------------------------------------------------
+   STATUS — words, with colour repeating them. §31: not every value is a pill.
+--------------------------------------------------------------------------- */
+
+.set-state {
+  font-size: 0.78rem;
+  font-weight: 680;
+}
+
+.set-state[data-tone="ok"] {
+  color: var(--success, #067647);
+}
+
+.set-state[data-tone="attention"] {
+  color: #b54708;
+}
+
+.set-state[data-tone="accent"] {
+  color: var(--set-accent);
+}
+
+/* ---------------------------------------------------------------------------
+   ACTIONS — §30's hierarchy, and nothing beyond it.
+--------------------------------------------------------------------------- */
+
+.set-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--set-line-strong);
+  border-radius: 9px;
+  background: #ffffff;
+  color: var(--set-ink);
+  font-size: 0.83rem;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.set-action:hover {
+  background: rgba(16, 24, 40, 0.035);
+}
+
+.set-action:focus-visible {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 2px;
+}
+
+.set-action--primary {
+  border-color: var(--set-accent);
+  background: var(--set-accent);
+  color: #ffffff;
+}
+
+.set-action--primary:hover {
+  background: var(--accent-700, #5b21b6);
+  border-color: var(--accent-700, #5b21b6);
+}
+
+.set-action--outline {
+  border-color: var(--set-accent);
+  background: transparent;
+  color: var(--set-accent);
+}
+
+.set-action--outline:hover {
+  background: var(--set-accent-soft);
+}
+
+/* ---------------------------------------------------------------------------
+   ROLES — summaries, and the matrix behind its disclosure
+--------------------------------------------------------------------------- */
+
+.set-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.set-disclosure {
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--set-accent);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--set-accent);
+  font-size: 0.83rem;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.set-disclosure:hover {
+  background: var(--set-accent-soft);
+}
+
+.set-disclosure:focus-visible {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 2px;
+}
+
+.set-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.set-matrix__group {
+  padding: 16px 18px;
+  border: 1px solid var(--set-line);
+  border-radius: var(--set-radius);
+  background: var(--set-panel);
+}
+
+.set-matrix__group h4 {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--set-ink);
+}
+
+/* The one place a horizontal scroll is correct: a role x capability grid has
+   an irreducible width. It scrolls INSIDE its own container so it can never
+   widen the page — which is what §35 asks for. */
+.set-matrix__scroll {
+  overflow-x: auto;
+}
+
+.set-matrix table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.set-matrix thead th {
+  padding: 6px 8px;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 650;
+  color: var(--set-muted);
+}
+
+.set-matrix thead th:first-child {
+  text-align: start;
+  padding-inline-start: 2px;
+}
+
+.set-matrix thead th[data-cc-roles-column-mine="true"] {
+  color: var(--set-accent);
+  font-weight: 750;
+}
+
+.set-matrix tbody th {
+  padding: 9px 8px 9px 2px;
+  text-align: start;
+  font-weight: 620;
+  color: var(--set-ink);
+  border-top: 1px solid var(--set-line);
+}
+
+.set-matrix tbody th span {
+  display: block;
+  margin-top: 2px;
+  font-weight: 450;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--set-muted);
+}
+
+.set-matrix tbody td {
+  padding: 9px 8px;
+  text-align: center;
+  border-top: 1px solid var(--set-line);
+}
+
+/* Granted and denied differ in glyph as well as colour — §36. */
+.set-matrix td[data-cc-roles-cell="granted"] {
+  color: var(--success, #067647);
+}
+
+.set-matrix td[data-cc-roles-cell="denied"] {
+  color: var(--set-muted);
+  opacity: 0.6;
+}
+
+/* ---------------------------------------------------------------------------
+   RESPONSIVE
+
+   Below the two-column breakpoint the rail becomes a labelled select and the
+   content takes the full width. Nothing overflows horizontally; the matrix,
+   when opened, scrolls inside its own container.
+--------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .set-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .set-nav__rail {
+    display: none;
+  }
+
+  .set-nav__mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .set-nav__mobile-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--set-muted);
+  }
+
+  .set-nav__select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--set-line-strong);
+    border-radius: 10px;
+    background: #ffffff;
+    color: var(--set-ink);
+    font-size: 0.9rem;
+    font-weight: 620;
+  }
+
+  .set-nav__select:focus-visible {
+    outline: 2px solid var(--set-accent);
+    outline-offset: 2px;
+  }
+}
+
+@media (max-width: 560px) {
+  .set-card,
+  .set-link-card {
+    padding: 15px;
+  }
+
+  .set-card__action .set-action,
+  .set-action--primary {
+    width: 100%;
+    justify-content: center;
+  }
+}

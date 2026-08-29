@@ -72,8 +72,10 @@ const OPERATIONS_LAYOUT_BASE = `http://127.0.0.1:${OPERATIONS_LAYOUT_PORT}`;
  */
 const CAPTURE_LAYOUT_PORT = 3015;
 const BILLING_LAYOUT_PORT = 3016;
+const SETTINGS_LAYOUT_PORT = 3017;
 const CAPTURE_LAYOUT_BASE = `http://127.0.0.1:${CAPTURE_LAYOUT_PORT}`;
 const BILLING_LAYOUT_BASE = `http://127.0.0.1:${BILLING_LAYOUT_PORT}`;
+const SETTINGS_LAYOUT_BASE = `http://127.0.0.1:${SETTINGS_LAYOUT_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -263,6 +265,22 @@ export default defineConfig({
         baseURL: BILLING_LAYOUT_BASE,
       },
     },
+    /**
+     * SETTINGS — the information architecture, measured.
+     *
+     * Whether a capability matrix renders on the landing pane, whether the
+     * navigation offers a destination this actor cannot reach, and whether the
+     * rail becomes a usable control at 390px are all facts about the rendered
+     * page. None of them is visible to a source assertion.
+     */
+    {
+      name: "settings-layout",
+      testDir: "./e2e/settings-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: SETTINGS_LAYOUT_BASE,
+      },
+    },
   ],
   /**
    * Started only for the opt-in layout projects, each on its own port.
@@ -274,6 +292,17 @@ export default defineConfig({
    * second web server on top of the one they already run.
    */
   webServer: [
+    ...(process.env.SETTINGS_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${SETTINGS_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${SETTINGS_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
     ...(process.env.BILLING_LAYOUT
       ? [
           {

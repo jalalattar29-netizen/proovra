@@ -1,52 +1,57 @@
 "use client";
 
 /**
- * Settings — SINGLE unified enterprise settings workspace
- * (IA refactor 2026-07-17).
+ * Settings — a shell with a map, not a scroll.
  *
- * The former child pages (/settings/profile, /security, /preferences,
- * /privacy, /notifications, /ai) are merged into ONE scrollable
- * administration console. Every section reuses its existing, unchanged
- * implementation (extracted into `_sections/*` or already-shared
- * components); permissions, APIs, and backend behavior are untouched —
- * this is navigation + composition only.
+ * WHAT THIS REPLACED (IA redesign 2026-09-03)
+ * ---------------------------------------------------------------------------
+ * The 2026-07-17 refactor merged the former child routes into ONE scrollable
+ * console: overview, security, preferences, notifications, AI, privacy,
+ * billing and seven role x capability matrices, all mounted and all expanded,
+ * every time anyone opened Settings. It solved a routing problem and created a
+ * reading one — a person arriving to change their timezone met the entire
+ * administration surface of the product, and the densest thing in it (the
+ * permission matrices) rendered below the fold of every visit.
  *
- *   Overview      — identity + profile editing + account facts
- *   Security      — login methods · MFA · sessions · activity
- *                   (`PersonalSecuritySections`, unchanged)
- *   Preferences   — language · account timezone
- *   Notifications — matrix · quiet hours · digest cadence
- *   AI            — assistance / governance via the canonical
- *                   `deriveAiSettingsMode` views (plan/role-correct)
- *   Privacy       — cookies · policy history · data export · close account
- *   Billing       — read-only summary + [Open Billing]
+ * This keeps the single canonical route and replaces the scroll with panes.
+ * One destination renders at a time, chosen from a map that is resolved once,
+ * from the envelope, by `resolveSettingsNavigation`.
  *
- * Internal navigation is anchor-based with a scrollspy sidebar; the old
- * child routes 301-redirect to `/settings#<section>` (next.config.js).
- * Free / PAYG / Pro / Team / Enterprise all share this layout — only the
- * visible controls differ, resolved by the same context resolvers as
- * before (organization policies still override personal settings where
- * they always did, inside the unchanged section components).
+ * WHAT DID NOT CHANGE
+ * ---------------------------------------------------------------------------
+ * Every section component is the one that was already here, unchanged in what
+ * it does: `PersonalSecuritySections`, `PreferencesSection`,
+ * `NotificationsSection`, `AiSection`, `PrivacySection`, `BillingSection`,
+ * `OverviewSection`, `RolesSection`. No API changed, no permission changed, no
+ * authority moved. Settings summarises and hands off; the Security Center,
+ * Billing, Audit, Retention and Integrations remain the surfaces that own
+ * their domains.
+ *
+ * WHY PANES AND NOT SEVEN ROUTES
+ * ---------------------------------------------------------------------------
+ * `/settings` is the canonical route and other surfaces deep-link into its
+ * anchors. Panes keep that contract — `/settings#security` still lands on
+ * Security — and give the thing the scroll could not: only the selected
+ * destination mounts, so opening Settings no longer fetches the RBAC catalog,
+ * the AI policy and the privacy record together.
  */
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageShell, PageHeader } from "../../../components/ui/PageShell";
-import { Badge } from "../../../components/ui/Badge";
-import { Button } from "../../../components/ui/Button";
 import { useAuth } from "../../providers";
 import { usePlatformContext } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { deriveSettingsUiContext } from "../../../lib/settings/settingsUiContext";
 import { useAccountSecuritySummary } from "../../../lib/security/useAccountSecuritySummary";
 import { useEnterpriseSurfaceAccess } from "../../../lib/platform-context";
-import { PersonalSecuritySections } from "../security-center/components/PersonalSecuritySections";
 import {
-  SETTINGS_SECTIONS,
-  SettingsSection,
-  type SettingsSectionId,
-} from "./_sections/SettingsSection";
+  resolvePaneFromHash,
+  resolveSettingsNavigation,
+  type SettingsPaneId,
+} from "../../../lib/settings/settingsNavigation";
+import { PersonalSecuritySections } from "../security-center/components/PersonalSecuritySections";
 import { OverviewSection } from "./_sections/OverviewSection";
 import { PreferencesSection } from "./_sections/PreferencesSection";
 import { NotificationsSection } from "./_sections/NotificationsSection";
@@ -54,11 +59,9 @@ import { AiSection } from "./_sections/AiSection";
 import { PrivacySection } from "./_sections/PrivacySection";
 import { BillingSection } from "./_sections/BillingSection";
 import { RolesSection } from "./_sections/RolesSection";
+import { SettingsNav } from "./_sections/SettingsNav";
+import { SettingsOverview } from "./_sections/SettingsOverview";
 
-// Phase 38.9 — canonical PageRouteGate. `account.settings` is an
-// ACCOUNT-domain route (NONE active-space) so it loads for every
-// authenticated user. The `data-testid` marker is a stable Playwright
-// mount anchor (Phase G5).
 export default function SettingsPage() {
   return (
     <div data-testid="account-settings-page">
@@ -69,29 +72,71 @@ export default function SettingsPage() {
   );
 }
 
-/** Quick actions — SHORTCUTS ONLY: each scrolls to its section. */
-const QUICK_ACTIONS: ReadonlyArray<{ label: string; target: SettingsSectionId }> = [
-  { label: "Edit profile", target: "overview" },
-  { label: "Manage login methods", target: "security" },
-  { label: "Configure MFA", target: "security" },
-  { label: "Export data", target: "privacy" },
-  { label: "Open Billing", target: "billing" },
-];
-
-function scrollToSection(id: SettingsSectionId) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
-  // Keep the URL shareable without triggering a navigation.
-  window.history.replaceState(null, "", `#${id}`);
-}
+/** A pane's heading and one line of orientation. */
+const PANE_COPY: Record<
+  SettingsPaneId,
+  { title: string; description: string }
+> = {
+  overview: {
+    title: "Overview",
+    description: "A summary of your account and workspace.",
+  },
+  profile: {
+    title: "Profile & preferences",
+    description:
+      "Your identity, contact details, interface language and account timezone.",
+  },
+  security: {
+    title: "Security",
+    description:
+      "Sign-in methods, two-factor authentication, active sessions and recent security activity.",
+  },
+  notifications: {
+    title: "Notifications",
+    description:
+      "Which updates reach you in-app and by email, plus quiet hours and digest cadence.",
+  },
+  workspace: {
+    title: "General",
+    description: "Workspace settings and defaults for everyone working here.",
+  },
+  members: {
+    title: "Members",
+    description: "Who belongs to this workspace, and how they are invited.",
+  },
+  roles: {
+    title: "Roles & permissions",
+    description: "Understand workspace roles and what each role can do.",
+  },
+  "cases-evidence": {
+    title: "Cases & evidence",
+    description: "Defaults for how cases and evidence are handled here.",
+  },
+  retention: {
+    title: "Retention & lifecycle",
+    description: "How long records are kept, and how they are archived.",
+  },
+  integrations: {
+    title: "API & integrations",
+    description: "API access, keys and connected services.",
+  },
+  sso: {
+    title: "SCIM & SSO",
+    description: "Single sign-on and directory provisioning for this workspace.",
+  },
+  audit: {
+    title: "Audit log",
+    description: "A record of what happened in this workspace.",
+  },
+  billing: {
+    title: "Billing & plan",
+    description: "Your plan, seats and storage. Payment is managed on Billing.",
+  },
+};
 
 function SettingsWorkspace() {
   const { user } = useAuth();
   const { envelope } = usePlatformContext();
-  // Track 1A (surface-tier removal) — the workspace Identity & Security
-  // operator console belongs to the Enterprise workspace experience;
-  // gate on the SERVER-projected enterprise/admin booleans only.
   const canSeeWorkspaceSecurity = useEnterpriseSurfaceAccess();
 
   const ui = deriveSettingsUiContext({
@@ -104,9 +149,6 @@ function SettingsWorkspace() {
       : null,
     workspacePlan: envelope?.personalSpace?.plan ?? null,
     accountPlan: envelope?.account?.accountPlan ?? null,
-    // PHASE 12 POINT 4 STEP 1 — SERVER capability projections for the ACTIVE
-    // workspace. `null` while the envelope is loading/degraded so the
-    // resolver fails closed instead of guessing from a role name.
     canManageBilling:
       typeof envelope?.capabilities?.BILLING_MANAGE === "boolean"
         ? envelope.capabilities.BILLING_MANAGE
@@ -122,270 +164,176 @@ function SettingsWorkspace() {
 
   const security = useAccountSecuritySummary(Boolean(user?.id));
 
-  // ---------------------------------------------------------------------
-  // Scrollspy — highlight the section currently in view. The observer
-  // tracks headings against a band near the top of the viewport.
-  // ---------------------------------------------------------------------
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>("overview");
-  const visibleRef = useRef<Map<string, number>>(new Map());
+  // The map. Resolved from the envelope by the one resolver that owns it; the
+  // shell never asks a second question about who may see what.
+  const model = useMemo(
+    () =>
+      resolveSettingsNavigation({
+        activeSpace:
+          envelope?.activeSpace && envelope.activeSpace.id
+            ? {
+                type: envelope.activeSpace.type,
+                id: envelope.activeSpace.id,
+                displayName: envelope.activeSpace.displayName,
+              }
+            : null,
+        isPlatformAdmin: envelope?.platform?.isPlatformAdmin === true,
+        capabilities: envelope?.capabilities ?? null,
+        accountPlan: envelope?.account?.accountPlan ?? null,
+        personalSpace: envelope?.personalSpace
+          ? { id: envelope.personalSpace.id ?? null }
+          : null,
+        orgAdminOrgId: ui.orgAdminOrgId,
+        isEnterpriseWorkspace: envelope?.flags?.isEnterpriseWorkspace === true,
+      }),
+    [envelope, ui.orgAdminOrgId],
+  );
+
+  const [pane, setPane] = useState<SettingsPaneId>("overview");
+
+  // Deep links, including the pre-redesign anchors other surfaces still use.
   useEffect(() => {
-    const sections = SETTINGS_SECTIONS.map((s) => document.getElementById(s.id)).filter(
-      (el): el is HTMLElement => el !== null,
-    );
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) visibleRef.current.set(e.target.id, e.boundingClientRect.top);
-          else visibleRef.current.delete(e.target.id);
-        }
-        // Active = the visible section closest to the top of the band.
-        let best: { id: string; top: number } | null = null;
-        for (const [id, top] of visibleRef.current) {
-          if (!best || top < best.top) best = { id, top };
-        }
-        if (best) setActiveSection(best.id as SettingsSectionId);
-      },
-      { rootMargin: "-80px 0px -55% 0px", threshold: 0 },
-    );
-    for (const el of sections) observer.observe(el);
-    return () => observer.disconnect();
+    setPane(resolvePaneFromHash(window.location.hash, model));
+    // `model` is the dependency that matters: the hash can name a pane that
+    // only becomes allowed once the envelope has loaded.
+  }, [model]);
+
+  const openPane = useCallback((next: SettingsPaneId) => {
+    setPane(next);
+    window.history.replaceState(null, "", `#${next}`);
+    // A pane change is a navigation: start it at the top, and announce it.
+    window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
-  // Deep links: /settings#security (incl. redirects from the removed
-  // child routes) scroll to their section after mount.
-  useEffect(() => {
-    const hash = window.location.hash.replace(/^#/, "");
-    if (SETTINGS_SECTIONS.some((s) => s.id === hash)) {
-      // Sections render immediately; defer one frame so layout settles.
-      requestAnimationFrame(() =>
-        document.getElementById(hash)?.scrollIntoView({ block: "start" }),
-      );
+  const copy = PANE_COPY[pane];
+  const paneHref = useMemo(() => {
+    for (const group of model.groups) {
+      const item = group.items.find((i) => i.id === pane);
+      if (item) return item.href;
     }
-  }, []);
+    return null;
+  }, [model, pane]);
 
   return (
     <PageShell
       className="settings-page-shell"
       header={
         <PageHeader
-          eyebrow="Account"
           title="Settings"
-          subtitle="Your account, security, preferences, notifications, AI, privacy, and billing — one workspace."
-          contextStrip={
-            <>
-              <Badge tone="info">Account</Badge>
-              <Badge tone="neutral">{ui.activeWorkspaceName}</Badge>
-            </>
-          }
-          primaryAction={
-            <div
-              style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}
-              data-cc-settings-quick-actions
-              aria-label="Quick actions"
-            >
-              {QUICK_ACTIONS.map((a) => (
-                <Button
-                  key={a.label}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => scrollToSection(a.target)}
-                  data-cc-quick-action={a.target}
-                >
-                  {a.label}
-                </Button>
-              ))}
-            </div>
-          }
+          subtitle="Manage your personal preferences, workspace settings, security, and integrations."
         />
       }
     >
-      <div
-        style={{ maxWidth: 1120 }}
-        className="settings-workspace grid grid-cols-1 gap-6 md:grid-cols-[180px_minmax(0,1fr)]"
-      >
-        {/* Internal navigation — sticky on desktop, scrollspy-highlighted. */}
-        <nav
-          aria-label="Settings sections"
-          data-cc-settings-nav
-          className="max-md:overflow-x-auto"
-          style={{ minWidth: 0 }}
-        >
-          <ul
-            className="max-md:flex max-md:gap-2 md:sticky md:top-20 md:grid md:gap-1"
-            style={{ listStyle: "none", margin: 0, padding: 0 }}
-          >
-            {SETTINGS_SECTIONS.map((s) => (
-              <li key={s.id}>
-                <a
-                  href={`#${s.id}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    scrollToSection(s.id);
-                  }}
-                  aria-current={activeSection === s.id ? "true" : undefined}
-                  data-cc-settings-nav-item={s.id}
-                  data-active={activeSection === s.id ? "true" : "false"}
-                  style={{
-                    display: "block",
-                    padding: "6px 10px",
-                    borderRadius: 8,
-                    fontSize: 13,
-                    whiteSpace: "nowrap",
-                    textDecoration: "none",
-                    fontWeight: activeSection === s.id ? 700 : 500,
-                    color:
-                      activeSection === s.id
-                        ? "var(--ink-primary, #0f172a)"
-                        : "var(--ink-secondary, #475569)",
-                    background:
-                      activeSection === s.id
-                        ? "rgba(79,70,229,0.08)"
-                        : "transparent",
-                  }}
-                >
-                  {s.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
+      <div className="set-shell" data-settings-shell>
+        <SettingsNav model={model} active={pane} onSelect={openPane} />
 
-        <div style={{ minWidth: 0 }}>
-          <SettingsSection
-            id="overview"
-            title="Account overview"
-            description="Your identity and the account facts at a glance."
-          >
-            <OverviewSection ui={ui} security={security} />
-          </SettingsSection>
+        <main className="set-main" aria-live="polite">
+          {pane === "overview" ? (
+            <SettingsOverview
+              ui={ui}
+              security={security}
+              model={model}
+              onOpen={openPane}
+              roleLabel={envelope?.workspace?.membership?.role ?? null}
+              workspaceStatus={
+                envelope?.activeSpace?.type === "ORGANIZATION" ? "Active" : null
+              }
+            />
+          ) : (
+            <>
+              <header className="set-pane-head">
+                <h2>{copy.title}</h2>
+                <p>{copy.description}</p>
+              </header>
 
-          <SettingsSection
-            id="security"
-            title="Security"
-            description="Login methods, two-factor authentication, active sessions, and your recent security activity."
-          >
-            <PersonalSecuritySections />
-            {canSeeWorkspaceSecurity ? (
-              <p
-                className="m-0 mt-2 text-[13px]"
-                style={{ color: "var(--ink-secondary, #475569)" }}
-                data-cc-security-link-card
-              >
-                Workspace identity operations (MFA policy, trusted devices,
-                session revocations, recovery approvals) live in{" "}
-                <Link href="/security-center"
-                  style={{
-                    color: "var(--ink-primary, #0f172a)",
-                    fontWeight: 600,
-                    textDecoration: "underline",
-                  }}
-                >
-                  Identity &amp; Security
-                </Link>
-                .
-              </p>
-            ) : null}
-          </SettingsSection>
-
-          <SettingsSection
-            id="preferences"
-            title="Preferences"
-            description="UI language and your account timezone — the default for digests, quiet hours, and local-time displays."
-          >
-            <PreferencesSection />
-          </SettingsSection>
-
-          <SettingsSection
-            id="notifications"
-            title="Notifications"
-            description="Which operational categories reach you in-app and by email for the current workspace, plus quiet hours and digest cadence."
-          >
-            <NotificationsSection />
-          </SettingsSection>
-
-          <SettingsSection
-            id="ai"
-            title="AI"
-            description="AI-assisted features for this workspace. Advisory only — AI never determines truth, authenticity, or admissibility."
-          >
-            <AiSection />
-          </SettingsSection>
-
-          <SettingsSection
-            id="privacy"
-            title="Privacy & legal records"
-            description="Cookie preferences, policy acceptance history, your personal data export, and account closure."
-          >
-            <PrivacySection />
-          </SettingsSection>
-
-          <SettingsSection
-            id="billing"
-            title="Billing summary"
-            description="The billing reality for your active context. Manage plans, payments, and add-ons on the Billing page."
-          >
-            <BillingSection ui={ui} />
-          </SettingsSection>
-
-          {/* PHASE 12 VERTICAL A (2026-07-30) — role/capability reference
-              rendered from the API's OWN catalog, never a bundled copy. */}
-          <SettingsSection
-            id="roles"
-            title="Roles & permissions"
-            description="What each role can do in this workspace, answered by the API itself. Read-only — roles are changed by a workspace administrator."
-          >
-            <RolesSection />
-          </SettingsSection>
-
-          {/* Related administration — contextual LINKS only, gated exactly
-              as before; controls stay in their canonical surfaces. */}
-          {(ui.showOrgAdminLinks && ui.orgAdminOrgId) || ui.showReviewerCriteria ? (
-            <section
-              aria-label="Related administration"
-              data-cc-settings-related-admin
-              style={{
-                borderTop: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-                padding: "18px 0 8px",
-                fontSize: 13,
-                color: "var(--ink-secondary, #475569)",
-                display: "grid",
-                gap: 6,
-              }}
-            >
-              {ui.showOrgAdminLinks && ui.orgAdminOrgId ? (
-                <div data-cc-overview-org-admin>
-                  Organization administration —{" "}
-                  <Link
-                    href={`/organizations/${ui.orgAdminOrgId}/admin`}
-                    style={{
-                      color: "var(--ink-primary, #0f172a)",
-                      fontWeight: 600,
-                      textDecoration: "underline",
-                    }}
-                  >
-                    open organization admin
-                  </Link>
+              {pane === "profile" ? (
+                <div className="set-stack">
+                  <OverviewSection ui={ui} security={security} />
+                  <PreferencesSection />
                 </div>
               ) : null}
-              {ui.showReviewerCriteria ? (
-                <div>
-                  Reviewer criteria —{" "}
-                  <Link
-                    href="/settings/reviewer-criteria"
-                    style={{
-                      color: "var(--ink-primary, #0f172a)",
-                      fontWeight: 600,
-                      textDecoration: "underline",
-                    }}
-                  >
-                    open reviewer criteria
-                  </Link>
+
+              {pane === "security" ? (
+                <div className="set-stack">
+                  <PersonalSecuritySections />
+                  {canSeeWorkspaceSecurity ? (
+                    <p className="set-note" data-cc-security-link-card>
+                      Workspace identity operations — MFA policy, trusted
+                      devices, session revocations and recovery approvals — are
+                      managed in{" "}
+                      <Link href="/security-center">Identity &amp; Security</Link>.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
-            </section>
-          ) : null}
-        </div>
+
+              {pane === "notifications" ? <NotificationsSection /> : null}
+
+              {pane === "workspace" ? (
+                <div className="set-stack">
+                  <AiSection />
+                </div>
+              ) : null}
+
+              {pane === "roles" ? <RolesSection /> : null}
+
+              {pane === "cases-evidence" ? (
+                <div className="set-stack">
+                  <PrivacySection />
+                </div>
+              ) : null}
+
+              {pane === "billing" ? <BillingSection ui={ui} /> : null}
+
+              {/* Panes whose whole job is to hand off to the surface that owns
+                  the domain. Settings states what it knows and links; it does
+                  not re-implement Members, Retention, Integrations, SSO or the
+                  Audit log. */}
+              {paneHref &&
+              (pane === "members" ||
+                pane === "retention" ||
+                pane === "integrations" ||
+                pane === "sso" ||
+                pane === "audit") ? (
+                <section className="set-card" data-settings-handoff={pane}>
+                  <p className="set-card__headline">
+                    {HANDOFF_COPY[pane]}
+                  </p>
+                  <div className="set-card__action">
+                    <Link className="set-action set-action--primary" href={paneHref}>
+                      {HANDOFF_ACTION[pane]}
+                    </Link>
+                  </div>
+                </section>
+              ) : null}
+            </>
+          )}
+        </main>
       </div>
     </PageShell>
   );
 }
+
+/**
+ * One sentence per hand-off: what the destination owns, so the link is a
+ * decision rather than a jump. Written in the reader's terms — no route ids,
+ * no service names, no phase labels.
+ */
+const HANDOFF_COPY: Partial<Record<SettingsPaneId, string>> = {
+  members:
+    "Invitations, roles and removals are managed in organization administration, where membership changes are recorded.",
+  retention:
+    "Retention schedules, archival and legal holds are governed centrally, so a policy applies the same way to every record it covers.",
+  integrations:
+    "API keys, webhook endpoints and connected services are managed together. Keys are shown once when created and never again.",
+  sso: "Single sign-on and directory provisioning are configured in the identity console, alongside certificate rotation and connection health.",
+  audit: "The full record of workspace activity, with filters, lives in the Audit & Transparency Center.",
+};
+
+const HANDOFF_ACTION: Partial<Record<SettingsPaneId, string>> = {
+  members: "Manage members",
+  retention: "Manage policies",
+  integrations: "Manage integrations",
+  sso: "Manage SSO",
+  audit: "View audit log",
+};

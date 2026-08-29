@@ -15,6 +15,7 @@
 @import "../components/cases-experience/cases-experience.css";
 @import "../components/workspace-admin/workspace-admin.css";
 @import "../components/notifications/notifications.css";
+@import "./(app)/settings/settings.css";
 @import "./font-strategy.css"; /* POINT 7: remote Jakarta @import deleted; app/fonts.ts self-hosts it */
 
 /* Cookie-banner scope — the cookie consent banner (vanilla-cookieconsent

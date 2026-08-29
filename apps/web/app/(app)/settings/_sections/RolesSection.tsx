@@ -24,11 +24,10 @@
  * the component never computes one from a role hierarchy of its own.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
-import { Badge } from "../../../../components/ui/Badge";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { captureException } from "../../../../lib/sentry";
@@ -100,7 +99,6 @@ export function RolesSection() {
   const activeSpace = envelope?.activeSpace ?? null;
   const myRole: string | null =
     activeSpace?.type === "PERSONAL" ? "OWNER" : activeSpace?.roleLabel ?? null;
-  const workspaceName = activeSpace?.displayName ?? null;
 
   const [state, setState] = useState<State>({ kind: "LOADING" });
 
@@ -136,6 +134,9 @@ export function RolesSection() {
       setState({ kind: "ERROR", title: safe.title, message: safe.message });
     }
   }, [stamp, isStale]);
+
+  const [matrixOpen, setMatrixOpen] = useState(false);
+  const matrixPanelId = useId();
 
   useEffect(() => {
     void load();
@@ -206,146 +207,151 @@ export function RolesSection() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 14, maxWidth: 900 }} data-cc-roles-section="READY">
-      <Card variant="admin" padding="comfortable" data-cc-roles-summary>
-        <p style={{ ...muted, color: "var(--ink-primary, #0f172a)" }}>
-          {myRole ? (
-            <>
-              Your role
-              {workspaceName ? ` in ${workspaceName}` : ""} is{" "}
-              <Badge tone="info" subtle data-cc-roles-my-role>
-                {matrix.roles.find((r) => r.id === myRole)?.label ?? myRole}
-              </Badge>
-              .
-            </>
-          ) : (
-            <>Open a workspace to see which column applies to you.</>
-          )}
-        </p>
-        <p style={{ ...muted, marginTop: 6 }}>
-          Every row below is answered by the API itself — if a cell is not
-          ticked, the action is refused for that role no matter what the
-          interface shows.
-          {matrix.version ? ` Catalog ${matrix.version}.` : ""}
-        </p>
-      </Card>
-
-      {matrix.categories.map((category) => (
-        <Card
-          key={category.id}
-          variant="admin"
-          padding="comfortable"
-          data-cc-roles-category={category.id}
-        >
-          <h3
-            style={{
-              margin: "0 0 10px",
-              fontSize: 13,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-              color: "var(--ink-primary, #0f172a)",
-            }}
-          >
-            {category.label}
-          </h3>
-
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+    <div className="set-roles" data-cc-roles-section="READY">
+      {/* WHAT EACH ROLE CAN DO, in the reader's terms.
+          Every line below is COUNTED FROM THE SERVER'S OWN CATALOG — the
+          number of capabilities the API grants that role, and the categories
+          it grants them in. Nothing here is a hand-written description of a
+          role, because a hand-written description drifts the moment a gate
+          changes and a drifted description that over-states a role is a
+          security-relevant lie. */}
+      <div className="set-grid set-grid--links" data-cc-roles-summaries>
+        {matrix.roles.map((role) => {
+          const granted = matrix.categories.flatMap((c) =>
+            c.capabilities.filter((cap) => cap.roles.includes(role.id)),
+          );
+          const areas = matrix.categories.filter((c) =>
+            c.capabilities.some((cap) => cap.roles.includes(role.id)),
+          );
+          const mine = role.id === myRole;
+          return (
+            <section
+              key={role.id}
+              className="set-card"
+              data-cc-roles-summary-role={role.id}
+              data-cc-roles-summary-mine={mine ? "true" : "false"}
             >
-              <thead>
-                <tr>
-                  <th
-                    scope="col"
-                    style={{
-                      textAlign: "left",
-                      padding: "6px 8px 6px 2px",
-                      color: "var(--ink-secondary, #475569)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Capability
-                  </th>
-                  {matrix.roles.map((role) => (
-                    <th
-                      key={role.id}
-                      scope="col"
-                      data-cc-roles-column={role.id}
-                      data-cc-roles-column-mine={role.id === myRole ? "true" : "false"}
-                      style={{
-                        textAlign: "center",
-                        padding: "6px 8px",
-                        whiteSpace: "nowrap",
-                        color:
-                          role.id === myRole
-                            ? "var(--ink-primary, #0f172a)"
-                            : "var(--ink-secondary, #475569)",
-                        fontWeight: role.id === myRole ? 700 : 600,
-                      }}
-                    >
-                      {role.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {category.capabilities.map((capability) => (
-                  <tr key={capability.id} data-cc-roles-capability={capability.id}>
-                    <th
-                      scope="row"
-                      style={{
-                        textAlign: "left",
-                        padding: "8px 8px 8px 2px",
-                        fontWeight: 600,
-                        color: "var(--ink-primary, #0f172a)",
-                        borderTop:
-                          "1px solid var(--border-default, rgba(15,23,42,0.07))",
-                      }}
-                    >
-                      {capability.label}
-                      {capability.description ? (
-                        <span style={{ ...muted, display: "block", fontWeight: 400 }}>
-                          {capability.description}
-                        </span>
-                      ) : null}
-                    </th>
-                    {matrix.roles.map((role) => {
-                      const granted = capability.roles.includes(role.id);
-                      return (
-                        <td
+              <header className="set-card__head">
+                <h3>{role.label}</h3>
+                {mine ? (
+                  <span className="set-state" data-tone="accent" data-cc-roles-my-role>
+                    Your role
+                  </span>
+                ) : null}
+              </header>
+              <dl className="set-facts">
+                <div>
+                  <dt>Permissions</dt>
+                  <dd>
+                    {granted.length} of{" "}
+                    {matrix.categories.reduce(
+                      (n, c) => n + c.capabilities.length,
+                      0,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Areas</dt>
+                  <dd>
+                    {areas.length > 0
+                      ? areas.map((a) => a.label).join(" · ")
+                      : "No permissions in this workspace"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          );
+        })}
+      </div>
+
+      <p className="set-note">
+        Roles are changed by a workspace administrator. Every permission below
+        is answered by the API itself — if it is not granted, the action is
+        refused no matter what the interface shows.
+        {matrix.version ? ` Catalog ${matrix.version}.` : ""}
+      </p>
+
+      {/* THE DETAILED MATRIX — SECONDARY, AND CLOSED.
+          Seven role x capability tables used to render expanded on the
+          Settings landing page. They are the densest thing in the product and
+          almost nobody arriving at Settings wants them, so they now live one
+          deliberate click away, on this destination only. The data is
+          unchanged: the same server catalog, the same cells. */}
+      <button
+        type="button"
+        className="set-disclosure"
+        aria-expanded={matrixOpen}
+        aria-controls={matrixPanelId}
+        onClick={() => setMatrixOpen((open) => !open)}
+        data-cc-roles-matrix-toggle
+      >
+        {matrixOpen ? "Hide" : "View"} detailed permission matrix
+      </button>
+
+      {matrixOpen ? (
+        <div id={matrixPanelId} className="set-matrix" data-cc-roles-matrix>
+          {matrix.categories.map((category) => (
+            <section
+              key={category.id}
+              className="set-matrix__group"
+              data-cc-roles-category={category.id}
+            >
+              <h4>{category.label}</h4>
+
+              <div className="set-matrix__scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Capability</th>
+                      {matrix.roles.map((role) => (
+                        <th
                           key={role.id}
-                          data-cc-roles-cell={granted ? "granted" : "denied"}
-                          style={{
-                            textAlign: "center",
-                            padding: "8px",
-                            borderTop:
-                              "1px solid var(--border-default, rgba(15,23,42,0.07))",
-                            color: granted
-                              ? "var(--status-verified-fg, #065f46)"
-                              : "var(--ink-secondary, #475569)",
-                            opacity: granted ? 1 : 0.45,
-                          }}
+                          scope="col"
+                          data-cc-roles-column={role.id}
+                          data-cc-roles-column-mine={role.id === myRole ? "true" : "false"}
                         >
-                          <span
-                            aria-label={
-                              granted
-                                ? `${role.label} can ${capability.label}`
-                                : `${role.label} cannot ${capability.label}`
-                            }
-                          >
-                            {granted ? "✓" : "—"}
-                          </span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ))}
+                          {role.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {category.capabilities.map((capability) => (
+                      <tr key={capability.id} data-cc-roles-capability={capability.id}>
+                        <th scope="row">
+                          {capability.label}
+                          {capability.description ? (
+                            <span>{capability.description}</span>
+                          ) : null}
+                        </th>
+                        {matrix.roles.map((role) => {
+                          const granted = capability.roles.includes(role.id);
+                          return (
+                            <td
+                              key={role.id}
+                              data-cc-roles-cell={granted ? "granted" : "denied"}
+                            >
+                              <span
+                                aria-label={
+                                  granted
+                                    ? `${role.label} can ${capability.label}`
+                                    : `${role.label} cannot ${capability.label}`
+                                }
+                              >
+                                {granted ? "✓" : "—"}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -22,6 +22,10 @@ import {
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
 
+/** Strip comments — a prose mention of a retired pattern is not a usage. */
+const code = (text: string) =>
+  text.replace(/[/][*][^]*?[*][/]/g, "").replace(/^[\s]*[/][/].*$/gm, "");
+
 // ---------------------------------------------------------------------------
 // Persona fixtures
 // ---------------------------------------------------------------------------
@@ -199,25 +203,73 @@ const REGISTRY = read("lib/navigation/routeRegistry.ts");
 // workspace: the former child pages are in-page SECTIONS reached by
 // anchors + a scrollspy sidebar; the old summary/link cards are gone.
 
-test("unified workspace mounts every section with anchor + scrollspy navigation", () => {
-  for (const id of [
-    "overview",
-    "security",
-    "preferences",
-    "notifications",
-    "ai",
-    "privacy",
-    "billing",
+test("the shell renders ONE pane at a time, from a resolved map", () => {
+  // The scroll is gone. It mounted every domain for everyone on every visit —
+  // profile, security, preferences, notifications, AI, privacy, billing and
+  // seven capability matrices — and anchored between them with a scrollspy.
+  assert.doesNotMatch(OVERVIEW, /IntersectionObserver/);
+  assert.doesNotMatch(OVERVIEW, /scrollIntoView\(\{ behavior: "smooth"/);
+  assert.doesNotMatch(OVERVIEW, /data-cc-settings-quick-actions/);
+
+  // What replaced it: a map resolved once, and a pane chosen from it.
+  assert.match(OVERVIEW, /resolveSettingsNavigation/);
+  assert.match(OVERVIEW, /resolvePaneFromHash/);
+  assert.match(OVERVIEW, /<SettingsNav model=\{model\}/);
+
+  // Every section component the scroll mounted is still mounted — by a pane.
+  for (const section of [
+    "OverviewSection",
+    "PreferencesSection",
+    "PersonalSecuritySections",
+    "NotificationsSection",
+    "AiSection",
+    "PrivacySection",
+    "BillingSection",
+    "RolesSection",
   ]) {
-    assert.match(OVERVIEW, new RegExp(`id="${id}"`), `section ${id} mounted`);
+    assert.match(OVERVIEW, new RegExp(section), `${section} lost its home`);
   }
-  assert.match(OVERVIEW, /data-cc-settings-nav/);
-  assert.match(OVERVIEW, /IntersectionObserver/);
-  assert.match(OVERVIEW, /scrollIntoView\(\{ behavior: "smooth"/);
-  // Quick actions are shortcuts that scroll, not navigations.
-  assert.match(OVERVIEW, /data-cc-settings-quick-actions/);
+
+  // Still one route. The child routes were not resurrected.
   assert.doesNotMatch(OVERVIEW, /href="\/settings\/profile"/);
   assert.doesNotMatch(OVERVIEW, /href="\/settings\/security"/);
+});
+
+test("the navigation model is the canonical resolver's answer, not the page's", () => {
+  const NAV = read("lib/settings/settingsNavigation.ts");
+  // Every real destination is gated by the same resolver the sidebar and the
+  // account menu use, reading the same server-projected capabilities.
+  assert.match(NAV, /resolveRouteAccess/);
+  assert.match(NAV, /\.canLoad/);
+  // No role-name comparison and no plan-string comparison anywhere — those are
+  // exactly the two shortcuts that drift away from what the backend enforces.
+  assert.doesNotMatch(code(NAV), /role === "|=== "OWNER"|=== "ADMIN"/);
+  assert.doesNotMatch(code(NAV), /plan === "|"ENTERPRISE"/);
+  // Enterprise surfaces read the server-projected flag, not a plan name.
+  assert.match(NAV, /isEnterpriseWorkspace/);
+  // Fails closed: an absent capability is not a granted one.
+  assert.match(NAV, /capabilities\?\.\[capability\] === true/);
+});
+
+test("the capability matrix is NOT on the landing pane", () => {
+  // §47, and the single most important content constraint of the redesign.
+  const ROLES = read("app/(app)/settings/_sections/RolesSection.tsx");
+  // The matrix renders only when its disclosure is open.
+  assert.match(ROLES, /const \[matrixOpen, setMatrixOpen\] = useState\(false\)/);
+  assert.match(ROLES, /aria-expanded=\{matrixOpen\}/);
+  assert.match(ROLES, /\{matrixOpen \? \(/);
+  assert.match(ROLES, /data-cc-roles-matrix-toggle/);
+  // And the summaries above it are COUNTED from the server's own catalog
+  // rather than described by hand — a hand-written role description drifts.
+  assert.match(ROLES, /data-cc-roles-summary-role/);
+  assert.match(ROLES, /cap\.roles\.includes\(role\.id\)/);
+
+  // Roles is a pane of its own; the landing pane does not mount it.
+  const landing = OVERVIEW.slice(
+    OVERVIEW.indexOf("pane === \"overview\""),
+    OVERVIEW.indexOf("pane === \"profile\""),
+  );
+  assert.doesNotMatch(landing, /RolesSection/);
 });
 
 test("workspace has no legal-document dump and no fake session status", () => {
