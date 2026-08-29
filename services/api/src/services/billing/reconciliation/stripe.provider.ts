@@ -25,9 +25,14 @@
 
 import * as prismaPkg from "@prisma/client";
 
-import { stripeGet, stripeRequestRaw } from "../../stripe.service.js";
+import {
+  StripeHttpError,
+  stripeGet,
+  stripeRequestRaw,
+} from "../../stripe.service.js";
 import type {
   BillingReconciliationProvider,
+  ObservationFailure,
   ObservedState,
   PaymentCancellationResult,
   PaymentObservation,
@@ -112,6 +117,38 @@ function invoiceState(invoice: Record<string, unknown>): ObservedState {
   }
 }
 
+/**
+ * WHY a Stripe call failed, in the vocabulary the domain reasons in.
+ *
+ * The same four cases the PayPal adapter separates, for the same reason: three
+ * of them are not outages, and "try again later" is the wrong remedy for all
+ * three.
+ */
+export function classifyStripeFailure(err: unknown): ObservationFailure {
+  if (!(err instanceof StripeHttpError)) return "PROVIDER_UNAVAILABLE";
+  if (err.status === 401 || err.status === 403) return "AUTHORIZATION_FAILED";
+  if (err.status === 404) return "NOT_FOUND";
+  if (err.status === 400 || err.status === 422) return "REFERENCE_INVALID";
+  return "PROVIDER_UNAVAILABLE";
+}
+
+/** SAFE diagnostics: no key, no header, no response body. */
+export function stripeFailureDiagnostics(
+  err: unknown,
+  context: { operation: string; referenceKind: string },
+): Record<string, string | number | null> {
+  const http = err instanceof StripeHttpError ? err : null;
+  return {
+    provider: "STRIPE",
+    operation: context.operation,
+    referenceKind: context.referenceKind,
+    httpStatus: http?.status ?? null,
+    providerErrorName: http?.providerErrorName ?? null,
+    providerDebugId: http?.debugId ?? null,
+    failure: classifyStripeFailure(err),
+  };
+}
+
 function unknownPayment(
   providerRef: string,
   failure: PaymentObservation["failure"],
@@ -161,13 +198,19 @@ export class StripeBillingReconciliationProvider
    * for no benefit.
    */
   async observePayment(providerRef: string): Promise<PaymentObservation> {
+    if (providerRef.trim().length === 0) {
+      // No endpoint accepts this. Asking would produce a 404 that reads as
+      // "your payment does not exist".
+      return unknownPayment(providerRef, "REFERENCE_INVALID");
+    }
+
     let body: unknown;
     try {
       body = await stripeGet(
         `/checkout/sessions/${encodeURIComponent(providerRef)}?expand[]=line_items`,
       );
-    } catch {
-      return unknownPayment(providerRef, "PROVIDER_UNAVAILABLE");
+    } catch (err) {
+      return unknownPayment(providerRef, classifyStripeFailure(err));
     }
 
     const session = asRecord(body);

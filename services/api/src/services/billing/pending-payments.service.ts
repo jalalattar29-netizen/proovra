@@ -37,6 +37,8 @@ import * as prismaPkg from "@prisma/client";
 
 import { DomainError } from "../../errors.js";
 import { prisma } from "../../db.js";
+import { recordIncident } from "../observability/incident.service.js";
+import { bump } from "../ops/metrics.service.js";
 import {
   organizationWorkspaceIds,
   paymentWhereForAccount,
@@ -46,6 +48,7 @@ import {
   decidePaymentTransition,
   isTerminalPaymentStatus,
 } from "./reconciliation/payment-status.js";
+import type { ObservationFailure } from "./reconciliation/types.js";
 import {
   defaultReconciliationProviders,
   type ReconciliationProviders,
@@ -112,9 +115,33 @@ export function paymentRowActions(input: {
   };
 }
 
-/** The safe result of asking the provider about one payment. */
+/**
+ * The safe result of asking the provider about one payment.
+ *
+ * BILLING PAYMENT LIFECYCLE (2026-08-30) — every failure used to arrive as
+ * PROVIDER_UNAVAILABLE, which is a claim about the NETWORK. Three of the four
+ * ways this can fail are not outages, and "try again shortly" is the wrong
+ * remedy for all three: a reference the provider has never heard of will
+ * answer the same way for ever, a credential problem needs an operator rather
+ * than patience, and a reference no endpoint accepts can never be resolved.
+ *
+ * A customer told to wait when waiting cannot help is being sent round a loop,
+ * and the abandon action exists precisely to break that loop.
+ */
 export type PaymentRecheckResult = {
-  outcome: "UPDATED" | "NO_CHANGE" | "PROVIDER_UNAVAILABLE";
+  outcome:
+    /** The provider answered and the row moved. */
+    | "UPDATED"
+    /** The provider answered and there was nothing to change. */
+    | "NO_CHANGE"
+    /** Unreachable — DNS, timeout, connection reset, provider 5xx. */
+    | "PROVIDER_UNAVAILABLE"
+    /** The provider has never heard of the reference we stored. */
+    | "PROVIDER_REFERENCE_NOT_FOUND"
+    /** The stored reference is blank or a shape no endpoint accepts. */
+    | "PROVIDER_REFERENCE_INVALID"
+    /** The provider refused US: an operator problem, not the customer's. */
+    | "PROVIDER_AUTHORIZATION_FAILED";
   /** The status the row holds after the check. */
   status: prismaPkg.PaymentStatus;
   /**
@@ -124,6 +151,98 @@ export type PaymentRecheckResult = {
   resumeUrl: string | null;
   actions: PaymentRowActions;
 };
+
+/**
+ * An observation failure as the outcome a caller acts on.
+ *
+ * Deliberately total: a failure this version does not model is reported as
+ * unavailable, which is the ONLY safe default — it changes nothing, claims
+ * nothing, and invites a retry.
+ */
+export function recheckOutcomeForFailure(
+  failure: ObservationFailure | undefined,
+): PaymentRecheckResult["outcome"] {
+  switch (failure) {
+    case "NOT_FOUND":
+      return "PROVIDER_REFERENCE_NOT_FOUND";
+    case "REFERENCE_INVALID":
+      return "PROVIDER_REFERENCE_INVALID";
+    case "AUTHORIZATION_FAILED":
+      return "PROVIDER_AUTHORIZATION_FAILED";
+    case "PROVIDER_MALFORMED":
+    case "UNSUPPORTED_STATE":
+    case "PROVIDER_UNAVAILABLE":
+    case undefined:
+    default:
+      return "PROVIDER_UNAVAILABLE";
+  }
+}
+
+/**
+ * Operational visibility for a provider failure, with nothing sensitive in it.
+ *
+ * No token, no secret, no header, no response body, and no customer identifier
+ * beyond the payment's own internal id — which correlates this to the audit row
+ * and to nothing outside the system.
+ */
+export function recordProviderFailureSignal(input: {
+  provider: prismaPkg.PaymentProvider;
+  operation: "RECHECK_PAYMENT" | "ABANDON_PAYMENT";
+  failure: ObservationFailure;
+  paymentId: string;
+}): void {
+  // One counter per FAILURE KIND, so an outage and a credential problem are
+  // distinguishable on a dashboard rather than one flat "provider errors".
+  // Named explicitly rather than composed: a counter name is part of the
+  // operational contract, and a name built by string concatenation is one no
+  // dashboard can be written against before it first fires.
+  switch (input.failure) {
+    case "NOT_FOUND":
+      bump("billing_provider_reference_not_found_total");
+      break;
+    case "REFERENCE_INVALID":
+      bump("billing_provider_reference_invalid_total");
+      break;
+    case "AUTHORIZATION_FAILED":
+      bump("billing_provider_authorization_failed_total");
+      break;
+    default:
+      bump("billing_provider_unavailable_total");
+  }
+
+  if (input.failure !== "AUTHORIZATION_FAILED") return;
+
+  /*
+   * The one failure no customer and no retry can resolve: the provider has
+   * stopped accepting our credential. Deduped by the hour, so a bad key opens
+   * one incident rather than one per customer who presses Re-check.
+   */
+  void recordIncident({
+    sourceId: "billing.provider_authorization",
+    teamId: null,
+    category: "RECONCILIATION",
+    severity: "HIGH",
+    fingerprint:
+      "billing-provider-auth:" +
+      input.provider +
+      ":" +
+      String(Math.floor(Date.now() / 3600_000)),
+    title: input.provider + " refused our credentials",
+    safeSummary:
+      input.provider +
+      " answered 401/403 during " +
+      input.operation +
+      ". Payment states cannot be verified until the credential is restored. No customer payment has been changed.",
+    runbookSlug: "billing-provider-authorization",
+    metadata: {
+      provider: input.provider,
+      operation: input.operation,
+      paymentId: input.paymentId,
+    },
+  }).catch(() => {
+    /* incident creation is best-effort; the counter above always lands */
+  });
+}
 
 async function loadScopedPayment(input: {
   account: BillingAccountRef;
@@ -213,8 +332,23 @@ export async function recheckPayment(input: {
 
   const observation = await adapter.observePayment(row.providerPaymentId);
   if (observation.state === "UNKNOWN") {
+    /*
+     * WHY it failed decides what the customer is told and what they can do.
+     *
+     * This branch answered PROVIDER_UNAVAILABLE for every failure, so a
+     * reference PayPal has never heard of and a rotated credential both told
+     * the customer to try again shortly — advice that cannot work in either
+     * case.
+     */
+    const outcome = recheckOutcomeForFailure(observation.failure);
+    recordProviderFailureSignal({
+      provider: row.provider,
+      operation: "RECHECK_PAYMENT",
+      failure: observation.failure ?? "PROVIDER_UNAVAILABLE",
+      paymentId: row.id,
+    });
     return {
-      outcome: "PROVIDER_UNAVAILABLE",
+      outcome,
       status: row.status,
       resumeUrl: null,
       actions: actionsFor(row.status),
@@ -261,29 +395,89 @@ export async function recheckPayment(input: {
 }
 
 /**
+ * The safe result of a customer's request to abandon an unresolved attempt.
+ *
+ * BILLING PAYMENT LIFECYCLE (2026-08-30) — `ABANDON_CONFIRMATION_REQUIRED` is
+ * the outcome this whole correction exists for. See `abandonPendingPayment`.
+ */
+export type PaymentAbandonResult = {
+  outcome:
+    /** Recorded: the attempt is out of the customer's active Billing view. */
+    | "ABANDONED"
+    /** It already was. Repeating the request changes nothing. */
+    | "ALREADY_ABANDONED"
+    /** It had already reached a terminal state. Nothing to abandon. */
+    | "ALREADY_FINISHED"
+    /** The provider knew better, and its answer was recorded instead. */
+    | "PROVIDER_ANSWERED"
+    /**
+     * The provider could not be asked, so the customer is told exactly what
+     * abandoning does and does not mean, and asked again.
+     */
+    | "ABANDON_CONFIRMATION_REQUIRED";
+  status: prismaPkg.PaymentStatus;
+  actions: PaymentRowActions;
+  /**
+   * Present ONLY with ABANDON_CONFIRMATION_REQUIRED. What the customer is
+   * agreeing to, in the absence of provider truth.
+   */
+  warning?: string;
+  /** Present ONLY with ABANDON_CONFIRMATION_REQUIRED. */
+  confirmation?: { canConfirmAbandon: true };
+  /** Why the provider could not be asked, when it could not. */
+  providerFailure?: PaymentRecheckResult["outcome"];
+};
+
+/**
  * Record that the CUSTOMER is not going to finish a checkout.
  *
- * PROVIDER-FIRST, still. The provider is asked what the transaction is before
- * anything is written, and the answer decides:
+ * THE DEFECT THIS FIXES
+ * ---------------------------------------------------------------------------
+ * The first version reconciled first and REFUSED — 503 — whenever the provider
+ * could not be reached. The projection said `canAbandon: true`, the page
+ * offered "Abandon payment attempt", and pressing it failed in exactly the
+ * case the action exists for: a months-old PayPal attempt nobody can get an
+ * answer about. An advertised action that cannot complete in its own use case
+ * is worse than no action, because the customer keeps trying it.
  *
- *   * settled, failed, expired or cancelled -> that TRUTH is recorded, and the
- *     customer's request is answered with what actually happened. A payment
- *     that captured is never marked abandoned.
- *   * unreachable -> nothing is written. "We could not check" is not "you have
- *     abandoned it", and writing the second while meaning the first is exactly
- *     the dishonesty this whole action exists to avoid.
- *   * still open, nothing captured -> ABANDONED.
+ * It also said "Nothing has been charged" while admitting it could not reach
+ * the provider. That is a financial claim made from ignorance, and it is not
+ * ours to make: if PayPal cannot be asked, we do not know.
  *
- * IDEMPOTENT: a row already ABANDONED is returned as-is without a second write
- * and without a second provider call.
+ * WHAT IT DOES NOW
+ * ---------------------------------------------------------------------------
+ * PROVIDER-FIRST, still — the provider is asked before anything is written,
+ * and provider truth always wins:
  *
- * WHAT IT DOES NOT CLAIM: that the provider cancelled anything, that a charge
- * was reversed, or that money moved. Nothing was captured — that is the
- * precondition — so there is nothing to reverse, and the copy says so.
+ *   * settled / failed / cancelled / expired -> that TRUTH is recorded, and
+ *     the customer is answered with what actually happened. A payment that
+ *     captured is never marked abandoned.
+ *   * still open, and the provider can really be asked to stop it -> the
+ *     customer is told so; provider cancellation is a different act with a
+ *     different label and its own audit, and it is not silently substituted.
+ *   * still open with no provider cancellation -> ABANDONED. Nothing is
+ *     claimed about the provider.
+ *   * UNREACHABLE, unknown reference, or an unresolvable legacy reference ->
+ *     ABANDON_CONFIRMATION_REQUIRED. Not a refusal: a second, explicit
+ *     question that states exactly what abandoning does and does not mean.
+ *     A caller that comes back with `confirmed` records the abandonment.
+ *
+ * WHAT IT NEVER CLAIMS: that the provider cancelled anything, that a charge
+ * was reversed, or that nothing was charged. `ABANDONED` is a statement about
+ * this product's view, and `decidePaymentTransition` lets later provider proof
+ * overrule it.
  */
 export async function abandonPendingPayment(input: {
   account: BillingAccountRef;
   paymentId: string;
+  /**
+   * The customer has been shown what abandoning means and said yes.
+   *
+   * Only consulted when the provider could not prove anything — provider truth
+   * never needs a customer's permission to be recorded, and this flag can
+   * never turn a settled payment into an abandoned one.
+   */
+  confirmed?: boolean;
   providers?: ReconciliationProviders;
 }): Promise<PaymentAbandonResult> {
   const providers = input.providers ?? defaultReconciliationProviders();
@@ -297,6 +491,8 @@ export async function abandonPendingPayment(input: {
       providers,
     });
 
+  // IDEMPOTENT at the front: a second confirmation changes nothing and asks
+  // the provider nothing.
   if (row.status === prismaPkg.PaymentStatus.ABANDONED) {
     return {
       outcome: "ALREADY_ABANDONED",
@@ -314,30 +510,45 @@ export async function abandonPendingPayment(input: {
   }
 
   const adapter = providers[row.provider];
-  if (!adapter) {
-    throw new DomainError("No adapter for this provider", {
-      httpStatus: 503,
-      publicCode: "PAYMENT_PROVIDER_UNAVAILABLE",
-      publicMessage:
-        "We could not reach your payment provider. Nothing has changed and nothing has been charged — please try again shortly.",
-      reportability: "EXPECTED_DENIAL",
-      severity: "warning",
-    });
-  }
 
-  // RECONCILE FIRST. Abandoning a payment that actually settled would tell a
-  // customer their money is not coming when it already went.
-  const observation = await adapter.observePayment(row.providerPaymentId);
+  // Ask the provider ONCE. An adapter we do not have is treated exactly like
+  // one we cannot reach: unknown, not "nothing happened".
+  const observation = adapter
+    ? await adapter.observePayment(row.providerPaymentId)
+    : null;
 
-  if (observation.state === "UNKNOWN") {
-    throw new DomainError("Provider unavailable during abandon", {
-      httpStatus: 503,
-      publicCode: "PAYMENT_PROVIDER_UNAVAILABLE",
-      publicMessage:
-        "We could not check this payment with your payment provider, so we have not changed it. Nothing has been charged — please try again shortly.",
-      reportability: "EXPECTED_DENIAL",
-      severity: "warning",
+  if (!observation || observation.state === "UNKNOWN") {
+    const failure = observation?.failure ?? "PROVIDER_UNAVAILABLE";
+    recordProviderFailureSignal({
+      provider: row.provider,
+      operation: "ABANDON_PAYMENT",
+      failure,
+      paymentId: row.id,
     });
+
+    if (!input.confirmed) {
+      /*
+       * The correction. This used to throw 503, which made the advertised
+       * action impossible in its own use case. It is a QUESTION now, and the
+       * warning is the honest version of what the old message claimed: we
+       * cannot say nothing was charged, because we could not ask.
+       */
+      return {
+        outcome: "ABANDON_CONFIRMATION_REQUIRED",
+        status: row.status,
+        actions: actionsFor(row.status),
+        providerFailure: recheckOutcomeForFailure(failure),
+        warning:
+          failure === "NOT_FOUND"
+            ? "Your payment provider has no record of this attempt. Abandoning only removes it from your active Billing view. It does not cancel, reverse, or refund anything at your provider."
+            : failure === "REFERENCE_INVALID"
+              ? "This older attempt cannot be matched with your payment provider automatically. Abandoning only removes it from your active Billing view. It does not cancel, reverse, or refund anything at your provider."
+              : "Your payment provider could not be reached. Abandoning only removes this attempt from your active Billing view. It does not cancel, reverse, or refund anything at your provider.",
+        confirmation: { canConfirmAbandon: true },
+      };
+    }
+
+    return recordLocalAbandonment(row, actionsFor);
   }
 
   if (observation.state !== "PENDING") {
@@ -371,13 +582,64 @@ export async function abandonPendingPayment(input: {
     };
   }
 
-  // Open, and nothing captured. The customer's own statement is recorded, as
-  // a compare-and-set so two presses produce one transition.
-  await prisma.payment.updateMany({
+  /*
+   * Still open, and the provider CAN really be asked to stop it.
+   *
+   * Abandoning here would quietly leave a live checkout running at the
+   * provider while telling the customer it was dealt with. Provider
+   * cancellation is a different act, with a different label and its own audit
+   * trail, and the caller is told to use it rather than having it substituted.
+   */
+  if (adapter?.cancelPayment && !input.confirmed) {
+    return {
+      outcome: "ABANDON_CONFIRMATION_REQUIRED",
+      status: row.status,
+      actions: actionsFor(row.status),
+      warning:
+        "This checkout is still open and your payment provider can close it properly. Stopping it there is the better outcome; abandoning only removes it from your active Billing view.",
+      confirmation: { canConfirmAbandon: true },
+    };
+  }
+
+  return recordLocalAbandonment(row, actionsFor);
+}
+
+/**
+ * Write the customer's decision, conditionally.
+ *
+ * The update is a COMPARE-AND-SET on PENDING, so two confirmations racing
+ * produce one transition — and a provider result that landed between the
+ * observation and this write wins, because the row is no longer PENDING and
+ * the update matches nothing.
+ */
+async function recordLocalAbandonment(
+  row: { id: string; status: prismaPkg.PaymentStatus; provider: prismaPkg.PaymentProvider },
+  actionsFor: (status: prismaPkg.PaymentStatus) => PaymentRowActions,
+): Promise<PaymentAbandonResult> {
+  const written = await prisma.payment.updateMany({
     where: { id: row.id, status: prismaPkg.PaymentStatus.PENDING },
     data: { status: prismaPkg.PaymentStatus.ABANDONED },
   });
 
+  if (written.count === 0) {
+    // Something moved it first — a webhook, a concurrent re-check, another
+    // confirmation. Whatever it is now is the truth, and it is not ours to
+    // overwrite.
+    const current = await prisma.payment.findUniqueOrThrow({
+      where: { id: row.id },
+      select: { status: true },
+    });
+    return {
+      outcome:
+        current.status === prismaPkg.PaymentStatus.ABANDONED
+          ? "ALREADY_ABANDONED"
+          : "PROVIDER_ANSWERED",
+      status: current.status,
+      actions: actionsFor(current.status),
+    };
+  }
+
+  bump("billing_payment_abandoned_total");
   return {
     outcome: "ABANDONED",
     status: prismaPkg.PaymentStatus.ABANDONED,
@@ -385,11 +647,6 @@ export async function abandonPendingPayment(input: {
   };
 }
 
-export type PaymentAbandonResult = {
-  outcome: "ABANDONED" | "ALREADY_ABANDONED" | "ALREADY_FINISHED" | "PROVIDER_ANSWERED";
-  status: prismaPkg.PaymentStatus;
-  actions: PaymentRowActions;
-};
 
 /** The safe result of asking the provider to stop one payment. */
 export type PaymentCancelResult = {
@@ -465,7 +722,9 @@ export async function cancelPendingPayment(input: {
       httpStatus: 503,
       publicCode: "PAYMENT_PROVIDER_UNAVAILABLE",
       publicMessage:
-        "We could not reach your payment provider. Nothing has changed and nothing has been charged — please try again shortly.",
+        // NOT "nothing has been charged": we have just said we could not ask.
+        // What we can state is what WE did, which is nothing.
+        "We could not reach your payment provider, so this payment is unchanged in PROOVRA. Please try again shortly.",
       reportability: "EXPECTED_DENIAL",
       severity: "warning",
     });

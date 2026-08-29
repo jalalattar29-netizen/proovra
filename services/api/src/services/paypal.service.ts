@@ -111,21 +111,64 @@ function extractPayPalDebugId(res: Response) {
   return res.headers.get("paypal-debug-id") ?? null;
 }
 
+/**
+ * A PayPal HTTP failure, with the facts a caller needs to CLASSIFY it.
+ *
+ * BILLING PAYMENT LIFECYCLE (2026-08-30) — every PayPal failure used to arrive
+ * as a bare `Error` carrying a sentence, so the one caller that has to tell
+ * these apart — the observation adapter — could only catch it and say
+ * "unavailable". A 404 for a reference PayPal has never heard of, a 401 from a
+ * rotated credential and a genuine outage are three different problems with
+ * three different remedies, and collapsing them told a customer to try again
+ * later in two cases where waiting cannot help.
+ *
+ * It still extends `Error` and still carries the same message, so every
+ * existing catch site behaves exactly as before.
+ *
+ * WHAT IT DELIBERATELY DOES NOT CARRY: the response body. A PayPal error
+ * payload can echo request fields, and this object is logged.
+ */
+export class PayPalHttpError extends Error {
+  readonly status: number;
+  /** PayPal's own error name, e.g. RESOURCE_NOT_FOUND. Never a payload. */
+  readonly providerErrorName: string | null;
+  /** PayPal's correlation id, for support to trace one call. */
+  readonly debugId: string | null;
+
+  constructor(init: {
+    message: string;
+    status: number;
+    providerErrorName: string | null;
+    debugId: string | null;
+  }) {
+    super(init.message);
+    this.name = "PayPalHttpError";
+    this.status = init.status;
+    this.providerErrorName = init.providerErrorName;
+    this.debugId = init.debugId;
+  }
+}
+
 async function readPayPalError(res: Response, prefix: string): Promise<never> {
   const text = await res.text();
   const debugId = extractPayPalDebugId(res);
 
   let message = text;
+  let providerErrorName: string | null = null;
   try {
     const parsed = JSON.parse(text) as { message?: string; name?: string };
     message = parsed.message || parsed.name || text;
+    providerErrorName = parsed.name ?? null;
   } catch {
     // keep raw text
   }
 
-  throw new Error(
-    `${prefix}: ${message}${debugId ? ` (paypal-debug-id: ${debugId})` : ""}`
-  );
+  throw new PayPalHttpError({
+    message: `${prefix}: ${message}${debugId ? ` (paypal-debug-id: ${debugId})` : ""}`,
+    status: res.status,
+    providerErrorName,
+    debugId,
+  });
 }
 
 export async function paypalRequest(

@@ -843,7 +843,15 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
       expect(await statusOf(id)).toBe("PENDING");
     });
 
-    it("reports the provider as unavailable rather than guessing", async () => {
+    it("says WHICH provider failure it hit, not just 'unavailable'", async () => {
+      /*
+       * BILLING PAYMENT LIFECYCLE (2026-08-30) — every failure used to collapse
+       * to PROVIDER_UNAVAILABLE, which is a claim about the network. The
+       * fixture answers NOT_FOUND for a reference it does not hold, and that
+       * is a different problem with a different remedy: waiting cannot make a
+       * provider remember something it never had, so the customer is offered
+       * the local exit instead of another round of "try again shortly".
+       */
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
       const { id } = await seedPendingPayment(t.owner.userId, "STRIPE");
 
@@ -851,11 +859,81 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
         account: accountRef("PERSONAL", t.owner.userId),
         paymentId: id,
         viewerMayCancel: true,
-        // The fixture answers UNKNOWN for any reference it does not hold.
         providers: { STRIPE: new FixtureProvider("STRIPE", {}) } as never,
       });
 
+      expect(result.outcome).toBe("PROVIDER_REFERENCE_NOT_FOUND");
+      expect(await statusOf(id)).toBe("PENDING");
+      // And the row keeps the exit the projection advertises.
+      expect(result.actions.canAbandon || result.actions.canCancel).toBe(true);
+    });
+
+    it("reports a genuine outage as an outage", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "STRIPE");
+
+      const result = await recheck({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        viewerMayCancel: true,
+        providers: {
+          STRIPE: new FixtureProvider("STRIPE", {
+            [ref]: {
+              ...settledCredit("STRIPE", ref),
+              state: "UNKNOWN",
+              failure: "PROVIDER_UNAVAILABLE",
+            },
+          }),
+        } as never,
+      });
+
       expect(result.outcome).toBe("PROVIDER_UNAVAILABLE");
+      expect(await statusOf(id)).toBe("PENDING");
+    });
+
+    it("reports a credential refusal as ours to fix, not the customer's to wait out", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+
+      const result = await recheck({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        viewerMayCancel: true,
+        providers: {
+          PAYPAL: new FixtureProvider("PAYPAL", {
+            [ref]: {
+              ...settledCredit("PAYPAL", ref),
+              state: "UNKNOWN",
+              failure: "AUTHORIZATION_FAILED",
+            },
+          }),
+        } as never,
+      });
+
+      expect(result.outcome).toBe("PROVIDER_AUTHORIZATION_FAILED");
+      expect(await statusOf(id)).toBe("PENDING");
+    });
+
+    it("reports an unresolvable legacy reference explicitly", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+
+      const result = await recheck({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        viewerMayCancel: true,
+        providers: {
+          PAYPAL: new FixtureProvider("PAYPAL", {
+            [ref]: {
+              ...settledCredit("PAYPAL", ref),
+              state: "UNKNOWN",
+              failure: "REFERENCE_INVALID",
+            },
+          }),
+        } as never,
+      });
+
+      expect(result.outcome).toBe("PROVIDER_REFERENCE_INVALID");
       expect(await statusOf(id)).toBe("PENDING");
     });
 
@@ -931,64 +1009,117 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
 
     // ---- abandoning what the provider cannot be asked to stop ------------
 
-    it("records the CUSTOMER's decision on a PayPal attempt, without claiming PayPal did anything", async () => {
+    it("ASKS before abandoning when the provider cannot be reached", async () => {
       /*
-       * THE defect this closes. PayPal exposes no cancellation for an
-       * unapproved order, so a March approval attempt sat at PENDING with one
-       * action — "Re-check" — that kept returning the same answer. The
-       * dishonest fix is a local "cancelled"; this records what the CUSTOMER
-       * decided, only after the provider confirms nothing was captured.
+       * THE DEFECT THIS CLOSES. The projection advertised `canAbandon: true`,
+       * the page offered "Abandon payment attempt", and the endpoint answered
+       * 503 whenever the provider could not be reached — which is the one case
+       * the action exists for. An advertised action that cannot complete in
+       * its own use case is worse than no action, because the customer keeps
+       * pressing it.
        */
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
-      const { id, ref } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+      const { id } = await seedPendingPayment(t.owner.userId, "PAYPAL");
 
-      const result = await abandonOne({
+      const first = await abandonOne({
         account: accountRef("PERSONAL", t.owner.userId),
         paymentId: id,
-        providers: {
-          PAYPAL: new FixtureProvider("PAYPAL", {
-            [ref]: settledCredit("PAYPAL", ref, { state: "PENDING" }),
-          }),
-        } as never,
+        // The fixture answers UNKNOWN for a reference it does not hold.
+        providers: { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never,
       });
 
-      expect(result.outcome).toBe("ABANDONED");
-      expect(result.status).toBe("ABANDONED");
+      expect(first.outcome).toBe("ABANDON_CONFIRMATION_REQUIRED");
+      expect(first.confirmation).toEqual({ canConfirmAbandon: true });
+      expect(first.status).toBe("PENDING");
+      // Nothing written until the customer answers.
+      expect(await statusOf(id)).toBe("PENDING");
+
+      // And the warning does not claim what nobody could verify.
+      expect(first.warning).toMatch(/does not cancel, reverse, or refund/i);
+      expect(first.warning ?? "").not.toMatch(/nothing has been charged/i);
+    });
+
+    it("records the abandonment once the customer confirms", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+      const account = accountRef("PERSONAL", t.owner.userId);
+      const providers = { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never;
+
+      await abandonOne({ account, paymentId: id, providers });
+      const confirmed = await abandonOne({
+        account,
+        paymentId: id,
+        confirmed: true,
+        providers,
+      });
+
+      expect(confirmed.outcome).toBe("ABANDONED");
       expect(await statusOf(id)).toBe("ABANDONED");
-      // The row survives: history is never destroyed.
+      // NEVER CANCELED: nobody cancelled anything at the provider.
+      expect(await statusOf(id)).not.toBe("CANCELED");
+      // History is never destroyed.
       expect(await prisma.payment.count({ where: { id } })).toBe(1);
     });
 
-    it("is idempotent — abandoning twice writes once and asks the provider once", async () => {
+    it("is idempotent — confirming twice writes once", async () => {
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
-      const { id, ref } = await seedPendingPayment(t.owner.userId, "PAYPAL");
-      const adapter = new FixtureProvider("PAYPAL", {
-        [ref]: settledCredit("PAYPAL", ref, { state: "PENDING" }),
-      });
+      const { id } = await seedPendingPayment(t.owner.userId, "PAYPAL");
       const account = accountRef("PERSONAL", t.owner.userId);
+      const adapter = new FixtureProvider("PAYPAL", {});
+      const providers = { PAYPAL: adapter } as never;
 
-      await abandonOne({ account, paymentId: id, providers: { PAYPAL: adapter } as never });
+      await abandonOne({ account, paymentId: id, confirmed: true, providers });
+      const asked = adapter.asked.length;
+
       const second = await abandonOne({
         account,
         paymentId: id,
-        providers: { PAYPAL: adapter } as never,
+        confirmed: true,
+        providers,
       });
 
       expect(second.outcome).toBe("ALREADY_ABANDONED");
       expect(await statusOf(id)).toBe("ABANDONED");
-      // One provider round trip, not two: the second press learns nothing new.
-      expect(adapter.asked).toEqual([ref]);
+      // A settled question is not re-asked of the provider.
+      expect(adapter.asked.length).toBe(asked);
+    });
+
+    it("never invokes a provider cancellation while abandoning", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(t.owner.userId, "STRIPE");
+
+      const adapter = new FixtureProvider("STRIPE", {}) as FixtureProvider & {
+        cancelPayment?: (ref: string) => Promise<unknown>;
+      };
+      const cancelCalls: string[] = [];
+      adapter.cancelPayment = async (ref: string) => {
+        cancelCalls.push(ref);
+        return { outcome: "STOPPED", state: "EXPIRED", observedAtUtc: new Date() };
+      };
+
+      await abandonOne({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        confirmed: true,
+        providers: { STRIPE: adapter } as never,
+      });
+
+      // Local abandonment and provider cancellation are different acts. One
+      // must never be silently substituted for the other.
+      expect(cancelCalls).toEqual([]);
     });
 
     it("refuses to abandon a payment the provider says actually settled", async () => {
       // Telling a customer their money is not coming, when it already went, is
-      // the one outcome this action must never produce.
+      // the one outcome this action must never produce — and a confirmation
+      // does not change that, because provider truth outranks a decision.
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
       const { id, ref } = await seedPendingPayment(t.owner.userId, "PAYPAL");
 
       const result = await abandonOne({
         account: accountRef("PERSONAL", t.owner.userId),
         paymentId: id,
+        confirmed: true,
         providers: {
           PAYPAL: new FixtureProvider("PAYPAL", {
             [ref]: settledCredit("PAYPAL", ref, { state: "SUCCEEDED" }),
@@ -1001,29 +1132,91 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
       expect(await statusOf(id)).toBe("SUCCEEDED");
     });
 
-    it("changes nothing when the provider cannot be reached", async () => {
-      // "We could not check" is not "you have abandoned it".
+    it("records a provider-proven FAILURE rather than the customer's decision", async () => {
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
-      const { id } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+
+      const result = await abandonOne({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        confirmed: true,
+        providers: {
+          PAYPAL: new FixtureProvider("PAYPAL", {
+            [ref]: settledCredit("PAYPAL", ref, { state: "FAILED" }),
+          }),
+        } as never,
+      });
+
+      expect(result.outcome).toBe("PROVIDER_ANSWERED");
+      expect(await statusOf(id)).toBe("FAILED");
+    });
+
+    it("cannot be abandoned by another account", async () => {
+      const mine = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const theirs = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(theirs.owner.userId, "PAYPAL");
 
       await expect(
         abandonOne({
-          account: accountRef("PERSONAL", t.owner.userId),
+          account: accountRef("PERSONAL", mine.owner.userId),
           paymentId: id,
+          confirmed: true,
           providers: { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never,
         }),
-      ).rejects.toMatchObject({ publicCode: "PAYMENT_PROVIDER_UNAVAILABLE" });
+      ).rejects.toMatchObject({ publicCode: "PAYMENT_NOT_FOUND" });
 
       expect(await statusOf(id)).toBe("PENDING");
     });
 
-    it("still yields to a later proven settlement", async () => {
+    it("cannot abandon a payment that already settled", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(t.owner.userId, "PAYPAL", {
+        status: "SUCCEEDED",
+      });
+
+      const result = await abandonOne({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        confirmed: true,
+        providers: { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never,
+      });
+
+      expect(result.outcome).toBe("ALREADY_FINISHED");
+      expect(await statusOf(id)).toBe("SUCCEEDED");
+    });
+
+    it("lets a LATE provider success override an abandonment", async () => {
       /*
-       * ABANDONED is an INTENTION. If a capture that was in flight lands
-       * afterwards, the settlement is a fact and the intention is not — so a
-       * re-check moves the row to SUCCEEDED rather than protecting the note
-       * the customer left.
+       * ABANDONED is terminal for the customer's active view and no stronger.
+       * A capture that was in flight, or a webhook that arrived after we
+       * stopped asking, is a fact about money — and a fact outranks a view.
+       * The webhook path is the one that carries it, so this drives
+       * `recordPayment`, exactly as the PayPal handler does.
        */
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+      const account = accountRef("PERSONAL", t.owner.userId);
+      const providers = { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never;
+
+      await abandonOne({ account, paymentId: id, confirmed: true, providers });
+      expect(await statusOf(id)).toBe("ABANDONED");
+
+      const { recordPayment } = await import("../src/services/billing.service.js");
+      await recordPayment({
+        userId: t.owner.userId,
+        provider: "PAYPAL" as never,
+        providerPaymentId: ref,
+        amountCents: CREDIT_PRICE_CENTS,
+        currency: "USD",
+        status: "SUCCEEDED" as never,
+        teamId: null,
+        observedAtUtc: new Date("2026-09-01T00:00:00.000Z"),
+      });
+
+      expect(await statusOf(id)).toBe("SUCCEEDED");
+    });
+
+    it("a stale PENDING webhook cannot drag an abandoned row back", async () => {
       const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
       const { id, ref } = await seedPendingPayment(t.owner.userId, "PAYPAL");
       const account = accountRef("PERSONAL", t.owner.userId);
@@ -1031,32 +1224,71 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
       await abandonOne({
         account,
         paymentId: id,
-        providers: {
-          PAYPAL: new FixtureProvider("PAYPAL", {
-            [ref]: settledCredit("PAYPAL", ref, { state: "PENDING" }),
-          }),
-        } as never,
+        confirmed: true,
+        providers: { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never,
       });
-      expect(await statusOf(id)).toBe("ABANDONED");
 
-      const later = await recheck({
+      const { recordPayment } = await import("../src/services/billing.service.js");
+      await recordPayment({
+        userId: t.owner.userId,
+        provider: "PAYPAL" as never,
+        providerPaymentId: ref,
+        amountCents: CREDIT_PRICE_CENTS,
+        currency: "USD",
+        status: "PENDING" as never,
+        teamId: null,
+      });
+
+      // PENDING proves nothing, so it cannot reopen a row the customer closed.
+      expect(await statusOf(id)).toBe("ABANDONED");
+    });
+
+    it("a settled payment cannot be regressed by a later abandonment attempt", async () => {
+      // The other half of the same race: success first, then the customer's
+      // confirmation arriving from a page rendered before it.
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+      const account = accountRef("PERSONAL", t.owner.userId);
+
+      await prisma.payment.update({
+        where: { id },
+        data: { status: "SUCCEEDED" },
+      });
+
+      const late = await abandonOne({
         account,
         paymentId: id,
-        viewerMayCancel: true,
-        providers: {
-          PAYPAL: new FixtureProvider("PAYPAL", {
-            [ref]: settledCredit("PAYPAL", ref, { state: "SUCCEEDED" }),
-          }),
-        } as never,
+        confirmed: true,
+        providers: { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never,
       });
 
-      // A terminal row is not re-observed by `recheckPayment`, so the customer
-      // learns nothing new here — the WEBHOOK is what carries a late
-      // settlement, and `decidePaymentTransition` lets it through. That rule
-      // is proven in the unit suite; what matters here is that the row was not
-      // silently reopened.
-      expect(later.outcome).toBe("NO_CHANGE");
-      expect(await statusOf(id)).toBe("ABANDONED");
+      expect(late.outcome).toBe("ALREADY_FINISHED");
+      expect(await statusOf(id)).toBe("SUCCEEDED");
+    });
+
+    it("grants nothing when a payment is abandoned", async () => {
+      // Abandonment is a view, not a purchase: no credit, no entitlement, no
+      // add-on, no subscription may follow from it.
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+      const before = await creditsOf(t.owner.userId);
+
+      await abandonOne({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        confirmed: true,
+        providers: { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never,
+      });
+
+      expect(await creditsOf(t.owner.userId)).toBe(before);
+      expect(
+        await prisma.evidenceCreditLedgerEntry.count({
+          where: { userId: t.owner.userId, entryType: "PURCHASE" },
+        }),
+      ).toBe(0);
+      expect(await prisma.subscription.count({ where: { userId: t.owner.userId } })).toBe(
+        0,
+      );
     });
 
     it("leaves the payment alone when the provider cannot be reached", async () => {

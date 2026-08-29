@@ -1297,22 +1297,19 @@ html[dir="rtl"] .section {
   color: #6c787c;
 }
 
-.auth-premium .auth-social-btn[type="submit"] {
-  background: linear-gradient(
-    180deg,
-    rgba(62, 96, 99, 0.96) 0%,
-    rgba(24, 43, 48, 0.98) 100%
-  );
-  color: #eef3f1;
-  border: 1px solid rgba(79, 112, 107, 0.28);
-  box-shadow: 0 14px 28px rgba(20, 48, 52, 0.16);
-  transition: all 0.2s ease;
-}
-
-.auth-premium .auth-social-btn[type="submit"]:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 18px 34px rgba(20, 48, 52, 0.22);
-}
+/*
+ * The dark-green submit treatment that used to live here is DELETED.
+ *
+ * Its only consumers were "Sign in with Email" and "Create account with Email"
+ * — the only `type="submit"` buttons inside `.auth-premium` — and both are
+ * governed by `.auth-email-cta`, the one authority for the Auth CTA. While
+ * those two carried their colours inline, inline beat this rule and the coral
+ * showed; the moment they became a class, this (0,3,0) selector won and they
+ * turned green. Leaving it in place with a `:not()` would leave a rule nothing
+ * can reach.
+ *
+ * The NON-submit sibling below is untouched: it is what Apple and Google wear.
+ */
 
 .auth-premium .auth-social-btn:not([type="submit"]) {
   background: linear-gradient(

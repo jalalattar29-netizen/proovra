@@ -768,7 +768,7 @@ function LoginPageContent() {
                         <div
                           className="auth-divider"
                           style={{
-                            color: "#7A687D",
+                            color: "var(--text-muted, #5F6878)",
                           }}
                         >
                           {t("orDivider")}
@@ -776,7 +776,7 @@ function LoginPageContent() {
 
                         <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
                           <div className="auth-input-wrap">
-                            <span className="auth-input-icon" aria-hidden="true" style={{ color: "#7A687D" }}>
+                            <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--text-muted, #5F6878)" }}>
                               <EmailIcon />
                             </span>
                             <input
@@ -798,7 +798,7 @@ function LoginPageContent() {
 
                           <div style={{ display: "grid", gap: 6 }}>
                             <div className="auth-input-wrap">
-                              <span className="auth-input-icon" aria-hidden="true" style={{ color: "#7A687D" }}>
+                              <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--text-muted, #5F6878)" }}>
                                 <LockIcon />
                               </span>
                               <input
@@ -955,10 +955,10 @@ function LoginPageContent() {
                                 style={{
                                   background:
                                     verifyResendBusy || !email
-                                      ? "rgba(230,72,128,0.18)"
+                                      ? "var(--accent-050, #f2ecfe)"
                                       : "var(--btn-primary-bg)",
                                   color:
-                                    verifyResendBusy || !email ? "#7A687D" : "#ffffff",
+                                    verifyResendBusy || !email ? "var(--text-muted, #5F6878)" : "#ffffff",
                                   border: "1px solid var(--btn-primary-border)",
                                   boxShadow:
                                     verifyResendBusy || !email

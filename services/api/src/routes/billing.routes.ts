@@ -1369,9 +1369,27 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_CANCEL",
       });
 
+      /*
+       * The CONFIRMATION the customer gave, if this is the second request.
+       *
+       * BILLING PAYMENT LIFECYCLE (2026-08-30) — the first request answers
+       * ABANDON_CONFIRMATION_REQUIRED when the provider cannot be asked, and
+       * the surface then states exactly what abandoning does and does not
+       * mean. This flag is only ever consulted in that case: provider truth
+       * never needs a customer's permission to be recorded, and no value here
+       * can turn a settled payment into an abandoned one.
+       */
+      const body = z
+        .object({ confirmed: z.boolean().optional() })
+        .safeParse(req.body ?? {});
+      if (!body.success) {
+        return reply.code(400).send({ error: { code: "invalid_body" } });
+      }
+
       const result = await abandonPendingPayment({
         account,
         paymentId: params.data.paymentId,
+        confirmed: body.data.confirmed === true,
       });
 
       auditBillingAction(req, {
@@ -1382,6 +1400,16 @@ export async function billingRoutes(app: FastifyInstance) {
           accountType: account.type,
           result: result.outcome,
           status: result.status,
+          // WHICH act this was. A local abandonment and a provider
+          // cancellation are different things and must remain separately
+          // auditable; a confirmation-required answer changed nothing at all.
+          act:
+            result.outcome === "ABANDONED"
+              ? "LOCAL_ABANDONMENT"
+              : result.outcome === "ABANDON_CONFIRMATION_REQUIRED"
+                ? "CONFIRMATION_REQUESTED"
+                : "PROVIDER_TRUTH_RECORDED",
+          ...(result.providerFailure ? { providerFailure: result.providerFailure } : {}),
         },
       });
 

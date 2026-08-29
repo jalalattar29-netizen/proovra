@@ -683,6 +683,79 @@ test("the help link goes somewhere that can actually help", () => {
   assert.match(page, /"\/support"/);
 });
 
+test("the advertised abandon action is executable in the case it exists for", () => {
+  /*
+   * THE CONTRADICTION THIS CLOSES.
+   *
+   * The projection said `canAbandon: true`, the row offered "Abandon payment
+   * attempt", and the endpoint answered 503 whenever the provider could not be
+   * reached — which is the ONE case the action exists for. An advertised
+   * action that cannot complete in its own use case is worse than no action,
+   * because the customer keeps pressing it.
+   *
+   * The page now asks the server FIRST, and only shows the confirmation when
+   * the server itself says one is required. The decision is the server's; the
+   * page renders it.
+   */
+  const page = read(PAGE);
+
+  // The machine-readable outcome, not a sentence the browser has to parse.
+  assert.match(page, /ABANDON_CONFIRMATION_REQUIRED/);
+  // The second request carries the customer's answer.
+  assert.match(page, /abandonPayment\(selected, entry\.id, \{\s*\n?\s*confirmed: true,?\s*\n?\s*\}\)/);
+  // The confirmation is the mandate's exact question and options.
+  assert.match(page, /Abandon this payment attempt\?/);
+  assert.match(page, /confirmLabel: "Abandon local attempt"/);
+  assert.match(page, /cancelLabel: "Keep pending"/);
+  // Warning, not destruction: nothing is deleted and no money moves.
+  assert.match(page, /tone: "warning"/);
+});
+
+test("no Billing message claims what the provider did not prove", () => {
+  /*
+   * "Nothing has been charged" is a claim about MONEY. It is only ours to make
+   * where the provider proved it, or where no charge was ever attempted — and
+   * it was being said in a branch that had just admitted the provider could
+   * not be reached.
+   */
+  const page = read(PAGE);
+  const service = readRaw(
+    "../../../services/api/src/services/billing/pending-payments.service.ts",
+  );
+
+  for (const [name, src] of [
+    ["the page", page],
+    ["the payment service", stripComments(service)],
+  ] as const) {
+    assert.doesNotMatch(
+      src,
+      /nothing has been charged/i,
+      `${name} must not claim what the provider did not prove`,
+    );
+  }
+
+  // What it says instead is about what PROOVRA did, which is knowable.
+  assert.match(page, /unchanged in PROOVRA/);
+});
+
+test("a provider failure is told apart from an outage", () => {
+  // Three of the four ways a provider call fails are not outages, and "try
+  // again shortly" is the wrong advice for all three.
+  const page = read(PAGE);
+  for (const outcome of [
+    "PROVIDER_REFERENCE_NOT_FOUND",
+    "PROVIDER_REFERENCE_INVALID",
+    "PROVIDER_AUTHORIZATION_FAILED",
+  ]) {
+    assert.match(page, new RegExp(outcome), `the page must handle ${outcome}`);
+  }
+
+  // And each says something a customer can act on.
+  assert.match(page, /could not find this payment attempt/);
+  assert.match(page, /cannot be matched with your payment provider automatically/);
+  assert.match(page, /Our team has been notified/);
+});
+
 test("neither off-page link can take the session with it", () => {
   const raw = readRaw(PAGE);
 

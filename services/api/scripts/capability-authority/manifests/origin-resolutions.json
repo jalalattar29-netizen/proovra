@@ -93,70 +93,70 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:138",
+      "site": "services/api/src/services/paypal.service.ts:181",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:157",
+      "site": "services/api/src/services/paypal.service.ts:200",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:173",
+      "site": "services/api/src/services/paypal.service.ts:216",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/plans/:id.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:190",
+      "site": "services/api/src/services/paypal.service.ts:233",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal GET /v1/billing/subscriptions/:id.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:209",
+      "site": "services/api/src/services/paypal.service.ts:252",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v2/checkout/orders.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:250",
+      "site": "services/api/src/services/paypal.service.ts:293",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v1/billing/subscriptions (plan checkout).",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:303",
+      "site": "services/api/src/services/paypal.service.ts:346",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal POST /v1/billing/subscriptions for a RECURRING storage add-on. New in the billing commercial-correctness pass: the add-on used to create a one-time /v2/checkout/orders order, which granted capacity nothing ever expired. The path is PayPal's, not PROOVRA's.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:335",
+      "site": "services/api/src/services/paypal.service.ts:378",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal subscription cancel.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:366",
+      "site": "services/api/src/services/paypal.service.ts:409",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal webhook-signature verification API.",
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:397",
+      "site": "services/api/src/services/paypal.service.ts:440",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:36 — PayPal order capture.",
@@ -170,21 +170,21 @@
       "reviewedAtUtc": "2026-08-27"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:175",
+      "site": "services/api/src/services/stripe.service.ts:225",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:32",
+      "site": "services/api/src/services/stripe.service.ts:84",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts — Stripe's REST origin.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:54",
+      "site": "services/api/src/services/stripe.service.ts:105",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",

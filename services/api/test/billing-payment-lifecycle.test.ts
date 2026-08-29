@@ -229,10 +229,10 @@ describe("a payment the customer walked away from", () => {
 
   it("yields to money that actually moved", () => {
     /*
-     * ABANDONED records an INTENTION — "I am not going to finish this" — taken
-     * only after a reconciliation found no capture. A person can be overtaken
-     * by events: if the provider later proves the payment settled, the
-     * settlement is a fact and the intention is not.
+     * ABANDONED records a DECISION — "stop treating this as active" — taken
+     * when the provider could not prove anything. A person can be overtaken by
+     * events: if the provider later proves the payment settled, the settlement
+     * is a fact and the decision is a view.
      */
     expect(decide(S.ABANDONED, "SUCCEEDED")).toEqual({
       apply: true,
@@ -240,13 +240,42 @@ describe("a payment the customer walked away from", () => {
     });
   });
 
-  it("is not reopened by any other later provider answer", () => {
+  it("yields to EVERY proven provider terminal state, not only settlement", () => {
+    /*
+     * BILLING PAYMENT LIFECYCLE (2026-08-30) — this admitted SUCCEEDED alone,
+     * which left an abandoned row unable to record a provider-proven FAILURE.
+     * That is the same error in the other direction: the customer's view was
+     * being defended against the provider's own evidence. A payment PayPal
+     * later reports as declined is declined, whatever the customer decided
+     * about it while nobody could ask.
+     */
     for (const observed of ["FAILED", "CANCELED", "EXPIRED", "REFUNDED"] as ObservedState[]) {
       expect(decide(S.ABANDONED, observed)).toEqual({
-        apply: false,
-        reason: "TERMINAL_NOT_REGRESSED",
+        apply: true,
+        status: paymentStatusFromObservedState(observed),
       });
     }
+  });
+
+  it("is never dragged back into the customer's active view by a PENDING event", () => {
+    // PENDING proves nothing. A redelivered "still open" must not reopen a row
+    // the customer has closed — that is the loop abandonment exists to end.
+    expect(decide(S.ABANDONED, "PENDING")).toEqual({
+      apply: false,
+      reason: "TERMINAL_NOT_REGRESSED",
+    });
+  });
+
+  it("is not moved by an observation older than what is already recorded", () => {
+    // The ordering guard runs before the terminal rules, so a stale provider
+    // event cannot overwrite newer provider truth even where the state
+    // machine would otherwise allow the move.
+    expect(
+      decide(S.ABANDONED, "SUCCEEDED", {
+        currentObservedAtUtc: LATE,
+        observedAtUtc: EARLY,
+      }),
+    ).toEqual({ apply: false, reason: "OBSERVATION_IS_OLDER" });
   });
 
   it("is never something a provider can claim to have observed", () => {

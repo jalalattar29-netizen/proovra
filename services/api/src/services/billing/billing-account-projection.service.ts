@@ -1292,7 +1292,17 @@ export async function buildBillingAccountProjection(input: {
                 ? "Action required"
                 : "Attention needed",
             messages: bannerMessages,
-            reassurance: "Nothing has been charged again.",
+            /*
+             * BILLING PAYMENT LIFECYCLE (2026-08-30) — this said "Nothing has
+             * been charged again" in a banner whose CRITICAL case is an
+             * add-on that MAY STILL BE CHARGING. The comment three lines
+             * above says so in as many words, and the reassurance beneath it
+             * said the opposite. What is true in every branch is what WE have
+             * done, which is nothing further.
+             */
+            reassurance: dependentCancellation
+              ? "We are still working on this and will keep trying. Nothing further has been started from our side."
+              : "Nothing further has been charged from our side.",
           }
         : null,
     ...(wallet

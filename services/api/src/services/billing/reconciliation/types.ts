@@ -62,10 +62,32 @@ export type ObservedState =
 
 /** Why an observation could not be turned into a fact. Never shown raw. */
 export type ObservationFailure =
+  /** Unreachable: DNS, timeout, connection reset, or a provider 5xx. */
   | "PROVIDER_UNAVAILABLE"
+  /** The provider answered, and the answer was not the shape we asked about. */
   | "PROVIDER_MALFORMED"
+  /** The provider has never heard of this reference. */
   | "NOT_FOUND"
-  | "UNSUPPORTED_STATE";
+  /** A state this version does not model. */
+  | "UNSUPPORTED_STATE"
+  /**
+   * BILLING PAYMENT LIFECYCLE (2026-08-30) — the provider REFUSED US.
+   *
+   * A 401 or 403 is an operator problem — a rotated credential, a revoked
+   * app, the wrong environment — and it is not a fact about the customer's
+   * payment. It was reported as "unavailable", which told the customer to try
+   * again later when no amount of waiting could help and nothing was raised
+   * for the person who could fix it.
+   */
+  | "AUTHORIZATION_FAILED"
+  /**
+   * The stored reference cannot be asked about AT ALL.
+   *
+   * Blank, or a shape no provider endpoint accepts. A legacy row can carry
+   * one, and no provider call will ever resolve it — so re-checking for ever
+   * is not a remedy, and the surface has to say so.
+   */
+  | "REFERENCE_INVALID";
 
 /**
  * ONE provider payment, as observed.

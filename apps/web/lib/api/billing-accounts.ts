@@ -315,7 +315,18 @@ export type BillingHistoryEntry = {
 
 /** What the server learned when it asked the provider about one payment. */
 export type PaymentRecheckResult = {
-  outcome: "UPDATED" | "NO_CHANGE" | "PROVIDER_UNAVAILABLE";
+  /**
+   * Every failure used to be PROVIDER_UNAVAILABLE, which is a claim about the
+   * network. Three of these are not outages, and "try again shortly" is the
+   * wrong advice for all three.
+   */
+  outcome:
+    | "UPDATED"
+    | "NO_CHANGE"
+    | "PROVIDER_UNAVAILABLE"
+    | "PROVIDER_REFERENCE_NOT_FOUND"
+    | "PROVIDER_REFERENCE_INVALID"
+    | "PROVIDER_AUTHORIZATION_FAILED";
   status: string;
   /**
    * Where the customer can finish paying, when the provider still holds the
@@ -336,20 +347,43 @@ export type PaymentRecheckResult = {
  * captured — and claims nothing about the provider.
  */
 export type PaymentAbandonResult = {
-  outcome: "ABANDONED" | "ALREADY_ABANDONED" | "ALREADY_FINISHED" | "PROVIDER_ANSWERED";
+  outcome:
+    | "ABANDONED"
+    | "ALREADY_ABANDONED"
+    | "ALREADY_FINISHED"
+    | "PROVIDER_ANSWERED"
+    /**
+     * The provider could not be asked. The customer is told exactly what
+     * abandoning does and does not mean, and asked again.
+     *
+     * This replaces a 503: the projection advertised `canAbandon: true` while
+     * the endpoint could only refuse whenever the provider was unreachable —
+     * which is the one case the action exists for.
+     */
+    | "ABANDON_CONFIRMATION_REQUIRED";
   status: string;
   actions: { canRecheck: boolean; canCancel: boolean; canAbandon: boolean };
+  /** Present ONLY with ABANDON_CONFIRMATION_REQUIRED. Server-composed. */
+  warning?: string;
+  confirmation?: { canConfirmAbandon: true };
+  providerFailure?: string;
 };
 
 export async function abandonPayment(
   account: BillingAccountRef,
   paymentId: string,
+  options: { confirmed?: boolean } = {},
 ): Promise<PaymentAbandonResult> {
   return (await apiFetch(
     `/v1/billing/accounts/${account.type}/${encodeURIComponent(
       account.id,
     )}/payments/${encodeURIComponent(paymentId)}/abandon`,
-    { method: "POST", body: "{}" },
+    {
+      method: "POST",
+      // The confirmation is only ever CONSULTED where the provider proved
+      // nothing; it can never turn a settled payment into an abandoned one.
+      body: JSON.stringify({ confirmed: options.confirmed === true }),
+    },
   )) as PaymentAbandonResult;
 }
 

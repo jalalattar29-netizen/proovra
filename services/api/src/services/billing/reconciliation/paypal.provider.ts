@@ -20,9 +20,10 @@
 
 import * as prismaPkg from "@prisma/client";
 
-import { paypalGet } from "../../paypal.service.js";
+import { PayPalHttpError, paypalGet } from "../../paypal.service.js";
 import type {
   BillingReconciliationProvider,
+  ObservationFailure,
   ObservedState,
   PaymentObservation,
   SubscriptionObservation,
@@ -138,6 +139,68 @@ function approvalLink(order: Record<string, unknown>): string | null {
   return null;
 }
 
+/**
+ * WHY a PayPal call failed, in the vocabulary the domain reasons in.
+ *
+ * BILLING PAYMENT LIFECYCLE (2026-08-30) — every failure here used to be
+ * caught by a bare `catch {}` and reported as PROVIDER_UNAVAILABLE. Three of
+ * the four cases below are not outages, and telling a customer to try again
+ * later was wrong in all three:
+ *
+ *   * 401/403 is an OPERATOR problem — a rotated credential, the wrong
+ *     environment — and waiting cannot fix it.
+ *   * 404 means PayPal has never heard of this reference. Re-checking it for
+ *     ever will keep returning the same answer.
+ *   * 400/422 means we asked about something in a shape PayPal will not
+ *     accept, which is a reference problem, not a network one.
+ *
+ * A non-HTTP throw — DNS, timeout, connection reset — really is an outage and
+ * keeps the original classification.
+ */
+export function classifyPayPalFailure(err: unknown): ObservationFailure {
+  if (!(err instanceof PayPalHttpError)) return "PROVIDER_UNAVAILABLE";
+  if (err.status === 401 || err.status === 403) return "AUTHORIZATION_FAILED";
+  if (err.status === 404) return "NOT_FOUND";
+  if (err.status === 400 || err.status === 422) return "REFERENCE_INVALID";
+  if (err.status >= 500) return "PROVIDER_UNAVAILABLE";
+  return "PROVIDER_UNAVAILABLE";
+}
+
+/**
+ * SAFE diagnostics for one failed provider call.
+ *
+ * Everything an operator needs to find the call at PayPal, and nothing a log
+ * must never hold: no token, no secret, no header, no response body. PayPal's
+ * own error NAME (e.g. RESOURCE_NOT_FOUND) is a fixed vocabulary, not customer
+ * data, and its debug id is the correlation handle support asks for.
+ */
+export function payPalFailureDiagnostics(
+  err: unknown,
+  context: { operation: string; referenceKind: string },
+): Record<string, string | number | null> {
+  const http = err instanceof PayPalHttpError ? err : null;
+  return {
+    provider: "PAYPAL",
+    operation: context.operation,
+    referenceKind: context.referenceKind,
+    httpStatus: http?.status ?? null,
+    providerErrorName: http?.providerErrorName ?? null,
+    providerDebugId: http?.debugId ?? null,
+    failure: classifyPayPalFailure(err),
+  };
+}
+
+/**
+ * Can this reference be ASKED about at all?
+ *
+ * A blank or whitespace-only reference reaches no endpoint, and a legacy row
+ * can carry one. Calling PayPal with it produces a 404 that reads like "your
+ * payment does not exist" rather than "we never recorded where to look".
+ */
+export function isAskablePayPalReference(providerRef: string): boolean {
+  return providerRef.trim().length > 0;
+}
+
 function unknownPayment(
   providerRef: string,
   failure: PaymentObservation["failure"],
@@ -187,6 +250,13 @@ export class PayPalBillingReconciliationProvider
    * id rather than an order id, the capture endpoint answers directly.
    */
   async observePayment(providerRef: string): Promise<PaymentObservation> {
+    if (!isAskablePayPalReference(providerRef)) {
+      // No endpoint accepts this, so asking would produce a 404 that reads as
+      // "your payment does not exist" rather than "we never recorded where to
+      // look for it".
+      return unknownPayment(providerRef, "REFERENCE_INVALID");
+    }
+
     const capture = await this.tryCapture(providerRef);
     if (capture) return capture;
 
@@ -195,8 +265,8 @@ export class PayPalBillingReconciliationProvider
       body = await paypalGet(
         `/v2/checkout/orders/${encodeURIComponent(providerRef)}`,
       );
-    } catch {
-      return unknownPayment(providerRef, "PROVIDER_UNAVAILABLE");
+    } catch (err) {
+      return unknownPayment(providerRef, classifyPayPalFailure(err));
     }
 
     const order = asRecord(body);

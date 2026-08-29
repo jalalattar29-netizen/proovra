@@ -24,6 +24,58 @@ function must(name: string): string {
   return value;
 }
 
+/**
+ * A Stripe HTTP failure, with the facts a caller needs to CLASSIFY it.
+ *
+ * BILLING PAYMENT LIFECYCLE (2026-08-30) — the same correction as PayPal's.
+ * Every Stripe failure arrived as a bare `Error` carrying a sentence, so the
+ * observation adapter could only say "unavailable"; a 404 for a session Stripe
+ * has never heard of and a 401 from a rotated key are not outages, and telling
+ * a customer to wait was wrong in both.
+ *
+ * It still extends `Error` and still carries the same message, so every
+ * existing catch site behaves exactly as before. It does NOT carry the
+ * response body: a Stripe error payload echoes request parameters, and this
+ * object is logged.
+ */
+export class StripeHttpError extends Error {
+  readonly status: number;
+  /** Stripe's own error code, e.g. resource_missing. Never a payload. */
+  readonly providerErrorName: string | null;
+  /** Stripe's request id, for support to trace one call. */
+  readonly debugId: string | null;
+
+  constructor(init: {
+    message: string;
+    status: number;
+    providerErrorName: string | null;
+    debugId: string | null;
+  }) {
+    super(init.message);
+    this.name = "StripeHttpError";
+    this.status = init.status;
+    this.providerErrorName = init.providerErrorName;
+    this.debugId = init.debugId;
+  }
+}
+
+async function throwStripeError(res: Response): Promise<never> {
+  const text = await res.text();
+  let providerErrorName: string | null = null;
+  try {
+    const parsed = JSON.parse(text) as { error?: { code?: string; type?: string } };
+    providerErrorName = parsed.error?.code ?? parsed.error?.type ?? null;
+  } catch {
+    // keep the raw text in the message, as before
+  }
+  throw new StripeHttpError({
+    message: `Stripe error: ${text}`,
+    status: res.status,
+    providerErrorName,
+    debugId: res.headers.get("request-id"),
+  });
+}
+
 export function stripeApiBase() {
   return "https://api.stripe.com/v1";
 }
@@ -39,8 +91,7 @@ export async function stripeRequest(path: string, body: URLSearchParams) {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Stripe error: ${text}`);
+    await throwStripeError(res);
   }
 
   return (await res.json()) as Record<string, unknown>;
@@ -61,8 +112,7 @@ export async function stripeRequestRaw(
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Stripe error: ${text}`);
+    await throwStripeError(res);
   }
 
   return (await res.json()) as Record<string, unknown>;
@@ -180,8 +230,7 @@ export async function stripeGet(path: string) {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Stripe error: ${text}`);
+    await throwStripeError(res);
   }
 
   return (await res.json()) as Record<string, unknown>;

@@ -173,6 +173,21 @@ test("exactly two buttons wear the Auth CTA, and they carry no colour of their o
     );
   }
 
+  // And NOTHING with higher specificity may repaint them. The dark-green
+  //`.auth-premium .auth-social-btn[type="submit"]` rule was (0,3,0) against the
+  // CTA class's (0,1,0): while the colours were inline they won anyway, and
+  // the moment they became a class the buttons turned green. Its only two
+  // consumers were these buttons, so it is gone rather than worked around.
+  assert.ok(
+    !GLOBALS.includes('.auth-premium .auth-social-btn[type="submit"]'),
+    "a higher-specificity submit rule must not repaint the Auth CTA",
+  );
+  // The NON-submit sibling stays: it is what Apple and Google wear.
+  assert.ok(
+    GLOBALS.includes('.auth-premium .auth-social-btn:not([type="submit"])'),
+    "the non-submit auth button treatment must survive",
+  );
+
   // Nothing else in the app wears it.
   const consumers = [LOGIN, REGISTER].filter((src) =>
     src.includes("auth-email-cta"),

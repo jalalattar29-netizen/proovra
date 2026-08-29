@@ -739,6 +739,28 @@ export const COUNTER_NAMES = [
   // Canonical transport client — one pair for every converged api producer.
   "canonical_enqueue_total",
   "canonical_enqueue_failed_total",
+  /*
+   * BILLING PAYMENT LIFECYCLE (2026-08-30) — one counter per PROVIDER FAILURE
+   * KIND, because they are four different problems with four different
+   * remedies and a single "provider errors" number hides which one is
+   * happening:
+   *
+   *   unavailable        — an outage. Wait, and it resolves itself.
+   *   reference_not_found— the provider never heard of what we stored. Waiting
+   *                        cannot help; the customer needs the local exit.
+   *   reference_invalid  — a stored reference no endpoint accepts, typically a
+   *                        legacy row. Also unwaitable.
+   *   authorization      — the provider refused US. An operator problem, and
+   *                        the one that also opens an incident.
+   */
+  "billing_provider_unavailable_total",
+  "billing_provider_reference_not_found_total",
+  "billing_provider_reference_invalid_total",
+  "billing_provider_authorization_failed_total",
+  /** A customer removed an unresolved attempt from their active Billing view. */
+  "billing_payment_abandoned_total",
+  /** Provider proof arrived after a local abandonment and overrode it. */
+  "billing_payment_abandoned_superseded_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

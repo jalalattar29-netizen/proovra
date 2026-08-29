@@ -447,9 +447,39 @@ function BillingPageInner() {
             void loadHistory(selected);
             refresh();
             break;
+          /*
+           * WHY it failed decides what a customer should do about it, and
+           * three of these four are not outages. Telling someone to try again
+           * shortly when the provider has never heard of the reference, or
+           * when it is refusing our credentials, sends them round a loop that
+           * has no exit — which is the loop the abandon action exists to
+           * break, and it is named here.
+           */
           case "PROVIDER_UNAVAILABLE":
             addToast(
-              "We could not reach your payment provider just now. Nothing has changed — please try again shortly.",
+              "We couldn't verify this payment with your payment provider. Its status is still pending and nothing was changed in PROOVRA.",
+              "error",
+            );
+            break;
+          case "PROVIDER_REFERENCE_NOT_FOUND":
+            addToast(
+              "Your payment provider could not find this payment attempt. It stays pending in PROOVRA until you re-check it or abandon the local attempt.",
+              "info",
+            );
+            break;
+          case "PROVIDER_REFERENCE_INVALID":
+            addToast(
+              "This older payment attempt cannot be matched with your payment provider automatically. You can remove it from your active Billing view.",
+              "info",
+            );
+            break;
+          case "PROVIDER_AUTHORIZATION_FAILED":
+            // An operator problem, not the customer's — and not one more
+            // pressing of this button can fix. Support has been signalled by
+            // the server; the customer is told plainly that waiting is not the
+            // remedy.
+            addToast(
+              "We could not verify this payment because our connection to the payment provider needs attention. Our team has been notified. Nothing was changed in PROOVRA.",
               "error",
             );
             break;
@@ -482,7 +512,11 @@ function BillingPageInner() {
       const ok = await confirm({
         title: "Stop this payment?",
         description:
-          "We will ask your payment provider to close it. Nothing has been charged for it, and nothing will be. The record stays in your billing history.",
+          // A provider CANCELLATION only reaches this dialog when the
+          // provider really supports one, and it only succeeds on an
+          // unsettled payment — so "nothing was taken" is a precondition the
+          // server enforces, not a guess.
+          "We will ask your payment provider to close it. It has not been paid, so nothing is being reversed. The record stays in your billing history.",
         confirmLabel: "Stop payment",
         cancelLabel: "Leave it open",
         tone: "danger",
@@ -509,7 +543,7 @@ function BillingPageInner() {
         captureException(err, { feature: "billing_payment_cancel" });
         const safe = toSafeUserError(err, {
           message:
-            "We could not reach your payment provider. This payment is unchanged and nothing has been charged.",
+            "We could not reach your payment provider, so this payment is unchanged in PROOVRA.",
         });
         addToast(safe.message, "error");
       } finally {
@@ -519,55 +553,110 @@ function BillingPageInner() {
     [selected, paymentBusyId, confirm, addToast, loadHistory],
   );
 
+  /**
+   * What the customer is told about an abandonment, by OUTCOME.
+   *
+   * Never "nothing has been charged": where the provider could not be asked,
+   * that is a claim about money made from ignorance. What is always true is
+   * what PROOVRA did.
+   */
+  const announceAbandonOutcome = useCallback(
+    (outcome: string) => {
+      switch (outcome) {
+        case "ABANDONED":
+        case "ALREADY_ABANDONED":
+          addToast(
+            "This payment attempt was removed from your active Billing view. Nothing was canceled or changed at your payment provider.",
+            "success",
+          );
+          break;
+        case "PROVIDER_ANSWERED":
+          addToast(
+            "Your payment provider told us what actually happened to this payment, so we recorded that instead.",
+            "info",
+          );
+          break;
+        case "ALREADY_FINISHED":
+          addToast("This payment had already finished. Nothing was changed.", "info");
+          break;
+        default:
+          addToast("This payment attempt is unchanged.", "info");
+      }
+    },
+    [addToast],
+  );
+
+
+  /**
+   * Give up on an attempt the provider cannot be asked to stop.
+   *
+   * TWO STEPS, and the second one only when the server asks for it.
+   *
+   * The first request lets the SERVER reconcile: if the provider proves the
+   * payment settled, failed, was cancelled or expired, that truth is recorded
+   * and the customer is told what actually happened. Only when the provider
+   * cannot be asked at all does the server answer
+   * ABANDON_CONFIRMATION_REQUIRED — and then the customer is shown exactly
+   * what abandoning does and does not mean before they decide.
+   *
+   * What this replaces: one dialog that promised "no completed charge is
+   * reversed, because there is none" before anyone had asked the provider,
+   * followed by a 503 whenever the provider was unreachable — which is the one
+   * case the action exists for.
+   */
   const handleAbandonPayment = useCallback(
     async (entry: BillingHistoryEntry) => {
       if (!selected || paymentBusyId) return;
 
-      const ok = await confirm({
-        title: "Give up on this payment?",
-        description:
-          "We will check with your payment provider first. If nothing has been taken, we will stop offering to finish this checkout and mark it as abandoned. No completed charge is reversed, because there is none — and the record stays in your billing history.",
-        confirmLabel: "Abandon payment attempt",
-        cancelLabel: "Leave it open",
-        // Not destructive: nothing is deleted and no money moves. It is a
-        // decision, and dressing it in red would be telling the customer
-        // something untrue to discourage a legitimate choice.
-        tone: "warning",
-        testId: "billing-abandon-payment",
-      });
-      if (!ok) return;
-
       setPaymentBusyId(entry.id);
       try {
-        const result = await abandonPayment(selected, entry.id);
-        setResumeUrls((current) => {
-          const next = { ...current };
-          delete next[entry.id];
-          return next;
-        });
-        addToast(
-          result.outcome === "PROVIDER_ANSWERED"
-            ? "Your provider told us what actually happened to this payment, so we recorded that instead."
-            : result.outcome === "ALREADY_FINISHED"
-              ? "This payment had already finished. Nothing was changed."
-              : "We will not offer to finish this checkout again. Nothing was charged.",
-          result.outcome === "ABANDONED" || result.outcome === "ALREADY_ABANDONED"
-            ? "success"
-            : "info",
-        );
+        const first = await abandonPayment(selected, entry.id);
+
+        if (first.outcome === "ABANDON_CONFIRMATION_REQUIRED") {
+          // The server could not get an answer. Ask the customer the honest
+          // question, with the server's own wording for what it could not
+          // verify.
+          const ok = await confirm({
+            title: "Abandon this payment attempt?",
+            description:
+              (first.warning ??
+                "Your payment provider could not be reached. This will remove the attempt from your active Billing view only.") +
+              " If your provider later confirms a completed payment, PROOVRA will record it.",
+            confirmLabel: "Abandon local attempt",
+            cancelLabel: "Keep pending",
+            // A warning, not a destruction: nothing is deleted and no money
+            // moves. Red would be telling the customer something untrue to
+            // discourage a legitimate choice.
+            tone: "warning",
+            testId: "billing-abandon-payment",
+          });
+          if (!ok) {
+            setPaymentBusyId(null);
+            return;
+          }
+
+          const confirmed = await abandonPayment(selected, entry.id, {
+            confirmed: true,
+          });
+          announceAbandonOutcome(confirmed.outcome);
+          void loadHistory(selected);
+          return;
+        }
+
+        announceAbandonOutcome(first.outcome);
         void loadHistory(selected);
       } catch (err) {
         captureException(err, { feature: "billing_payment_abandon" });
         const safe = toSafeUserError(err, {
           message:
-            "We could not check this payment with your payment provider, so nothing has changed and nothing has been charged.",
+            "We could not complete that just now. This payment attempt is unchanged in PROOVRA.",
         });
         addToast(safe.message, "error");
       } finally {
         setPaymentBusyId(null);
       }
     },
-    [selected, paymentBusyId, confirm, addToast, loadHistory],
+    [selected, paymentBusyId, confirm, addToast, loadHistory, announceAbandonOutcome],
   );
 
   /**
@@ -598,7 +687,7 @@ function BillingPageInner() {
           break;
         case "ACTION_REQUIRED":
           addToast(
-            "Something on this account needs our help. Please contact support — nothing has been charged again.",
+            "Something on this account needs our help. Please contact support.",
             "error",
           );
           break;

@@ -192,18 +192,26 @@ export function decidePaymentTransition(
     }
 
     /*
-     * ABANDONED yields to money that actually moved.
+     * ABANDONED yields to ANY provider truth.
      *
-     * It records the CUSTOMER's intention not to finish a checkout, taken only
-     * after a reconciliation found no capture and no authorization. That is a
-     * statement about a person, and a person can be overtaken by events: if
-     * the provider later proves the payment settled — a capture that was in
-     * flight, a webhook that arrived late — the settlement is a fact and the
-     * intention is not. Anything OTHER than settlement leaves it alone, so a
-     * later PENDING or FAILED cannot reopen a row the customer has walked away
-     * from.
+     * It records the CUSTOMER's decision to stop treating an unresolved
+     * attempt as active — a statement about this product's view, taken when
+     * the provider could not prove anything. A person can be overtaken by
+     * events: a capture that was in flight, a webhook that arrived late, a
+     * decline that was recorded after we stopped asking. Every one of those is
+     * a FACT about money, and a fact outranks a view.
+     *
+     * BILLING PAYMENT LIFECYCLE (2026-08-30) — this used to admit SUCCEEDED
+     * alone, which left an abandoned row unable to record a provider-proven
+     * FAILURE. That is the same error in the other direction: the customer's
+     * view was being defended against the provider's evidence.
+     *
+     * PENDING is deliberately excluded and always will be: it is not proof of
+     * anything, and a redelivered "still open" event must not drag a row the
+     * customer has closed back into their active view. The ordering guard
+     * above has already discarded anything older than what is recorded.
      */
-    if (input.current === S.ABANDONED && next === S.SUCCEEDED) {
+    if (input.current === S.ABANDONED && next !== S.PENDING) {
       return { apply: true, status: next };
     }
 
