@@ -306,8 +306,13 @@ describe("Phase IA-self-serve-audit-fixes — Cases List terminology", () => {
     expect(CASES).not.toMatch(/Operations Queue/);
     expect(CASES).not.toMatch(/Your \{terms\.casePlural\.toLowerCase\(\)\}/);
     expect(CASES).not.toMatch(/data-cases-kicker/);
+    /*
+     * A SPAN, not an <h1>. It renders inside `PageHeader`'s own <h1>, so a
+     * heading here produced <h1><h1>Cases</h1></h1> — invalid HTML and a React
+     * DOM-nesting error on every load. Class and probe attribute unchanged.
+     */
     expect(CASES).toMatch(
-      /<h1 className="cc-title" data-cases-title>\s*\n?\s*Cases\s*\n?\s*<\/h1>/,
+      /<span className="cc-title" data-cases-title>\s*\n?\s*Cases\s*\n?\s*<\/span>/,
     );
   });
 

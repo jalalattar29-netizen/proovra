@@ -337,7 +337,16 @@ export function CasesIndex() {
                  plain-language title + a one-line description of the
                  concept. The pinned cc-title / cc-subtitle nodes are
                  retained inside the premium PageHeader hero. */
-              <div className="cases-page-heading app-title-row">
+              /* PHRASING CONTENT ONLY — this renders inside `PageHeader`'s own
+                 <h1>, whose content model is phrasing content. A <div> here is
+                 invalid inside a heading, and the <h1> that used to sit below
+                 produced <h1><h1>Cases</h1></h1>: two page-level headings and a
+                 React DOM-nesting error on every load of /cases.
+
+                 The same shape /notifications already uses — see the comment in
+                 `app/(app)/inbox/page.tsx`, which names this page as the one
+                 still nesting its own. */
+              <span className="cases-page-heading app-title-row">
                 {/* §9 — premium enterprise case/workspace icon surface (no
                     emoji, no cartoon fill, no neon blob). FolderKanban glyph
                     drawn inline (no new icon library).
@@ -363,12 +372,12 @@ export function CasesIndex() {
                 </span>
                 {/* §8 — stronger internal page-title hierarchy (still not a
                     marketing hero). Sizing lives in CSS
-                    (`.cases-page-heading .cc-title`) so the pinned h1 tag
-                    shape stays clean. */}
-                <h1 className="cc-title" data-cases-title>
+                    (`.cases-page-heading .cc-title`) so the pinned title node
+                    stays a plain tag. */}
+                <span className="cc-title" data-cases-title>
                   Cases
-                </h1>
-              </div>
+                </span>
+              </span>
             }
             subtitle={
               // INLINE element: PageHeader already wraps `subtitle` in its own

@@ -42,6 +42,28 @@ import React from "react";
 // ---------------------------------------------------------------------------
 
 export interface PageHeaderProps {
+  /**
+   * The page title.
+   *
+   * CONTRACT — PHRASING CONTENT ONLY, AND NEVER A HEADING. `PageHeader`
+   * renders this inside its own `<h1>` (see below), which is the page's single
+   * level-1 heading. Callers pass a string, a fragment, or inline elements
+   * (`<span>`, `<strong>`…).
+   *
+   * Passing a heading produces `<h1><h1>…</h1></h1>`: invalid HTML, a React
+   * `validateDOMNesting` error logged on every load, and two page-level
+   * headings for anyone navigating by heading. Passing a block element such as
+   * `<div>` is invalid for the same reason a `<div>` cannot sit in any heading
+   * — `<h1>`'s content model is phrasing content.
+   *
+   * A page that wants an icon beside its title composes it as a `<span>` row —
+   * see `.app-title-row` and how `/notifications` and `/cases` use it — rather
+   * than reaching for a second heading to hang the styling on.
+   *
+   * Stated here because the omission was the defect: `subtitle` carried this
+   * warning and `title` did not, and two pages independently nested a heading
+   * in it before a repository-wide audit found them.
+   */
   title: React.ReactNode;
   /** Small uppercase kicker above the title. */
   eyebrow?: React.ReactNode;

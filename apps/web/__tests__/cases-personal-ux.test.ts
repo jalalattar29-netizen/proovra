@@ -54,11 +54,23 @@ const MATTER_QUEUE_SVC = src("services/api/src/services/cases/matter-queue.servi
 // ===========================================================================
 
 test("Header renders a single 'Cases' title — kicker duplicate is gone", () => {
-  // h1 must say exactly "Cases".
+  /*
+   * The title must say exactly "Cases", and must NOT be its own heading.
+   *
+   * This pinned `<h1 className="cc-title" data-cases-title>`, which was the
+   * defect: the node renders inside `PageHeader`'s own <h1>, so the page
+   * emitted <h1><h1>Cases</h1></h1> — invalid HTML, a React DOM-nesting error
+   * on every load, and two page-level headings for anyone navigating by
+   * heading. The class and the probe attribute are unchanged; only the tag is.
+   */
   assert.match(
     CASES_PAGE,
-    /<h1 className="cc-title" data-cases-title>\s*\n?\s*Cases\s*\n?\s*<\/h1>/,
+    /<span className="cc-title" data-cases-title>\s*\n?\s*Cases\s*\n?\s*<\/span>/,
   );
+  // And the probe attribute is never carried by a heading tag. Scoped to the
+  // opening tag itself — a wider window would match any <h1> anywhere earlier
+  // in the file and report a defect that is not there.
+  assert.doesNotMatch(CASES_PAGE, /<h[1-6][^>]*data-cases-title/);
   // The old kicker that repeated `Your {casePlural}` must not be
   // present anywhere in the file.
   assert.doesNotMatch(CASES_PAGE, /data-cases-kicker/);
