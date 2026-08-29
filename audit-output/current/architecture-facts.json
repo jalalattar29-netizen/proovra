@@ -544,12 +544,6 @@
     "staleNextCommands": 0,
     "duplicateActiveStateSections": 0,
     "scalarsChecked": 49,
-    "violations": [
-      "SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1113, facts say 1115",
-      "SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1114, facts say 1116",
-      "SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1244, facts say 1248",
-      "SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1124, facts say 1128",
-      "SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 886, facts say 888"
-    ]
+    "violations": []
   }
 }

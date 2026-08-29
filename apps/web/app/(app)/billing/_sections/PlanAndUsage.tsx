@@ -438,9 +438,18 @@ export function UsageAndLimits({
    * Absent for a rolling-window plan (TEAM) and for a contract-managed
    * Organization, which `describeMeter` already describes correctly.
    */
-  const upgradeOffer = projection.planOffers?.find(
-    (o) => o.planKey === "PRO" || o.planKey === "TEAM",
-  );
+  /*
+   * The FIRST offer the server listed, and no filter of our own.
+   *
+   * The predicate this replaces — planKey === "PRO" || planKey === "TEAM" —
+   * was a plan-name comparison made in the browser, which is the thing this
+   * repository measures and forbids: a client that branches on a plan name is
+   * a client making a commercial decision with the two facts it happens to
+   * have. It also selected nothing, because `planOffers` only ever holds those
+   * two. The server builds the list in ladder order; taking its head takes its
+   * answer.
+   */
+  const upgradeOffer = projection.planOffers?.[0];
   const admission = projection.evidenceAdmission
     ? describeEvidenceAdmission(projection.evidenceAdmission, {
         canBuyCredits: projection.actions.canBuyEvidenceCredits === true,

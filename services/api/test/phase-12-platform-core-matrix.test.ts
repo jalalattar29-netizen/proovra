@@ -188,6 +188,33 @@ vi.mock("../src/db.js", () => ({
         return H.payments;
       },
     },
+    /*
+     * BILLING SURFACE CORRECTION (2026-08-29) — the history projection now
+     * resolves WHAT each payment bought.
+     *
+     * Every row used to read "Personal account", which named the payer rather
+     * than the purchase, so a plan, a credit and a storage add-on were
+     * indistinguishable in a customer's own history. The description now comes
+     * from the durable rows that record the purchase — the credit ledger
+     * entry, the storage add-on, the subscription bound to that provider
+     * reference — batched into three reads for the whole page.
+     *
+     * This double must therefore answer those reads. A double that models
+     * only some of the queries its subject makes is not a double: the
+     * unmodelled call reaches whatever is really there, and here it made the
+     * route answer 500 rather than fail with anything a reader could act on.
+     *
+     * Empty is the honest answer for this harness: its fixture payment has no
+     * credit ledger entry and no add-on, so the description falls through to
+     * what the row itself can say.
+     */
+    evidenceCreditLedgerEntry: {
+      findMany: async () => {
+        H.reads.push("evidenceCreditLedgerEntry.findMany");
+        return [];
+      },
+      findFirst: async () => null,
+    },
     team: {
       findUnique: async (args: { where: { id: string } }) => {
         const owner = H.teamOwner.get(args.where.id);
@@ -277,6 +304,40 @@ vi.mock(
         discrepancies: 0,
       };
     },
+    /*
+     * BILLING SURFACE CORRECTION (2026-08-29) — the history projection asks
+     * which actions each payment row may offer, and that answer depends on
+     * what the PROVIDER supports rather than on the row's status alone: Stripe
+     * can expire an open Checkout Session, PayPal has no cancellation for an
+     * unapproved order. It resolves the adapters through this factory.
+     *
+     * BOTH adapters are declared here, and NEITHER implements `cancelPayment`
+     * — which is what makes this double honest about the thing the harness
+     * actually asserts. Constructing one opens nothing and reads no
+     * credential; `observePayment` throws because nothing in this harness may
+     * reach a provider, and a test that started to should fail loudly rather
+     * than quietly receive a plausible answer.
+     */
+    defaultReconciliationProviders: () => ({
+      STRIPE: {
+        provider: "STRIPE",
+        observePayment: async () => {
+          throw new Error("no provider may be reached from this harness");
+        },
+        observeSubscription: async () => {
+          throw new Error("no provider may be reached from this harness");
+        },
+      },
+      PAYPAL: {
+        provider: "PAYPAL",
+        observePayment: async () => {
+          throw new Error("no provider may be reached from this harness");
+        },
+        observeSubscription: async () => {
+          throw new Error("no provider may be reached from this harness");
+        },
+      },
+    }),
   }),
 );
 
@@ -307,6 +368,12 @@ vi.mock("../src/services/billing.service.js", () => ({
     priceCents: 100,
     currency: "USD",
   }),
+  // BILLING SURFACE CORRECTION (2026-08-29) — the history projection labels a
+  // storage-add-on payment with the add-on catalogue. Empty is the honest
+  // answer here: this harness seeds one plain payment and no add-on, so the
+  // describer finds no add-on bound to it and falls through to what the row
+  // itself can say.
+  listStorageAddonDefinitions: () => [],
 }));
 
 vi.mock("../src/services/billing/commercial-context.service.js", () => ({
@@ -323,8 +390,41 @@ vi.mock("../src/services/identity/identity-mode.service.js", () => ({
   },
 }));
 
-vi.mock("../src/services/paypal.service.js", () => ({ cancelPayPalSubscription: async () => {} }));
-vi.mock("../src/services/stripe.service.js", () => ({ stripeRequestRaw: async () => ({}) }));
+/*
+ * BILLING SURFACE CORRECTION (2026-08-29) — these two doubles now export the
+ * READS as well as the writes.
+ *
+ * The history projection asks what actions each payment row may offer, and the
+ * answer depends on what the PROVIDER can actually do — Stripe can expire an
+ * open Checkout Session, PayPal has no cancellation for an unapproved order —
+ * so the observation adapters are on the import path. They take `stripeGet`,
+ * `stripeRequestRaw` and `paypalGet` as named imports, and the recurring
+ * add-on canceller takes `stripeRequest`.
+ *
+ * A module double that omits a named export its subject imports does not fail
+ * where the omission is: the module fails to evaluate, and the route answers
+ * 500 with nothing a reader can act on. So each double lists every export the
+ * chain names, and the READS throw rather than returning a plausible shape —
+ * nothing in this harness may reach a provider, and a test that started to
+ * should fail loudly instead of quietly receiving `{}`.
+ *
+ * The throwing functions are written inline: a `vi.mock` factory is hoisted
+ * above every top-level binding in this file, so a shared helper declared here
+ * would be undefined by the time the factory runs.
+ */
+vi.mock("../src/services/paypal.service.js", () => ({
+  cancelPayPalSubscription: async () => {},
+  paypalGet: async () => {
+    throw new Error("paypalGet must not be reached from this harness");
+  },
+}));
+vi.mock("../src/services/stripe.service.js", () => ({
+  stripeRequest: async () => ({}),
+  stripeRequestRaw: async () => ({}),
+  stripeGet: async () => {
+    throw new Error("stripeGet must not be reached from this harness");
+  },
+}));
 vi.mock("../src/services/billing-checkout.service.js", () => ({
   createStripeCheckoutSession: async () => ({ session: { id: "cs_1" }, mode: "subscription", amountCents: 0, currency: "USD" }),
   createPayPalCheckout: async () => ({ order: { id: "o_1" }, mode: "order", amountCents: 0, currency: "USD" }),
@@ -580,8 +680,17 @@ describe("PLATFORM_CORE §1 — billing entitlement + payment ledger", () => {
     const item = JSON.parse(res.body).items[0];
     // An EXPLICITLY constructed DTO. The provider's own payment id is gone too:
     // it is an operator-facing identifier, not something a customer needs.
+    //
+    // BILLING SURFACE CORRECTION (2026-08-29) — `actions` joins the list. It
+    // is two server-decided booleans (`canRecheck`, `canCancel`) and carries
+    // nothing from the row: whether a payment can be stopped depends on what
+    // the provider actually supports and on the viewer's own capability, and a
+    // page that worked it out from the status string would offer PayPal
+    // customers a button that could only ever lie to them. The allowlist stays
+    // EXACT — that is what keeps `secretInternalColumn` out.
     expect(Object.keys(item).sort()).toEqual(
       [
+        "actions",
         "amountCents",
         "currency",
         "description",
