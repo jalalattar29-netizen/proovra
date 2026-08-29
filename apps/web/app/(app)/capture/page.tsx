@@ -754,7 +754,17 @@ onClick={async () => {
           </div>
         ) : null}
 
-        <section className="capture-enterprise-top">
+
+        {/* ONE STEPPER, NOT TWO (2026-08-27).
+            A page-local four-step list — Intake method / Requirements /
+            Evidence capture / Review & Sign — rendered here, directly above
+            the canonical five-stage `CaptureIntakeRail` further up. Two
+            trackers with different models gave one page two answers to "where
+            am I", and only the rail derives its state from the session.
+            The rail is the orientation; this list is gone. */}
+        <section className="capture-enterprise-grid">
+          <main className="capture-enterprise-card capture-main-panel">
+        <section className="capture-hero">
           {/* Phase IA-self-serve-completion — "Evidence intake
               workspace" replaced with "Capture & upload" so the
               eyebrow matches how lawyers / journalists describe
@@ -788,16 +798,6 @@ onClick={async () => {
               session state, no admissibility claim. */}
           <CaptureTrustStrip />
         </section>
-
-        {/* ONE STEPPER, NOT TWO (2026-08-27).
-            A page-local four-step list — Intake method / Requirements /
-            Evidence capture / Review & Sign — rendered here, directly above
-            the canonical five-stage `CaptureIntakeRail` further up. Two
-            trackers with different models gave one page two answers to "where
-            am I", and only the rail derives its state from the session.
-            The rail is the orientation; this list is gone. */}
-        <section className="capture-enterprise-grid">
-          <main className="capture-enterprise-card capture-main-panel">
 <section className="capture-setup-strip">
 <div className="capture-setup-copy">
   <div className="capture-section-label">Collection setup</div>
@@ -1338,30 +1338,6 @@ onClick={async () => {
                 </div>
               </div>
             ) : null}
-          </main>
-
-          <CaptureSessionPanel
-            busy={busy}
-            error={error}
-            locationPermissionDenied={locationPermissionDenied}
-            sessionItems={sessionItems}
-            sessionCountLabel={sessionCountLabel}
-            currentSessionId={currentSessionId}
-            selectedCollectionPlan={selectedCollectionPlan}
-            totalStagedBytes={totalStagedBytes}
-            internalNotes={internalNotes}
-            setInternalNotes={setInternalNotes}
-            aiPanelOpen={aiPanelOpen}
-            setAiPanelOpen={setAiPanelOpen}
-            captureAiSummary={captureAiSummary}
-            sessionReadiness={sessionReadiness}
-            useLocation={useLocation}
-            planMode={planMode}
-            requiredProgressPercent={requiredProgressPercent}
-            formatFileSize={formatFileSize}
-          />
-        </section>
-
         {/* Phase 38.18 — integrated operational summary band. Sits
             directly above the finalize bar so the operator sees
             "where am I + what's the next concrete action" without
@@ -1385,6 +1361,31 @@ onClick={async () => {
           onReset={() => setClearConfirmOpen(true)}
           onFinalize={finalizeSession}
         />
+          </main>
+
+          <CaptureSessionPanel
+            busy={busy}
+            error={error}
+            locationPermissionDenied={locationPermissionDenied}
+            sessionItems={sessionItems}
+            sessionCountLabel={sessionCountLabel}
+            sessionStatus={sessionStatus}
+            currentSessionId={currentSessionId}
+            selectedCollectionPlan={selectedCollectionPlan}
+            totalStagedBytes={totalStagedBytes}
+            internalNotes={internalNotes}
+            setInternalNotes={setInternalNotes}
+            aiPanelOpen={aiPanelOpen}
+            setAiPanelOpen={setAiPanelOpen}
+            captureAiSummary={captureAiSummary}
+            sessionReadiness={sessionReadiness}
+            useLocation={useLocation}
+            planMode={planMode}
+            requiredProgressPercent={requiredProgressPercent}
+            formatFileSize={formatFileSize}
+          />
+        </section>
+
       </div>
 
       {clearConfirmOpen ? (

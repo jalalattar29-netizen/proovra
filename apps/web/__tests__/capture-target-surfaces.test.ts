@@ -244,7 +244,6 @@ test("the dead capture-only CSS is gone, and its live groupmates survived", () =
   // styled — the deletion split the groups rather than dropping them whole.
   for (const live of [
     "capture-requirement-index",
-    "capture-enterprise-top",
     "capture-enterprise-title-card",
     "capture-setup-strip",
     "capture-materials-board",

@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleDot, LockKeyhole, ShieldCheck } from "lucide-react";
+import { CheckCircle2, CircleDot, LockKeyhole, ShieldCheck } from "lucide-react";
 
 import { CaptureAiAssistant } from "../ai/CaptureAiAssistant";
 import type { CollectionPlanTemplate, SessionItem } from "../../app/(app)/capture/_lib/types";
@@ -21,6 +21,8 @@ type Props = {
   locationPermissionDenied: boolean;
   sessionItems: SessionItem[];
   sessionCountLabel: string;
+  /** The draft/save line, already computed by the orchestration hook. */
+  sessionStatus: string | null;
   currentSessionId: string;
   selectedCollectionPlan: CollectionPlanTemplate | undefined;
   totalStagedBytes: number;
@@ -73,6 +75,7 @@ export function CaptureSessionPanel({
   locationPermissionDenied,
   sessionItems,
   sessionCountLabel,
+  sessionStatus,
   currentSessionId,
   selectedCollectionPlan,
   totalStagedBytes,
@@ -89,38 +92,99 @@ export function CaptureSessionPanel({
 }: Props) {
   const readiness = readinessCopy[sessionReadiness.status];
 
+  // Four facts, each already decided by the readiness authority. Nothing here
+  // is a rule — `done` is a read, not a judgement.
+  const statusChecks = [
+    {
+      label: `${sessionReadiness.summary.requiredCompleted}/${sessionReadiness.summary.requiredTotal} required mapped`,
+      done:
+        sessionReadiness.summary.requiredTotal > 0 &&
+        sessionReadiness.summary.requiredCompleted === sessionReadiness.summary.requiredTotal,
+    },
+    {
+      label: `${sessionItems.length} material${sessionItems.length === 1 ? "" : "s"} added`,
+      done: sessionItems.length > 0,
+    },
+    {
+      label: sessionReadiness.summary.blockerCount === 0 ? "No blockers" : "Blockers to clear",
+      done: sessionReadiness.summary.blockerCount === 0,
+    },
+    {
+      label: sessionReadiness.canFinalize ? "Ready for Review & Sign" : "Review & Sign not available",
+      done: sessionReadiness.canFinalize,
+    },
+  ];
+
   const aiReviewLabel = sessionReadiness.aiRecommendedReview
     ? "Recommended before finalization"
     : "Optional metadata review";
 
   return (
     <aside className="capture-session-column">
+      {/* SESSION STATUS — the rail's answer to "where is this session?", read
+          before anything else in it. State, save line, how far the required
+          mapping has got, and the four facts that decide it. Every value comes
+          from `sessionReadiness` or from state the page already holds; the
+          card computes nothing.
+
+          It absorbed the tone card that used to open Operations command
+          center. That card carried the same label and the same detail string,
+          one box below — the rail opened by saying the same thing twice. */}
+      <section
+        className={`capture-enterprise-card capture-status-card ${readiness.tone}`}
+        data-capture-session-status={busy ? "finalizing" : readiness.tone}
+      >
+        <header className="capture-status-card__head">
+          <div>
+            <p className="capture-section-label">Session status</p>
+            <strong>{busy ? "Finalizing" : readiness.label}</strong>
+          </div>
+          <span className={`capture-readiness-chip ${readiness.tone}`}>
+            {busy ? "In progress" : "Draft"}
+          </span>
+        </header>
+
+        <p className="capture-status-card__detail">
+          {busy
+            ? "Uploads and verification preparation are running. Keep this tab open."
+            : readiness.detail}
+        </p>
+
+        <div className="capture-status-card__progress">
+          <div
+            className="capture-status-ring"
+            style={{ ["--capture-ring" as string]: `${requiredProgressPercent}%` }}
+            role="img"
+            aria-label={`${requiredProgressPercent}% of required items mapped`}
+          >
+            <span>{requiredProgressPercent}%</span>
+          </div>
+          <ul className="capture-status-checks">
+            {statusChecks.map((check) => (
+              <li key={check.label} data-capture-check={check.done ? "done" : "open"}>
+                {check.done ? (
+                  <CheckCircle2 size={15} strokeWidth={2.2} aria-hidden="true" />
+                ) : (
+                  <CircleDot size={15} strokeWidth={2.2} aria-hidden="true" />
+                )}
+                <span>{check.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {sessionStatus ? (
+          <p className="capture-status-card__saved">{sessionStatus}</p>
+        ) : null}
+      </section>
+
       <div className="capture-enterprise-card capture-right-panel capture-command-center">
         <div className="capture-command-header">
           <div>
             <div className="capture-section-label">Operations command center</div>
             <div className="capture-card-title">{sessionCountLabel}</div>
           </div>
-          <span className={`capture-readiness-chip ${readiness.tone}`}>
-            {busy ? "Finalizing" : readiness.label}
-          </span>
         </div>
-
-        <section className={`capture-readiness-card ${readiness.tone}`}>
-          <div className="capture-readiness-icon">
-            {sessionReadiness.canFinalize ? (
-              <CheckCircle2 size={20} strokeWidth={2.1} />
-            ) : sessionReadiness.status === "blocked" || sessionReadiness.status === "empty" ? (
-              <AlertTriangle size={20} strokeWidth={2.1} />
-            ) : (
-              <CircleDot size={20} strokeWidth={2.1} />
-            )}
-          </div>
-          <div>
-            <strong>{busy ? "Finalization in progress" : readiness.label}</strong>
-            <p>{busy ? "Uploads and verification preparation are running. Keep this tab open." : readiness.detail}</p>
-          </div>
-        </section>
 
         <div className="capture-command-metrics">
           <div>
@@ -158,24 +222,29 @@ export function CaptureSessionPanel({
           <div className="capture-command-section-title">
             <span>Session metadata</span>
           </div>
-          <div className="capture-command-meta-grid">
+          {/* Rows, not four bordered boxes. In the two-up grid these used to
+              form, a 320px rail gave each value ~120px and `CAP-2026-08-29`
+              wrapped a character at a time. A label-left/value-right row gives
+              the value the full width and needs no border of its own — the
+              section already has one. */}
+          <dl className="capture-meta-rows">
             <div>
-              <span>Session ID</span>
-              <strong>{currentSessionId}</strong>
+              <dt>Session ID</dt>
+              <dd>{currentSessionId}</dd>
             </div>
             <div>
-              <span>Template</span>
-              <strong>{selectedCollectionPlan?.name ?? "General"}</strong>
+              <dt>Template</dt>
+              <dd>{selectedCollectionPlan?.name ?? "General"}</dd>
             </div>
             <div>
-              <span>Mode</span>
-              <strong>{planMode === "CHECKLIST_REQUIRED" ? "Checklist required" : "Flexible"}</strong>
+              <dt>Mode</dt>
+              <dd>{planMode === "CHECKLIST_REQUIRED" ? "Checklist required" : "Flexible"}</dd>
             </div>
             <div>
-              <span>Total size</span>
-              <strong>{formatFileSize(totalStagedBytes)}</strong>
+              <dt>Total size</dt>
+              <dd>{formatFileSize(totalStagedBytes)}</dd>
             </div>
-          </div>
+          </dl>
         </section>
 
 <section className="capture-command-section capture-integrity-block">

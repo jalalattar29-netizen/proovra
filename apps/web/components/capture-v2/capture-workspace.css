@@ -1,0 +1,1607 @@
+/* ===========================================================================
+   CAPTURE — WORKSPACE COMPOSITION
+   ===========================================================================
+
+   WHY THIS FILE EXISTS
+
+   `capture-v2.css` is ~6,600 lines that grew one override block at a time —
+   "FINAL", "FINAL FIX", "REAL FIX", "make setup card text slightly smaller" —
+   each declaring `!important` against the one before it. The result renders,
+   but its composition is the accumulation of those passes rather than a
+   decision: a working column whose contents float in a third of their own
+   width, a rail of nested bordered boxes, and a type scale that shrank a step
+   each time something needed to fit.
+
+   This file is the page-level composition, written once, in one place. It
+   loads last and it is the authority on:
+
+     the shell, the two-column grid and their widths
+     the panel rhythm inside the working column
+     the hero, Collection setup, Requirements and Evidence materials surfaces
+     the rail's structure
+     the Capture type scale
+     the responsive recomposition
+
+   It declares `!important` for the same reason the blocks it supersedes did:
+   they already do, and specificity alone cannot outrank them. What it does NOT
+   do is restate colour, state or behaviour — tone classes, `is-blocked`,
+   `active`, the semantic red/orange/green and the accent tokens all still come
+   from `capture-v2.css`, which remains the surface's palette.
+
+   Nothing here reads or decides session state. Composition only.
+=========================================================================== */
+
+.capture-enterprise-page {
+  /* One scale for the whole surface, referenced by name below rather than
+     re-typed as decimals in forty places. The floor is 0.8rem: the old sheet
+     had drifted to 0.68rem for content the operator actually has to read. */
+  --cap-fs-hero: clamp(2rem, 1.4rem + 1.4vw, 2.6rem);
+  --cap-fs-panel: 1.06rem;
+  --cap-fs-body: 0.925rem;
+  --cap-fs-meta: 0.85rem;
+  --cap-fs-label: 0.72rem;
+
+  --cap-gap: 20px;
+  --cap-pad: 26px;
+  --cap-radius: 18px;
+
+  padding: 24px 24px 44px !important;
+  background: var(--cap-canvas, #f7f7fb);
+}
+
+.capture-enterprise-shell {
+  /* The old shell allowed 1720px and then let the content sit wherever the
+     inner rules put it. A firm 1560px with real side padding is what stops the
+     working column from reading as a strip in an empty canvas. */
+  max-width: 1560px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  gap: var(--cap-gap) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   THE GRID
+
+   Working column dominant, rail supporting. The rail is wide enough to hold a
+   label and its value on one line, which is the width the previous 320px was
+   short of.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 352px !important;
+  gap: var(--cap-gap) !important;
+  align-items: start !important;
+}
+
+/* The working column is a STACK OF PANELS, not one card containing
+   everything. Each surface below owns its own border; wrapping them all in a
+   further card was what produced the card-inside-card-inside-card look. */
+.capture-main-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--cap-gap) !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+/* Every direct surface in the working column shares one geometry. */
+.capture-main-panel > .capture-hero,
+.capture-main-panel > .capture-activity,
+.capture-main-panel > .capture-setup-strip,
+.capture-main-panel > .capture-requirements-panel,
+.capture-main-panel > .capture-drop-zone-enterprise,
+.capture-main-panel > .capture-materials-board,
+.capture-main-panel > .capture-audio-card {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: var(--cap-pad) !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: var(--cap-radius) !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   HERO
+
+   Heading, what the workflow does, and why the pipeline is trustworthy, read
+   as one introduction. The trust strip is part of this surface — it used to be
+   a 330px column pinned to the right of the page, level with the title and
+   visually unrelated to it.
+
+   No upload control lives here. Evidence materials is the only ingestion
+   surface on the page and the hero introduces the page.
+--------------------------------------------------------------------------- */
+
+.capture-hero {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 20px !important;
+  min-height: 0 !important;
+}
+
+.capture-hero .capture-enterprise-title-card {
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.capture-hero h1,
+.capture-hero .capture-enterprise-title-card h1 {
+  margin: 6px 0 0 !important;
+  font-size: var(--cap-fs-hero) !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.08 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-hero .capture-enterprise-title-card p {
+  margin: 12px 0 0 !important;
+  /* A measure, not a column width. Long lines are the other way a page
+     becomes hard to read at 1440px. */
+  max-width: 68ch !important;
+  font-size: 1rem !important;
+  line-height: 1.55 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-enterprise-eyebrow {
+  font-size: var(--cap-fs-label) !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--capture-accent) !important;
+}
+
+/* The trust strip, as three equal statements across the foot of the hero and
+   separated from it by a rule rather than by a gap between floating cards. */
+.capture-hero .capture-trust-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding-top: 20px !important;
+  border-top: 1px solid var(--capture-line) !important;
+}
+
+.capture-hero .capture-trust-item {
+  padding: 0 22px !important;
+  border: 0 !important;
+  border-inline-start: 1px solid var(--capture-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.capture-hero .capture-trust-item:first-child {
+  padding-inline-start: 0 !important;
+  border-inline-start: 0 !important;
+}
+
+.capture-hero .capture-trust-item__copy strong {
+  font-size: var(--cap-fs-body) !important;
+  font-weight: 700 !important;
+}
+
+.capture-hero .capture-trust-item__copy small {
+  font-size: var(--cap-fs-meta) !important;
+  line-height: 1.45 !important;
+}
+
+/* ---------------------------------------------------------------------------
+   SECTION FURNITURE
+
+   One label style and one panel-title style, so the eye can tell a section
+   heading from a card title from a value without reading any of them.
+--------------------------------------------------------------------------- */
+
+.capture-main-panel .capture-section-label,
+.capture-session-column .capture-section-label {
+  margin: 0 !important;
+  font-size: var(--cap-fs-label) !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.09em !important;
+  text-transform: uppercase !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-main-panel .capture-card-title {
+  margin: 4px 0 0 !important;
+  font-size: var(--cap-fs-panel) !important;
+  font-weight: 760 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-main-panel .capture-card-muted,
+.capture-main-panel .capture-panel-heading p {
+  font-size: var(--cap-fs-body) !important;
+  line-height: 1.5 !important;
+  color: var(--capture-muted) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   COLLECTION SETUP
+
+   A workflow panel: what this control does, then the three choices across the
+   full width with room to be read. Previously the copy took a 260px track and
+   the three controls were crushed into whatever remained.
+--------------------------------------------------------------------------- */
+
+.capture-setup-strip {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+  overflow: visible !important;
+}
+
+.capture-setup-copy {
+  display: block !important;
+}
+
+.capture-setup-description {
+  margin: 6px 0 0 !important;
+  max-width: 72ch !important;
+  font-size: var(--cap-fs-body) !important;
+  line-height: 1.5 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-setup-controls {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)) !important;
+  gap: 14px !important;
+  max-width: none !important;
+  margin: 0 !important;
+  grid-column: auto !important;
+}
+
+.capture-setup-mode,
+.capture-setup-location {
+  display: grid !important;
+  grid-template-columns: 42px minmax(0, 1fr) 22px !important;
+  align-items: center !important;
+  gap: 14px !important;
+  min-height: 76px !important;
+  padding: 16px !important;
+  border: 1px solid var(--capture-line-strong) !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  text-align: left !important;
+  transition: border-color 120ms ease, background 120ms ease !important;
+}
+
+.capture-setup-mode:hover:not(:disabled),
+.capture-setup-location:hover {
+  border-color: var(--capture-accent-line) !important;
+}
+
+/* Selected state: canonical accent, and stated by border, tint and the control
+   itself rather than by any one of the three alone. */
+.capture-setup-mode.active,
+.capture-setup-location.active {
+  border-color: var(--capture-accent) !important;
+  background: var(--capture-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--capture-accent) !important;
+}
+
+.capture-setup-icon {
+  display: grid !important;
+  place-items: center !important;
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 12px !important;
+  background: var(--capture-accent-soft) !important;
+  color: var(--capture-accent) !important;
+}
+
+.capture-setup-mode.active .capture-setup-icon,
+.capture-setup-location.active .capture-setup-icon {
+  background: var(--capture-accent) !important;
+  color: #ffffff !important;
+}
+
+.capture-setup-mode strong,
+.capture-setup-location strong {
+  display: block !important;
+  font-size: var(--cap-fs-body) !important;
+  font-weight: 720 !important;
+  line-height: 1.25 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-setup-mode small,
+.capture-setup-location small {
+  display: block !important;
+  margin-top: 2px !important;
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-setup-mode:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
+/* ---------------------------------------------------------------------------
+   REQUIREMENTS
+--------------------------------------------------------------------------- */
+
+.capture-requirements-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+}
+
+.capture-requirements-heading {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+}
+
+.capture-requirements-summary-strip {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)) !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+}
+
+.capture-requirements-summary-strip > div {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  padding: 14px 18px !important;
+  border-inline-start: 1px solid var(--capture-line) !important;
+  background: transparent !important;
+}
+
+.capture-requirements-summary-strip > div:first-child {
+  border-inline-start: 0 !important;
+}
+
+.capture-requirements-summary-strip span {
+  font-size: var(--cap-fs-label) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-requirements-summary-strip strong {
+  font-size: 1.15rem !important;
+  font-weight: 760 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-requirement-progress-shell {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+
+.capture-requirement-progress-copy {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+}
+
+.capture-requirement-progress-copy span {
+  font-size: var(--cap-fs-label) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-requirement-progress-copy strong {
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 700 !important;
+}
+
+.capture-requirements-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+/* One row: index, the requirement, and its status. The status column is fixed
+   so the three verdicts line up down the page instead of ending wherever the
+   description happened to stop. */
+.capture-requirement-row {
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) 168px !important;
+  align-items: start !important;
+  gap: 16px !important;
+  padding: 16px 18px !important;
+  border: 1px solid var(--capture-line) !important;
+  border-inline-start-width: 3px !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+}
+
+.capture-requirement-row.is-missing {
+  border-inline-start-color: var(--capture-red) !important;
+}
+
+.capture-requirement-row.is-complete {
+  border-inline-start-color: var(--success, #067647) !important;
+}
+
+.capture-requirement-row.is-optional-open {
+  border-inline-start-color: var(--capture-orange) !important;
+}
+
+.capture-requirement-index {
+  display: grid !important;
+  place-items: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  border: 1px solid var(--capture-line-strong) !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 750 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-requirement-copy {
+  min-width: 0 !important;
+}
+
+.capture-requirement-title-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.capture-requirement-title-row strong {
+  font-size: var(--cap-fs-body) !important;
+  font-weight: 730 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-requirement-copy p {
+  margin: 6px 0 0 !important;
+  max-width: 74ch !important;
+  font-size: var(--cap-fs-meta) !important;
+  line-height: 1.5 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-requirement-chip-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-top: 10px !important;
+}
+
+.capture-requirement-chip-row span,
+.capture-requirement-title-row span {
+  font-size: 0.76rem !important;
+  font-weight: 680 !important;
+  line-height: 1.3 !important;
+}
+
+.capture-requirement-operational-status {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  align-items: flex-end !important;
+  text-align: right !important;
+}
+
+.capture-requirement-operational-status strong {
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 740 !important;
+}
+
+.capture-requirement-operational-status span {
+  font-size: 0.78rem !important;
+  line-height: 1.35 !important;
+  color: var(--capture-muted) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   EVIDENCE MATERIALS — the primary working surface
+
+   Source selector, then one obvious ingestion target, then the list. Five
+   sources on one geometry; the selected one is unmistakable.
+--------------------------------------------------------------------------- */
+
+.capture-drop-zone-enterprise {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+}
+
+.capture-intake-command-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+  text-align: left !important;
+}
+
+.capture-intake-command-header p {
+  margin: 6px 0 0 !important;
+  font-size: var(--cap-fs-body) !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-upload-actions {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 168px), 1fr)) !important;
+  gap: 12px !important;
+  max-width: none !important;
+}
+
+.capture-upload-actions > button {
+  display: grid !important;
+  grid-template-columns: 20px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-height: 66px !important;
+  padding: 14px 16px !important;
+  border: 1px solid var(--capture-line-strong) !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  color: var(--capture-ink) !important;
+  text-align: left !important;
+  box-shadow: none !important;
+}
+
+.capture-upload-actions > button:hover:not(:disabled) {
+  border-color: var(--capture-accent-line) !important;
+  background: #ffffff !important;
+}
+
+/* The primary source. Filled accent, white text — the one control in this
+   group that is currently chosen. */
+.capture-upload-actions > .capture-intake-primary-action {
+  border-color: var(--capture-accent) !important;
+  background: var(--capture-accent) !important;
+  color: #ffffff !important;
+}
+
+.capture-upload-actions > .capture-intake-primary-action:hover:not(:disabled) {
+  border-color: var(--capture-accent-strong) !important;
+  background: var(--capture-accent-strong) !important;
+}
+
+.capture-upload-actions > button strong {
+  display: block !important;
+  font-size: var(--cap-fs-body) !important;
+  font-weight: 720 !important;
+  line-height: 1.2 !important;
+}
+
+.capture-upload-actions > button small {
+  display: block !important;
+  margin-top: 2px !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  line-height: 1.3 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-upload-actions > .capture-intake-primary-action small {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* The drop target. Obvious, and deliberately not tall — a 320px empty
+   rectangle is how the working column ended up with a screen of nothing in
+   the middle of it. */
+.capture-dropzone-inline-note {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  min-height: 168px !important;
+  padding: 26px !important;
+  border: 1.5px dashed var(--capture-accent-line) !important;
+  border-radius: 16px !important;
+  background: var(--capture-accent-soft) !important;
+  text-align: center !important;
+  cursor: pointer !important;
+}
+
+.capture-dropzone-inline-note:hover,
+.capture-dropzone-inline-note:focus-visible {
+  border-color: var(--capture-accent) !important;
+}
+
+.capture-dropzone-inline-note strong {
+  font-size: var(--cap-fs-panel) !important;
+  font-weight: 740 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-dropzone-inline-note > span {
+  max-width: 62ch !important;
+  font-size: var(--cap-fs-meta) !important;
+  line-height: 1.5 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-dropzone-plus {
+  display: grid !important;
+  place-items: center !important;
+  width: 44px !important;
+  height: 44px !important;
+  margin-top: 8px !important;
+  border-radius: 50% !important;
+}
+
+.capture-intake-state-pill {
+  flex: none !important;
+  padding: 6px 12px !important;
+  border: 1px solid var(--capture-line-strong) !important;
+  border-radius: 999px !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  color: var(--capture-muted) !important;
+  white-space: nowrap !important;
+}
+
+/* The staged-material list. */
+.capture-materials-board {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+
+.capture-materials-list-header,
+.capture-material-row {
+  font-size: var(--cap-fs-meta) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   SESSION ACTIVITY · FINAL READINESS · ACTIONS
+
+   The conclusion of the working column, in that order: what happened, whether
+   you may proceed, and the control that proceeds.
+--------------------------------------------------------------------------- */
+
+.capture-main-panel > .capture-activity,
+.capture-main-panel > .capture-final-readiness,
+.capture-main-panel > .capture-operational-summary {
+  width: 100% !important;
+}
+
+.capture-final-readiness {
+  padding: 18px 22px !important;
+  border-radius: var(--cap-radius) !important;
+}
+
+.capture-final-readiness__copy strong {
+  font-size: var(--cap-fs-panel) !important;
+}
+
+.capture-final-readiness__copy p {
+  font-size: var(--cap-fs-body) !important;
+}
+
+.capture-bottom-bar {
+  position: static !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.capture-bottom-bar-inner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 24px !important;
+  padding: 20px 24px !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: var(--cap-radius) !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+}
+
+.capture-bottom-bar-inner > div:first-child strong {
+  font-size: var(--cap-fs-panel) !important;
+  font-weight: 750 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-bottom-bar-inner > div:first-child p {
+  margin: 5px 0 0 !important;
+  max-width: 72ch !important;
+  font-size: var(--cap-fs-meta) !important;
+  line-height: 1.45 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-phase5-final-actions {
+  display: flex !important;
+  flex: none !important;
+  gap: 12px !important;
+}
+
+.capture-finish-button {
+  min-height: 46px !important;
+  padding: 0 26px !important;
+  border: 1px solid var(--capture-accent) !important;
+  border-radius: 12px !important;
+  background: var(--capture-accent) !important;
+  color: #ffffff !important;
+  font-size: var(--cap-fs-body) !important;
+  font-weight: 730 !important;
+}
+
+.capture-finish-button:disabled {
+  border-color: var(--capture-line-strong) !important;
+  background: #e9e6f4 !important;
+  color: #8a86a3 !important;
+  cursor: not-allowed !important;
+}
+
+.capture-clear-button {
+  min-height: 46px !important;
+  padding: 0 20px !important;
+  border: 1px solid var(--capture-line-strong) !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: var(--capture-ink) !important;
+  font-size: var(--cap-fs-body) !important;
+  font-weight: 650 !important;
+}
+
+/* ---------------------------------------------------------------------------
+   THE RAIL
+
+   Section headings, quiet dividers and compact rows. A border earns its place
+   by grouping something; it is not the default state of every value.
+--------------------------------------------------------------------------- */
+
+.capture-session-column {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  min-width: 0 !important;
+}
+
+.capture-session-column > .capture-status-card,
+.capture-session-column > .capture-command-center {
+  padding: 20px !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: var(--cap-radius) !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+}
+
+/* Session status */
+
+.capture-status-card {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+}
+
+.capture-status-card__head {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.capture-status-card__head strong {
+  display: block !important;
+  margin-top: 5px !important;
+  font-size: var(--cap-fs-panel) !important;
+  font-weight: 760 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-status-card__detail {
+  margin: 0 !important;
+  font-size: var(--cap-fs-meta) !important;
+  line-height: 1.5 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-status-card__progress {
+  display: grid !important;
+  grid-template-columns: 76px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 16px !important;
+  padding-top: 14px !important;
+  border-top: 1px solid var(--capture-line) !important;
+}
+
+.capture-status-ring {
+  display: grid !important;
+  place-items: center !important;
+  width: 76px !important;
+  height: 76px !important;
+  border-radius: 50% !important;
+  background: conic-gradient(
+    var(--capture-accent) var(--capture-ring, 0%),
+    var(--capture-line) 0
+  ) !important;
+}
+
+.capture-status-ring::before {
+  content: "" !important;
+  grid-area: 1 / 1 !important;
+  width: 60px !important;
+  height: 60px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+}
+
+.capture-status-ring span {
+  grid-area: 1 / 1 !important;
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 780 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-status-checks {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 7px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+.capture-status-checks li {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: var(--cap-fs-meta) !important;
+  line-height: 1.3 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-status-checks li[data-capture-check="done"] {
+  color: var(--capture-ink) !important;
+  font-weight: 650 !important;
+}
+
+.capture-status-checks li[data-capture-check="done"] svg {
+  color: var(--success, #067647) !important;
+}
+
+.capture-status-checks li[data-capture-check="open"] svg {
+  color: var(--capture-muted) !important;
+}
+
+.capture-status-card__saved {
+  margin: 0 !important;
+  font-size: 0.78rem !important;
+  color: var(--capture-muted) !important;
+}
+
+/* Operations command center: the counts, and nothing that repeats the
+   blocker and warning text sitting immediately below it. */
+
+.capture-command-center {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+}
+
+.capture-command-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.capture-command-metrics {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+}
+
+.capture-command-metrics > div {
+  gap: 4px !important;
+  padding: 12px 14px !important;
+  border-block-start: 1px solid var(--capture-line) !important;
+  border-inline-start: 1px solid var(--capture-line) !important;
+  background: #ffffff !important;
+}
+
+.capture-command-metrics > div:nth-child(-n + 2) {
+  border-block-start: 0 !important;
+}
+
+.capture-command-metrics > div:nth-child(odd) {
+  border-inline-start: 0 !important;
+}
+
+.capture-command-metrics span {
+  font-size: var(--cap-fs-label) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-command-metrics strong {
+  font-size: 1.1rem !important;
+  font-weight: 760 !important;
+  color: var(--capture-ink) !important;
+}
+
+/* Rail sections below the two cards: headed groups separated by their own
+   surface only where the grouping means something. */
+.capture-session-column .capture-command-section {
+  gap: 12px !important;
+  padding: 18px 20px !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: var(--cap-radius) !important;
+  background: #ffffff !important;
+}
+
+.capture-session-column .capture-command-section-title span {
+  font-size: var(--cap-fs-label) !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--capture-muted) !important;
+}
+
+/* Session metadata: label left, value right, no box per value. */
+.capture-meta-rows {
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+}
+
+.capture-meta-rows > div {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 9px 0 !important;
+  border-block-start: 1px solid var(--capture-line) !important;
+}
+
+.capture-meta-rows > div:first-child {
+  border-block-start: 0 !important;
+  padding-block-start: 0 !important;
+}
+
+.capture-meta-rows dt {
+  flex: none !important;
+  font-size: var(--cap-fs-meta) !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-meta-rows dd {
+  margin: 0 !important;
+  min-width: 0 !important;
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 700 !important;
+  text-align: right !important;
+  color: var(--capture-ink) !important;
+  /* Long values shorten; they never wrap one character per line. */
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* Integrity preparation: deterministic system state, visually distinct from
+   the advisory block that follows it. */
+.capture-integrity-block {
+  border-color: var(--capture-line-strong) !important;
+}
+
+.capture-integrity-list > div {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 9px 0 !important;
+  border-block-start: 1px solid var(--capture-line) !important;
+}
+
+.capture-integrity-list > div:first-child {
+  border-block-start: 0 !important;
+  padding-block-start: 0 !important;
+}
+
+.capture-integrity-list span {
+  font-size: var(--cap-fs-meta) !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-integrity-list strong {
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 700 !important;
+  color: var(--capture-ink) !important;
+}
+
+/* AI advisory: secondary by construction. It is quality control over metadata
+   and it decides nothing about integrity, authenticity or finalization, so it
+   does not get the filled accent that Review & Sign has. */
+.capture-ai-advisory-shell {
+  border-style: dashed !important;
+  background: #fafafb !important;
+}
+
+.capture-ai-advisory-shell p {
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-ai-advisory-shell button {
+  min-height: 40px !important;
+  border: 1px solid var(--capture-accent-line) !important;
+  border-radius: 11px !important;
+  background: #ffffff !important;
+  color: var(--capture-accent) !important;
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+
+.capture-ai-advisory-shell button:hover:not(:disabled) {
+  border-color: var(--capture-accent) !important;
+  background: var(--capture-accent-soft) !important;
+}
+
+/* Private note: present, quiet, and not a third of the rail. */
+.capture-notes-card {
+  padding: 18px 20px !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: var(--cap-radius) !important;
+  background: #ffffff !important;
+}
+
+.capture-notes-card p {
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+.capture-notes-card textarea {
+  min-height: 76px !important;
+  font-size: var(--cap-fs-meta) !important;
+}
+
+/* Blockers and warnings keep their one home in the rail. */
+.capture-session-column .capture-signals {
+  gap: 12px !important;
+}
+
+.capture-session-column .capture-signal-group,
+.capture-session-column .capture-signals--clear {
+  padding: 16px 18px !important;
+  border-radius: var(--cap-radius) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   TOP-OF-PAGE BANDS
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-shell > .capture-intake-rail,
+.capture-enterprise-shell > .capture-workflow-guidance,
+.capture-enterprise-shell > .capture-contextual-help {
+  width: 100% !important;
+}
+
+/* ---------------------------------------------------------------------------
+   RESPONSIVE RECOMPOSITION
+
+   Not "does it overflow" — what the page becomes. The rail stops being a
+   column when a column would be too narrow to read, and becomes a band whose
+   sections sit side by side while they still fit.
+--------------------------------------------------------------------------- */
+
+/* Below this the rail cannot hold a label and its value on one line. */
+@media (max-width: 1180px) {
+  .capture-enterprise-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .capture-session-column {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)) !important;
+    align-items: start !important;
+    gap: 14px !important;
+    position: static !important;
+  }
+
+  /* Status and operations lead the band across its full width. */
+  .capture-session-column > .capture-status-card,
+  .capture-session-column > .capture-command-center {
+    grid-column: 1 / -1 !important;
+  }
+
+  .capture-command-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .capture-command-metrics > div {
+    border-block-start: 0 !important;
+    border-inline-start: 1px solid var(--capture-line) !important;
+  }
+
+  .capture-command-metrics > div:first-child {
+    border-inline-start: 0 !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .capture-enterprise-page {
+    --cap-pad: 20px;
+    --cap-gap: 16px;
+    padding: 20px 16px 36px !important;
+  }
+
+  .capture-hero .capture-trust-strip {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .capture-hero .capture-trust-item {
+    padding: 14px 0 !important;
+    border-inline-start: 0 !important;
+    border-block-start: 1px solid var(--capture-line) !important;
+  }
+
+  .capture-hero .capture-trust-item:first-child {
+    padding-block-start: 0 !important;
+    border-block-start: 0 !important;
+  }
+
+  .capture-requirement-row {
+    grid-template-columns: 30px minmax(0, 1fr) !important;
+  }
+
+  .capture-requirement-operational-status {
+    grid-column: 2 !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+    padding-top: 4px !important;
+  }
+
+  .capture-requirements-heading {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .capture-bottom-bar-inner {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .capture-phase5-final-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .capture-status-card__progress {
+    grid-template-columns: minmax(0, 1fr) !important;
+    justify-items: start !important;
+  }
+
+  .capture-command-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .capture-command-metrics > div {
+    border-block-start: 1px solid var(--capture-line) !important;
+  }
+
+  .capture-command-metrics > div:nth-child(-n + 2) {
+    border-block-start: 0 !important;
+  }
+
+  .capture-command-metrics > div:nth-child(odd) {
+    border-inline-start: 0 !important;
+  }
+
+  .capture-phase5-final-actions {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   CORRECTIONS FOUND BY RENDERING
+
+   Each of these is a legacy rule that survived the recomposition and now says
+   the wrong thing about the new layout. Fixed here rather than hunted through
+   the six thousand lines that produced them.
+--------------------------------------------------------------------------- */
+
+/* Collection setup reads left-to-right like the rest of the working column.
+   Something upstream centred its copy, which left the section heading floating
+   over three left-aligned controls. */
+.capture-setup-strip,
+.capture-setup-copy,
+.capture-setup-copy .capture-section-label,
+.capture-setup-copy .capture-card-title,
+.capture-setup-description {
+  text-align: left !important;
+}
+
+/* The intake icons were drawn in the accent colour ON the accent tint, at the
+   contrast that leaves. The unselected state gets a solid tint and a full
+   strength glyph; the selected state inverts. */
+.capture-setup-icon svg {
+  color: currentColor !important;
+  opacity: 1 !important;
+}
+
+.capture-setup-mode:not(.active) .capture-setup-icon,
+.capture-setup-location:not(.active) .capture-setup-icon {
+  background: #f4f2fb !important;
+  color: var(--capture-accent-strong) !important;
+}
+
+/* "Not included" is the default state of an optional setting, not a fault.
+   It was rendered in the same red the blockers use. */
+.capture-setup-location:not(.active) small {
+  color: var(--capture-muted) !important;
+  font-weight: 500 !important;
+}
+
+/* AI advisory must not look like Review & Sign. The assistant's own toggle
+   carried the filled accent treatment reserved for the finalization action. */
+.capture-ai-advisory-shell .capture-phase7-ai-card {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.capture-ai-advisory-shell .capture-phase7-ai-toggle {
+  min-height: 42px !important;
+  border: 1px solid var(--capture-accent-line) !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: var(--capture-accent-strong) !important;
+  box-shadow: none !important;
+}
+
+.capture-ai-advisory-shell .capture-phase7-ai-toggle:hover {
+  background: var(--capture-accent-soft) !important;
+}
+
+.capture-ai-advisory-shell .capture-phase7-ai-title {
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 700 !important;
+  color: inherit !important;
+}
+
+.capture-ai-advisory-shell .capture-ai-count-pill {
+  border: 1px solid var(--capture-accent-line) !important;
+  background: var(--capture-accent-soft) !important;
+  color: var(--capture-accent-strong) !important;
+}
+
+/* The private-note lock kept a teal gradient the recolour could not reach —
+   it was a linear-gradient of two shades not in the token family. */
+.capture-enterprise-page .capture-inline-heading-icon {
+  border-color: var(--capture-accent-line) !important;
+  background: var(--capture-accent-soft) !important;
+  color: var(--capture-accent-strong) !important;
+}
+
+.capture-enterprise-page .capture-inline-heading-icon svg {
+  color: var(--capture-accent-strong) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   THREE LEGACY PINS, MEASURED IN THE BROWSER
+
+   Each of these outranked the composition above on specificity rather than on
+   source order, so each is restated here at the specificity it takes to win.
+   Prefixing with `.capture-enterprise-page` is deliberate and scoped: it
+   raises these to (0,2,0) and cannot reach outside the Capture surface.
+--------------------------------------------------------------------------- */
+
+/* The rail was pinned to exactly 330px by a `min-width: 1181px` block, so the
+   380px grid track it now sits in ended in 50px of empty column between the
+   working area and the rail. The track is the width; the item fills it. */
+.capture-enterprise-page .capture-session-column {
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+/* `align-items: center` on the setup strip shrink-wrapped its own heading and
+   description to their text and centred them over three full-width controls.
+   `text-align: left` could not fix that: the boxes themselves were 131px wide
+   and sitting in the middle of an 828px panel. */
+.capture-enterprise-page .capture-setup-strip {
+  align-items: stretch !important;
+}
+
+/* The AI toggle painted its accent with `background-image`, which a
+   `background-color` declaration does not clear. Advisory controls do not wear
+   the treatment that belongs to Review & Sign. */
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle,
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle:hover {
+  background-image: none !important;
+  background-color: #ffffff !important;
+  color: var(--capture-accent-strong) !important;
+  border: 1px solid var(--capture-accent-line) !important;
+  box-shadow: none !important;
+}
+
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle:hover {
+  background-color: var(--capture-accent-soft) !important;
+}
+
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle * {
+  color: var(--capture-accent-strong) !important;
+}
+
+/* `-webkit-text-fill-color: #ffffff` is set on every descendant of a button
+   inside the right panel, to paint the label of what used to be a filled
+   accent control. It overrides `color` at paint time, so turning the AI toggle
+   white turned its label invisible rather than purple. Painted from the
+   cascade again. */
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle,
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle * {
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.capture-enterprise-page .capture-ai-advisory-shell .capture-ai-count-pill,
+.capture-enterprise-page .capture-ai-advisory-shell .capture-ai-count-pill * {
+  -webkit-text-fill-color: var(--capture-accent-strong) !important;
+}
+
+/* Session activity is a panel like everything else in this column; it was the
+   one surface still rendering as a bare row on the canvas. Collapsed it is a
+   single line — a title, a count and the control that opens it. */
+.capture-main-panel > .capture-activity {
+  padding: 14px 22px !important;
+}
+
+.capture-activity__toggle {
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 700 !important;
+  color: var(--capture-accent-strong) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   INTAKE PLAN — numbered stages
+
+   The band reads as the five steps of the workflow rather than as five chips:
+   a numbered marker, its label, and a rule joining it to the next. State is
+   still carried by `data-capture-intake-stage-status`, which the component
+   sets from session state — this styles that attribute and reads nothing.
+--------------------------------------------------------------------------- */
+
+.capture-intake-plan {
+  display: flex !important;
+  align-items: center !important;
+  gap: 18px !important;
+  padding: 16px 22px !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: var(--cap-radius) !important;
+  background: #ffffff !important;
+}
+
+.capture-intake-plan__label {
+  flex: none !important;
+  font-size: var(--cap-fs-label) !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.09em !important;
+  text-transform: uppercase !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-intake-plan__stages {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  align-items: center !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+.capture-intake-plan__stage {
+  display: flex !important;
+  flex: 1 1 0 !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+}
+
+.capture-intake-plan__marker {
+  display: grid !important;
+  place-items: center !important;
+  flex: none !important;
+  width: 26px !important;
+  height: 26px !important;
+  border: 1.5px solid var(--capture-line-strong) !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  font-size: 0.78rem !important;
+  font-weight: 750 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-intake-plan__text {
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 600 !important;
+  color: var(--capture-muted) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.capture-intake-plan__line {
+  flex: 1 1 auto !important;
+  min-width: 12px !important;
+  height: 1.5px !important;
+  margin: 0 12px !important;
+  background: var(--capture-line-strong) !important;
+}
+
+/* Done: the accent, filled. Active: the accent, outlined and heavier.
+   Pending: the neutral above. Each state is a shape and a weight as well as a
+   colour, so none of them depends on colour alone. */
+[data-capture-intake-stage-status="complete"] .capture-intake-plan__marker {
+  border-color: var(--capture-accent) !important;
+  background: var(--capture-accent) !important;
+  color: #ffffff !important;
+}
+
+[data-capture-intake-stage-status="complete"] .capture-intake-plan__text {
+  color: var(--capture-ink) !important;
+}
+
+[data-capture-intake-stage-status="complete"] + .capture-intake-plan__line,
+.capture-intake-plan__line[data-capture-intake-line="complete"] {
+  background: var(--capture-accent) !important;
+}
+
+[data-capture-intake-stage-status="active"] .capture-intake-plan__marker {
+  border-color: var(--capture-accent) !important;
+  background: var(--capture-accent-soft) !important;
+  color: var(--capture-accent-strong) !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12) !important;
+}
+
+[data-capture-intake-stage-status="active"] .capture-intake-plan__text {
+  font-weight: 750 !important;
+  color: var(--capture-ink) !important;
+}
+
+@media (max-width: 1180px) {
+  .capture-intake-plan {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .capture-intake-plan__stages {
+    flex-wrap: wrap !important;
+    gap: 10px 18px !important;
+    width: 100% !important;
+  }
+
+  .capture-intake-plan__stage {
+    flex: 0 0 auto !important;
+  }
+
+  .capture-intake-plan__line {
+    display: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   ICON STROKE
+
+   These glyphs are drawn with `stroke: #ffffff` by a rule written when they
+   sat on a filled accent tile. On the light tint the unselected state now
+   uses, a white stroke is an invisible icon — `color` was already correct and
+   made no difference, because the stroke never asked for `currentColor`.
+
+   Selected tiles keep white: there the fill is the accent.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-setup-mode:not(.active) .capture-setup-icon svg,
+.capture-enterprise-page .capture-setup-location:not(.active) .capture-setup-icon svg,
+.capture-enterprise-page .capture-inline-heading-icon svg,
+.capture-enterprise-page .capture-trust-item__icon svg {
+  stroke: currentColor !important;
+}
+
+.capture-enterprise-page .capture-setup-mode.active .capture-setup-icon svg,
+.capture-enterprise-page .capture-setup-location.active .capture-setup-icon svg {
+  stroke: #ffffff !important;
+}
+
+/* The advisory control needs a readable edge; at 24% alpha it read as an
+   underline rather than a button. */
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle {
+  border-color: rgba(124, 58, 237, 0.45) !important;
+  padding: 0 14px !important;
+  justify-content: space-between !important;
+}
+
+/* The guidance card at the top of the page kept a flat grey slab from before
+   the surfaces below it had a shared geometry. Same panel treatment, so the
+   page reads as one system from its first band. */
+.capture-enterprise-page .capture-workflow-guidance,
+.capture-enterprise-page .capture-contextual-help {
+  border: 1px solid var(--capture-line) !important;
+  border-radius: var(--cap-radius) !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+}
+
+/* The white stroke is set on the icon's CHILDREN too — `.capture-setup-icon
+   svg *` — which is why colouring the `<svg>` changed nothing: every `<path>`
+   inside it was still painted white. Both levels, both states. */
+.capture-enterprise-page .capture-setup-mode:not(.active) .capture-setup-icon svg,
+.capture-enterprise-page .capture-setup-mode:not(.active) .capture-setup-icon svg *,
+.capture-enterprise-page .capture-setup-location:not(.active) .capture-setup-icon svg,
+.capture-enterprise-page .capture-setup-location:not(.active) .capture-setup-icon svg * {
+  stroke: var(--capture-accent-strong) !important;
+  color: var(--capture-accent-strong) !important;
+}
+
+.capture-enterprise-page .capture-setup-mode.active .capture-setup-icon svg,
+.capture-enterprise-page .capture-setup-mode.active .capture-setup-icon svg *,
+.capture-enterprise-page .capture-setup-location.active .capture-setup-icon svg,
+.capture-enterprise-page .capture-setup-location.active .capture-setup-icon svg * {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* The selected title was bronze — a leftover of the palette this surface used
+   to have. Selection is the accent, everywhere on the page. */
+.capture-enterprise-page .capture-setup-mode.active strong,
+.capture-enterprise-page .capture-setup-location.active strong {
+  color: var(--capture-accent-strong) !important;
+  -webkit-text-fill-color: var(--capture-accent-strong) !important;
+}
+
+/* The location toggle is a real checkbox; its accent colour was the old
+   surface teal, which the hex sweep reached but which is worth stating here
+   next to the control it belongs to. */
+.capture-enterprise-page .capture-setup-location input {
+  accent-color: var(--capture-accent) !important;
+}
+
+.capture-enterprise-page .capture-setup-location input:checked {
+  background: var(--capture-accent) !important;
+  border-color: var(--capture-accent) !important;
+}
+
+/* The guidance band, on the page's own panel geometry rather than the grey
+   slab it carried from before there was one. */
+.capture-enterprise-page .capture-guidance-card {
+  padding: 18px 22px !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: var(--cap-radius) !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+}

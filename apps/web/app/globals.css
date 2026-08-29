@@ -8,6 +8,9 @@
 @import "../components/app-shell-v2/app-shell-v2.css";
 @import "../components/app-primitives/app-primitives.css";
 @import "../components/capture-v2/capture-v2.css";
+/* Loads AFTER capture-v2.css: it is the page-level composition authority and
+   must outrank the override blocks that sheet accumulated. */
+@import "../components/capture-v2/capture-workspace.css";
 @import "../components/command-center/command-center.css";
 @import "../components/cases-experience/cases-experience.css";
 @import "../components/workspace-admin/workspace-admin.css";

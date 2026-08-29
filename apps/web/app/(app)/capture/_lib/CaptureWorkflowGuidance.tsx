@@ -67,14 +67,14 @@ export function CaptureWorkflowGuidance({
   return (
     <section
       data-capture-workflow-guidance
+      /* The inline surface here — a grey slab with its own radius and its own
+         bottom margin — predated the page having a shared panel geometry, and
+         it was the one band at the top of the page that still looked like a
+         different product. The class lets `capture-workspace.css` give it the
+         same surface as everything below it; the shell's own gap replaces the
+         margin. Content and behaviour are untouched. */
+      className="capture-guidance-card"
       aria-label={`Workflow guidance: ${guidance.title}`}
-      style={{
-        marginBottom: 16,
-        padding: "12px 16px",
-        borderRadius: 8,
-        background: "rgba(148, 163, 184, 0.08)",
-        border: "1px solid rgba(148, 163, 184, 0.22)",
-      }}
     >
       <header
         style={{

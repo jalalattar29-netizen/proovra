@@ -35,7 +35,10 @@ const code = (text: string) =>
   text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/[^\n]*$/gm, "");
 
 const PAGE = read("apps/web/app/(app)/capture/page.tsx");
+const GLOBALS = read("apps/web/app/globals.css");
+const PANEL = read("apps/web/components/capture-v2/CaptureSessionPanel.tsx");
 const CSS = read("apps/web/components/capture-v2/capture-v2.css");
+const WORKSPACE = read("apps/web/components/capture-v2/capture-workspace.css");
 const RAIL = read("apps/web/app/(app)/capture/_lib/CaptureIntakeRail.tsx");
 const STAGES = read("apps/web/app/(app)/capture/_lib/captureIntakeStages.ts");
 
@@ -118,41 +121,110 @@ test("the intake pickers are reachable and labelled", () => {
 // Vertical compression
 // ---------------------------------------------------------------------------
 
-test("the top of the page spends less height before the first control", () => {
-  // The measurable parts of the compression, asserted as the values they now
-  // hold rather than as a percentage nobody can check.
-  assert.match(CSS, /padding: 44px 28px 28px;/, "page top padding reduced");
-  // Read the rule by its bounds rather than through a length-bounded regex:
-  // the window would have to be re-tuned every time a comment in it changes.
-  const shellStart = CSS.indexOf(".capture-enterprise-shell {");
-  assert.ok(shellStart > -1, "the shell rule must exist");
-  const shellRule = CSS.slice(shellStart, CSS.indexOf("}", shellStart));
-  assert.match(
-    shellRule,
-    /gap: 14px;/,
-    "the rhythm between stacked top sections is tightened",
+test("page-level composition has ONE authority, and it is the workspace sheet", () => {
+  // `capture-v2.css` still holds the palette and the state classes. What it no
+  // longer decides is where anything goes: the shell, the grid, the panel
+  // rhythm and the type scale are declared once, in the sheet that loads after
+  // it. Pinning the old values would pin declarations that no longer take
+  // effect — which is exactly what this test used to do.
+  assert.ok(WORKSPACE.includes(".capture-enterprise-grid {"));
+  assert.ok(
+    WORKSPACE.includes("grid-template-columns: minmax(0, 1fr) 352px !important;"),
+    "the working column must dominate and the rail must be a fixed support width",
   );
-  // Both top cards were floored at 100px around a button that no longer
-  // exists.
-  assert.doesNotMatch(
-    CSS,
-    /\.capture-enterprise-title-card \{[\s\S]{0,200}min-height: 100px;/,
-  );
-  assert.doesNotMatch(
-    CSS,
-    /\.capture-enterprise-security-card \{[\s\S]{0,200}min-height: 100px;/,
+  assert.ok(WORKSPACE.includes("--cap-fs-body: 0.925rem;"), "one type scale");
+  assert.ok(
+    GLOBALS.indexOf("capture-workspace.css") > GLOBALS.indexOf("capture-v2.css"),
+    "the composition sheet must load after the sheet it supersedes",
   );
 });
 
-test("compression did not come out of the responsive rules", () => {
-  // The narrow-viewport overrides for the top area must still exist; shrinking
-  // desktop by breaking mobile would not be a win.
-  assert.match(CSS, /@media[^{]*\{[\s\S]*?\.capture-enterprise-top \{/);
+test("the working column is a stack of panels, not a card of cards", () => {
+  const col = WORKSPACE.slice(
+    WORKSPACE.indexOf(".capture-main-panel {"),
+    WORKSPACE.indexOf("}", WORKSPACE.indexOf(".capture-main-panel {")),
+  );
+  assert.ok(
+    col.includes("background: transparent !important;"),
+    "the column itself must not be a surface wrapping every other surface",
+  );
+  // Each band inside it gets the one shared panel geometry.
+  for (const panel of [
+    "capture-hero",
+    "capture-setup-strip",
+    "capture-requirements-panel",
+    "capture-drop-zone-enterprise",
+    "capture-materials-board",
+  ]) {
+    assert.ok(
+      WORKSPACE.includes(`.capture-main-panel > .${panel},`) ||
+        WORKSPACE.includes(`.capture-main-panel > .${panel} {`),
+      `${panel} is not on the shared panel geometry`,
+    );
+  }
 });
 
-// ---------------------------------------------------------------------------
-// Nothing else moved
-// ---------------------------------------------------------------------------
+test("the hero and the closing surfaces live INSIDE the working column", () => {
+  // The hero used to be a full-width band above the grid with the trust strip
+  // pinned to its right, and Final Readiness and the action bar used to sit
+  // below the grid. All four are bands of the working column now, which is
+  // what makes the column read as one workflow from title to Review & Sign.
+  const grid = PAGE.indexOf('<section className="capture-enterprise-grid">');
+  const mainOpen = PAGE.indexOf("capture-main-panel", grid);
+  const mainClose = PAGE.indexOf("</main>", mainOpen);
+  assert.ok(grid > -1 && mainOpen > -1 && mainClose > -1);
+
+  const column = PAGE.slice(mainOpen, mainClose);
+  for (const inside of [
+    '<section className="capture-hero">',
+    "<CaptureTrustStrip />",
+    "<CaptureActivityDisclosure",
+    "<CaptureFinalReadiness",
+    "<CaptureBottomBar",
+  ]) {
+    assert.ok(column.includes(inside), `${inside} must render inside the column`);
+  }
+  // And the rail is the column's sibling, not part of it.
+  assert.ok(PAGE.indexOf("<CaptureSessionPanel", mainClose) > mainClose);
+});
+
+test("the responsive recomposition is deliberate at every named width", () => {
+  // The rail stops being a column before it becomes too narrow to read; the
+  // page becomes single-column below that; the action row stacks last.
+  for (const bound of ["max-width: 1180px", "max-width: 860px", "max-width: 560px"]) {
+    assert.ok(WORKSPACE.includes(bound), `no recomposition at ${bound}`);
+  }
+  // The 1180 rule is the one that turns the rail from a column into a band.
+  const band = WORKSPACE.slice(WORKSPACE.indexOf("@media (max-width: 1180px)"));
+  assert.ok(band.includes(".capture-session-column {"));
+  assert.ok(band.includes("grid-template-columns: repeat(auto-fit"));
+});
+
+test("the setup strip no longer clips its own controls", () => {
+  // `overflow: hidden` was what turned a control row that did not fit into a
+  // control row the operator could not see — no scrollbar, no wrap, just gone.
+  // Removed with the layout that needed it, and asserted here so it cannot
+  // come back as a mask for the next such defect.
+  let cursor = CSS.indexOf(".capture-setup-strip {");
+  assert.ok(cursor > -1, "the strip must still be styled");
+  while (cursor > -1) {
+    const rule = CSS.slice(cursor, CSS.indexOf("}", cursor));
+    assert.ok(
+      !rule.includes("overflow: hidden"),
+      "the setup strip must not clip; wrapping is the fix, hiding is not",
+    );
+    cursor = CSS.indexOf(".capture-setup-strip {", cursor + 1);
+  }
+  assert.ok(WORKSPACE.includes("overflow: visible !important;"));
+});
+
+test("the rail leads with Session status and keeps ONE issue surface", () => {
+  assert.ok(PANEL.includes('data-capture-session-status='), "no session status surface");
+  assert.ok(PANEL.includes("statusChecks.map("), "the status checks must render");
+  // Those checks are reads of the authority, never rules of their own.
+  assert.ok(!PANEL.includes("function computeStatus"));
+  assert.ok(PANEL.includes("<CaptureReadinessSignals readiness={sessionReadiness} />"));
+});
 
 test("every capture capability the page had is still wired", () => {
   for (const marker of [
