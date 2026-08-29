@@ -32,7 +32,7 @@ vi.mock("../../lib/api", () => ({
 
 import { CheckoutDrawer } from "../../app/(app)/billing/_sections/CheckoutDrawer";
 import { BillingHistorySection } from "../../app/(app)/billing/_sections/StorageAndHistory";
-import { PlanSummaryCard } from "../../app/(app)/billing/_sections/PlanAndUsage";
+import { BillingOverview } from "../../app/(app)/billing/_sections/BillingOverview";
 import type {
   BillingAccountProjection,
   BillingHistoryEntry,
@@ -87,6 +87,7 @@ function freeAccount(
     },
     plan: {
       planKey: "FREE",
+      accessKind: "FREE",
       displayName: "Free",
       model: "FREE",
       lifecycle: "INACTIVE",
@@ -154,7 +155,7 @@ describe("the plan action on a FREE account", () => {
     let opened = 0;
 
     const { container } = render(
-      <PlanSummaryCard
+      <BillingOverview
         projection={freeAccount()}
         onManagePlan={() => {
           opened += 1;
@@ -179,7 +180,7 @@ describe("the plan action on a FREE account", () => {
 
   it("offers no enabled action to a viewer who may not manage billing", () => {
     const { container } = render(
-      <PlanSummaryCard
+      <BillingOverview
         projection={freeAccount({
           actions: {
             ...freeAccount().actions,
@@ -503,7 +504,7 @@ describe("billing history rows", () => {
 describe("Billing's primary action", () => {
   it("is the shared Button, never a Billing-only gradient", () => {
     const { container } = render(
-      <PlanSummaryCard
+      <BillingOverview
         projection={freeAccount()}
         onManagePlan={noop}
         changeBusyPlan={null}

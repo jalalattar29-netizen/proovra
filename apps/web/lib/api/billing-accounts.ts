@@ -120,6 +120,17 @@ export type PlanSummary = {
   planKey: string;
   displayName: string;
   model: CommercialModel;
+  /**
+   * HOW this account came to be on the tier it is on. Server-decided.
+   *
+   * The page could not tell a paying customer from one who was GRANTED a tier
+   * and said "Billed monthly · $19.00 per month" to both, because the model
+   * fell back to the CATALOGUE price whenever a paid tier had no subscription
+   * row. A granted entitlement is real access with no billing relationship: it
+   * does not renew, nothing is charged, and there is nothing for a provider to
+   * cancel. Which it is depends on a subscription row the browser cannot see.
+   */
+  accessKind: "SUBSCRIPTION" | "GRANTED" | "CONTRACT" | "CREDIT" | "FREE";
   lifecycle: PlanLifecycle;
   priceCents?: number | null;
   currency?: "USD" | "EUR";
@@ -268,7 +279,12 @@ export type BillingAccountProjection = {
      */
     planManagement: {
       label: string;
-      mode: "CHOOSE" | "MANAGE" | "REVIEW_SCHEDULED";
+      mode:
+        | "CHOOSE"
+        | "MANAGE"
+        | "REVIEW_SCHEDULED"
+        | "VIEW_ACCESS"
+        | "VIEW_AGREEMENT";
       enabled: boolean;
     };
     /** Why cancellation is absent, when it is. Present only then. */

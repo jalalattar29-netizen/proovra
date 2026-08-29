@@ -209,6 +209,30 @@ export type PlanSummary = {
   planKey: string;
   displayName: string;
   model: CommercialModel;
+  /**
+   * HOW this account came to be on the tier it is on.
+   *
+   * BILLING SURFACE CORRECTION (2026-08-30) — the page could not tell a paying
+   * customer from one who was GRANTED a tier, and said "Billed monthly · $19.00
+   * per month" to both. The last branch of `model` reached for
+   * `caps.monthlyPriceCents` whenever a paid tier had no subscription row, so a
+   * manually assigned PRO read as a live subscription: a price nobody is
+   * charged, a cadence nothing follows, and — until the cancellation section
+   * learned to explain itself — a cancel button with no provider behind it.
+   *
+   *   SUBSCRIPTION — a provider subscription is bound. Price, cadence, renewal
+   *                  and cancellation are all real.
+   *   GRANTED      — a paid tier with NO bound subscription. Real entitlement,
+   *                  no billing relationship: it does not renew, nothing is
+   *                  charged, and there is nothing for a provider to cancel.
+   *   CONTRACT     — Enterprise, governed by an agreement.
+   *   CREDIT       — no tier subscription; the wallet is what was bought.
+   *   FREE         — the included tier.
+   *
+   * The browser never derives this from the plan name: which of the five it is
+   * depends on a subscription row the browser cannot see.
+   */
+  accessKind: "SUBSCRIPTION" | "GRANTED" | "CONTRACT" | "CREDIT" | "FREE";
   lifecycle: PlanLifecycle;
   /** Present ONLY with BILLING_AMOUNT_VIEW. */
   priceCents?: number | null;
@@ -510,7 +534,14 @@ export type BillingAccountProjection = {
     planManagement: {
       label: string;
       /** Opening the CHOOSER (no subscription) or the MANAGER (has one). */
-      mode: "CHOOSE" | "MANAGE" | "REVIEW_SCHEDULED";
+      mode:
+        | "CHOOSE"
+        | "MANAGE"
+        | "REVIEW_SCHEDULED"
+        /** A granted tier: real access, no billing relationship to manage. */
+        | "VIEW_ACCESS"
+        /** Enterprise: the agreement, and who can change it. */
+        | "VIEW_AGREEMENT";
       enabled: boolean;
     };
     /**
@@ -931,22 +962,46 @@ export async function buildBillingAccountProjection(input: {
       ? await readEvidenceCreditWallet(account.id)
       : null;
 
-  // A personal account with credits but no subscription is billed by the
-  // CREDIT model — it is not "Free" with nothing to say, and it is certainly
-  // not a monthly subscription.
-  const model: CommercialModel =
+  const liveSubscription = Boolean(
+    subscription && subscription.status !== prismaPkg.SubscriptionStatus.CANCELED,
+  );
+
+  /*
+   * HOW the account is on this tier, decided before WHAT it is billed.
+   *
+   * The order matters and the last case is the correction: a paid tier with no
+   * bound subscription is GRANTED, not monthly. The branch this replaces read
+   * `caps.monthlyPriceCents > 0 ? "MONTHLY"` there, which took the CATALOGUE's
+   * price for a tier nobody had subscribed to and presented it as a charge —
+   * so a manually assigned PRO was shown "Billed monthly · $19.00 per month"
+   * and a renewal it would never have.
+   */
+  const accessKind: PlanSummary["accessKind"] =
     scope.plan === "ENTERPRISE"
       ? "CONTRACT"
-      : subscription && subscription.status !== prismaPkg.SubscriptionStatus.CANCELED
-        ? "MONTHLY"
-        : wallet && wallet.availableCredits > 0
-          ? "CREDIT"
-          : caps.monthlyPriceCents && caps.monthlyPriceCents > 0
-            ? "MONTHLY"
+      : liveSubscription
+        ? "SUBSCRIPTION"
+        : caps.monthlyPriceCents && caps.monthlyPriceCents > 0
+          ? "GRANTED"
+          : wallet && wallet.availableCredits > 0
+            ? "CREDIT"
             : "FREE";
+
+  // A personal account with credits but no subscription is billed by the
+  // CREDIT model — it is not "Free" with nothing to say, and it is certainly
+  // not a monthly subscription. A GRANTED tier is not billed at all.
+  const model: CommercialModel =
+    accessKind === "CONTRACT"
+      ? "CONTRACT"
+      : accessKind === "SUBSCRIPTION"
+        ? "MONTHLY"
+        : accessKind === "CREDIT"
+          ? "CREDIT"
+          : "FREE";
 
   const plan: PlanSummary = {
     planKey: scope.plan,
+    accessKind,
     displayName: caps.displayName,
     model,
     lifecycle: resolveLifecycle({
@@ -967,7 +1022,15 @@ export async function buildBillingAccountProjection(input: {
           },
         }
       : {}),
-    ...(showAmounts
+    /*
+     * A PRICE is only sent for a real subscription.
+     *
+     * `caps.monthlyPriceCents` is what the tier COSTS, not what this account
+     * pays. Sending it for a granted entitlement is how the page came to show
+     * a customer a monthly charge nobody was making, and there is no honest
+     * way for a surface to render a figure it has been handed.
+     */
+    ...(showAmounts && accessKind === "SUBSCRIPTION"
       ? {
           priceCents: caps.monthlyPriceCents,
           currency,
@@ -1312,16 +1375,22 @@ export async function buildBillingAccountProjection(input: {
       planManagement: {
         label: !canManage
           ? "View plan"
-          : subscription
+          : liveSubscription
             ? subscription?.pendingPlan
               ? "Review plan change"
               : "Manage plan"
-            : "Choose a plan",
-        mode: subscription
+            : accessKind === "GRANTED"
+              ? // Nothing to manage with a provider, and something to explain:
+                // the access is real, the billing relationship is not.
+                "View access details"
+              : "Choose a plan",
+        mode: liveSubscription
           ? subscription?.pendingPlan
             ? ("REVIEW_SCHEDULED" as const)
             : ("MANAGE" as const)
-          : ("CHOOSE" as const),
+          : accessKind === "GRANTED"
+            ? ("VIEW_ACCESS" as const)
+            : ("CHOOSE" as const),
         // A viewer without BILLING_MANAGE sees the card and its facts; the
         // action is present but inert, rather than absent and unexplained.
         enabled: canManage,
@@ -1415,6 +1484,8 @@ async function buildOrganizationProjection(input: {
       planKey: "ENTERPRISE",
       displayName: "Enterprise",
       model: "CONTRACT",
+      // Governed by an agreement, not by a subscription or a catalogue price.
+      accessKind: "CONTRACT" as const,
       lifecycle: contractActive ? "ACTIVE" : "ACTION_REQUIRED",
       // A contract has no self-service price and no checkout renewal date.
       // `endsAtUtc` is the contract's own term and is reported on the contract
@@ -1504,9 +1575,12 @@ async function buildOrganizationProjection(input: {
       // Contract changes route through the account manager, so the one action
       // an Organization is offered says so rather than opening a chooser.
       planManagement: {
-        label: "Contact your account manager",
-        mode: "MANAGE" as const,
-        enabled: false,
+        label: "View agreement",
+        mode: "VIEW_AGREEMENT" as const,
+        // Readable by any Enterprise billing viewer: the agreement's terms are
+        // what they came for, and CHANGING them is the account manager's,
+        // which the drawer says.
+        enabled: true,
       },
       cancellationUnavailableReason: "NOT_AUTHORIZED" as const,
       canBuyEvidenceCredits: false,

@@ -52,6 +52,12 @@ const FORMAT = "../app/(app)/billing/_sections/format.ts";
  * into this file. The contracts follow them.
  */
 const MANAGE = "../app/(app)/billing/_sections/ManagePlanDrawer.tsx";
+/**
+ * BILLING REDESIGN (2026-08-30) — the plan card, the usage row and the
+ * collaboration card became ONE overview panel plus two compact panels beside
+ * it. What they said moved with them; the contracts follow.
+ */
+const OVERVIEW = "../app/(app)/billing/_sections/BillingOverview.tsx";
 const PRICING = "../app/pricing/page.tsx";
 
 /**
@@ -67,7 +73,17 @@ const PRICING = "../app/pricing/page.tsx";
 const BILLING_CSS = "../app/(app)/billing/billing.css";
 
 const billingSources = () =>
-  [PAGE, PLAN_USAGE, STORAGE_HISTORY, CHECKOUT, SELECTOR, DRAWER, FORMAT, MANAGE]
+  [
+    PAGE,
+    PLAN_USAGE,
+    STORAGE_HISTORY,
+    CHECKOUT,
+    SELECTOR,
+    DRAWER,
+    FORMAT,
+    MANAGE,
+    OVERVIEW,
+  ]
     .map(read)
     .concat(readRaw(BILLING_CSS))
     .join("\n");
@@ -163,25 +179,38 @@ test("the invalid 'Teams — N of M' metric and its source are gone", () => {
   assert.doesNotMatch(src, /useBillingSummary/);
 });
 
-test("collaboration teams and members are two separate meters, and no workspace meter remains", () => {
-  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — there were three
-  // meters; the "Owned workspaces" one was removed with the allowance it
-  // reported. A meter is a promise that a plan grants something and that some
-  // of it is left, and no plan grants additional workspaces.
-  const src = read(PLAN_USAGE);
-  assert.doesNotMatch(src, /label="Owned workspaces"/);
-  assert.doesNotMatch(src, /c\.ownedWorkspaces/);
+test("collaboration teams and members are separate facts, and no workspace meter remains", () => {
+  /*
+   * BILLING REDESIGN (2026-08-30) — these were two progress meters in a
+   * page-wide card that existed to carry "0 of 2". A value that size is a
+   * fact, not a meter, so they are rows in the capabilities panel — and the
+   * property that mattered is unchanged: teams and members are counted
+   * separately, and no meter counts WORKSPACES at all.
+   */
+  const src = read(OVERVIEW);
   assert.match(src, /Collaboration teams/);
-  assert.match(src, /Accepted members/);
-  // Each reads its OWN server field; neither is derived from the other.
-  assert.match(src, /c\.collaborationTeams/);
-  assert.match(src, /c\.seats/);
+  assert.match(src, /collaborationTeams/);
+  assert.match(src, /Members/);
+  assert.match(src, /seats/);
+
+  // The retired model, which billed a workspace as its own subject.
+  const all = billingSources();
+  assert.doesNotMatch(all, /Team Workspace/);
+  assert.doesNotMatch(all, /workspaces\s+used/i);
+  assert.doesNotMatch(all, /ownedWorkspaces/);
+
+  // And it is said in words, so nobody re-derives the retired model from a
+  // number that looks like a workspace count.
+  assert.match(src, /They are not separately\s*\n?\s*billed workspaces/);
 });
 
 test("pending invitations are named separately from accepted members", () => {
-  const src = read(PLAN_USAGE);
+  // An invitation is not a member: counting them together tells an owner they
+  // have seats filled that nobody has accepted.
+  const src = read(OVERVIEW);
+  assert.match(src, /Pending invites/);
   assert.match(src, /pendingInvites/);
-  assert.match(src, /not counted here/);
+  assert.match(src, /accepted/);
 });
 
 // ===========================================================================
@@ -209,6 +238,11 @@ test("actions are read from the server projection, never from plan names", () =>
     "canRequestCancellation",
     "canBuyEvidenceCredits",
     "contactAccountManager",
+    // BILLING REDESIGN (2026-08-30) — and HOW the account holds this tier,
+    // which decides whether a price, a cadence and a cancellation may be shown
+    // at all. A granted entitlement is real access with no billing
+    // relationship; the page said "Billed monthly · $19.00" to both.
+    "planManagement",
   ]) {
     assert.match(
       src,
@@ -289,11 +323,22 @@ test("every lifecycle state has a distinct WORD, not just a colour", () => {
   }
 });
 
-test("a renewal date is rendered only for a monthly subscription", () => {
-  const src = read(PLAN_USAGE);
-  // A credit purchase has no renewal date. The card this replaces printed a
-  // "Next period" row regardless.
-  assert.match(src, /renews && plan\.model === "MONTHLY"/);
+test("a renewal date is rendered only for a REAL subscription", () => {
+  /*
+   * Tightened by the redesign. It used to be enough that the date was gated on
+   * the monthly MODEL — but the model itself fell back to the catalogue price
+   * whenever a paid tier had no subscription row, so a granted entitlement got
+   * a renewal date for a renewal that will never happen. The gate is now
+   * `accessKind === "SUBSCRIPTION"`, which is a fact about a subscription row
+   * rather than about a price list.
+   */
+  const src = read(OVERVIEW);
+  assert.match(src, /accessKind === "SUBSCRIPTION"/);
+  assert.match(src, /Renews on/);
+  assert.match(src, /Cancels on/);
+
+  // And a granted tier says what it is instead.
+  assert.match(src, /Granted access — no active billing subscription/);
 });
 
 test("the cancel confirmation describes what the provider will actually do", () => {
@@ -413,7 +458,7 @@ test("billing.css clips no customer copy and reuses the shared table", () => {
   // coloured bar and no words.
   const clips = css.match(/overflow:\s*hidden/g) ?? [];
   assert.equal(clips.length, 1, "billing.css must clip nothing but the meter track");
-  assert.match(css, /\.bill-meter__track \{[^}]*overflow: hidden/);
+  assert.match(css, /\.bill-metric__track \{[^}]*overflow: hidden/);
 
   // No line clamping anywhere: a clamped billing sentence is an unreadable one.
   assert.doesNotMatch(css, /line-clamp/);
@@ -569,7 +614,7 @@ test("cancellation is reachable from the plan card in one step", () => {
    * subscription can have done to it — including ending it — is now behind the
    * ONE button the card renders.
    */
-  const card = read(PLAN_USAGE);
+  const card = read(OVERVIEW);
   const manage = read(MANAGE);
 
   assert.match(card, /data-billing-plan-management/);
@@ -589,8 +634,8 @@ test("cancellation is reachable from the plan card in one step", () => {
 });
 
 test("a scheduled downgrade is stated before the plan can be misread", () => {
-  // On the CARD, so it is read before the one action is pressed…
-  const card = read(PLAN_USAGE);
+  // On the OVERVIEW, so it is read before the one action is pressed…
+  const card = read(OVERVIEW);
   assert.match(card, /data-billing-scheduled-change/);
   assert.match(card, /plan\.scheduledChange/);
   assert.match(card, /You keep everything you have now until then/);
@@ -760,18 +805,40 @@ test("an Enterprise agreement offers no self-service move it cannot honour", () 
   );
   assert.match(projection, /canStartCheckout: false/);
   assert.match(projection, /contactAccountManager: true/);
-  // And the page's only Enterprise affordance names the person who can act.
-  const plan = read(PLAN_USAGE);
-  assert.match(plan, /data-billing-contact-account-manager/);
+  // The ONE action an Enterprise account is offered is its agreement; a
+  // checkout button would be offering to replace a signed agreement with a
+  // card payment.
+  assert.match(projection, /mode: "VIEW_AGREEMENT"/);
+  /*
+   * Changing an agreement routes through the account manager. The card's ONE
+   * action is the AGREEMENT — a checkout there would be offering to replace a
+   * signed agreement with a card payment — and the route to a person is the
+   * support strip, which switches destination on the same server verdict.
+   */
+  assert.match(read(PAGE), /Contact your account manager/);
+  assert.match(read(PAGE), /contact-sales/);
+  assert.match(read(PAGE), /actions.contactAccountManager/);
 });
 
 test("a silent agreement is never rendered as a limit of zero", () => {
   // "12 of 0 accepted members" reads as a breach and is not one: an agreement
   // is allowed to be silent about seats, and no number we could substitute
   // would be the agreement's.
-  const plan = read(PLAN_USAGE);
-  assert.match(plan, /c\.seats\.limit === null/);
-  assert.match(plan, /Your agreement sets this allowance/);
+  //
+  // The fact moved from a page-wide meter card into the capabilities panel;
+  // the property is unchanged. A null limit renders what IS known — how many
+  // were accepted — rather than a denominator nobody agreed to.
+  const overview = read(OVERVIEW);
+  assert.match(overview, /seats\.limit === null/);
+  assert.match(overview, /accepted/);
+
+  // The Enterprise contract card still carries the agreement's own wording.
+  // ONE sentence for one fact: the overview and `describeMeter` say it the
+  // same way, because two phrasings for the same allowance is how a surface
+  // starts contradicting itself.
+  assert.match(read(OVERVIEW), /Your agreement sets this allowance/);
+  assert.match(read(FORMAT), /Your agreement sets this allowance/);
+
   const dto = read("../lib/api/billing-accounts.ts");
   assert.match(dto, /limit: number \| null; pendingInvites/);
 });

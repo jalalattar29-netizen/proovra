@@ -29,10 +29,10 @@ import { render, screen } from "@testing-library/react";
 
 import { ManagePlanDrawer } from "../../app/(app)/billing/_sections/ManagePlanDrawer";
 import {
-  CollaborationUsageCard,
-  PlanSummaryCard,
-  UsageAndLimits,
-} from "../../app/(app)/billing/_sections/PlanAndUsage";
+  BillingOverview,
+  EvidenceDetailCard,
+  PlanCapabilitiesCard,
+} from "../../app/(app)/billing/_sections/BillingOverview";
 import type {
   BillingAccountProjection,
   PlanOffer,
@@ -86,6 +86,9 @@ function personal(
     },
     plan: {
       planKey: "PRO",
+      // A real provider subscription: price, cadence and cancellation are all
+      // real. A GRANTED tier would say so and carry no price at all.
+      accessKind: "SUBSCRIPTION",
       displayName: "Pro",
       model: "MONTHLY",
       lifecycle: "ACTIVE",
@@ -159,10 +162,12 @@ function organization(
     },
     actions: {
       canStartCheckout: false,
+      // The agreement is READABLE by any Enterprise billing viewer; changing
+      // it routes through the account manager, which the drawer says.
       planManagement: {
-        label: "Contact your account manager",
-        mode: "MANAGE",
-        enabled: false,
+        label: "View agreement",
+        mode: "VIEW_AGREEMENT",
+        enabled: true,
       },
       canBuyEvidenceCredits: false,
       canBuyStorageAddon: false,
@@ -177,9 +182,17 @@ function organization(
 
 const noop = () => {};
 
+/**
+ * The OVERVIEW panel, which is what the plan card became.
+ *
+ * The card, the usage row, the credits card and the "workspaces and teams"
+ * card were four full-width panels carrying a paragraph each. They are one
+ * surface now, because they are one answer: what am I on, what have I used,
+ * and what can I do about it.
+ */
 function mountPlan(projection: BillingAccountProjection) {
   return render(
-    <PlanSummaryCard
+    <BillingOverview
       projection={projection}
       onManagePlan={noop}
       changeBusyPlan={null}
@@ -376,138 +389,165 @@ describe("a scheduled downgrade", () => {
 // 3. Over the allowance, and unknown allowances
 // ===========================================================================
 
-describe("meters say what is true", () => {
-  it("being over the allowance is explained, not shown as '176 of 127'", () => {
-    const { container } = render(
-      <UsageAndLimits
-        projection={personal({
-          usage: {
-            ...personal().usage,
-            evidence: { state: "MEASURED", used: 176, limit: 127, window: "LIFETIME" },
-          },
-          // The live account this came from: 176 records held against an
-          // enforced cap of 127, which is a GRANDFATHERED per-account limit
-          // while PRO includes 100, and no credits banked.
-          evidenceAdmission: {
-            planIncludedLifetime: 100,
-            effectiveLifetimeCap: 127,
-            capSource: "LEGACY_RECORD_CAP_OVERRIDE",
-            recordsHeld: 176,
-            creditsAvailable: 0,
-            planCapacityRemaining: 0,
-            overCap: true,
-            next: {
-              allowed: false,
-              reason: "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS",
-            },
-          },
-        })}
-      />,
-    );
+/**
+ * The Evidence story spans two surfaces: the compact metric in the overview,
+ * and the breakdown in the panel beside it. A customer reads both, so these
+ * cases render both.
+ *
+ * What this replaces: one usage card whose Evidence column carried a four-line
+ * paragraph while its two neighbours carried a line each, so the row was as
+ * tall as its longest sentence and read as one column beside two empty ones.
+ */
+function mountEvidence(projection: BillingAccountProjection) {
+  return render(
+    <>
+      <BillingOverview
+        projection={projection}
+        onManagePlan={noop}
+        changeBusyPlan={null}
+      />
+      <EvidenceDetailCard projection={projection} />
+    </>,
+  );
+}
+
+describe("the evidence allowance says what is true", () => {
+  const grandfathered = () =>
+    personal({
+      usage: {
+        ...personal().usage,
+        evidence: { state: "MEASURED", used: 176, limit: 127, window: "LIFETIME" },
+      },
+      // The live account this came from: 176 records held against an enforced
+      // cap of 127, which is a GRANDFATHERED per-account limit while PRO
+      // includes 100, and no credits banked.
+      evidenceAdmission: {
+        planIncludedLifetime: 100,
+        effectiveLifetimeCap: 127,
+        capSource: "LEGACY_RECORD_CAP_OVERRIDE",
+        recordsHeld: 176,
+        creditsAvailable: 0,
+        planCapacityRemaining: 0,
+        overCap: true,
+        next: { allowed: false, reason: "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS" },
+      },
+    });
+
+  it("states the count, not an impossible-looking ratio", () => {
+    const { container } = mountEvidence(grandfathered());
     const text = container.textContent ?? "";
+
+    // "176 of 127" reads as a broken counter, and the first thing anyone does
+    // with it is stop trusting the page.
     expect(text).not.toMatch(/176 of 127/);
-    expect(text).toMatch(/176 lifetime records/);
+    expect(text).toMatch(/176 records/);
+    expect(text).toMatch(/49 above the/);
+  });
 
-    // BILLING SURFACE CORRECTION (2026-08-29) — the sentence this replaces was
-    // "49 over the 127 your plan includes", and the page must never say it
-    // again: PRO includes 100, and 127 is a limit this account keeps rather
-    // than a limit the plan grants.
+  it("never calls a grandfathered limit what the plan includes", () => {
+    const { container } = mountEvidence(grandfathered());
+    const text = container.textContent ?? "";
+
+    // The sentence this replaces was "49 over the 127 your plan includes", and
+    // the page must never say it again: PRO includes 100, and 127 is a limit
+    // this account keeps rather than a limit the plan grants. Both numbers are
+    // present, each attributed to the right thing.
     expect(text).not.toMatch(/127 your plan includes/);
-    expect(text).toMatch(/Your plan includes 100 records/);
-    expect(text).toMatch(/higher agreed limit of 127/);
-    expect(text).toMatch(/Nothing has been removed/);
+    expect(text).toMatch(/Included with Pro/);
+    expect(text).toMatch(/100/);
+    expect(text).toMatch(/Agreed account limit/);
+    expect(text).toMatch(/127/);
+  });
 
-    // And the remedy is ONE credit, not 49 of anything.
+  it("names the remedy, and it is ONE credit", () => {
+    const { container } = mountEvidence(grandfathered());
+    const text = container.textContent ?? "";
     expect(text).toMatch(/One evidence credit covers the next record/);
+    // Never 49 of anything: admission compares the wallet against one credit
+    // and nothing else, whether the account is one over or fifty.
+    expect(text).not.toMatch(/49 credits/);
   });
 
   it("does not paint a legitimate over-allowance account in the deletion tone", () => {
-    const { container } = render(
-      <UsageAndLimits
-        projection={personal({
-          usage: {
-            ...personal().usage,
-            evidence: { state: "MEASURED", used: 176, limit: 127, window: "LIFETIME" },
-          },
-          evidenceAdmission: {
-            planIncludedLifetime: 100,
-            effectiveLifetimeCap: 127,
-            capSource: "LEGACY_RECORD_CAP_OVERRIDE",
-            recordsHeld: 176,
-            creditsAvailable: 0,
-            planCapacityRemaining: 0,
-            overCap: true,
-            next: {
-              allowed: false,
-              reason: "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS",
-            },
-          },
-        })}
-      />,
+    const { container } = mountEvidence(grandfathered());
+    // `risk` is the tone this product paints deletion in. Nothing is being
+    // deleted: the account is working exactly as sold.
+    const fill = container.querySelector<HTMLElement>(
+      '[data-billing-metric="Evidence"] .bill-metric__fill',
     );
+    expect(fill).not.toBeNull();
+    expect(fill!.getAttribute("data-tone")).toBe("pending");
+  });
 
-    // The bar was painted with the destructive token — the one this product
-    // uses for deletion — across the full width of a card describing an
-    // account that is working exactly as sold.
-    const bar = container.querySelector('[data-testid="billing-meter-evidence"] .bill-meter__fill');
-    const fill = (bar as HTMLElement | null)?.style.background ?? "";
-    expect(fill).not.toMatch(/status-risk/);
-    expect(fill).toMatch(/status-pending/);
+  it("clamps the bar at 100% while the text still says the overage", () => {
+    const { container } = mountEvidence(grandfathered());
+    const fill = container.querySelector<HTMLElement>(
+      '[data-billing-metric="Evidence"] .bill-metric__fill',
+    );
+    // 176/127 is 138%. A bar cannot render past its track, and the number
+    // above it is what carries the real figure.
+    expect(fill!.style.width).toBe("100%");
+    expect(container.textContent).toMatch(/49 above the/);
   });
 
   it("tells a comfortable account how much of its allowance is left", () => {
-    const { container } = render(
-      <UsageAndLimits
-        projection={personal({
-          usage: {
-            ...personal().usage,
-            evidence: { state: "MEASURED", used: 40, limit: 100, window: "LIFETIME" },
-          },
-          evidenceAdmission: {
-            planIncludedLifetime: 100,
-            effectiveLifetimeCap: 100,
-            capSource: "PLAN_DEFAULT",
-            recordsHeld: 40,
-            creditsAvailable: 0,
-            planCapacityRemaining: 60,
-            overCap: false,
-            next: { allowed: true, funding: "PLAN" },
-          },
-        })}
-      />,
+    const { container } = mountEvidence(
+      personal({
+        usage: {
+          ...personal().usage,
+          evidence: { state: "MEASURED", used: 40, limit: 100, window: "LIFETIME" },
+        },
+        evidenceAdmission: {
+          planIncludedLifetime: 100,
+          effectiveLifetimeCap: 100,
+          capSource: "PLAN_DEFAULT",
+          recordsHeld: 40,
+          creditsAvailable: 0,
+          planCapacityRemaining: 60,
+          overCap: false,
+          next: { allowed: true, funding: "PLAN" },
+        },
+      }),
     );
     const text = container.textContent ?? "";
-    expect(text).toMatch(/40 of 100 included lifetime records/);
+    expect(text).toMatch(/40 of 100/);
     expect(text).toMatch(/60 more records included/);
     // Nothing to explain when the enforced cap IS the plan's cap.
-    expect(text).not.toMatch(/agreed limit/);
+    expect(text).not.toMatch(/Agreed account limit/);
   });
 
   it("an unreadable value is never rendered as zero", () => {
     const { container } = render(
-      <UsageAndLimits
+      <BillingOverview
         projection={personal({
           usage: {
             ...personal().usage,
             ai: { state: "UNAVAILABLE", reason: "We could not read this right now." },
           },
         })}
+        onManagePlan={noop}
+        changeBusyPlan={null}
       />,
     );
-    expect(container.textContent ?? "").toMatch(/Unavailable/);
+    const text = container.textContent ?? "";
+    // "0" and "we do not know" are different statements, and only one of them
+    // is ever true.
+    expect(text).toMatch(/Not available/);
+    expect(text).toMatch(/We could not read this right now/);
   });
 
   it("an agreement silent on seats renders no fabricated limit", () => {
     const { container } = render(
-      <CollaborationUsageCard
-        projection={organization({
-          collaboration: { seats: { used: 12, limit: null, pendingInvites: 0 } },
+      <PlanCapabilitiesCard
+        projection={personal({
+          collaboration: { seats: { used: 3, limit: null, pendingInvites: 0 } },
         })}
       />,
     );
     const text = container.textContent ?? "";
-    expect(text).not.toMatch(/12 of 0/);
-    expect(text).toMatch(/Your agreement sets this allowance/);
+    expect(text).toMatch(/3 accepted/);
+    // Never "3 of 0": a limit the agreement does not state is not zero.
+    expect(text).not.toMatch(/of 0/);
   });
 });
 
@@ -524,7 +564,12 @@ describe("an Enterprise agreement", () => {
 
   it("names the person who can actually change it", () => {
     const { container } = mountPlan(organization());
-    expect(container.querySelector("[data-billing-contact-account-manager]")).not.toBeNull();
+    // The ONE action an Enterprise account is offered. Changing an agreement
+    // still routes through the account manager — the drawer and the support
+    // strip say so — but the card offers the agreement rather than a checkout.
+    const action = container.querySelector("[data-billing-plan-management]");
+    expect(action).not.toBeNull();
+    expect(action!.getAttribute("data-billing-plan-management")).toBe("VIEW_AGREEMENT");
   });
 
   it("shows no invented renewal date for a contract", () => {
@@ -592,29 +637,33 @@ describe("direction and long copy", () => {
     }
   });
 
-  it("the usage grid is responsive by construction, at every width", () => {
+  it("the metric row is responsive by construction, at every width", () => {
     // `repeat(auto-fit, minmax(...))` is the single declaration that makes
-    // 1440, 1024, 768 and 390 all work without a breakpoint apiece.
-    //
-    // BILLING SURFACE CORRECTION (2026-08-29) — that declaration moved from an
-    // inline style into `billing.css`, which jsdom does not load. What this
-    // file can still prove is that the meters are rendered INTO that grid and
-    // that none of them is sized by hand; the declaration itself is pinned in
-    // the CSS contract (billing-redesign.test.ts).
-    const { container } = render(<UsageAndLimits projection={personal()} />);
-    const grid = container.querySelector(".bill-usage-grid");
-    expect(grid).not.toBeNull();
-
-    const meters = Array.from(
-      container.querySelectorAll<HTMLElement>(".bill-meter"),
+    // 1440, 1024, 768 and 390 all work without a breakpoint apiece. It lives
+    // in `billing.css`, which jsdom does not load, so what this file proves is
+    // that the metrics are rendered INTO that row and that none of them is
+    // sized by hand; the declaration itself is pinned in the CSS contract
+    // (billing-redesign.test.ts).
+    const { container } = render(
+      <BillingOverview
+        projection={personal()}
+        onManagePlan={noop}
+        changeBusyPlan={null}
+      />,
     );
-    expect(meters.length).toBeGreaterThan(0);
-    for (const meter of meters) {
-      expect(grid!.contains(meter)).toBe(true);
-      // Nothing in the row carries a width of its own, which is what would
-      // stop the grid reflowing.
-      expect(meter.style.width).toBe("");
-      expect(meter.style.minWidth).toBe("");
+    const row = container.querySelector(".bill-metrics");
+    expect(row).not.toBeNull();
+
+    const metrics = Array.from(
+      container.querySelectorAll<HTMLElement>(".bill-metric"),
+    );
+    // Evidence, Storage, AI operations — three facts of equal weight, where
+    // the card this replaces gave one column a paragraph and two a line each.
+    expect(metrics).toHaveLength(3);
+    for (const metric of metrics) {
+      expect(row!.contains(metric)).toBe(true);
+      expect(metric.style.width).toBe("");
+      expect(metric.style.minWidth).toBe("");
     }
   });
 });
@@ -652,7 +701,7 @@ describe("an exhausted allowance names a resolution that exists", () => {
     // lifetime cap that describes a mechanism the product does not offer, and
     // a customer who waited would wait for ever.
     const { container } = render(
-      <UsageAndLimits
+      <EvidenceDetailCard
         projection={personal({
           usage: {
             ...personal().usage,
@@ -670,7 +719,7 @@ describe("an exhausted allowance names a resolution that exists", () => {
 
   it("a ROLLING allowance says capacity comes back, because it does", () => {
     const { container } = render(
-      <UsageAndLimits
+      <EvidenceDetailCard
         projection={personal({
           usage: {
             ...personal().usage,
@@ -687,7 +736,7 @@ describe("an exhausted allowance names a resolution that exists", () => {
   it("both say plainly that nothing was removed", () => {
     for (const window of ["LIFETIME", "ROLLING_30_DAYS"] as const) {
       const { container } = render(
-        <UsageAndLimits
+        <EvidenceDetailCard
           projection={personal({
             usage: {
               ...personal().usage,

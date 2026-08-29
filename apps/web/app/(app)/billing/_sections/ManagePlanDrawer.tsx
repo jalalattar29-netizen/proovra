@@ -68,8 +68,18 @@ export function ManagePlanDrawer({
   return (
     <BillingDrawer
       open={open}
-      title="Manage plan"
-      description={`Your subscription for ${projection.account.displayName}.`}
+      title={
+        plan.accessKind === "CONTRACT"
+          ? "Your agreement"
+          : plan.accessKind === "GRANTED"
+            ? "Access details"
+            : "Manage plan"
+      }
+      description={
+        plan.accessKind === "SUBSCRIPTION"
+          ? `Your subscription for ${projection.account.displayName}.`
+          : `Your plan for ${projection.account.displayName}.`
+      }
       onClose={onClose}
       testId="billing-manage-plan-drawer"
       footer={
@@ -132,7 +142,9 @@ export function ManagePlanDrawer({
         </section>
 
         {/* ---- Moving between tiers --------------------------------------- */}
-        {offers.length > 0 && !plan.scheduledChange ? (
+        {offers.length > 0 &&
+        !plan.scheduledChange &&
+        plan.accessKind !== "CONTRACT" ? (
           <section>
             <h3 className="bill-section__heading">Change plan</h3>
             <div className="bill-stacked-actions">
@@ -166,9 +178,39 @@ export function ManagePlanDrawer({
           </section>
         ) : null}
 
-        {/* ---- Ending it -------------------------------------------------- */}
-        <section>
-          <h3 className="bill-section__heading">End subscription</h3>
+        {/*
+          A GRANTED tier has no billing relationship to end.
+
+          The page used to describe one anyway — "Billed monthly", a catalogue
+          price and a renewal date — because the projection fell back to what
+          the TIER costs whenever a paid plan had no subscription row. There is
+          nothing to renew, nothing is charged, and there is nothing for a
+          provider to cancel, so the section says that rather than offering a
+          button with no provider behind it.
+        */}
+        {plan.accessKind === "GRANTED" ? (
+          <section data-billing-granted-access>
+            <h3 className="bill-section__heading">How you have this plan</h3>
+            <p className="bill-choice__meta">
+              {plan.displayName} access was granted to this account. There is no
+              active billing subscription behind it: nothing is charged, and it
+              does not renew automatically. If you expected to be billed for
+              this, contact support and we will look at it with you.
+            </p>
+          </section>
+        ) : plan.accessKind === "CONTRACT" ? (
+          <section data-billing-agreement>
+            <h3 className="bill-section__heading">Changing your agreement</h3>
+            <p className="bill-choice__meta">
+              Enterprise terms are set by your agreement. Your account manager
+              is the person who can change them — this page cannot, and offering
+              a checkout that replaced a signed agreement with a card payment
+              would be worse than offering none.
+            </p>
+          </section>
+        ) : (
+          <section>
+            <h3 className="bill-section__heading">End subscription</h3>
 
           {plan.cancelAtPeriodEnd ? (
             <p className="bill-choice__meta" data-billing-manage-cancelling>
@@ -208,9 +250,10 @@ export function ManagePlanDrawer({
               {actions.cancellationUnavailableReason === "NO_SUBSCRIPTION_BOUND"
                 ? "We cannot find a live subscription for this plan with your payment provider, so there is nothing here for us to stop. Please contact support and we will look at it with you — nothing will be charged again in the meantime without one."
                 : "Ending this subscription is done by the account's billing owner."}
-            </p>
-          )}
-        </section>
+              </p>
+            )}
+          </section>
+        )}
       </div>
     </BillingDrawer>
   );

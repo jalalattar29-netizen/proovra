@@ -34,37 +34,88 @@
  * ========================================================================== */
 
 /* ---------------------------------------------------------------------------
- * 1. THE HERO
+ * 1. THE PAGE — a compact application layout, not a column of full-width cards
  *
- * Two columns where there is room — the facts read down the start edge, the
- * moves sit at the end edge — and one column when there is not. The actions
- * are LAST in source order as well as in space, so a screen reader reaches
- * "you are on Pro, it costs €19, it renews on the 4th" before it reaches
- * "cancel".
+ * WHAT THIS REPLACES
+ * Seven stacked panels, each the width of the page and the height of a
+ * paragraph: a plan card, a usage card whose three columns held one line each,
+ * a credits card carrying one number, a "workspaces and teams" card carrying
+ * one number, a storage card, a history card and a support card. The page was
+ * two and a half screens tall and almost none of it was information.
+ *
+ * The composition now is: one dominant overview, then a two-column grid where
+ * the wide things (usage detail, history) sit beside the narrow ones (credits,
+ * storage, capabilities), then a support strip that is a line rather than a
+ * card.
  * ------------------------------------------------------------------------- */
-.bill-hero {
+.bill-page {
   display: grid;
-  /* facts | key numbers | actions — the three things the card is for, in the
-     order they are read. The middle column is what filled the empty half. */
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 28px;
+  gap: 18px;
+  /* The shell is wider than Billing needs. Anything past this turns the
+     history table into a row of stranded columns. */
+  max-inline-size: 1120px;
 }
 
-.bill-hero__facts-grid {
-  margin: 0;
+.bill-grid {
   display: grid;
-  gap: 12px;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.bill-grid__column {
+  display: grid;
+  gap: 18px;
+  min-inline-size: 0;
+  align-content: start;
+}
+
+@media (max-width: 980px) {
+  .bill-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. THE OVERVIEW — the one visually dominant surface
+ *
+ * Tinted rather than pure white, so it reads as the page's subject rather than
+ * as the first of several identical rectangles. The tint is the product's own
+ * violet at low alpha over the card surface, so it survives both themes and
+ * carries no colour literal of its own.
+ * ------------------------------------------------------------------------- */
+.bill-overview {
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--accent-200, #ddd3fb);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(124, 58, 237, 0.07) 0%,
+      rgba(124, 58, 237, 0.02) 46%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    var(--surface-card, #ffffff);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+  display: grid;
+  gap: 18px;
   min-inline-size: 0;
 }
 
-.bill-hero__fact {
+.bill-overview__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 20px;
+}
+
+.bill-overview__identity {
+  min-inline-size: 0;
   display: grid;
   gap: 2px;
-  min-inline-size: 0;
 }
 
-.bill-hero__fact dt {
+.bill-overview__eyebrow {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -72,182 +123,263 @@
   color: var(--text-muted, #5f6878);
 }
 
-.bill-hero__fact dd {
+.bill-overview__plan {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 1.85rem);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--text-strong, #172033);
-  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
-.bill-hero__facts {
-  min-inline-size: 0;
+.bill-overview__meta {
+  margin: 2px 0 0;
+  font-size: 0.88rem;
+  color: var(--text-muted, #475569);
+  overflow-wrap: anywhere;
+}
+
+.bill-overview__commercials {
   display: grid;
-  gap: 10px;
+  justify-items: end;
+  gap: 6px;
+  text-align: end;
 }
 
-.bill-hero__eyebrow {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.bill-overview__price {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.bill-overview__amount {
+  font-size: clamp(1.35rem, 1.1rem + 0.7vw, 1.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-strong, #172033);
+}
+
+.bill-overview__cadence {
+  font-size: 0.86rem;
+  font-weight: 400;
   color: var(--text-muted, #5f6878);
 }
 
-.bill-hero__name {
-  margin: 0;
-  font-size: clamp(1.5rem, 1.2rem + 1vw, 1.9rem);
-  line-height: 1.15;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-strong, #172033);
-  /* A long plan or organization name wraps. It never truncates: the customer
-     needs to know which account they are about to cancel. */
-  overflow-wrap: anywhere;
-}
-
-.bill-hero__price {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
+/* A status is a WORD first: the tone is a reinforcement, never the signal. */
+.bill-overview__status {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  font-size: 1.05rem;
-  color: var(--text-strong, #172033);
-}
-
-.bill-hero__amount {
-  font-size: clamp(1.5rem, 1.25rem + 0.8vw, 1.8rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.bill-hero__cadence {
-  font-size: 0.92rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+  background: var(--surface-card, #ffffff);
   color: var(--text-muted, #475569);
 }
 
-.bill-hero__line {
-  font-size: 0.92rem;
-  line-height: 1.6;
-  color: var(--text-muted, #475569);
-  overflow-wrap: anywhere;
+.bill-overview__status[data-tone="verified"] {
+  border-color: rgba(22, 163, 74, 0.28);
+  color: #15803d;
 }
 
-.bill-hero__aside {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 14px;
-  min-inline-size: 0;
+.bill-overview__status[data-tone="pending"] {
+  border-color: rgba(180, 83, 9, 0.28);
+  color: #b45309;
 }
 
-.bill-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+.bill-overview__status[data-tone="risk"] {
+  border-color: rgba(220, 38, 38, 0.28);
+  color: #b91c1c;
 }
 
-/* Every action a finger has to hit is at least 44px tall.
- *
- * `block-size` as well as `min-block-size`, deliberately: the shared Button
- * writes its own `min-height` INLINE (34px at size "sm"), and an inline
- * declaration of the same property beats a stylesheet one. `block-size` is a
- * different property, so the used height becomes max(min-height, height) = 44px
- * without an `!important` and without a Billing-only copy of the button.
- *
- * Safe because every child here is a single-line action: the shared Button and
- * the shared action anchors all set `white-space: nowrap`. */
-.bill-actions > * {
+.bill-overview__action > * {
   min-block-size: 44px;
   block-size: 44px;
 }
 
-@media (max-width: 1180px) {
-  .bill-hero {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .bill-hero__facts-grid {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
-  }
+.bill-overview__notes {
+  display: grid;
+  gap: 4px;
+}
+
+.bill-overview__note {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--text-muted, #475569);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 860px) {
-  .bill-hero {
+  .bill-overview {
+    padding: 18px;
+  }
+  .bill-overview__head {
     grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 14px;
   }
-  .bill-hero__aside {
-    align-items: flex-start;
+  .bill-overview__commercials {
+    justify-items: start;
+    text-align: start;
   }
-  /* Full-width targets on a phone, which is also what makes them 44px. */
-  .bill-actions > * {
-    flex: 1 1 auto;
+  .bill-overview__action > * {
+    inline-size: 100%;
     justify-content: center;
   }
 }
 
 /* ---------------------------------------------------------------------------
- * 2. USAGE
+ * 2b. THE METRICS — three facts of equal weight, on one row
  *
- * Three meters of equal weight. `auto-fit` rather than a fixed count so the
- * row reflows at any width instead of at three chosen breakpoints, and
- * `minmax(0, …)` so a long headline cannot push the grid wider than the page.
+ * The card this replaces gave the Evidence column a four-line paragraph while
+ * its two neighbours held a single line each, so the row was as tall as its
+ * longest sentence and read as one column beside two empty ones. What belongs
+ * here is the number; the explanation moved to the Evidence panel, which has
+ * room for it.
  * ------------------------------------------------------------------------- */
-.bill-usage-grid {
+.bill-metrics {
+  margin: 0;
   display: grid;
-  gap: 22px;
-  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--accent-200, #ddd3fb);
 }
 
-.bill-meter {
+.bill-metric {
   min-inline-size: 0;
   display: grid;
-  gap: 6px;
+  gap: 4px;
   align-content: start;
 }
 
-.bill-meter__label {
+.bill-metric__label {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-muted, #5f6878);
 }
 
-/* A <bdi>, so the class must make it a block. */
-.bill-meter__headline {
-  display: block;
-  font-size: 1.02rem;
-  font-weight: 600;
+.bill-metric__value {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
   color: var(--text-strong, #172033);
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
-.bill-meter__track {
-  margin-block-start: 4px;
-  block-size: 6px;
+.bill-metric__track {
+  margin-block-start: 2px;
+  block-size: 5px;
   border-radius: 999px;
   background: var(--surface-muted, #eef2f7);
-  /* The one deliberate `overflow: hidden` in this file: it clips the FILL to
-     the rounded track, and holds no text. */
+  /* Clips the FILL to the rounded track. Holds no text. */
   overflow: hidden;
 }
 
-.bill-meter__fill {
+.bill-metric__fill {
+  display: block;
   block-size: 100%;
   border-radius: 999px;
+  background: var(--accent-500, #7c3aed);
 }
 
-.bill-meter__detail {
+/* Amber for attention, never the destructive red: being at or past an
+   allowance is a normal commercial state with a normal remedy. */
+.bill-metric__fill[data-tone="pending"] {
+  background: var(--status-pending-solid, #f59e0b);
+}
+
+.bill-metric__note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted, #5f6878);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------
+ * 2c. PANELS — the small surfaces in the grid
+ * ------------------------------------------------------------------------- */
+.bill-panel {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.08));
+  background: var(--surface-card, #ffffff);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-inline-size: 0;
+}
+
+.bill-panel__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-strong, #172033);
+}
+
+.bill-panel__note {
+  margin: 0;
   font-size: 0.84rem;
   line-height: 1.6;
   color: var(--text-muted, #475569);
   overflow-wrap: anywhere;
 }
 
-.bill-meter__action {
-  margin-block-start: 4px;
+.bill-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bill-panel__actions > * {
+  min-block-size: 44px;
+  block-size: 44px;
+}
+
+.bill-panel__lead {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-strong, #172033);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A compact support line. It was a full-width card for one sentence. */
+.bill-support-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.08));
+  background: var(--surface-muted, #f8fafc);
+  font-size: 0.88rem;
+  color: var(--text-muted, #475569);
+}
+
+.bill-support-strip__copy {
+  margin: 0;
+  min-inline-size: 0;
+  flex: 1 1 260px;
+  overflow-wrap: anywhere;
+}
+
+.bill-support-strip__action {
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* ---------------------------------------------------------------------------
@@ -427,94 +559,59 @@
 }
 
 /* ---------------------------------------------------------------------------
- * 5. STORAGE — the offers on the page, and the FREE upgrade card
+ * 5. STORAGE — the active add-ons, compactly
  *
- * The capacities and their prices are what a customer needs in order to
- * decide, and they used to be behind an "Add storage" button: the drawer's
- * only content was the list. They are cards on the page now, and pressing one
- * opens the confirmation with that capacity already chosen.
+ * The capacities on offer are NOT here: they live in the selection drawer,
+ * behind one button. Three offer cards each carrying its own "Add storage"
+ * button called one handler, so the page asked the customer to choose twice
+ * and looked like three different purchases.
  * ------------------------------------------------------------------------- */
-.bill-offer-grid {
+.bill-addon-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: 8px;
 }
 
-.bill-offer {
-  display: grid;
-  gap: 4px;
-  align-content: start;
-  padding: 18px;
-  border-radius: 14px;
-  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
-  background: var(--surface-card, #ffffff);
-  min-inline-size: 0;
-  transition:
-    border-color 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.bill-offer:hover {
-  border-color: var(--accent-300, #c4b5fd);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-}
-
-.bill-offer__capacity {
-  font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-strong, #172033);
-}
-
-.bill-offer__price {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-strong, #172033);
-}
-
-.bill-offer__cadence {
-  font-size: 0.84rem;
-  font-weight: 400;
-  color: var(--text-muted, #5f6878);
-}
-
-.bill-offer__action {
-  margin-block-start: 12px;
-}
-
-/* FREE: storage is a PLAN question, so the card answers it with the plan
-   chooser rather than an empty purchase drawer. */
-.bill-storage-upgrade {
+.bill-addon {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.08));
+  background: var(--surface-muted, #f8fafc);
 }
 
-.bill-storage-upgrade__facts {
+.bill-addon__facts {
   min-inline-size: 0;
-  flex: 1 1 280px;
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
-.bill-storage-upgrade__included {
-  font-size: 1.02rem;
+.bill-addon__size {
   font-weight: 600;
   color: var(--text-strong, #172033);
-}
-
-.bill-storage-upgrade__copy {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: var(--text-muted, #475569);
   overflow-wrap: anywhere;
 }
 
-.bill-active-addons {
-  margin-block-start: 16px;
+.bill-addon__meta {
+  font-size: 0.82rem;
+  color: var(--text-muted, #5f6878);
+  overflow-wrap: anywhere;
+}
+
+.bill-addon__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bill-addon__actions > button {
+  min-block-size: 44px;
 }
 
 /* ---------------------------------------------------------------------------

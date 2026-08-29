@@ -60,11 +60,13 @@ import {
 import { AccountSelector } from "./_sections/AccountSelector";
 import {
   ActionRequiredBanner,
-  CollaborationUsageCard,
   EnterpriseContractCard,
-  PlanSummaryCard,
-  UsageAndLimits,
 } from "./_sections/PlanAndUsage";
+import {
+  BillingOverview,
+  EvidenceDetailCard,
+  PlanCapabilitiesCard,
+} from "./_sections/BillingOverview";
 import {
   BillingHistorySection,
   StorageAddonsSection,
@@ -568,6 +570,62 @@ function BillingPageInner() {
     [selected, paymentBusyId, confirm, addToast, loadHistory],
   );
 
+  /**
+   * "Re-check purchases and billing" — the ACCOUNT-wide provider sweep.
+   *
+   * Distinct from a row's own re-check: this asks about every binding the
+   * server stored for this account. It was written inline in the JSX, which is
+   * why the history panel could not be compact.
+   */
+  const handleAccountRecheck = useCallback(async () => {
+    if (!selected || recheckBusy) return;
+    setRecheckBusy(true);
+    try {
+      const result = await reconcileAccount(selected);
+      switch (result.outcome) {
+        case "UPDATED":
+          addToast(
+            "Your provider had something we had not recorded. Your billing is now up to date.",
+            "success",
+          );
+          refresh();
+          break;
+        case "PENDING":
+          addToast(
+            "Your provider is still settling a payment. Check again in a few minutes — nothing is charged twice.",
+            "info",
+          );
+          break;
+        case "ACTION_REQUIRED":
+          addToast(
+            "Something on this account needs our help. Please contact support — nothing has been charged again.",
+            "error",
+          );
+          break;
+        case "PROVIDER_UNAVAILABLE":
+          addToast(
+            "We could not reach your payment provider just now. Your billing records are unchanged.",
+            "error",
+          );
+          break;
+        default:
+          addToast(
+            "Everything on this account already matches your payment provider.",
+            "success",
+          );
+      }
+    } catch (err) {
+      captureException(err, { feature: "billing_restore" });
+      const safe = toSafeUserError(err, {
+        message:
+          "We could not check with your payment provider. Your billing records are unchanged — try again in a moment.",
+      });
+      addToast(safe.message, "error");
+    } finally {
+      setRecheckBusy(false);
+    }
+  }, [selected, recheckBusy, addToast, refresh]);
+
   // ---- Plan change -------------------------------------------------------
   //
   // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — moving between tiers on
@@ -775,224 +833,148 @@ function BillingPageInner() {
         </PageSection>
       ) : (
         <>
-          <PageSection>
+          {/*
+            THE COMPOSITION.
+
+            What this replaces: seven full-width panels stacked down the page —
+            plan, usage, credits, workspaces-and-teams, storage, history,
+            support — each the width of the page and the height of a paragraph.
+            The page was two and a half screens tall and almost none of it was
+            information.
+
+            One dominant overview answers the page's question. Below it a
+            two-column grid puts the wide things (the evidence detail, the
+            history table) beside the narrow ones (credits, storage,
+            capabilities), so a fact the size of "0 of 2" occupies a row rather
+            than a card. Support is a line.
+          */}
+          <div className="bill-page" data-billing-layout>
             <ActionRequiredBanner
               projection={projection}
               onRetryStorageCancellation={handleRetryStorageCancellation}
               retryBusy={addonRetryBusy}
             />
-          </PageSection>
 
-          <PageSection>
-            <PlanSummaryCard
+            <BillingOverview
               projection={projection}
               onManagePlan={() => openPlanManagement()}
               changeBusyPlan={changeBusyPlan}
             />
-          </PageSection>
 
-          <PageSection>
-            <UsageAndLimits
-              projection={projection}
-              onBuyCredits={
-                projection.actions.canBuyEvidenceCredits
-                  ? () => setCheckout({ kind: "CREDITS" })
-                  : undefined
-              }
-              onUpgrade={(planKey) => setCheckout({ kind: "PLAN", planKey })}
-            />
-          </PageSection>
-
-          {projection.actions.canBuyEvidenceCredits ? (
-            <PageSection>
-              <Card
-                variant="summary"
-                title="Evidence credits"
-                subtitle="Record more evidence without changing your plan. Credits do not expire."
-                headerAction={
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setCheckout({ kind: "CREDITS" })}
-                    data-billing-buy-credits
-                  >
-                    Buy credits
-                  </Button>
-                }
-                data-billing-credits
-              >
-                <div style={{ fontSize: "0.95rem", color: "var(--text-strong, #172033)" }}>
-                  {projection.wallet?.availableCredits ?? 0} available
-                </div>
-                {projection.wallet?.hasLedgerHistory ? (
-                  <div
-                    style={{
-                      marginTop: 4,
-                      fontSize: "0.85rem",
-                      color: "var(--text-muted, #5F6878)",
-                    }}
-                  >
-                    {projection.wallet.purchasedCredits} purchased ·{" "}
-                    {projection.wallet.consumedCredits} used
-                  </div>
-                ) : null}
-              </Card>
-            </PageSection>
-          ) : null}
-
-          <PageSection>
-            <CollaborationUsageCard projection={projection} />
-          </PageSection>
-
-          <PageSection>
-            <StorageAddonsSection
-              projection={projection}
-              onBuy={(addonKey) => setCheckout({ kind: "STORAGE", addonKey })}
-              /*
-               * FREE has no add-on catalogue, so its storage card offers the
-               * PLAN CHOOSER — the same one the plan card opens — instead of a
-               * purchase drawer with an empty "Capacity" section and a dead
-               * payment button.
-               */
-              onChoosePlan={() => openPlanManagement()}
-              onCancelAddon={(id) => void handleCancelAddon(id)}
-              cancelBusyId={cancelAddonBusy}
-            />
-          </PageSection>
-
-          <PageSection>
-            <BillingHistorySection
-              entries={history}
-              state={historyState}
-              onRetry={() => selected && void loadHistory(selected)}
-              recheckBusy={recheckBusy}
-              onRecheckPayment={(entry) => void handleRecheckPayment(entry)}
-              onCancelPayment={(entry) => void handleCancelPayment(entry)}
-              onAbandonPayment={(entry) => void handleAbandonPayment(entry)}
-              rowBusyId={paymentBusyId}
-              resumeUrls={resumeUrls}
-              onRecheck={() => {
-                void (async () => {
-                  setRecheckBusy(true);
-                  try {
-                    // BILLING RECONCILIATION (2026-08-27) — a real provider
-                    // check, scoped to the SELECTED account, reporting the
-                    // server's own verdict verbatim. Every branch below is a
-                    // server-decided outcome; the browser classifies nothing.
-                    const result = await reconcileAccount(selected);
-                    switch (result.outcome) {
-                      case "UPDATED":
-                        addToast(
-                          "Your provider had something we had not recorded. Your billing is now up to date.",
-                          "success",
-                        );
-                        // Only an UPDATED run changes what the page shows.
-                        refresh();
-                        break;
-                      case "PENDING":
-                        addToast(
-                          "Your provider is still settling a payment. Check again in a few minutes — nothing is charged twice.",
-                          "info",
-                        );
-                        break;
-                      case "ACTION_REQUIRED":
-                        addToast(
-                          "Something on this account needs our help. Please contact support — nothing has been charged again.",
-                          "error",
-                        );
-                        break;
-                      case "PROVIDER_UNAVAILABLE":
-                        addToast(
-                          "We could not reach your payment provider just now. Nothing has changed — please try again shortly.",
-                          "error",
-                        );
-                        break;
-                      default:
-                        addToast(
-                          "Everything on this account already matches your payment provider.",
-                          "success",
-                        );
-                    }
-                  } catch (err) {
-                    captureException(err, { feature: "billing_restore" });
-                    const safe = toSafeUserError(err, {
-                      message:
-                        "We could not check with your payment provider. Nothing has changed — try again in a moment.",
-                    });
-                    addToast(safe.message, "error");
-                  } finally {
-                    setRecheckBusy(false);
+            <div className="bill-grid">
+              <div className="bill-grid__column">
+                <EvidenceDetailCard
+                  projection={projection}
+                  onBuyCredits={
+                    projection.actions.canBuyEvidenceCredits
+                      ? () => setCheckout({ kind: "CREDITS" })
+                      : undefined
                   }
-                })();
-              }}
-            />
-          </PageSection>
+                  onChoosePlan={() => openPlanManagement()}
+                />
 
-          <PageSection>
-            <EnterpriseContractCard projection={projection} />
-          </PageSection>
-
-          <PageSection>
-            <Card variant="admin" data-billing-support>
-              {/*
-                BILLING SURFACE CORRECTION (2026-08-29) — the banner reads as
-                one line with its action beside it, rather than a paragraph
-                with a button orphaned underneath. On a narrow screen the copy
-                and the action stack, and the action fills the width.
-              */}
-              <div className="bill-support">
-                <p className="bill-support__copy">
-                  {projection.actions.contactAccountManager
-                    ? "Changes to your agreement go through your account manager."
-                    : "Something not right on this page? Your billing records are the ones we act on — get in touch and we will look at them with you."}
-                </p>
-                <a
-                  /*
-                   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) —
-                   * "/settings#privacy" was WRONG, and wrong in a way that
-                   * wasted the time of someone already having a problem: the
-                   * link said "Get help" about a billing discrepancy and
-                   * landed on the privacy section of Settings, which has
-                   * nothing to say about billing and no way to reach a human.
-                   *
-                   * "/support" is the destination the rest of the app already
-                   * uses for exactly this — the error boundaries, the
-                   * not-found page and the MFA challenge all send people
-                   * there — so this is joining the existing route, not adding
-                   * a second one.
-                   */
-                  href={
-                    projection.actions.contactAccountManager
-                      ? "/contact-sales"
-                      : "/support"
-                  }
-                  /*
-                   * BILLING SURFACE CORRECTION (2026-08-29) — it opens in a NEW
-                   * TAB, and that is what stops it signing the customer out.
-                   *
-                   * It was a same-tab client-routed link. `/support` lives OUTSIDE the
-                   * `(app)` route group, so following it tore down the
-                   * authenticated shell — and the session token is held in
-                   * MEMORY ONLY (lib/api.ts: "In-memory only … NEVER persist"),
-                   * so that navigation destroyed the only copy of it. Coming
-                   * back to Billing then landed on a signed-out shell. Nothing
-                   * about `/support` logs anyone out; navigating away from the
-                   * app in the same tab does.
-                   */
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="app-header-primary-action bill-support__action"
-                  data-billing-support-action
-                >
-                  <span>
-                    {projection.actions.contactAccountManager
-                      ? "Contact your account manager"
-                      : "Get help"}
-                  </span>
-                </a>
+                <BillingHistorySection
+                  entries={history}
+                  state={historyState}
+                  onRetry={() => selected && void loadHistory(selected)}
+                  recheckBusy={recheckBusy}
+                  onRecheckPayment={(entry) => void handleRecheckPayment(entry)}
+                  onCancelPayment={(entry) => void handleCancelPayment(entry)}
+                  onAbandonPayment={(entry) => void handleAbandonPayment(entry)}
+                  rowBusyId={paymentBusyId}
+                  resumeUrls={resumeUrls}
+                  onRecheck={() => void handleAccountRecheck()}
+                />
               </div>
-            </Card>
-          </PageSection>
+
+              <div className="bill-grid__column">
+                {projection.actions.canBuyEvidenceCredits ? (
+                  <section className="bill-panel" data-billing-credits>
+                    <h3 className="bill-panel__title">Evidence credits</h3>
+                    {/* The WHOLE phrase is isolated: in an RTL paragraph
+                        "0 available" reorders to "available 0" unless the run
+                        is kept together. */}
+                    <p className="bill-panel__lead">
+                      <bdi>
+                        {projection.wallet?.availableCredits ?? 0} available
+                      </bdi>
+                    </p>
+                    <p className="bill-panel__note">
+                      Record more evidence without changing your plan. Credits
+                      do not expire.
+                      {projection.wallet?.hasLedgerHistory ? (
+                        <>
+                          {" "}
+                          <bdi>{projection.wallet.purchasedCredits}</bdi>{" "}
+                          purchased ·{" "}
+                          <bdi>{projection.wallet.consumedCredits}</bdi> used.
+                        </>
+                      ) : null}
+                    </p>
+                    <div className="bill-panel__actions">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setCheckout({ kind: "CREDITS" })}
+                        data-billing-buy-credits
+                      >
+                        Buy credits
+                      </Button>
+                    </div>
+                  </section>
+                ) : null}
+
+                <StorageAddonsSection
+                  projection={projection}
+                  onManageStorage={() => setCheckout({ kind: "STORAGE" })}
+                  onChoosePlan={() => openPlanManagement()}
+                  onCancelAddon={(id) => void handleCancelAddon(id)}
+                  cancelBusyId={cancelAddonBusy}
+                />
+
+                <PlanCapabilitiesCard projection={projection} />
+
+                <EnterpriseContractCard projection={projection} />
+              </div>
+            </div>
+
+            {/* One line, not a card. It was a full-width panel carrying a
+                sentence and a button. */}
+            <div className="bill-support-strip" data-billing-support>
+              <p className="bill-support-strip__copy">
+                {projection.actions.contactAccountManager
+                  ? "Changes to your agreement go through your account manager."
+                  : "Something not right here? Your billing records are the ones we act on."}
+              </p>
+              <a
+                /*
+                 * "/support" is the destination the rest of the app already
+                 * uses for exactly this — the error boundaries, the not-found
+                 * page and the MFA challenge all send people there.
+                 *
+                 * It opens in a NEW TAB, and that is what stops it signing the
+                 * customer out: `/support` lives OUTSIDE the `(app)` route
+                 * group, so following it in the same tab tore down the
+                 * authenticated shell — and the session token is held in
+                 * MEMORY ONLY (lib/api.ts: "In-memory only … NEVER persist"),
+                 * so that navigation destroyed the only copy of it.
+                 */
+                href={
+                  projection.actions.contactAccountManager
+                    ? "/contact-sales"
+                    : "/support"
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bill-support-strip__action"
+                data-billing-support-action
+              >
+                {projection.actions.contactAccountManager
+                  ? "Contact your account manager"
+                  : "Get help"}
+              </a>
+            </div>
+          </div>
 
           <ManagePlanDrawer
             open={managePlanOpen}

@@ -41,72 +41,56 @@ import { formatDate, formatMoney, statusLabel, statusTone } from "./format";
 
 export function StorageAddonsSection({
   projection,
-  onBuy,
+  onManageStorage,
   onChoosePlan,
   onCancelAddon,
   cancelBusyId,
 }: {
   projection: BillingAccountProjection;
   /**
-   * Buy ONE named capacity. The offer is chosen on the PAGE and the drawer
-   * opens on it already selected — a customer who has read three prices and
-   * picked one should not be asked to pick again.
-   */
-  onBuy: (addonKey: string) => void;
-  /**
-   * Opens the ONE plan chooser — the same surface the plan card opens.
+   * ONE entry point into the capacity catalogue.
    *
-   * FREE has no add-on catalogue, and pressing "Add storage" there used to
-   * open a purchase drawer with an empty "Capacity" heading, a payment method
-   * and a dead button. Storage on FREE is a PLAN question, so it is answered
-   * with the plan chooser.
+   * What this replaces: an offer card per capacity, each with its own "Add
+   * storage" button — three buttons calling one handler, so the page asked the
+   * customer to choose twice and looked like three different purchases.
+   */
+  onManageStorage: () => void;
+  /**
+   * FREE has no add-on catalogue, so its card offers the PLAN chooser rather
+   * than a purchase drawer with an empty "Capacity" section and a dead button.
    */
   onChoosePlan: () => void;
   onCancelAddon: (addonId: string) => void;
   cancelBusyId: string | null;
 }) {
-  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — when add-ons are not
-  // available, say why and offer the move that changes it, rather than
-  // rendering nothing and leaving the customer to guess whether the feature is
-  // missing, broken, or simply not theirs.
-  // When add-ons are not available, say why and offer the move that changes
-  // it, rather than rendering nothing and leaving the customer to guess
-  // whether the feature is missing, broken, or simply not theirs.
-  const locked = projection.storageAddonsLocked;
   const meter = projection.usage.storage;
+  const locked = projection.storageAddonsLocked;
+
   if (locked) {
     return (
-      <Card variant="summary" title="Storage" data-billing-storage-locked>
-        <div className="bill-storage-upgrade">
-          <div className="bill-storage-upgrade__facts">
-            {meter.state === "MEASURED" ? (
-              <div className="bill-storage-upgrade__included">
-                <bdi>{meter.limitLabel}</bdi> included
-              </div>
-            ) : null}
-            <p className="bill-storage-upgrade__copy">{locked.reason}</p>
+      <section className="bill-panel" data-billing-storage-locked>
+        <h3 className="bill-panel__title">Storage</h3>
+        {/* One isolated run: "0 B of 100 GB" reorders to "100 GB of 0 B" in an
+            RTL paragraph when only the numbers are isolated. */}
+        {meter.state === "MEASURED" ? (
+          <p className="bill-panel__lead">
+            <bdi>{`${meter.usedLabel} of ${meter.limitLabel}`}</bdi>
+          </p>
+        ) : null}
+        <p className="bill-panel__note">{locked.reason}</p>
+        {locked.unlockedByPlan ? (
+          <div className="bill-panel__actions">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onChoosePlan}
+              data-billing-storage-upgrade
+            >
+              Choose a plan
+            </Button>
           </div>
-          {locked.unlockedByPlan ? (
-            <div className="bill-actions">
-              {/*
-                The PLAN chooser, not a purchase drawer. This used to open the
-                storage checkout, which on FREE has no offers in it — the page
-                told a customer to upgrade and then showed them an empty
-                "Capacity" section above a payment button that could not be
-                pressed.
-              */}
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={onChoosePlan}
-                data-billing-storage-upgrade
-              >
-                Choose a plan
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      </Card>
+        ) : null}
+      </section>
     );
   }
 
@@ -118,109 +102,70 @@ export function StorageAddonsSection({
   if (!hasOffers && !hasActive) return null;
 
   return (
-    <Card
-      variant="summary"
-      title="Storage add-ons"
-      subtitle="Extra capacity, billed monthly alongside your plan."
-      data-billing-storage-addons
-    >
-      {/*
-        The OFFERS are on the page, not behind a button.
+    <section className="bill-panel" data-billing-storage-addons>
+      <h3 className="bill-panel__title">Storage</h3>
 
-        "Add storage" opened a drawer whose only content was the list of
-        capacities and their prices — so the one thing a customer needed in
-        order to decide was the one thing they had to open something to see.
-        The prices are the server's, the cards are the page's, and pressing one
-        opens the confirmation with that capacity already chosen.
-      */}
-      {hasOffers ? (
-        <div className="bill-offer-grid" data-billing-storage-offers>
-          {addons.offers.map((offer) => {
-            const price = formatMoney(offer.priceCents, offer.currency);
-            return (
-              <div
-                key={offer.key}
-                className="bill-offer"
-                data-billing-storage-offer={offer.key}
-              >
-                <div className="bill-offer__capacity">
-                  <bdi>{offer.storageLabel}</bdi>
-                </div>
-                {/*
-                  The WHOLE phrase is isolated, not just the amount: in an RTL
-                  paragraph "US$59.99 / month" reorders to "month / US$59.99"
-                  unless the run is kept together.
-                */}
-                {price ? (
-                  <bdi className="bill-offer__price">
-                    {price}
-                    <span className="bill-offer__cadence"> / month</span>
-                  </bdi>
-                ) : null}
-                <div className="bill-offer__cadence">Billed monthly</div>
-                <div className="bill-actions bill-offer__action">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => onBuy(offer.key)}
-                    data-billing-buy-storage={offer.key}
-                  >
-                    Add storage
-                  </Button>
-                </div>
+      {/* What the account HAS, before what it could buy. */}
+      {meter.state === "MEASURED" ? (
+        <>
+          {/* One isolated run: "0 B of 100 GB" reorders to "100 GB of 0 B"
+              in an RTL paragraph when only the numbers are isolated. */}
+          <p className="bill-panel__lead">
+            <bdi>{`${meter.usedLabel} of ${meter.limitLabel}`}</bdi>
+          </p>
+          <dl className="bill-facts">
+            <div className="bill-facts__row">
+              <dt className="bill-facts__label">Included with your plan</dt>
+              <dd className="bill-facts__value">
+                <bdi>{meter.baseLabel}</bdi>
+              </dd>
+            </div>
+            {meter.recurringAddonBytes !== "0" ? (
+              <div className="bill-facts__row">
+                <dt className="bill-facts__label">Add-ons</dt>
+                <dd className="bill-facts__value">
+                  <bdi>{meter.recurringAddonLabel}</bdi>
+                </dd>
               </div>
-            );
-          })}
-        </div>
+            ) : null}
+            {meter.legacyAddonBytes !== "0" ? (
+              <div className="bill-facts__row">
+                <dt className="bill-facts__label">Kept from earlier purchases</dt>
+                <dd className="bill-facts__value">
+                  <bdi>{meter.legacyAddonLabel}</bdi>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </>
       ) : null}
 
+      {/* The ACTIVE add-ons, each with the action the server allows on it. */}
       {hasActive ? (
-        <ul
-          className="bill-active-addons"
-          style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}
-        >
+        <ul className="bill-addon-list">
           {addons.active.map((addon) => {
             const price = formatMoney(addon.priceCents ?? null, addon.currency ?? null);
             const renews = formatDate(addon.currentPeriodEndUtc);
             return (
               <li
                 key={addon.id}
+                className="bill-addon"
                 data-billing-addon={addon.addonKey}
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-                  background: "var(--surface-muted, #f8fafc)",
-                }}
               >
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      color: "var(--text-strong, #172033)",
-                    }}
-                  >
-                    {addon.storageLabel}
+                <div className="bill-addon__facts">
+                  <span className="bill-addon__size">
+                    <bdi>{addon.storageLabel}</bdi>
                     {price ? (
                       <>
                         {" · "}
-                        <bdi>{price}</bdi>
-                        {addon.legacyOneTime ? "" : " / month"}
+                        <bdi>
+                          {price}
+                          {addon.legacyOneTime ? "" : " / month"}
+                        </bdi>
                       </>
                     ) : null}
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 2,
-                      fontSize: "0.84rem",
-                      color: "var(--text-muted, #5F6878)",
-                    }}
-                  >
+                  </span>
+                  <span className="bill-addon__meta">
                     {addon.legacyOneTime
                       ? // Named honestly: it never renews and it is never taken
                         // away. It is capacity already paid for outright.
@@ -228,17 +173,16 @@ export function StorageAddonsSection({
                       : renews
                         ? `Renews ${renews}`
                         : "Recurring monthly"}
-                  </div>
+                  </span>
                 </div>
-
-                <div className="bill-actions">
+                <div className="bill-addon__actions">
                   <Badge tone={statusTone(addon.status)} dot>
                     {statusLabel(addon.status)}
                   </Badge>
-                  {/* The SERVER decides whether this add-on can be
-                      cancelled: it depends on the viewer's capability, on
-                      whether the row is a grandfathered one-time purchase,
-                      and on the subscription's state. */}
+                  {/* The SERVER decides whether this add-on can be cancelled:
+                      it depends on the viewer's capability, on whether the row
+                      is a grandfathered one-time purchase, and on the
+                      subscription's state. */}
                   {addon.canCancel ? (
                     <Button
                       variant="ghost"
@@ -256,20 +200,33 @@ export function StorageAddonsSection({
             );
           })}
         </ul>
-      ) : (
-        <p
-          style={{
-            margin: 0,
-            fontSize: "0.9rem",
-            lineHeight: 1.65,
-            color: "var(--text-muted, #475569)",
-          }}
-          data-billing-no-addons
-        >
-          No extra storage yet. Your plan&apos;s included capacity is shown above.
+      ) : null}
+
+      {hasOffers ? (
+        <div className="bill-panel__actions">
+          {/*
+            ONE button into ONE selection flow. The capacities and their prices
+            are shown inside it, where the choice is made — rather than as
+            three cards each carrying its own button that called this same
+            handler.
+          */}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onManageStorage}
+            data-billing-manage-storage
+          >
+            {hasActive ? "Manage storage" : "Add storage"}
+          </Button>
+        </div>
+      ) : null}
+
+      {!hasActive && !hasOffers ? (
+        <p className="bill-panel__note" data-billing-no-addons>
+          No extra storage yet.
         </p>
-      )}
-    </Card>
+      ) : null}
+    </section>
   );
 }
 
