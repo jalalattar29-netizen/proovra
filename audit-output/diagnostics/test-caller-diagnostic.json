@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "f812d676cf811572667761e7f92906862e32381a1fb7532a7614aafbe2a289ed",
+  "capabilityRouteInventoryHash": "7e1bf18cbdad3ba278bfcd41c60663cca1651668931e0f7ea5d8872ecd2db4a0",
   "totals": {
-    "routes": 1114,
+    "routes": 1116,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -3844,6 +3844,18 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/billing/accounts/:type/:id/payments/:paymentId/cancel",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/billing/accounts/:type/:id/payments/:paymentId/recheck",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/billing/accounts/:type/:id/reconcile",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6766,5 +6778,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "bf9538cd371c96a14446e86d7c898f4978c107312d0b33b65ba5c391e3cdc974"
+  "contentHash": "1e1bcedeac9c287aec94869a8168bcdab3fbaadae915c2a264813f766c2cfd29"
 }

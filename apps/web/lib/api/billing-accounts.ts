@@ -56,6 +56,36 @@ export type UsageMeter =
   | { state: "CONTRACT_MANAGED" }
   | { state: "UNAVAILABLE"; reason: string };
 
+/**
+ * BILLING SURFACE CORRECTION (2026-08-29) — the parts of the evidence allowance,
+ * kept apart so the page can state them instead of collapsing them into one
+ * number it then has to describe wrongly.
+ *
+ * Mirrors the server projection exactly. Nothing here is derived in the
+ * browser: `next` is the SAME decision the enforcement gate makes, computed
+ * once on the server by the same pure policy, so the page cannot promise a
+ * record the gate would refuse.
+ */
+export type EvidenceAdmission = {
+  /** What the PLAN includes, before any grandfather substitution. */
+  planIncludedLifetime: number | null;
+  /** The cap actually enforced; `capSource` says which of the two this is. */
+  effectiveLifetimeCap: number | null;
+  capSource: "PLAN_DEFAULT" | "LEGACY_RECORD_CAP_OVERRIDE";
+  recordsHeld: number;
+  creditsAvailable: number;
+  planCapacityRemaining: number | null;
+  overCap: boolean;
+  next:
+    | { allowed: true; funding: "PLAN" | "EVIDENCE_CREDIT" }
+    | {
+        allowed: false;
+        reason:
+          | "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS"
+          | "CREDIT_REQUIRED_NONE_AVAILABLE";
+      };
+};
+
 export type StorageMeter =
   | {
       state: "MEASURED";
@@ -185,6 +215,8 @@ export type BillingAccountProjection = {
     /** How many credits ONE purchase grants. Server-owned; never chosen here. */
     creditsPerPurchase: number;
   };
+  /** PERSONAL accounts only; a contract-managed Organization has no wallet. */
+  evidenceAdmission?: EvidenceAdmission;
   collaboration?: CollaborationUsage;
   contract?: EnterpriseContractSummary;
   planOffers?: PlanOffer[];
@@ -237,7 +269,76 @@ export type BillingHistoryEntry = {
   amountCents?: number;
   currency?: string;
   providerLabel?: string | null;
+  /**
+   * BILLING SURFACE CORRECTION (2026-08-29) — what may be done with THIS row,
+   * decided by the server.
+   *
+   * Never derived here. Whether a payment can be stopped depends on what the
+   * provider actually supports — Stripe can expire an open Checkout Session,
+   * PayPal has no equivalent for an unapproved order — and on the viewer's own
+   * capability. A page that worked it out from the status string would offer
+   * PayPal customers a button that could only ever lie to them.
+   */
+  actions: { canRecheck: boolean; canCancel: boolean };
 };
+
+/** What the server learned when it asked the provider about one payment. */
+export type PaymentRecheckResult = {
+  outcome: "UPDATED" | "NO_CHANGE" | "PROVIDER_UNAVAILABLE";
+  status: string;
+  /**
+   * Where the customer can finish paying, when the provider still holds the
+   * flow open. Read live from the provider and never stored — a checkout URL
+   * outlives the session it points at, so one that was saved would eventually
+   * send a paying customer to a dead page.
+   */
+  resumeUrl: string | null;
+  actions: { canRecheck: boolean; canCancel: boolean };
+};
+
+export type PaymentCancelResult = {
+  outcome: "CANCELLED" | "ALREADY_FINISHED";
+  status: string;
+  actions: { canRecheck: boolean; canCancel: boolean };
+};
+
+/**
+ * Ask the server to check ONE payment with the provider.
+ *
+ * Nothing is charged and no checkout is created: the server reads the
+ * transaction it already stored a reference for, and records what the provider
+ * says. Safe to press repeatedly — the transition rules make a second identical
+ * answer a no-op.
+ */
+export async function recheckPayment(
+  account: BillingAccountRef,
+  paymentId: string,
+): Promise<PaymentRecheckResult> {
+  return (await apiFetch(
+    `/v1/billing/accounts/${account.type}/${encodeURIComponent(
+      account.id,
+    )}/payments/${encodeURIComponent(paymentId)}/recheck`,
+    { method: "POST", body: "{}" },
+  )) as PaymentRecheckResult;
+}
+
+/**
+ * Ask the PROVIDER to stop one unsettled payment.
+ *
+ * Refused by the server where the provider has no such operation, rather than
+ * marked cancelled locally while the provider is still free to complete it.
+ */
+export async function cancelPayment(
+  account: BillingAccountRef,
+  paymentId: string,
+): Promise<PaymentCancelResult> {
+  return (await apiFetch(
+    `/v1/billing/accounts/${account.type}/${encodeURIComponent(
+      account.id,
+    )}/payments/${encodeURIComponent(paymentId)}/cancel`,
+    { method: "POST", body: "{}" },
+  )) as PaymentCancelResult;
+}
 
 export type CancellationOutcome = {
   mode: "PERIOD_END" | "IMMEDIATE";

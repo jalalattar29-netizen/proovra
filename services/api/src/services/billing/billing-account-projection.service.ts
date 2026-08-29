@@ -35,8 +35,16 @@ import {
   EVIDENCE_CREDIT_PRODUCT,
   formatBytesHuman,
   getPlanCapabilities,
+  // BILLING SURFACE CORRECTION (2026-08-29) — the SAME admission policy the
+  // enforcement chokepoint calls, so what the page says about the next record
+  // is what the gate will do with it.
+  resolvePersonalEvidenceAdmission,
 } from "@proovra/shared-billing";
 
+import {
+  paymentRowActions,
+  type PaymentRowActions,
+} from "./pending-payments.service.js";
 import { prisma } from "../../db.js";
 import {
   organizationWorkspaceIds,
@@ -95,6 +103,55 @@ export type UsageMeter =
   | { state: "CONTRACT_MANAGED" }
   /** Could not be read. NEVER rendered as zero. */
   | { state: "UNAVAILABLE"; reason: string };
+
+/**
+ * BILLING SURFACE CORRECTION (2026-08-29) — what the NEXT evidence record
+ * actually needs, decided by the same policy the gate enforces.
+ *
+ * The page was rendering "49 over the 127 your plan includes" from a single
+ * number, and every part of that sentence was doing something wrong:
+ *
+ *   * 127 is not what the plan includes. PRO includes 100. 127 is a
+ *     GRANDFATHERED per-payer override (`legacyRecordCapOverride`), which
+ *     `resolveCommercialContext` substitutes for the plan cap. Calling it
+ *     "your plan" told a customer their plan was something it is not.
+ *   * The 49 read as a debt to clear. It is not. Admission does not compare
+ *     the deficit against anything — once the lifetime allowance is used up,
+ *     each further record is authorised by ONE credit, whether the account is
+ *     one over or fifty.
+ *   * "buying an evidence credit is what makes room for the next record" was
+ *     true, and unbelievable beside a number that implied 49 were needed.
+ *
+ * So the projection now carries the parts separately, and the page states
+ * them. `resolvePersonalEvidenceAdmission` is the SAME pure policy
+ * `billing-enforcement` calls, given the same inputs — so what the page says
+ * about the next record is what the gate will do with it, by construction.
+ */
+export type EvidenceAdmission = {
+  /** What the PLAN includes, before any grandfather substitution. */
+  planIncludedLifetime: number | null;
+  /**
+   * The cap actually enforced. Differs from `planIncludedLifetime` only for a
+   * grandfathered account, and `capSource` says which it is.
+   */
+  effectiveLifetimeCap: number | null;
+  capSource: "PLAN_DEFAULT" | "LEGACY_RECORD_CAP_OVERRIDE";
+  /** Non-destroyed records the account holds. */
+  recordsHeld: number;
+  /** Unspent purchased credits. */
+  creditsAvailable: number;
+  /** Plan capacity left, floored at zero. Null when the plan is uncapped. */
+  planCapacityRemaining: number | null;
+  /** True once `recordsHeld` has passed the enforced cap. */
+  overCap: boolean;
+  /** How the NEXT record would be funded, or why it would be refused. */
+  next:
+    | { allowed: true; funding: "PLAN" | "EVIDENCE_CREDIT" }
+    | {
+        allowed: false;
+        reason: "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS" | "CREDIT_REQUIRED_NONE_AVAILABLE";
+      };
+};
 
 export type StorageMeter =
   | {
@@ -359,6 +416,11 @@ export type BillingAccountProjection = {
      */
     creditsPerPurchase: number;
   };
+  /**
+   * PERSONAL accounts only. Absent for a contract-managed Organization, whose
+   * allowance is a term of the agreement rather than a wallet plus a cap.
+   */
+  evidenceAdmission?: EvidenceAdmission;
   collaboration?: CollaborationUsage;
   contract?: EnterpriseContractSummary;
   /** Plans this account may purchase. Empty when it may purchase none. */
@@ -888,6 +950,7 @@ export async function buildBillingAccountProjection(input: {
 
   // ---- Evidence meter -----------------------------------------------------
   let evidence: UsageMeter;
+  let evidenceAdmission: EvidenceAdmission | undefined;
   if (scope.billingShape === "SHARED") {
     // BILLING PRODUCTION CLOSURE (2026-08-27) — the meter resolves its cap the
     // way the gate resolves its cap. `ctx.limits.effectiveMonthlyRecordCap` is
@@ -952,10 +1015,31 @@ export async function buildBillingAccountProjection(input: {
         window: "ROLLING_30_DAYS",
       };
     } else {
+      const held = await countPersonalEvidenceRecords(account.id);
+      const cap = ctx.limits.effectiveLifetimeRecordCap;
+
+      // The parts, separately, because the single number they were collapsed
+      // into could not be stated truthfully. See `EvidenceAdmission`.
+      evidenceAdmission = {
+        planIncludedLifetime: caps.maxEvidenceRecords,
+        effectiveLifetimeCap: cap,
+        capSource: ctx.limits.source,
+        recordsHeld: held,
+        creditsAvailable: Math.max(0, scope.credits ?? 0),
+        planCapacityRemaining: cap === null ? null : Math.max(0, cap - held),
+        overCap: cap !== null && held > cap,
+        next: resolvePersonalEvidenceAdmission({
+          plan: scope.plan,
+          currentRecordCount: held,
+          effectiveLifetimeRecordCap: cap,
+          availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
+        }),
+      };
+
       evidence = {
         state: "MEASURED",
-        used: await countPersonalEvidenceRecords(account.id),
-        limit: ctx.limits.effectiveLifetimeRecordCap,
+        used: held,
+        limit: cap,
         window: "LIFETIME",
       };
     }
@@ -1136,6 +1220,7 @@ export async function buildBillingAccountProjection(input: {
           },
         }
       : {}),
+    ...(evidenceAdmission ? { evidenceAdmission } : {}),
     ...(Object.keys(collaboration).length > 0 ? { collaboration } : {}),
     ...(canManage
       ? {
@@ -1367,14 +1452,40 @@ async function buildOrganizationProjection(input: {
 export type BillingHistoryEntry = {
   id: string;
   occurredAtUtc: string;
-  /** Human description of what was bought. Never a provider payload. */
+  /**
+   * WHAT WAS BOUGHT. Never a provider payload.
+   *
+   * BILLING SURFACE CORRECTION (2026-08-29) — this was
+   * `r.teamId ? "Workspace subscription" : "Personal account"`, which named
+   * the PAYER rather than the purchase. Every personal row on the page — a
+   * plan, an evidence credit, a storage add-on — read "Personal account", so
+   * the history could not tell a customer what any line was for.
+   *
+   * It is now resolved from the durable rows that record the purchase itself:
+   * the credit ledger entry, the storage add-on, or the subscription bound to
+   * that provider reference. Where none of them claims it, the description
+   * says only what is certain.
+   */
   description: string;
   status: string;
   /** Present ONLY with BILLING_AMOUNT_VIEW. */
   amountCents?: number;
   currency?: string;
-  /** Provider-neutral label. The provider's own id is NEVER exposed. */
+  /**
+   * Provider-neutral label ("Card", "PayPal"). The provider's own id is NEVER
+   * exposed.
+   *
+   * Outside the amount gate: which provider took a payment is not a monetary
+   * figure, and a viewer who may see the history may see that a row is a PayPal
+   * row. It is also what makes the row's available actions legible — a PayPal
+   * row has no "Cancel payment" because PayPal has no such operation.
+   */
   providerLabel?: string | null;
+  /**
+   * What the customer may do with THIS row, decided by the server from the
+   * status, the provider's real capabilities and the viewer's own.
+   */
+  actions: PaymentRowActions;
 };
 
 /**
@@ -1411,6 +1522,7 @@ export async function readBillingHistoryForAccount(input: {
     select: {
       id: true,
       provider: true,
+      providerPaymentId: true,
       amountCents: true,
       currency: true,
       status: true,
@@ -1419,17 +1531,113 @@ export async function readBillingHistoryForAccount(input: {
     },
   });
 
+  const describe = await buildPaymentDescriber(rows);
+  const viewerMayCancel = input.account.capabilities.includes("BILLING_CANCEL");
+
   return rows.map((r) => ({
     id: r.id,
     occurredAtUtc: r.createdAt.toISOString(),
-    description: r.teamId ? "Workspace subscription" : "Personal account",
+    description: describe(r),
     status: r.status,
+    providerLabel: providerLabel(r.provider),
+    actions: paymentRowActions({
+      status: r.status,
+      provider: r.provider,
+      viewerMayCancel,
+    }),
     ...(showAmounts
       ? {
           amountCents: r.amountCents,
           currency: r.currency,
-          providerLabel: providerLabel(r.provider),
         }
       : {}),
   }));
+}
+
+/**
+ * WHAT each payment bought, resolved from the durable rows that record it.
+ *
+ * BILLING SURFACE CORRECTION (2026-08-29). Three lookups, each keyed on the
+ * SAME provider reference the payment stores, batched so a page of history
+ * costs three queries rather than three per row:
+ *
+ *   1. an evidence-credit PURCHASE ledger entry  -> "Evidence credit"
+ *   2. a storage add-on bound to that payment    -> "<label> storage add-on"
+ *   3. a subscription bound to that reference    -> "<Plan> plan"
+ *
+ * Nothing is guessed from the amount. Two products can cost the same, and a
+ * history that inferred the product from the price would eventually tell a
+ * customer they bought something they did not.
+ */
+async function buildPaymentDescriber(
+  rows: readonly {
+    providerPaymentId: string;
+    provider: prismaPkg.PaymentProvider;
+    teamId: string | null;
+  }[],
+): Promise<
+  (row: { providerPaymentId: string; teamId: string | null }) => string
+> {
+  const refs = [...new Set(rows.map((r) => r.providerPaymentId).filter(Boolean))];
+  if (refs.length === 0) {
+    return (row) => (row.teamId ? "Workspace subscription" : "Subscription payment");
+  }
+
+  const [creditPurchases, addons, subscriptions] = await Promise.all([
+    prisma.evidenceCreditLedgerEntry.findMany({
+      where: {
+        entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
+        providerRef: { in: refs },
+      },
+      select: { providerRef: true, creditsDelta: true },
+    }),
+    prisma.workspaceStorageAddon.findMany({
+      where: {
+        OR: [
+          { externalPaymentId: { in: refs } },
+          { externalSubscriptionId: { in: refs } },
+        ],
+      },
+      select: {
+        externalPaymentId: true,
+        externalSubscriptionId: true,
+        addonKey: true,
+        extraStorageBytes: true,
+      },
+    }),
+    prisma.subscription.findMany({
+      where: { providerSubId: { in: refs } },
+      select: { providerSubId: true, plan: true },
+    }),
+  ]);
+
+  const defs = listStorageAddonDefinitions();
+  const byRef = new Map<string, string>();
+
+  // Least specific first: a later, more specific match overwrites.
+  for (const sub of subscriptions) {
+    byRef.set(
+      sub.providerSubId,
+      `${getPlanCapabilities(sub.plan).displayName} plan`,
+    );
+  }
+  for (const addon of addons) {
+    const def = defs.find((d) => d.key === addon.addonKey);
+    const label = def?.label ?? formatBytesHuman(addon.extraStorageBytes);
+    for (const ref of [addon.externalPaymentId, addon.externalSubscriptionId]) {
+      if (ref) byRef.set(ref, `${label} storage add-on`);
+    }
+  }
+  for (const purchase of creditPurchases) {
+    if (!purchase.providerRef) continue;
+    const credits = Math.max(1, purchase.creditsDelta);
+    byRef.set(
+      purchase.providerRef,
+      credits === 1 ? "Evidence credit" : `${credits} evidence credits`,
+    );
+  }
+
+  return (row) =>
+    byRef.get(row.providerPaymentId) ??
+    (row.teamId ? "Workspace subscription" : "Subscription payment");
 }

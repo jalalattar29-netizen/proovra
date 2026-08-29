@@ -67,6 +67,10 @@ import {
   resolvePersonalPlanTransition,
 } from "../services/billing/plan-transition.service.js";
 import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
+import {
+  cancelPendingPayment,
+  recheckPayment,
+} from "../services/billing/pending-payments.service.js";
 import { cancelStorageAddonAtProvider } from "../services/billing/storage-addon-cancellation.service.js";
 import {
   attemptDependentCancellations,
@@ -1196,6 +1200,135 @@ export async function billingRoutes(app: FastifyInstance) {
       // provider error string or a disputed amount, because the surface
       // renders it verbatim.
       return reply.code(200).send({ outcome: summary.outcome, summary });
+    },
+  );
+
+  /**
+   * BILLING SURFACE CORRECTION (2026-08-29) — ONE pending payment, re-checked.
+   *
+   * Distinct from the account-wide reconcile above, which sweeps every binding
+   * and repairs entitlements. This asks the provider about the single
+   * transaction the customer is looking at, and answers with what that row is
+   * now — which is what a person staring at a months-old "Pending" line
+   * actually wants.
+   *
+   * It is a READ at the provider. No session is created, nothing is charged,
+   * and the only local write is the status transition the shared rules permit.
+   */
+  app.post(
+    "/v1/billing/accounts/:type/:id/payments/:paymentId/recheck",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z
+        .object({
+          type: z.enum(["PERSONAL", "ORGANIZATION"]),
+          id: z.string().min(1).max(200),
+          paymentId: z.string().uuid(),
+        })
+        .safeParse(req.params ?? {});
+      if (!params.success) {
+        return reply.code(400).send({ error: { code: "invalid_params" } });
+      }
+
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: params.data.type,
+        id: params.data.id,
+        capability: "BILLING_HISTORY_VIEW",
+      });
+
+      // Bounded per payer. A provider read is cheap but not free, and a page
+      // with twenty pending rows must not become twenty provider calls a
+      // second.
+      const rate = await enforceRateLimit({
+        key: `ratelimit:billing_payment_recheck:${userId}`,
+        max: 20,
+        windowSec: 300,
+      });
+      if (!rate.allowed) {
+        return reply.code(429).send(
+          createErrorResponse(
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            req.id,
+            undefined,
+            "Payments have been re-checked several times just now. Please try again in a few minutes.",
+          ),
+        );
+      }
+
+      const result = await recheckPayment({
+        account,
+        paymentId: params.data.paymentId,
+        viewerMayCancel: account.capabilities.includes("BILLING_CANCEL"),
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.payment_rechecked",
+        outcome: "success",
+        metadata: {
+          accountType: account.type,
+          result: result.outcome,
+          status: result.status,
+        },
+      });
+
+      return reply.code(200).send(result);
+    },
+  );
+
+  /**
+   * Stop ONE unsettled payment at the provider.
+   *
+   * BILLING_CANCEL, not BILLING_HISTORY_VIEW: stopping a payment is a
+   * financial act, and a viewer who may read the history is not thereby
+   * allowed to change what the provider does.
+   *
+   * The service refuses unless the provider has a real operation for it, so a
+   * PayPal row cannot reach a local "cancelled" state that PayPal never
+   * agreed to.
+   */
+  app.post(
+    "/v1/billing/accounts/:type/:id/payments/:paymentId/cancel",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z
+        .object({
+          type: z.enum(["PERSONAL", "ORGANIZATION"]),
+          id: z.string().min(1).max(200),
+          paymentId: z.string().uuid(),
+        })
+        .safeParse(req.params ?? {});
+      if (!params.success) {
+        return reply.code(400).send({ error: { code: "invalid_params" } });
+      }
+
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: params.data.type,
+        id: params.data.id,
+        capability: "BILLING_CANCEL",
+      });
+
+      const result = await cancelPendingPayment({
+        account,
+        paymentId: params.data.paymentId,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.payment_cancelled",
+        outcome: "success",
+        metadata: {
+          accountType: account.type,
+          result: result.outcome,
+          status: result.status,
+        },
+      });
+
+      return reply.code(200).send(result);
     },
   );
 

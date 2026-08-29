@@ -16,6 +16,7 @@
 
 import { formatUserDate } from "../../../../lib/date";
 import type {
+  EvidenceAdmission,
   PlanLifecycle,
   UsageMeter,
   UsageWindow,
@@ -134,9 +135,17 @@ export function describeMeter(meter: UsageMeter): {
             ? "Records leave this window as they age, and capacity returns with them."
             : "This allowance does not reset. Moving up a plan, or buying an evidence credit, is what makes room for the next record.";
 
+        // BILLING SURFACE CORRECTION (2026-08-29) — this no longer says "your
+        // plan includes". On a personal LIFETIME allowance the enforced number
+        // can be a grandfathered per-account limit rather than the plan's, and
+        // that case is now described in full by `describeEvidenceAdmission`
+        // from the server's own projection. What survives here is the ROLLING
+        // window and any meter that arrives without an admission, so the
+        // sentence says what is certain: the allowance in force, not whose it
+        // is.
         return {
           headline: `${meter.used.toLocaleString()} ${suffix}`,
-          detail: `${over.toLocaleString()} over the ${meter.limit.toLocaleString()} your plan includes. Nothing has been removed. ${resolution}`,
+          detail: `${over.toLocaleString()} more than the ${meter.limit.toLocaleString()} allowed here. Nothing has been removed. ${resolution}`,
           ratio: 1,
         };
       }
@@ -148,6 +157,129 @@ export function describeMeter(meter: UsageMeter): {
       };
     }
   }
+}
+
+export type EvidencePresentation = {
+  /** The count, and the denominator only when there really is one. */
+  headline: string;
+  /** The cap explained. Null when the headline already said everything. */
+  breakdown: string | null;
+  /** What permits the NEXT record. Never null — there is always an answer. */
+  next: string;
+  tone: "neutral" | "pending";
+  ratio: number | null;
+  /** The offer that answers `next`, or null when no action is needed. */
+  action: "BUY_CREDITS" | "SEE_PLANS" | null;
+};
+
+/**
+ * The evidence allowance, said in parts.
+ *
+ * BILLING SURFACE CORRECTION (2026-08-29) — this replaces `describeMeter` for
+ * the personal lifetime allowance, because that formatter had one number to
+ * work with and three different things to say with it. It rendered:
+ *
+ *     176 lifetime records
+ *     49 over the 127 your plan includes. Nothing has been removed.
+ *     Moving up a plan, or buying an evidence credit, is what makes room
+ *     for the next record.
+ *
+ * beside a wallet reading "0 credits available", and none of it held up:
+ *
+ *   * "the 127 your plan includes" — the plan includes 100. 127 is a
+ *     GRANDFATHERED per-account limit that `resolveCommercialContext`
+ *     substitutes for the plan cap. The page told a customer their plan was
+ *     something it is not, and no plan page would ever agree with it.
+ *   * "49 over" read as a debt of 49 to clear, next to an offer of one credit.
+ *     Admission never compares that deficit against anything: past the
+ *     allowance, EVERY further record costs exactly one credit, whether the
+ *     account is one over or fifty.
+ *   * "Moving up a plan ... makes room" is only half true. A bigger plan does
+ *     raise the included allowance; on a grandfathered account it may not move
+ *     it past where the account already is. The credit always works.
+ *
+ * So the parts arrive separately from the server and are stated separately
+ * here. `next` is not computed in this file: it is the SAME decision
+ * `resolvePersonalEvidenceAdmission` gives the enforcement gate, resolved once
+ * on the server, so the sentence about the next record and the gate's answer
+ * to the next record cannot disagree.
+ */
+export function describeEvidenceAdmission(
+  a: EvidenceAdmission,
+  options: { canBuyCredits: boolean; hasPlanOffer: boolean },
+): EvidencePresentation {
+  const held = a.recordsHeld.toLocaleString();
+  const cap = a.effectiveLifetimeCap;
+  const credits = a.creditsAvailable;
+
+  const headline =
+    cap === null || a.overCap
+      ? `${held} lifetime records`
+      : `${held} of ${cap.toLocaleString()} included lifetime records`;
+
+  // ---- the cap, when the enforced cap is not what the plan includes -------
+  const parts: string[] = [];
+  if (
+    a.capSource === "LEGACY_RECORD_CAP_OVERRIDE" &&
+    a.planIncludedLifetime !== null &&
+    cap !== null &&
+    a.planIncludedLifetime !== cap
+  ) {
+    parts.push(
+      `Your plan includes ${a.planIncludedLifetime.toLocaleString()} records. This account keeps a higher agreed limit of ${cap.toLocaleString()}.`,
+    );
+  }
+  if (a.overCap && cap !== null) {
+    const over = (a.recordsHeld - cap).toLocaleString();
+    parts.push(
+      a.capSource === "LEGACY_RECORD_CAP_OVERRIDE"
+        ? `You hold ${over} more than that. Nothing has been removed.`
+        : `That is ${over} more than the ${cap.toLocaleString()} your plan includes. Nothing has been removed.`,
+    );
+  }
+
+  // ---- what permits the next record --------------------------------------
+  let next: string;
+  if (a.next.allowed) {
+    if (a.next.funding === "PLAN") {
+      next =
+        a.planCapacityRemaining === null
+          ? "No record limit on your plan."
+          : `${a.planCapacityRemaining.toLocaleString()} more record${
+              a.planCapacityRemaining === 1 ? "" : "s"
+            } included.`;
+    } else {
+      next = `Your included records are used up. The next record uses 1 of your ${credits.toLocaleString()} credit${
+        credits === 1 ? "" : "s"
+      } — one credit per record.`;
+    }
+  } else if (a.next.reason === "CREDIT_REQUIRED_NONE_AVAILABLE") {
+    next = "This account records with credits. One evidence credit covers the next record.";
+  } else {
+    next =
+      "Your included records are used up. One evidence credit covers the next record; a larger plan raises the included allowance.";
+  }
+
+  const ratio =
+    cap === null ? null : a.overCap ? 1 : cap > 0 ? Math.min(1, a.recordsHeld / cap) : null;
+
+  // Warning, not alarm. Being at or past a lifetime allowance is a normal
+  // commercial state with a normal remedy; the destructive tone belongs to
+  // things that destroy something, and nothing here does.
+  const tone: "neutral" | "pending" =
+    !a.next.allowed || (ratio !== null && ratio >= 0.8) ? "pending" : "neutral";
+
+  // The action is only offered when the SERVER says the offer exists.
+  const needsAction = !a.next.allowed || (a.next.allowed && a.next.funding === "EVIDENCE_CREDIT");
+  const action: EvidencePresentation["action"] = !needsAction
+    ? null
+    : options.canBuyCredits
+      ? "BUY_CREDITS"
+      : options.hasPlanOffer
+        ? "SEE_PLANS"
+        : null;
+
+  return { headline, breakdown: parts.length > 0 ? parts.join(" ") : null, next, tone, ratio, action };
 }
 
 export type LifecyclePresentation = {

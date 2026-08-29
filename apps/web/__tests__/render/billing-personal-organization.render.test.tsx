@@ -233,6 +233,68 @@ describe("the plan card offers the moves the server listed", () => {
 // 2. A scheduled change is visible, and it stops a second one
 // ===========================================================================
 
+describe("a subscription that is ending", () => {
+  it("a paid account offers the move up AND a real cancellation", () => {
+    // BILLING SURFACE CORRECTION (2026-08-29) — a PRO customer must be able to
+    // leave. The card offers the ladder move in the server's own words and a
+    // cancellation beside it; neither is inferred from the plan name here.
+    const { container } = mountPlan(
+      personal({
+        plan: {
+          ...personal().plan,
+          planKey: "PRO",
+          displayName: "Pro",
+          model: "MONTHLY",
+          lifecycle: "ACTIVE",
+        },
+        planOffers: [OFFER_TEAM],
+        actions: { ...personal().actions, canRequestCancellation: true },
+      }),
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toMatch(/Upgrade to Team/);
+    expect(text).toMatch(/Cancel subscription/);
+    expect(container.querySelector("[data-billing-cancel-plan]")).not.toBeNull();
+  });
+
+  it("once it is cancelling, it says when access ends and offers no second cancel", () => {
+    const { container } = mountPlan(
+      personal({
+        plan: {
+          ...personal().plan,
+          planKey: "PRO",
+          displayName: "Pro",
+          model: "MONTHLY",
+          lifecycle: "CANCELING",
+          cancelAtPeriodEnd: true,
+          currentPeriodEndUtc: "2026-09-14T00:00:00.000Z",
+        },
+        actions: { ...personal().actions, canRequestCancellation: true },
+      }),
+    );
+
+    const text = container.textContent ?? "";
+    // The date is the PROVIDER-confirmed period end, and it is stated rather
+    // than left to the customer to work out.
+    expect(text).toMatch(/Access continues until/);
+    expect(text).toMatch(/2026/);
+    // Cancelling twice is not a thing that can be asked for.
+    expect(container.querySelector("[data-billing-cancel-plan]")).toBeNull();
+  });
+
+  it("an account that may not cancel is offered no cancellation at all", () => {
+    // Rather than a button that produces a 403 when pressed.
+    const { container } = mountPlan(
+      personal({
+        plan: { ...personal().plan, planKey: "PRO", displayName: "Pro", model: "MONTHLY" },
+        actions: { ...personal().actions, canRequestCancellation: false },
+      }),
+    );
+    expect(container.querySelector("[data-billing-cancel-plan]")).toBeNull();
+  });
+});
+
 describe("a scheduled downgrade", () => {
   const scheduled = personal({
     plan: {
@@ -291,14 +353,102 @@ describe("meters say what is true", () => {
             ...personal().usage,
             evidence: { state: "MEASURED", used: 176, limit: 127, window: "LIFETIME" },
           },
+          // The live account this came from: 176 records held against an
+          // enforced cap of 127, which is a GRANDFATHERED per-account limit
+          // while PRO includes 100, and no credits banked.
+          evidenceAdmission: {
+            planIncludedLifetime: 100,
+            effectiveLifetimeCap: 127,
+            capSource: "LEGACY_RECORD_CAP_OVERRIDE",
+            recordsHeld: 176,
+            creditsAvailable: 0,
+            planCapacityRemaining: 0,
+            overCap: true,
+            next: {
+              allowed: false,
+              reason: "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS",
+            },
+          },
         })}
       />,
     );
     const text = container.textContent ?? "";
     expect(text).not.toMatch(/176 of 127/);
-    expect(text).toMatch(/176/);
-    expect(text).toMatch(/49 over the 127 your plan includes/);
+    expect(text).toMatch(/176 lifetime records/);
+
+    // BILLING SURFACE CORRECTION (2026-08-29) — the sentence this replaces was
+    // "49 over the 127 your plan includes", and the page must never say it
+    // again: PRO includes 100, and 127 is a limit this account keeps rather
+    // than a limit the plan grants.
+    expect(text).not.toMatch(/127 your plan includes/);
+    expect(text).toMatch(/Your plan includes 100 records/);
+    expect(text).toMatch(/higher agreed limit of 127/);
     expect(text).toMatch(/Nothing has been removed/);
+
+    // And the remedy is ONE credit, not 49 of anything.
+    expect(text).toMatch(/One evidence credit covers the next record/);
+  });
+
+  it("does not paint a legitimate over-allowance account in the deletion tone", () => {
+    const { container } = render(
+      <UsageAndLimits
+        projection={personal({
+          usage: {
+            ...personal().usage,
+            evidence: { state: "MEASURED", used: 176, limit: 127, window: "LIFETIME" },
+          },
+          evidenceAdmission: {
+            planIncludedLifetime: 100,
+            effectiveLifetimeCap: 127,
+            capSource: "LEGACY_RECORD_CAP_OVERRIDE",
+            recordsHeld: 176,
+            creditsAvailable: 0,
+            planCapacityRemaining: 0,
+            overCap: true,
+            next: {
+              allowed: false,
+              reason: "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS",
+            },
+          },
+        })}
+      />,
+    );
+
+    // The bar was painted with the destructive token — the one this product
+    // uses for deletion — across the full width of a card describing an
+    // account that is working exactly as sold.
+    const bar = container.querySelector('[data-testid="billing-meter-evidence"] .bill-meter__fill');
+    const fill = (bar as HTMLElement | null)?.style.background ?? "";
+    expect(fill).not.toMatch(/status-risk/);
+    expect(fill).toMatch(/status-pending/);
+  });
+
+  it("tells a comfortable account how much of its allowance is left", () => {
+    const { container } = render(
+      <UsageAndLimits
+        projection={personal({
+          usage: {
+            ...personal().usage,
+            evidence: { state: "MEASURED", used: 40, limit: 100, window: "LIFETIME" },
+          },
+          evidenceAdmission: {
+            planIncludedLifetime: 100,
+            effectiveLifetimeCap: 100,
+            capSource: "PLAN_DEFAULT",
+            recordsHeld: 40,
+            creditsAvailable: 0,
+            planCapacityRemaining: 60,
+            overCap: false,
+            next: { allowed: true, funding: "PLAN" },
+          },
+        })}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).toMatch(/40 of 100 included lifetime records/);
+    expect(text).toMatch(/60 more records included/);
+    // Nothing to explain when the enforced cap IS the plan's cap.
+    expect(text).not.toMatch(/agreed limit/);
   });
 
   it("an unreadable value is never rendered as zero", () => {
@@ -412,15 +562,27 @@ describe("direction and long copy", () => {
 
   it("the usage grid is responsive by construction, at every width", () => {
     // `repeat(auto-fit, minmax(...))` is the single declaration that makes
-    // 1440, 1024, 768 and 390 all work without a breakpoint apiece. Asserting
-    // the declaration is asserting the behaviour at all four.
+    // 1440, 1024, 768 and 390 all work without a breakpoint apiece.
+    //
+    // BILLING SURFACE CORRECTION (2026-08-29) — that declaration moved from an
+    // inline style into `billing.css`, which jsdom does not load. What this
+    // file can still prove is that the meters are rendered INTO that grid and
+    // that none of them is sized by hand; the declaration itself is pinned in
+    // the CSS contract (billing-redesign.test.ts).
     const { container } = render(<UsageAndLimits projection={personal()} />);
-    const grids = Array.from(container.querySelectorAll<HTMLElement>("div")).filter(
-      (d) => d.style.gridTemplateColumns.includes("auto-fit"),
+    const grid = container.querySelector(".bill-usage-grid");
+    expect(grid).not.toBeNull();
+
+    const meters = Array.from(
+      container.querySelectorAll<HTMLElement>(".bill-meter"),
     );
-    expect(grids.length).toBeGreaterThan(0);
-    for (const g of grids) {
-      expect(g.style.gridTemplateColumns).toMatch(/minmax\(\s*\d+px/);
+    expect(meters.length).toBeGreaterThan(0);
+    for (const meter of meters) {
+      expect(grid!.contains(meter)).toBe(true);
+      // Nothing in the row carries a width of its own, which is what would
+      // stop the grid reflowing.
+      expect(meter.style.width).toBe("");
+      expect(meter.style.minWidth).toBe("");
     }
   });
 });

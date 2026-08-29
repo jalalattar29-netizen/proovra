@@ -15,7 +15,7 @@
  * inside checkout was how a customer could buy the wrong workspace a plan.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
@@ -29,7 +29,20 @@ import type {
 import { formatMoney } from "./format";
 import { BillingDrawer } from "./BillingDrawer";
 
-export type CheckoutIntent = "PLAN" | "CREDITS" | "STORAGE";
+/**
+ * BILLING SURFACE CORRECTION (2026-08-29) — the PLAN intent now names the plan.
+ *
+ * It was the bare string `"PLAN"`, so "Subscribe to Pro" and "Subscribe to
+ * Team" opened an identical drawer and the drawer had no way to tell them
+ * apart. It then checked out `planOffers[0]`, which is PRO for every FREE
+ * account — so the TEAM button charged for PRO.
+ */
+export type CheckoutIntent =
+  | { kind: "PLAN"; planKey: PlanKey }
+  | { kind: "CREDITS" }
+  | { kind: "STORAGE" };
+
+export type PlanKey = "PRO" | "TEAM";
 
 type Provider = "STRIPE" | "PAYPAL";
 
@@ -51,6 +64,21 @@ export function CheckoutDrawer({
   const [provider, setProvider] = useState<Provider>("STRIPE");
   const [busy, setBusy] = useState(false);
   const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
+
+  /**
+   * The plan being bought. Seeded from the button that opened the drawer, and
+   * then owned by the radiogroup — so a customer who opens on Team and changes
+   * their mind to Pro checks out Pro.
+   */
+  const openedWith = intent.kind === "PLAN" ? intent.planKey : null;
+  const [selectedPlan, setSelectedPlan] = useState<PlanKey | null>(openedWith);
+
+  // Re-seed whenever the drawer is opened again from a different button.
+  // Without this, opening on Pro, closing, then opening on Team would keep the
+  // stale Pro selection and check out the wrong plan a second time.
+  useEffect(() => {
+    if (open && openedWith) setSelectedPlan(openedWith);
+  }, [open, openedWith]);
 
   const workspaceId =
     // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a checkout has no
@@ -96,7 +124,7 @@ export function CheckoutDrawer({
       }
       throw new Error("Checkout did not return an approval destination");
     } catch (err) {
-      captureException(err, { feature: "billing_checkout_drawer", intent });
+      captureException(err, { feature: "billing_checkout_drawer", intent: intent.kind });
       // Never a raw provider or internal message. The panel this replaces
       // surfaced `err.message` directly in two places.
       const safe = toSafeUserError(err, {
@@ -110,10 +138,18 @@ export function CheckoutDrawer({
   }
 
   function startCheckout() {
-    const planKey = planOffers[0]?.planKey ?? "PRO";
+    // BILLING SURFACE CORRECTION (2026-08-29) — the SELECTED plan, never a
+    // positional default.
+    //
+    // This was `planOffers[0]?.planKey ?? "PRO"`: the first offer the server
+    // happened to list, which is PRO for every FREE account because the offer
+    // list is built in ladder order. The TEAM button therefore opened a drawer
+    // that checked out PRO, and no amount of clicking inside the drawer could
+    // change it, because nothing in the drawer was clickable.
+    const planKey = selectedPlan;
     const teamPart = workspaceId ? { teamId: workspaceId } : {};
 
-    if (intent === "CREDITS") {
+    if (intent.kind === "CREDITS") {
       // BILLING PRODUCTION CLOSURE (2026-08-27) — credits have their own route
       // and take no commercial input. This used to POST `{ plan: "PAYG" }` to
       // the plan checkout, which made a legacy recurring-plan row the identity
@@ -136,7 +172,7 @@ export function CheckoutDrawer({
           );
     }
 
-    if (intent === "STORAGE") {
+    if (intent.kind === "STORAGE") {
       const addonBody = JSON.stringify({
         addonKey: selectedAddon,
         billingCycle: "MONTHLY",
@@ -158,6 +194,16 @@ export function CheckoutDrawer({
           );
     }
 
+    // Nothing selected is a bug, not a default. Guessing here is precisely
+    // how the previous version charged for the wrong plan.
+    if (!planKey) {
+      onError(
+        "Choose a plan",
+        "Select the plan you want before continuing to payment.",
+      );
+      return;
+    }
+
     const planBody = JSON.stringify({ plan: planKey, currency, ...teamPart });
     return provider === "STRIPE"
       ? send(() =>
@@ -175,16 +221,16 @@ export function CheckoutDrawer({
   }
 
   const title =
-    intent === "CREDITS"
+    intent.kind === "CREDITS"
       ? "Buy evidence credits"
-      : intent === "STORAGE"
+      : intent.kind === "STORAGE"
         ? "Add storage"
         : "Change plan";
 
   const description =
-    intent === "CREDITS"
+    intent.kind === "CREDITS"
       ? "Each credit records one more evidence item once your included allowance is used. Credits do not expire."
-      : intent === "STORAGE"
+      : intent.kind === "STORAGE"
         ? "Extra capacity, billed monthly alongside your plan. You can cancel it at any time."
         : `This applies to ${projection.account.displayName}.`;
 
@@ -204,7 +250,11 @@ export function CheckoutDrawer({
             variant="primary"
             size="sm"
             loading={busy}
-            disabled={busy || (intent === "STORAGE" && !selectedAddon)}
+            disabled={
+              busy ||
+              (intent.kind === "STORAGE" && !selectedAddon) ||
+              (intent.kind === "PLAN" && !selectedPlan)
+            }
             data-billing-checkout-continue
             onClick={() => void startCheckout()}
           >
@@ -214,30 +264,91 @@ export function CheckoutDrawer({
       }
     >
       <div style={{ display: "grid", gap: 22 }}>
-        {intent === "PLAN" ? (
+        {intent.kind === "PLAN" ? (
+          /*
+           * BILLING SURFACE CORRECTION (2026-08-29) — a real chooser.
+           *
+           * These were plain `<div>`s: no input, no handler, no selected
+           * state. The drawer looked like it offered a choice and offered
+           * none, and checkout took the first entry in the list regardless.
+           *
+           * Native radios inside labels, so the whole card is the hit area,
+           * arrow keys move within the group, the selected option is exposed
+           * to a screen reader, and the focus ring is the browser's own. The
+           * selected state is carried by a border and a filled radio, never by
+           * colour alone.
+           */
           <section>
-            <h3 style={sectionHeading}>Plan</h3>
-            {planOffers.map((p: PlanOffer) => (
-              <div key={p.planKey} style={optionBox}>
-                <div style={{ fontWeight: 600, color: "var(--text-strong, #172033)" }}>
-                  {p.displayName}
-                  {p.priceCents !== undefined ? (
-                    <>
-                      {" — "}
-                      <bdi>{formatMoney(p.priceCents, p.currency ?? currency)}</bdi>
-                      {" / month"}
-                    </>
-                  ) : null}
-                </div>
-                {/* Server-composed from the canonical catalog. The browser has
-                    no plan table of its own to fall out of date. */}
-                <p style={optionBlurb}>{p.summary}</p>
-              </div>
-            ))}
+            <h3 style={sectionHeading} id="billing-plan-choice">
+              Plan
+            </h3>
+            <div
+              role="radiogroup"
+              aria-labelledby="billing-plan-choice"
+              style={{ display: "grid", gap: 8 }}
+              data-billing-plan-choice
+            >
+              {planOffers.map((p: PlanOffer) => {
+                const checked = selectedPlan === p.planKey;
+                return (
+                  <label
+                    key={p.planKey}
+                    style={{
+                      ...optionBox,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      cursor: "pointer",
+                      borderColor: checked
+                        ? "var(--accent-500, #7c3aed)"
+                        : "var(--border-default, rgba(15,23,42,0.09))",
+                      boxShadow: checked
+                        ? "0 0 0 1px var(--accent-500, #7c3aed)"
+                        : undefined,
+                    }}
+                    data-billing-plan-option={p.planKey}
+                    data-billing-plan-selected={checked ? "true" : "false"}
+                  >
+                    <input
+                      type="radio"
+                      name="billing-plan"
+                      value={p.planKey}
+                      checked={checked}
+                      onChange={() => setSelectedPlan(p.planKey)}
+                      disabled={busy}
+                      style={{ marginTop: 3, accentColor: "var(--accent-500, #7c3aed)" }}
+                    />
+                    <span style={{ minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          fontWeight: 600,
+                          color: "var(--text-strong, #172033)",
+                        }}
+                      >
+                        {p.displayName}
+                        {p.priceCents !== undefined ? (
+                          <>
+                            {" — "}
+                            <bdi>{formatMoney(p.priceCents, p.currency ?? currency)}</bdi>
+                            {" / month"}
+                          </>
+                        ) : null}
+                      </span>
+                      {/* Server-composed from the canonical catalog. The
+                          browser has no plan table of its own to fall out of
+                          date, so the summary beside the price is the same
+                          allowance the gate will enforce. */}
+                      <span style={{ ...optionBlurb, display: "block" }}>{p.summary}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </section>
         ) : null}
 
-        {intent === "CREDITS" && projection.wallet ? (
+        {intent.kind === "CREDITS" && projection.wallet ? (
           /*
            * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the BALANCE and
            * the PURCHASE are two separate statements, in that order.
@@ -297,7 +408,7 @@ export function CheckoutDrawer({
           </>
         ) : null}
 
-        {intent === "STORAGE" ? (
+        {intent.kind === "STORAGE" ? (
           <section>
             <h3 style={sectionHeading}>Capacity</h3>
             <div role="radiogroup" aria-label="Storage add-on" style={{ display: "grid", gap: 8 }}>

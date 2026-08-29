@@ -575,12 +575,12 @@ function ResetPasswordPageContent() {
                           style={{
                             background: busy
                               ? "rgba(230,72,128,0.18)"
-                              : "linear-gradient(90deg, #E64880 0%, #FF6B6B 52%, #FF8A6A 100%)",
+                              : "var(--btn-primary-bg)",
                             color: busy ? "#7A687D" : "#ffffff",
-                            border: "1px solid rgba(230,72,128,0.45)",
+                            border: "1px solid var(--btn-primary-border)",
                             boxShadow: busy
                               ? "none"
-                              : "0 14px 28px rgba(230,72,128,0.22)",
+                              : "var(--btn-primary-shadow)",
                             fontWeight: 600,
                             padding: "12px 20px",
                             borderRadius: 999,
@@ -664,10 +664,10 @@ function SuccessCard({ onContinue }: { onContinue: () => void }) {
           type="button"
           onClick={onContinue}
           style={{
-            background: "linear-gradient(90deg, #E64880 0%, #FF6B6B 52%, #FF8A6A 100%)",
+            background: "var(--btn-primary-bg)",
             color: "#ffffff",
-            border: "1px solid rgba(230,72,128,0.45)",
-            boxShadow: "0 14px 28px rgba(230,72,128,0.22)",
+            border: "1px solid var(--btn-primary-border)",
+            boxShadow: "var(--btn-primary-shadow)",
             fontWeight: 600,
             padding: "12px 20px",
             borderRadius: 999,
@@ -708,10 +708,10 @@ function InvalidLinkCard() {
         <Link
           href="/login?forgot=1"
           style={{
-            background: "linear-gradient(90deg, #E64880 0%, #FF6B6B 52%, #FF8A6A 100%)",
+            background: "var(--btn-primary-bg)",
             color: "#ffffff",
-            border: "1px solid rgba(230,72,128,0.45)",
-            boxShadow: "0 14px 28px rgba(230,72,128,0.22)",
+            border: "1px solid var(--btn-primary-border)",
+            boxShadow: "var(--btn-primary-shadow)",
             fontWeight: 600,
             padding: "12px 20px",
             borderRadius: 999,

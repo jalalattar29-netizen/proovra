@@ -1165,6 +1165,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // enum or mapping is altered by it, which is what this allowlist is
       // about.
       "20271231000000_billing_scheduled_plan_change",
+      // BILLING SURFACE CORRECTION — two PaymentStatus enum values (CANCELED,
+      // EXPIRED) and one nullable ordering column, payments.provider_state_at_utc,
+      // so an unsettled payment has somewhere truthful to end and a late
+      // webhook cannot move a settled one backwards. It touches `payments`
+      // and the PaymentStatus enum alone. No `security_events` column, index,
+      // enum or mapping is altered by it, which is what this allowlist is
+      // about.
+      "20280101000000_billing_payment_terminal_states",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

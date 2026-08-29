@@ -1,0 +1,307 @@
+/* ==========================================================================
+ * Billing — route-owned presentation (`bill-*`).
+ *
+ * The route consumes the canonical `app-*` primitives for everything shared:
+ * the page header, the panel surfaces, the responsive table, the three action
+ * tiers and the status badge. THIS file describes only what is specific to
+ * Billing:
+ *
+ *   1. the current-plan HERO — the one place on the page with a real
+ *      hierarchy, because "what am I on, what does it cost, what can I do
+ *      about it" is the question the page exists to answer
+ *   2. the usage grid and its meters
+ *   3. the offer grid shared by plans and storage add-ons
+ *   4. the history table's column behaviour
+ *   5. the support banner
+ *
+ * PREFIX. `bill-*`. Nothing else in the app owns it.
+ *
+ * RULES OBSERVED HERE
+ *   - no colour literals: every value is a token, with the same fallback the
+ *     rest of the app uses, so a Billing surface cannot drift from the
+ *     product's palette
+ *   - logical properties throughout (`inline-start`, `padding-inline`), so the
+ *     page mirrors in Arabic without a second stylesheet
+ *   - NOTHING here clips customer copy. No `overflow: hidden` on a text
+ *     container, no `-webkit-line-clamp`, no fixed heights on anything that
+ *     holds a sentence: a truncated renewal date or a clipped "you keep access
+ *     until" is a billing statement the customer cannot read
+ *   - every interactive target is at least 44px in its smaller dimension
+ *   - the page body never scrolls sideways: the one wide thing (the history
+ *     table) scrolls inside its own surface and becomes cards below 720px
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * 1. THE HERO
+ *
+ * Two columns where there is room — the facts read down the start edge, the
+ * moves sit at the end edge — and one column when there is not. The actions
+ * are LAST in source order as well as in space, so a screen reader reaches
+ * "you are on Pro, it costs €19, it renews on the 4th" before it reaches
+ * "cancel".
+ * ------------------------------------------------------------------------- */
+.bill-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 24px;
+}
+
+.bill-hero__facts {
+  min-inline-size: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.bill-hero__eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5f6878);
+}
+
+.bill-hero__name {
+  margin: 0;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 1.9rem);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-strong, #172033);
+  /* A long plan or organization name wraps. It never truncates: the customer
+     needs to know which account they are about to cancel. */
+  overflow-wrap: anywhere;
+}
+
+.bill-hero__price {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 1.05rem;
+  color: var(--text-strong, #172033);
+}
+
+.bill-hero__amount {
+  font-size: clamp(1.5rem, 1.25rem + 0.8vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.bill-hero__cadence {
+  font-size: 0.92rem;
+  color: var(--text-muted, #475569);
+}
+
+.bill-hero__line {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-muted, #475569);
+  overflow-wrap: anywhere;
+}
+
+.bill-hero__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
+  min-inline-size: 0;
+}
+
+.bill-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Every action a finger has to hit is at least 44px tall.
+ *
+ * `block-size` as well as `min-block-size`, deliberately: the shared Button
+ * writes its own `min-height` INLINE (34px at size "sm"), and an inline
+ * declaration of the same property beats a stylesheet one. `block-size` is a
+ * different property, so the used height becomes max(min-height, height) = 44px
+ * without an `!important` and without a Billing-only copy of the button.
+ *
+ * Safe because every child here is a single-line action: the shared Button and
+ * the shared action anchors all set `white-space: nowrap`. */
+.bill-actions > * {
+  min-block-size: 44px;
+  block-size: 44px;
+}
+
+@media (max-width: 860px) {
+  .bill-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bill-hero__aside {
+    align-items: flex-start;
+  }
+  /* Full-width targets on a phone, which is also what makes them 44px. */
+  .bill-actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. USAGE
+ *
+ * Three meters of equal weight. `auto-fit` rather than a fixed count so the
+ * row reflows at any width instead of at three chosen breakpoints, and
+ * `minmax(0, …)` so a long headline cannot push the grid wider than the page.
+ * ------------------------------------------------------------------------- */
+.bill-usage-grid {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+
+.bill-meter {
+  min-inline-size: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.bill-meter__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5f6878);
+}
+
+/* A <bdi>, so the class must make it a block. */
+.bill-meter__headline {
+  display: block;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--text-strong, #172033);
+  overflow-wrap: anywhere;
+}
+
+.bill-meter__track {
+  margin-block-start: 4px;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--surface-muted, #eef2f7);
+  /* The one deliberate `overflow: hidden` in this file: it clips the FILL to
+     the rounded track, and holds no text. */
+  overflow: hidden;
+}
+
+.bill-meter__fill {
+  block-size: 100%;
+  border-radius: 999px;
+}
+
+.bill-meter__detail {
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--text-muted, #475569);
+  overflow-wrap: anywhere;
+}
+
+.bill-meter__action {
+  margin-block-start: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 3. OFFERS — plan tiers in the drawer, storage add-ons on the page
+ * ------------------------------------------------------------------------- */
+.bill-offer-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. HISTORY
+ *
+ * The table itself is the canonical `.app-table[data-responsive]`, which
+ * already collapses to stacked cards below 720px. Only the column behaviour is
+ * Billing's own: an amount is tabular and never wraps mid-figure, and the
+ * action cell keeps its buttons on one line where there is room.
+ * ------------------------------------------------------------------------- */
+.bill-history__amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-strong, #172033);
+}
+
+.bill-history__what {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.bill-history__when {
+  font-size: 0.82rem;
+  color: var(--text-muted, #5f6878);
+}
+
+.bill-history__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.bill-history__actions > * {
+  min-block-size: 44px;
+  block-size: 44px;
+}
+
+@media (max-width: 720px) {
+  .bill-history__actions {
+    justify-content: flex-start;
+  }
+}
+
+/* A resume link is a link, not a button, but it is still something a finger
+   has to hit. */
+.bill-resume-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent-600, #6d28d9);
+  text-decoration: underline;
+}
+
+.bill-resume-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+  border-radius: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 5. SUPPORT BANNER
+ *
+ * The last thing on the page, and the one a customer reaches when the rest of
+ * it has not answered their question.
+ * ------------------------------------------------------------------------- */
+.bill-support {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bill-support__copy {
+  margin: 0;
+  min-inline-size: 0;
+  flex: 1 1 320px;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text-muted, #475569);
+  overflow-wrap: anywhere;
+}
+
+.bill-support__action {
+  min-block-size: 44px;
+}

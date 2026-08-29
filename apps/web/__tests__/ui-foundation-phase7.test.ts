@@ -34,20 +34,34 @@ const UI = (name: string) => read(`components/ui/${name}`);
 // 1. Coral CTA
 // ---------------------------------------------------------------------------
 
-test("--btn-primary-bg is the refined coral→pink gradient", () => {
+test("--btn-primary-bg is the PROOVRA purple, not a gradient", () => {
+  // BILLING SURFACE CORRECTION (2026-08-29) — this asserted the coral → pink
+  // gradient. That gradient was the primary CTA for the whole product, so a
+  // page could show a purple header action beside a coral one and mean the
+  // same thing by both; and a warm coral sits close enough to the destructive
+  // red that ordinary commercial actions read as risky.
   const match = GLOBALS.match(/--btn-primary-bg:\s*([^;]+);/);
   assert.ok(match, "--btn-primary-bg must be defined");
-  const value = match![1].toLowerCase();
-  assert.ok(value.includes("#e64880"), "coral start colour present");
-  assert.ok(value.includes("#ff6b6b"), "pink mid colour present");
-  assert.ok(value.includes("#ff8a6a"), "warm-coral end colour present");
-  // The retired teal gradient must be gone from the token.
-  assert.ok(!value.includes("#3e8f95"), "old teal gradient removed from token");
+  const value = match![1].toLowerCase().trim();
+  assert.equal(value, "#7c3aed", "the canonical primary is the brand violet");
+  assert.ok(!value.includes("gradient"), "a solid colour, so focus and disabled states can be stated");
 });
 
-test("coral CTA shadow + border tokens are coral-tinted", () => {
-  assert.match(GLOBALS, /--btn-primary-shadow:\s*[^;]*rgba\(230,\s*72,\s*128/);
-  assert.match(GLOBALS, /--btn-primary-border:\s*rgba\(230,\s*72,\s*128/);
+test("the retired coral/pink CTA cannot come back through the token", () => {
+  // Every retired stop, checked by value rather than by the word "coral", so
+  // renaming the comment cannot smuggle the colour back in.
+  for (const retired of ["#e64880", "#ff6b6b", "#ff8a6a", "#d63e76", "#f75f5f", "#f97d5c"]) {
+    assert.ok(
+      !GLOBALS.toLowerCase().includes(retired),
+      `retired CTA colour ${retired} must not appear in globals.css`,
+    );
+  }
+  assert.doesNotMatch(GLOBALS, /--btn-primary-[a-z-]*:\s*[^;]*rgba\(230,\s*72,\s*128/);
+});
+
+test("primary CTA border and shadow are tinted with the brand violet", () => {
+  assert.match(GLOBALS, /--btn-primary-shadow:\s*[^;]*rgba\(124,\s*58,\s*237/);
+  assert.match(GLOBALS, /--btn-primary-border:\s*#6d28d9/i);
 });
 
 // ---------------------------------------------------------------------------

@@ -25,10 +25,11 @@
 
 import * as prismaPkg from "@prisma/client";
 
-import { stripeGet } from "../../stripe.service.js";
+import { stripeGet, stripeRequestRaw } from "../../stripe.service.js";
 import type {
   BillingReconciliationProvider,
   ObservedState,
+  PaymentCancellationResult,
   PaymentObservation,
   SubscriptionObservation,
 } from "./types.js";
@@ -66,7 +67,12 @@ function sessionState(session: Record<string, unknown>): ObservedState {
   if (paymentStatus === "paid" || paymentStatus === "no_payment_required") {
     return "SUCCEEDED";
   }
-  if (status === "expired") return "CANCELED";
+  // BILLING SURFACE CORRECTION (2026-08-29) — an expired session is EXPIRED.
+  // It was reported as CANCELED, which says a person or this product stopped
+  // it; Stripe expires a session on its own after 24 hours, and a customer
+  // told "Cancelled" about a checkout they simply never finished is being told
+  // something happened that did not.
+  if (status === "expired") return "EXPIRED";
   if (paymentStatus === "unpaid") {
     return status === "open" ? "PENDING" : "FAILED";
   }
@@ -175,15 +181,78 @@ export class StripeBillingReconciliationProvider
     const amount = session["amount_total"];
     const currency = session["currency"];
 
+    const state = sessionState(session);
+    const url = session["url"];
+
     return {
       kind: "PAYMENT",
       provider: PROVIDER,
       providerRef,
-      state: sessionState(session),
+      state,
       amountCents: typeof amount === "number" ? amount : null,
       currency: typeof currency === "string" ? currency.toUpperCase() : null,
       quantity: sessionQuantity(session),
       observedAtUtc: utcFromUnix(session["created"]),
+      // Stripe returns `url` only while the session is open, and drops it the
+      // moment the session completes or expires. Passing it through ONLY in
+      // the PENDING state means a resume link cannot outlive what it resumes.
+      resumeUrl:
+        state === "PENDING" && typeof url === "string" && url.startsWith("https://")
+          ? url
+          : null,
+    };
+  }
+
+  /**
+   * Ask Stripe to EXPIRE an open Checkout Session.
+   *
+   * BILLING SURFACE CORRECTION (2026-08-29) — this is the whole of "Cancel
+   * payment" for Stripe, and it is a real Stripe operation
+   * (`POST /checkout/sessions/:id/expire`) rather than a local status write.
+   * Stripe answers with the session in its new state, and that answer is what
+   * is returned: if Stripe reports it already paid, the caller learns
+   * ALREADY_TERMINAL and nothing is marked cancelled.
+   *
+   * Nothing is charged, refunded or reversed here. An expire only closes a
+   * flow the customer never completed.
+   */
+  async cancelPayment(providerRef: string): Promise<PaymentCancellationResult> {
+    // Look first. Expiring is only valid on an open session, and asking Stripe
+    // to expire a completed one produces an error we would then have to
+    // interpret — where the observation says plainly what the state is.
+    const before = await this.observePayment(providerRef);
+    if (before.state === "UNKNOWN") return { outcome: "PROVIDER_UNAVAILABLE" };
+    if (before.state !== "PENDING") {
+      return { outcome: "ALREADY_TERMINAL", state: before.state };
+    }
+
+    let body: unknown;
+    try {
+      body = await stripeRequestRaw(
+        `/checkout/sessions/${encodeURIComponent(providerRef)}/expire`,
+        "POST",
+      );
+    } catch {
+      // Deliberately no local write. A cancellation the provider did not
+      // confirm is not a cancellation.
+      return { outcome: "PROVIDER_UNAVAILABLE" };
+    }
+
+    const session = asRecord(body);
+    if (!session || session["id"] !== providerRef) {
+      return { outcome: "PROVIDER_UNAVAILABLE" };
+    }
+
+    const state = sessionState(session);
+    if (state === "PENDING" || state === "UNKNOWN") {
+      // Stripe answered without actually closing it. Report nothing changed.
+      return { outcome: "PROVIDER_UNAVAILABLE" };
+    }
+
+    return {
+      outcome: "STOPPED",
+      state,
+      observedAtUtc: utcFromUnix(session["expires_at"]) ?? new Date(),
     };
   }
 

@@ -99,6 +99,72 @@ describe("evidence credits — the PAYG contract", () => {
     });
   });
 
+  // ==========================================================================
+  // The funding boundary of a GRANDFATHERED account that is already past its
+  // cap — the state the Billing page was describing wrongly.
+  //
+  // The live fixture: 176 records held, an enforced cap of 127 (a
+  // `legacyRecordCapOverride`, while PRO includes 100), 0 credits. The page
+  // rendered "49 over the 127 your plan includes", which invited the reading
+  // that 49 records — or 49 credits — stood between the customer and their
+  // next capture. These pin what actually decides it.
+  // ==========================================================================
+
+  it("refuses the 176/127/0 account, and the deficit is not the reason", () => {
+    const refused = resolvePersonalEvidenceAdmission({
+      plan: "PRO",
+      currentRecordCount: 176,
+      effectiveLifetimeRecordCap: 127,
+      availableEvidenceCredits: 0,
+    });
+    expect(refused).toEqual({
+      allowed: false,
+      reason: "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS",
+    });
+  });
+
+  it("admits that same account on ONE credit — 49 over costs the same as 1 over", () => {
+    // This is the whole correction. Past the allowance the policy compares the
+    // wallet against `creditsPerCompletion` (1) and nothing else; the size of
+    // the overage never enters the decision. An account 1 over and an account
+    // 49 over are funded identically.
+    const oneOver = resolvePersonalEvidenceAdmission({
+      plan: "PRO",
+      currentRecordCount: 128,
+      effectiveLifetimeRecordCap: 127,
+      availableEvidenceCredits: 1,
+    });
+    const fortyNineOver = resolvePersonalEvidenceAdmission({
+      plan: "PRO",
+      currentRecordCount: 176,
+      effectiveLifetimeRecordCap: 127,
+      availableEvidenceCredits: 1,
+    });
+
+    expect(oneOver).toEqual({ allowed: true, funding: "EVIDENCE_CREDIT" });
+    expect(fortyNineOver).toEqual(oneOver);
+    expect(EVIDENCE_CREDIT_PRODUCT.creditsPerCompletion).toBe(1);
+  });
+
+  it("127 is not what PRO includes — the page may not call it the plan's number", () => {
+    // The enforced cap in that fixture is a per-account grandfather value. The
+    // PLAN's own number is 100, and the two must stay distinguishable, because
+    // the projection now sends both and the page names which is which.
+    expect(getPlanCapabilities("PRO").maxEvidenceRecords).toBe(100);
+    expect(getPlanCapabilities("PRO").maxEvidenceRecords).not.toBe(127);
+  });
+
+  it("the last included record of a grandfathered cap is still funded by the plan", () => {
+    // 126 held against a cap of 127: the plan pays, credits are untouched.
+    const admission = resolvePersonalEvidenceAdmission({
+      plan: "PRO",
+      currentRecordCount: 126,
+      effectiveLifetimeRecordCap: 127,
+      availableEvidenceCredits: 4,
+    });
+    expect(admission).toEqual({ allowed: true, funding: "PLAN" });
+  });
+
   it("REGRESSION: a FREE account holding credits is admitted past the free cap", () => {
     // THE defect. A real buyer stays on FREE, because no production path
     // writes `entitlements.plan = 'PAYG'`. The old gate asked

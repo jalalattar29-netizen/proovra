@@ -4,6 +4,10 @@ import { prisma } from "../db.js";
 // `computeOverSeatLimit` in this file — one quantity, one comparison.
 import * as prismaPkg from "@prisma/client";
 import { writeAnalyticsEvent } from "./analytics-event.service.js";
+import {
+  decidePaymentTransition,
+  observedStateFromPaymentStatus,
+} from "./billing/reconciliation/payment-status.js";
 
 const GB = 1024n * 1024n * 1024n;
 
@@ -283,30 +287,88 @@ export async function recordPayment(params: {
   currency: string;
   status: prismaPkg.PaymentStatus;
   teamId?: string | null;
+  /**
+   * The PROVIDER's own timestamp for this fact, when the caller has one.
+   *
+   * Optional because most webhook handlers do not carry it today; absent, the
+   * monotonicity rule still applies and only the ordering rule is unavailable.
+   */
+  observedAtUtc?: Date | null;
 }) {
-  const payment = await prisma.payment.upsert({
+  /*
+   * BILLING SURFACE CORRECTION (2026-08-29) — a settled payment is never
+   * moved backwards.
+   *
+   * This was a plain upsert whose `update` wrote `status` unconditionally.
+   * Webhooks are not delivered in order and are redelivered on retry, so a
+   * PayPal `APPROVAL_PENDING` arriving after the capture had settled — or any
+   * redelivery of an older event — rewrote a SUCCEEDED row to PENDING, and the
+   * customer's history then said their paid subscription was still being
+   * processed.
+   *
+   * The rules live in ONE place (`decidePaymentTransition`), shared with the
+   * reconciliation poll and the per-row re-check, so all three routes into
+   * this row agree about what may overwrite what.
+   *
+   * The update is a COMPARE-AND-SET on the status we read, so two webhooks
+   * racing produce one transition rather than two.
+   */
+  const existing = await prisma.payment.findUnique({
     where: {
       provider_providerPaymentId: {
         provider: params.provider,
         providerPaymentId: params.providerPaymentId,
       },
     },
-    update: {
-      status: params.status,
-      amountCents: params.amountCents,
-      currency: params.currency,
-      teamId: params.teamId ?? null,
-    },
-    create: {
-      userId: params.userId,
-      provider: params.provider,
-      providerPaymentId: params.providerPaymentId,
-      amountCents: params.amountCents,
-      currency: params.currency,
-      status: params.status,
-      teamId: params.teamId ?? null,
-    },
+    select: { id: true, status: true, providerStateAtUtc: true },
   });
+
+  let payment;
+  if (!existing) {
+    payment = await prisma.payment.create({
+      data: {
+        userId: params.userId,
+        provider: params.provider,
+        providerPaymentId: params.providerPaymentId,
+        amountCents: params.amountCents,
+        currency: params.currency,
+        status: params.status,
+        teamId: params.teamId ?? null,
+        ...(params.observedAtUtc
+          ? { providerStateAtUtc: params.observedAtUtc }
+          : {}),
+      },
+    });
+  } else {
+    const decision = decidePaymentTransition({
+      current: existing.status,
+      currentObservedAtUtc: existing.providerStateAtUtc,
+      observed: observedStateFromPaymentStatus(params.status),
+      observedAtUtc: params.observedAtUtc ?? null,
+    });
+
+    if (decision.apply) {
+      await prisma.payment.updateMany({
+        // The status predicate is the compare-and-set: if another delivery
+        // moved the row between the read and here, this matches nothing and
+        // that other delivery's transition stands.
+        where: { id: existing.id, status: existing.status },
+        data: {
+          status: decision.status,
+          amountCents: params.amountCents,
+          currency: params.currency,
+          teamId: params.teamId ?? null,
+          ...(params.observedAtUtc
+            ? { providerStateAtUtc: params.observedAtUtc }
+            : {}),
+        },
+      });
+    }
+
+    payment = await prisma.payment.findUniqueOrThrow({
+      where: { id: existing.id },
+    });
+  }
 
   await trackBillingEvent({
     eventType:

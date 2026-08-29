@@ -42,11 +42,14 @@ import { formatDate, formatMoney, statusLabel, statusTone } from "./format";
 export function StorageAddonsSection({
   projection,
   onBuy,
+  onUpgrade,
   onCancelAddon,
   cancelBusyId,
 }: {
   projection: BillingAccountProjection;
   onBuy: () => void;
+  /** Opens the PLAN chooser on the tier that unlocks add-ons. */
+  onUpgrade: (planKey: "PRO" | "TEAM") => void;
   onCancelAddon: (addonId: string) => void;
   cancelBusyId: string | null;
 }) {
@@ -70,10 +73,17 @@ export function StorageAddonsSection({
         </p>
         {locked.unlockedByPlan ? (
           <div style={{ marginTop: 12 }}>
+            {/*
+              BILLING SURFACE CORRECTION (2026-08-29) — this called `onBuy`,
+              which opens the STORAGE drawer. On FREE there are no add-on
+              offers, so pressing it opened an empty drawer — the page telling
+              a customer to upgrade and then showing them nothing. It opens the
+              PLAN chooser instead, on the tier that actually unlocks storage.
+            */}
             <Button
               variant="primary"
               size="sm"
-              onClick={onBuy}
+              onClick={() => onUpgrade(locked.unlockedByPlan as "PRO" | "TEAM")}
               data-billing-storage-upgrade
             >
               See plans
@@ -159,7 +169,7 @@ export function StorageAddonsSection({
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div className="bill-actions">
                   <Badge tone={statusTone(addon.status)} dot>
                     {statusLabel(addon.status)}
                   </Badge>
@@ -207,6 +217,10 @@ export function BillingHistorySection({
   onRetry,
   onRecheck,
   recheckBusy,
+  onRecheckPayment,
+  onCancelPayment,
+  rowBusyId,
+  resumeUrls,
 }: {
   entries: BillingHistoryEntry[];
   state: "LOADING" | "READY" | "DENIED" | "ERROR";
@@ -226,6 +240,25 @@ export function BillingHistorySection({
    */
   onRecheck: () => void;
   recheckBusy: boolean;
+  /**
+   * BILLING SURFACE CORRECTION (2026-08-29) — ONE row's own actions.
+   *
+   * Separate from the account-wide re-check above, which sweeps every binding.
+   * A customer looking at a single stuck "Pending" line wants to know about
+   * THAT line, and the account sweep's summary counts cannot tell them.
+   */
+  onRecheckPayment: (entry: BillingHistoryEntry) => void;
+  onCancelPayment: (entry: BillingHistoryEntry) => void;
+  /** The row currently talking to the provider, if any. */
+  rowBusyId: string | null;
+  /**
+   * Resume links learned from a re-check, by payment id.
+   *
+   * Not part of the history payload: a continuation URL is only valid while
+   * the provider still holds the flow open, so it is only ever known for as
+   * long as the answer that produced it is fresh.
+   */
+  resumeUrls: Record<string, string>;
 }) {
   if (state === "DENIED") {
     return (
@@ -291,53 +324,128 @@ export function BillingHistorySection({
           purpose="Payments for this account will appear here."
         />
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-          {entries.map((entry) => {
-            const amount = formatMoney(entry.amountCents, entry.currency);
-            const when = formatDate(entry.occurredAtUtc);
-            return (
-              <li
-                key={entry.id}
-                data-billing-history-row
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "10px 0",
-                  borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ color: "var(--text-strong, #172033)", fontWeight: 500 }}>
-                    {entry.description}
-                  </div>
-                  <div style={{ fontSize: "0.84rem", color: "var(--text-muted, #5F6878)" }}>
-                    {when ?? "Date unavailable"}
-                    {entry.providerLabel ? ` · ${entry.providerLabel}` : ""}
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {amount ? (
-                    <bdi
-                      style={{
-                        fontWeight: 600,
-                        color: "var(--text-strong, #172033)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {amount}
-                    </bdi>
-                  ) : null}
-                  <Badge tone={statusTone(entry.status)} dot>
-                    {statusLabel(entry.status)}
-                  </Badge>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        /*
+          BILLING SURFACE CORRECTION (2026-08-29) — history is a TABLE.
+
+          It was a flex list whose every row rendered "description · date ·
+          provider" as one run of text with the amount and a status pill
+          pushed to the far edge. At 390px the description wrapped under the
+          date, the amount landed beside a status word it did not belong to,
+          and there was nowhere for a row's actions to go.
+
+          This is the canonical `app-table[data-responsive]`, which is a real
+          table with real column headers on a wide screen and stacked labelled
+          cards below 720px. It is not a Billing table: it is the same surface
+          the rest of the product lists records in.
+        */
+        <div className="app-table-surface app-table-surface--scroll">
+          <table className="app-table" data-responsive data-billing-history-table>
+            <thead>
+              <tr>
+                <th scope="col">Payment</th>
+                <th scope="col">Method</th>
+                <th scope="col">Amount</th>
+                <th scope="col">Status</th>
+                <th scope="col">
+                  {/* The actions column has no useful label, and an empty
+                      header is announced as such rather than guessed at. */}
+                  <span className="app-visually-hidden">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => {
+                const amount = formatMoney(entry.amountCents, entry.currency);
+                const when = formatDate(entry.occurredAtUtc);
+                const resumeUrl = resumeUrls[entry.id] ?? null;
+                const busy = rowBusyId === entry.id;
+                /*
+                  A pending payment the provider has just told us is still
+                  open, and where, is not simply "Pending" — it is waiting for
+                  the customer. The word changes with the fact; the underlying
+                  status does not, because nothing about the payment changed.
+                */
+                const awaitingCustomer =
+                  resumeUrl !== null && entry.status.toUpperCase() === "PENDING";
+
+                return (
+                  <tr key={entry.id} data-billing-history-row>
+                    <td data-label="Payment">
+                      <div className="bill-history__what">
+                        <span className="app-table__primary">
+                          {entry.description}
+                        </span>
+                        <span className="bill-history__when">
+                          {when ?? "Date unavailable"}
+                        </span>
+                      </div>
+                    </td>
+                    <td data-label="Method" className="app-table__muted">
+                      {entry.providerLabel ?? "—"}
+                    </td>
+                    <td data-label="Amount">
+                      {amount ? (
+                        <bdi className="bill-history__amount">{amount}</bdi>
+                      ) : (
+                        <span className="app-table__muted">—</span>
+                      )}
+                    </td>
+                    <td data-label="Status">
+                      <Badge
+                        tone={
+                          awaitingCustomer ? "pending" : statusTone(entry.status)
+                        }
+                        dot
+                      >
+                        {awaitingCustomer
+                          ? "Action needed"
+                          : statusLabel(entry.status)}
+                      </Badge>
+                    </td>
+                    <td data-label="">
+                      <div className="bill-history__actions">
+                        {resumeUrl ? (
+                          <a
+                            href={resumeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bill-resume-link"
+                            data-billing-payment-resume
+                          >
+                            Resume payment
+                          </a>
+                        ) : null}
+                        {entry.actions?.canRecheck ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => onRecheckPayment(entry)}
+                            loading={busy}
+                            disabled={busy}
+                            data-billing-payment-recheck={entry.id}
+                          >
+                            Re-check
+                          </Button>
+                        ) : null}
+                        {entry.actions?.canCancel ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => onCancelPayment(entry)}
+                            disabled={busy}
+                            data-billing-payment-cancel={entry.id}
+                          >
+                            Cancel payment
+                          </Button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </Card>
   );

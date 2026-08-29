@@ -30,7 +30,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { PageShell, PageHeader, PageSection, Skeleton, useToast } from "../../../components/ui";
@@ -49,6 +48,8 @@ import {
   requestCancellation,
   changePlan,
   reconcileAccount,
+  recheckPayment,
+  cancelPayment,
   retryStorageCancellation,
   type BillingAccountProjection,
   type BillingAccountRef,
@@ -70,6 +71,9 @@ import {
 import { CheckoutDrawer, type CheckoutIntent } from "./_sections/CheckoutDrawer";
 import { formatDate } from "./_sections/format";
 import { apiFetch } from "../../../lib/api";
+// Route-owned presentation. Everything shared — the header, the panels, the
+// responsive table, the action tiers — stays on the canonical app-* set.
+import "./billing.css";
 import {
   buildBillingHref,
   parseBillingWorkspaceLocator,
@@ -307,10 +311,50 @@ function BillingPageInner() {
     // The copy states what the PROVIDER will actually do. The dialog this
     // replaces promised "ends at the current period" while the route called
     // Stripe's immediate DELETE.
+    //
+    // BILLING SURFACE CORRECTION (2026-08-29) — and it now states the whole
+    // consequence, not just the part about the plan.
+    //
+    // Cancelling a subscription also cancels the RECURRING STORAGE ADD-ONS
+    // that hang off it (`cancelDependentRecurringAddons`, in the same
+    // transaction as the plan). A customer who is not told that finds out when
+    // the capacity goes. And the fear this dialog actually raises is not about
+    // the add-ons at all — it is whether the evidence survives. It does, and
+    // saying so is the difference between a decision and a gamble.
+    const recurringAddons = (projection.storageAddons?.active ?? []).filter(
+      (addon) => !addon.legacyOneTime && addon.status === "ACTIVE",
+    );
+    const paidUntil = formatDate(projection.plan.currentPeriodEndUtc);
+
     const ok = await confirm({
-      title: `Cancel the subscription for ${selected.displayName}?`,
-      description:
-        "We will ask your payment provider to stop renewing it. Where the provider supports it you keep access until the end of the period you have already paid for, and we will tell you the exact date. Nothing is charged again.",
+      title: `Cancel ${projection.plan.displayName} for ${selected.displayName}?`,
+      description: (
+        <div style={{ display: "grid", gap: 10 }} data-billing-cancel-consequences>
+          <p style={{ margin: 0 }}>
+            We will ask your payment provider to stop renewing it.{" "}
+            {paidUntil
+              ? `You have paid through ${paidUntil}; where the provider supports it you keep ${projection.plan.displayName} until then, and we will confirm the exact date after they answer.`
+              : "Where the provider supports it you keep your current plan until the end of the period you have already paid for, and we will confirm the exact date after they answer."}{" "}
+            Nothing is charged again.
+          </p>
+          <ul style={{ margin: 0, paddingInlineStart: 20, display: "grid", gap: 6 }}>
+            <li>
+              Your evidence is not deleted. Records, custody history, hashes,
+              signatures and verification packages all stay exactly as they are.
+            </li>
+            <li>
+              {recurringAddons.length > 0
+                ? `${recurringAddons.length} recurring storage add-on${
+                    recurringAddons.length === 1 ? "" : "s"
+                  } will be cancelled with it, so that extra capacity ends too.`
+                : "You have no recurring storage add-ons, so nothing else is cancelled."}
+            </li>
+            <li>
+              Your account moves to Free. You can subscribe again at any time.
+            </li>
+          </ul>
+        </div>
+      ),
       confirmLabel: "Cancel subscription",
       cancelLabel: "Keep subscription",
       tone: "danger",
@@ -342,6 +386,109 @@ function BillingPageInner() {
       setCancelBusy(false);
     }
   }, [selected, projection, confirm, addToast, refresh]);
+
+  // ---- One payment's own lifecycle ---------------------------------------
+  //
+  // BILLING SURFACE CORRECTION (2026-08-29) — a pending row had no way to end.
+  // These two ask the SERVER, which asks the provider; neither decides
+  // anything here, and neither can present a local guess as a provider fact.
+  const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
+  const [resumeUrls, setResumeUrls] = useState<Record<string, string>>({});
+
+  const handleRecheckPayment = useCallback(
+    async (entry: BillingHistoryEntry) => {
+      if (!selected || paymentBusyId) return;
+      setPaymentBusyId(entry.id);
+      try {
+        const result = await recheckPayment(selected, entry.id);
+
+        setResumeUrls((current) => {
+          const next = { ...current };
+          if (result.resumeUrl) next[entry.id] = result.resumeUrl;
+          // A link that is no longer offered is REMOVED, not left behind. A
+          // stale "Resume payment" is worse than none: it sends a paying
+          // customer to a page the provider has already closed.
+          else delete next[entry.id];
+          return next;
+        });
+
+        switch (result.outcome) {
+          case "UPDATED":
+            addToast("We checked with your provider and updated this payment.", "success");
+            void loadHistory(selected);
+            refresh();
+            break;
+          case "PROVIDER_UNAVAILABLE":
+            addToast(
+              "We could not reach your payment provider just now. Nothing has changed — please try again shortly.",
+              "error",
+            );
+            break;
+          default:
+            addToast(
+              result.resumeUrl
+                ? "This payment is still open with your provider. Use Resume payment to finish it."
+                : "Your provider reports no change to this payment.",
+              "info",
+            );
+        }
+      } catch (err) {
+        captureException(err, { feature: "billing_payment_recheck" });
+        const safe = toSafeUserError(err, {
+          message:
+            "We could not check this payment with your provider. Nothing has changed — try again in a moment.",
+        });
+        addToast(safe.message, "error");
+      } finally {
+        setPaymentBusyId(null);
+      }
+    },
+    [selected, paymentBusyId, addToast, loadHistory, refresh],
+  );
+
+  const handleCancelPayment = useCallback(
+    async (entry: BillingHistoryEntry) => {
+      if (!selected || paymentBusyId) return;
+
+      const ok = await confirm({
+        title: "Stop this payment?",
+        description:
+          "We will ask your payment provider to close it. Nothing has been charged for it, and nothing will be. The record stays in your billing history.",
+        confirmLabel: "Stop payment",
+        cancelLabel: "Leave it open",
+        tone: "danger",
+        testId: "billing-cancel-payment",
+      });
+      if (!ok) return;
+
+      setPaymentBusyId(entry.id);
+      try {
+        const result = await cancelPayment(selected, entry.id);
+        setResumeUrls((current) => {
+          const next = { ...current };
+          delete next[entry.id];
+          return next;
+        });
+        addToast(
+          result.outcome === "ALREADY_FINISHED"
+            ? "Your provider reports this payment had already finished. Nothing was changed."
+            : "Your provider has closed this payment. Nothing was charged.",
+          result.outcome === "ALREADY_FINISHED" ? "info" : "success",
+        );
+        void loadHistory(selected);
+      } catch (err) {
+        captureException(err, { feature: "billing_payment_cancel" });
+        const safe = toSafeUserError(err, {
+          message:
+            "We could not reach your payment provider. This payment is unchanged and nothing has been charged.",
+        });
+        addToast(safe.message, "error");
+      } finally {
+        setPaymentBusyId(null);
+      }
+    },
+    [selected, paymentBusyId, confirm, addToast, loadHistory],
+  );
 
   // ---- Plan change -------------------------------------------------------
   //
@@ -561,7 +708,17 @@ function BillingPageInner() {
           <PageSection>
             <PlanSummaryCard
               projection={projection}
-              onManage={() => setCheckout("PLAN")}
+              /*
+               * BILLING SURFACE CORRECTION (2026-08-29) — the button that was
+               * pressed decides which plan the drawer opens on.
+               *
+               * This was `setCheckout("PLAN")` for both buttons, so the drawer
+               * could not tell "Subscribe to Pro" from "Subscribe to Team" and
+               * fell back to the first offer in the list — PRO, every time.
+               */
+              onManage={(offer) =>
+                setCheckout({ kind: "PLAN", planKey: offer.planKey })
+              }
               onChangePlan={(offer) => void handleChangePlan(offer)}
               onCancel={() => void handleCancel()}
               cancelBusy={cancelBusy}
@@ -570,7 +727,15 @@ function BillingPageInner() {
           </PageSection>
 
           <PageSection>
-            <UsageAndLimits projection={projection} />
+            <UsageAndLimits
+              projection={projection}
+              onBuyCredits={
+                projection.actions.canBuyEvidenceCredits
+                  ? () => setCheckout({ kind: "CREDITS" })
+                  : undefined
+              }
+              onUpgrade={(planKey) => setCheckout({ kind: "PLAN", planKey })}
+            />
           </PageSection>
 
           {projection.actions.canBuyEvidenceCredits ? (
@@ -583,7 +748,7 @@ function BillingPageInner() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => setCheckout("CREDITS")}
+                    onClick={() => setCheckout({ kind: "CREDITS" })}
                     data-billing-buy-credits
                   >
                     Buy credits
@@ -617,7 +782,8 @@ function BillingPageInner() {
           <PageSection>
             <StorageAddonsSection
               projection={projection}
-              onBuy={() => setCheckout("STORAGE")}
+              onBuy={() => setCheckout({ kind: "STORAGE" })}
+              onUpgrade={(planKey) => setCheckout({ kind: "PLAN", planKey })}
               onCancelAddon={(id) => void handleCancelAddon(id)}
               cancelBusyId={cancelAddonBusy}
             />
@@ -629,6 +795,10 @@ function BillingPageInner() {
               state={historyState}
               onRetry={() => selected && void loadHistory(selected)}
               recheckBusy={recheckBusy}
+              onRecheckPayment={(entry) => void handleRecheckPayment(entry)}
+              onCancelPayment={(entry) => void handleCancelPayment(entry)}
+              rowBusyId={paymentBusyId}
+              resumeUrls={resumeUrls}
               onRecheck={() => {
                 void (async () => {
                   setRecheckBusy(true);
@@ -692,20 +862,19 @@ function BillingPageInner() {
 
           <PageSection>
             <Card variant="admin" data-billing-support>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.9rem",
-                  lineHeight: 1.65,
-                  color: "var(--text-muted, #475569)",
-                }}
-              >
-                {projection.actions.contactAccountManager
-                  ? "Changes to your agreement go through your account manager."
-                  : "Something not right on this page? Your billing records are the ones we act on — get in touch and we will look at them with you."}
-              </p>
-              <div style={{ marginTop: 12 }}>
-                <Link
+              {/*
+                BILLING SURFACE CORRECTION (2026-08-29) — the banner reads as
+                one line with its action beside it, rather than a paragraph
+                with a button orphaned underneath. On a narrow screen the copy
+                and the action stack, and the action fills the width.
+              */}
+              <div className="bill-support">
+                <p className="bill-support__copy">
+                  {projection.actions.contactAccountManager
+                    ? "Changes to your agreement go through your account manager."
+                    : "Something not right on this page? Your billing records are the ones we act on — get in touch and we will look at them with you."}
+                </p>
+                <a
                   /*
                    * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) —
                    * "/settings#privacy" was WRONG, and wrong in a way that
@@ -725,7 +894,22 @@ function BillingPageInner() {
                       ? "/contact-sales"
                       : "/support"
                   }
-                  className="app-header-primary-action"
+                  /*
+                   * BILLING SURFACE CORRECTION (2026-08-29) — it opens in a NEW
+                   * TAB, and that is what stops it signing the customer out.
+                   *
+                   * It was a same-tab client-routed link. `/support` lives OUTSIDE the
+                   * `(app)` route group, so following it tore down the
+                   * authenticated shell — and the session token is held in
+                   * MEMORY ONLY (lib/api.ts: "In-memory only … NEVER persist"),
+                   * so that navigation destroyed the only copy of it. Coming
+                   * back to Billing then landed on a signed-out shell. Nothing
+                   * about `/support` logs anyone out; navigating away from the
+                   * app in the same tab does.
+                   */
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="app-header-primary-action bill-support__action"
                   data-billing-support-action
                 >
                   <span>
@@ -733,14 +917,14 @@ function BillingPageInner() {
                       ? "Contact your account manager"
                       : "Get help"}
                   </span>
-                </Link>
+                </a>
               </div>
             </Card>
           </PageSection>
 
           <CheckoutDrawer
             open={checkout !== null}
-            intent={checkout ?? "PLAN"}
+            intent={checkout ?? { kind: "PLAN", planKey: "PRO" }}
             projection={projection}
             onClose={() => setCheckout(null)}
             onCompleted={refresh}

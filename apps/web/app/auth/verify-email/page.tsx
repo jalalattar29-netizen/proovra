@@ -277,7 +277,7 @@ const PrimaryButton = ({
     style={{
       background: disabled
         ? "rgba(230,72,128,0.18)"
-        : "linear-gradient(90deg, #E64880 0%, #FF6B6B 52%, #FF8A6A 100%)",
+        : "var(--btn-primary-bg)",
       color: disabled ? "#7A687D" : "#ffffff",
       border: "1px solid rgba(230,72,128,0.45)",
       boxShadow: disabled ? "none" : "0 14px 28px rgba(230,72,128,0.22)",
@@ -293,7 +293,7 @@ const BackToSignIn = () => (
   <Link
     href="/login"
     className="auth-link"
-    style={{ color: "#D63E76", fontWeight: 600, fontSize: 14 }}
+    style={{ color: "var(--accent-600, #6d28d9)", fontWeight: 600, fontSize: 14 }}
   >
     Back to sign in
   </Link>

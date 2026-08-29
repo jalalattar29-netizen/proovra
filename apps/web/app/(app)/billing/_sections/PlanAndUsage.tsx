@@ -35,6 +35,7 @@ import type {
   UsageMeter,
 } from "../../../../lib/api/billing-accounts";
 import {
+  describeEvidenceAdmission,
   describeMeter,
   describeModel,
   formatDate,
@@ -49,6 +50,7 @@ function Meter({
   detail,
   ratio,
   tone = "neutral",
+  action,
   testId,
 }: {
   label: string;
@@ -56,8 +58,12 @@ function Meter({
   detail: string | null;
   ratio: number | null;
   tone?: "neutral" | "pending" | "risk";
+  /** The offer that answers the detail copy. Rendered under it. */
+  action?: React.ReactNode;
   testId?: string;
 }) {
+  // The meter's colour is the route's tone token, never a literal — so a
+  // warning here is the same amber as a warning anywhere else in the product.
   const fill =
     tone === "risk"
       ? "var(--status-risk-solid, #dc2626)"
@@ -66,29 +72,16 @@ function Meter({
         : "var(--status-info-solid, #2563eb)";
 
   return (
-    <div data-testid={testId} style={{ minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "var(--text-muted, #5F6878)",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: 6,
-          fontSize: "1.02rem",
-          fontWeight: 600,
-          color: "var(--text-strong, #172033)",
-          overflowWrap: "anywhere",
-        }}
-      >
-        {headline}
-      </div>
+    <div data-testid={testId} className="bill-meter">
+      <div className="bill-meter__label">{label}</div>
+      {/*
+        Bidi-isolated for the same reason money is: "176 of 500 records in the
+        last 30 days" is one self-contained phrase, and without isolation the
+        bidi algorithm reorders its leading numeral to the far end when the
+        surrounding paragraph runs right-to-left. The reader then sees
+        "of 500 records in the last 30 days 176".
+      */}
+      <bdi className="bill-meter__headline">{headline}</bdi>
       {ratio !== null ? (
         <div
           role="progressbar"
@@ -96,35 +89,16 @@ function Meter({
           aria-valuemax={100}
           aria-valuenow={Math.round(ratio * 100)}
           aria-label={`${label}: ${headline}`}
-          style={{
-            marginTop: 10,
-            height: 6,
-            borderRadius: 999,
-            background: "var(--surface-muted, #eef2f7)",
-            overflow: "hidden",
-          }}
+          className="bill-meter__track"
         >
           <div
-            style={{
-              width: `${Math.round(ratio * 100)}%`,
-              height: "100%",
-              background: fill,
-            }}
+            className="bill-meter__fill"
+            style={{ width: `${Math.round(ratio * 100)}%`, background: fill }}
           />
         </div>
       ) : null}
-      {detail ? (
-        <div
-          style={{
-            marginTop: 8,
-            fontSize: "0.84rem",
-            lineHeight: 1.6,
-            color: "var(--text-muted, #475569)",
-          }}
-        >
-          {detail}
-        </div>
-      ) : null}
+      {detail ? <div className="bill-meter__detail">{detail}</div> : null}
+      {action ? <div className="bill-meter__action">{action}</div> : null}
     </div>
   );
 }
@@ -269,8 +243,13 @@ export function PlanSummaryCard({
   changeBusyPlan,
 }: {
   projection: BillingAccountProjection;
-  /** Opens the checkout drawer. Used only for a purchase. */
-  onManage: () => void;
+  /**
+   * Opens the checkout drawer ON THE PLAN THAT WAS PRESSED.
+   *
+   * It took no argument, so both purchase buttons opened an identical drawer
+   * and the drawer guessed which plan was meant.
+   */
+  onManage: (offer: PlanOffer) => void;
   /**
    * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — moving between tiers on
    * the subscription that already exists.
@@ -298,114 +277,79 @@ export function PlanSummaryCard({
     <Card
       variant="summary"
       data-billing-plan-summary
-      header={
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "var(--text-muted, #5F6878)",
-              }}
-            >
-              Current plan
-            </div>
-            <h2
-              style={{
-                margin: "6px 0 0",
-                fontSize: "1.5rem",
-                fontWeight: 650,
-                letterSpacing: "-0.02em",
-                color: "var(--text-strong, #172033)",
-              }}
-              data-billing-plan-name
-            >
-              {contract ? "Enterprise agreement" : plan.displayName}
-            </h2>
-            <div
-              style={{
-                marginTop: 4,
-                fontSize: "0.9rem",
-                color: "var(--text-muted, #475569)",
-              }}
-            >
-              {account.displayName} · {describeModel(plan.model)}
-            </div>
-          </div>
-          <Badge tone={lifecycle.tone} dot data-billing-plan-status>
-            {lifecycle.label}
-          </Badge>
-        </div>
-      }
     >
-      <div style={{ display: "grid", gap: 10 }}>
-        {price ? (
-          <div style={{ fontSize: "0.95rem", color: "var(--text-strong, #172033)" }}>
-            {/* Isolated so the currency symbol cannot reorder in RTL. */}
-            <bdi style={{ fontWeight: 600 }}>{price}</bdi>
-            {plan.model === "MONTHLY" ? " per month" : null}
-          </div>
-        ) : null}
+      {/*
+        BILLING SURFACE CORRECTION (2026-08-29) — the current plan is the HERO.
+        It was a header strip and a stack of same-sized lines, so the price of
+        the plan read at the same weight as the name of the payment provider,
+        and the actions sat below three paragraphs of small print.
 
-        {/* A renewal date is shown only when the provider gave one. A credit
-            purchase has none, and inventing one was how the old card implied a
-            subscription that did not exist. */}
-        {renews && plan.model === "MONTHLY" ? (
-          <div style={{ fontSize: "0.9rem", color: "var(--text-muted, #475569)" }}>
-            {plan.cancelAtPeriodEnd
-              ? `Access continues until ${renews}.`
-              : `Renews on ${renews}.`}
+        The hierarchy now matches the question the page exists to answer: what
+        am I on, what does it cost, what can I do about it. The actions are
+        last in source order as well as in space, so a screen reader reaches
+        the facts before it reaches "Cancel subscription".
+      */}
+      <div className="bill-hero" data-billing-hero>
+        <div className="bill-hero__facts">
+          <div className="bill-hero__eyebrow">Current plan</div>
+          <h2 className="bill-hero__name" data-billing-plan-name>
+            {contract ? "Enterprise agreement" : plan.displayName}
+          </h2>
+          <div className="bill-hero__line">
+            {account.displayName} · {describeModel(plan.model)}
           </div>
-        ) : null}
 
-        {lifecycle.detail && plan.lifecycle !== "PAST_DUE" ? (
-          <div style={{ fontSize: "0.9rem", color: "var(--text-muted, #475569)" }}>
-            {lifecycle.detail}
-          </div>
-        ) : null}
+          {price ? (
+            <div className="bill-hero__price">
+              {/* Isolated so the currency symbol cannot reorder in RTL. */}
+              <bdi className="bill-hero__amount">{price}</bdi>
+              {plan.model === "MONTHLY" ? (
+                <span className="bill-hero__cadence">per month</span>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* A renewal date is shown only when the provider gave one. A credit
+              purchase has none, and inventing one was how the old card implied
+              a subscription that did not exist. */}
+          {renews && plan.model === "MONTHLY" ? (
+            <div className="bill-hero__line">
+              {plan.cancelAtPeriodEnd
+                ? `Access continues until ${renews}.`
+                : `Renews on ${renews}.`}
+            </div>
+          ) : null}
+
+          {lifecycle.detail && plan.lifecycle !== "PAST_DUE" ? (
+            <div className="bill-hero__line">{lifecycle.detail}</div>
+          ) : null}
 
         {/* A scheduled change is stated BEFORE the price and the actions are
             read, because it changes what both of them mean. Without it the
             card shows Team to someone who asked for Pro last week and has no
             way to tell whether we heard them. */}
-        {plan.scheduledChange ? (
-          <div
-            style={{ fontSize: "0.9rem", color: "var(--text-muted, #475569)" }}
-            data-billing-scheduled-change
-          >
+          {plan.scheduledChange ? (
+            <div className="bill-hero__line" data-billing-scheduled-change>
             {plan.scheduledChange.effectiveAtUtc
               ? `Moving to ${plan.scheduledChange.displayName} on ${formatDate(
                   plan.scheduledChange.effectiveAtUtc,
                 )}. You keep everything you have now until then.`
-              : `Moving to ${plan.scheduledChange.displayName} at the end of this billing period. You keep everything you have now until then.`}
-          </div>
-        ) : null}
+                : `Moving to ${plan.scheduledChange.displayName} at the end of this billing period. You keep everything you have now until then.`}
+            </div>
+          ) : null}
 
-        {plan.paymentProviderLabel ? (
-          <div style={{ fontSize: "0.86rem", color: "var(--text-muted, #5F6878)" }}>
-            Paid by {plan.paymentProviderLabel}
-          </div>
-        ) : null}
-      </div>
+          {plan.paymentProviderLabel ? (
+            <div className="bill-hero__line">
+              Paid by {plan.paymentProviderLabel}
+            </div>
+          ) : null}
+        </div>
 
-      <div
-        style={{
-          marginTop: 18,
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
+        <div className="bill-hero__aside">
+          <Badge tone={lifecycle.tone} dot data-billing-plan-status>
+            {lifecycle.label}
+          </Badge>
+          <div className="bill-actions">
         {/* One button per move the SERVER says this account may make, in the
             order the server listed them — which is the ladder, so a downgrade
             reads below an upgrade rather than beside it.
@@ -427,7 +371,7 @@ export function PlanSummaryCard({
                 loading={changeBusyPlan === offer.planKey}
                 disabled={changeBusyPlan !== null}
                 onClick={() =>
-                  offer.action === "CHECKOUT" ? onManage() : onChangePlan(offer)
+                  offer.action === "CHECKOUT" ? onManage(offer) : onChangePlan(offer)
                 }
                 data-billing-plan-offer={offer.planKey}
                 data-billing-plan-offer-action={offer.action}
@@ -450,15 +394,17 @@ export function PlanSummaryCard({
           </Button>
         ) : null}
 
-        {actions.contactAccountManager ? (
-          <Link
-            href="/contact-sales"
-            className="app-header-primary-action"
-            data-billing-contact-account-manager
-          >
-            <span>Contact your account manager</span>
-          </Link>
-        ) : null}
+            {actions.contactAccountManager ? (
+              <Link
+                href="/contact-sales"
+                className="app-header-primary-action"
+                data-billing-contact-account-manager
+              >
+                <span>Contact your account manager</span>
+              </Link>
+            ) : null}
+          </div>
+        </div>
       </div>
     </Card>
   );
@@ -466,38 +412,93 @@ export function PlanSummaryCard({
 
 export function UsageAndLimits({
   projection,
+  onBuyCredits,
+  onUpgrade,
 }: {
   projection: BillingAccountProjection;
+  /** Opens the credit purchase. Only offered when the server allows it. */
+  onBuyCredits?: () => void;
+  onUpgrade?: (planKey: "PRO" | "TEAM") => void;
 }) {
   const evidence = describeMeter(projection.usage.evidence);
   const ai = describeMeter(projection.usage.ai);
   const storage = storageMeterProps(projection.usage.storage);
   const wallet = projection.wallet;
 
+  /*
+   * BILLING SURFACE CORRECTION (2026-08-29) — the evidence meter reads the
+   * SERVER's admission projection when there is one.
+   *
+   * `describeMeter` gets a used/limit pair, which is all it can say; the pair
+   * cannot distinguish "what your plan includes" from "the higher limit this
+   * grandfathered account keeps", and the copy it produced asserted the first
+   * while displaying the second. `evidenceAdmission` carries the parts and
+   * the gate's own answer for the next record.
+   *
+   * Absent for a rolling-window plan (TEAM) and for a contract-managed
+   * Organization, which `describeMeter` already describes correctly.
+   */
+  const upgradeOffer = projection.planOffers?.find(
+    (o) => o.planKey === "PRO" || o.planKey === "TEAM",
+  );
+  const admission = projection.evidenceAdmission
+    ? describeEvidenceAdmission(projection.evidenceAdmission, {
+        canBuyCredits: projection.actions.canBuyEvidenceCredits === true,
+        hasPlanOffer: Boolean(upgradeOffer),
+      })
+    : null;
+
   return (
     <Card variant="summary" title="Usage and limits" data-billing-usage>
-      <div
-        style={{
-          display: "grid",
-          gap: 24,
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-        }}
-      >
+      <div className="bill-usage-grid">
         <Meter
           label="Evidence"
-          headline={evidence.headline}
+          headline={admission ? admission.headline : evidence.headline}
           detail={
-            // Credits are shown WITH the evidence meter, because they are what
-            // continues the same activity once the included allowance is gone.
-            wallet && wallet.availableCredits > 0
-              ? `${wallet.availableCredits} evidence credit${
-                  wallet.availableCredits === 1 ? "" : "s"
-                } available after that.`
-              : evidence.detail
+            admission
+              ? [admission.breakdown, admission.next].filter(Boolean).join(" ")
+              : // Credits are shown WITH the meter, because they are what
+                // continues the same activity once the allowance is gone.
+                wallet && wallet.availableCredits > 0
+                ? `${wallet.availableCredits} evidence credit${
+                    wallet.availableCredits === 1 ? "" : "s"
+                  } available after that.`
+                : evidence.detail
           }
-          ratio={evidence.ratio}
+          ratio={admission ? admission.ratio : evidence.ratio}
+          /*
+           * A full bar was painted `risk` — the destructive red the product
+           * reserves for deletion — for a customer whose account is working
+           * exactly as sold. Past the allowance is a WARNING with a remedy,
+           * and the remedy is written next to it rather than left to colour.
+           */
           tone={
-            evidence.ratio !== null && evidence.ratio >= 1 ? "risk" : "neutral"
+            admission
+              ? admission.tone
+              : evidence.ratio !== null && evidence.ratio >= 1
+                ? "pending"
+                : "neutral"
+          }
+          action={
+            admission?.action === "BUY_CREDITS" && onBuyCredits ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onBuyCredits}
+                data-billing-evidence-action="BUY_CREDITS"
+              >
+                Buy evidence credits
+              </Button>
+            ) : admission?.action === "SEE_PLANS" && onUpgrade && upgradeOffer ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onUpgrade(upgradeOffer.planKey)}
+                data-billing-evidence-action="SEE_PLANS"
+              >
+                See plans
+              </Button>
+            ) : null
           }
           testId="billing-meter-evidence"
         />

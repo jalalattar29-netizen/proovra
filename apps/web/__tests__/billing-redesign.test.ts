@@ -45,9 +45,22 @@ const DRAWER = "../app/(app)/billing/_sections/BillingDrawer.tsx";
 const FORMAT = "../app/(app)/billing/_sections/format.ts";
 const PRICING = "../app/pricing/page.tsx";
 
+/**
+ * BILLING SURFACE CORRECTION (2026-08-29) — the route's own stylesheet is part
+ * of the surface.
+ *
+ * The layout invariants below (auto-fit grids, wrapping that never clips
+ * customer copy) used to be inline styles and are now `bill-*` rules in
+ * `billing.css`, alongside the canonical `app-*` primitives the route
+ * consumes. The INVARIANT did not move; only the file it lives in did, so the
+ * scan follows it rather than being relaxed.
+ */
+const BILLING_CSS = "../app/(app)/billing/billing.css";
+
 const billingSources = () =>
   [PAGE, PLAN_USAGE, STORAGE_HISTORY, CHECKOUT, SELECTOR, DRAWER, FORMAT]
     .map(read)
+    .concat(readRaw(BILLING_CSS))
     .join("\n");
 
 // ===========================================================================
@@ -272,7 +285,32 @@ test("the cancel confirmation describes what the provider will actually do", () 
   // The dialog this replaces promised "ends at the current period" while the
   // route called Stripe's immediate DELETE.
   assert.match(src, /ask your payment provider to stop renewing/);
-  assert.match(src, /we will tell you the exact date/);
+  // The exact date is CONFIRMED after the provider answers, never asserted
+  // before. Stripe cancels at period end and PayPal cancels immediately, and
+  // which one this account gets is not knowable until it replies.
+  assert.match(src, /confirm the exact date after they answer/);
+});
+
+test("the cancel confirmation states the whole consequence, not just the plan", () => {
+  const src = read(PAGE);
+
+  // BILLING SURFACE CORRECTION (2026-08-29). Cancelling also cancels the
+  // RECURRING STORAGE ADD-ONS bound to the subscription
+  // (`cancelDependentRecurringAddons`, in the same transaction). A customer not
+  // told that finds out when the capacity goes.
+  assert.match(src, /recurring storage add-on/);
+  assert.match(src, /no recurring storage add-ons, so nothing else is cancelled/);
+
+  // And the fear this dialog actually raises: does the evidence survive.
+  assert.match(src, /Your evidence is not deleted/);
+  assert.match(
+    src,
+    /custody history, hashes,\s*\n?\s*\/\/?\s*signatures and verification packages|custody history, hashes,[\s\S]{0,40}signatures and verification packages/,
+  );
+
+  // Where it ends up. FREE on the same Personal Workspace — never a deleted
+  // account, and never a workspace that goes away.
+  assert.match(src, /Your account moves to Free/);
 });
 
 // ===========================================================================
@@ -343,7 +381,32 @@ test("wide content is never allowed to scroll the page body", () => {
   // Meters and cards use auto-fit grids with a minimum column, so 390px stacks
   // rather than overflowing.
   assert.match(src, /repeat\(auto-fit, minmax\(/);
-  assert.match(src, /overflowWrap: "anywhere"/);
+  // Customer copy wraps rather than truncating. A clipped renewal date or a
+  // clipped "you keep access until" is a billing statement nobody can read.
+  assert.match(src, /overflow-wrap: anywhere|overflowWrap: "anywhere"/);
+  // And the one wide thing on the page scrolls inside its own surface.
+  assert.match(src, /app-table-surface--scroll/);
+});
+
+test("billing.css clips no customer copy and reuses the shared table", () => {
+  // Comments are prose, not rules: this file explains WHY it clips nothing,
+  // and that explanation must not itself trip the scan.
+  const css = stripComments(readRaw(BILLING_CSS));
+
+  // `overflow: hidden` appears exactly once, on the meter TRACK, which holds a
+  // coloured bar and no words.
+  const clips = css.match(/overflow:\s*hidden/g) ?? [];
+  assert.equal(clips.length, 1, "billing.css must clip nothing but the meter track");
+  assert.match(css, /\.bill-meter__track \{[^}]*overflow: hidden/);
+
+  // No line clamping anywhere: a clamped billing sentence is an unreadable one.
+  assert.doesNotMatch(css, /line-clamp/);
+
+  // Every touch target reaches 44px.
+  assert.match(css, /min-block-size: 44px/);
+
+  // Logical properties, so the page mirrors in Arabic without a second sheet.
+  assert.doesNotMatch(css, /\bmargin-left:|\bmargin-right:|\bpadding-left:|\bpadding-right:/);
 });
 
 // ===========================================================================
@@ -520,12 +583,75 @@ test("the help link goes somewhere that can actually help", () => {
   assert.match(page, /"\/support"/);
 });
 
+test("neither off-page link can take the session with it", () => {
+  const raw = readRaw(PAGE);
+
+  /*
+   * BILLING SURFACE CORRECTION (2026-08-29) — the ROOT CAUSE, pinned.
+   *
+   * "Get help" was a same-tab client-routed <Link>. `/support` lives OUTSIDE
+   * the `(app)` route group, so following it tore down the authenticated
+   * shell — and the access token is held in MEMORY ONLY (lib/api.ts: "In-memory
+   * only ... NEVER persist"), so that navigation destroyed the only copy of it.
+   * Coming back to Billing then landed on a signed-out shell, which read as
+   * "Support signs me out". Nothing about /support logs anyone out; leaving the
+   * app in the same tab does.
+   *
+   * Both off-page destinations are therefore plain anchors that open a NEW
+   * tab. This asserts the property that fixes it — a new browsing context —
+   * rather than the destination, because changing the destination alone would
+   * have left the session being destroyed by whatever it pointed at next.
+   */
+  for (const marker of ["data-billing-view-pricing", "data-billing-support-action"]) {
+    const at = raw.indexOf(marker);
+    assert.ok(at > 0, `${marker} is not rendered`);
+
+    // The anchor's own attributes: search back to the tag that opens it.
+    const open = raw.lastIndexOf("<a", at);
+    assert.ok(open > 0, `${marker} is not on an anchor`);
+    const tag = raw.slice(open, raw.indexOf(">", at) + 1);
+
+    assert.match(tag, /target="_blank"/, `${marker} must open a new tab`);
+    assert.match(
+      tag,
+      /rel="noopener noreferrer"/,
+      `${marker} must not hand a window handle back`,
+    );
+  }
+
+  // And neither is a client-routed <Link>, which would navigate in place.
+  assert.doesNotMatch(raw, /<Link[^>]*data-billing-support-action/);
+  assert.doesNotMatch(raw, /<Link[^>]*data-billing-view-pricing/);
+});
+
 test("being OVER an allowance is explained, not rendered as a broken sum", () => {
   const src = read(FORMAT);
   // "176 of 127" reads as a broken counter; it is a real and legitimate state.
   assert.match(src, /meter\.used > meter\.limit/);
-  assert.match(src, /over the/);
+  assert.match(src, /more than the/);
   assert.match(src, /Nothing has been removed/);
+
+  /*
+   * BILLING SURFACE CORRECTION (2026-08-29) — `describeMeter` no longer
+   * attributes the enforced cap to the PLAN.
+   *
+   * It works from a used/limit pair and cannot tell whose limit it is. On a
+   * personal lifetime allowance that number can be a grandfathered per-account
+   * limit while the plan includes something else entirely, which is how a PRO
+   * customer whose plan includes 100 was told "49 over the 127 your plan
+   * includes".
+   *
+   * `describeEvidenceAdmission` MAY say it, and does, because the server sends
+   * it both numbers and it only says "your plan includes" where the cap in
+   * force really is the plan's own. So this is scoped to the formatter that
+   * cannot know.
+   */
+  const describeMeterBody = src.slice(
+    src.indexOf("export function describeMeter"),
+    src.indexOf("export type EvidencePresentation"),
+  );
+  assert.ok(describeMeterBody.length > 0, "describeMeter not found");
+  assert.doesNotMatch(describeMeterBody, /your plan includes/);
 });
 
 test("the credit balance and the credit purchase are two separate statements", () => {

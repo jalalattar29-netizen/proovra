@@ -664,4 +664,282 @@ describe("BILLING RECONCILIATION (live PostgreSQL 16, injected adapters)", () =>
       expect(summary.outcome).toBe("ACTION_REQUIRED");
     });
   });
+
+  // =========================================================================
+  // BILLING SURFACE CORRECTION (2026-08-29) — the lifecycle of ONE pending
+  // payment.
+  //
+  // The page listed payments and offered a PENDING one nothing: no way to ask
+  // what had happened, no way to stop it, and no state it could ever reach. A
+  // customer who closed a Stripe tab in March was still reading "Pending" in
+  // August. These prove the row can now END, and that it can only end in a way
+  // the provider actually confirmed.
+  // =========================================================================
+  describe("one pending payment", () => {
+    let recheck: typeof import("../src/services/billing/pending-payments.service.js")["recheckPayment"];
+    let cancelOne: typeof import("../src/services/billing/pending-payments.service.js")["cancelPendingPayment"];
+
+    beforeAll(async () => {
+      ({ recheckPayment: recheck, cancelPendingPayment: cancelOne } = await import(
+        "../src/services/billing/pending-payments.service.js"
+      ));
+    });
+
+    /** A payment left PENDING, exactly as an abandoned checkout leaves one. */
+    async function seedPendingPayment(
+      userId: string,
+      provider: "STRIPE" | "PAYPAL",
+      over: { providerStateAtUtc?: Date | null; status?: "PENDING" | "SUCCEEDED" } = {},
+    ) {
+      const ref = `pend-${randomUUID()}`;
+      const row = await prisma.payment.create({
+        data: {
+          userId,
+          provider,
+          providerPaymentId: ref,
+          amountCents: CREDIT_PRICE_CENTS,
+          currency: "USD",
+          status: over.status ?? "PENDING",
+          teamId: null,
+          ...(over.providerStateAtUtc
+            ? { providerStateAtUtc: over.providerStateAtUtc }
+            : {}),
+        },
+        select: { id: true },
+      });
+      return { id: row.id, ref };
+    }
+
+    const statusOf = async (id: string) =>
+      (
+        await prisma.payment.findUniqueOrThrow({
+          where: { id },
+          select: { status: true },
+        })
+      ).status;
+
+    it("records the expiry the provider reports, and does not delete the row", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "STRIPE");
+
+      const result = await recheck({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        viewerMayCancel: true,
+        providers: {
+          STRIPE: new FixtureProvider("STRIPE", {
+            [ref]: settledCredit("STRIPE", ref, {
+              state: "EXPIRED",
+              observedAtUtc: new Date("2026-08-25T00:00:00.000Z"),
+            }),
+          }),
+        } as never,
+      });
+
+      expect(result.outcome).toBe("UPDATED");
+      expect(result.status).toBe("EXPIRED");
+      expect(await statusOf(id)).toBe("EXPIRED");
+      // History is never destroyed — the row stays, it just stops lying.
+      expect(await prisma.payment.count({ where: { id } })).toBe(1);
+      // And a finished payment offers nothing further.
+      expect(result.actions).toEqual({ canRecheck: false, canCancel: false });
+    });
+
+    it("is idempotent — a second check changes nothing", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "STRIPE");
+      const providers = {
+        STRIPE: new FixtureProvider("STRIPE", {
+          [ref]: settledCredit("STRIPE", ref, { state: "EXPIRED" }),
+        }),
+      } as never;
+      const account = accountRef("PERSONAL", t.owner.userId);
+
+      await recheck({ account, paymentId: id, viewerMayCancel: true, providers });
+      const second = await recheck({
+        account,
+        paymentId: id,
+        viewerMayCancel: true,
+        providers,
+      });
+
+      expect(second.outcome).toBe("NO_CHANGE");
+      expect(second.status).toBe("EXPIRED");
+    });
+
+    it("hands back the provider's live continuation URL while it is still open", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "STRIPE");
+
+      const result = await recheck({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        viewerMayCancel: true,
+        providers: {
+          STRIPE: new FixtureProvider("STRIPE", {
+            [ref]: settledCredit("STRIPE", ref, {
+              state: "PENDING",
+              resumeUrl: "https://checkout.stripe.com/c/pay/live-session",
+            }),
+          }),
+        } as never,
+      });
+
+      expect(result.outcome).toBe("NO_CHANGE");
+      expect(result.status).toBe("PENDING");
+      expect(result.resumeUrl).toBe("https://checkout.stripe.com/c/pay/live-session");
+    });
+
+    it("never moves a settled payment backwards, and never asks about one", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "STRIPE", {
+        status: "SUCCEEDED",
+      });
+      const adapter = new FixtureProvider("STRIPE", {
+        [ref]: settledCredit("STRIPE", ref, { state: "PENDING" }),
+      });
+
+      const result = await recheck({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        viewerMayCancel: true,
+        providers: { STRIPE: adapter } as never,
+      });
+
+      expect(result.outcome).toBe("NO_CHANGE");
+      expect(await statusOf(id)).toBe("SUCCEEDED");
+      // A finished payment is not worth a provider round trip.
+      expect(adapter.asked).toEqual([]);
+    });
+
+    it("discards an observation older than the state already recorded", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "STRIPE", {
+        providerStateAtUtc: new Date("2026-08-20T00:00:00.000Z"),
+      });
+
+      const result = await recheck({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        viewerMayCancel: true,
+        providers: {
+          STRIPE: new FixtureProvider("STRIPE", {
+            [ref]: settledCredit("STRIPE", ref, {
+              state: "FAILED",
+              observedAtUtc: new Date("2026-08-01T00:00:00.000Z"),
+            }),
+          }),
+        } as never,
+      });
+
+      expect(result.outcome).toBe("NO_CHANGE");
+      expect(await statusOf(id)).toBe("PENDING");
+    });
+
+    it("reports the provider as unavailable rather than guessing", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(t.owner.userId, "STRIPE");
+
+      const result = await recheck({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        viewerMayCancel: true,
+        // The fixture answers UNKNOWN for any reference it does not hold.
+        providers: { STRIPE: new FixtureProvider("STRIPE", {}) } as never,
+      });
+
+      expect(result.outcome).toBe("PROVIDER_UNAVAILABLE");
+      expect(await statusOf(id)).toBe("PENDING");
+    });
+
+    it("cannot reach a payment belonging to another account", async () => {
+      const mine = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const theirs = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(theirs.owner.userId, "STRIPE");
+
+      await expect(
+        recheck({
+          account: accountRef("PERSONAL", mine.owner.userId),
+          paymentId: id,
+          viewerMayCancel: true,
+          providers: { STRIPE: new FixtureProvider("STRIPE", {}) } as never,
+        }),
+      ).rejects.toMatchObject({ publicCode: "PAYMENT_NOT_FOUND" });
+
+      expect(await statusOf(id)).toBe("PENDING");
+    });
+
+    // ---- cancellation ----------------------------------------------------
+
+    it("stops a Stripe payment only through the provider's own answer", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id, ref } = await seedPendingPayment(t.owner.userId, "STRIPE");
+
+      const adapter = new FixtureProvider("STRIPE", {}) as FixtureProvider & {
+        cancelPayment?: (ref: string) => Promise<unknown>;
+      };
+      const askedToCancel: string[] = [];
+      adapter.cancelPayment = async (r: string) => {
+        askedToCancel.push(r);
+        return {
+          outcome: "STOPPED",
+          state: "EXPIRED",
+          observedAtUtc: new Date("2026-08-29T00:00:00.000Z"),
+        };
+      };
+
+      const result = await cancelOne({
+        account: accountRef("PERSONAL", t.owner.userId),
+        paymentId: id,
+        providers: { STRIPE: adapter } as never,
+      });
+
+      expect(askedToCancel).toEqual([ref]);
+      expect(result.outcome).toBe("CANCELLED");
+      // The state written is the PROVIDER's, not the caller's wish: Stripe
+      // expires a session, so the row records EXPIRED rather than "cancelled".
+      expect(result.status).toBe("EXPIRED");
+      expect(await statusOf(id)).toBe("EXPIRED");
+    });
+
+    it("refuses to cancel where the provider has no such operation", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(t.owner.userId, "PAYPAL");
+
+      await expect(
+        cancelOne({
+          account: accountRef("PERSONAL", t.owner.userId),
+          paymentId: id,
+          // The PayPal fixture has no cancelPayment, exactly like the real one.
+          providers: { PAYPAL: new FixtureProvider("PAYPAL", {}) } as never,
+        }),
+      ).rejects.toMatchObject({
+        publicCode: "PAYMENT_CANCELLATION_UNSUPPORTED",
+      });
+
+      // Untouched. A local "Cancelled" while PayPal is still free to complete
+      // the order is the lie this refusal exists to prevent.
+      expect(await statusOf(id)).toBe("PENDING");
+    });
+
+    it("leaves the payment alone when the provider cannot be reached", async () => {
+      const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+      const { id } = await seedPendingPayment(t.owner.userId, "STRIPE");
+
+      const adapter = new FixtureProvider("STRIPE", {}) as FixtureProvider & {
+        cancelPayment?: (ref: string) => Promise<unknown>;
+      };
+      adapter.cancelPayment = async () => ({ outcome: "PROVIDER_UNAVAILABLE" });
+
+      await expect(
+        cancelOne({
+          account: accountRef("PERSONAL", t.owner.userId),
+          paymentId: id,
+          providers: { STRIPE: adapter } as never,
+        }),
+      ).rejects.toMatchObject({ publicCode: "PAYMENT_PROVIDER_UNAVAILABLE" });
+
+      expect(await statusOf(id)).toBe("PENDING");
+    });
+  });
 });

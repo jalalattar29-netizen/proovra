@@ -103,11 +103,39 @@ function subscriptionState(sub: Record<string, unknown>): ObservedState {
     case "SUSPENDED":
       return "FAILED";
     case "CANCELLED":
-    case "EXPIRED":
       return "CANCELED";
+    // BILLING SURFACE CORRECTION (2026-08-29) — PayPal's own EXPIRED, reported
+    // as itself. It was folded into CANCELED, which claims somebody stopped
+    // it.
+    case "EXPIRED":
+      return "EXPIRED";
     default:
       return "UNKNOWN";
   }
+}
+
+/**
+ * The buyer's approval URL on a live PayPal order, or null.
+ *
+ * Only `rel: "approve"` on a `https://` link counts. PayPal also returns
+ * `self`, `capture` and `update` links, none of which a customer may be sent
+ * to, and none of which would work in a browser.
+ */
+function approvalLink(order: Record<string, unknown>): string | null {
+  const links = order["links"];
+  if (!Array.isArray(links)) return null;
+  for (const raw of links) {
+    const link = asRecord(raw);
+    const href = link?.["href"];
+    if (
+      link?.["rel"] === "approve" &&
+      typeof href === "string" &&
+      href.startsWith("https://")
+    ) {
+      return href;
+    }
+  }
+  return null;
 }
 
 function unknownPayment(
@@ -131,6 +159,24 @@ export class PayPalBillingReconciliationProvider
   implements BillingReconciliationProvider
 {
   readonly provider = PROVIDER;
+
+  /*
+   * BILLING SURFACE CORRECTION (2026-08-29) — there is deliberately NO
+   * `cancelPayment` here.
+   *
+   * PayPal exposes no operation that cancels an unapproved order: an order the
+   * buyer never approves simply lapses at PayPal's own pace, and the v2
+   * Orders API has no cancel or void for it (`void` applies to an AUTHORIZED
+   * payment, which this product never creates — it captures directly).
+   *
+   * The tempting fix is to mark the local row cancelled and show the customer
+   * "Cancelled". That would be a lie with money attached: PayPal would still
+   * be free to complete the order, and the customer would have been told
+   * nothing more was coming. The surface therefore offers no "Cancel payment"
+   * on a PayPal row — it offers "Re-check", which asks PayPal what is actually
+   * true — and the absence of this method is what makes that impossible to
+   * get wrong from any other layer.
+   */
 
   /**
    * Observe ONE stored ORDER binding.
@@ -177,6 +223,12 @@ export class PayPalBillingReconciliationProvider
       // service checks the canonical quantity itself.
       quantity: null,
       observedAtUtc: utcFromIso(order["update_time"] ?? order["create_time"]),
+      // BILLING SURFACE CORRECTION (2026-08-29) — PayPal's own approval link,
+      // present on the live order only while the buyer still has to approve
+      // it. Read at observation time and never stored, for the same reason as
+      // the Stripe session URL: it stops being valid without telling us.
+      resumeUrl:
+        orderState(order) === "PENDING" ? approvalLink(order) : null,
     };
   }
 

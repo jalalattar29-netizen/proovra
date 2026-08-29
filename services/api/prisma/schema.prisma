@@ -2199,6 +2199,14 @@ model Payment {
   status            PaymentStatus
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   teamId            String?         @map("team_id") @db.Uuid
+  /// The PROVIDER's own timestamp for the state this row last recorded.
+  ///
+  /// Same guard, and the same column name, as Subscription.providerStateAtUtc:
+  /// an observation older than what is already recorded is discarded rather
+  /// than applied, so a slow poll cannot undo a newer webhook and a webhook
+  /// that arrives out of order cannot move a settled payment backwards.
+  /// NULL = nothing recorded yet (accept).
+  providerStateAtUtc DateTime?      @map("provider_state_at_utc") @db.Timestamptz(6)
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -3312,6 +3320,20 @@ enum PaymentStatus {
   SUCCEEDED
   FAILED
   REFUNDED
+  /// BILLING SURFACE CORRECTION (2026-08-29) — the two TERMINAL states a
+  /// pending payment can reach without money ever moving.
+  ///
+  /// Without them a payment that the provider had already stopped could only
+  /// be recorded as PENDING (which reads as "still coming") or as FAILED
+  /// (which says the charge was attempted and declined). Neither is what
+  /// happened, and a customer looking at a months-old "Pending" row cannot
+  /// tell whether they are about to be charged.
+  ///
+  /// CANCELED — stopped at the provider before settlement.
+  /// EXPIRED  — the provider's window closed; a Stripe Checkout Session that
+  ///            timed out, or one this product asked Stripe to expire.
+  CANCELED
+  EXPIRED
 }
 
 enum SubscriptionStatus {

@@ -131,19 +131,33 @@ textarea {
   --hover-bronze: #d6b89d;
 
   /* --------------------------------------------------------------------
-   * PRIMARY CTA — PROOVRA public design language (Phase 7).
-   * Refined coral → pink → warm-coral gradient sampled from the login
-   * page primary button (`#E64880 → #FF6B6B → #FF8A6A`). Premium shadow
-   * tinted with the coral hue + soft radius handled by consumers.
-   * These var NAMES are unchanged (backward compatible) — only the
-   * values were refreshed from the old teal gradient.
+   * PRIMARY CTA — PROOVRA purple.
+   *
+   * BILLING SURFACE CORRECTION (2026-08-29) — this was a coral → pink →
+   * warm-coral GRADIENT, sampled from the
+   * marketing login page and then used for every primary action in the
+   * product.
+   *
+   * It is not the approved PROOVRA primary. Two things were wrong with it:
+   * the product's own brand colour is the violet in `--accent-500`, which
+   * the header actions and the sidebar already use — so a page could show a
+   * purple "View pricing" beside a coral "Subscribe to Pro" and mean the
+   * same thing by both — and a warm coral reads as a caution colour next to
+   * the genuine destructive red, which made ordinary commercial actions
+   * look risky.
+   *
+   * The var NAMES are unchanged, so this is ONE token change and no
+   * consumer needed touching: every `Button variant="primary"` in the app
+   * moves together, and nothing gained a surface-local override. Solid, not
+   * a gradient — a gradient cannot state a focus ring or a disabled state
+   * without a second set of values.
    * ------------------------------------------------------------------ */
-  --btn-primary-bg: linear-gradient(90deg, #e64880 0%, #ff6b6b 52%, #ff8a6a 100%);
+  --btn-primary-bg: #7c3aed;
   --btn-primary-color: #ffffff;
-  --btn-primary-border: rgba(230, 72, 128, 0.45);
-  --btn-primary-hover-bg: linear-gradient(90deg, #d63e76 0%, #f75f5f 52%, #f97d5c 100%);
-  --btn-primary-hover-border: rgba(230, 72, 128, 0.58);
-  --btn-primary-shadow: 0 14px 28px rgba(230, 72, 128, 0.22);
+  --btn-primary-border: #6d28d9;
+  --btn-primary-hover-bg: #6d28d9;
+  --btn-primary-hover-border: #5b21b6;
+  --btn-primary-shadow: 0 10px 22px rgba(124, 58, 237, 0.24);
 
   /* --------------------------------------------------------------------
    * PROOVRA design-language tokens (Phase 7 foundation).
@@ -160,7 +174,7 @@ textarea {
    * ------------------------------------------------------------------ */
 
   /* Coral CTA aliases (semantic names for the gradient above) */
-  --cta-coral-ring: rgba(230, 72, 128, 0.32);
+  --cta-coral-ring: rgba(124, 58, 237, 0.32);
 
   /* Violet / indigo ENTERPRISE accent (trust-center / governance tone).
      Mirrors the internal --accent-500 (#7C3AED) so both scales agree. */
@@ -249,7 +263,7 @@ textarea {
   outline: none;
   box-shadow:
     0 0 0 2px var(--surface-card, #fff),
-    0 0 0 4px var(--cta-coral-ring, rgba(230, 72, 128, 0.32));
+    0 0 0 4px var(--cta-coral-ring, rgba(124, 58, 237, 0.32));
 }
 
 .ui-button[data-variant="enterprise"]:focus-visible {
@@ -1602,30 +1616,30 @@ body.camera-open {
 
 .auth-legal-checkbox:focus-visible {
   outline: none;
-  border-color: #e64880;
+  border-color: #7c3aed;
   box-shadow:
-    0 0 0 4px rgba(230, 72, 128, 0.32),
+    0 0 0 4px rgba(124, 58, 237, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 .auth-legal-checkbox:checked {
-  border-color: #e64880 !important;
-  background: #e64880 !important;
+  border-color: #7c3aed !important;
+  background: #7c3aed !important;
   background-image: none !important;
   box-shadow:
-    0 8px 18px rgba(230, 72, 128, 0.22),
+    0 8px 18px rgba(124, 58, 237, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .auth-legal-checkbox:checked:hover {
-  border-color: #d63e76 !important;
-  background: #d63e76 !important;
+  border-color: #6d28d9 !important;
+  background: #6d28d9 !important;
   background-image: none !important;
 }
 
 .auth-legal-checkbox:checked:focus-visible {
   box-shadow:
-    0 0 0 4px rgba(230, 72, 128, 0.32),
+    0 0 0 4px rgba(124, 58, 237, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 

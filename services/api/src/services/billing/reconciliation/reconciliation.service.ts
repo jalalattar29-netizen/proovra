@@ -67,6 +67,7 @@ import {
 import type { BillingAccountRef } from "../billing-accounts.service.js";
 import { StripeBillingReconciliationProvider } from "./stripe.provider.js";
 import { PayPalBillingReconciliationProvider } from "./paypal.provider.js";
+import { decidePaymentTransition } from "./payment-status.js";
 import {
   emptySummary,
   resolveOutcome,
@@ -136,7 +137,13 @@ function subscriptionStatusFromObservation(
       return prismaPkg.SubscriptionStatus.ACTIVE;
     case "FAILED":
       return prismaPkg.SubscriptionStatus.PAST_DUE;
+    // BILLING SURFACE CORRECTION (2026-08-29) — EXPIRED became a state of its
+    // own for PAYMENTS, where "nobody stopped it, the window closed" is a
+    // distinction a customer needs. A SUBSCRIPTION has no such distinction:
+    // expired and cancelled both mean it is no longer billing, and the local
+    // lifecycle has one word for that, so the two share an arm.
     case "CANCELED":
+    case "EXPIRED":
       return prismaPkg.SubscriptionStatus.CANCELED;
     case "PENDING":
       return prismaPkg.SubscriptionStatus.TRIALING;
@@ -313,10 +320,13 @@ async function reconcileEvidenceCredits(ctx: {
     orderBy: { createdAt: "desc" },
     take: MAX_BINDINGS_PER_RUN,
     select: {
+      id: true,
       provider: true,
       providerPaymentId: true,
       amountCents: true,
       currency: true,
+      status: true,
+      providerStateAtUtc: true,
     },
   });
 
@@ -347,6 +357,38 @@ async function reconcileEvidenceCredits(ctx: {
       ctx.summary.unavailable += 1;
       continue;
     }
+
+    /*
+     * BILLING SURFACE CORRECTION (2026-08-29) — record WHAT WAS OBSERVED about
+     * the payment itself, not only what it entitles.
+     *
+     * This loop existed to repair missing credit grants and deliberately left
+     * `status` to the webhook path. For the one customer this whole mechanism
+     * is for — the one whose webhook never arrived — that meant the row stayed
+     * PENDING for ever even after the provider had told us, right here, that
+     * the session expired months ago.
+     *
+     * The transition rules are the shared ones, so a stale poll still cannot
+     * overwrite a newer webhook.
+     */
+    const transition = decidePaymentTransition({
+      current: binding.status,
+      currentObservedAtUtc: binding.providerStateAtUtc,
+      observed: observation.state,
+      observedAtUtc: observation.observedAtUtc,
+    });
+    if (transition.apply) {
+      await prisma.payment.updateMany({
+        where: { id: binding.id, status: binding.status },
+        data: {
+          status: transition.status,
+          ...(observation.observedAtUtc
+            ? { providerStateAtUtc: observation.observedAtUtc }
+            : {}),
+        },
+      });
+    }
+
     if (observation.state === "PENDING") {
       ctx.summary.pending += 1;
       continue;

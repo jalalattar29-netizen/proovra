@@ -44,6 +44,15 @@ export type ObservedState =
   /** The subscription or order was cancelled at the provider. */
   | "CANCELED"
   /**
+   * BILLING SURFACE CORRECTION (2026-08-29) — the provider's window CLOSED
+   * without a charge being attempted.
+   *
+   * Distinct from CANCELED because the customer did nothing and from FAILED
+   * because no money was ever asked for. A Stripe Checkout Session that timed
+   * out, or one this product asked Stripe to expire, lands here.
+   */
+  | "EXPIRED"
+  /**
    * The provider returned the money. Only ever produced when the canonical
    * lifecycle has a real writer for it — see `PaymentStatus.REFUNDED`.
    */
@@ -85,6 +94,18 @@ export type PaymentObservation = {
    * recorded is discarded rather than applied.
    */
   observedAtUtc: Date | null;
+  /**
+   * WHERE THE CUSTOMER CAN FINISH PAYING, when the transaction is still open.
+   *
+   * BILLING SURFACE CORRECTION (2026-08-29) — a pending payment is only
+   * resumable while the provider still holds the flow open, and only the
+   * provider knows that. Nothing stores this: it is read from the live object
+   * at the moment it is observed, and is null the instant the session is no
+   * longer open. That is deliberate — a stored checkout URL outlives the
+   * session it points at, and "Resume payment" that lands on an expired
+   * Stripe page is worse than no button.
+   */
+  resumeUrl?: string | null;
   failure?: ObservationFailure;
 };
 
@@ -123,7 +144,40 @@ export type BillingReconciliationProvider = {
   observePayment(providerRef: string): Promise<PaymentObservation>;
   /** Observe ONE stored subscription binding, with bounded recent events. */
   observeSubscription(providerRef: string): Promise<SubscriptionObservation>;
+  /**
+   * Stop an unsettled payment AT THE PROVIDER.
+   *
+   * BILLING SURFACE CORRECTION (2026-08-29) — OPTIONAL, and its absence is the
+   * point. Stripe can expire an open Checkout Session, so the Stripe adapter
+   * implements it. PayPal exposes no operation that cancels an unapproved
+   * order — such an order simply lapses — so the PayPal adapter does NOT
+   * implement it, and the surface therefore offers no "Cancel payment" on a
+   * PayPal row.
+   *
+   * A local row marked cancelled while the provider still holds a live
+   * authorisation is the exact lie this shape exists to make unwritable: there
+   * is no code path that can mark one without a provider having answered,
+   * because the only thing that can produce `CANCELED` here is the provider.
+   */
+  cancelPayment?(providerRef: string): Promise<PaymentCancellationResult>;
 };
+
+/**
+ * What the PROVIDER did when asked to stop an unsettled payment.
+ *
+ * Carries no provider payload and no error text. `state` is what the
+ * transaction is now, as the provider reports it back — never what the caller
+ * hoped for.
+ */
+export type PaymentCancellationResult =
+  /** The provider stopped it and reports this terminal state. */
+  | { outcome: "STOPPED"; state: ObservedState; observedAtUtc: Date | null }
+  /** The provider has no operation for this. Nothing was written anywhere. */
+  | { outcome: "UNSUPPORTED" }
+  /** It had already settled or already ended. Nothing to stop. */
+  | { outcome: "ALREADY_TERMINAL"; state: ObservedState }
+  /** Unreachable or malformed. Nothing was written anywhere. */
+  | { outcome: "PROVIDER_UNAVAILABLE" };
 
 /** A safe, user-facing reconciliation outcome. Contains no provider data. */
 export type ReconciliationOutcome =

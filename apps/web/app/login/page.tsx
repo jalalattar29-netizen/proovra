@@ -885,10 +885,10 @@ function LoginPageContent() {
                             disabled={busy}
                             style={{
                               background:
-                                "linear-gradient(90deg, #E64880 0%, #FF6B6B 52%, #FF8A6A 100%)",
+                                "var(--btn-primary-bg)",
                               color: "#ffffff",
-                              border: "1px solid rgba(230,72,128,0.45)",
-                              boxShadow: "0 14px 28px rgba(230,72,128,0.22)",
+                              border: "1px solid var(--btn-primary-border)",
+                              boxShadow: "var(--btn-primary-shadow)",
                               fontWeight: 600,
                             }}
                           >
@@ -955,14 +955,14 @@ function LoginPageContent() {
                                   background:
                                     verifyResendBusy || !email
                                       ? "rgba(230,72,128,0.18)"
-                                      : "linear-gradient(90deg, #E64880 0%, #FF6B6B 52%, #FF8A6A 100%)",
+                                      : "var(--btn-primary-bg)",
                                   color:
                                     verifyResendBusy || !email ? "#7A687D" : "#ffffff",
-                                  border: "1px solid rgba(230,72,128,0.45)",
+                                  border: "1px solid var(--btn-primary-border)",
                                   boxShadow:
                                     verifyResendBusy || !email
                                       ? "none"
-                                      : "0 14px 28px rgba(230,72,128,0.22)",
+                                      : "var(--btn-primary-shadow)",
                                   fontWeight: 600,
                                   cursor:
                                     verifyResendBusy || !email ? "not-allowed" : "pointer",

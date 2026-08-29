@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 252,
-    "classifiedMigrations": 252,
+    "filesystemMigrations": 253,
+    "classifiedMigrations": 253,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 252,
+    "productionSnapshotUnknown": 253,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 252,
-    "classifiedMigrations": 252,
+    "filesystemMigrations": 253,
+    "classifiedMigrations": 253,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 252,
+    "productionSnapshotUnknown": 253,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 35,
+      "EXPAND": 36,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 44,
+      "SAFE_TO_APPLY_NOW": 45,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 252
+    "ProductionMigrationStateUnknown": 253
   },
   "gateFailures": [],
   "migrations": [
@@ -19831,8 +19831,73 @@
       "evidence": "BILLING PERSONAL/ORGANIZATION MODEL — expand-only, no backfill, no row rewritten: two nullable columns on subscriptions, pending_plan (PlanType) and pending_plan_effective_at_utc (TIMESTAMPTZ). FREE, PRO and TEAM are now three tiers of the same Personal Workspace, so a customer can move in both directions, and moving DOWN must take effect at PERIOD END — they have already paid for the period they are in, and a downgrade that removed capacity on request would be taking back something already bought. That creates a state the row could not express: the subscription is still TEAM and is going to be PRO on a known date. The existing plan column is the plan IN FORCE, and writing the future plan into it would make enforcement, the usage meters and the plan card apply the downgrade immediately — the exact outcome period-end scheduling exists to prevent. Both columns are written ONLY after the provider accepts the schedule; they are never a local intention. NO BACKFILL, deliberately: NULL means no change is scheduled, which is what every existing row means today, and synthesising a pending plan for a historical row would invent a customer decision nobody made. No enum is added, nothing is dropped, renamed, retyped or narrowed; no provider identifier is stored; no evidence, custody, signature, TSA or OTS data is touched."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280101000000_billing_payment_terminal_states",
       "order": 251,
+      "sqlPresent": true,
+      "byteLength": 1603,
+      "checksumSha256": "b755e0670ed627e7bde4088a0b7b8481adc78fd5095d4283aa42e788b51899e6",
+      "checksumSha256Raw": "b755e0670ed627e7bde4088a0b7b8481adc78fd5095d4283aa42e788b51899e6",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "payments"
+        ],
+        "addedColumns": [
+          "provider_state_at_utc"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [
+          "paymentstatus"
+        ],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260204190000_add_auth_billing"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "An image without this change never writes either new enum value and never reads the column, so a rollback BEFORE any row reaches CANCELED or EXPIRED is indistinguishable from today. After such a row exists, the older image reads it through Prisma as an unknown enum member on that row only; it is never written by the old code and no aggregate depends on it. The column is nullable and additive. No other column, index or constraint is affected, and no historical payment row is rewritten, so a rolling deployment in either order is safe.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": "Apply BEFORE deploying API. Until it runs, a re-check or cancellation that learns a payment expired cannot record it and the route answers PROVIDER_UNAVAILABLE rather than a wrong answer; no data is at risk either way, and no existing payment changes.",
+      "removalCondition": "NEVER removed while a payment can be left unsettled. Dropping the enum values would leave an abandoned or expired checkout with nowhere truthful to go, which forces the choice they exist to avoid: call it FAILED (a charge was attempted and declined — untrue) or leave it PENDING for ever. Dropping the column removes the ordering guard, and a late webhook could then move a settled payment back to pending.",
+      "evidence": "BILLING SURFACE CORRECTION — expand-only, no backfill, no row rewritten: two new values on the PaymentStatus enum (CANCELED, EXPIRED) and one nullable column, payments.provider_state_at_utc. WHY THE ENUM VALUES: a payment could only be PENDING, SUCCEEDED, FAILED or REFUNDED, and a checkout the customer abandoned is none of those — no money was attempted, so FAILED is a lie, and it is never coming, so PENDING is a lie that lasts for ever. The Billing page showed months-old rows reading Pending with no way for a customer to tell whether a charge was still on its way, and no state such a row could ever reach. Both new values have real writers: EXPIRED is written when Stripe reports a Checkout Session expired (including one this product asked Stripe to expire), CANCELED when a provider reports the transaction cancelled. WHY THE COLUMN: provider_state_at_utc is the ordering guard, named and shaped exactly like subscriptions.provider_state_at_utc, so an observation older than the state already recorded is discarded rather than applied — a slow reconciliation poll cannot overwrite a newer webhook and an out-of-order webhook cannot move a settled payment backwards. NO BACKFILL, deliberately: NULL means no provider timestamp has been recorded, which is what every existing row means today, and synthesising one would invent a provider fact. Adding an enum value is permitted inside a transaction on PostgreSQL 12+ so long as the new value is not USED in the same transaction, and this migration uses neither. Nothing is dropped, renamed, retyped or narrowed; no payment row's status is changed; no provider identifier is stored; no evidence, custody, signature, TSA or OTS data is touched."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 252,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
