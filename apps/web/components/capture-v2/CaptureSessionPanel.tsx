@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, CircleDot, LockKeyhole, ShieldCheck } from
 import { CaptureAiAssistant } from "../ai/CaptureAiAssistant";
 import type { CollectionPlanTemplate, SessionItem } from "../../app/(app)/capture/_lib/types";
 import type { CapturePlanMode, SessionReadiness } from "../../app/(app)/capture/_lib/session-readiness";
+import { CaptureReadinessSignals } from "../../app/(app)/capture/_lib/CaptureReadinessSignals";
 
 type CaptureAiSummary = {
   totalItems: number;
@@ -87,10 +88,6 @@ export function CaptureSessionPanel({
   formatFileSize,
 }: Props) {
   const readiness = readinessCopy[sessionReadiness.status];
-  const visibleBlockers = sessionReadiness.blockers.slice(0, 4);
-  const visibleWarnings = sessionReadiness.warnings.slice(0, 4);
-  const overflowBlockers = Math.max(0, sessionReadiness.blockers.length - visibleBlockers.length);
-  const overflowWarnings = Math.max(0, sessionReadiness.warnings.length - visibleWarnings.length);
 
   const aiReviewLabel = sessionReadiness.aiRecommendedReview
     ? "Recommended before finalization"
@@ -150,49 +147,12 @@ export function CaptureSessionPanel({
           <div style={{ width: `${requiredProgressPercent}%` }} />
         </div>
 
-        <section className="capture-command-section">
-          <div className="capture-command-section-title">
-            <span>Blockers</span>
-            <strong>{sessionReadiness.blockers.length}</strong>
-          </div>
-          {visibleBlockers.length > 0 ? (
-            <div className="capture-issue-list">
-              {visibleBlockers.map((issue) => (
-                <div key={`${issue.code}-${issue.itemId ?? issue.checklistStepId ?? issue.detail}`} className="capture-issue-row blocker">
-                  <strong>{issue.label}</strong>
-                  <span>{issue.detail}</span>
-                </div>
-              ))}
-              {overflowBlockers > 0 ? (
-                <div className="capture-issue-overflow">+{overflowBlockers} more blocker{overflowBlockers === 1 ? "" : "s"}</div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="capture-command-clear">No hard blockers detected.</div>
-          )}
-        </section>
-
-        <section className="capture-command-section">
-          <div className="capture-command-section-title">
-            <span>Warnings</span>
-            <strong>{sessionReadiness.warnings.length}</strong>
-          </div>
-          {visibleWarnings.length > 0 ? (
-            <div className="capture-issue-list">
-              {visibleWarnings.map((issue) => (
-                <div key={`${issue.code}-${issue.itemId ?? issue.checklistStepId ?? issue.detail}`} className="capture-issue-row warning">
-                  <strong>{issue.label}</strong>
-                  <span>{issue.detail}</span>
-                </div>
-              ))}
-              {overflowWarnings > 0 ? (
-                <div className="capture-issue-overflow">+{overflowWarnings} more warning{overflowWarnings === 1 ? "" : "s"}</div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="capture-command-clear">No advisory warnings detected.</div>
-          )}
-        </section>
+        {/* Blockers and warnings — one component, one place on the page.
+            It renders the same `sessionReadiness` arrays these two sections
+            used to render by hand, keeps the four-item cap and the "+N more"
+            overflow, and collapses the far more common zero state to a single
+            row instead of two cards that each announce an absence. */}
+        <CaptureReadinessSignals readiness={sessionReadiness} />
 
         <section className="capture-command-section capture-session-metadata-card">
           <div className="capture-command-section-title">

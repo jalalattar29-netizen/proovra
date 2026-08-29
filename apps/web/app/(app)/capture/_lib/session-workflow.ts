@@ -25,8 +25,6 @@ export type CaptureAiSummary = {
 export type SessionWorkflowSnapshot = {
   sessionCountLabel: string;
   checklistStepItemMap: Map<string, SessionItem[]>;
-  finishReason: string | undefined;
-  missingStepTitles: string[];
   finishDisabled: boolean;
   totalStagedBytes: number;
   activeWorkflowStep: number;
@@ -175,8 +173,6 @@ export function buildSessionWorkflowSnapshot({
 }: BuildSessionWorkflowSnapshotParams): SessionWorkflowSnapshot {
   const sessionCountLabel = `${sessionItems.length} item${sessionItems.length === 1 ? "" : "s"} added`;
   const checklistStepItemMap = buildChecklistStepItemMap(sessionItems);
-  const finishReason = sessionReadiness.blockers[0]?.label;
-  const missingStepTitles = sessionReadiness.missingRequiredSteps.map((step) => step.title);
   const finishDisabled = busy || !sessionReadiness.canFinalize;
   const totalStagedBytes = sessionItems.reduce((sum, item) => sum + item.file.size, 0);
   const activeWorkflowStep = busy ? 4 : sessionItems.length > 0 ? 3 : 1;
@@ -189,8 +185,6 @@ export function buildSessionWorkflowSnapshot({
   return {
     sessionCountLabel,
     checklistStepItemMap,
-    finishReason,
-    missingStepTitles,
     finishDisabled,
     totalStagedBytes,
     activeWorkflowStep,

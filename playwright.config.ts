@@ -60,6 +60,19 @@ const ATTENTION_LAYOUT_BASE = `http://127.0.0.1:${ATTENTION_LAYOUT_PORT}`;
 const OPERATIONS_LAYOUT_PORT = 3014;
 const OPERATIONS_LAYOUT_BASE = `http://127.0.0.1:${OPERATIONS_LAYOUT_PORT}`;
 
+/**
+ * The CAPTURE workflow gate serves its own production build here.
+ *
+ * Same reasoning as every layout project above: the API is intercepted and
+ * only the web tier is real. What this one measures — whether the redesigned
+ * page overflows at 390px, whether the readiness verdict and the Review & Sign
+ * button ever disagree on screen, whether the activity disclosure actually
+ * opens — are cascade, geometry and DOM-state questions. jsdom answers 0 to
+ * all of them.
+ */
+const CAPTURE_LAYOUT_PORT = 3015;
+const CAPTURE_LAYOUT_BASE = `http://127.0.0.1:${CAPTURE_LAYOUT_PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   // Phase 1 tests are deliberately small and serial — they share an
@@ -216,17 +229,43 @@ export default defineConfig({
         baseURL: OPERATIONS_LAYOUT_BASE,
       },
     },
+    /**
+     * CAPTURE — the redesigned workflow's responsive / state / a11y gate.
+     *
+     * Measures what only a real engine can answer: whether the page overflows
+     * at 390px, whether Final Readiness and the Review & Sign button ever
+     * disagree on screen, and whether the activity disclosure opens.
+     */
+    {
+      name: "capture-layout",
+      testDir: "./e2e/capture-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: CAPTURE_LAYOUT_BASE,
+      },
+    },
   ],
   /**
    * Started only for the opt-in layout projects, each on its own port.
    *
    * `next start` rather than `next dev`: these gates measure the bundle the
    * product ships. Opt-in via `SEARCH_LAYOUT=1` / `INTAKE_LAYOUT=1` /
-   * `EVIDENCE_LAYOUT=1` / `ATTENTION_LAYOUT=1` so the
+   * `EVIDENCE_LAYOUT=1` / `ATTENTION_LAYOUT=1` / `CAPTURE_LAYOUT=1` so the
    * Phase-1 and Point-7 projects, which bring their own stacks, never start a
    * second web server on top of the one they already run.
    */
   webServer: [
+    ...(process.env.CAPTURE_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${CAPTURE_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${CAPTURE_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
     ...(process.env.SEARCH_LAYOUT
       ? [
           {

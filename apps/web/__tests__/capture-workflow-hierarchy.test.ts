@@ -85,7 +85,7 @@ test("the canonical five-stage rail survives, and still drives from session stat
 
 test("the hero carries no upload action", () => {
   const hero = code(
-    PAGE.slice(PAGE.indexOf("<PageHeader"), PAGE.indexOf("capture-enterprise-security-card")),
+    PAGE.slice(PAGE.indexOf("<PageHeader"), PAGE.indexOf("<CaptureTrustStrip")),
   );
   assert.doesNotMatch(hero, /primaryAction=/, "the hero must not carry an action");
   assert.doesNotMatch(hero, /Upload evidence/);

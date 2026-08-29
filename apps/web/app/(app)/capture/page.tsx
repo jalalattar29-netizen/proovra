@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, PageShell, PageHeader, useToast } from "../../../components/ui";
-import { Card } from "../../../components/ui/Card";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // P3 domain remediation (2026-07-21) — tenant-boundary dirty-work guard.
 import { useDirtyWork } from "../../../lib/platform-context/dirtyWorkRegistry";
@@ -14,6 +13,9 @@ import { CaptureReadinessPanel } from "./_lib/CaptureReadinessPanel";
 import { CaptureSuggestionsPanel } from "./_lib/CaptureSuggestionsPanel";
 import { CaptureIntakeRail } from "./_lib/CaptureIntakeRail";
 import { CaptureOperationalSummary } from "./_lib/CaptureOperationalSummary";
+import { CaptureTrustStrip } from "./_lib/CaptureTrustStrip";
+import { CaptureFinalReadiness } from "./_lib/CaptureFinalReadiness";
+import { CaptureActivityDisclosure } from "./_lib/CaptureActivityDisclosure";
 import {
   computeCaptureReadiness,
   getRoleFromChecklistStep,
@@ -33,7 +35,6 @@ import {
   FolderOpen,
   ImageIcon,
   Mic,
-  ShieldCheck,
   Video,
 } from "lucide-react";
 
@@ -419,8 +420,6 @@ function CapturePageInner() {
     checklistStepItemMap,
     currentSessionId,
     finishDisabled,
-    finishReason,
-    missingStepTitles,
     requiredProgressPercent,
     sessionCountLabel,
     totalStagedBytes,
@@ -784,26 +783,10 @@ onClick={async () => {
                introduces the page; Evidence Materials ingests. */
           />
 
-          <Card
-            variant="status"
-            tone="verified"
-            padding="comfortable"
-            className="capture-enterprise-security-card"
-          >
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-              <div className="capture-security-shield">
-                <ShieldCheck size={28} strokeWidth={2.1} />
-              </div>
-
-              <div>
-                <strong>End-to-end protected</strong>
-                <p>
-                  Cryptographic integrity, encrypted storage, and verifiable
-                  audit trail.
-                </p>
-              </div>
-            </div>
-          </Card>
+          {/* THE TRUST STRIP replaces a single "End-to-end protected" card.
+              Three compact statements, explanatory copy only — no verdict, no
+              session state, no admissibility claim. */}
+          <CaptureTrustStrip />
         </section>
 
         {/* ONE STEPPER, NOT TWO (2026-08-27).
@@ -1385,13 +1368,19 @@ onClick={async () => {
             scrolling back to the top-of-page panels. */}
         <CaptureOperationalSummary items={sessionItems} />
 
+        {/* Session activity, collapsed. `sessionTimeline` is already in
+            state, so opening this fetches nothing. */}
+        <CaptureActivityDisclosure events={sessionTimeline} />
+
+        {/* "Can I proceed?", immediately above the control that answers it.
+            Same `canFinalize` and `busy` the bottom bar reads. */}
+        <CaptureFinalReadiness readiness={sessionReadiness} busy={busy} />
+
         <CaptureBottomBar
           busy={busy}
           progress={progress}
           sessionStatus={sessionStatus}
           finishDisabled={finishDisabled}
-          finishReason={finishReason}
-          missingSteps={missingStepTitles}
           canClearSession={sessionItems.length > 0}
           onReset={() => setClearConfirmOpen(true)}
           onFinalize={finalizeSession}

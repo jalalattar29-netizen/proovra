@@ -1,12 +1,25 @@
 import { Button } from "../ui";
 
+/**
+ * The action zone: what the operator can DO, and how far a running
+ * finalization has got.
+ *
+ * It used to also render a verdict — a headline from `finishReason` (the
+ * readiness authority's first blocker), a paragraph naming the outstanding
+ * required steps, and a `<small>` naming them again. `CaptureFinalReadiness`
+ * now sits directly above this bar and states that verdict once, from the same
+ * `SessionReadiness`, with the same complete list. Two boxes an inch apart
+ * saying the same thing left the operator checking whether they agreed.
+ *
+ * Nothing was dropped: the reason and the unmapped-step names moved up into
+ * that component. `finishDisabled` still gates the button, and it is still
+ * `busy || !sessionReadiness.canFinalize`.
+ */
 type Props = {
   busy: boolean;
   progress: number;
   sessionStatus: string | null;
   finishDisabled: boolean;
-  finishReason?: string | null;
-  missingSteps: string[];
   canClearSession: boolean;
   onReset: () => void;
   onFinalize: () => void;
@@ -17,37 +30,22 @@ export function CaptureBottomBar({
   progress,
   sessionStatus,
   finishDisabled,
-  finishReason,
-  missingSteps,
   canClearSession,
   onReset,
   onFinalize,
 }: Props) {
-  const missingRequiredCount = missingSteps.length;
-  const missingPreview = missingSteps.slice(0, 3).join(", ");
-  const hiddenMissingCount = Math.max(0, missingRequiredCount - 3);
 
   return (
     <section className="capture-bottom-bar">
       <div className="capture-bottom-bar-inner capture-phase4-bottom-bar-inner">
         <div>
-          <strong>
-            {finishReason ?? (missingRequiredCount > 0 ? "Required mapping still incomplete" : "Ready for Review & Sign")}
-          </strong>
+          <strong>{busy ? "Finalizing" : "Review & Sign"}</strong>
           <p>
             {busy
               ? `Finishing evidence session… ${progress}%`
-              : missingRequiredCount > 0
-                ? `Map staged material to every required collection step before Review & Sign. Remaining: ${missingPreview}${hiddenMissingCount > 0 ? ` and ${hiddenMissingCount} more` : ""}.`
-                : sessionStatus ??
-                  "All required collection steps are mapped. Review & Sign locks the session, records integrity metadata, and starts verification artifact generation."}
+              : (sessionStatus ??
+                "Review & Sign locks the session, records integrity metadata, and starts verification artifact generation.")}
           </p>
-
-          {missingRequiredCount > 0 ? (
-            <small className="capture-phase4-missing-list">
-              Required still unmapped: {missingSteps.join(", ")}
-            </small>
-          ) : null}
         </div>
 
         <div className="capture-phase5-final-actions" aria-label="Session final actions">

@@ -57,7 +57,7 @@
 }
 
 .capture-enterprise-title-card,
-.capture-enterprise-security-card,
+
 .capture-enterprise-card {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.34);
@@ -83,53 +83,8 @@
   align-items: center;
 }
 
-.capture-enterprise-security-card {
-  min-height: 0;
-  padding: 14px 16px;
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 14px;
-  align-items: center;
-}
-
-.capture-enterprise-security-card strong {
-  display: block;
-  color: var(--capture-ink);
-  font-size: 0.95rem;
-  font-weight: 900;
-  letter-spacing: -0.025em;
-}
-
-.capture-enterprise-security-card p {
-  margin: 4px 0 0;
-  color: var(--capture-muted);
-  font-size: 0.88rem;
-  line-height: 1.55;
-}
-
-.capture-security-shield {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  color: var(--capture-teal);
-  background:
-    radial-gradient(circle at 30% 20%, rgba(15, 92, 86, 0.18), transparent 45%),
-    #f1fbfa;
-  border: 1px solid rgba(15, 92, 86, 0.18);
-  box-shadow: 0 10px 18px rgba(16, 24, 40, 0.06);
-  font-size: 0;
-}
-
-.capture-security-shield::before,
 .capture-notes-card .capture-card-title::before {
   content: none !important;
-}
-
-.capture-security-shield svg {
-  width: 30px;
-  height: 30px;
 }
 
 .capture-enterprise-eyebrow,
@@ -155,67 +110,6 @@
   color: var(--capture-muted);
   line-height: 1.6;
   font-size: 0.93rem;
-}
-
-/* =========================
-   WORKFLOW
-========================= */
-
-.capture-enterprise-steps {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.capture-enterprise-step {
-  min-height: 56px;
-  border-radius: 18px;
-  padding: 14px;
-
-  border: 1px solid rgba(15, 92, 86, 0.16);
-
-  background: #ffffff;
-
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.capture-enterprise-step.completed {
-  border-color: rgba(15, 92, 86, 0.24);
-  background: rgba(239, 250, 248, 0.82);
-}
-
-.capture-enterprise-step.active {
-  border-color: var(--capture-teal-line);
-  background: rgba(15, 92, 86, 0.10);
-}
-
-.capture-enterprise-step.future {
-  border-color: rgba(16, 24, 40, 0.10);
-  background: #ffffff;
-}
-
-.capture-enterprise-step strong {
-  color: var(--capture-ink);
-  font-size: 0.88rem;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  margin-right: 6px;
-}
-
-.capture-enterprise-step.future strong {
-  color: var(--capture-muted);
-}
-
-.capture-enterprise-step.completed strong,
-.capture-enterprise-step.active strong {
-  color: var(--capture-ink);
-}
-
-.capture-enterprise-step span {
-  color: var(--capture-muted);
-  font-size: 0.78rem;
 }
 
 /* =========================
@@ -851,10 +745,6 @@
     grid-template-columns: 1fr;
   }
 
-  .capture-enterprise-steps {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .capture-bottom-bar-inner {
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -866,12 +756,7 @@
 padding: 72px 28px 28px;
   }
 
-  .capture-enterprise-title-card,
-.capture-enterprise-security-card {
-    grid-template-columns: 1fr;
-  }
-
-  .capture-enterprise-steps {
+  .capture-enterprise-title-card {
     grid-template-columns: 1fr;
   }
 
@@ -1000,7 +885,6 @@ padding: 72px 28px 28px;
   color: rgba(255, 255, 255, 0.78);
 }
 
-.capture-enterprise-step-number,
 .capture-requirement-index {
   width: 36px;
   height: 36px;
@@ -1022,12 +906,6 @@ padding: 72px 28px 28px;
     inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
 }
 
-.capture-enterprise-step.active .capture-enterprise-step-number {
-  color: #0b403d !important;
-  background: rgba(255, 255, 255, 0.38) !important;
-  border-color: #0f5c56 !important;
-}
-
 /* FINAL PROOVRA GREEN OVERRIDE */
 .capture-enterprise-page {
   --capture-teal: #0f5c56 !important;
@@ -1036,27 +914,17 @@ padding: 72px 28px 28px;
   --capture-teal-line: rgba(15, 92, 86, 0.24) !important;
 }
 
-.capture-security-shield {
-  color: #0f5c56 !important;
-  border-color: rgba(15, 92, 86, 0.18) !important;
-  background: rgba(15, 92, 86, 0.08) !important;
-}
-
 .capture-enterprise-eyebrow,
+
 .capture-section-label,
-.capture-enterprise-step-number,
+
 .capture-requirement-index {
   color: #0f5c56 !important;
 }
 
-.capture-enterprise-step-number,
 .capture-requirement-index {
   background: rgba(255,255,255,0.38) !important;
   border: 2px solid #0f5c56 !important;
-}
-
-.capture-enterprise-step.active {
-  border-color: rgba(15, 92, 86, 0.24) !important;
 }
 
 .capture-finish-button,
@@ -1141,15 +1009,23 @@ padding: 72px 28px 28px;
 /* FINAL SURFACE CONSISTENCY PASS */
 
 .capture-enterprise-title-card,
-.capture-enterprise-security-card,
+
 .capture-enterprise-card,
+
 .capture-requirement-row,
+
 .capture-integrity-block,
+
 .capture-notes-card,
+
 .capture-bottom-bar-inner,
+
 .capture-right-panel > .card,
+
 .capture-right-panel > .card .rounded-2xl,
+
 .capture-right-panel > .card .rounded-3xl,
+
 .capture-audio-card {
   background: rgba(255, 255, 255, 0.34) !important;
   border: 1px solid rgba(255, 255, 255, 0.42) !important;
@@ -1556,9 +1432,11 @@ box-shadow:
 
 /* bronze important titles */
 .capture-card-title,
-.capture-enterprise-security-card strong,
+
 .capture-notes-card .capture-card-title,
+
 .capture-integrity-block .capture-card-title,
+
 .capture-bottom-bar-inner strong {
   color: var(--capture-bronze) !important;
 }
@@ -2109,25 +1987,24 @@ box-shadow:
   box-shadow: 0 18px 34px rgba(15, 92, 86, 0.28) !important;
 }
 
-/* FINAL — exact capture icon teal */
-
-.capture-enterprise-page .capture-security-shield,
 .capture-enterprise-page .capture-inline-heading-icon {
   color: #238b84 !important;
   background: linear-gradient(180deg, #2f9c94 0%, #16766f 100%) !important;
   border-color: rgba(35, 139, 132, 0.32) !important;
 }
 
-.capture-enterprise-page .capture-security-shield svg,
 .capture-enterprise-page .capture-inline-heading-icon svg,
+
 .capture-enterprise-page .capture-upload-actions svg {
   color: #ffffff !important;
   stroke: #ffffff !important;
 }
 
-/* Main page sections become subtle panels, not cards */
+/* Main page sections become subtle panels,
+
+not cards */
 .capture-enterprise-title-card,
-.capture-enterprise-security-card,
+
 .capture-enterprise-card {
   border-radius: 0 !important;
   border: 0 !important;
@@ -2536,18 +2413,7 @@ box-shadow:
   color: #5f6b76 !important;
 }
 
-/* Completed workflow step number = same icon color */
-.capture-enterprise-step.completed .capture-enterprise-step-number {
-  color: #ffffff !important;
-  background: linear-gradient(180deg, #2f9e92 0%, #15756b 100%) !important;
-  border-color: rgba(21, 117, 107, 0.35) !important;
-  box-shadow:
-    0 10px 22px rgba(21, 117, 107, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
-}
-
-/* active step stays outlined, not filled */
-.capture-enterprise-step.active .capture-enterprise-step-number {
+/* active step stays outlined {
   color: #0f5c56 !important;
   background: rgba(255, 255, 255, 0.38) !important;
   border-color: #0f5c56 !important;
@@ -4809,12 +4675,6 @@ body {
     transform: none !important;
   }
 
-  .capture-enterprise-steps {
-    display: flex !important;
-    flex-direction: column !important;
-    grid-template-columns: none !important;
-  }
-
   .capture-intake-command-header {
     display: flex !important;
     flex-direction: column !important;
@@ -5229,9 +5089,11 @@ body {
 }
 
 .capture-enterprise-top,
-.capture-enterprise-steps,
+
 .capture-setup-strip,
+
 .capture-drop-zone-enterprise,
+
 .capture-materials-board {
   max-width: 100% !important;
 }
@@ -5242,14 +5104,6 @@ body {
   font-size: 3.2rem !important;
   line-height: 1.02 !important;
   letter-spacing: -0.05em !important;
-}
-
-.capture-enterprise-step strong {
-  font-size: 0.92rem !important;
-}
-
-.capture-enterprise-step span {
-  font-size: 0.76rem !important;
 }
 
 .capture-card-title {
@@ -6160,34 +6014,44 @@ body {
 /* make all capture cards transparent */
 
 .capture-enterprise-title-card,
-.capture-enterprise-security-card,
-.capture-enterprise-step,
+
 .capture-main-panel,
+
 .capture-materials-board,
+
 .capture-dropzone,
+
 .capture-setup-strip,
+
 .capture-audio-card,
+
 .capture-resume-banner,
+
 .capture-enterprise-card {
   background: transparent !important;
 }
 
 /* optional: remove extra borders/shadows if بدك clean أكثر */
 .capture-enterprise-title-card,
-.capture-enterprise-security-card,
+
 .capture-main-panel,
+
 .capture-materials-board,
+
 .capture-dropzone,
+
 .capture-setup-strip,
+
 .capture-audio-card,
+
 .capture-resume-banner,
+
 .capture-enterprise-card {
   box-shadow: none !important;
 }
 
-/* keep subtle separators only */
-.capture-enterprise-step,
 .capture-setup-strip,
+
 .capture-materials-board {
   border: 1px solid rgba(15, 23, 42, 0.06) !important;
 }
@@ -6283,7 +6147,7 @@ body {
 .capture-setup-controls {
   grid-column: 2 !important;
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(210px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)) !important;
   gap: 14px !important;
   max-width: 760px !important;
   margin-top: 18px !important;
@@ -6337,7 +6201,7 @@ body {
 
 @media (max-width: 1320px) {
   .capture-setup-controls {
-    grid-template-columns: repeat(3, minmax(185px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 185px), 1fr)) !important;
     max-width: 690px !important;
   }
 
@@ -6354,18 +6218,55 @@ body {
   }
 }
 
-/* step cards soft highlight */
+/* ---------- setup strip: the narrow widths it never had ----------
 
-.capture-enterprise-step {
-  background: rgba(245, 249, 248, 0.92) !important;
-  border: 1px solid rgba(102, 168, 157, 0.28) !important;
+   The strip was laid out for desktop and then pinned there:
 
-  box-shadow:
-    0 1px 2px rgba(16, 24, 40, 0.03),
-    0 0 0 1px rgba(255,255,255,0.7) inset !important;
+     .capture-setup-controls { grid-template-columns: repeat(3, minmax(210px, 1fr)) }
 
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+   Three tracks with a hard 210px floor need 658px before gaps; the 1320px
+   breakpoint above lowers the floor to 185px, which still needs 583px, and
+   nothing below it exists. Inside a 356px column — which is what the strip's
+   second track measures at 768px — the third card ran 162px past the edge.
+   The page did not scroll sideways only because `.capture-setup-strip` carries
+   `overflow: hidden`, so the operator did not get a scrollbar; they got a
+   Location toggle they could not see or reach. Hidden is worse than scrolled.
+
+   The strip's own narrow rule — `@media (max-width: 980px)` further up the
+   sheet — had been dead since the "FINAL FIX" block below it re-declared
+   `grid-template-columns` unconditionally with `!important`: same specificity,
+   later in the sheet, so it won at every width. Re-asserted here, after it.
+
+   `repeat(auto-fit, minmax(min(100%, N), 1fr))` rather than
+   `repeat(3, minmax(N, 1fr))`, and applied at every width rather than behind a
+   breakpoint: what overflows is a track floor wider than the container, and
+   the container here is a grid cell whose width does not follow the viewport —
+   at 1024px the strip's second track measures ~376px, so a viewport-keyed
+   breakpoint at 980px still left it 42px over. `min(100%, N)` lets the floor
+   give way, and `auto-fit` drops to as many columns as actually fit. Three
+   across on desktop, wrapped when the cell is narrow, overflowing nowhere. */
+@media (max-width: 980px) {
+  .capture-setup-strip {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .capture-setup-description,
+.capture-setup-controls {
+    grid-column: 1 / -1 !important;
+  }
+
+  .capture-setup-controls {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 185px), 1fr)) !important;
+    max-width: none !important;
+    margin-top: 14px !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .capture-setup-controls {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
 }
 
 /* FIX dropdown clipping inside evidence table */
@@ -6423,4 +6324,336 @@ body {
 .capture-dropzone-inline-note:hover .capture-dropzone-plus span {
   color: #ffffff !important;
   opacity: 1 !important;
+}
+
+/* =========================================================================
+   PHASE 2 — TARGET SURFACES
+   Trust strip · readiness signals · session activity · final readiness.
+   Canonical tokens only; tone is a data attribute, never a literal.
+========================================================================= */
+
+/* ---------- trust strip ----------
+   Three compact statements under the hero. Deliberately quiet: this is
+   explanatory copy sitting beside the operator's actual task, not a set of
+   marketing cards competing with it. */
+.capture-trust-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.capture-trust-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--capture-line);
+  border-radius: 14px;
+  background: #ffffff;
+}
+.capture-trust-item__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  color: var(--accent-600, #6d28d9);
+  background: var(--accent-050, #f2ecfe);
+}
+.capture-trust-item__copy {
+  min-inline-size: 0;
+}
+.capture-trust-item__copy strong {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--capture-ink);
+  letter-spacing: -0.01em;
+}
+.capture-trust-item__copy small {
+  display: block;
+  margin-block-start: 2px;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--capture-muted);
+}
+
+/* ---------- blockers + warnings ----------
+   ZERO STATE IS ONE ROW. Two full cards saying nothing had happened is what
+   this replaces; the common case on this page is zero of both. */
+.capture-signals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.capture-signals--clear {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 9px 13px;
+  border: 1px solid var(--capture-line);
+  border-radius: 12px;
+  background: #ffffff;
+}
+.capture-signal-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  /* Green means "clear" here, which is the one thing green is for. The words
+     carry it too — the tick is never the only signal. */
+  color: var(--success, #067647);
+}
+
+.capture-signal-group {
+  border: 1px solid var(--capture-line);
+  border-inline-start-width: 3px;
+  border-radius: 12px;
+  padding: 11px 13px;
+  background: #ffffff;
+}
+.capture-signal-group[data-capture-signal-group="blockers"] {
+  border-inline-start-color: var(--capture-red);
+}
+.capture-signal-group[data-capture-signal-group="warnings"] {
+  border-inline-start-color: var(--capture-orange);
+}
+.capture-signal-group__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 750;
+  color: var(--capture-ink);
+}
+.capture-signal-group[data-capture-signal-group="blockers"] .capture-signal-group__head svg {
+  color: var(--capture-red);
+}
+.capture-signal-group[data-capture-signal-group="warnings"] .capture-signal-group__head svg {
+  color: var(--capture-orange);
+}
+.capture-signal-group__count {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--capture-muted);
+}
+/* The rail's four-item cap made visible. Quiet on purpose: it is a count of
+   what was withheld, not a fifth issue. */
+.capture-signal-overflow {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--capture-muted);
+}
+
+.capture-signal-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.capture-signal-list strong {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--capture-ink);
+}
+.capture-signal-list small {
+  display: block;
+  margin-block-start: 1px;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--capture-muted);
+}
+
+/* ---------- session activity ---------- */
+.capture-activity {
+  border: 1px solid var(--capture-line);
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+.capture-activity__toggle {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 13px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: start;
+  color: var(--capture-ink);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+.capture-activity__toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 3px rgba(107, 91, 255, 0.28));
+}
+.capture-activity__count {
+  font-weight: 500;
+  color: var(--capture-muted);
+  font-variant-numeric: tabular-nums;
+}
+.capture-activity__action {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent-600, #6d28d9);
+  white-space: nowrap;
+}
+.capture-activity[data-capture-activity-open="true"] .capture-activity__action svg {
+  transform: rotate(180deg);
+}
+.capture-activity__panel {
+  padding: 0 13px 12px;
+  border-block-start: 1px solid var(--capture-line);
+}
+.capture-activity__empty {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--capture-muted);
+}
+.capture-activity__list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.capture-activity__list li {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 0.78rem;
+}
+.capture-activity__list time {
+  color: var(--capture-muted);
+  font-variant-numeric: tabular-nums;
+}
+.capture-activity__list strong {
+  display: block;
+  font-weight: 650;
+  color: var(--capture-ink);
+}
+.capture-activity__list small {
+  display: block;
+  color: var(--capture-muted);
+  line-height: 1.45;
+}
+
+/* ---------- final readiness ----------
+   The last thing read before the last thing clicked. */
+.capture-final-readiness {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 15px;
+  border: 1px solid var(--capture-line);
+  border-inline-start-width: 3px;
+  border-radius: 14px;
+  background: #ffffff;
+}
+.capture-final-readiness[data-capture-final-readiness="ready"] {
+  border-inline-start-color: var(--success, #067647);
+}
+.capture-final-readiness[data-capture-final-readiness="ready"]
+  .capture-final-readiness__icon {
+  color: var(--success, #067647);
+}
+.capture-final-readiness[data-capture-final-readiness="not_ready"] {
+  border-inline-start-color: var(--capture-red);
+}
+.capture-final-readiness[data-capture-final-readiness="not_ready"]
+  .capture-final-readiness__icon {
+  color: var(--capture-red);
+}
+/* Busy is neither a pass nor a failure — it is work in flight, and colouring
+   it red would send the operator hunting for something to fix. */
+.capture-final-readiness[data-capture-busy="true"] {
+  border-inline-start-color: var(--capture-muted);
+}
+.capture-final-readiness[data-capture-busy="true"] .capture-final-readiness__icon {
+  color: var(--capture-muted);
+}
+.capture-final-readiness__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  margin-block-start: 1px;
+}
+/* The outstanding required steps, by name. A supporting line under the
+   verdict, not a competing one. */
+.capture-final-readiness__missing {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--capture-muted);
+}
+
+.capture-final-readiness__copy strong {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  color: var(--capture-ink);
+}
+.capture-final-readiness__copy p {
+  margin: 3px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--capture-muted);
+}
+
+@media (max-width: 640px) {
+  .capture-activity__list li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .capture-trust-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* ---------- session rail: the band it becomes below 1280px ----------
+
+   Two rules from two different layouts were both live between 981px and
+   1280px. The older one caps `.capture-command-center` at 360px and pins
+   `.capture-session-column` sticky, which is right when the rail is a column
+   beside the working area. The newer one — `@media (max-width: 1280px)` — sets
+   `grid-column: 1 / -1` and `grid-template-columns: repeat(2, ...)`, i.e. the
+   rail stops being a column and becomes a full-width band under the content.
+
+   Between those two widths the band inherited the column's 360px cap and then
+   split it in two: 171px tracks, in which "Session metadata" wrapped
+   `CAP-2026-08-29` one character per line and Integrity preparation's labels
+   ran straight through their values. Nothing overflowed the document, so the
+   geometry gate did not see it — overlapping text stays inside the box.
+
+   The cap and the sticky offset belong to the column layout, so they are
+   withdrawn where the column no longer exists. */
+@media (max-width: 1280px) {
+  .capture-right-panel,
+.capture-command-center {
+    max-width: none !important;
+  }
+
+  .capture-session-column {
+    position: static !important;
+    top: auto !important;
+  }
 }
