@@ -45,6 +45,7 @@ import {
   paymentRowActions,
   type PaymentRowActions,
 } from "./pending-payments.service.js";
+import { defaultReconciliationProviders } from "./reconciliation/reconciliation.service.js";
 import { prisma } from "../../db.js";
 import {
   organizationWorkspaceIds,
@@ -1533,6 +1534,10 @@ export async function readBillingHistoryForAccount(input: {
 
   const describe = await buildPaymentDescriber(rows);
   const viewerMayCancel = input.account.capabilities.includes("BILLING_CANCEL");
+  // Built ONCE for the page rather than per row. Constructing an adapter opens
+  // nothing and reads no secret — the credential is read at call time — but a
+  // hundred identical constructions per history read is still a hundred.
+  const providers = defaultReconciliationProviders();
 
   return rows.map((r) => ({
     id: r.id,
@@ -1544,6 +1549,7 @@ export async function readBillingHistoryForAccount(input: {
       status: r.status,
       provider: r.provider,
       viewerMayCancel,
+      providers,
     }),
     ...(showAmounts
       ? {
