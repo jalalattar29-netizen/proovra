@@ -10,9 +10,8 @@
  *      hierarchy, because "what am I on, what does it cost, what can I do
  *      about it" is the question the page exists to answer
  *   2. the usage grid and its meters
- *   3. the offer grid shared by plans and storage add-ons
- *   4. the history table's column behaviour
- *   5. the support banner
+ *   3. the history table's column behaviour
+ *   4. the support banner
  *
  * PREFIX. `bill-*`. Nothing else in the app owns it.
  *
@@ -207,16 +206,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * 3. OFFERS — plan tiers in the drawer, storage add-ons on the page
- * ------------------------------------------------------------------------- */
-.bill-offer-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-}
-
-/* ---------------------------------------------------------------------------
- * 4. HISTORY
+ * 3. HISTORY
  *
  * The table itself is the canonical `.app-table[data-responsive]`, which
  * already collapses to stacked cards below 720px. Only the column behaviour is
@@ -279,7 +269,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * 5. SUPPORT BANNER
+ * 4. SUPPORT BANNER
  *
  * The last thing on the page, and the one a customer reaches when the rest of
  * it has not answered their question.
