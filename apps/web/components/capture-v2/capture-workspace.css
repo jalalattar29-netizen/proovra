@@ -1605,3 +1605,441 @@
   background: #ffffff !important;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
 }
+
+/* ===========================================================================
+   VISUAL HIERARCHY PASS
+   ===========================================================================
+
+   The composition was right and the surfaces were wrong. Every band was a pure
+   white card, sitting on a pure white page shell, sitting on the app's own
+   background — so the page read as a white document dropped into the product
+   rather than a part of it, and nothing had any hierarchy because everything
+   was the brightest possible value.
+
+   The rule from here down: THE APP BACKGROUND IS THE BASE. A surface exists
+   only where it groups something, it is translucent so the background tints
+   through it, and it is separated by a border rather than by a shadow.
+=========================================================================== */
+
+.capture-enterprise-page {
+  /* Working panels: enough lift to group, not enough to glare. Translucent on
+     purpose — the app background reads through, which is what keeps the page
+     part of the shell instead of on top of it. */
+  --cap-panel: rgba(255, 255, 255, 0.74);
+  /* Rail sections and other supporting groups. */
+  --cap-panel-quiet: rgba(255, 255, 255, 0.5);
+  /* Rows and tiles INSIDE a panel: no fill at all. A row does not need its own
+     surface when the panel around it already has one. */
+  --cap-inset: transparent;
+  --cap-inset-hover: rgba(16, 24, 40, 0.025);
+  --cap-divider: rgba(16, 24, 40, 0.07);
+}
+
+/* §1 — THE WHITE PAGE CANVAS.
+   `.ui-page-shell` paints white for every page that uses it. Capture opts out,
+   and only Capture: the selector carries this surface's own class so it cannot
+   reach another route. The app background now runs the full height of the
+   page, visible around and between every section. */
+.capture-page-shell.capture-enterprise-page,
+.ui-page-shell.capture-page-shell {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* §2, §13 — PANELS. Same geometry as before, new surface. */
+.capture-main-panel > .capture-hero,
+.capture-main-panel > .capture-activity,
+.capture-main-panel > .capture-setup-strip,
+.capture-main-panel > .capture-requirements-panel,
+.capture-main-panel > .capture-drop-zone-enterprise,
+.capture-main-panel > .capture-materials-board,
+.capture-main-panel > .capture-audio-card,
+.capture-enterprise-page .capture-intake-plan,
+.capture-enterprise-page .capture-guidance-card,
+.capture-enterprise-page .capture-contextual-help {
+  background: var(--cap-panel) !important;
+  box-shadow: none !important;
+}
+
+/* §20 — SHADOWS.
+   Every decorative shadow on a Capture surface, gone. Depth here is a border
+   and a background step, which is what survives being printed, being viewed at
+   any brightness, and being stacked eight deep. */
+.capture-enterprise-page .capture-enterprise-card,
+.capture-enterprise-page .capture-requirement-row,
+.capture-enterprise-page .capture-requirement-index,
+.capture-enterprise-page .capture-trust-item,
+.capture-enterprise-page .capture-setup-mode,
+.capture-enterprise-page .capture-setup-location,
+.capture-enterprise-page .capture-setup-icon,
+.capture-enterprise-page .capture-readiness-card,
+.capture-enterprise-page .capture-command-section,
+.capture-enterprise-page .capture-command-metrics,
+.capture-enterprise-page .capture-notes-card,
+.capture-enterprise-page .capture-status-card,
+.capture-enterprise-page .capture-command-center,
+.capture-enterprise-page .capture-signal-group,
+.capture-enterprise-page .capture-signals--clear,
+.capture-enterprise-page .capture-final-readiness,
+.capture-enterprise-page .capture-bottom-bar-inner,
+.capture-enterprise-page .capture-materials-board,
+.capture-enterprise-page .capture-upload-actions > button,
+.capture-enterprise-page .capture-dropzone-plus,
+.capture-enterprise-page .capture-issue-row {
+  box-shadow: none !important;
+}
+
+/* §5 — THE HERO MARK.
+   Part of the heading block: the route's own icon at heading size, on the
+   accent tint the rest of the page uses for the accent. */
+.capture-hero__mark {
+  display: grid !important;
+  place-items: center !important;
+  inline-size: 44px !important;
+  block-size: 44px !important;
+  border-radius: 13px !important;
+  border: 1px solid var(--capture-accent-line) !important;
+  background: var(--capture-accent-soft) !important;
+  color: var(--capture-accent-strong) !important;
+}
+
+.capture-hero__mark svg {
+  stroke: currentColor !important;
+}
+
+/* Trust items sit inside the hero panel, so they take no surface of their
+   own — a rule between them is the whole separation they need. */
+.capture-hero .capture-trust-item {
+  background: transparent !important;
+}
+
+.capture-hero .capture-trust-item__icon {
+  background: var(--capture-accent-soft) !important;
+  color: var(--capture-accent-strong) !important;
+  box-shadow: none !important;
+}
+
+/* §7, §8 — CAPTURE READINESS.
+   Kept, moved, and quieted. Ready is a calm success tint; anything else is
+   neutral-attention. Not a saturated panel either way. */
+.capture-enterprise-page .capture-readiness-card,
+.capture-enterprise-page .capture-readiness-panel,
+.capture-enterprise-page .capture-suggestions-panel {
+  border-radius: var(--cap-radius) !important;
+  background: var(--cap-panel-quiet) !important;
+  box-shadow: none !important;
+}
+
+.capture-enterprise-page .capture-readiness-card.ready,
+.capture-enterprise-page .capture-readiness-card.collecting {
+  border-color: rgba(6, 118, 71, 0.2) !important;
+  background: rgba(6, 118, 71, 0.05) !important;
+}
+
+.capture-enterprise-page .capture-readiness-card.warning,
+.capture-enterprise-page .capture-readiness-card.empty,
+.capture-enterprise-page .capture-readiness-card.blocked {
+  border-color: var(--capture-line-strong) !important;
+  background: var(--cap-inset-hover) !important;
+}
+
+/* §21 — COLLECTION SETUP. Flat tiles on the panel, not glossy detached ones. */
+.capture-enterprise-page .capture-setup-mode,
+.capture-enterprise-page .capture-setup-location {
+  background: var(--cap-inset) !important;
+}
+
+.capture-enterprise-page .capture-setup-mode:hover:not(:disabled),
+.capture-enterprise-page .capture-setup-location:hover {
+  background: var(--cap-inset-hover) !important;
+}
+
+.capture-enterprise-page .capture-setup-mode.active,
+.capture-enterprise-page .capture-setup-location.active {
+  background: var(--capture-accent-soft) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   §9-§12 — REQUIREMENTS
+
+   The rows had accumulated purple, maroon, red, amber and tinted depth all at
+   once, which made a blocking requirement and an optional one look equally
+   alarming. One meaning per colour now:
+
+     red     a requirement that BLOCKS Review and Sign, and nothing else
+     green   mapped / satisfied
+     amber   optional, and only on the badge
+     neutral everything that is merely information
+
+   The row itself stays neutral in every state; the state is a 3px rail on its
+   leading edge and the words in its status column.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-requirement-row {
+  border: 1px solid var(--capture-line) !important;
+  border-inline-start: 3px solid var(--capture-line-strong) !important;
+  background: var(--cap-inset) !important;
+  box-shadow: none !important;
+}
+
+.capture-enterprise-page .capture-requirement-row.is-missing {
+  border-inline-start-color: var(--capture-red) !important;
+  background: var(--cap-inset) !important;
+}
+
+.capture-enterprise-page .capture-requirement-row.is-complete {
+  border-inline-start-color: var(--success, #067647) !important;
+  background: var(--cap-inset) !important;
+}
+
+.capture-enterprise-page .capture-requirement-row.is-optional-open {
+  border-inline-start-color: var(--capture-orange) !important;
+  background: var(--cap-inset) !important;
+}
+
+/* The index is a number, not a status. Neutral in every row. */
+.capture-enterprise-page .capture-requirement-index {
+  border: 1px solid var(--capture-line-strong) !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  color: var(--capture-muted) !important;
+}
+
+/* Title and body are ink. */
+.capture-enterprise-page .capture-requirement-title-row strong,
+.capture-enterprise-page .capture-requirement-copy strong {
+  color: var(--capture-ink) !important;
+}
+
+/* Badges: one restrained tone each, sized to the text. */
+.capture-enterprise-page .capture-requirement-title-row span,
+.capture-enterprise-page .capture-requirement-chip-row span {
+  padding: 3px 9px !important;
+  border-radius: 7px !important;
+  font-size: 0.75rem !important;
+  font-weight: 660 !important;
+  line-height: 1.35 !important;
+  white-space: nowrap !important;
+}
+
+/* "Required to finish" / "Required unmapped" — the only red on the row. */
+.capture-enterprise-page .capture-requirement-title-row span.required,
+.capture-enterprise-page .capture-requirement-chip-row span.missing {
+  border: 1px solid rgba(240, 68, 56, 0.22) !important;
+  background: rgba(240, 68, 56, 0.07) !important;
+  color: var(--capture-red-dark) !important;
+}
+
+/* "Optional context" / "Optional unmapped" — amber, and only here. */
+.capture-enterprise-page .capture-requirement-title-row span.optional,
+.capture-enterprise-page .capture-requirement-chip-row span.optional {
+  border: 1px solid rgba(247, 144, 9, 0.24) !important;
+  background: rgba(247, 144, 9, 0.08) !important;
+  color: #b54708 !important;
+}
+
+/* Mapped — green. */
+.capture-enterprise-page .capture-requirement-chip-row span.mapped {
+  border: 1px solid rgba(6, 118, 71, 0.22) !important;
+  background: rgba(6, 118, 71, 0.06) !important;
+  color: var(--success, #067647) !important;
+}
+
+/* "Accepts Photo, Video, …" is information, so it is neutral. It had been
+   carrying a tint that made accepted media types look like a state. */
+.capture-enterprise-page
+  .capture-requirement-chip-row
+  span:not(.mapped):not(.missing):not(.optional) {
+  border: 1px solid var(--capture-line) !important;
+  background: transparent !important;
+  color: var(--capture-muted) !important;
+}
+
+/* The status column: aligned, same width in every row, words carrying the
+   verdict and colour repeating it. */
+.capture-enterprise-page .capture-requirement-operational-status strong {
+  color: var(--capture-ink) !important;
+}
+
+.capture-enterprise-page .capture-requirement-operational-status strong.missing,
+.capture-enterprise-page
+  .capture-requirement-row.is-missing
+  .capture-requirement-operational-status
+  strong {
+  color: var(--capture-red-dark) !important;
+}
+
+.capture-enterprise-page .capture-requirement-operational-status strong.mapped {
+  color: var(--success, #067647) !important;
+}
+
+.capture-enterprise-page .capture-requirement-operational-status strong.optional {
+  color: var(--capture-muted) !important;
+}
+
+.capture-enterprise-page .capture-requirement-operational-status span {
+  color: var(--capture-muted) !important;
+}
+
+/* The summary strip and the finish gate stay neutral; their numbers carry the
+   state. */
+.capture-enterprise-page .capture-requirements-summary-strip,
+.capture-enterprise-page .capture-requirements-summary-strip > div {
+  background: transparent !important;
+}
+
+/* §22, §23 — EVIDENCE MATERIALS */
+.capture-enterprise-page .capture-upload-actions > button {
+  background: var(--cap-inset) !important;
+}
+
+.capture-enterprise-page .capture-upload-actions > button:hover:not(:disabled) {
+  background: var(--cap-inset-hover) !important;
+}
+
+.capture-enterprise-page .capture-upload-actions > .capture-intake-primary-action,
+.capture-enterprise-page
+  .capture-upload-actions
+  > .capture-intake-primary-action:hover:not(:disabled) {
+  background: var(--capture-accent) !important;
+}
+
+.capture-enterprise-page .capture-materials-list-header,
+.capture-enterprise-page .capture-material-row {
+  background: transparent !important;
+}
+
+.capture-enterprise-page .capture-material-row {
+  border-block-end: 1px solid var(--cap-divider) !important;
+  box-shadow: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+   §18 — THE RAIL
+
+   Seven bright boxes became seven quiet ones. Blockers keep their red edge and
+   warnings their amber, because those are the two that must be found quickly;
+   everything else recedes.
+--------------------------------------------------------------------------- */
+
+.capture-session-column > .capture-status-card,
+.capture-session-column > .capture-command-center,
+.capture-session-column .capture-command-section,
+.capture-session-column .capture-notes-card,
+.capture-session-column .capture-signals--clear,
+.capture-session-column .capture-signal-group {
+  background: var(--cap-panel-quiet) !important;
+  box-shadow: none !important;
+}
+
+.capture-session-column .capture-command-metrics,
+.capture-session-column .capture-command-metrics > div {
+  background: transparent !important;
+}
+
+.capture-session-column .capture-signal-group[data-capture-signal-group="blockers"] {
+  border-inline-start-color: var(--capture-red) !important;
+}
+
+.capture-session-column .capture-signal-group[data-capture-signal-group="warnings"] {
+  border-inline-start-color: var(--capture-orange) !important;
+}
+
+/* The ring's centre has to be opaque or the conic gradient shows through. */
+.capture-status-ring::before {
+  background: #fbfbfd !important;
+}
+
+/* §19 — AI advisory: quieter still, and visibly a different kind of thing from
+   the deterministic integrity block above it. */
+.capture-enterprise-page .capture-ai-advisory-shell {
+  border-style: dashed !important;
+  background: var(--cap-inset-hover) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   §14-§17 — FINAL READINESS AND THE ACTION ZONE
+
+   The verdict, then the action it governs. One reads as the system's
+   conclusion; the other is the only primary control on the page.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-final-readiness {
+  background: var(--cap-panel-quiet) !important;
+  box-shadow: none !important;
+}
+
+.capture-enterprise-page .capture-bottom-bar-inner {
+  background: var(--cap-panel) !important;
+  box-shadow: none !important;
+}
+
+/* §14 — the heading is heading ink. It had been rendering in the accent, which
+   made the section title compete with the button beside it. */
+.capture-enterprise-page .capture-bottom-bar-inner > div:first-child strong {
+  color: var(--capture-ink) !important;
+  -webkit-text-fill-color: var(--capture-ink) !important;
+}
+
+/* §16 — the single primary action. */
+.capture-enterprise-page .capture-finish-button:not(:disabled),
+.capture-enterprise-page .capture-finish-button:not(:disabled) * {
+  background: var(--capture-accent) !important;
+  background-image: none !important;
+  border-color: var(--capture-accent) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.capture-enterprise-page .capture-finish-button:not(:disabled):hover {
+  background: var(--capture-accent-strong) !important;
+  border-color: var(--capture-accent-strong) !important;
+}
+
+/* §15 — destructive, secondary, and never louder than the action beside it. */
+.capture-enterprise-page .capture-clear-button,
+.capture-enterprise-page .capture-clear-button * {
+  background: #ffffff !important;
+  background-image: none !important;
+  border-color: rgba(240, 68, 56, 0.34) !important;
+  color: var(--capture-red-dark) !important;
+  -webkit-text-fill-color: var(--capture-red-dark) !important;
+}
+
+.capture-enterprise-page .capture-clear-button:hover:not(:disabled),
+.capture-enterprise-page .capture-clear-button:hover:not(:disabled) * {
+  background: rgba(240, 68, 56, 0.06) !important;
+  border-color: var(--capture-red) !important;
+  color: var(--capture-red-dark) !important;
+  -webkit-text-fill-color: var(--capture-red-dark) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   REQUIREMENT ROWS — three corrections found by cropping the rendered rows
+--------------------------------------------------------------------------- */
+
+/* §10 — the "cylindrical" rail. It was not a glow or a shadow: a 3px border on
+   a box with a 14px radius tapers through both corners, which reads as a
+   capsule laid against the row. A 10px radius keeps the rail reading as a
+   straight rule for almost its whole length. */
+.capture-enterprise-page .capture-requirement-row {
+  border-radius: 10px !important;
+}
+
+/* §11 — the status word is text, not a badge. It had kept a tinted pill from
+   an earlier treatment, so "Optional" floated in a little amber block while
+   "Unmapped" beside it did not — the right-hand column looked ragged for a
+   reason that had nothing to do with state. */
+.capture-enterprise-page .capture-requirement-operational-status strong {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+/* Its second line is supporting copy. At 780 it was competing with the verdict
+   above it. */
+.capture-enterprise-page .capture-requirement-operational-status span {
+  font-weight: 550 !important;
+}

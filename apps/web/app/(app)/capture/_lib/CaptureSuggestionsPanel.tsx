@@ -31,16 +31,16 @@ const TONE_STYLES: Record<
   { bg: string; border: string; ink: string; pill: string }
 > = {
   info: {
-    bg: "rgba(148, 163, 184, 0.08)",
-    border: "rgba(148, 163, 184, 0.4)",
+    bg: "rgba(16, 24, 40, 0.02)",
+    border: "rgba(16, 24, 40, 0.10)",
     ink: "#475569",
-    pill: "rgba(148, 163, 184, 0.2)",
+    pill: "rgba(16, 24, 40, 0.06)",
   },
   warning: {
-    bg: "rgba(245, 158, 11, 0.08)",
-    border: "rgba(245, 158, 11, 0.4)",
+    bg: "rgba(247, 144, 9, 0.04)",
+    border: "rgba(247, 144, 9, 0.22)",
     ink: "#92400e",
-    pill: "rgba(245, 158, 11, 0.2)",
+    pill: "rgba(247, 144, 9, 0.12)",
   },
 };
 
@@ -205,19 +205,7 @@ export function CaptureSuggestionsPanel({
         })}
       </ul>
 
-      <p
-        data-capture-suggestions-footnote
-        style={{
-          margin: "10px 0 0 0",
-          fontSize: 11,
-          color: "#64748b",
-          lineHeight: 1.5,
-        }}
-      >
-        Suggestions are informational. The capture pipeline (hashing,
-        custody, finalization) is governed by the upload flow itself —
-        suggestions never block finalization.
-      </p>
+
     </section>
   );
 }

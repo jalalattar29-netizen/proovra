@@ -6,9 +6,7 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // P3 domain remediation (2026-07-21) — tenant-boundary dirty-work guard.
 import { useDirtyWork } from "../../../lib/platform-context/dirtyWorkRegistry";
 // PHASE 7 §10.5 — canonical owning-context banner.
-import { WorkspaceContextBanner } from "../../../lib/platform-context/WorkspaceContextBanner";
 import { orderTemplatesByWorkflow } from "./_lib/workflowTemplateOrder";
-import { CaptureWorkflowGuidance } from "./_lib/CaptureWorkflowGuidance";
 import { CaptureReadinessPanel } from "./_lib/CaptureReadinessPanel";
 import { CaptureSuggestionsPanel } from "./_lib/CaptureSuggestionsPanel";
 import { CaptureIntakeRail } from "./_lib/CaptureIntakeRail";
@@ -514,13 +512,6 @@ function CapturePageInner() {
       width="full"
       className="capture-page-shell capture-enterprise-page"
       data-capture-page-shell>
-      {/* PHASE 7 §10.5 — owning workspace/org shown before capture (a
-          high-impact, workspace-scoped submission). Pairs with the
-          existing useDirtyWork registration for staged material. */}
-      <WorkspaceContextBanner
-        action="Captured evidence will be stored in"
-        className="capture-context-banner"
-      />
       {/* Phase 30.10 — resumable upload operations panel. Renders
        *  only when the env flag is on AND there's something to show
        *  (active uploads, network is offline, or recovery has at
@@ -602,47 +593,9 @@ function CapturePageInner() {
           })}
         />
 
-        {/* Contextual help, collapsed by default so the rail + capture
-            controls stay primary. State-aware notes surface when the
-            operator has no items staged. */}
-        <ContextualHelp
-          surface="capture"
-          collapsedByDefault
-          stateNotes={
-            sessionItems.length === 0
-              ? [
-                  "No materials staged yet — start with the camera, the upload dropzone, or import from a folder.",
-                ]
-              : undefined
-          }
-        />
 
-        {/* Capture guidance panel: title + helper copy + checklist +
-            recommended templates (subset, never replacement) +
-            canonical safety statement. */}
-        <CaptureWorkflowGuidance
-          allTemplates={collectionPlans}
-          onSelectTemplate={(id) => setCollectionPlanId(id)}
-          selectedTemplateId={collectionPlanId}
-        />
 
-        {/* Operational readiness layer: completeness criteria evaluated
-            against the current session. Read-only; never blocks
-            finalization. Hidden when the operator hasn't started intake
-            yet. */}
-        <CaptureReadinessPanel items={sessionItems} />
 
-        {/* Actionable suggestions derived from the same readiness
-            criteria. Where the readiness panel reports the state, this
-            panel proposes the next concrete operator action.
-            Informational + non-blocking. */}
-        {sessionItems.length > 0 ? (
-          <CaptureSuggestionsPanel
-            readiness={computeCaptureReadiness({
-              items: sessionItems,
-            })}
-          />
-        ) : null}
 
         {draftList.drafts.length > 0 && !sessionItems.length ? (
           <div
@@ -765,6 +718,15 @@ onClick={async () => {
         <section className="capture-enterprise-grid">
           <main className="capture-enterprise-card capture-main-panel">
         <section className="capture-hero">
+          {/* The page's identity mark. `Camera` is the icon the sidebar
+              already uses for this route and the eyebrow already carried at
+              15px — same glyph, given the size a page heading needs so the
+              reader knows which page they are on before reading a word. It is
+              part of the heading block, not an illustration. */}
+          <span className="capture-hero__mark" aria-hidden="true">
+            <Camera size={22} strokeWidth={2} />
+          </span>
+
           {/* Phase IA-self-serve-completion — "Evidence intake
               workspace" replaced with "Capture & upload" so the
               eyebrow matches how lawyers / journalists describe
@@ -798,6 +760,43 @@ onClick={async () => {
               session state, no admissibility claim. */}
           <CaptureTrustStrip />
         </section>
+
+        {/* ORDER: identity first, then the guidance that supports it.
+            Help, Capture readiness and Suggested next steps used to render
+            in the band above the grid, which put instructional and readiness
+            content above the page's own title — a reader met "what to do
+            next" before "where am I". Same components, same state, same
+            canonical readiness; they simply follow the hero now. */}
+        {/* Contextual help, collapsed by default so the rail + capture
+            controls stay primary. State-aware notes surface when the
+            operator has no items staged. */}
+        <ContextualHelp
+          surface="capture"
+          collapsedByDefault
+          stateNotes={
+            sessionItems.length === 0
+              ? [
+                  "No materials staged yet — start with the camera, the upload dropzone, or import from a folder.",
+                ]
+              : undefined
+          }
+        />
+        {/* Operational readiness layer: completeness criteria evaluated
+            against the current session. Read-only; never blocks
+            finalization. Hidden when the operator hasn't started intake
+            yet. */}
+        <CaptureReadinessPanel items={sessionItems} />
+        {/* Actionable suggestions derived from the same readiness
+            criteria. Where the readiness panel reports the state, this
+            panel proposes the next concrete operator action.
+            Informational + non-blocking. */}
+        {sessionItems.length > 0 ? (
+          <CaptureSuggestionsPanel
+            readiness={computeCaptureReadiness({
+              items: sessionItems,
+            })}
+          />
+        ) : null}
 <section className="capture-setup-strip">
 <div className="capture-setup-copy">
   <div className="capture-section-label">Collection setup</div>

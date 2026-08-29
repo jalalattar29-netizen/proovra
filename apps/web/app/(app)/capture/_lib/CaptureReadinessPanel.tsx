@@ -40,18 +40,23 @@ const LEVEL_TONE: Record<
   { bg: string; border: string; ink: string }
 > = {
   draft: {
-    bg: "rgba(148, 163, 184, 0.08)",
-    border: "rgba(148, 163, 184, 0.4)",
+    bg: "rgba(16, 24, 40, 0.02)",
+    border: "rgba(16, 24, 40, 0.10)",
     ink: "#475569",
   },
+  // Attention, not alarm: this panel reports how far the session has got and
+  // never blocks finalization, so it is tinted well below the strength used
+  // for a blocker.
   developing: {
-    bg: "rgba(245, 158, 11, 0.10)",
-    border: "rgba(245, 158, 11, 0.4)",
+    bg: "rgba(247, 144, 9, 0.045)",
+    border: "rgba(247, 144, 9, 0.22)",
     ink: "#92400e",
   },
+  // Calm success. A full-strength green panel across the working column read
+  // as a bigger claim than "the operational criteria are satisfied".
   ready: {
-    bg: "rgba(34, 197, 94, 0.10)",
-    border: "rgba(34, 197, 94, 0.4)",
+    bg: "rgba(6, 118, 71, 0.045)",
+    border: "rgba(6, 118, 71, 0.22)",
     ink: "#166534",
   },
 };
