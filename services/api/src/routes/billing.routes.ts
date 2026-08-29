@@ -68,6 +68,7 @@ import {
 } from "../services/billing/plan-transition.service.js";
 import { reconcileBillingAccount } from "../services/billing/reconciliation/reconciliation.service.js";
 import {
+  abandonPendingPayment,
   cancelPendingPayment,
   recheckPayment,
 } from "../services/billing/pending-payments.service.js";
@@ -1320,6 +1321,62 @@ export async function billingRoutes(app: FastifyInstance) {
       auditBillingAction(req, {
         userId,
         action: "billing.payment_cancelled",
+        outcome: "success",
+        metadata: {
+          accountType: account.type,
+          result: result.outcome,
+          status: result.status,
+        },
+      });
+
+      return reply.code(200).send(result);
+    },
+  );
+
+  /**
+   * BILLING SURFACE CORRECTION (2026-08-29) — give up on a checkout the
+   * provider cannot be asked to stop.
+   *
+   * The honest counterpart to cancellation for PayPal, which exposes no
+   * operation that cancels an unapproved order. It RECONCILES first and only
+   * records the customer's own decision when the provider confirms nothing was
+   * captured; where the provider knows better, the provider's answer is what
+   * gets written.
+   *
+   * BILLING_CANCEL, like cancellation: it changes what the product will do
+   * with a live checkout, so it is the payer's decision and not a viewer's.
+   */
+  app.post(
+    "/v1/billing/accounts/:type/:id/payments/:paymentId/abandon",
+    { preHandler: requireAuthAndLegal },
+    async (req, reply) => {
+      const userId = getAuthUserId(req);
+      const params = z
+        .object({
+          type: z.enum(["PERSONAL", "ORGANIZATION"]),
+          id: z.string().min(1).max(200),
+          paymentId: z.string().uuid(),
+        })
+        .safeParse(req.params ?? {});
+      if (!params.success) {
+        return reply.code(400).send({ error: { code: "invalid_params" } });
+      }
+
+      const account = await assertBillingCapability({
+        viewerUserId: userId,
+        type: params.data.type,
+        id: params.data.id,
+        capability: "BILLING_CANCEL",
+      });
+
+      const result = await abandonPendingPayment({
+        account,
+        paymentId: params.data.paymentId,
+      });
+
+      auditBillingAction(req, {
+        userId,
+        action: "billing.payment_abandoned",
         outcome: "success",
         metadata: {
           accountType: account.type,

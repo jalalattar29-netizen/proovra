@@ -42,14 +42,26 @@ import { formatDate, formatMoney, statusLabel, statusTone } from "./format";
 export function StorageAddonsSection({
   projection,
   onBuy,
-  onUpgrade,
+  onChoosePlan,
   onCancelAddon,
   cancelBusyId,
 }: {
   projection: BillingAccountProjection;
-  onBuy: () => void;
-  /** Opens the PLAN chooser on the tier that unlocks add-ons. */
-  onUpgrade: (planKey: "PRO" | "TEAM") => void;
+  /**
+   * Buy ONE named capacity. The offer is chosen on the PAGE and the drawer
+   * opens on it already selected — a customer who has read three prices and
+   * picked one should not be asked to pick again.
+   */
+  onBuy: (addonKey: string) => void;
+  /**
+   * Opens the ONE plan chooser — the same surface the plan card opens.
+   *
+   * FREE has no add-on catalogue, and pressing "Add storage" there used to
+   * open a purchase drawer with an empty "Capacity" heading, a payment method
+   * and a dead button. Storage on FREE is a PLAN question, so it is answered
+   * with the plan chooser.
+   */
+  onChoosePlan: () => void;
   onCancelAddon: (addonId: string) => void;
   cancelBusyId: string | null;
 }) {
@@ -57,39 +69,43 @@ export function StorageAddonsSection({
   // available, say why and offer the move that changes it, rather than
   // rendering nothing and leaving the customer to guess whether the feature is
   // missing, broken, or simply not theirs.
+  // When add-ons are not available, say why and offer the move that changes
+  // it, rather than rendering nothing and leaving the customer to guess
+  // whether the feature is missing, broken, or simply not theirs.
   const locked = projection.storageAddonsLocked;
+  const meter = projection.usage.storage;
   if (locked) {
     return (
       <Card variant="summary" title="Storage" data-billing-storage-locked>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "0.92rem",
-            lineHeight: 1.6,
-            color: "var(--text-muted, #475569)",
-          }}
-        >
-          {locked.reason}
-        </p>
-        {locked.unlockedByPlan ? (
-          <div style={{ marginTop: 12 }}>
-            {/*
-              BILLING SURFACE CORRECTION (2026-08-29) — this called `onBuy`,
-              which opens the STORAGE drawer. On FREE there are no add-on
-              offers, so pressing it opened an empty drawer — the page telling
-              a customer to upgrade and then showing them nothing. It opens the
-              PLAN chooser instead, on the tier that actually unlocks storage.
-            */}
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => onUpgrade(locked.unlockedByPlan as "PRO" | "TEAM")}
-              data-billing-storage-upgrade
-            >
-              See plans
-            </Button>
+        <div className="bill-storage-upgrade">
+          <div className="bill-storage-upgrade__facts">
+            {meter.state === "MEASURED" ? (
+              <div className="bill-storage-upgrade__included">
+                <bdi>{meter.limitLabel}</bdi> included
+              </div>
+            ) : null}
+            <p className="bill-storage-upgrade__copy">{locked.reason}</p>
           </div>
-        ) : null}
+          {locked.unlockedByPlan ? (
+            <div className="bill-actions">
+              {/*
+                The PLAN chooser, not a purchase drawer. This used to open the
+                storage checkout, which on FREE has no offers in it — the page
+                told a customer to upgrade and then showed them an empty
+                "Capacity" section above a payment button that could not be
+                pressed.
+              */}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onChoosePlan}
+                data-billing-storage-upgrade
+              >
+                Choose a plan
+              </Button>
+            </div>
+          ) : null}
+        </div>
       </Card>
     );
   }
@@ -106,17 +122,63 @@ export function StorageAddonsSection({
       variant="summary"
       title="Storage add-ons"
       subtitle="Extra capacity, billed monthly alongside your plan."
-      headerAction={
-        hasOffers ? (
-          <Button variant="secondary" size="sm" onClick={onBuy} data-billing-buy-storage>
-            Add storage
-          </Button>
-        ) : null
-      }
       data-billing-storage-addons
     >
+      {/*
+        The OFFERS are on the page, not behind a button.
+
+        "Add storage" opened a drawer whose only content was the list of
+        capacities and their prices — so the one thing a customer needed in
+        order to decide was the one thing they had to open something to see.
+        The prices are the server's, the cards are the page's, and pressing one
+        opens the confirmation with that capacity already chosen.
+      */}
+      {hasOffers ? (
+        <div className="bill-offer-grid" data-billing-storage-offers>
+          {addons.offers.map((offer) => {
+            const price = formatMoney(offer.priceCents, offer.currency);
+            return (
+              <div
+                key={offer.key}
+                className="bill-offer"
+                data-billing-storage-offer={offer.key}
+              >
+                <div className="bill-offer__capacity">
+                  <bdi>{offer.storageLabel}</bdi>
+                </div>
+                {/*
+                  The WHOLE phrase is isolated, not just the amount: in an RTL
+                  paragraph "US$59.99 / month" reorders to "month / US$59.99"
+                  unless the run is kept together.
+                */}
+                {price ? (
+                  <bdi className="bill-offer__price">
+                    {price}
+                    <span className="bill-offer__cadence"> / month</span>
+                  </bdi>
+                ) : null}
+                <div className="bill-offer__cadence">Billed monthly</div>
+                <div className="bill-actions bill-offer__action">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => onBuy(offer.key)}
+                    data-billing-buy-storage={offer.key}
+                  >
+                    Add storage
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
       {hasActive ? (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
+        <ul
+          className="bill-active-addons"
+          style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}
+        >
           {addons.active.map((addon) => {
             const price = formatMoney(addon.priceCents ?? null, addon.currency ?? null);
             const renews = formatDate(addon.currentPeriodEndUtc);
@@ -219,6 +281,7 @@ export function BillingHistorySection({
   recheckBusy,
   onRecheckPayment,
   onCancelPayment,
+  onAbandonPayment,
   rowBusyId,
   resumeUrls,
 }: {
@@ -249,6 +312,13 @@ export function BillingHistorySection({
    */
   onRecheckPayment: (entry: BillingHistoryEntry) => void;
   onCancelPayment: (entry: BillingHistoryEntry) => void;
+  /**
+   * Give up on a checkout the provider cannot be asked to stop.
+   *
+   * Offered INSTEAD of cancellation, never beside it: a provider that can
+   * really be asked to stop is asked.
+   */
+  onAbandonPayment: (entry: BillingHistoryEntry) => void;
   /** The row currently talking to the provider, if any. */
   rowBusyId: string | null;
   /**
@@ -436,6 +506,25 @@ export function BillingHistorySection({
                             data-billing-payment-cancel={entry.id}
                           >
                             Cancel payment
+                          </Button>
+                        ) : null}
+                        {entry.actions?.canAbandon ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => onAbandonPayment(entry)}
+                            disabled={busy}
+                            data-billing-payment-abandon={entry.id}
+                          >
+                            {/*
+                              NOT "Cancel payment". PayPal has no operation
+                              that cancels an unapproved order, and a button
+                              claiming otherwise would be telling a customer
+                              their provider had stopped something it had not.
+                              This is the customer's own decision, and the
+                              words say whose it is.
+                            */}
+                            Abandon payment attempt
                           </Button>
                         ) : null}
                       </div>

@@ -258,6 +258,21 @@ export type BillingAccountProjection = {
     canRequestCancellation: boolean;
     contactAccountManager: boolean;
     manageLabel: string | null;
+    /**
+     * THE ONE plan-management action. Server-decided, rendered verbatim.
+     *
+     * The card used to render one button per offer, so FREE showed "Subscribe
+     * to Pro" and "Subscribe to Team" side by side — both opening the same
+     * drawer — and PRO was offered "Subscribe to Team" for what is an upgrade
+     * of the subscription it already has.
+     */
+    planManagement: {
+      label: string;
+      mode: "CHOOSE" | "MANAGE" | "REVIEW_SCHEDULED";
+      enabled: boolean;
+    };
+    /** Why cancellation is absent, when it is. Present only then. */
+    cancellationUnavailableReason?: "NOT_AUTHORIZED" | "NO_SUBSCRIPTION_BOUND";
   };
 };
 
@@ -279,7 +294,7 @@ export type BillingHistoryEntry = {
    * capability. A page that worked it out from the status string would offer
    * PayPal customers a button that could only ever lie to them.
    */
-  actions: { canRecheck: boolean; canCancel: boolean };
+  actions: { canRecheck: boolean; canCancel: boolean; canAbandon: boolean };
 };
 
 /** What the server learned when it asked the provider about one payment. */
@@ -293,13 +308,39 @@ export type PaymentRecheckResult = {
    * send a paying customer to a dead page.
    */
   resumeUrl: string | null;
-  actions: { canRecheck: boolean; canCancel: boolean };
+  actions: { canRecheck: boolean; canCancel: boolean; canAbandon: boolean };
 };
+
+/**
+ * Giving up on a checkout the provider cannot be asked to stop.
+ *
+ * PayPal exposes no cancellation for an unapproved order, so a months-old
+ * approval attempt had "Re-check" and nothing else. This records the
+ * CUSTOMER's decision — after the server reconciles and confirms nothing was
+ * captured — and claims nothing about the provider.
+ */
+export type PaymentAbandonResult = {
+  outcome: "ABANDONED" | "ALREADY_ABANDONED" | "ALREADY_FINISHED" | "PROVIDER_ANSWERED";
+  status: string;
+  actions: { canRecheck: boolean; canCancel: boolean; canAbandon: boolean };
+};
+
+export async function abandonPayment(
+  account: BillingAccountRef,
+  paymentId: string,
+): Promise<PaymentAbandonResult> {
+  return (await apiFetch(
+    `/v1/billing/accounts/${account.type}/${encodeURIComponent(
+      account.id,
+    )}/payments/${encodeURIComponent(paymentId)}/abandon`,
+    { method: "POST", body: "{}" },
+  )) as PaymentAbandonResult;
+}
 
 export type PaymentCancelResult = {
   outcome: "CANCELLED" | "ALREADY_FINISHED";
   status: string;
-  actions: { canRecheck: boolean; canCancel: boolean };
+  actions: { canRecheck: boolean; canCancel: boolean; canAbandon: boolean };
 };
 
 /**

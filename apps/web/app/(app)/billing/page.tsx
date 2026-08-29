@@ -50,6 +50,7 @@ import {
   reconcileAccount,
   recheckPayment,
   cancelPayment,
+  abandonPayment,
   retryStorageCancellation,
   type BillingAccountProjection,
   type BillingAccountRef,
@@ -69,6 +70,7 @@ import {
   StorageAddonsSection,
 } from "./_sections/StorageAndHistory";
 import { CheckoutDrawer, type CheckoutIntent } from "./_sections/CheckoutDrawer";
+import { ManagePlanDrawer } from "./_sections/ManagePlanDrawer";
 import { formatDate } from "./_sections/format";
 import { apiFetch } from "../../../lib/api";
 // Route-owned presentation. Everything shared — the header, the panels, the
@@ -155,6 +157,15 @@ function BillingPageInner() {
     useState<"LOADING" | "READY" | "DENIED" | "ERROR">("LOADING");
 
   const [checkout, setCheckout] = useState<CheckoutIntent | null>(null);
+  /*
+   * THE ONE plan-management surface.
+   *
+   * Which one it is comes from the server (`actions.planManagement.mode`):
+   * an account with no subscription is CHOOSING, one that has a subscription
+   * is MANAGING it. The page opens whichever the server named rather than
+   * inferring it from the plan.
+   */
+  const [managePlanOpen, setManagePlanOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   // The plan key being changed to, so only that one button spins and a
   // second change cannot be started while the first is with the provider.
@@ -387,6 +398,22 @@ function BillingPageInner() {
     }
   }, [selected, projection, confirm, addToast, refresh]);
 
+  /**
+   * Open whichever plan surface the SERVER says this account has.
+   *
+   * CHOOSE — no subscription yet, so the chooser: pick a tier and pay.
+   * MANAGE / REVIEW_SCHEDULED — a subscription exists, so the manager: what it
+   * is, how to move it, and how to end it.
+   */
+  const openPlanManagement = useCallback(() => {
+    if (!projection) return;
+    if (projection.actions.planManagement.mode === "CHOOSE") {
+      setCheckout({ kind: "PLAN" });
+      return;
+    }
+    setManagePlanOpen(true);
+  }, [projection]);
+
   // ---- One payment's own lifecycle ---------------------------------------
   //
   // BILLING SURFACE CORRECTION (2026-08-29) — a pending row had no way to end.
@@ -481,6 +508,57 @@ function BillingPageInner() {
         const safe = toSafeUserError(err, {
           message:
             "We could not reach your payment provider. This payment is unchanged and nothing has been charged.",
+        });
+        addToast(safe.message, "error");
+      } finally {
+        setPaymentBusyId(null);
+      }
+    },
+    [selected, paymentBusyId, confirm, addToast, loadHistory],
+  );
+
+  const handleAbandonPayment = useCallback(
+    async (entry: BillingHistoryEntry) => {
+      if (!selected || paymentBusyId) return;
+
+      const ok = await confirm({
+        title: "Give up on this payment?",
+        description:
+          "We will check with your payment provider first. If nothing has been taken, we will stop offering to finish this checkout and mark it as abandoned. No completed charge is reversed, because there is none — and the record stays in your billing history.",
+        confirmLabel: "Abandon payment attempt",
+        cancelLabel: "Leave it open",
+        // Not destructive: nothing is deleted and no money moves. It is a
+        // decision, and dressing it in red would be telling the customer
+        // something untrue to discourage a legitimate choice.
+        tone: "warning",
+        testId: "billing-abandon-payment",
+      });
+      if (!ok) return;
+
+      setPaymentBusyId(entry.id);
+      try {
+        const result = await abandonPayment(selected, entry.id);
+        setResumeUrls((current) => {
+          const next = { ...current };
+          delete next[entry.id];
+          return next;
+        });
+        addToast(
+          result.outcome === "PROVIDER_ANSWERED"
+            ? "Your provider told us what actually happened to this payment, so we recorded that instead."
+            : result.outcome === "ALREADY_FINISHED"
+              ? "This payment had already finished. Nothing was changed."
+              : "We will not offer to finish this checkout again. Nothing was charged.",
+          result.outcome === "ABANDONED" || result.outcome === "ALREADY_ABANDONED"
+            ? "success"
+            : "info",
+        );
+        void loadHistory(selected);
+      } catch (err) {
+        captureException(err, { feature: "billing_payment_abandon" });
+        const safe = toSafeUserError(err, {
+          message:
+            "We could not check this payment with your payment provider, so nothing has changed and nothing has been charged.",
         });
         addToast(safe.message, "error");
       } finally {
@@ -708,20 +786,7 @@ function BillingPageInner() {
           <PageSection>
             <PlanSummaryCard
               projection={projection}
-              /*
-               * BILLING SURFACE CORRECTION (2026-08-29) — the button that was
-               * pressed decides which plan the drawer opens on.
-               *
-               * This was `setCheckout("PLAN")` for both buttons, so the drawer
-               * could not tell "Subscribe to Pro" from "Subscribe to Team" and
-               * fell back to the first offer in the list — PRO, every time.
-               */
-              onManage={(offer) =>
-                setCheckout({ kind: "PLAN", planKey: offer.planKey })
-              }
-              onChangePlan={(offer) => void handleChangePlan(offer)}
-              onCancel={() => void handleCancel()}
-              cancelBusy={cancelBusy}
+              onManagePlan={() => openPlanManagement()}
               changeBusyPlan={changeBusyPlan}
             />
           </PageSection>
@@ -782,8 +847,14 @@ function BillingPageInner() {
           <PageSection>
             <StorageAddonsSection
               projection={projection}
-              onBuy={() => setCheckout({ kind: "STORAGE" })}
-              onUpgrade={(planKey) => setCheckout({ kind: "PLAN", planKey })}
+              onBuy={(addonKey) => setCheckout({ kind: "STORAGE", addonKey })}
+              /*
+               * FREE has no add-on catalogue, so its storage card offers the
+               * PLAN CHOOSER — the same one the plan card opens — instead of a
+               * purchase drawer with an empty "Capacity" section and a dead
+               * payment button.
+               */
+              onChoosePlan={() => openPlanManagement()}
               onCancelAddon={(id) => void handleCancelAddon(id)}
               cancelBusyId={cancelAddonBusy}
             />
@@ -797,6 +868,7 @@ function BillingPageInner() {
               recheckBusy={recheckBusy}
               onRecheckPayment={(entry) => void handleRecheckPayment(entry)}
               onCancelPayment={(entry) => void handleCancelPayment(entry)}
+              onAbandonPayment={(entry) => void handleAbandonPayment(entry)}
               rowBusyId={paymentBusyId}
               resumeUrls={resumeUrls}
               onRecheck={() => {
@@ -922,9 +994,21 @@ function BillingPageInner() {
             </Card>
           </PageSection>
 
+          <ManagePlanDrawer
+            open={managePlanOpen}
+            projection={projection}
+            onClose={() => setManagePlanOpen(false)}
+            onChangePlan={(offer) => void handleChangePlan(offer)}
+            onCancel={() => void handleCancel()}
+            changeBusyPlan={changeBusyPlan}
+            cancelBusy={cancelBusy}
+          />
+
           <CheckoutDrawer
             open={checkout !== null}
-            intent={checkout ?? { kind: "PLAN", planKey: "PRO" }}
+            /* No plan is preselected: the chooser opens with nothing chosen
+               and checkout refuses until the customer picks. */
+            intent={checkout ?? { kind: "PLAN" }}
             projection={projection}
             onClose={() => setCheckout(null)}
             onCompleted={refresh}

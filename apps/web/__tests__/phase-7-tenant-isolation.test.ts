@@ -151,7 +151,12 @@ test("all 15 required Phase 7 surfaces compose the render-proven primitives", ()
     // the statement of subject that was always the point.
     [
       "app/(app)/billing/_sections/CheckoutDrawer.tsx",
-      [/This applies to \$\{projection\.account\.displayName\}/],
+      // The SENTENCE changed with the redesign — the plan drawer now says
+      // "Pick the plan for <account>" — but the PROPERTY was always the
+      // point: the drawer names the account it applies to, so a customer
+      // with two billing accounts can never be looking at the wrong one. It
+      // is asserted as the interpolation rather than as the wording.
+      [/projection\.account\.displayName/],
     ],
   ];
   // Share — N/A as a distinct authenticated form: sharing in this product

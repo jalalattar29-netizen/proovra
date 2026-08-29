@@ -1150,6 +1150,91 @@ html[dir="rtl"] .section {
   cursor: not-allowed;
 }
 
+/* ---------------------------------------------------------------------------
+ * THE AUTH EMAIL CTA — the one deliberate exception to the purple primary.
+ *
+ * WHAT IT IS FOR
+ * "Sign in with Email" and "Create account with Email" are the two actions
+ * that carry the marketing site's own identity into the product. They are not
+ * application primary buttons: they are the last step of the public funnel,
+ * they sit on the marketing gradient, and they have always been coral. The
+ * global CTA cleanup that moved `--btn-primary-bg` to the brand purple swept
+ * them up with everything else, and that was wrong — it flattened a
+ * deliberate brand treatment into an application control.
+ *
+ * WHY IT IS A CLASS AND NOT INLINE STYLES
+ * The values below are EXACTLY what those two buttons carried before that
+ * cleanup (commit 20986430^), recovered from git rather than re-picked by eye.
+ * They used to be repeated inline in two files, which is how one of them can
+ * drift from the other without anyone noticing. There is now ONE authority and
+ * the buttons name it, so "the Auth CTA" is a thing the codebase can point at.
+ *
+ * WHAT IS EXPLICITLY NOT ALLOWED
+ * This is the ONLY place the coral CTA palette exists. Nothing in the
+ * application — Billing above all — may use it: an app primary action is the
+ * canonical purple, and ui-foundation-phase7 proves the deprecated literals
+ * appear nowhere else in this stylesheet.
+ * ------------------------------------------------------------------------- */
+:root {
+  --auth-cta-bg: linear-gradient(90deg, #e64880 0%, #ff6b6b 52%, #ff8a6a 100%);
+  --auth-cta-bg-hover: linear-gradient(90deg, #d63e76 0%, #f75f5f 52%, #f97d5c 100%);
+  --auth-cta-color: #ffffff;
+  --auth-cta-border: rgba(230, 72, 128, 0.45);
+  --auth-cta-shadow: 0 14px 28px rgba(230, 72, 128, 0.22);
+  --auth-cta-shadow-active: 0 6px 14px rgba(230, 72, 128, 0.26);
+  --auth-cta-focus-ring: 0 0 0 3px rgba(230, 72, 128, 0.32);
+  /* The historical disabled treatment, from the resend-verification button
+     that carried the same palette: a flat wash, muted ink, no lift. */
+  --auth-cta-disabled-bg: rgba(230, 72, 128, 0.18);
+  --auth-cta-disabled-color: #7a687d;
+}
+
+.auth-email-cta {
+  background: var(--auth-cta-bg);
+  color: var(--auth-cta-color);
+  border: 1px solid var(--auth-cta-border);
+  box-shadow: var(--auth-cta-shadow);
+  font-weight: 600;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease;
+}
+
+.auth-email-cta:hover:not(:disabled) {
+  background: var(--auth-cta-bg-hover);
+}
+
+.auth-email-cta:active:not(:disabled) {
+  box-shadow: var(--auth-cta-shadow-active);
+  transform: translateY(1px);
+}
+
+.auth-email-cta:focus-visible {
+  outline: none;
+  box-shadow: var(--auth-cta-focus-ring);
+}
+
+/* Submitting. The button keeps its identity and stops accepting presses; the
+   copy inside it says what is happening. */
+.auth-email-cta:disabled,
+.auth-email-cta[aria-busy="true"] {
+  background: var(--auth-cta-disabled-bg);
+  color: var(--auth-cta-disabled-color);
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-email-cta {
+    transition: none;
+  }
+  .auth-email-cta:active:not(:disabled) {
+    transform: none;
+  }
+}
+
 .auth-social-icon {
   display: inline-flex;
   align-items: center;

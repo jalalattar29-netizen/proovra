@@ -3334,6 +3334,25 @@ enum PaymentStatus {
   ///            timed out, or one this product asked Stripe to expire.
   CANCELED
   EXPIRED
+  /// BILLING SURFACE CORRECTION (2026-08-29) — the customer walked away, and
+  /// the provider never gave us an answer either way.
+  ///
+  /// PayPal has no operation that cancels an unapproved order: such an order
+  /// simply lapses at PayPal's own pace, and the v2 Orders API offers nothing
+  /// to stop it (its `void` applies to an AUTHORIZED payment, which this
+  /// product never creates — it captures directly). So a months-old PayPal
+  /// approval attempt could only sit at PENDING for ever, and the only honest
+  /// button beside it was "Re-check", which kept answering the same thing.
+  ///
+  /// ABANDONED is what the CUSTOMER did, stated as their act rather than the
+  /// provider's. It is written ONLY after a reconciliation confirms no capture
+  /// and no authorization succeeded, it stops this product resuming that
+  /// checkout, and it claims nothing about PayPal: no charge is reversed,
+  /// because none was ever made. A later provider event that proves settlement
+  /// still wins — the shared transition treats ABANDONED as terminal for the
+  /// customer's purposes but lets a SUCCEEDED observation through, because
+  /// money that actually moved is a fact and this is a statement of intent.
+  ABANDONED
 }
 
 enum SubscriptionStatus {

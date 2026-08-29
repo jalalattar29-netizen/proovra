@@ -1173,6 +1173,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // enum or mapping is altered by it, which is what this allowlist is
       // about.
       "20280101000000_billing_payment_terminal_states",
+      // BILLING SURFACE CORRECTION — one PaymentStatus enum value, ABANDONED,
+      // so a checkout the customer walked away from has somewhere honest to
+      // go on a provider that cannot be asked to stop it. It touches the
+      // PaymentStatus enum alone. No `security_events` column, index, enum or
+      // mapping is altered by it, which is what this allowlist is about.
+      "20280102000000_billing_payment_abandoned",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -10,8 +10,11 @@
  *      hierarchy, because "what am I on, what does it cost, what can I do
  *      about it" is the question the page exists to answer
  *   2. the usage grid and its meters
- *   3. the history table's column behaviour
- *   4. the support banner
+ *   3. the shared selectable-row control
+ *   4. the drawer's sections, summaries and fact lists
+ *   5. the storage offers and the FREE upgrade card
+ *   6. the history table's column behaviour
+ *   7. the support banner
  *
  * PREFIX. `bill-*`. Nothing else in the app owns it.
  *
@@ -41,9 +44,41 @@
  * ------------------------------------------------------------------------- */
 .bill-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* facts | key numbers | actions — the three things the card is for, in the
+     order they are read. The middle column is what filled the empty half. */
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
   align-items: start;
-  gap: 24px;
+  gap: 28px;
+}
+
+.bill-hero__facts-grid {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+.bill-hero__fact {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.bill-hero__fact dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5f6878);
+}
+
+.bill-hero__fact dd {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-strong, #172033);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .bill-hero__facts {
@@ -128,6 +163,16 @@
   block-size: 44px;
 }
 
+@media (max-width: 1180px) {
+  .bill-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .bill-hero__facts-grid {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  }
+}
+
 @media (max-width: 860px) {
   .bill-hero {
     grid-template-columns: minmax(0, 1fr);
@@ -206,7 +251,274 @@
 }
 
 /* ---------------------------------------------------------------------------
- * 3. HISTORY
+ * 3. CHOICES — one selectable-row implementation, used by every drawer
+ *
+ * The plan tiers, the storage capacities and the payment methods are the same
+ * control: a native radio inside a label, so the whole row is the hit area,
+ * arrow keys move within the group, and the browser supplies the focus ring.
+ * They looked like three different things because each was styled where it was
+ * written; the payment rows in particular ran together into what read as one
+ * "CardPayPal" control.
+ *
+ * Selection is never carried by colour alone: the radio itself is checked, the
+ * row gains a border and a ring, and the row's own text says what it is.
+ * ------------------------------------------------------------------------- */
+.bill-choice {
+  display: grid;
+  gap: 10px;
+}
+
+.bill-choice__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+  background: var(--surface-card, #ffffff);
+  cursor: pointer;
+  min-block-size: 44px;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.bill-choice__option:hover {
+  border-color: var(--accent-300, #c4b5fd);
+  background: var(--accent-050, #f6f3ff);
+}
+
+.bill-choice__option[data-selected="true"] {
+  border-color: var(--accent-500, #7c3aed);
+  box-shadow: 0 0 0 1px var(--accent-500, #7c3aed);
+  background: var(--accent-050, #f6f3ff);
+}
+
+/* The focus ring belongs to the ROW, because the radio inside it is the thing
+   being focused and the row is what the eye reads. */
+.bill-choice__option:focus-within {
+  border-color: var(--accent-500, #7c3aed);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
+.bill-choice__input {
+  margin-block-start: 2px;
+  inline-size: 18px;
+  block-size: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--accent-500, #7c3aed);
+}
+
+.bill-choice__body {
+  min-inline-size: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.bill-choice__title {
+  font-weight: 600;
+  color: var(--text-strong, #172033);
+  overflow-wrap: anywhere;
+}
+
+.bill-choice__meta {
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--text-muted, #475569);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. DRAWER CONTENT — sections, summaries and facts
+ * ------------------------------------------------------------------------- */
+.bill-drawer-body {
+  display: grid;
+  gap: 22px;
+}
+
+.bill-section__heading {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5f6878);
+}
+
+/* A summary is a list of facts, each on its own line, with the total set
+   apart. Every number a customer is about to agree to is on one card. */
+.bill-summary {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+  background: var(--surface-muted, #f8fafc);
+  display: grid;
+  gap: 8px;
+}
+
+.bill-summary__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.9rem;
+  color: var(--text-muted, #475569);
+}
+
+.bill-summary__row > span:last-child {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-strong, #172033);
+  text-align: end;
+}
+
+.bill-summary__row--total {
+  margin-block-start: 4px;
+  padding-block-start: 10px;
+  border-block-start: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-strong, #172033);
+}
+
+.bill-summary__note {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted, #5f6878);
+}
+
+/* A fact list inside the management drawer: what the customer is on now. */
+.bill-facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.bill-facts__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.9rem;
+}
+
+.bill-facts__label {
+  color: var(--text-muted, #5f6878);
+}
+
+.bill-facts__value {
+  color: var(--text-strong, #172033);
+  font-weight: 600;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+/* A stack of full-width actions inside a drawer, each a real target. */
+.bill-stacked-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.bill-stacked-actions > * {
+  inline-size: 100%;
+  min-block-size: 44px;
+  block-size: 44px;
+  justify-content: center;
+}
+
+/* ---------------------------------------------------------------------------
+ * 5. STORAGE — the offers on the page, and the FREE upgrade card
+ *
+ * The capacities and their prices are what a customer needs in order to
+ * decide, and they used to be behind an "Add storage" button: the drawer's
+ * only content was the list. They are cards on the page now, and pressing one
+ * opens the confirmation with that capacity already chosen.
+ * ------------------------------------------------------------------------- */
+.bill-offer-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+}
+
+.bill-offer {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
+  background: var(--surface-card, #ffffff);
+  min-inline-size: 0;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.bill-offer:hover {
+  border-color: var(--accent-300, #c4b5fd);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.bill-offer__capacity {
+  font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-strong, #172033);
+}
+
+.bill-offer__price {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-strong, #172033);
+}
+
+.bill-offer__cadence {
+  font-size: 0.84rem;
+  font-weight: 400;
+  color: var(--text-muted, #5f6878);
+}
+
+.bill-offer__action {
+  margin-block-start: 12px;
+}
+
+/* FREE: storage is a PLAN question, so the card answers it with the plan
+   chooser rather than an empty purchase drawer. */
+.bill-storage-upgrade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bill-storage-upgrade__facts {
+  min-inline-size: 0;
+  flex: 1 1 280px;
+  display: grid;
+  gap: 4px;
+}
+
+.bill-storage-upgrade__included {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--text-strong, #172033);
+}
+
+.bill-storage-upgrade__copy {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-muted, #475569);
+  overflow-wrap: anywhere;
+}
+
+.bill-active-addons {
+  margin-block-start: 16px;
+}
+
+/* ---------------------------------------------------------------------------
+ * 6. HISTORY
  *
  * The table itself is the canonical `.app-table[data-responsive]`, which
  * already collapses to stacked cards below 720px. Only the column behaviour is
@@ -269,7 +581,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * 4. SUPPORT BANNER
+ * 7. SUPPORT BANNER
  *
  * The last thing on the page, and the one a customer reaches when the rest of
  * it has not answered their question.

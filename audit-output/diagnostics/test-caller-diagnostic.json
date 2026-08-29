@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "7e1bf18cbdad3ba278bfcd41c60663cca1651668931e0f7ea5d8872ecd2db4a0",
+  "capabilityRouteInventoryHash": "fbb6753dac547c138b31ffbfb4558d1f7cad39370aff0e7613238262b8489040",
   "totals": {
-    "routes": 1116,
+    "routes": 1117,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -3844,6 +3844,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/billing/accounts/:type/:id/payments/:paymentId/abandon",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/billing/accounts/:type/:id/payments/:paymentId/cancel",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6778,5 +6784,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "1e1bcedeac9c287aec94869a8168bcdab3fbaadae915c2a264813f766c2cfd29"
+  "contentHash": "9dae4a605ef3551a11df0831d1922f241884f6a8fa154fd1f118bcb068f1df71"
 }

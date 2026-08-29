@@ -495,6 +495,34 @@ export type BillingAccountProjection = {
      * when there is no manage action to render.
      */
     manageLabel: string | null;
+    /**
+     * THE ONE plan-management action, decided here.
+     *
+     * BILLING SURFACE CORRECTION (2026-08-29) — the card used to render one
+     * button per plan offer, so a FREE account got "Subscribe to Pro" AND
+     * "Subscribe to Team" side by side and both opened the same drawer, while
+     * a PRO account got "Subscribe to Team" for what is an upgrade of the
+     * subscription it already has. Which single action a customer is offered
+     * depends on whether they have a subscription, whether a change is already
+     * scheduled, and whether they may manage billing at all — three facts the
+     * browser cannot see.
+     */
+    planManagement: {
+      label: string;
+      /** Opening the CHOOSER (no subscription) or the MANAGER (has one). */
+      mode: "CHOOSE" | "MANAGE" | "REVIEW_SCHEDULED";
+      enabled: boolean;
+    };
+    /**
+     * Why cancellation is not on offer, when it is not.
+     *
+     * Absent when `canRequestCancellation` is true. Present so the surface can
+     * say WHICH refusal this is: a viewer who may not cancel and a payer whose
+     * subscription we cannot find are different problems with different
+     * remedies, and rendering nothing for both is what made a missing
+     * subscription look like a product without cancellation.
+     */
+    cancellationUnavailableReason?: "NOT_AUTHORIZED" | "NO_SUBSCRIPTION_BOUND";
   };
 };
 
@@ -1281,10 +1309,46 @@ export async function buildBillingAccountProjection(input: {
           ? "Change plan"
           : "Upgrade plan"
         : null,
+      planManagement: {
+        label: !canManage
+          ? "View plan"
+          : subscription
+            ? subscription?.pendingPlan
+              ? "Review plan change"
+              : "Manage plan"
+            : "Choose a plan",
+        mode: subscription
+          ? subscription?.pendingPlan
+            ? ("REVIEW_SCHEDULED" as const)
+            : ("MANAGE" as const)
+          : ("CHOOSE" as const),
+        // A viewer without BILLING_MANAGE sees the card and its facts; the
+        // action is present but inert, rather than absent and unexplained.
+        enabled: canManage,
+      },
       // Credits are a PERSONAL product; a workspace buys a TEAM subscription.
       canBuyEvidenceCredits: canManage && account.type === "PERSONAL",
       canBuyStorageAddon: canAddon && addonsEligible,
       canRequestCancellation: canCancel && Boolean(subscription),
+      /*
+       * THE DEFECT THIS NAMES.
+       *
+       * `canRequestCancellation` is correctly false without a bound provider
+       * subscription — there is nothing to ask a provider to stop. But an
+       * account can be ON a paid plan with no subscription row: an entitlement
+       * written by provisioning, a webhook that never landed, a binding lost to
+       * an old migration. That customer is paying and had NO cancellation
+       * action and no explanation, which is indistinguishable from a product
+       * that does not let you leave.
+       *
+       * It is reported rather than papered over: the surface says we cannot
+       * find the subscription and sends them to support, and reconciliation
+       * remains the thing that can repair the binding.
+       */
+      ...(canCancel && !subscription
+        ? { cancellationUnavailableReason: "NO_SUBSCRIPTION_BOUND" as const }
+        : {}),
+      ...(!canCancel ? { cancellationUnavailableReason: "NOT_AUTHORIZED" as const } : {}),
       contactAccountManager: false,
     },
   };
@@ -1437,6 +1501,14 @@ async function buildOrganizationProjection(input: {
       // through Stripe or PayPal. Offering a checkout the product cannot honour
       // is worse than offering none.
       canStartCheckout: false,
+      // Contract changes route through the account manager, so the one action
+      // an Organization is offered says so rather than opening a chooser.
+      planManagement: {
+        label: "Contact your account manager",
+        mode: "MANAGE" as const,
+        enabled: false,
+      },
+      cancellationUnavailableReason: "NOT_AUTHORIZED" as const,
       canBuyEvidenceCredits: false,
       canBuyStorageAddon: false,
       canRequestCancellation: false,

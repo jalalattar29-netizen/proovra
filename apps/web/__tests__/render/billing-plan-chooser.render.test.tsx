@@ -103,6 +103,8 @@ function freeAccount(
     planOffers: [OFFER_PRO, OFFER_TEAM],
     actions: {
       canStartCheckout: true,
+      // FREE has no subscription, so the ONE action is the chooser.
+      planManagement: { label: "Choose a plan", mode: "CHOOSE", enabled: true },
       canBuyEvidenceCredits: true,
       canBuyStorageAddon: false,
       canRequestCancellation: false,
@@ -114,6 +116,17 @@ function freeAccount(
 }
 
 const noop = () => {};
+
+/**
+ * The drawer's primary action.
+ *
+ * Found by its attribute rather than its words, because the words are now the
+ * point of a separate assertion: the CTA says "Continue with Pro" or "Continue
+ * with Team", so the one place a customer could catch a wrong selection says
+ * which plan they are about to pay for.
+ */
+const continueButton = () =>
+  document.querySelector<HTMLButtonElement>("[data-billing-checkout-continue]")!;
 
 beforeEach(() => {
   apiFetch.mockReset();
@@ -128,27 +141,61 @@ afterEach(() => {
 // 1. The button that was pressed decides which plan the page asks for
 // ===========================================================================
 
-describe("the plan buttons on a FREE account", () => {
-  it("hand the pressed offer to the caller, not a shared 'open the drawer'", async () => {
+describe("the plan action on a FREE account", () => {
+  it("is exactly ONE button, and it says Choose a plan", async () => {
+    /*
+     * What this replaces: two buttons, "Subscribe to Pro" and "Subscribe to
+     * Team", side by side on the card — both opening the same drawer, which
+     * then could not tell which had been pressed and checked out PRO either
+     * way. One button now opens the chooser, and the choice is made inside it
+     * where it can be seen and changed.
+     */
     const user = userEvent.setup();
-    const opened: string[] = [];
+    let opened = 0;
 
-    render(
+    const { container } = render(
       <PlanSummaryCard
         projection={freeAccount()}
-        onManage={(offer) => opened.push(offer.planKey)}
-        onChangePlan={noop}
-        onCancel={noop}
-        cancelBusy={false}
+        onManagePlan={() => {
+          opened += 1;
+        }}
         changeBusyPlan={null}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Subscribe to Team" }));
-    await user.click(screen.getByRole("button", { name: "Subscribe to Pro" }));
+    const actions = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-billing-plan-management]"),
+    );
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.textContent).toBe("Choose a plan");
+    expect(actions[0]!.getAttribute("data-billing-plan-management")).toBe("CHOOSE");
 
-    // The defect was that both presses were indistinguishable to the drawer.
-    expect(opened).toEqual(["TEAM", "PRO"]);
+    // And the words that used to be there are gone from the card entirely.
+    expect(container.textContent).not.toMatch(/Subscribe to (Pro|Team)/);
+
+    await user.click(actions[0]!);
+    expect(opened).toBe(1);
+  });
+
+  it("offers no enabled action to a viewer who may not manage billing", () => {
+    const { container } = render(
+      <PlanSummaryCard
+        projection={freeAccount({
+          actions: {
+            ...freeAccount().actions,
+            planManagement: { label: "View plan", mode: "CHOOSE", enabled: false },
+          },
+        })}
+        onManagePlan={noop}
+        changeBusyPlan={null}
+      />,
+    );
+
+    const action = container.querySelector<HTMLButtonElement>(
+      "[data-billing-plan-management]",
+    );
+    expect(action).not.toBeNull();
+    expect(action!.disabled).toBe(true);
   });
 });
 
@@ -193,7 +240,7 @@ describe("the checkout drawer", () => {
     const user = userEvent.setup();
     mountDrawer("TEAM");
 
-    await user.click(screen.getByRole("button", { name: /Continue to payment/i }));
+    await user.click(continueButton());
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
     const [path, init] = apiFetch.mock.calls[0] as [string, { body: string }];
@@ -205,7 +252,7 @@ describe("the checkout drawer", () => {
     const user = userEvent.setup();
     mountDrawer("PRO");
 
-    await user.click(screen.getByRole("button", { name: /Continue to payment/i }));
+    await user.click(continueButton());
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
     const [, init] = apiFetch.mock.calls[0] as [string, { body: string }];
@@ -217,7 +264,7 @@ describe("the checkout drawer", () => {
     mountDrawer("PRO");
 
     await user.click(screen.getByRole("radio", { name: /Team/ }));
-    await user.click(screen.getByRole("button", { name: /Continue to payment/i }));
+    await user.click(continueButton());
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
     const [, init] = apiFetch.mock.calls[0] as [string, { body: string }];
@@ -227,7 +274,7 @@ describe("the checkout drawer", () => {
   it("never sends a price, an amount or a provider id from the browser", async () => {
     const user = userEvent.setup();
     mountDrawer("TEAM");
-    await user.click(screen.getByRole("button", { name: /Continue to payment/i }));
+    await user.click(continueButton());
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
     const [, init] = apiFetch.mock.calls[0] as [string, { body: string }];
@@ -242,7 +289,7 @@ describe("the checkout drawer", () => {
     apiFetch.mockImplementation(() => new Promise(() => {}));
     mountDrawer("TEAM");
 
-    const button = screen.getByRole("button", { name: /Continue to payment/i });
+    const button = continueButton();
     await user.click(button);
     await waitFor(() =>
       expect((button as HTMLButtonElement).disabled).toBe(true),
@@ -294,7 +341,7 @@ const pendingRow: BillingHistoryEntry = {
   amountCents: 500,
   currency: "USD",
   providerLabel: "Card",
-  actions: { canRecheck: true, canCancel: true },
+  actions: { canRecheck: true, canCancel: true, canAbandon: false },
 };
 
 const settledRow: BillingHistoryEntry = {
@@ -305,7 +352,25 @@ const settledRow: BillingHistoryEntry = {
   amountCents: 1900,
   currency: "EUR",
   providerLabel: "PayPal",
-  actions: { canRecheck: false, canCancel: false },
+  actions: { canRecheck: false, canCancel: false, canAbandon: false },
+};
+
+/**
+ * A PayPal approval attempt from months ago.
+ *
+ * PayPal exposes no cancellation for an unapproved order, so the server offers
+ * `canAbandon` in place of `canCancel` — the customer's own decision rather
+ * than a claim about what PayPal did.
+ */
+const stalePayPalRow: BillingHistoryEntry = {
+  id: "33333333-3333-4333-8333-333333333333",
+  occurredAtUtc: "2026-03-11T10:00:00.000Z",
+  description: "Pro plan",
+  status: "PENDING",
+  amountCents: 1900,
+  currency: "EUR",
+  providerLabel: "PayPal",
+  actions: { canRecheck: true, canCancel: false, canAbandon: true },
 };
 
 function mountHistory(
@@ -313,6 +378,7 @@ function mountHistory(
   over: {
     onRecheckPayment?: (e: BillingHistoryEntry) => void;
     onCancelPayment?: (e: BillingHistoryEntry) => void;
+    onAbandonPayment?: (e: BillingHistoryEntry) => void;
     resumeUrls?: Record<string, string>;
   } = {},
 ) {
@@ -325,6 +391,7 @@ function mountHistory(
       recheckBusy={false}
       onRecheckPayment={over.onRecheckPayment ?? noop}
       onCancelPayment={over.onCancelPayment ?? noop}
+      onAbandonPayment={over.onAbandonPayment ?? noop}
       rowBusyId={null}
       resumeUrls={over.resumeUrls ?? {}}
     />,
@@ -380,6 +447,42 @@ describe("billing history rows", () => {
     expect(container.textContent).toMatch(/Pending/);
   });
 
+  it("offers an honest abandon on a row the provider cannot be asked to stop", async () => {
+    /*
+     * THE defect this closes. A PayPal approval attempt from March sat at
+     * "Pending" with one action — "Re-check" — that kept returning the same
+     * answer, because PayPal has no operation that cancels an unapproved
+     * order. The dishonest fix is a "Cancel payment" button claiming PayPal
+     * stopped something; the honest one names whose decision it is.
+     */
+    const user = userEvent.setup();
+    const abandoned: string[] = [];
+    const { container } = mountHistory([stalePayPalRow], {
+      onAbandonPayment: (e) => abandoned.push(e.id),
+    });
+
+    expect(screen.queryByRole("button", { name: "Cancel payment" })).toBeNull();
+    const abandon = screen.getByRole("button", { name: "Abandon payment attempt" });
+    expect(container.querySelector("[data-billing-payment-abandon]")).not.toBeNull();
+
+    await user.click(abandon);
+    expect(abandoned).toEqual([stalePayPalRow.id]);
+  });
+
+  it("never offers both stopping and abandoning on one row", () => {
+    // A provider that can really be asked to stop should be asked. Offering
+    // both would ask the customer to choose between a real cancellation and a
+    // local note, which is not a choice anybody can make well.
+    const { container } = mountHistory([pendingRow, stalePayPalRow]);
+    for (const row of Array.from(
+      container.querySelectorAll("[data-billing-history-row]"),
+    )) {
+      const hasCancel = row.querySelector("[data-billing-payment-cancel]");
+      const hasAbandon = row.querySelector("[data-billing-payment-abandon]");
+      expect(Boolean(hasCancel) && Boolean(hasAbandon)).toBe(false);
+    }
+  });
+
   it("is a real table with column headers, collapsible to cards", () => {
     const { container } = mountHistory([pendingRow, settledRow]);
     const table = container.querySelector("table.app-table");
@@ -402,18 +505,15 @@ describe("Billing's primary action", () => {
     const { container } = render(
       <PlanSummaryCard
         projection={freeAccount()}
-        onManage={noop}
-        onChangePlan={noop}
-        onCancel={noop}
-        cancelBusy={false}
+        onManagePlan={noop}
         changeBusyPlan={null}
       />,
     );
 
     const offers = Array.from(
-      container.querySelectorAll<HTMLElement>("[data-billing-plan-offer]"),
+      container.querySelectorAll<HTMLElement>("[data-billing-plan-management]"),
     );
-    expect(offers.length).toBe(2);
+    expect(offers.length).toBe(1);
 
     for (const offer of offers) {
       // The deprecated coral gradient, in every form it was written in.

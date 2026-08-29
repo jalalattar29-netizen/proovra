@@ -1575,17 +1575,11 @@ function RegisterPageContent() {
                                 </span>
                               </label>
                               <button
-                                className="auth-social-btn"
+                                className="auth-social-btn auth-email-cta"
                                 type="submit"
                                 disabled={busy}
-                                style={{
-                                  background:
-                                    "var(--btn-primary-bg)",
-                                  color: "#ffffff",
-                                  border: "1px solid var(--btn-primary-border)",
-                                  boxShadow: "var(--btn-primary-shadow)",
-                                  fontWeight: 600,
-                                }}
+                                aria-busy={busy}
+                                data-auth-email-cta="REGISTER"
                               >
                                 {busy && registerStep > 0 ? (
                                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>

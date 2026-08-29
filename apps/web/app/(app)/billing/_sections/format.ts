@@ -369,6 +369,10 @@ export function statusLabel(status: string): string {
   if (s === "PAST_DUE") return "Payment failed";
   if (s === "CANCELED" || s === "CANCELLED") return "Cancelled";
   if (s === "EXPIRED") return "Expired";
+  // BILLING SURFACE CORRECTION (2026-08-29) — the customer's own word for a
+  // checkout they walked away from. Not "Cancelled": nobody cancelled it, and
+  // the provider was never able to be asked.
+  if (s === "ABANDONED") return "Abandoned";
   // An unmapped provider value is never printed raw at a customer.
   return "Status pending";
 }
@@ -379,6 +383,9 @@ export function statusTone(
   const s = String(status ?? "").trim().toUpperCase();
   if (s === "SUCCEEDED" || s === "ACTIVE") return "verified";
   if (s === "PENDING" || s === "PAST_DUE") return "pending";
+  // Neutral, deliberately: nothing went wrong and no money moved. An
+  // abandoned attempt is a closed door, not a failure.
+  if (s === "ABANDONED") return "neutral";
   if (s === "FAILED") return "risk";
   return "neutral";
 }

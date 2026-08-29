@@ -1,0 +1,26 @@
+-- BILLING SURFACE CORRECTION (2026-08-29) — the state a walked-away PayPal
+-- checkout can actually reach.
+--
+-- WHY THIS MIGRATION EXISTS
+-- ---------------------------------------------------------------------------
+-- PayPal exposes no operation that cancels an unapproved order — such an order
+-- lapses at PayPal's own pace, and the v2 Orders API has no cancel for it. So a
+-- customer looking at a PayPal approval attempt from March had exactly one
+-- honest action, "Re-check", which kept returning the same answer, and the row
+-- stayed PENDING indefinitely. The dishonest alternative was a "Cancel payment"
+-- button that would claim PayPal had stopped something it had not.
+--
+-- ABANDONED is the customer's own act, recorded as theirs: they are telling us
+-- they are not going to finish this checkout. It is written ONLY after a
+-- reconciliation confirms no capture and no authorization succeeded, it stops
+-- this product resuming that checkout, and it asserts nothing about the
+-- provider — no completed charge is reversed, because none was ever made.
+--
+-- EXPAND-SAFE
+-- ---------------------------------------------------------------------------
+-- One enum value, added. No existing row changes status, no column is dropped
+-- or narrowed, and nothing here reads or rewrites payment history. Adding an
+-- enum value is allowed inside a transaction on PostgreSQL 12+ so long as the
+-- new value is not USED in the same transaction, and nothing here uses it.
+
+ALTER TYPE "PaymentStatus" ADD VALUE IF NOT EXISTS 'ABANDONED';

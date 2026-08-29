@@ -54,10 +54,16 @@ describe("payment statuses", () => {
     const nonTerminal = all.filter((s) => !isTerminalPaymentStatus(s));
     expect(nonTerminal).toEqual([S.PENDING]);
     expect(TERMINAL_PAYMENT_STATUSES.size).toBe(all.length - 1);
+    // ABANDONED counts as terminal: this product will not resume that
+    // checkout, even though the provider never told us anything.
+    expect(TERMINAL_PAYMENT_STATUSES.has(S.ABANDONED)).toBe(true);
   });
 
-  it("round-trips every status through the observation vocabulary", () => {
-    for (const status of Object.values(S)) {
+  it("round-trips every PROVIDER status through the observation vocabulary", () => {
+    // ABANDONED is excluded deliberately: it is the customer's statement, not
+    // a provider's, and it maps to UNKNOWN precisely so no adapter can claim
+    // to have observed it. See the ABANDONED section.
+    for (const status of Object.values(S).filter((v) => v !== S.ABANDONED)) {
       expect(
         paymentStatusFromObservedState(observedStateFromPaymentStatus(status)),
       ).toBe(status);
@@ -209,6 +215,56 @@ describe("out-of-order delivery", () => {
 });
 
 // ===========================================================================
+// 4b. ABANDONED — the customer's own statement
+// ===========================================================================
+
+describe("a payment the customer walked away from", () => {
+  it("is terminal, so nothing reopens it as pending", () => {
+    expect(isTerminalPaymentStatus(S.ABANDONED)).toBe(true);
+    expect(decide(S.ABANDONED, "PENDING")).toEqual({
+      apply: false,
+      reason: "TERMINAL_NOT_REGRESSED",
+    });
+  });
+
+  it("yields to money that actually moved", () => {
+    /*
+     * ABANDONED records an INTENTION — "I am not going to finish this" — taken
+     * only after a reconciliation found no capture. A person can be overtaken
+     * by events: if the provider later proves the payment settled, the
+     * settlement is a fact and the intention is not.
+     */
+    expect(decide(S.ABANDONED, "SUCCEEDED")).toEqual({
+      apply: true,
+      status: S.SUCCEEDED,
+    });
+  });
+
+  it("is not reopened by any other later provider answer", () => {
+    for (const observed of ["FAILED", "CANCELED", "EXPIRED", "REFUNDED"] as ObservedState[]) {
+      expect(decide(S.ABANDONED, observed)).toEqual({
+        apply: false,
+        reason: "TERMINAL_NOT_REGRESSED",
+      });
+    }
+  });
+
+  it("is never something a provider can claim to have observed", () => {
+    // Every other status is a provider fact. This one is the customer's, and
+    // giving it an observed state would invite an adapter to assert it.
+    expect(observedStateFromPaymentStatus(S.ABANDONED)).toBe("UNKNOWN");
+    expect(paymentStatusFromObservedState("UNKNOWN")).toBeNull();
+  });
+
+  it("is idempotent — abandoning twice writes once", () => {
+    expect(decide(S.ABANDONED, "UNKNOWN")).toEqual({
+      apply: false,
+      reason: "NOTHING_LEARNED",
+    });
+  });
+});
+
+// ===========================================================================
 // 5. Which actions a row may offer
 // ===========================================================================
 
@@ -279,7 +335,7 @@ describe("the actions one payment row offers", () => {
           viewerMayCancel: true,
           providers: providers(),
         }),
-      ).toEqual({ canRecheck: false, canCancel: false });
+      ).toEqual({ canRecheck: false, canCancel: false, canAbandon: false });
     }
   });
 
@@ -295,7 +351,7 @@ describe("the actions one payment row offers", () => {
         viewerMayCancel: true,
         providers: providers(),
       }),
-    ).toEqual({ canRecheck: true, canCancel: true });
+    ).toEqual({ canRecheck: true, canCancel: true, canAbandon: false });
 
     expect(
       paymentRowActions({
@@ -304,10 +360,12 @@ describe("the actions one payment row offers", () => {
         viewerMayCancel: true,
         providers: providers(),
       }),
-    ).toEqual({ canRecheck: true, canCancel: false });
+    ).toEqual({ canRecheck: true, canCancel: false, canAbandon: true });
   });
 
-  it("withholds cancellation from a viewer who may not cancel", () => {
+  it("withholds BOTH stopping and abandoning from a viewer who may not cancel", () => {
+    // Abandoning changes what this product will do with a live checkout, so it
+    // is the payer's decision in exactly the way cancelling is.
     expect(
       paymentRowActions({
         status: S.PENDING,
@@ -315,7 +373,7 @@ describe("the actions one payment row offers", () => {
         viewerMayCancel: false,
         providers: providers(),
       }),
-    ).toEqual({ canRecheck: true, canCancel: false });
+    ).toEqual({ canRecheck: true, canCancel: false, canAbandon: false });
   });
 
   it("offers nothing when no adapter exists for the provider", () => {
@@ -326,6 +384,6 @@ describe("the actions one payment row offers", () => {
         viewerMayCancel: true,
         providers: {},
       }),
-    ).toEqual({ canRecheck: false, canCancel: false });
+    ).toEqual({ canRecheck: false, canCancel: false, canAbandon: false });
   });
 });

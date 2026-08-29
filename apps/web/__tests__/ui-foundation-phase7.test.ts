@@ -47,16 +47,158 @@ test("--btn-primary-bg is the PROOVRA purple, not a gradient", () => {
   assert.ok(!value.includes("gradient"), "a solid colour, so focus and disabled states can be stated");
 });
 
-test("the retired coral/pink CTA cannot come back through the token", () => {
-  // Every retired stop, checked by value rather than by the word "coral", so
-  // renaming the comment cannot smuggle the colour back in.
-  for (const retired of ["#e64880", "#ff6b6b", "#ff8a6a", "#d63e76", "#f75f5f", "#f97d5c"]) {
-    assert.ok(
-      !GLOBALS.toLowerCase().includes(retired),
-      `retired CTA colour ${retired} must not appear in globals.css`,
+/**
+ * The coral palette is not banned outright — it is CONFINED.
+ *
+ * The first version of this test banned the six coral stops from globals.css
+ * entirely, and that was too wide: it also outlawed the two Auth buttons that
+ * have always been coral on purpose, "Sign in with Email" and "Create account
+ * with Email". They are the last step of the public funnel, they sit on the
+ * marketing gradient, and flattening them into the application's purple was a
+ * loss of a deliberate brand treatment rather than a cleanup.
+ *
+ * So the invariant is narrowed to what it was actually protecting: the
+ * APPLICATION primary must not be coral, and coral may exist in exactly ONE
+ * declared authority — the Auth CTA block. Every coral declaration is checked
+ * to sit inside that block, so a third consumer cannot appear quietly.
+ */
+const AUTH_CTA_BLOCK = (() => {
+  // From the START OF THE LINE that opens the block: slicing mid-line would
+  // leave that first declaration outside the authority it defines.
+  const declaredAt = GLOBALS.indexOf("--auth-cta-bg:");
+  const start = GLOBALS.lastIndexOf("\n", declaredAt) + 1;
+  const end = GLOBALS.indexOf("@media (prefers-reduced-motion: reduce)", start);
+  assert.ok(start > 0, "the Auth CTA authority must exist in globals.css");
+  assert.ok(end > start, "the Auth CTA authority must be a bounded block");
+  // Include the rules that follow the token block, up to the end of the
+  // reduced-motion guard that closes the authority.
+  return GLOBALS.slice(start, GLOBALS.indexOf("}", end + 200));
+})();
+
+test("coral exists ONLY inside the declared Auth CTA authority", () => {
+  const lines = GLOBALS.split("\n");
+  const offenders: string[] = [];
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    // Comments explain WHY the colour is confined; they are prose, not rules.
+    if (lower.trim().startsWith("*") || lower.trim().startsWith("/*")) continue;
+    const hasCoral =
+      ["#e64880", "#ff6b6b", "#ff8a6a", "#d63e76", "#f75f5f", "#f97d5c"].some(
+        (retired) => lower.includes(retired),
+      ) || /rgba\(230,\s*72,\s*128/.test(lower);
+    if (!hasCoral) continue;
+    if (AUTH_CTA_BLOCK.includes(line)) continue;
+    offenders.push(line.trim());
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    "coral may only be declared by the Auth CTA authority",
+  );
+});
+
+test("the retired coral/pink CTA cannot come back through the PRIMARY token", () => {
+  // The application primary is the thing that was wrong and the thing this
+  // protects. It is checked by VALUE rather than by the word "coral", so
+  // renaming a comment cannot smuggle the colour back in.
+  const primaryDeclarations = GLOBALS.split("\n").filter((line) =>
+    /--btn-primary-[a-z-]*:/.test(line),
+  );
+  assert.ok(primaryDeclarations.length > 0, "the primary tokens must exist");
+
+  for (const line of primaryDeclarations) {
+    const lower = line.toLowerCase();
+    for (const retired of ["#e64880", "#ff6b6b", "#ff8a6a", "#d63e76", "#f75f5f", "#f97d5c"]) {
+      assert.ok(
+        !lower.includes(retired),
+        `retired CTA colour ${retired} must not reach a primary token: ${line.trim()}`,
+      );
+    }
+    assert.doesNotMatch(lower, /rgba\(230,\s*72,\s*128/);
+  }
+});
+
+test("the Auth CTA authority carries the exact historical treatment", () => {
+  // Recovered from git (20986430^), not re-picked by eye: these are the values
+  // both buttons carried inline before the global cleanup.
+  assert.match(
+    GLOBALS,
+    /--auth-cta-bg:\s*linear-gradient\(90deg,\s*#e64880 0%,\s*#ff6b6b 52%,\s*#ff8a6a 100%\)/i,
+  );
+  assert.match(GLOBALS, /--auth-cta-color:\s*#ffffff/i);
+  assert.match(GLOBALS, /--auth-cta-border:\s*rgba\(230,\s*72,\s*128,\s*0\.45\)/i);
+  assert.match(
+    GLOBALS,
+    /--auth-cta-shadow:\s*0 14px 28px rgba\(230,\s*72,\s*128,\s*0\.22\)/i,
+  );
+
+  // And the states the class must own, since the inline styles it replaces had
+  // nowhere to put them.
+  for (const state of [
+    ".auth-email-cta:hover:not(:disabled)",
+    ".auth-email-cta:active:not(:disabled)",
+    ".auth-email-cta:focus-visible",
+    ".auth-email-cta:disabled",
+  ]) {
+    assert.ok(GLOBALS.includes(state), `the Auth CTA must define ${state}`);
+  }
+});
+
+test("exactly two buttons wear the Auth CTA, and they carry no colour of their own", () => {
+  const LOGIN = read("app/login/page.tsx");
+  const REGISTER = read("app/register/page.tsx");
+
+  // The two intentional Auth actions name the authority.
+  assert.match(LOGIN, /className="auth-social-btn auth-email-cta"/);
+  assert.match(LOGIN, /data-auth-email-cta="SIGN_IN"/);
+  assert.match(REGISTER, /className="auth-social-btn auth-email-cta"/);
+  assert.match(REGISTER, /data-auth-email-cta="REGISTER"/);
+
+  // And they hold no colour themselves: the values that used to be inline in
+  // both files — which is how one could drift from the other — are gone.
+  for (const [name, src] of [
+    ["login", LOGIN],
+    ["register", REGISTER],
+  ] as const) {
+    const authButton = src.slice(
+      src.indexOf("auth-social-btn auth-email-cta"),
+      src.indexOf("auth-social-btn auth-email-cta") + 400,
+    );
+    assert.doesNotMatch(
+      authButton,
+      /linear-gradient|#e64880|#ff6b6b|#ff8a6a|rgba\(230/i,
+      `the ${name} Auth CTA must take its colour from the class, not inline`,
     );
   }
-  assert.doesNotMatch(GLOBALS, /--btn-primary-[a-z-]*:\s*[^;]*rgba\(230,\s*72,\s*128/);
+
+  // Nothing else in the app wears it.
+  const consumers = [LOGIN, REGISTER].filter((src) =>
+    src.includes("auth-email-cta"),
+  );
+  assert.equal(consumers.length, 2);
+});
+
+test("Billing never wears the Auth CTA", () => {
+  // The Auth treatment is the public funnel's, not the application's. A
+  // Billing surface that reached for it would be undoing the cleanup this
+  // exception was carved out of.
+  for (const rel of [
+    "app/(app)/billing/page.tsx",
+    "app/(app)/billing/billing.css",
+    "app/(app)/billing/_sections/PlanAndUsage.tsx",
+    "app/(app)/billing/_sections/StorageAndHistory.tsx",
+    "app/(app)/billing/_sections/CheckoutDrawer.tsx",
+  ]) {
+    const src = read(rel);
+    assert.doesNotMatch(src, /auth-email-cta|auth-cta-/, `${rel} must not use the Auth CTA`);
+    assert.doesNotMatch(
+      src,
+      /#e64880|#ff6b6b|#ff8a6a|#d63e76|#f75f5f|#f97d5c/i,
+      `${rel} must not carry a retired coral literal`,
+    );
+  }
 });
 
 test("primary CTA border and shadow are tinted with the brand violet", () => {

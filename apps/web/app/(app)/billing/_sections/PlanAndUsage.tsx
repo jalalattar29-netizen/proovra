@@ -30,7 +30,6 @@ import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import type {
   BillingAccountProjection,
-  PlanOffer,
   StorageMeter,
   UsageMeter,
 } from "../../../../lib/api/billing-accounts";
@@ -236,42 +235,74 @@ export function ActionRequiredBanner({
 
 export function PlanSummaryCard({
   projection,
-  onManage,
-  onChangePlan,
-  onCancel,
-  cancelBusy,
+  onManagePlan,
   changeBusyPlan,
 }: {
   projection: BillingAccountProjection;
   /**
-   * Opens the checkout drawer ON THE PLAN THAT WAS PRESSED.
+   * Opens the ONE plan-management surface.
    *
-   * It took no argument, so both purchase buttons opened an identical drawer
-   * and the drawer guessed which plan was meant.
-   */
-  onManage: (offer: PlanOffer) => void;
-  /**
-   * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — moving between tiers on
-   * the subscription that already exists.
+   * Which surface that is — the chooser for an account with no subscription,
+   * the manager for one that has — is `actions.planManagement.mode`, decided
+   * by the side that can see the subscription. The card only opens it.
    *
-   * Distinct from `onManage` because they are different acts, not two ways of
-   * doing one. A checkout creates a subscription; this changes one. Collapsing
-   * them is how a PRO customer wanting TEAM ended up with two live
-   * subscriptions and two monthly charges.
+   * What this replaces: an `onManage(offer)` per plan offer plus a separate
+   * `onChangePlan` and `onCancel`, which is why the card carried three or
+   * four competing buttons and why cancellation read as one option among
+   * equals rather than the end of a subscription.
    */
-  onChangePlan: (offer: PlanOffer) => void;
-  onCancel: () => void;
-  cancelBusy: boolean;
-  /** The plan key currently being changed to, so only that button spins. */
+  onManagePlan: () => void;
+  /** A tier change in flight, so the single action can hold still. */
   changeBusyPlan: string | null;
 }) {
-  const { plan, account, actions, contract, planOffers } = projection;
+  const { plan, account, actions, contract } = projection;
   const lifecycle = presentLifecycle(plan.lifecycle, {
     periodEndUtc: plan.currentPeriodEndUtc,
     graceEndsAtUtc: plan.graceEndsAtUtc,
   });
   const price = formatMoney(plan.priceCents ?? null, plan.currency ?? null);
   const renews = formatDate(plan.currentPeriodEndUtc);
+
+  /*
+   * The hero's key facts, taken from the SAME projection the usage cards read
+   * — so the two can never disagree — and shown only where there is a real
+   * measurement. A meter the server could not read contributes nothing here
+   * rather than a zero, because "we do not know" and "none" are different
+   * statements and only one of them is ever true.
+   */
+  const evidenceMeter = projection.usage.evidence;
+  const evidenceFact =
+    evidenceMeter.state === "MEASURED"
+      ? evidenceMeter.limit === null
+        ? `${evidenceMeter.used.toLocaleString()} records`
+        : `${evidenceMeter.used.toLocaleString()} of ${evidenceMeter.limit.toLocaleString()}`
+      : evidenceMeter.state === "CONTRACT_MANAGED"
+        ? "By agreement"
+        : null;
+
+  const storageMeter = projection.usage.storage;
+  const storageFact =
+    storageMeter.state === "MEASURED"
+      ? `${storageMeter.usedLabel} of ${storageMeter.limitLabel}`
+      : null;
+
+  const aiMeter = projection.usage.ai;
+  const aiFact =
+    aiMeter.state === "MEASURED"
+      ? aiMeter.limit === null
+        ? `${aiMeter.used.toLocaleString()} this month`
+        : `${aiMeter.used.toLocaleString()} of ${aiMeter.limit.toLocaleString()}`
+      : aiMeter.state === "CONTRACT_MANAGED"
+        ? "By agreement"
+        : null;
+
+  // Only where collaboration is part of what this account bought.
+  const seats = projection.collaboration?.seats;
+  const seatFact = seats
+    ? seats.limit === null
+      ? `${seats.used} accepted`
+      : `${seats.used} of ${seats.limit}`
+    : null;
 
   return (
     <Card
@@ -345,55 +376,60 @@ export function PlanSummaryCard({
           ) : null}
         </div>
 
+        {/*
+          THE KEY FACTS, beside the plan rather than under it.
+
+          The hero was a column of facts with an enormous empty half beside it,
+          so a wide screen showed a card whose right-hand side said nothing at
+          all. These are the same numbers the usage cards below carry, at a
+          glance and in the place the eye lands after the price — and every one
+          of them is a real measurement, never a placeholder: a meter the
+          server could not read is simply absent from the list rather than
+          rendered as a zero.
+        */}
+        <dl className="bill-hero__facts-grid" data-billing-hero-facts>
+          {evidenceFact ? (
+            <div className="bill-hero__fact">
+              <dt>Evidence</dt>
+              <dd><bdi>{evidenceFact}</bdi></dd>
+            </div>
+          ) : null}
+          {storageFact ? (
+            <div className="bill-hero__fact">
+              <dt>Storage</dt>
+              <dd><bdi>{storageFact}</bdi></dd>
+            </div>
+          ) : null}
+          {aiFact ? (
+            <div className="bill-hero__fact">
+              <dt>AI operations</dt>
+              <dd><bdi>{aiFact}</bdi></dd>
+            </div>
+          ) : null}
+          {seatFact ? (
+            <div className="bill-hero__fact">
+              <dt>Members</dt>
+              <dd><bdi>{seatFact}</bdi></dd>
+            </div>
+          ) : null}
+        </dl>
+
         <div className="bill-hero__aside">
           <Badge tone={lifecycle.tone} dot data-billing-plan-status>
             {lifecycle.label}
           </Badge>
+          {/*
+            ONE action, and the SERVER names it.
+
+            What this replaces: one button per plan offer plus a cancellation
+            beside them — so a FREE account faced "Subscribe to Pro" and
+            "Subscribe to Team" that opened the same drawer, and a PRO account
+            was invited to "Subscribe to Team" for what is an upgrade of the
+            subscription it already has. Everything a subscription can have
+            done to it now lives behind this one button, which is also where
+            cancellation became findable.
+          */}
           <div className="bill-actions">
-        {/* One button per move the SERVER says this account may make, in the
-            order the server listed them — which is the ladder, so a downgrade
-            reads below an upgrade rather than beside it.
-
-            Every word comes from the server. "Upgrade to Team", "Switch to
-            Pro" and "Subscribe to Pro" are three different claims about the
-            account's commercial state, and only the side that can see the
-            subscription knows which is true.
-
-            A scheduled change hides them all: offering a second move while the
-            first has not landed would let a customer queue two changes the
-            provider holds one schedule for. */}
-        {actions.canStartCheckout && !plan.scheduledChange
-          ? (planOffers ?? []).map((offer) => (
-              <Button
-                key={offer.planKey}
-                variant={offer.action === "DOWNGRADE" ? "secondary" : "primary"}
-                size="sm"
-                loading={changeBusyPlan === offer.planKey}
-                disabled={changeBusyPlan !== null}
-                onClick={() =>
-                  offer.action === "CHECKOUT" ? onManage(offer) : onChangePlan(offer)
-                }
-                data-billing-plan-offer={offer.planKey}
-                data-billing-plan-offer-action={offer.action}
-              >
-                {offer.actionLabel}
-              </Button>
-            ))
-          : null}
-
-        {actions.canRequestCancellation && !plan.cancelAtPeriodEnd ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onCancel}
-            loading={cancelBusy}
-            disabled={cancelBusy}
-            data-billing-cancel-plan
-          >
-            Cancel subscription
-          </Button>
-        ) : null}
-
             {actions.contactAccountManager ? (
               <Link
                 href="/contact-sales"
@@ -402,7 +438,17 @@ export function PlanSummaryCard({
               >
                 <span>Contact your account manager</span>
               </Link>
-            ) : null}
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onManagePlan}
+                disabled={!actions.planManagement.enabled || changeBusyPlan !== null}
+                data-billing-plan-management={actions.planManagement.mode}
+              >
+                {actions.planManagement.label}
+              </Button>
+            )}
           </div>
         </div>
       </div>

@@ -47,7 +47,17 @@ const S = prismaPkg.PaymentStatus;
  * row may be moved out of.
  */
 export const TERMINAL_PAYMENT_STATUSES: ReadonlySet<prismaPkg.PaymentStatus> =
-  new Set([S.SUCCEEDED, S.FAILED, S.REFUNDED, S.CANCELED, S.EXPIRED]);
+  new Set([
+    S.SUCCEEDED,
+    S.FAILED,
+    S.REFUNDED,
+    S.CANCELED,
+    S.EXPIRED,
+    // ABANDONED is terminal for the CUSTOMER — this product will not resume
+    // that checkout — while remaining open to the provider proving settlement.
+    // See `decidePaymentTransition`.
+    S.ABANDONED,
+  ]);
 
 export function isTerminalPaymentStatus(
   status: prismaPkg.PaymentStatus,
@@ -84,6 +94,17 @@ export function paymentStatusFromObservedState(
 }
 
 /**
+ * ABANDONED has no observed state, deliberately.
+ *
+ * Every other status is something a PROVIDER told us. This one is something
+ * the CUSTOMER told us — "I am not going to finish this" — and no provider
+ * will ever report it back. Giving it an `ObservedState` would invite a future
+ * adapter to claim it, which is precisely the lie this state exists to avoid.
+ */
+export const CUSTOMER_DECLARED_PAYMENT_STATUSES: ReadonlySet<prismaPkg.PaymentStatus> =
+  new Set([S.ABANDONED]);
+
+/**
  * A local payment status as the observation it corresponds to.
  *
  * Exists so the WEBHOOK path can use the same transition rules as the polling
@@ -95,6 +116,10 @@ export function observedStateFromPaymentStatus(
   status: prismaPkg.PaymentStatus,
 ): ObservedState {
   switch (status) {
+    case S.ABANDONED:
+      // Not a provider fact. Expressed as "we know nothing new", so a webhook
+      // path that re-states it cannot overwrite anything.
+      return "UNKNOWN";
     case S.SUCCEEDED:
       return "SUCCEEDED";
     case S.PENDING:
@@ -165,6 +190,23 @@ export function decidePaymentTransition(
     if (input.current === S.SUCCEEDED && next === S.REFUNDED) {
       return { apply: true, status: next };
     }
+
+    /*
+     * ABANDONED yields to money that actually moved.
+     *
+     * It records the CUSTOMER's intention not to finish a checkout, taken only
+     * after a reconciliation found no capture and no authorization. That is a
+     * statement about a person, and a person can be overtaken by events: if
+     * the provider later proves the payment settled — a capture that was in
+     * flight, a webhook that arrived late — the settlement is a fact and the
+     * intention is not. Anything OTHER than settlement leaves it alone, so a
+     * later PENDING or FAILED cannot reopen a row the customer has walked away
+     * from.
+     */
+    if (input.current === S.ABANDONED && next === S.SUCCEEDED) {
+      return { apply: true, status: next };
+    }
+
     return { apply: false, reason: "TERMINAL_NOT_REGRESSED" };
   }
 

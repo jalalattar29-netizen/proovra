@@ -43,6 +43,15 @@ const CHECKOUT = "../app/(app)/billing/_sections/CheckoutDrawer.tsx";
 const SELECTOR = "../app/(app)/billing/_sections/AccountSelector.tsx";
 const DRAWER = "../app/(app)/billing/_sections/BillingDrawer.tsx";
 const FORMAT = "../app/(app)/billing/_sections/format.ts";
+/**
+ * BILLING SURFACE CORRECTION (2026-08-29) — the MANAGE drawer is part of the
+ * surface.
+ *
+ * A subscription that already exists is managed in one place now, so the moves
+ * the server lists and the cancellation that ends them moved off the card and
+ * into this file. The contracts follow them.
+ */
+const MANAGE = "../app/(app)/billing/_sections/ManagePlanDrawer.tsx";
 const PRICING = "../app/pricing/page.tsx";
 
 /**
@@ -58,7 +67,7 @@ const PRICING = "../app/pricing/page.tsx";
 const BILLING_CSS = "../app/(app)/billing/billing.css";
 
 const billingSources = () =>
-  [PAGE, PLAN_USAGE, STORAGE_HISTORY, CHECKOUT, SELECTOR, DRAWER, FORMAT]
+  [PAGE, PLAN_USAGE, STORAGE_HISTORY, CHECKOUT, SELECTOR, DRAWER, FORMAT, MANAGE]
     .map(read)
     .concat(readRaw(BILLING_CSS))
     .join("\n");
@@ -193,7 +202,10 @@ test("actions are read from the server projection, never from plan names", () =>
   const src = billingSources();
   // Every affordance on the page comes from a server-projected verdict.
   for (const action of [
-    "canStartCheckout",
+    // `canStartCheckout` no longer gates a button: the ONE action the card
+    // renders is `planManagement`, and whether a checkout may be started is
+    // folded into whether that action is enabled and which mode it opens. It
+    // remains a projected fact, asserted where it lives.
     "canRequestCancellation",
     "canBuyEvidenceCredits",
     "contactAccountManager",
@@ -211,18 +223,22 @@ test("actions are read from the server projection, never from plan names", () =>
   // And whether the banner appears at all.
   assert.match(src, /projection\.actionRequired/);
 
-  // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the plan card renders
-  // one button PER SERVER-LISTED OFFER, each carrying its own verb, so
-  // `actions.manageLabel` — a single word for a single button — was replaced by
-  // `offer.actionLabel`. The property is unchanged and now applies to more:
-  // "Subscribe to Pro", "Upgrade to Team" and "Switch to Pro" are three
-  // different claims about what pressing the button will do, and only the
-  // server can tell which is true, because only the server can see whether a
-  // subscription exists.
+  /*
+   * BILLING SURFACE CORRECTION (2026-08-29) — ONE action on the card, and the
+   * SERVER names it.
+   *
+   * The card used to render a button per offer, which is how a FREE account
+   * came to face "Subscribe to Pro" and "Subscribe to Team" side by side —
+   * both opening the same drawer — and how a PRO account was invited to
+   * "Subscribe to Team" for what is an upgrade of the subscription it has.
+   * `actions.planManagement` is that one decision; the OFFERS and their verbs
+   * still exist and are rendered, inside the drawer the button opens.
+   */
+  assert.match(src, /actions\.planManagement\.label/);
+  assert.match(src, /actions\.planManagement\.mode/);
   assert.match(src, /offer\.actionLabel/);
   assert.match(src, /offer\.effectSummary/);
-  assert.match(src, /offer\.action === "CHECKOUT"/);
-  // The scheduled downgrade is a server fact too, not a date the page works out.
+  // The scheduled change is a server fact too, not a date the page works out.
   assert.match(src, /plan\.scheduledChange/);
 
   // No `plan === "PRO"` style branching anywhere.
@@ -526,25 +542,64 @@ test("no workspace is a billing subject anywhere in the Billing UI", () => {
 });
 
 test("a plan move states its own verb, its own effect, and comes from the server", () => {
-  const src = read(PLAN_USAGE);
-  // One button per server-listed offer, each carrying the server's words.
+  /*
+   * The moves live in the MANAGE drawer now. The card carries one button,
+   * because a card that renders a button per offer is what produced
+   * "Subscribe to Pro" beside "Subscribe to Team" on a FREE account and
+   * "Subscribe to Team" in front of a PRO one. What the moves say, and who
+   * decides it, is unchanged.
+   */
+  const src = read(MANAGE);
   assert.match(src, /planOffers \?\? \[\]/);
   assert.match(src, /offer\.actionLabel/);
-  assert.match(src, /data-billing-plan-offer-action=\{offer\.action\}/);
+  assert.match(src, /offer\.effectSummary/);
+  assert.match(src, /data-billing-manage-offer-action=\{offer\.action\}/);
   // A downgrade is not dressed as a destructive action; it destroys nothing.
   assert.match(src, /offer\.action === "DOWNGRADE" \? "secondary" : "primary"/);
-  // The page never decides the direction itself.
+  // Neither the card nor the drawer decides the direction itself.
   assert.doesNotMatch(src, /=== "TEAM" \?/);
+  assert.doesNotMatch(read(PLAN_USAGE), /=== "TEAM" \?/);
+});
+
+test("cancellation is reachable from the plan card in one step", () => {
+  /*
+   * THE defect. A PRO or TEAM owner could not find how to stop paying: the
+   * card offered "Change plan" and the cancellation sat beside two "Subscribe"
+   * buttons as though it were a fourth way to buy something. Everything a
+   * subscription can have done to it — including ending it — is now behind the
+   * ONE button the card renders.
+   */
+  const card = read(PLAN_USAGE);
+  const manage = read(MANAGE);
+
+  assert.match(card, /data-billing-plan-management/);
+  assert.match(manage, /data-billing-manage-cancel/);
+  assert.match(manage, /Cancel subscription/);
+
+  // What the customer is told before they commit, in the drawer itself.
+  assert.match(manage, /Your account moves to Free on the same workspace/);
+  assert.match(manage, /custody history and verification packages are not deleted/);
+
+  // A refusal is EXPLAINED rather than rendered as an absence: a viewer who
+  // may not cancel and a payer whose subscription we cannot find are different
+  // problems, and showing nothing for both is what made a missing subscription
+  // look like a product with no way out.
+  assert.match(manage, /cancellationUnavailableReason/);
+  assert.match(manage, /NO_SUBSCRIPTION_BOUND/);
 });
 
 test("a scheduled downgrade is stated before the plan can be misread", () => {
-  const src = read(PLAN_USAGE);
-  assert.match(src, /data-billing-scheduled-change/);
-  assert.match(src, /plan\.scheduledChange/);
-  // "You keep everything you have now until then" — the promise that matters.
-  assert.match(src, /You keep everything you have now until then/);
-  // And no second move may be queued while one is outstanding.
-  assert.match(src, /!plan\.scheduledChange/);
+  // On the CARD, so it is read before the one action is pressed…
+  const card = read(PLAN_USAGE);
+  assert.match(card, /data-billing-scheduled-change/);
+  assert.match(card, /plan\.scheduledChange/);
+  assert.match(card, /You keep everything you have now until then/);
+
+  // …and again in the DRAWER, above the moves, because it changes what every
+  // one of them means. No second move may be queued while one is outstanding.
+  const manage = read(MANAGE);
+  assert.match(manage, /data-billing-manage-scheduled/);
+  assert.match(manage, /!plan\.scheduledChange/);
 });
 
 test("changing plan is a different act from starting a checkout", () => {
@@ -654,19 +709,37 @@ test("being OVER an allowance is explained, not rendered as a broken sum", () =>
   assert.doesNotMatch(describeMeterBody, /your plan includes/);
 });
 
-test("the credit balance and the credit purchase are two separate statements", () => {
+test("the credit purchase states every number a customer is agreeing to", () => {
   const src = read(CHECKOUT);
-  // "3 available" directly above a Buy button was the only quantity on screen.
-  assert.match(src, /What you have now/);
-  assert.match(src, /What you are buying/);
-  assert.match(src, /data-billing-credit-balance/);
-  assert.match(src, /data-billing-credit-purchase/);
+
+  /*
+   * "3 available" directly above a Buy button was once the only quantity on
+   * screen. The fix for that was two full-width boxes — "What you have now"
+   * and "What you are buying" — each repeating the drawer's own explanation
+   * and neither stating a total.
+   *
+   * It is ONE summary now, in the order a person checks a purchase: what I
+   * have, what I am buying, what each costs, what it comes to, what I will
+   * have afterwards.
+   */
+  for (const marker of [
+    "data-billing-credit-balance",
+    "data-billing-credit-quantity",
+    "data-billing-credit-total",
+    "data-billing-credit-after",
+  ]) {
+    assert.match(src, new RegExp(marker), `the summary must state ${marker}`);
+  }
   assert.match(src, /creditsPerPurchase/);
+
   // The quantity is the server's; a browser-chosen one is one a browser can
-  // get wrong.
+  // get wrong, and the credit API grants exactly one per purchase.
   assert.doesNotMatch(src, /useState.*creditQuantity/);
-  // And it says plainly that this is not a subscription.
-  assert.match(src, /one-time payment, not a\s*\n?\s*subscription/);
+
+  // Said once, in the summary, rather than twice in two boxes.
+  assert.match(src, /One-time payment · Credits do not expire/);
+  const occurrences = src.split("Credits do not expire").length - 1;
+  assert.equal(occurrences, 1, "the drawer must not repeat its own explanation");
 });
 
 test("no workspace allowance meter survives on the page", () => {

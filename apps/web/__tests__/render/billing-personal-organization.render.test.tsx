@@ -27,6 +27,7 @@ import React from "react";
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+import { ManagePlanDrawer } from "../../app/(app)/billing/_sections/ManagePlanDrawer";
 import {
   CollaborationUsageCard,
   PlanSummaryCard,
@@ -117,6 +118,9 @@ function personal(
     actionRequired: null,
     actions: {
       canStartCheckout: true,
+      // The ONE action the card renders. A paid personal account MANAGES the
+      // subscription it has; a FREE one CHOOSES.
+      planManagement: { label: "Manage plan", mode: "MANAGE", enabled: true },
       canBuyEvidenceCredits: true,
       canBuyStorageAddon: true,
       canRequestCancellation: true,
@@ -155,6 +159,11 @@ function organization(
     },
     actions: {
       canStartCheckout: false,
+      planManagement: {
+        label: "Contact your account manager",
+        mode: "MANAGE",
+        enabled: false,
+      },
       canBuyEvidenceCredits: false,
       canBuyStorageAddon: false,
       canRequestCancellation: false,
@@ -172,11 +181,32 @@ function mountPlan(projection: BillingAccountProjection) {
   return render(
     <PlanSummaryCard
       projection={projection}
-      onManage={noop}
+      onManagePlan={noop}
+      changeBusyPlan={null}
+    />,
+  );
+}
+
+/**
+ * The MOVES live in the management drawer now.
+ *
+ * The card carries ONE button, because a FREE account facing "Subscribe to
+ * Pro" and "Subscribe to Team" — both opening the same drawer — and a PRO
+ * account invited to "Subscribe to Team" for what is an upgrade were the same
+ * defect: the card was trying to be the place a subscription is managed. So
+ * the assertions about upgrading, switching and cancelling mount the drawer
+ * that now owns them, rather than being dropped.
+ */
+function mountManage(projection: BillingAccountProjection) {
+  return render(
+    <ManagePlanDrawer
+      open
+      projection={projection}
+      onClose={noop}
       onChangePlan={noop}
       onCancel={noop}
-      cancelBusy={false}
       changeBusyPlan={null}
+      cancelBusy={false}
     />,
   );
 }
@@ -190,27 +220,27 @@ beforeEach(() => {
 // 1. Both directions are offered, and they read differently
 // ===========================================================================
 
-describe("the plan card offers the moves the server listed", () => {
+describe("the manage-plan drawer offers the moves the server listed", () => {
   it("an upgrade and a downgrade are both rendered, each with the server's words", () => {
-    mountPlan(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
+    mountManage(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
 
     const up = screen.getByRole("button", { name: "Upgrade to Team" });
     const down = screen.getByRole("button", { name: "Switch to Pro" });
-    expect(up.getAttribute("data-billing-plan-offer-action")).toBe("UPGRADE");
-    expect(down.getAttribute("data-billing-plan-offer-action")).toBe("DOWNGRADE");
+    expect(up.getAttribute("data-billing-manage-offer-action")).toBe("UPGRADE");
+    expect(down.getAttribute("data-billing-manage-offer-action")).toBe("DOWNGRADE");
   });
 
   it("a downgrade is not dressed as a destructive action", () => {
     // It destroys nothing. Painting it the same red as "cancel my
     // subscription" would discourage a legitimate choice by implying a
     // consequence that does not exist.
-    mountPlan(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
+    mountManage(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
     const down = screen.getByRole("button", { name: "Switch to Pro" });
     expect(down.className).not.toMatch(/danger/i);
   });
 
   it("a FREE account is offered BOTH tiers — TEAM needs no workspace first", () => {
-    mountPlan(
+    mountManage(
       personal({
         plan: { ...personal().plan, planKey: "FREE", displayName: "Free", model: "FREE" },
         planOffers: [
@@ -224,7 +254,7 @@ describe("the plan card offers the moves the server listed", () => {
   });
 
   it("no offer renders a workspace name, a provider id or a price id", () => {
-    const { container } = mountPlan(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
+    const { container } = mountManage(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
     expect(container.textContent ?? "").not.toMatch(/sub_|price_|cs_|P-|I-/);
   });
 });
@@ -238,7 +268,7 @@ describe("a subscription that is ending", () => {
     // BILLING SURFACE CORRECTION (2026-08-29) — a PRO customer must be able to
     // leave. The card offers the ladder move in the server's own words and a
     // cancellation beside it; neither is inferred from the plan name here.
-    const { container } = mountPlan(
+    const { container } = mountManage(
       personal({
         plan: {
           ...personal().plan,
@@ -255,11 +285,11 @@ describe("a subscription that is ending", () => {
     const text = container.textContent ?? "";
     expect(text).toMatch(/Upgrade to Team/);
     expect(text).toMatch(/Cancel subscription/);
-    expect(container.querySelector("[data-billing-cancel-plan]")).not.toBeNull();
+    expect(container.querySelector("[data-billing-manage-cancel]")).not.toBeNull();
   });
 
   it("once it is cancelling, it says when access ends and offers no second cancel", () => {
-    const { container } = mountPlan(
+    const { container } = mountManage(
       personal({
         plan: {
           ...personal().plan,
@@ -277,21 +307,23 @@ describe("a subscription that is ending", () => {
     const text = container.textContent ?? "";
     // The date is the PROVIDER-confirmed period end, and it is stated rather
     // than left to the customer to work out.
-    expect(text).toMatch(/Access continues until/);
+    // The drawer states the end date as a FACT of the subscription rather than
+    // as a promise in a sentence: "Cancels on <date>".
+    expect(text).toMatch(/Cancels on/);
     expect(text).toMatch(/2026/);
     // Cancelling twice is not a thing that can be asked for.
-    expect(container.querySelector("[data-billing-cancel-plan]")).toBeNull();
+    expect(container.querySelector("[data-billing-manage-cancel]")).toBeNull();
   });
 
   it("an account that may not cancel is offered no cancellation at all", () => {
     // Rather than a button that produces a 403 when pressed.
-    const { container } = mountPlan(
+    const { container } = mountManage(
       personal({
         plan: { ...personal().plan, planKey: "PRO", displayName: "Pro", model: "MONTHLY" },
         actions: { ...personal().actions, canRequestCancellation: false },
       }),
     );
-    expect(container.querySelector("[data-billing-cancel-plan]")).toBeNull();
+    expect(container.querySelector("[data-billing-manage-cancel]")).toBeNull();
   });
 });
 
@@ -311,8 +343,8 @@ describe("a scheduled downgrade", () => {
   });
 
   it("says what is coming, when, and that nothing changes until then", () => {
-    const { container } = mountPlan(scheduled);
-    const note = container.querySelector("[data-billing-scheduled-change]");
+    const { container } = mountManage(scheduled);
+    const note = container.querySelector("[data-billing-manage-scheduled]");
     expect(note).not.toBeNull();
     expect(note?.textContent ?? "").toMatch(/Moving to Pro/);
     expect(note?.textContent ?? "").toMatch(/You keep everything you have now until then/);
@@ -321,12 +353,12 @@ describe("a scheduled downgrade", () => {
   it("offers no second move while the first has not landed", () => {
     // The provider holds ONE schedule. Offering another would let a customer
     // queue two changes and be told both were accepted.
-    mountPlan(scheduled);
+    mountManage(scheduled);
     expect(screen.queryByRole("button", { name: /Switch to|Upgrade to/ })).toBeNull();
   });
 
   it("with no date, it still says the change is coming rather than nothing", () => {
-    const { container } = mountPlan(
+    const { container } = mountManage(
       personal({
         plan: {
           ...personal().plan,
@@ -335,7 +367,7 @@ describe("a scheduled downgrade", () => {
       }),
     );
     expect(
-      container.querySelector("[data-billing-scheduled-change]")?.textContent ?? "",
+      container.querySelector("[data-billing-manage-scheduled]")?.textContent ?? "",
     ).toMatch(/end of this billing period/);
   });
 });
@@ -514,7 +546,7 @@ describe("direction and long copy", () => {
   for (const dir of ["ltr", "rtl"] as const) {
     it(`renders both plan moves in ${dir} without dropping either`, () => {
       document.documentElement.dir = dir;
-      mountPlan(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
+      mountManage(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
       expect(screen.getByRole("button", { name: "Upgrade to Team" })).toBeTruthy();
       expect(screen.getByRole("button", { name: "Switch to Pro" })).toBeTruthy();
     });

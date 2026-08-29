@@ -879,18 +879,19 @@ function LoginPageContent() {
     .
   </span>
 </label>
+                          {/*
+                            The Auth CTA, not the application primary. Its
+                            colours live in ONE place (`.auth-email-cta`,
+                            globals.css) and are exactly what this button
+                            carried before the global CTA cleanup swept it up
+                            with the app's own buttons.
+                          */}
                           <button
-                            className="auth-social-btn"
+                            className="auth-social-btn auth-email-cta"
                             type="submit"
                             disabled={busy}
-                            style={{
-                              background:
-                                "var(--btn-primary-bg)",
-                              color: "#ffffff",
-                              border: "1px solid var(--btn-primary-border)",
-                              boxShadow: "var(--btn-primary-shadow)",
-                              fontWeight: 600,
-                            }}
+                            aria-busy={busy}
+                            data-auth-email-cta="SIGN_IN"
                           >
                             Sign in with Email
                           </button>

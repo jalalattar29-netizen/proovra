@@ -1,18 +1,22 @@
 "use client";
 
 /**
- * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — checkout, in a drawer.
+ * The BUY drawer: a plan, an evidence credit, or a storage add-on.
  *
- * What this replaces: an always-expanded "Checkout Console" that occupied a
- * third of the Billing page whether or not anyone was buying anything. It
- * carried three separate workspace target pickers, a plan picker, a provider
- * picker, a non-editable "Preferred currency" line, and four paragraphs of
- * commercial rules ("PRO allows you to own up to 2 workspaces…") that belong on
- * Pricing.
+ * WHAT IT IS NOT
+ * ---------------------------------------------------------------------------
+ * It is not where an existing subscription is MANAGED. A customer who already
+ * pays for something is changing it, not buying it again, and the two read
+ * differently and end differently — see `ManagePlanDrawer`. Collapsing them is
+ * how "Subscribe to Team" ended up in front of a customer who was already on
+ * Pro, which is an upgrade of the subscription they have.
  *
- * The target is no longer a choice made here: the page already has a selected
- * BILLING ACCOUNT, and that is what is being bought for. Choosing a target
- * inside checkout was how a customer could buy the wrong workspace a plan.
+ * WHAT THE BROWSER DECIDES HERE
+ * ---------------------------------------------------------------------------
+ * Which option the customer picked, and nothing else. Every price, allowance,
+ * currency and quantity is the server's, rendered as given. The request body
+ * carries the CHOICE and the display currency; there is no field in it that a
+ * browser could be wrong about.
  */
 
 import { useEffect, useState } from "react";
@@ -29,20 +33,21 @@ import type {
 import { formatMoney } from "./format";
 import { BillingDrawer } from "./BillingDrawer";
 
+export type PlanKey = "PRO" | "TEAM";
+
 /**
- * BILLING SURFACE CORRECTION (2026-08-29) — the PLAN intent now names the plan.
+ * WHAT the drawer was opened to buy.
  *
- * It was the bare string `"PLAN"`, so "Subscribe to Pro" and "Subscribe to
- * Team" opened an identical drawer and the drawer had no way to tell them
- * apart. It then checked out `planOffers[0]`, which is PRO for every FREE
- * account — so the TEAM button charged for PRO.
+ * A discriminated union rather than a bare string, so a PLAN intent must carry
+ * the plan. The version this replaces was `"PLAN" | "CREDITS" | "STORAGE"`,
+ * which could not say WHICH plan — so the drawer guessed, and guessed wrong.
+ * `planKey` is optional here because the FREE chooser legitimately opens with
+ * nothing selected; what is not optional is that checkout refuses without one.
  */
 export type CheckoutIntent =
-  | { kind: "PLAN"; planKey: PlanKey }
+  | { kind: "PLAN"; planKey?: PlanKey }
   | { kind: "CREDITS" }
-  | { kind: "STORAGE" };
-
-export type PlanKey = "PRO" | "TEAM";
+  | { kind: "STORAGE"; addonKey?: string };
 
 type Provider = "STRIPE" | "PAYPAL";
 
@@ -63,44 +68,28 @@ export function CheckoutDrawer({
 }) {
   const [provider, setProvider] = useState<Provider>("STRIPE");
   const [busy, setBusy] = useState(false);
-  const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
 
-  /**
-   * The plan being bought. Seeded from the button that opened the drawer, and
-   * then owned by the radiogroup — so a customer who opens on Team and changes
-   * their mind to Pro checks out Pro.
-   */
-  const openedWith = intent.kind === "PLAN" ? intent.planKey : null;
-  const [selectedPlan, setSelectedPlan] = useState<PlanKey | null>(openedWith);
+  const openedWithPlan = intent.kind === "PLAN" ? (intent.planKey ?? null) : null;
+  const openedWithAddon = intent.kind === "STORAGE" ? (intent.addonKey ?? null) : null;
 
-  // Re-seed whenever the drawer is opened again from a different button.
+  const [selectedPlan, setSelectedPlan] = useState<PlanKey | null>(openedWithPlan);
+  const [selectedAddon, setSelectedAddon] = useState<string | null>(openedWithAddon);
+
+  // Re-seed whenever the drawer is opened again from a different affordance.
   // Without this, opening on Pro, closing, then opening on Team would keep the
-  // stale Pro selection and check out the wrong plan a second time.
+  // stale Pro selection and check out the wrong thing a second time.
   useEffect(() => {
-    if (open && openedWith) setSelectedPlan(openedWith);
-  }, [open, openedWith]);
+    if (!open) return;
+    setSelectedPlan(openedWithPlan);
+    setSelectedAddon(openedWithAddon);
+  }, [open, openedWithPlan, openedWithAddon]);
 
-  const workspaceId =
-    // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a checkout has no
-    // workspace target. A subscription is bought for the person, and the
-    // server refuses a body that names a workspace at all.
-    null;
   const currency = projection.plan.currency ?? "USD";
   const offers = projection.storageAddons?.offers ?? [];
   const planOffers = projection.planOffers ?? [];
+  const wallet = projection.wallet;
 
-  /**
-   * Send the caller to the provider's hosted checkout.
-   *
-   * `send` takes an already-resolved literal path from its call site rather
-   * than composing one, so the repository's route-consumer analyzer can bind
-   * each request to a registered route WITH its method. A ternary that picks
-   * the path at the call site leaves the analyzer able to see the path but not
-   * the verb, and it then records a GET that does not exist.
-   */
-  async function send(
-    request: () => Promise<unknown>,
-  ) {
+  async function send(request: () => Promise<unknown>) {
     setBusy(true);
     try {
       const data = await request();
@@ -113,10 +102,10 @@ export function CheckoutDrawer({
         return;
       }
       const links =
-        ((data as { subscription?: { links?: Array<{ rel: string; href: string }> } })
-          ?.subscription?.links) ??
-        ((data as { order?: { links?: Array<{ rel: string; href: string }> } })?.order
-          ?.links);
+        (data as { subscription?: { links?: Array<{ rel: string; href: string }> } })
+          ?.subscription?.links ??
+        (data as { order?: { links?: Array<{ rel: string; href: string }> } })?.order
+          ?.links;
       const approve = links?.find((l) => l.rel === "approve");
       if (approve?.href) {
         window.location.href = approve.href;
@@ -125,8 +114,7 @@ export function CheckoutDrawer({
       throw new Error("Checkout did not return an approval destination");
     } catch (err) {
       captureException(err, { feature: "billing_checkout_drawer", intent: intent.kind });
-      // Never a raw provider or internal message. The panel this replaces
-      // surfaced `err.message` directly in two places.
+      // Never a raw provider or internal message.
       const safe = toSafeUserError(err, {
         message: "We could not start checkout. Please try again in a moment.",
       });
@@ -138,24 +126,10 @@ export function CheckoutDrawer({
   }
 
   function startCheckout() {
-    // BILLING SURFACE CORRECTION (2026-08-29) — the SELECTED plan, never a
-    // positional default.
-    //
-    // This was `planOffers[0]?.planKey ?? "PRO"`: the first offer the server
-    // happened to list, which is PRO for every FREE account because the offer
-    // list is built in ladder order. The TEAM button therefore opened a drawer
-    // that checked out PRO, and no amount of clicking inside the drawer could
-    // change it, because nothing in the drawer was clickable.
-    const planKey = selectedPlan;
-    const teamPart = workspaceId ? { teamId: workspaceId } : {};
-
     if (intent.kind === "CREDITS") {
-      // BILLING PRODUCTION CLOSURE (2026-08-27) — credits have their own route
-      // and take no commercial input. This used to POST `{ plan: "PAYG" }` to
-      // the plan checkout, which made a legacy recurring-plan row the identity
-      // of a one-time product and put a plan name for it on the wire. Quantity
-      // and price are resolved server-side; the body carries a display currency
-      // and nothing else.
+      // Credits take no commercial input: quantity and price are resolved
+      // server-side from the canonical product, and the body carries a display
+      // currency and nothing else.
       const creditBody = JSON.stringify({ currency });
       return provider === "STRIPE"
         ? send(() =>
@@ -173,11 +147,14 @@ export function CheckoutDrawer({
     }
 
     if (intent.kind === "STORAGE") {
+      if (!selectedAddon) {
+        onError("Choose a size", "Select the capacity you want before continuing.");
+        return;
+      }
       const addonBody = JSON.stringify({
         addonKey: selectedAddon,
         billingCycle: "MONTHLY",
         currency,
-        ...teamPart,
       });
       return provider === "STRIPE"
         ? send(() =>
@@ -194,17 +171,14 @@ export function CheckoutDrawer({
           );
     }
 
-    // Nothing selected is a bug, not a default. Guessing here is precisely
-    // how the previous version charged for the wrong plan.
-    if (!planKey) {
-      onError(
-        "Choose a plan",
-        "Select the plan you want before continuing to payment.",
-      );
+    // Nothing selected is a bug, not a default. Guessing here is precisely how
+    // the previous version charged for the wrong plan.
+    if (!selectedPlan) {
+      onError("Choose a plan", "Select the plan you want before continuing to payment.");
       return;
     }
 
-    const planBody = JSON.stringify({ plan: planKey, currency, ...teamPart });
+    const planBody = JSON.stringify({ plan: selectedPlan, currency });
     return provider === "STRIPE"
       ? send(() =>
           apiFetch("/v1/billing/checkout/stripe", {
@@ -225,14 +199,42 @@ export function CheckoutDrawer({
       ? "Buy evidence credits"
       : intent.kind === "STORAGE"
         ? "Add storage"
-        : "Change plan";
+        : "Choose a plan";
 
+  /**
+   * ONE explanation, in the header.
+   *
+   * The credit drawer used to carry the same sentence twice — once here and
+   * again inside "What you have now" — which made a short drawer read as a
+   * long one and left the customer scanning for the difference between two
+   * identical paragraphs.
+   */
   const description =
     intent.kind === "CREDITS"
-      ? "Each credit records one more evidence item once your included allowance is used. Credits do not expire."
+      ? "Each credit records one more evidence item once your included allowance is used."
       : intent.kind === "STORAGE"
         ? "Extra capacity, billed monthly alongside your plan. You can cancel it at any time."
-        : `This applies to ${projection.account.displayName}.`;
+        : `Pick the plan for ${projection.account.displayName}.`;
+
+  /**
+   * The primary action says what it will do with the CHOICE.
+   *
+   * "Continue to payment" is the same sentence whichever tier is selected, so
+   * the one place a customer could catch a wrong selection said nothing about
+   * it. Naming the plan makes the choice legible at the moment of committing.
+   */
+  const selectedPlanOffer = planOffers.find((p) => p.planKey === selectedPlan);
+  const continueLabel =
+    intent.kind === "PLAN"
+      ? selectedPlanOffer
+        ? `Continue with ${selectedPlanOffer.displayName}`
+        : "Continue to payment"
+      : "Continue to payment";
+
+  const nothingToBuy =
+    (intent.kind === "PLAN" && planOffers.length === 0) ||
+    (intent.kind === "STORAGE" && offers.length === 0) ||
+    (intent.kind === "CREDITS" && !wallet);
 
   return (
     <BillingDrawer
@@ -252,94 +254,79 @@ export function CheckoutDrawer({
             loading={busy}
             disabled={
               busy ||
+              nothingToBuy ||
               (intent.kind === "STORAGE" && !selectedAddon) ||
               (intent.kind === "PLAN" && !selectedPlan)
             }
             data-billing-checkout-continue
             onClick={() => void startCheckout()}
           >
-            Continue to payment
+            {continueLabel}
           </Button>
         </>
       }
     >
-      <div style={{ display: "grid", gap: 22 }}>
-        {intent.kind === "PLAN" ? (
+      <div className="bill-drawer-body">
+        {nothingToBuy ? (
           /*
-           * BILLING SURFACE CORRECTION (2026-08-29) — a real chooser.
-           *
-           * These were plain `<div>`s: no input, no handler, no selected
-           * state. The drawer looked like it offered a choice and offered
-           * none, and checkout took the first entry in the list regardless.
-           *
-           * Native radios inside labels, so the whole card is the hit area,
-           * arrow keys move within the group, the selected option is exposed
-           * to a screen reader, and the focus ring is the browser's own. The
-           * selected state is carried by a border and a filled radio, never by
-           * colour alone.
+           * Defence in depth. Nothing on the page opens this drawer with an
+           * empty catalogue any more — the FREE storage card offers a plan
+           * instead of an empty purchase — but a drawer that CAN render an
+           * empty "Capacity" heading above a dead payment button will
+           * eventually be opened that way by something.
            */
+          <p className="bill-choice__meta" data-billing-nothing-to-buy>
+            There is nothing to buy here on your current plan. Close this and
+            choose a plan that includes it.
+          </p>
+        ) : null}
+
+        {intent.kind === "PLAN" && planOffers.length > 0 ? (
           <section>
-            <h3 style={sectionHeading} id="billing-plan-choice">
+            <h3 className="bill-section__heading" id="billing-plan-choice">
               Plan
             </h3>
             <div
               role="radiogroup"
               aria-labelledby="billing-plan-choice"
-              style={{ display: "grid", gap: 8 }}
+              className="bill-choice"
               data-billing-plan-choice
             >
               {planOffers.map((p: PlanOffer) => {
                 const checked = selectedPlan === p.planKey;
+                const price = formatMoney(p.priceCents, p.currency ?? currency);
                 return (
                   <label
                     key={p.planKey}
-                    style={{
-                      ...optionBox,
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 12,
-                      cursor: "pointer",
-                      borderColor: checked
-                        ? "var(--accent-500, #7c3aed)"
-                        : "var(--border-default, rgba(15,23,42,0.09))",
-                      boxShadow: checked
-                        ? "0 0 0 1px var(--accent-500, #7c3aed)"
-                        : undefined,
-                    }}
+                    className="bill-choice__option"
+                    data-selected={checked ? "true" : "false"}
                     data-billing-plan-option={p.planKey}
                     data-billing-plan-selected={checked ? "true" : "false"}
                   >
                     <input
+                      className="bill-choice__input"
                       type="radio"
                       name="billing-plan"
                       value={p.planKey}
                       checked={checked}
                       onChange={() => setSelectedPlan(p.planKey)}
                       disabled={busy}
-                      style={{ marginTop: 3, accentColor: "var(--accent-500, #7c3aed)" }}
                     />
-                    <span style={{ minWidth: 0 }}>
-                      <span
-                        style={{
-                          display: "block",
-                          fontWeight: 600,
-                          color: "var(--text-strong, #172033)",
-                        }}
-                      >
+                    <span className="bill-choice__body">
+                      <span className="bill-choice__title">
                         {p.displayName}
-                        {p.priceCents !== undefined ? (
+                        {price ? (
                           <>
                             {" — "}
-                            <bdi>{formatMoney(p.priceCents, p.currency ?? currency)}</bdi>
+                            <bdi>{price}</bdi>
                             {" / month"}
                           </>
                         ) : null}
                       </span>
-                      {/* Server-composed from the canonical catalog. The
-                          browser has no plan table of its own to fall out of
-                          date, so the summary beside the price is the same
-                          allowance the gate will enforce. */}
-                      <span style={{ ...optionBlurb, display: "block" }}>{p.summary}</span>
+                      {/* Server-composed from the canonical catalog, so the
+                          allowance beside the price is the one the gate will
+                          enforce. */}
+                      <span className="bill-choice__meta">{p.summary}</span>
                     </span>
                   </label>
                 );
@@ -348,103 +335,107 @@ export function CheckoutDrawer({
           </section>
         ) : null}
 
-        {intent.kind === "CREDITS" && projection.wallet ? (
+        {intent.kind === "CREDITS" && wallet ? (
           /*
-           * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the BALANCE and
-           * the PURCHASE are two separate statements, in that order.
+           * ONE summary card, in the order a person checks a purchase: what I
+           * have, what I am buying, what it costs, what I will have.
            *
-           * They used to be one box headed "Your credits" showing "3
-           * available" and a unit price, directly above a Buy button — so the
-           * only quantity on screen was the one the customer already had, and
-           * how many this purchase would add was not stated anywhere. Someone
-           * reading "3 available" above "Buy" has every reason to think they
-           * are buying three.
+           * What this replaces: two full-width boxes headed "What you have
+           * now" and "What you are buying", each repeating the drawer's own
+           * explanation, with the total never stated at all.
            */
-          <>
-            <section>
-              <h3 style={sectionHeading}>What you have now</h3>
-              <div style={optionBox}>
-                <div
-                  style={{ fontWeight: 600, color: "var(--text-strong, #172033)" }}
-                  data-billing-credit-balance
-                >
-                  <bdi>{projection.wallet.availableCredits}</bdi>{" "}
-                  {projection.wallet.availableCredits === 1 ? "credit" : "credits"} available
-                </div>
-                <p style={optionBlurb}>
-                  Each credit records one more evidence item once your included
-                  allowance is used. Credits do not expire.
-                </p>
+          <section>
+            <h3 className="bill-section__heading">Purchase</h3>
+            <div className="bill-summary" data-billing-credit-purchase>
+              <div className="bill-summary__row">
+                <span>Available now</span>
+                <span data-billing-credit-balance>
+                  <bdi>{wallet.availableCredits}</bdi>{" "}
+                  {wallet.availableCredits === 1 ? "credit" : "credits"}
+                </span>
               </div>
-            </section>
-
-            <section>
-              <h3 style={sectionHeading}>What you are buying</h3>
-              <div style={optionBox} data-billing-credit-purchase>
-                <div style={{ fontWeight: 600, color: "var(--text-strong, #172033)" }}>
-                  <bdi>{projection.wallet.creditsPerPurchase}</bdi>{" "}
-                  {projection.wallet.creditsPerPurchase === 1 ? "credit" : "credits"}
-                  {projection.wallet.unitPriceCents
-                    ? ` — ${formatMoney(
-                        projection.wallet.unitPriceCents *
-                          projection.wallet.creditsPerPurchase,
-                        projection.wallet.currency ?? currency,
-                      )}`
-                    : ""}
-                </div>
-                <p style={optionBlurb}>
-                  {/* The balance AFTER, said plainly, so the two numbers on
-                      screen cannot be mistaken for each other. */}
-                  You will have{" "}
-                  <bdi>
-                    {projection.wallet.availableCredits +
-                      projection.wallet.creditsPerPurchase}
-                  </bdi>{" "}
-                  once this payment settles. This is a one-time payment, not a
-                  subscription.
-                </p>
+              <div className="bill-summary__row">
+                <span>Buying</span>
+                <span data-billing-credit-quantity>
+                  <bdi>{wallet.creditsPerPurchase}</bdi>{" "}
+                  {wallet.creditsPerPurchase === 1 ? "credit" : "credits"}
+                </span>
               </div>
-            </section>
-          </>
+              {wallet.unitPriceCents ? (
+                <div className="bill-summary__row">
+                  <span>Price per credit</span>
+                  <span>
+                    <bdi>
+                      {formatMoney(wallet.unitPriceCents, wallet.currency ?? currency)}
+                    </bdi>
+                  </span>
+                </div>
+              ) : null}
+              {wallet.unitPriceCents ? (
+                <div className="bill-summary__row bill-summary__row--total">
+                  <span>Total</span>
+                  <span data-billing-credit-total>
+                    <bdi>
+                      {formatMoney(
+                        wallet.unitPriceCents * wallet.creditsPerPurchase,
+                        wallet.currency ?? currency,
+                      )}
+                    </bdi>
+                  </span>
+                </div>
+              ) : null}
+              <div className="bill-summary__row">
+                <span>Balance after payment</span>
+                <span data-billing-credit-after>
+                  <bdi>{wallet.availableCredits + wallet.creditsPerPurchase}</bdi>{" "}
+                  {wallet.availableCredits + wallet.creditsPerPurchase === 1
+                    ? "credit"
+                    : "credits"}
+                </span>
+              </div>
+              <p className="bill-summary__note">
+                {/* The quantity is the canonical product's, not a stepper: the
+                    credit API grants exactly `creditsPerPurchase` per purchase,
+                    and a client-side quantity would be a number the server
+                    would then ignore. */}
+                One-time payment · Credits do not expire
+              </p>
+            </div>
+          </section>
         ) : null}
 
-        {intent.kind === "STORAGE" ? (
+        {intent.kind === "STORAGE" && offers.length > 0 ? (
           <section>
-            <h3 style={sectionHeading}>Capacity</h3>
-            <div role="radiogroup" aria-label="Storage add-on" style={{ display: "grid", gap: 8 }}>
+            <h3 className="bill-section__heading" id="billing-addon-choice">
+              Capacity
+            </h3>
+            <div
+              role="radiogroup"
+              aria-labelledby="billing-addon-choice"
+              className="bill-choice"
+            >
               {offers.map((offer: StorageAddonOffer) => {
                 const price = formatMoney(offer.priceCents, offer.currency);
                 const checked = selectedAddon === offer.key;
                 return (
                   <label
                     key={offer.key}
-                    style={{
-                      ...optionBox,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      cursor: "pointer",
-                      borderColor: checked
-                        ? "var(--status-info-solid, #2563eb)"
-                        : "var(--border-default, rgba(15,23,42,0.09))",
-                    }}
+                    className="bill-choice__option"
+                    data-selected={checked ? "true" : "false"}
                     data-billing-addon-option={offer.key}
                   >
                     <input
+                      className="bill-choice__input"
                       type="radio"
                       name="storage-addon"
                       value={offer.key}
                       checked={checked}
                       onChange={() => setSelectedAddon(offer.key)}
-                      style={{ width: 18, height: 18 }}
+                      disabled={busy}
                     />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span
-                        style={{ display: "block", fontWeight: 600, color: "var(--text-strong, #172033)" }}
-                      >
-                        {offer.storageLabel}
-                      </span>
-                      <span style={{ fontSize: "0.85rem", color: "var(--text-muted, #5F6878)" }}>
+                    <span className="bill-choice__body">
+                      <span className="bill-choice__title">{offer.storageLabel}</span>
+                      <span className="bill-choice__meta">
                         {price ? (
                           <>
                             <bdi>{price}</bdi> per month
@@ -459,71 +450,50 @@ export function CheckoutDrawer({
           </section>
         ) : null}
 
-        <section>
-          <h3 style={sectionHeading}>Payment method</h3>
-          <div role="radiogroup" aria-label="Payment method" style={{ display: "grid", gap: 8 }}>
-            {(["STRIPE", "PAYPAL"] as const).map((p) => (
-              <label
-                key={p}
-                style={{
-                  ...optionBox,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  cursor: "pointer",
-                  borderColor:
-                    provider === p
-                      ? "var(--status-info-solid, #2563eb)"
-                      : "var(--border-default, rgba(15,23,42,0.09))",
-                }}
-                data-billing-provider-option={p}
-              >
-                <input
-                  type="radio"
-                  name="provider"
-                  value={p}
-                  checked={provider === p}
-                  onChange={() => setProvider(p)}
-                  style={{ width: 18, height: 18 }}
-                />
-                <span style={{ fontWeight: 600, color: "var(--text-strong, #172033)" }}>
-                  {p === "STRIPE" ? "Card" : "PayPal"}
-                </span>
-              </label>
-            ))}
-          </div>
-          <p style={{ ...optionBlurb, marginTop: 10 }}>
-            {/* Legally cautious, and true: no tax engine, no billing address and
-                no VAT-id authority exists, so the product does not claim to
-                calculate or collect VAT. */}
-            Displayed prices exclude any taxes that may be handled by the payment
-            provider where applicable.
-          </p>
-        </section>
+        {!nothingToBuy ? (
+          <section>
+            <h3 className="bill-section__heading" id="billing-provider-choice">
+              Payment method
+            </h3>
+            <div
+              role="radiogroup"
+              aria-labelledby="billing-provider-choice"
+              className="bill-choice"
+            >
+              {(["STRIPE", "PAYPAL"] as const).map((p) => (
+                <label
+                  key={p}
+                  className="bill-choice__option"
+                  data-selected={provider === p ? "true" : "false"}
+                  data-billing-provider-option={p}
+                >
+                  <input
+                    className="bill-choice__input"
+                    type="radio"
+                    name="provider"
+                    value={p}
+                    checked={provider === p}
+                    onChange={() => setProvider(p)}
+                    disabled={busy}
+                  />
+                  <span className="bill-choice__body">
+                    <span className="bill-choice__title">
+                      {p === "STRIPE" ? "Card" : "PayPal"}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="bill-summary__note">
+              {/* Legally cautious, and true: no tax engine, no billing address
+                  and no VAT-id authority exists, so the product does not claim
+                  to calculate or collect VAT. */}
+              Displayed prices exclude any taxes that may be handled by the
+              payment provider where applicable.
+            </p>
+          </section>
+        ) : null}
       </div>
     </BillingDrawer>
   );
 }
-
-const sectionHeading: React.CSSProperties = {
-  margin: "0 0 10px",
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: "var(--text-muted, #5F6878)",
-};
-
-const optionBox: React.CSSProperties = {
-  padding: "12px 14px",
-  borderRadius: 10,
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  background: "var(--surface-card, #ffffff)",
-};
-
-const optionBlurb: React.CSSProperties = {
-  margin: "6px 0 0",
-  fontSize: "0.86rem",
-  lineHeight: 1.6,
-  color: "var(--text-muted, #475569)",
-};
