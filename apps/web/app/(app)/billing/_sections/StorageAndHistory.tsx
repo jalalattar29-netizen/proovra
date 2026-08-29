@@ -30,6 +30,8 @@
  */
 
 import { Badge } from "../../../../components/ui/Badge";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
+import type { AppTone } from "../../../../components/app-primitives/AppStatusBadge";
 import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
@@ -38,6 +40,23 @@ import type {
   BillingHistoryEntry,
 } from "../../../../lib/api/billing-accounts";
 import { formatDate, formatMoney, statusLabel, statusTone } from "./format";
+
+/**
+ * The billing tone vocabulary, said in the app-primitive vocabulary.
+ *
+ * `statusTone` returns the Badge tones this page has always used; the
+ * canonical text primitive reads `AppTone`. This maps one onto the other and
+ * changes no meaning: succeeded stays success, pending stays the product's
+ * "needs attention" amber, failed stays error, abandoned stays neutral.
+ */
+function toStatusTextTone(
+  tone: "verified" | "pending" | "risk" | "neutral",
+): AppTone {
+  if (tone === "verified") return "green";
+  if (tone === "pending") return "amber";
+  if (tone === "risk") return "red";
+  return "slate";
+}
 
 export function StorageAddonsSection({
   projection,
@@ -444,16 +463,27 @@ export function BillingHistorySection({
                       )}
                     </td>
                     <td data-label="Status">
-                      <Badge
-                        tone={
-                          awaitingCustomer ? "pending" : statusTone(entry.status)
+                      {/* WORDS, NOT A CAPSULE.
+                          A filled pill per row turned the status column into a
+                          column of shapes: down twenty rows the capsule becomes
+                          the pattern and the word inside it stops being read.
+                          `AppStatusText` is the canonical no-surface sibling of
+                          `AppStatusBadge` and shares its tone vocabulary, so
+                          what each colour MEANS is unchanged — pending is the
+                          same amber the rest of the product uses for "needs
+                          attention", and no new colour is introduced here. */}
+                      <AppStatusText
+                        tone={toStatusTextTone(
+                          awaitingCustomer ? "pending" : statusTone(entry.status),
+                        )}
+                        data-billing-history-status={
+                          awaitingCustomer ? "ACTION_NEEDED" : entry.status
                         }
-                        dot
                       >
                         {awaitingCustomer
                           ? "Action needed"
                           : statusLabel(entry.status)}
-                      </Badge>
+                      </AppStatusText>
                     </td>
                     <td data-label="">
                       <div className="bill-history__actions">

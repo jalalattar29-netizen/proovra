@@ -12,6 +12,7 @@ import { CaptureSuggestionsPanel } from "./_lib/CaptureSuggestionsPanel";
 import { CaptureIntakeRail } from "./_lib/CaptureIntakeRail";
 import { CaptureOperationalSummary } from "./_lib/CaptureOperationalSummary";
 import { CaptureTrustStrip } from "./_lib/CaptureTrustStrip";
+import { CaptureDraftReattachNotice } from "./_lib/CaptureDraftReattachNotice";
 import { CaptureFinalReadiness } from "./_lib/CaptureFinalReadiness";
 import { CaptureActivityDisclosure } from "./_lib/CaptureActivityDisclosure";
 import {
@@ -165,6 +166,7 @@ function CapturePageInner() {
     Awaited<ReturnType<typeof draftList.fetchDetail>> | null
   >(null);
   const [resumeMetadataApplied, setResumeMetadataApplied] = useState(false);
+  const [reattachDismissed, setReattachDismissed] = useState(false);
 
   const draftPersistence = useCaptureDraftPersistence({ enabled: true });
   const draftIdRef = useRef<string | null>(null);
@@ -323,6 +325,15 @@ function CapturePageInner() {
     draftPersistence,
   ]);
 
+  // RESUME — apply everything the draft actually persists.
+  //
+  // This effect used to apply three of the five restorable fields and drop the
+  // rest on the floor. `GET /v1/capture/sessions/:id` returns `useLocation`
+  // and the full `itemsSnapshot`, `fetchDetail` maps both into
+  // `CaptureDraftDetail`, and neither was ever read. In the common case — a
+  // draft on the default template in the default mode with no notes — all
+  // three applied fields already held the values being written, so clicking
+  // Resume changed nothing observable at all while a toast said it had.
   useEffect(() => {
     if (!resumeDraftDetail || resumeMetadataApplied) return;
 
@@ -341,8 +352,26 @@ function CapturePageInner() {
       setPlanMode(resumeDraftDetail.planMode);
     }
 
+    // Persisted by `useCaptureDraftPersistence`, returned by the read route,
+    // and until now discarded. It changes the Location control AND the
+    // location-related readiness warning, so dropping it meant a resumed
+    // session could warn about metadata the operator had already enabled.
+    setUseLocation(Boolean(resumeDraftDetail.useLocation));
+
     setResumeMetadataApplied(true);
-  }, [resumeDraftDetail, resumeMetadataApplied]);
+
+    // ANNOUNCE AFTER THE FACT, NOT BEFORE IT. The toast used to fire in the
+    // click handler, before this effect had applied anything — a success
+    // message for work that had not happened yet. It now states what was
+    // restored and, separately, what the operator still has to do.
+    const pending = resumeDraftDetail.items?.length ?? 0;
+    addToast(
+      pending > 0
+        ? `Draft restored. Re-attach ${pending} file${pending === 1 ? "" : "s"} before Review & Sign.`
+        : "Draft restored.",
+      "success",
+    );
+  }, [resumeDraftDetail, resumeMetadataApplied, addToast]);
 
   const openFilePicker = () => {
     if (busy) return;
@@ -676,11 +705,9 @@ onClick={async () => {
   setResumeDraftDetail(detail);
   setResumeMetadataApplied(false);
   setResumeOpen(false);
-
-  addToast(
-    "Draft restored. Re-attach files before Review & Sign.",
-    "success"
-  );
+  setReattachDismissed(false);
+  // No success toast here: nothing has been applied yet. The effect that
+  // applies the draft announces it once it actually has.
 }}
               >
                 Resume
@@ -718,42 +745,29 @@ onClick={async () => {
         <section className="capture-enterprise-grid">
           <main className="capture-enterprise-card capture-main-panel">
         <section className="capture-hero">
-          {/* The page's identity mark. `Camera` is the icon the sidebar
-              already uses for this route and the eyebrow already carried at
-              15px — same glyph, given the size a page heading needs so the
-              reader knows which page they are on before reading a word. It is
-              part of the heading block, not an illustration. */}
-          <span className="capture-hero__mark" aria-hidden="true">
-            <Camera size={22} strokeWidth={2} />
-          </span>
-
-          {/* Phase IA-self-serve-completion — "Evidence intake
-              workspace" replaced with "Capture & upload" so the
-              eyebrow matches how lawyers / journalists describe
-              this step (capturing, not "intake-ing"). Copy preserved
-              verbatim under the shared PageHeader. */}
-          <PageHeader
-            className="capture-enterprise-title-card"
-            eyebrow={
-              <span
-                className="capture-enterprise-eyebrow"
-                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-              >
-                <Camera size={15} strokeWidth={2.1} />
-                Capture &amp; upload
-              </span>
-            }
-            title="Capture Evidence"
-            subtitle="Collect, map, fingerprint, and prepare evidence materials before Review & Sign. Drafts save metadata only — file contents are not stored until finalization."
-            /* NO UPLOAD ACTION HERE (2026-08-27).
-               The hero carried a primary "Upload evidence" button that opened
-               the same picker as the Evidence Materials section below, which
-               already owns Files / Folder / Photo / Video / Audio and the drop
-               zone. Two entry points for one operation meant the page's most
-               prominent control bypassed the surface that shows what was
-               added, what it mapped to and what is still required. The hero
-               introduces the page; Evidence Materials ingests. */
-          />
+          {/* THE HEADING, AND NOTHING ABOVE IT.
+              The hero carried an eyebrow — a 15px camera glyph and the words
+              "Capture & upload" — directly above a title that says the same
+              thing in three times the size. Two labels for one page. The mark
+              moved down beside the title it belongs to; the eyebrow is gone. */}
+          <div className="capture-hero__head">
+            <span className="capture-hero__mark" aria-hidden="true">
+              <Camera size={22} strokeWidth={2} />
+            </span>
+            <PageHeader
+              className="capture-enterprise-title-card"
+              title="Capture Evidence"
+              subtitle="Collect, map, fingerprint, and prepare evidence materials before Review & Sign. Drafts save metadata only — file contents are not stored until finalization."
+              /* NO UPLOAD ACTION HERE (2026-08-27).
+                 The hero carried a primary "Upload evidence" button that opened
+                 the same picker as the Evidence Materials section below, which
+                 already owns Files / Folder / Photo / Video / Audio and the drop
+                 zone. Two entry points for one operation meant the page's most
+                 prominent control bypassed the surface that shows what was
+                 added, what it mapped to and what is still required. The hero
+                 introduces the page; Evidence Materials ingests. */
+            />
+          </div>
 
           {/* THE TRUST STRIP replaces a single "End-to-end protected" card.
               Three compact statements, explanatory copy only — no verdict, no
@@ -879,6 +893,21 @@ onClick={async () => {
               sessionReadiness={sessionReadiness}
               formatEvidenceTypeLabel={formatEvidenceTypeLabel}
             />
+
+            {/* What the resumed draft restored, and what it could not.
+                Rendered from the draft's own `itemsSnapshot` — the metadata
+                the resume path used to fetch and discard. It sits directly
+                above the one ingestion surface, because re-attaching is the
+                action it asks for. Hidden once material is staged. */}
+            {resumeDraftDetail &&
+            !reattachDismissed &&
+            sessionItems.length === 0 ? (
+              <CaptureDraftReattachNotice
+                detail={resumeDraftDetail}
+                plan={selectedCollectionPlan}
+                onDismiss={() => setReattachDismissed(true)}
+              />
+            ) : null}
 
             <CaptureDropzone
               busy={busy}

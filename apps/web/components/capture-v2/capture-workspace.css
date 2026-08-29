@@ -2043,3 +2043,498 @@
 .capture-enterprise-page .capture-requirement-operational-status span {
   font-weight: 550 !important;
 }
+
+/* ===========================================================================
+   PASS 3 — NATIVE SURFACES, FLAT LABELS, CORRECT BUTTON SEMANTICS
+=========================================================================== */
+
+/* §B1 — Capture surfaces become part of the page rather than boxes on it.
+   The panels were already translucent; at 0.74 they still read as white
+   rectangles over the app background. Dropped far enough that the background
+   is the dominant value and the border does the grouping. Semantic tints —
+   blockers, warnings, readiness — are NOT touched: those fills carry meaning.
+
+   Scoped to `.capture-enterprise-page` throughout, so no shared primitive and
+   no other route is affected. */
+.capture-enterprise-page {
+  --cap-panel: rgba(255, 255, 255, 0.42);
+  --cap-panel-quiet: rgba(255, 255, 255, 0.26);
+}
+
+/* Rows and tiles inside a panel take no fill at all. */
+.capture-enterprise-page .capture-materials-board,
+.capture-enterprise-page .capture-materials-list,
+.capture-enterprise-page .capture-command-metrics > div,
+.capture-enterprise-page .capture-requirements-summary-strip > div,
+.capture-enterprise-page .capture-requirement-index,
+.capture-enterprise-page .capture-materials-meta-stack strong,
+.capture-enterprise-page .capture-notes-card textarea {
+  background: transparent !important;
+}
+
+/* The intake-plan band and the collapsed Help row are single lines of
+   orientation, not panels. A border is all the grouping they need. */
+.capture-enterprise-page .capture-intake-plan,
+.capture-enterprise-page .capture-contextual-help {
+  background: transparent !important;
+}
+
+/* §B2/§B3 — hero: the mark beside the title it names. */
+.capture-hero__head {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  align-items: start !important;
+  column-gap: 16px !important;
+}
+
+.capture-hero__head .capture-enterprise-title-card {
+  grid-column: 2 !important;
+}
+
+/* Optically aligned to the cap-height of the title rather than to its line
+   box, which is what makes an icon beside a heading look dropped. */
+.capture-hero__mark {
+  margin-block-start: 4px !important;
+}
+
+.capture-hero .capture-enterprise-title-card h1 {
+  margin-block-start: 0 !important;
+}
+
+/* ---------------------------------------------------------------------------
+   §B6, §B7 — REQUIREMENT LABELS AS WORDS
+
+   "Required to finish", "Optional context", "Required unmapped", "Accepts
+   Photo, Video, …" were six filled capsules on a three-row list. Six pills in
+   a row stop being read: the eye takes them as decoration and the meaning goes
+   with them. They are words now, in the tone their meaning already had.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-requirement-title-row span,
+.capture-enterprise-page .capture-requirement-chip-row span {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 0.78rem !important;
+  font-weight: 620 !important;
+  line-height: 1.4 !important;
+}
+
+/* Blocking: the one red on the row. */
+.capture-enterprise-page .capture-requirement-title-row span.required,
+.capture-enterprise-page .capture-requirement-chip-row span.missing {
+  color: var(--capture-red-dark) !important;
+  font-weight: 680 !important;
+}
+
+/* Optional: canonical amber, and only here. */
+.capture-enterprise-page .capture-requirement-title-row span.optional,
+.capture-enterprise-page .capture-requirement-chip-row span.optional {
+  color: #b54708 !important;
+}
+
+/* Mapped: success. */
+.capture-enterprise-page .capture-requirement-chip-row span.mapped {
+  color: var(--success, #067647) !important;
+}
+
+/* "Accepts …" is information about the requirement, not a state. */
+.capture-enterprise-page
+  .capture-requirement-chip-row
+  span:not(.mapped):not(.missing):not(.optional) {
+  color: var(--capture-muted) !important;
+  font-weight: 500 !important;
+}
+
+/* Without capsules the chips need their own separation, and a middot reads as
+   a separator where a gap alone reads as a wrap. */
+.capture-enterprise-page .capture-requirement-chip-row {
+  gap: 14px !important;
+}
+
+.capture-enterprise-page .capture-requirement-chip-row span + span {
+  position: relative !important;
+}
+
+.capture-enterprise-page .capture-requirement-chip-row span + span::before {
+  content: "·" !important;
+  position: absolute !important;
+  inset-inline-start: -9px !important;
+  color: var(--capture-line-strong) !important;
+}
+
+/* §B7 — the row stays flat: a thin semantic rail, a hairline border, no fill
+   and no depth. */
+.capture-enterprise-page .capture-requirement-row {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-inline-start-width: 2px !important;
+}
+
+/* ---------------------------------------------------------------------------
+   §B4 — INTEGRITY PREPARATION
+
+   Label left, value right, one rhythm, hairline rules between. It had been a
+   list whose values wrapped against their labels at rail width. Every tone
+   here is neutral: "Waiting", "Not started", "After finalization" and "Not
+   included" are states of a pipeline that has not run, and none of them is a
+   success.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-integrity-block {
+  background: var(--cap-panel-quiet) !important;
+}
+
+.capture-enterprise-page .capture-integrity-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+}
+
+.capture-enterprise-page .capture-integrity-list > div {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: baseline !important;
+  gap: 12px !important;
+  min-height: 34px !important;
+  padding-block: 8px !important;
+  border-block-start: 1px solid var(--cap-divider) !important;
+}
+
+.capture-enterprise-page .capture-integrity-list > div:first-child {
+  border-block-start: 0 !important;
+  padding-block-start: 0 !important;
+}
+
+.capture-enterprise-page .capture-integrity-list span {
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: var(--capture-muted) !important;
+  white-space: nowrap !important;
+}
+
+.capture-enterprise-page .capture-integrity-list strong {
+  font-size: 0.82rem !important;
+  font-weight: 650 !important;
+  text-align: end !important;
+  /* Neutral, every one of them. None of these four states is a success and
+     none is a failure; they describe a pipeline that has not run yet. */
+  color: var(--capture-ink) !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+/* ---------------------------------------------------------------------------
+   §B5 — AI REVIEW
+
+   A real button: dark ink, white label, the count inside it. It had been an
+   outlined control whose label was painted white by an inherited
+   `-webkit-text-fill-color` and whose count floated beside it as a separate
+   badge. Dark rather than accent keeps it clearly secondary to Review & Sign,
+   and it is not green — AI is advisory and is not part of integrity readiness.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle,
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle * {
+  background-image: none !important;
+  background-color: var(--capture-ink) !important;
+  border-color: var(--capture-ink) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.capture-enterprise-page .capture-ai-advisory-shell .capture-phase7-ai-toggle {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  width: 100% !important;
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  border: 1px solid var(--capture-ink) !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+}
+
+.capture-enterprise-page
+  .capture-ai-advisory-shell
+  .capture-phase7-ai-toggle:hover:not(:disabled),
+.capture-enterprise-page
+  .capture-ai-advisory-shell
+  .capture-phase7-ai-toggle:hover:not(:disabled) * {
+  background-color: #344054 !important;
+  border-color: #344054 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.capture-enterprise-page
+  .capture-ai-advisory-shell
+  .capture-phase7-ai-toggle:focus-visible {
+  outline: 2px solid var(--capture-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* The count rides inside the button, not beside it as a badge. */
+.capture-enterprise-page .capture-ai-advisory-shell .capture-ai-count-pill {
+  min-width: 20px !important;
+  padding: 1px 7px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* ---------------------------------------------------------------------------
+   §B8, §B13 — THE DRAFT CONTROLS
+
+   Resume is a navigation action, so it is dark ink rather than green: green is
+   reserved for success and ready states, and resuming a draft is neither.
+
+   Delete stayed white-with-red text but turned PURPLE on hover, which is the
+   opposite of what a destructive control should say. The cause was
+   specificity, not order: `.capture-bulk-button:hover:not(:disabled)` scores
+   (0,3,0) — `:hover` and `:not(:disabled)` each count as a class — while
+   `.capture-draft-delete-button:hover` scores (0,2,0). The generic hover won
+   every time even though the destructive rule came later in the sheet. Fixed
+   at the level that owns it, with enough specificity to hold, and without
+   touching any other button.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-drafts-modal-actions .capture-bulk-button,
+.capture-enterprise-page .capture-drafts-trigger {
+  min-height: 36px !important;
+  padding: 0 16px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--capture-ink) !important;
+  background: var(--capture-ink) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 650 !important;
+}
+
+.capture-enterprise-page
+  .capture-drafts-modal-actions
+  .capture-bulk-button:hover:not(:disabled),
+.capture-enterprise-page .capture-drafts-trigger:hover:not(:disabled) {
+  background: #344054 !important;
+  border-color: #344054 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.capture-enterprise-page
+  .capture-drafts-modal-actions
+  .capture-bulk-button:focus-visible,
+.capture-enterprise-page .capture-drafts-trigger:focus-visible {
+  outline: 2px solid var(--capture-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* Destructive: light surface, red text, red border — in every state. */
+.capture-enterprise-page .capture-draft-delete-button,
+.capture-enterprise-page
+  .capture-drafts-modal-actions
+  .capture-draft-delete-button {
+  background: #ffffff !important;
+  border: 1px solid rgba(240, 68, 56, 0.34) !important;
+  color: var(--capture-red-dark) !important;
+  -webkit-text-fill-color: var(--capture-red-dark) !important;
+}
+
+.capture-enterprise-page .capture-draft-delete-button:hover:not(:disabled),
+.capture-enterprise-page
+  .capture-drafts-modal-actions
+  .capture-draft-delete-button:hover:not(:disabled) {
+  background: rgba(240, 68, 56, 0.07) !important;
+  border-color: var(--capture-red) !important;
+  color: var(--capture-red-dark) !important;
+  -webkit-text-fill-color: var(--capture-red-dark) !important;
+}
+
+.capture-enterprise-page .capture-draft-delete-button:active:not(:disabled),
+.capture-enterprise-page
+  .capture-drafts-modal-actions
+  .capture-draft-delete-button:active:not(:disabled) {
+  background: rgba(240, 68, 56, 0.13) !important;
+  color: var(--capture-red-dark) !important;
+  -webkit-text-fill-color: var(--capture-red-dark) !important;
+}
+
+.capture-enterprise-page .capture-draft-delete-button:focus-visible {
+  outline: 2px solid var(--capture-red) !important;
+  outline-offset: 2px !important;
+}
+
+/* ---------------------------------------------------------------------------
+   THE RE-ATTACH NOTICE
+
+   What a resumed draft restored, and what it could not. Attention-toned
+   because it asks for an action, not alarm-toned: nothing has gone wrong.
+--------------------------------------------------------------------------- */
+
+.capture-reattach {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 18px 20px !important;
+  border: 1px solid rgba(247, 144, 9, 0.26) !important;
+  border-radius: var(--cap-radius) !important;
+  background: rgba(247, 144, 9, 0.045) !important;
+}
+
+.capture-reattach__head {
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) auto !important;
+  align-items: start !important;
+  gap: 12px !important;
+}
+
+.capture-reattach__icon {
+  display: grid !important;
+  place-items: center !important;
+  inline-size: 32px !important;
+  block-size: 32px !important;
+  border-radius: 9px !important;
+  background: rgba(247, 144, 9, 0.13) !important;
+  color: #b54708 !important;
+}
+
+.capture-reattach__head strong {
+  display: block !important;
+  font-size: var(--cap-fs-body) !important;
+  font-weight: 700 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-reattach__head p {
+  margin: 4px 0 0 !important;
+  max-width: 74ch !important;
+  font-size: var(--cap-fs-meta) !important;
+  line-height: 1.5 !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-reattach__dismiss {
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border: 1px solid var(--capture-line-strong) !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  color: var(--capture-muted) !important;
+  font-size: 0.78rem !important;
+  font-weight: 650 !important;
+}
+
+.capture-reattach__dismiss:hover {
+  background: rgba(16, 24, 40, 0.04) !important;
+}
+
+.capture-reattach__list {
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+.capture-reattach__list li {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: baseline !important;
+  gap: 14px !important;
+  padding-block: 8px !important;
+  border-block-start: 1px solid rgba(247, 144, 9, 0.18) !important;
+}
+
+.capture-reattach__name {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: var(--cap-fs-meta) !important;
+  font-weight: 650 !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-reattach__meta {
+  font-size: 0.78rem !important;
+  color: var(--capture-muted) !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 560px) {
+  .capture-reattach__head {
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+  }
+
+  .capture-reattach__dismiss {
+    grid-column: 2 !important;
+    justify-self: start !important;
+  }
+
+  .capture-reattach__list li {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 2px !important;
+  }
+
+  .capture-reattach__meta {
+    white-space: normal !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   PASS 3 — TWO CORRECTIONS MEASURED IN THE BROWSER
+--------------------------------------------------------------------------- */
+
+/* The intake-plan marker was swept into the "no fill inside a panel" rule, but
+   a COMPLETE step carries a filled accent disc with a white numeral. Made
+   transparent, its white numeral was painted on nothing and step 1 rendered as
+   an empty ring. The marker's fill is state, not decoration, so it is restored
+   here and the three states are restated together. */
+.capture-enterprise-page .capture-intake-plan__marker {
+  background: #ffffff !important;
+}
+
+.capture-enterprise-page
+  [data-capture-intake-stage-status="complete"]
+  .capture-intake-plan__marker {
+  background: var(--capture-accent) !important;
+  border-color: var(--capture-accent) !important;
+  color: #ffffff !important;
+}
+
+.capture-enterprise-page
+  [data-capture-intake-stage-status="active"]
+  .capture-intake-plan__marker {
+  background: var(--capture-accent-soft) !important;
+  border-color: var(--capture-accent) !important;
+  color: var(--capture-accent-strong) !important;
+}
+
+/* The requirement labels kept their tinted capsules because the earlier pass
+   had already written CLASS-QUALIFIED rules for them —
+   `…chip-row span.missing` scores (0,3,0) and beat the unqualified
+   `…chip-row span` at (0,2,0) that was meant to flatten them. Specificity, not
+   order: the flattening has to be stated at the same qualification it is
+   trying to override. */
+.capture-enterprise-page .capture-requirement-title-row span.required,
+.capture-enterprise-page .capture-requirement-title-row span.optional,
+.capture-enterprise-page .capture-requirement-chip-row span.missing,
+.capture-enterprise-page .capture-requirement-chip-row span.optional,
+.capture-enterprise-page .capture-requirement-chip-row span.mapped,
+.capture-enterprise-page
+  .capture-requirement-chip-row
+  span:not(.mapped):not(.missing):not(.optional) {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}

@@ -40,7 +40,66 @@ function captureEnvelope(): Record<string, unknown> {
 
 const SELF_USER_ID = "11111111-1111-4111-8111-111111111111";
 
-export async function installCaptureApi(page: Page): Promise<void> {
+/**
+ * A DRAFT capture session, in the shape `GET /v1/capture/sessions/:id`
+ * actually returns — `toApiSession` in `capture.routes.ts`. The fields that
+ * matter to resume are `useLocation` and `items` (the server's
+ * `itemsSnapshot`), because those are the two the resume path used to fetch
+ * and then discard.
+ */
+export const DRAFT_ID = "draft-11111111-1111-4111-8111-111111111111";
+
+export function captureDraftFixture() {
+  return {
+    id: DRAFT_ID,
+    status: "DRAFT",
+    templateId: "general-evidence-record",
+    templateVersion: 1,
+    templateName: "General Evidence Record",
+    planMode: "CHECKLIST_REQUIRED",
+    templateSnapshot: null,
+    internalNotes: "Insurer reference 88213.",
+    useLocation: true,
+    items: [
+      {
+        clientItemId: "item-1",
+        fileName: "front-door-damage.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 182_311,
+        relativePath: null,
+        role: "PRIMARY",
+        privateNote: null,
+        checklistStepId: "primary_evidence",
+        sourceLabel: "Camera",
+        uploadState: "pending",
+      },
+      {
+        clientItemId: "item-2",
+        fileName: "loss-context.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 44_120,
+        relativePath: null,
+        role: null,
+        privateNote: null,
+        checklistStepId: null,
+        sourceLabel: null,
+        uploadState: "pending",
+      },
+    ],
+    uploadState: null,
+    finalizedEvidenceId: null,
+    finalizedAtUtc: null,
+    discardedAtUtc: null,
+    expiresAtUtc: "2026-12-31T00:00:00.000Z",
+    createdAt: "2026-08-01T10:00:00.000Z",
+    updatedAt: "2026-08-01T10:30:00.000Z",
+  };
+}
+
+export async function installCaptureApi(
+  page: Page,
+  opts: { drafts?: boolean } = {},
+): Promise<void> {
   const json = (body: unknown) => ({
     status: 200,
     contentType: "application/json",
@@ -90,7 +149,12 @@ export async function installCaptureApi(page: Page): Promise<void> {
       return route.fulfill(json({ templates: [] }));
     }
     if (path.includes("/v1/capture/sessions")) {
-      return route.fulfill(json({ sessions: [] }));
+      if (!opts.drafts) return route.fulfill(json({ sessions: [] }));
+      // The read route answers `{ session }`; the list answers `{ sessions }`.
+      if (path.endsWith(`/v1/capture/sessions/${DRAFT_ID}`)) {
+        return route.fulfill(json({ session: captureDraftFixture() }));
+      }
+      return route.fulfill(json({ sessions: [captureDraftFixture()] }));
     }
     if (path.endsWith("/v1/users/me")) {
       return route.fulfill(
@@ -135,8 +199,11 @@ export async function installCaptureApi(page: Page): Promise<void> {
 }
 
 /** Open /capture with the API intercepted, and wait for the shell to settle. */
-export async function openCapture(page: Page): Promise<void> {
-  await installCaptureApi(page);
+export async function openCapture(
+  page: Page,
+  opts: { drafts?: boolean } = {},
+): Promise<void> {
+  await installCaptureApi(page, opts);
   await page.goto("/capture");
   await page.waitForSelector("[data-capture-trust-strip]", { timeout: 30_000 });
 }

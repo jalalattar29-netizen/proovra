@@ -71,7 +71,9 @@ const OPERATIONS_LAYOUT_BASE = `http://127.0.0.1:${OPERATIONS_LAYOUT_PORT}`;
  * all of them.
  */
 const CAPTURE_LAYOUT_PORT = 3015;
+const BILLING_LAYOUT_PORT = 3016;
 const CAPTURE_LAYOUT_BASE = `http://127.0.0.1:${CAPTURE_LAYOUT_PORT}`;
+const BILLING_LAYOUT_BASE = `http://127.0.0.1:${BILLING_LAYOUT_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -244,6 +246,23 @@ export default defineConfig({
         baseURL: CAPTURE_LAYOUT_BASE,
       },
     },
+    /**
+     * BILLING — what jsdom cannot answer about this page.
+     *
+     * The render tests already pin what Billing SAYS. They cannot say whether
+     * the Evidence and Storage actions land on one baseline, whether the
+     * history status column is words or capsules, or what colour a purchase
+     * button actually paints, because jsdom applies no stylesheet and reports
+     * no layout.
+     */
+    {
+      name: "billing-layout",
+      testDir: "./e2e/billing-layout",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: BILLING_LAYOUT_BASE,
+      },
+    },
   ],
   /**
    * Started only for the opt-in layout projects, each on its own port.
@@ -255,6 +274,17 @@ export default defineConfig({
    * second web server on top of the one they already run.
    */
   webServer: [
+    ...(process.env.BILLING_LAYOUT
+      ? [
+          {
+            command: `pnpm --filter proovra-web exec next start -p ${BILLING_LAYOUT_PORT} -H 127.0.0.1`,
+            url: `${BILLING_LAYOUT_BASE}/login`,
+            reuseExistingServer: true,
+            timeout: 180_000,
+            env: { NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" },
+          },
+        ]
+      : []),
     ...(process.env.CAPTURE_LAYOUT
       ? [
           {

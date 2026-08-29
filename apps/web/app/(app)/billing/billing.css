@@ -1050,3 +1050,175 @@
     forced-color-adjust: auto;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * BILLING UI REFINEMENT (2026-09-02) — action weight and card pairing
+ *
+ * Three purchase entry points on this page had been painted as the outlined
+ * violet secondary: "Start Team subscription" in the plan card, "Buy credits"
+ * on Evidence and "Add storage" on Storage. That treatment is right for a
+ * navigational secondary and wrong here — these commit money, and next to the
+ * filled violet plan action they read as the same act at lower confidence.
+ *
+ * They become dark ink with a white label: unmistakably a button, clearly
+ * distinct from the one violet primary, and never mistaken for the page's plan
+ * action. Violet stays where it means "the product's primary path".
+ *
+ * Each is addressed by the `data-*` hook its own component already emits, so
+ * nothing reaches a button this file did not name.
+ * ------------------------------------------------------------------------- */
+
+.bill-page .bill-overview__action {
+  display: flex;
+  flex-wrap: wrap;
+  /* The two plan actions were touching. `--space-3` is the scale's step for
+     sibling controls and is what the panel action rows already use. */
+  gap: var(--space-3, 12px);
+  align-items: center;
+}
+
+.bill-page [data-billing-start-subscription].ui-button,
+.bill-page [data-billing-buy-credits].ui-button,
+.bill-page [data-billing-manage-storage].ui-button,
+.bill-panel [data-billing-buy-credits].ui-button,
+.bill-panel [data-billing-manage-storage].ui-button,
+.bill-overview [data-billing-start-subscription].ui-button {
+  background: var(--text-strong, #172033) !important;
+  background-image: none !important;
+  border: 1px solid var(--text-strong, #172033) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: none !important;
+  min-height: 44px !important;
+  block-size: 44px !important;
+  border-radius: 10px !important;
+}
+
+.bill-page [data-billing-start-subscription].ui-button:hover:not(:disabled),
+.bill-page [data-billing-buy-credits].ui-button:hover:not(:disabled),
+.bill-page [data-billing-manage-storage].ui-button:hover:not(:disabled),
+.bill-panel [data-billing-buy-credits].ui-button:hover:not(:disabled),
+.bill-panel [data-billing-manage-storage].ui-button:hover:not(:disabled),
+.bill-overview [data-billing-start-subscription].ui-button:hover:not(:disabled) {
+  /* A dark neutral step, never the violet the secondary treatment reaches for
+     on hover — that is what made these read as violet buttons in disguise. */
+  background: #2c3648 !important;
+  border-color: #2c3648 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.bill-page [data-billing-start-subscription].ui-button:active:not(:disabled),
+.bill-page [data-billing-buy-credits].ui-button:active:not(:disabled),
+.bill-page [data-billing-manage-storage].ui-button:active:not(:disabled),
+.bill-panel [data-billing-buy-credits].ui-button:active:not(:disabled),
+.bill-panel [data-billing-manage-storage].ui-button:active:not(:disabled) {
+  background: #0f172a !important;
+  border-color: #0f172a !important;
+}
+
+.bill-page [data-billing-start-subscription].ui-button:focus-visible,
+.bill-page [data-billing-buy-credits].ui-button:focus-visible,
+.bill-page [data-billing-manage-storage].ui-button:focus-visible,
+.bill-panel [data-billing-buy-credits].ui-button:focus-visible,
+.bill-panel [data-billing-manage-storage].ui-button:focus-visible {
+  outline: 2px solid var(--accent-500, #7c3aed) !important;
+  outline-offset: 2px !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * THE ALLOWANCE PAIR — one baseline for two different card bodies
+ *
+ * Evidence lists five figures and Storage lists two, so the two cards' actions
+ * landed at different heights and the row read as one finished card beside one
+ * that had stopped early. The panels stretch to the row's height (the grid
+ * already does that); what was missing is somewhere for the slack to go.
+ *
+ * Column flex, and the action row takes the slack. No fixed heights — the
+ * cards still size to whatever the server gives them.
+ * ------------------------------------------------------------------------- */
+.bill-row[data-billing-row="allowances"] .bill-panel {
+  display: flex;
+  flex-direction: column;
+  align-content: stretch;
+}
+
+.bill-row[data-billing-row="allowances"] .bill-panel > .bill-panel__actions {
+  margin-block-start: auto;
+  padding-block-start: 4px;
+}
+
+/* The gap that `display: grid` provided has to be restated for flex children
+   that are not the action row. */
+.bill-row[data-billing-row="allowances"] .bill-panel > * + *:not(.bill-panel__actions) {
+  margin-block-start: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+ * SUPPORT — the one place a violet action still belongs down here
+ * ------------------------------------------------------------------------- */
+.bill-page [data-billing-support-action].ui-button {
+  background: var(--accent-600, #6d28d9) !important;
+  background-image: none !important;
+  border: 1px solid var(--accent-600, #6d28d9) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: none !important;
+  min-height: 40px !important;
+  border-radius: 10px !important;
+  font-weight: 650 !important;
+}
+
+.bill-page [data-billing-support-action].ui-button:hover {
+  background: var(--accent-700, #5b21b6) !important;
+  border-color: var(--accent-700, #5b21b6) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.bill-page [data-billing-support-action].ui-button:focus-visible {
+  outline: 2px solid var(--accent-500, #7c3aed) !important;
+  outline-offset: 2px !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * BILLING HISTORY — status as words
+ *
+ * The status column rendered a filled capsule per row. Down a column of them
+ * the capsules become the pattern and the words stop being read; `Abandoned`
+ * in a grey pill also reads as a state something is IN rather than a closed
+ * attempt. `AppStatusText` is the canonical no-capsule sibling of the badge
+ * and shares its tone vocabulary, so the meaning of each colour is unchanged.
+ * ------------------------------------------------------------------------- */
+.bill-history .app-status-text,
+.bill-page td .app-status-text {
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+ * BILLING HISTORY — the header must not collapse around its own action
+ *
+ * The card header is a flex row: title block, then "Re-check purchases and
+ * billing". The button does not shrink, so at 390px the title block was
+ * squeezed to 16px and "Billing history" rendered one character per line, with
+ * the subtitle beneath it doing the same. Nothing overflowed the document, so
+ * the geometry check saw nothing wrong.
+ *
+ * Scoped to this card by its own data hook — the shared `ui-card` header is
+ * used across the product and is not touched.
+ * ------------------------------------------------------------------------- */
+.bill-page [data-billing-history] > div:first-child {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.bill-page [data-billing-history] > div:first-child > * {
+  min-inline-size: 0;
+}
+
+@media (max-width: 720px) {
+  .bill-page [data-billing-history] > div:first-child {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
