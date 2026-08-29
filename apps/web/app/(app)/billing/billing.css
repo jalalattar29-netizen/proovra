@@ -704,3 +704,171 @@
 .bill-support__action {
   min-block-size: 44px;
 }
+
+/* PLAN-DRAWER BUTTON HIERARCHY
+ * ---------------------------------------------------------------------------
+ * TWO buttons, scoped to the Billing drawers and nowhere else.
+ *
+ * The plan drawer is the one surface in PROOVRA where a customer commits money
+ * and where a customer leaves. Those two acts read alike in the app's ordinary
+ * palette — a violet primary and a neutral secondary — so the page's own accent
+ * competed with the decision being made, and cancellation sat at the same
+ * visual weight as an upgrade.
+ *
+ * WHY `!important` IS HERE, AND WHY IT IS NOT A SMELL
+ * ---------------------------------------------------------------------------
+ * `components/ui/Button` applies its variant colours as INLINE styles
+ * (`style={{ ...variantStyle(variant) }}`), which no stylesheet rule can
+ * outrank by specificity alone. The alternatives were worse:
+ *
+ *   * passing a `style` prop from each call site — that puts hex values back
+ *     into JSX, which this codebase bans, and leaves hover, active,
+ *     focus-visible and disabled with nowhere to live;
+ *   * adding a global `variant` to the primitive — that is exactly the change
+ *     the scope rules forbid, because it would repaint buttons on every page.
+ *
+ * EVERY selector below is a descendant of `.bill-drawer`, the panel class on
+ * the Billing drawer's dialog. Nothing here can reach `.app-primary-action`,
+ * the header's "New Case", an Evidence action, the Storage CTA on the page, the
+ * auth email buttons or any other `.ui-button` in the product. That containment
+ * is what makes the override safe, and it is asserted by a test rather than
+ * left as a promise.
+ * ------------------------------------------------------------------------- */
+
+.bill-drawer .bill-plan-action.ui-button {
+  /* The drawer is where money is committed and where a customer leaves.
+     Both actions stay reachable on a phone, whatever size the primitive was
+     asked for. The primitive sets `minHeight` INLINE per size, so this must
+     outrank it the same way the colours do. */
+  min-height: 44px !important;
+  /* The darkest neutral the token scale already defines. Deliberately NOT a
+     new colour: `--ink-primary` is the same value the product's strongest text
+     uses, so the button is the page's own black rather than a second one. */
+  background: var(--ink-primary, #0f172a) !important;
+  background-image: none !important;
+  color: var(--ink-inverse, #ffffff) !important;
+  border: 1px solid var(--ink-primary, #0f172a) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18) !important;
+}
+
+.bill-drawer .bill-plan-action.ui-button:hover:not(:disabled) {
+  background: #000000 !important;
+  border-color: #000000 !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.28) !important;
+}
+
+.bill-drawer .bill-plan-action.ui-button:active:not(:disabled) {
+  /* Pressed reads as pressed: the lift is removed, not deepened. */
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+  transform: translateY(1px);
+}
+
+.bill-drawer .bill-plan-action.ui-button:focus-visible {
+  outline: 2px solid var(--ink-primary, #0f172a) !important;
+  outline-offset: 2px;
+}
+
+.bill-drawer .bill-plan-action.ui-button:disabled,
+.bill-drawer .bill-plan-action.ui-button[aria-busy="true"] {
+  /* Still legibly BLACK while it works. A disabled state that changes hue
+     reads as a different button, and the loading state is the one a customer
+     watches for the longest. */
+  background: var(--ink-primary, #0f172a) !important;
+  border-color: var(--ink-primary, #0f172a) !important;
+  color: var(--ink-inverse, #ffffff) !important;
+  box-shadow: none !important;
+  transform: none;
+}
+
+.bill-drawer .bill-cancel-action.ui-button {
+  min-height: 44px !important;
+  /*
+   * The ENTRY POINT to cancellation, not the confirmation of it.
+   *
+   * A solid red button here would be a destructive-looking control for an act
+   * that has not happened yet and is entirely legitimate — and it would look
+   * identical to the confirmation that follows, where the customer actually
+   * decides. Outlined states the consequence without shouting it, and leaves
+   * the filled red to mean "this is the last press".
+   */
+  background: var(--surface-card, #ffffff) !important;
+  background-image: none !important;
+  color: var(--destructive, #dc2626) !important;
+  border: 1px solid var(--destructive, #dc2626) !important;
+  box-shadow: none !important;
+}
+
+.bill-drawer .bill-cancel-action.ui-button:hover:not(:disabled) {
+  /* A tint, not a fill: the text stays the same red on a background light
+     enough to keep it well above 4.5:1. */
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: var(--destructive, #dc2626) !important;
+  border-color: var(--destructive, #dc2626) !important;
+}
+
+.bill-drawer .bill-cancel-action.ui-button:active:not(:disabled) {
+  background: rgba(220, 38, 38, 0.14) !important;
+  transform: translateY(1px);
+}
+
+.bill-drawer .bill-cancel-action.ui-button:focus-visible {
+  outline: 2px solid var(--destructive, #dc2626) !important;
+  outline-offset: 2px;
+}
+
+.bill-drawer .bill-cancel-action.ui-button:disabled,
+.bill-drawer .bill-cancel-action.ui-button[aria-busy="true"] {
+  background: var(--surface-card, #ffffff) !important;
+  color: var(--destructive, #dc2626) !important;
+  border-color: var(--destructive, #dc2626) !important;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bill-drawer .bill-plan-action.ui-button:active:not(:disabled),
+  .bill-drawer .bill-cancel-action.ui-button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* A tier move: the action, and one line about that move.
+ * ---------------------------------------------------------------------------
+ * What this replaces stacked every button first and then repeated a paragraph
+ * for each of them below, so the customer had to match buttons to paragraphs
+ * by order. Here the sentence belongs to the button above it.
+ * ------------------------------------------------------------------------- */
+.bill-move-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.bill-move {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.bill-move > .ui-button {
+  min-block-size: 44px;
+}
+
+.bill-move__meta {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-muted, #5F6878);
+  overflow-wrap: anywhere;
+}
+
+/* The plan option's price, on its own line beneath the allowances it buys.
+ * It used to sit in the title after an em dash, where the tier name and the
+ * figure competed for the same emphasis. */
+.bill-choice__price {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-strong, #172033);
+  overflow-wrap: anywhere;
+}

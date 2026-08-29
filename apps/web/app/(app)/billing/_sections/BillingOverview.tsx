@@ -355,12 +355,29 @@ function buildMetrics(projection: BillingAccountProjection): Metric[] {
 }
 
 /**
- * The Evidence allowance in full, where there is room for it.
+ * EVIDENCE — one card.
  *
- * This is the paragraph that used to sit under a progress bar in a
- * three-column row. It says the same things — what the plan includes, what
- * this account is allowed, how far past it is, and what the next record needs
- * — as facts on their own lines rather than as prose in a column.
+ * WHAT THIS MERGED, AND WHY
+ * ---------------------------------------------------------------------------
+ * The page carried TWO cards about the same thing. "Evidence allowance" said
+ * how many records were held, what the plan included and how many credits were
+ * available; "Evidence credits" said the credit balance again, explained what
+ * credits are, and offered the purchase. A customer reading down the page met
+ * the number 0 twice, under two headings, with the action attached to the
+ * second one — so the card that explained the shortage was not the card that
+ * could fix it.
+ *
+ * They are one capacity question with one remedy, so they are one card with
+ * ONE purchase action. Nothing was lost in the merge: the balance, the ledger
+ * history and the purchase all moved here, and the second card was deleted
+ * rather than hidden.
+ *
+ * WHAT IT RENDERS
+ * ---------------------------------------------------------------------------
+ * The server's projection. Which numbers exist, what the next record needs and
+ * whether a purchase is authorized are all decided in
+ * `billing-account-projection.service.ts`; nothing about the commercial policy
+ * is derived here.
  */
 export function EvidenceDetailCard({
   projection,
@@ -373,71 +390,92 @@ export function EvidenceDetailCard({
 }) {
   const admission = projection.evidenceAdmission;
   const meter = projection.usage.evidence;
+  const wallet = projection.wallet;
+  const canBuyCredits = projection.actions.canBuyEvidenceCredits === true;
 
   /*
-   * A ROLLING allowance has no admission projection — it is not funded by the
-   * credit wallet — but it still needs the panel when it is over, because the
-   * resolution is the one thing the number does not say.
+   * The card exists when there is something true to put in it.
    *
-   * The two windows resolve differently, and saying the wrong one is worse
-   * than saying nothing: records AGE OUT of a rolling window, so waiting is a
-   * real answer, while a lifetime allowance never refills and waiting would be
-   * waiting for ever. `describeMeter` is the canonical formatter for that
-   * distinction and is used rather than restated here.
+   * The version this replaces returned null unless there was an ADMISSION
+   * projection or a rolling meter already over its limit — so a TEAM account,
+   * whose rolling window carries no admission, had its credit balance shown
+   * only by the second card. Deleting that card without widening this
+   * condition would have deleted the balance with it.
    */
-  const overRolling =
-    !admission &&
-    meter.state === "MEASURED" &&
-    meter.limit !== null &&
-    meter.used > meter.limit;
+  const hasMeter = meter.state === "MEASURED";
+  if (!admission && !hasMeter && !wallet) return null;
 
-  if (!admission && !overRolling) return null;
+  const described = hasMeter ? describeMeter(meter) : null;
+  const offered = admission
+    ? describeEvidenceAdmission(admission, {
+        canBuyCredits,
+        hasPlanOffer: (projection.planOffers ?? []).length > 0,
+      })
+    : null;
 
-  if (!admission) {
-    const described = describeMeter(meter);
-    return (
-      <section className="bill-panel" data-billing-evidence-detail>
-        <h3 className="bill-panel__title">Evidence allowance</h3>
-        <p className="bill-panel__lead">
-          <bdi>{described.headline}</bdi>
-        </p>
-        {described.detail ? (
-          <p className="bill-panel__note" data-billing-evidence-next>
-            {described.detail}
-          </p>
-        ) : null}
-      </section>
-    );
-  }
+  /*
+   * THE dominant number, chosen once.
+   *
+   * The admission projection is preferred where it exists because it knows the
+   * difference between a plan's included allowance and a higher AGREED limit
+   * for this account — a distinction the raw meter cannot make, and getting it
+   * wrong tells a customer their plan is something it is not.
+   */
+  const headline = offered?.headline ?? described?.headline ?? null;
 
-  const offered = describeEvidenceAdmission(admission, {
-    canBuyCredits: projection.actions.canBuyEvidenceCredits === true,
-    hasPlanOffer: (projection.planOffers ?? []).length > 0,
-  });
+  const windowNote =
+    meter.state === "MEASURED"
+      ? meter.window === "ROLLING_30_DAYS"
+        ? "Rolling 30-day window"
+        : meter.window === "CALENDAR_MONTH"
+          ? "Resets each month"
+          : null
+      : null;
 
   const grandfathered =
+    admission &&
     admission.capSource === "LEGACY_RECORD_CAP_OVERRIDE" &&
     admission.planIncludedLifetime !== null &&
     admission.effectiveLifetimeCap !== null &&
     admission.planIncludedLifetime !== admission.effectiveLifetimeCap;
 
   const over =
+    admission &&
     admission.effectiveLifetimeCap !== null &&
     admission.recordsHeld > admission.effectiveLifetimeCap
       ? admission.recordsHeld - admission.effectiveLifetimeCap
       : 0;
 
+  /*
+   * The credit balance comes from the ADMISSION where there is one and from
+   * the wallet otherwise. They are the same number from the same authority;
+   * the admission simply carries it alongside the allowance it funds.
+   */
+  const credits = admission?.creditsAvailable ?? wallet?.availableCredits ?? null;
+
+  /*
+   * ONE purchase entry point, and the SERVER decides whether it exists.
+   *
+   * `offered.action` is the admission's own answer for accounts that have one.
+   * A wallet-holding account with no admission — the rolling-window tiers —
+   * keeps the purchase, because credits fund records there too; what it does
+   * not get is a shortage sentence it is not in.
+   */
+  const action: "BUY_CREDITS" | "SEE_PLANS" | null =
+    offered?.action ?? (wallet && canBuyCredits ? "BUY_CREDITS" : null);
+
   return (
     <section className="bill-panel" data-billing-evidence-detail>
-      <h3 className="bill-panel__title">Evidence allowance</h3>
+      <h3 className="bill-panel__title">Evidence</h3>
+
+      {headline ? (
+        <p className="bill-panel__lead">
+          <bdi>{headline}</bdi>
+        </p>
+      ) : null}
+
       <dl className="bill-facts">
-        <div className="bill-facts__row">
-          <dt className="bill-facts__label">Records</dt>
-          <dd className="bill-facts__value">
-            <bdi>{admission.recordsHeld.toLocaleString()}</bdi>
-          </dd>
-        </div>
-        {admission.planIncludedLifetime !== null ? (
+        {admission && admission.planIncludedLifetime !== null ? (
           <div className="bill-facts__row">
             <dt className="bill-facts__label">
               Included with {projection.plan.displayName}
@@ -454,7 +492,7 @@ export function EvidenceDetailCard({
                 number and was the sentence the page used to print. */}
             <dt className="bill-facts__label">Agreed account limit</dt>
             <dd className="bill-facts__value">
-              <bdi>{admission.effectiveLifetimeCap!.toLocaleString()}</bdi>
+              <bdi>{admission!.effectiveLifetimeCap!.toLocaleString()}</bdi>
             </dd>
           </div>
         ) : null}
@@ -468,36 +506,57 @@ export function EvidenceDetailCard({
             </dd>
           </div>
         ) : null}
-        <div className="bill-facts__row">
-          <dt className="bill-facts__label">Credits available</dt>
-          <dd className="bill-facts__value">
-            <bdi>{admission.creditsAvailable.toLocaleString()}</bdi>
-          </dd>
-        </div>
+        {windowNote ? (
+          <div className="bill-facts__row" data-billing-evidence-window>
+            {/* Records AGE OUT of a rolling window and never age out of a
+                lifetime one, so waiting is a real answer in one case and never
+                in the other. Saying which window this is costs a row. */}
+            <dt className="bill-facts__label">Allowance period</dt>
+            <dd className="bill-facts__value">{windowNote}</dd>
+          </div>
+        ) : null}
+        {credits !== null ? (
+          <div className="bill-facts__row">
+            <dt className="bill-facts__label">Credits available</dt>
+            <dd className="bill-facts__value" data-billing-credit-balance>
+              <bdi>{credits.toLocaleString()}</bdi>
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
-      <p className="bill-panel__note" data-billing-evidence-next>
-        {offered.next}
-      </p>
+      {/* ONE supporting line. The two cards between them carried three: what
+          the next record needs, what credits are, and that they do not
+          expire. */}
+      {offered?.next ?? described?.detail ? (
+        <p className="bill-panel__note" data-billing-evidence-next>
+          {offered?.next ?? described?.detail}
+        </p>
+      ) : null}
 
-      {offered.action === "BUY_CREDITS" && onBuyCredits ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onBuyCredits}
-          data-billing-evidence-action="BUY_CREDITS"
-        >
-          Buy evidence credits
-        </Button>
-      ) : offered.action === "SEE_PLANS" && onChoosePlan ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onChoosePlan}
-          data-billing-evidence-action="SEE_PLANS"
-        >
-          Choose a plan
-        </Button>
+      {action === "BUY_CREDITS" && onBuyCredits ? (
+        <div className="bill-panel__actions">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onBuyCredits}
+            data-billing-buy-credits
+            data-billing-evidence-action="BUY_CREDITS"
+          >
+            Buy credits
+          </Button>
+        </div>
+      ) : action === "SEE_PLANS" && onChoosePlan ? (
+        <div className="bill-panel__actions">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onChoosePlan}
+            data-billing-evidence-action="SEE_PLANS"
+          >
+            Choose a plan
+          </Button>
+        </div>
       ) : null}
     </section>
   );

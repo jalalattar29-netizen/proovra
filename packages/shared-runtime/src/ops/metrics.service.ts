@@ -761,6 +761,17 @@ export const COUNTER_NAMES = [
   "billing_payment_abandoned_total",
   /** Provider proof arrived after a local abandonment and overrode it. */
   "billing_payment_abandoned_superseded_total",
+  /*
+   * A non-terminal Subscription row survives on an account the entitlement
+   * authority says is FREE — the two authorities disagree.
+   *
+   * Counted rather than repaired: the Billing projection is a READ path, and
+   * one that silently rewrote billing rows would be worse than the disagreement
+   * it found. What it does instead is refuse to treat the stale row as a
+   * subscription, so the customer is offered a checkout rather than a
+   * period-end schedule they never paid for.
+   */
+  "billing_subscription_entitlement_mismatch_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 

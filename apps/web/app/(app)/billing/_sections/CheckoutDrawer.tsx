@@ -199,7 +199,7 @@ export function CheckoutDrawer({
       ? "Buy evidence credits"
       : intent.kind === "STORAGE"
         ? "Add storage"
-        : "Choose a plan";
+        : "Choose your plan";
 
   /**
    * ONE explanation, in the header.
@@ -214,22 +214,29 @@ export function CheckoutDrawer({
       ? "Each credit records one more evidence item once your included allowance is used."
       : intent.kind === "STORAGE"
         ? "Extra capacity, billed monthly alongside your plan. You can cancel it at any time."
-        : `Pick the plan for ${projection.account.displayName}.`;
+        : "Select the plan that fits your evidence and collaboration needs.";
+
+  const selectedPlanOffer = planOffers.find((p) => p.planKey === selectedPlan);
 
   /**
-   * The primary action says what it will do with the CHOICE.
+   * The primary action names the PAYMENT METHOD it is about to hand over to.
    *
-   * "Continue to payment" is the same sentence whichever tier is selected, so
-   * the one place a customer could catch a wrong selection said nothing about
-   * it. Naming the plan makes the choice legible at the moment of committing.
+   * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — it used to name the plan
+   * ("Continue with Pro"), which is the fact the summary directly above the
+   * button already states. What a customer cannot otherwise tell at the moment
+   * of pressing is WHERE they are about to be sent, and being handed to a
+   * provider unannounced is the surprise worth removing.
    */
-  const selectedPlanOffer = planOffers.find((p) => p.planKey === selectedPlan);
   const continueLabel =
-    intent.kind === "PLAN"
-      ? selectedPlanOffer
-        ? `Continue with ${selectedPlanOffer.displayName}`
-        : "Continue to payment"
-      : "Continue to payment";
+    intent.kind === "PLAN" && !selectedPlan
+      ? "Continue to payment"
+      : provider === "STRIPE"
+        ? "Continue with Card"
+        : "Continue with PayPal";
+
+  const selectedPlanPrice = selectedPlanOffer
+    ? formatMoney(selectedPlanOffer.priceCents, selectedPlanOffer.currency ?? currency)
+    : null;
 
   const nothingToBuy =
     (intent.kind === "PLAN" && planOffers.length === 0) ||
@@ -251,6 +258,10 @@ export function CheckoutDrawer({
           <Button
             variant="primary"
             size="sm"
+            /* Drawer-scoped near-black. See `.bill-drawer .bill-plan-action`
+               in billing.css: the class cannot reach a button outside a
+               Billing drawer, and the primitive keeps every state it owns. */
+            className="bill-plan-action"
             loading={busy}
             disabled={
               busy ||
@@ -286,6 +297,21 @@ export function CheckoutDrawer({
             <h3 className="bill-section__heading" id="billing-plan-choice">
               Plan
             </h3>
+            {/*
+              WHICH ACCOUNT this purchase applies to, stated whenever the
+              chooser is open.
+
+              This was in the drawer's header sentence ("Pick the plan for
+              X") and moved here when the header took the mandate's supporting
+              line. It is not decoration: a customer with a personal account
+              and an organization must never be able to buy for the wrong one,
+              and the drawer has no target picker precisely BECAUSE the page
+              has already chosen the subject. Saying which is what makes that
+              checkable by the person paying.
+            */}
+            <p className="bill-choice__meta" data-billing-plan-subject>
+              For <bdi>{projection.account.displayName}</bdi>.
+            </p>
             <div
               role="radiogroup"
               aria-labelledby="billing-plan-choice"
@@ -313,24 +339,69 @@ export function CheckoutDrawer({
                       disabled={busy}
                     />
                     <span className="bill-choice__body">
-                      <span className="bill-choice__title">
-                        {p.displayName}
-                        {price ? (
-                          <>
-                            {" — "}
-                            <bdi>{price}</bdi>
-                            {" / month"}
-                          </>
-                        ) : null}
-                      </span>
+                      <span className="bill-choice__title">{p.displayName}</span>
                       {/* Server-composed from the canonical catalog, so the
                           allowance beside the price is the one the gate will
-                          enforce. */}
+                          enforce. Never assembled here. */}
                       <span className="bill-choice__meta">{p.summary}</span>
+                      {price ? (
+                        <span
+                          className="bill-choice__price"
+                          data-billing-plan-price={p.planKey}
+                        >
+                          <bdi>{price}</bdi>
+                          {" / month"}
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 );
               })}
+            </div>
+          </section>
+        ) : null}
+
+        {/*
+          WHAT IS ABOUT TO BE BOUGHT, once there is something to say.
+
+          A customer pressing a payment button had no statement of the thing
+          they were committing to — the plan was a selected radio somewhere
+          above, and the total appeared nowhere at all. Three lines, and only
+          after a selection exists: an empty summary is a fourth heading to
+          scroll past.
+
+          Every value is the SERVER's. "Monthly" is not a guess either: it is
+          the only cadence the plan checkout creates, and the request body says
+          so.
+        */}
+        {intent.kind === "PLAN" && selectedPlanOffer ? (
+          <section>
+            <h3 className="bill-section__heading">Summary</h3>
+            <div className="bill-summary" data-billing-plan-summary>
+              <div className="bill-summary__row">
+                <span>Selected plan</span>
+                <span data-billing-summary-plan>{selectedPlanOffer.displayName}</span>
+              </div>
+              <div className="bill-summary__row">
+                <span>Billing</span>
+                <span data-billing-summary-cadence>Monthly</span>
+              </div>
+              {selectedPlanPrice ? (
+                <div className="bill-summary__row bill-summary__row--total">
+                  <span>Total</span>
+                  <span data-billing-summary-total>
+                    <bdi>{selectedPlanPrice}</bdi>
+                    {" / month"}
+                  </span>
+                </div>
+              ) : null}
+              <p className="bill-summary__note">
+                {/* Said once, plainly, before the provider page opens. A
+                    recurring charge a customer did not know was recurring is
+                    the complaint this sentence exists to prevent. */}
+                This creates a monthly subscription. You can cancel it at any
+                time from this page.
+              </p>
             </div>
           </section>
         ) : null}

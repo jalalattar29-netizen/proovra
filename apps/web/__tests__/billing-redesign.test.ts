@@ -599,8 +599,18 @@ test("a plan move states its own verb, its own effect, and comes from the server
   assert.match(src, /offer\.actionLabel/);
   assert.match(src, /offer\.effectSummary/);
   assert.match(src, /data-billing-manage-offer-action=\{offer\.action\}/);
-  // A downgrade is not dressed as a destructive action; it destroys nothing.
-  assert.match(src, /offer\.action === "DOWNGRADE" \? "secondary" : "primary"/);
+  /*
+   * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — this asserted
+   * `offer.action === "DOWNGRADE" ? "secondary" : "primary"`, which ranked the
+   * customer's choice: moving DOWN got a quieter button than moving up.
+   *
+   * Both are plan actions and both now carry the drawer's near-black
+   * treatment. What is still true — and is the thing that assertion was really
+   * protecting — is that a downgrade is not dressed as a destructive action.
+   * It destroys nothing, and the red belongs to cancellation alone.
+   */
+  assert.match(src, /className="bill-plan-action"/);
+  assert.doesNotMatch(src, /variant="destructive"/);
   // Neither the card nor the drawer decides the direction itself.
   assert.doesNotMatch(src, /=== "TEAM" \?/);
   assert.doesNotMatch(read(PLAN_USAGE), /=== "TEAM" \?/);
@@ -622,8 +632,20 @@ test("cancellation is reachable from the plan card in one step", () => {
   assert.match(manage, /Cancel subscription/);
 
   // What the customer is told before they commit, in the drawer itself.
-  assert.match(manage, /Your account moves to Free on the same workspace/);
-  assert.match(manage, /custody history and verification packages are not deleted/);
+  //
+  // The sentence this replaces — "Your account moves to Free on the same
+  // workspace. Your evidence, custody history and verification packages are
+  // not deleted." — named an internal object ("the same workspace") and
+  // promised a permanence no retention policy can guarantee unconditionally.
+  // The replacement says the same reassurance in the customer's terms and
+  // subject to the rules that actually govern it.
+  assert.match(manage, /Your plan will move to Free/);
+  assert.match(
+    manage,
+    /evidence and custody records remain available\s*\n?\s*under the applicable retention and access rules/,
+  );
+  // And the heading is the verb the button uses, not a third word for it.
+  assert.doesNotMatch(manage, /End subscription/);
 
   // A refusal is EXPLAINED rather than rendered as an absence: a viewer who
   // may not cancel and a payer whose subscription we cannot find are different
@@ -631,6 +653,141 @@ test("cancellation is reachable from the plan card in one step", () => {
   // look like a product with no way out.
   assert.match(manage, /cancellationUnavailableReason/);
   assert.match(manage, /NO_SUBSCRIPTION_BOUND/);
+});
+
+test("FREE never reaches the paid plan-transition route", () => {
+  /*
+   * THE ROOT DEFECT THIS CLOSES.
+   *
+   * A FREE account with a stale non-terminal Subscription row was projected as
+   * a SUBSCRIPTION, so the page opened the MANAGER, both tiers came back as
+   * "upgrades", and pressing one called `/v1/billing/subscription/plan` — which
+   * compared the request against the ROW's plan and scheduled a period-end
+   * move. The customer was told "You will move to Pro at the end of this
+   * billing period" without ever being shown a payment method.
+   *
+   * The fix is at BOTH authorities, and both are asserted here, because a fix
+   * in only one of them is a fix a stale tab can walk around.
+   */
+  const projection = readRaw(
+    "../../../services/api/src/services/billing/billing-account-projection.service.ts",
+  );
+  const transition = readRaw(
+    "../../../services/api/src/services/billing/plan-transition.service.ts",
+  );
+
+  // 1. The PROJECTION: a row is necessary and not sufficient.
+  assert.match(projection, /const subscriptionRowLive = Boolean\(/);
+  assert.match(
+    projection,
+    /const liveSubscription = subscriptionRowLive && entitledToPaidTier;/,
+  );
+  assert.match(projection, /scope\.plan !== prismaPkg\.PlanType\.FREE/);
+  // The offer verbs read the SAME fact the mode does, never a second copy.
+  assert.match(projection, /hasLiveSubscription: liveSubscription/);
+  // The disagreement is counted rather than silently repaired on a read path.
+  assert.match(projection, /billing_subscription_entitlement_mismatch_total/);
+
+  // 2. The TRANSITION resolver: FREE resolves to a purchase, whatever rows
+  //    survive beside it.
+  assert.match(transition, /resolveCommercialContext/);
+  assert.match(
+    transition,
+    /entitled\.scope\.plan === prismaPkg\.PlanType\.FREE/,
+  );
+  assert.match(transition, /kind: "NEW_SUBSCRIPTION"/);
+});
+
+test("the FREE chooser is a purchase, and says nothing a subscription would", () => {
+  const drawer = read(CHECKOUT);
+
+  // A payment method is chosen BEFORE anything is committed.
+  assert.match(drawer, /data-billing-provider-option/);
+  assert.match(drawer, /Continue with Card|Continue with PayPal/);
+  // The plan checkout authority, never the plan-change route.
+  assert.match(drawer, /"\/v1\/billing\/checkout\/stripe"/);
+  assert.match(drawer, /"\/v1\/billing\/checkout\/paypal"/);
+  assert.doesNotMatch(drawer, /\/v1\/billing\/subscription\/plan/);
+  // And what a customer is committing to is stated before they commit.
+  assert.match(drawer, /data-billing-plan-summary/);
+  assert.match(drawer, /creates a monthly subscription/);
+
+  // None of the words that belong to a subscription somebody already has.
+  for (const forbidden of [
+    /end of this billing period/i,
+    /charges the difference/i,
+    /prorat/i,
+    /End subscription/,
+  ]) {
+    assert.doesNotMatch(drawer, forbidden);
+  }
+});
+
+test("the plan-drawer button hierarchy cannot reach a button outside it", () => {
+  /*
+   * The near-black plan action and the outlined-red cancellation are a
+   * property of THIS decision surface. Written as a global variant they would
+   * have repainted "New Case", every Evidence action and the auth CTAs; every
+   * rule is therefore a descendant of `.bill-drawer`, which is the panel class
+   * on the Billing drawer's own dialog.
+   */
+  const css = readRaw(BILLING_CSS);
+  const declared = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  const rules = declared
+    .split("\n")
+    .filter((l) => /bill-plan-action|bill-cancel-action/.test(l) && l.includes("{"));
+  assert.ok(rules.length > 0, "the drawer variants must exist");
+  for (const rule of rules) {
+    assert.match(rule, /\.bill-drawer\s/, `unscoped rule: ${rule.trim()}`);
+  }
+
+  // Nothing global is touched by this file.
+  assert.doesNotMatch(declared, /\.app-primary-action/);
+  assert.doesNotMatch(declared, /^\s*\.ui-button/m);
+
+  // The scope class is actually on the panel, or every rule above is inert.
+  assert.match(read(DRAWER), /className="bill-drawer"/);
+});
+
+test("Evidence is ONE card with one purchase entry point", () => {
+  const page = read(PAGE);
+  const overview = read(OVERVIEW);
+
+  // The duplicate card is DELETED, not hidden.
+  assert.doesNotMatch(page, /data-billing-credits\b/);
+  assert.doesNotMatch(page, /Evidence credits/);
+  assert.doesNotMatch(page, /Credits do not expire/);
+  assert.doesNotMatch(page, /Record more evidence without changing your plan/);
+
+  // And its content lives in the card that remains.
+  assert.match(overview, /data-billing-credit-balance/);
+  assert.match(overview, /data-billing-buy-credits/);
+  assert.match(overview, /Buy credits/);
+
+  // ONE purchase button in the whole Evidence section: the page must not carry
+  // a second one beside the card's.
+  const pageBuys = page.match(/data-billing-buy-credits/g) ?? [];
+  assert.equal(pageBuys.length, 0, "the purchase belongs to the Evidence card alone");
+});
+
+test("FREE storage says a plan is what the button opens", () => {
+  const storage = read(STORAGE_HISTORY);
+
+  assert.match(storage, /data-billing-storage-upgrade/);
+  assert.match(storage, /View plans/);
+  // It calls the CHOOSER, never the capacity catalogue FREE cannot buy from.
+  assert.match(storage, /onClick=\{onChoosePlan\}/);
+  // The words that would describe a destination this button does not have.
+  const locked = storage.slice(0, storage.indexOf("const addons = projection.storageAddons"));
+  assert.doesNotMatch(locked, /Add storage/);
+  assert.doesNotMatch(locked, /Manage storage/);
+
+  // And the server, not the page, composes the reason.
+  const projection = readRaw(
+    "../../../services/api/src/services/billing/billing-account-projection.service.ts",
+  );
+  assert.match(projection, /Additional storage is available with Pro and Team\./);
 });
 
 test("a scheduled downgrade is stated before the plan can be misread", () => {

@@ -74,19 +74,33 @@ export function StorageAddonsSection({
             RTL paragraph when only the numbers are isolated. */}
         {meter.state === "MEASURED" ? (
           <p className="bill-panel__lead">
-            <bdi>{`${meter.usedLabel} of ${meter.limitLabel}`}</bdi>
+            <bdi>{`${meter.usedLabel} of ${meter.limitLabel} used`}</bdi>
           </p>
         ) : null}
         <p className="bill-panel__note">{locked.reason}</p>
         {locked.unlockedByPlan ? (
           <div className="bill-panel__actions">
             <Button
-              variant="primary"
+              /*
+               * "View plans", not "Add storage" or "Manage storage".
+               *
+               * This button does not open the capacity catalogue and must not
+               * pretend to: FREE cannot buy a recurring storage add-on at all,
+               * so the destination is the plan chooser and the label says so.
+               * A customer who presses "Add storage" and lands on a list of
+               * plans has been told something untrue about their own account.
+               *
+               * It stays SECONDARY. Storage is not the page's primary action —
+               * the plan action in the overview is — and two primaries beside
+               * each other is how the overview stopped reading as one
+               * decision.
+               */
+              variant="secondary"
               size="sm"
               onClick={onChoosePlan}
               data-billing-storage-upgrade
             >
-              Choose a plan
+              View plans
             </Button>
           </div>
         ) : null}

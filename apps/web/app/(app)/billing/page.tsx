@@ -952,16 +952,6 @@ function BillingPageInner() {
 
             <div className="bill-grid">
               <div className="bill-grid__column">
-                <EvidenceDetailCard
-                  projection={projection}
-                  onBuyCredits={
-                    projection.actions.canBuyEvidenceCredits
-                      ? () => setCheckout({ kind: "CREDITS" })
-                      : undefined
-                  }
-                  onChoosePlan={() => openPlanManagement()}
-                />
-
                 <BillingHistorySection
                   entries={history}
                   state={historyState}
@@ -977,41 +967,34 @@ function BillingPageInner() {
               </div>
 
               <div className="bill-grid__column">
-                {projection.actions.canBuyEvidenceCredits ? (
-                  <section className="bill-panel" data-billing-credits>
-                    <h3 className="bill-panel__title">Evidence credits</h3>
-                    {/* The WHOLE phrase is isolated: in an RTL paragraph
-                        "0 available" reorders to "available 0" unless the run
-                        is kept together. */}
-                    <p className="bill-panel__lead">
-                      <bdi>
-                        {projection.wallet?.availableCredits ?? 0} available
-                      </bdi>
-                    </p>
-                    <p className="bill-panel__note">
-                      Record more evidence without changing your plan. Credits
-                      do not expire.
-                      {projection.wallet?.hasLedgerHistory ? (
-                        <>
-                          {" "}
-                          <bdi>{projection.wallet.purchasedCredits}</bdi>{" "}
-                          purchased ·{" "}
-                          <bdi>{projection.wallet.consumedCredits}</bdi> used.
-                        </>
-                      ) : null}
-                    </p>
-                    <div className="bill-panel__actions">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setCheckout({ kind: "CREDITS" })}
-                        data-billing-buy-credits
-                      >
-                        Buy credits
-                      </Button>
-                    </div>
-                  </section>
-                ) : null}
+                {/*
+                  BILLING PLAN-SELECTION CORRECTION (2026-08-31) — the second
+                  "Evidence credits" card was DELETED here, not hidden.
+
+                  It said the credit balance a second time, explained what
+                  credits are, and held the only purchase button — so the card
+                  that described the shortage was not the card that could fix
+                  it, and the page carried the same number twice under two
+                  headings. Balance, ledger history and the single "Buy
+                  credits" action all live in `EvidenceDetailCard`, which now
+                  stands exactly where the deleted card stood.
+
+                  The placement is the point, not a detail. Merged into the
+                  LEFT column — beside the billing-history table, which is the
+                  tallest thing on the page — the combined card would have made
+                  the page 245px TALLER while removing a card from it, because
+                  a two-column grid is as tall as its tallest column. Here it
+                  occupies the space the card it replaces already had.
+                */}
+                <EvidenceDetailCard
+                  projection={projection}
+                  onBuyCredits={
+                    projection.actions.canBuyEvidenceCredits
+                      ? () => setCheckout({ kind: "CREDITS" })
+                      : undefined
+                  }
+                  onChoosePlan={() => openPlanManagement()}
+                />
 
                 <StorageAddonsSection
                   projection={projection}

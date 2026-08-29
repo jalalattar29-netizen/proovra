@@ -93,39 +93,36 @@ export function ManagePlanDrawer({
         <section>
           <h3 className="bill-section__heading">Current plan</h3>
           <div className="bill-summary" data-billing-manage-current>
-            <div className="bill-facts__row">
-              <span className="bill-facts__label">Plan</span>
-              <span className="bill-facts__value" data-billing-manage-plan-name>
-                {plan.displayName}
-              </span>
-            </div>
-            {price ? (
-              <div className="bill-facts__row">
-                <span className="bill-facts__label">Price</span>
-                <span className="bill-facts__value">
+            {/*
+              ONE line for the thing itself.
+
+              This was a four-row definition list — Plan, Price, Status,
+              Renews — which spent a quarter of a drawer restating a heading
+              the customer had just read. "Pro · $19 / month" is the same two
+              facts in the shape a person already reads them.
+            */}
+            <p className="bill-panel__lead" data-billing-manage-plan-name>
+              <bdi>{plan.displayName}</bdi>
+              {price ? (
+                <>
+                  {" · "}
                   <bdi>{price}</bdi>
                   {plan.model === "MONTHLY" ? " / month" : null}
-                </span>
-              </div>
-            ) : null}
-            <div className="bill-facts__row">
-              <span className="bill-facts__label">Status</span>
-              <span className="bill-facts__value">{lifecycle.label}</span>
-            </div>
-            {periodEnd && plan.model === "MONTHLY" ? (
-              <div className="bill-facts__row">
-                <span className="bill-facts__label">
-                  {plan.cancelAtPeriodEnd ? "Access until" : "Renews"}
-                </span>
-                <span className="bill-facts__value">{periodEnd}</span>
-              </div>
-            ) : null}
-            {plan.paymentProviderLabel ? (
-              <div className="bill-facts__row">
-                <span className="bill-facts__label">Paid by</span>
-                <span className="bill-facts__value">{plan.paymentProviderLabel}</span>
-              </div>
-            ) : null}
+                </>
+              ) : null}
+            </p>
+
+            <p className="bill-summary__note" data-billing-manage-meta>
+              {[
+                lifecycle.label,
+                periodEnd && plan.model === "MONTHLY"
+                  ? `${plan.cancelAtPeriodEnd ? "Access until" : "Renews"} ${periodEnd}`
+                  : null,
+                plan.paymentProviderLabel ? `Paid by ${plan.paymentProviderLabel}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
 
             {/* A scheduled change is stated HERE, before the moves, because it
                 changes what every one of them means. */}
@@ -141,40 +138,76 @@ export function ManagePlanDrawer({
           </div>
         </section>
 
-        {/* ---- Moving between tiers --------------------------------------- */}
+        {/* ---- Moving between tiers ---------------------------------------
+            Each move is a BUTTON and one line about that move — never a
+            paragraph repeated under every option. The paragraph this replaces
+            ended with "nothing you have already recorded changes" beneath each
+            offer in turn, so the one reassurance that matters was read twice
+            and believed less each time. It is said ONCE now, where the
+            consequence is real: cancellation.
+
+            GRANTED access is excluded. There is no provider relationship
+            behind it, so a tier move here would be a purchase dressed as a
+            change, and the matrix says access information only. -------- */}
         {offers.length > 0 &&
         !plan.scheduledChange &&
-        plan.accessKind !== "CONTRACT" ? (
+        plan.accessKind === "SUBSCRIPTION" ? (
           <section>
             <h3 className="bill-section__heading">Change plan</h3>
-            <div className="bill-stacked-actions">
+            <ul className="bill-move-list">
               {offers.map((offer) => (
-                <Button
+                <li
                   key={offer.planKey}
-                  variant={offer.action === "DOWNGRADE" ? "secondary" : "primary"}
-                  size="sm"
-                  loading={changeBusyPlan === offer.planKey}
-                  disabled={busy}
-                  onClick={() => onChangePlan(offer)}
-                  data-billing-manage-offer={offer.planKey}
-                  data-billing-manage-offer-action={offer.action}
+                  className="bill-move"
+                  data-billing-manage-move={offer.planKey}
                 >
-                  {/* The SERVER's words. "Upgrade to Team" and "Switch to Pro"
-                      are different claims about the subscription, and only the
-                      side that can see it knows which is true. */}
-                  {offer.actionLabel}
-                </Button>
+                  <Button
+                    /*
+                     * The plan action inside the plan drawer. `variant` stays
+                     * "primary" so every state the primitive owns — loading,
+                     * disabled, focus ring, 44px target — is unchanged; the
+                     * drawer-scoped class repaints it near-black. A new global
+                     * variant would have changed buttons on pages that have
+                     * nothing to do with this decision.
+                     */
+                    variant="primary"
+                    size="sm"
+                    className="bill-plan-action"
+                    loading={changeBusyPlan === offer.planKey}
+                    disabled={busy}
+                    onClick={() => onChangePlan(offer)}
+                    data-billing-manage-offer={offer.planKey}
+                    data-billing-manage-offer-action={offer.action}
+                  >
+                    {/* The SERVER's words. Only the side that can see the
+                        subscription knows whether this is a move or a
+                        purchase. */}
+                    {offer.actionLabel}
+                  </Button>
+                  <p
+                    className="bill-move__meta"
+                    data-billing-manage-effect={offer.planKey}
+                  >
+                    {offer.effectSummary}{" "}
+                    <span data-billing-manage-timing={offer.planKey}>
+                      {/*
+                       * The TIMING is read from the server's `effect`, never
+                       * asserted here — and it is the only thing said about
+                       * when money moves. The sentence this replaces claimed
+                       * the provider "charges the difference for the rest of
+                       * this period", which is a proration nothing in this
+                       * product calculates and no provider had told us.
+                       */}
+                      {offer.effect === "IMMEDIATE"
+                        ? "Starts immediately."
+                        : periodEnd
+                          ? `Takes effect on ${periodEnd}.`
+                          : "Takes effect at the end of the period you have already paid for."}
+                    </span>
+                  </p>
+                </li>
               ))}
-            </div>
-            {offers.map((offer) => (
-              <p
-                key={`${offer.planKey}-effect`}
-                className="bill-summary__note"
-                data-billing-manage-effect={offer.planKey}
-              >
-                {offer.actionLabel}: {offer.effectSummary}
-              </p>
-            ))}
+            </ul>
           </section>
         ) : null}
 
@@ -208,48 +241,93 @@ export function ManagePlanDrawer({
               would be worse than offering none.
             </p>
           </section>
+        ) : plan.accessKind !== "SUBSCRIPTION" ? (
+          /*
+           * FREE, and the grandfathered credit overlay that sits on a FREE
+           * account, have NO cancellation section at all.
+           *
+           * They used to fall into the branch below and be shown "End
+           * subscription" — for a subscription that does not exist — or, when
+           * no row could be found, a message telling them to contact support
+           * about a missing subscription they never had. Neither is a thing
+           * that has happened to them. The page they belong on is the chooser,
+           * and the projection sends them there.
+           */
+          null
         ) : (
           <section>
-            <h3 className="bill-section__heading">End subscription</h3>
+            {/*
+              "Cancel subscription", not "End subscription".
 
-          {plan.cancelAtPeriodEnd ? (
-            <p className="bill-choice__meta" data-billing-manage-cancelling>
-              {periodEnd
-                ? `Cancels on ${periodEnd}. You keep ${plan.displayName} until then, and nothing is charged again.`
-                : "This subscription is cancelling at the end of the period you have paid for. Nothing is charged again."}
-            </p>
-          ) : actions.canRequestCancellation ? (
-            <>
-              <p className="bill-choice__meta">
-                Your account moves to Free on the same workspace. Your evidence,
-                custody history and verification packages are not deleted.
+              "End" is a word for something finishing on its own. What this is
+              is a request to a payment provider to stop, made by the customer
+              — and the heading, the button and the confirmation now all use
+              the same verb, so nobody has to work out whether three different
+              words mean three different things.
+            */}
+            <h3 className="bill-section__heading">Cancel subscription</h3>
+
+            {plan.cancelAtPeriodEnd ? (
+              <p className="bill-choice__meta" data-billing-manage-cancelling>
+                {periodEnd
+                  ? `Cancels on ${periodEnd}. You keep ${plan.displayName} until then, and nothing is charged again.`
+                  : "This subscription is cancelling at the end of the period you have paid for. Nothing is charged again."}
               </p>
-              <div className="bill-stacked-actions" style={{ marginBlockStart: 12 }}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onCancel}
-                  loading={cancelBusy}
-                  disabled={busy}
-                  data-billing-manage-cancel
-                >
-                  Cancel subscription
-                </Button>
-              </div>
-            </>
-          ) : (
-            /*
-             * The SERVER said no, and the page says which no it was.
-             *
-             * Hiding the section entirely is what made cancellation
-             * undiscoverable: a customer who cannot cancel and a customer whose
-             * subscription we cannot find looked identical — like a product
-             * with no cancellation at all.
-             */
-            <p className="bill-choice__meta" data-billing-manage-cancel-unavailable>
-              {actions.cancellationUnavailableReason === "NO_SUBSCRIPTION_BOUND"
-                ? "We cannot find a live subscription for this plan with your payment provider, so there is nothing here for us to stop. Please contact support and we will look at it with you — nothing will be charged again in the meantime without one."
-                : "Ending this subscription is done by the account's billing owner."}
+            ) : actions.canRequestCancellation ? (
+              <>
+                <p className="bill-choice__meta" data-billing-manage-cancel-copy>
+                  {/*
+                   * The ONE place the evidence reassurance is given, because
+                   * this is the only action in the drawer where losing it is
+                   * the thing a customer is actually afraid of. Under a
+                   * purchase it was noise; here it is the answer.
+                   *
+                   * The timing is the server's paid-through date when there is
+                   * one, and is otherwise left as a promise we can keep —
+                   * whether a provider stops immediately or at period end is
+                   * the provider's answer, and it is confirmed after they give
+                   * it rather than predicted here.
+                   */}
+                  {periodEnd
+                    ? `Your plan will move to Free at the end of the period you have paid for, on ${periodEnd}.`
+                    : "Your plan will move to Free once your payment provider confirms; we will tell you the exact date then."}{" "}
+                  Your existing evidence and custody records remain available
+                  under the applicable retention and access rules.
+                </p>
+                <div className="bill-stacked-actions" style={{ marginBlockStart: 12 }}>
+                  <Button
+                    /*
+                     * Outlined red, scoped to the drawer: this is the entry
+                     * point, not the confirmation. The filled destructive
+                     * treatment belongs to the dialog that follows, where the
+                     * customer actually decides — and keeping them different
+                     * is what stops the last press looking like the first.
+                     */
+                    variant="secondary"
+                    size="sm"
+                    className="bill-cancel-action"
+                    onClick={onCancel}
+                    loading={cancelBusy}
+                    disabled={busy}
+                    data-billing-manage-cancel
+                  >
+                    Cancel subscription
+                  </Button>
+                </div>
+              </>
+            ) : (
+              /*
+               * The SERVER said no, and the page says which no it was.
+               *
+               * Hiding the section entirely is what made cancellation
+               * undiscoverable: a customer who cannot cancel and a customer whose
+               * subscription we cannot find looked identical — like a product
+               * with no cancellation at all.
+               */
+              <p className="bill-choice__meta" data-billing-manage-cancel-unavailable>
+                {actions.cancellationUnavailableReason === "NO_SUBSCRIPTION_BOUND"
+                  ? "We cannot find a live subscription for this plan with your payment provider, so there is nothing here for us to stop. Please contact support and we will look at it with you — nothing will be charged again in the meantime without one."
+                  : "Ending this subscription is done by the account's billing owner."}
               </p>
             )}
           </section>

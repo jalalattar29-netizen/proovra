@@ -52,6 +52,7 @@ import {
   type BillingCurrency,
 } from "../billing-pricing.service.js";
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
+import { resolveCommercialContext } from "./commercial-context.service.js";
 
 /** The plans a person may hold self-service, in order. */
 const SELF_SERVICE_LADDER: readonly prismaPkg.PlanType[] = [
@@ -168,6 +169,35 @@ export async function resolvePersonalPlanTransition(input: {
   assertSelfServicePlan(input.targetPlan);
 
   const subscription = await findLivePersonalSubscription(input.userId);
+
+  /*
+   * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — the ENTITLEMENT decides
+   * whether there is a subscription to change at all.
+   *
+   * A row is not a relationship. An account the entitlement authority says is
+   * FREE has no paid subscription, whatever `Subscription` rows outlived the
+   * plan that created them — and this resolver used to compare the requested
+   * tier against such a row's `plan`. A FREE customer asking for PRO, with a
+   * stale TEAM row beside them, was resolved as a TEAM → PRO DOWNGRADE and
+   * scheduled at period end: a plan change transacted for someone who has
+   * never paid and was never shown a payment method.
+   *
+   * This is the SERVER's refusal, not the page's. The Billing surface now opens
+   * the chooser for FREE, but a stale tab, a replayed request or any other
+   * client must reach the same answer — a purchase needs a checkout, and the
+   * route turns this into 409 CHECKOUT_REQUIRED naming the route that can do it.
+   */
+  if (subscription) {
+    const entitled = await resolveCommercialContext({
+      type: "PERSONAL_ACCOUNT",
+      userId: input.userId,
+    });
+    if (entitled.scope.plan === prismaPkg.PlanType.FREE) {
+      return input.targetPlan === prismaPkg.PlanType.FREE
+        ? { kind: "NO_CHANGE", currentPlan: prismaPkg.PlanType.FREE }
+        : { kind: "NEW_SUBSCRIPTION", targetPlan: input.targetPlan };
+    }
+  }
 
   if (!subscription) {
     // Nothing live. FREE is where they already are.

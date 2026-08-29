@@ -26251,8 +26251,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.paypalRequest@502",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:502",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.paypalRequest@532",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:532",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyPayPalPlanChange",
       "kind": "EXTERNAL",
@@ -26284,8 +26284,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@374",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:374",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@404",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:404",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -26317,8 +26317,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@416",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:416",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@446",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:446",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -26350,8 +26350,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@451",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:451",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@481",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:481",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -26383,8 +26383,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@551",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:551",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@581",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:581",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "recordPendingPlan",
       "kind": "DATABASE",
@@ -26416,8 +26416,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@569",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:569",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@599",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:599",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "clearPendingPlan",
       "kind": "DATABASE",
@@ -118646,18 +118646,22 @@
       "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
+        "enterpriseContract",
         "entitlement",
+        "evidence",
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "report",
         "ssoConnection",
         "subscription",
-        "user"
+        "team",
+        "teamMember",
+        "user",
+        "verificationPackage",
+        "workspaceStorageAddon"
       ],
       "modelsWritten": [
-        "adminAuditLog",
-        "analyticsEvent",
         "entitlement",
         "subscription"
       ],
@@ -118666,12 +118670,15 @@
         "services/api/src/services/organization/org-access.ts: the canonical organization access evaluator (refuses ARCHIVED/SUSPENDED orgs, ACTIVE org membership by the shared predicate, role precedence, contract expiry)",
         "services/api/src/services/identity/org-membership-lifecycle.service.ts: the canonical organization membership-status predicate (packages/shared)",
         "services/api/src/services/organization/org-access.ts: organization.findUnique — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/billing/plan-transition.service.ts: subscription.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing.service.ts: subscription.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing.service.ts: subscription.findUniqueOrThrow — no tenant or self predicate",
-        "services/api/src/services/billing.service.ts: subscription.upsert — no tenant or self predicate",
-        "services/api/src/services/billing/plan-transition.service.ts: subscription.updateMany — no tenant or self predicate",
-        "services/api/src/services/billing/plan-transition.service.ts: subscription.update — no tenant or self predicate"
+        "services/api/src/services/billing.service.ts: subscription.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",

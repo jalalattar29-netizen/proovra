@@ -69,6 +69,7 @@ import {
 } from "../billing-enforcement.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
+import { bump } from "../ops/metrics.service.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";
 // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — the ONE plan -> storage
 // catalogue decision, and the ONE personal-evidence counter, both shared with
@@ -804,22 +805,33 @@ function planOffersFor(params: {
       // A purchase and an upgrade both start now. Only a downgrade waits, and
       // it waits because the current period is already paid for.
       effect: action === "DOWNGRADE" ? ("AT_PERIOD_END" as const) : ("IMMEDIATE" as const),
+      /*
+       * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — one verb for a move
+       * between tiers, and no claim about money we have not been given.
+       *
+       * "Upgrade" and "Switch" were two words for the same act, chosen by
+       * direction, and the drawer printed one paragraph per offer beneath the
+       * buttons — so a customer read the same reassurance twice before finding
+       * the thing they came for. "Move to Team" says what pressing it does
+       * without ranking the customer's choice.
+       *
+       * The UPGRADE sentence claimed "your provider charges the difference for
+       * the rest of this period". Nothing in this product computes a
+       * proration, no provider has told us one, and it was being said to
+       * accounts with no billing period at all. What IS known is the timing,
+       * and `effect` already carries it — so the summary describes the
+       * CONSEQUENCE and the surface renders the timing from `effect`.
+       */
       actionLabel:
         action === "CHECKOUT"
           ? `Subscribe to ${described.displayName}`
-          : action === "UPGRADE"
-            ? `Upgrade to ${described.displayName}`
-            : `Switch to ${described.displayName}`,
+          : `Move to ${described.displayName}`,
       effectSummary:
         action === "CHECKOUT"
           ? `You will be taken to your payment provider to subscribe to ${described.displayName}.`
           : action === "UPGRADE"
-            ? `${described.displayName} starts straight away. Your provider charges the difference for the rest of this period, and nothing you have already recorded changes.`
-            : `You keep ${
-                params.currentPlan === prismaPkg.PlanType.TEAM ? "Team" : "your current plan"
-              } until the end of the period you have already paid for, then move to ${
-                described.displayName
-              }. Nothing is deleted — your evidence, teams and members all stay.`,
+            ? `More capacity for evidence, storage and collaboration.`
+            : `Lower limits than you have now. Nothing you have recorded is deleted.`,
     };
   });
 }
@@ -962,9 +974,52 @@ export async function buildBillingAccountProjection(input: {
       ? await readEvidenceCreditWallet(account.id)
       : null;
 
-  const liveSubscription = Boolean(
+  /*
+   * A subscription ROW that is not terminal. Necessary for a manageable
+   * subscription, and — this is the correction — not sufficient.
+   */
+  const subscriptionRowLive = Boolean(
     subscription && subscription.status !== prismaPkg.SubscriptionStatus.CANCELED,
   );
+
+  /*
+   * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — WHY THE ENTITLEMENT GETS
+   * A VOTE.
+   *
+   * This was `subscriptionRowLive` alone, and two authorities that can
+   * disagree were being read as one. `scope.plan` is what the account is
+   * ENTITLED to; the `Subscription` row is what a provider once told us. A
+   * FREE account carrying a non-terminal row on PRO or TEAM — a binding left
+   * behind by a plan that was taken away, a webhook that never landed, a
+   * migration that lost the link — was therefore projected as a SUBSCRIPTION.
+   *
+   * Everything downstream then followed correctly from a false premise:
+   * `accessKind` became SUBSCRIPTION, `planManagement.mode` became MANAGE, the
+   * page opened the MANAGER rather than the CHOOSER, `planOffersFor` turned
+   * both tiers into UPGRADEs of a subscription the customer does not have, and
+   * pressing one called the paid plan-change route — which compared the target
+   * against the ROW's plan and scheduled a period-end move. A FREE customer was
+   * told "You will move to Pro at the end of this billing period" without ever
+   * being shown a payment method.
+   *
+   * FREE is not a subscription state. There is no period to charge the
+   * difference for, nothing to prorate, and nothing for a provider to cancel.
+   * An account the entitlement authority says is FREE is CHOOSING, whatever
+   * rows survive beside it.
+   *
+   * PAST_DUE is deliberately unaffected: `scope.plan` stays PRO through the
+   * grace window, so a lapsed payer still MANAGES their subscription rather
+   * than being sent to buy a second one.
+   */
+  const entitledToPaidTier = scope.plan !== prismaPkg.PlanType.FREE;
+  const liveSubscription = subscriptionRowLive && entitledToPaidTier;
+
+  if (subscriptionRowLive && !entitledToPaidTier) {
+    // Not repaired here — this is a read path, and a projection that quietly
+    // rewrote billing rows would be the worse defect. It is COUNTED, so the
+    // size of the population is known and reconciliation can be pointed at it.
+    bump("billing_subscription_entitlement_mismatch_total");
+  }
 
   /*
    * HOW the account is on this tier, decided before WHAT it is billed.
@@ -1333,13 +1388,12 @@ export async function buildBillingAccountProjection(input: {
             // offer set: that is what made TEAM an offer for a DIFFERENT
             // workspace rather than the next tier of this one.
             currentPlan: scope.plan,
-            // A subscription that has not reached its terminal state is live —
-            // PAST_DUE and TRIALING included. Treating those as "no
-            // subscription" would send a customer to buy a second one.
-            hasLiveSubscription: Boolean(
-              subscription &&
-                subscription.status !== prismaPkg.SubscriptionStatus.CANCELED,
-            ),
+            // THE SAME fact the mode is decided from, not a second computation
+            // of it. This used to re-derive "is there a live subscription"
+            // inline from the row alone, so the offer verbs could disagree with
+            // the drawer the page opened — which is precisely how a FREE
+            // account came to be offered two UPGRADES.
+            hasLiveSubscription: liveSubscription,
             currency,
             showAmounts,
           }),
@@ -1352,8 +1406,12 @@ export async function buildBillingAccountProjection(input: {
     ...(!addonsEligible && account.type === "PERSONAL" && scope.plan === "FREE"
       ? {
           storageAddonsLocked: {
-            reason:
-              "Extra storage is part of Pro and Team. Your plan includes its own storage, and you can add more once you move up.",
+            // One line. The sentence this replaces said the same thing three
+            // times — that extra storage is part of Pro and Team, that the
+            // current plan has its own, and that more can be added after
+            // moving up — in a card whose whole job is to say which plans
+            // include it.
+            reason: "Additional storage is available with Pro and Team.",
             unlockedByPlan: "PRO",
           },
         }
@@ -1408,7 +1466,16 @@ export async function buildBillingAccountProjection(input: {
       // Credits are a PERSONAL product; a workspace buys a TEAM subscription.
       canBuyEvidenceCredits: canManage && account.type === "PERSONAL",
       canBuyStorageAddon: canAddon && addonsEligible,
-      canRequestCancellation: canCancel && Boolean(subscription),
+      /*
+       * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — a ROW is not
+       * something a provider can be asked to stop.
+       *
+       * This was `Boolean(subscription)`, so a terminated row, or a stale one
+       * on an account the entitlement says is FREE, still projected a
+       * cancellation the customer had nothing to cancel. It is the same
+       * mistake the mode made, and it is corrected against the same fact.
+       */
+      canRequestCancellation: canCancel && liveSubscription,
       /*
        * THE DEFECT THIS NAMES.
        *
@@ -1424,8 +1491,15 @@ export async function buildBillingAccountProjection(input: {
        * find the subscription and sends them to support, and reconciliation
        * remains the thing that can repair the binding.
        */
-      ...(canCancel && !subscription
-        ? { cancellationUnavailableReason: "NO_SUBSCRIPTION_BOUND" as const }
+      ...(canCancel &&
+      !liveSubscription &&
+      accessKind !== "FREE" &&
+      accessKind !== "CREDIT"
+        ? // A PAID tier with nothing live behind it is the reportable case:
+          // the customer may be paying with nothing for us to stop. FREE has
+          // no billing relationship, so the absence of a cancellation needs
+          // no explanation — offering one would invent a problem.
+          { cancellationUnavailableReason: "NO_SUBSCRIPTION_BOUND" as const }
         : {}),
       ...(!canCancel ? { cancellationUnavailableReason: "NOT_AUTHORIZED" as const } : {}),
       contactAccountManager: false,

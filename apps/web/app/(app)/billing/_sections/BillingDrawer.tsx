@@ -130,6 +130,16 @@ export function BillingDrawer({
         aria-labelledby={titleId.current}
         tabIndex={-1}
         data-testid={testId}
+        /*
+         * The SCOPE for the plan-drawer button hierarchy.
+         *
+         * `.bill-plan-action` (near-black) and `.bill-cancel-action`
+         * (white with a red edge) are defined UNDER this class in billing.css,
+         * so they cannot reach a button outside a Billing drawer. A global
+         * variant would have been the shorter change and the wrong one: the
+         * hierarchy is a property of this decision surface, not of the app.
+         */
+        className="bill-drawer"
         style={{
           background: "var(--surface-card, #ffffff)",
           width: "min(520px, 100%)",

@@ -32,6 +32,15 @@ const H = vi.hoisted(() => ({
   paypalLinks: [] as Array<{ rel: string; href: string }>,
   /** The plan applied through the canonical plan writer, if any. */
   planApplied: null as string | null,
+  /**
+   * What the ENTITLEMENT authority says this account is on.
+   *
+   * Null means "whatever the subscription row says", which is the ordinary
+   * case: the two agree. Setting it to FREE beside a live paid row reproduces
+   * the production state where they did NOT — the state that let a FREE
+   * customer be resolved into a period-end plan change.
+   */
+  entitledPlan: null as string | null,
 }));
 
 vi.mock("../src/db.js", () => {
@@ -66,6 +75,22 @@ vi.mock("../src/db.js", () => {
   );
   return { prisma };
 });
+
+/*
+ * The ENTITLEMENT authority, stubbed at the same boundary the resolver calls
+ * it: `resolveCommercialContext` is the one place that answers "what plan is
+ * this account actually on", and the resolver now asks it before comparing a
+ * requested tier against a subscription row.
+ */
+vi.mock("../src/services/billing/commercial-context.service.js", () => ({
+  resolveCommercialContext: async () => ({
+    scope: {
+      plan:
+        H.entitledPlan ??
+        ((H.subscription?.plan as string | undefined) ?? "FREE"),
+    },
+  }),
+}));
 
 vi.mock("../src/services/stripe.service.js", () => ({
   stripeGet: async (path: string) => {
@@ -144,6 +169,7 @@ beforeEach(() => {
   H.providerFails = false;
   H.paypalLinks = [];
   H.planApplied = null;
+  H.entitledPlan = null;
 });
 
 // ===========================================================================
@@ -257,6 +283,72 @@ describe("resolvePersonalPlanTransition — one answer to 'what is this change'"
 // ===========================================================================
 // 2. The two plans nobody may self-serve
 // ===========================================================================
+
+describe("a stale subscription row does not make a FREE account a subscriber", () => {
+  /*
+   * THE PRODUCTION DEFECT.
+   *
+   * Entitlement FREE, a non-terminal TEAM row beside it — a binding left over
+   * from a plan that was taken away, a webhook that never landed, a link lost
+   * to a migration. The resolver compared the requested tier against the ROW,
+   * so a FREE customer asking for PRO came out as a TEAM → PRO DOWNGRADE and
+   * was scheduled at period end. They were told "You will move to Pro at the
+   * end of this billing period" having never paid and never been shown a
+   * payment method.
+   *
+   * A row is not a relationship. The account is FREE, so every paid tier is a
+   * PURCHASE, and a purchase needs a checkout.
+   */
+  for (const target of ["PRO", "TEAM"] as const) {
+    it(`FREE entitlement + live TEAM row → ${target} is a NEW_SUBSCRIPTION`, async () => {
+      H.subscription = live({ plan: "TEAM" });
+      H.entitledPlan = "FREE";
+
+      const t = await resolvePersonalPlanTransition({
+        userId: "user-1",
+        targetPlan: target as never,
+      });
+
+      expect(t.kind).toBe("NEW_SUBSCRIPTION");
+      // Nothing was asked of a provider and nothing was written. A refusal
+      // that had already scheduled something would not be a refusal.
+      expect(H.providerCalls).toEqual([]);
+      expect(H.writes).toEqual([]);
+    });
+  }
+
+  it("FREE entitlement asking for FREE is NO_CHANGE, not a cancellation", async () => {
+    // There is nothing to cancel. Routing this to the cancellation contract
+    // would ask a provider to stop a subscription this account does not have.
+    H.subscription = live({ plan: "PRO" });
+    H.entitledPlan = "FREE";
+
+    const t = await resolvePersonalPlanTransition({
+      userId: "user-1",
+      targetPlan: "FREE" as never,
+    });
+
+    expect(t).toEqual({ kind: "NO_CHANGE", currentPlan: "FREE" });
+    expect(H.writes).toEqual([]);
+  });
+
+  it("a PAST_DUE payer is NOT swept up by the same rule", async () => {
+    /*
+     * The case the correction had to leave alone. A lapsed PRO payer keeps
+     * `scope.plan = PRO` through the grace window — they have a subscription,
+     * it is just unpaid — so they must still CHANGE it rather than be sent to
+     * buy a second one beside the first.
+     */
+    H.subscription = live({ status: "PAST_DUE" });
+    H.entitledPlan = "PRO";
+
+    const t = await resolvePersonalPlanTransition({
+      userId: "user-1",
+      targetPlan: "TEAM" as never,
+    });
+    expect(t.kind).toBe("UPGRADE");
+  });
+});
 
 describe("assertSelfServicePlan — ENTERPRISE and PAYG are refused by name", () => {
   it("ENTERPRISE is a contract, and the refusal says so without leaking anything", () => {

@@ -50,8 +50,11 @@ const OFFER_TEAM: PlanOffer = {
   summary: "500 evidence records in any 30 days, 500 GB of cumulative storage",
   action: "UPGRADE",
   effect: "IMMEDIATE",
-  actionLabel: "Upgrade to Team",
-  effectSummary: "Team starts straight away.",
+  // The SERVER's shipped words. One verb for a move between tiers, and no
+  // claim about a proration nothing in the product calculates — the timing is
+  // rendered from `effect`, which is the only thing we actually know.
+  actionLabel: "Move to Team",
+  effectSummary: "More capacity for evidence, storage and collaboration.",
 };
 
 const OFFER_PRO: PlanOffer = {
@@ -62,8 +65,8 @@ const OFFER_PRO: PlanOffer = {
   summary: "100 lifetime evidence records, 50 GB of cumulative storage",
   action: "DOWNGRADE",
   effect: "AT_PERIOD_END",
-  actionLabel: "Switch to Pro",
-  effectSummary: "You keep Team until the end of the period you have paid for.",
+  actionLabel: "Move to Pro",
+  effectSummary: "Lower limits than you have now. Nothing you have recorded is deleted.",
 };
 
 function personal(
@@ -237,8 +240,8 @@ describe("the manage-plan drawer offers the moves the server listed", () => {
   it("an upgrade and a downgrade are both rendered, each with the server's words", () => {
     mountManage(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
 
-    const up = screen.getByRole("button", { name: "Upgrade to Team" });
-    const down = screen.getByRole("button", { name: "Switch to Pro" });
+    const up = screen.getByRole("button", { name: "Move to Team" });
+    const down = screen.getByRole("button", { name: "Move to Pro" });
     expect(up.getAttribute("data-billing-manage-offer-action")).toBe("UPGRADE");
     expect(down.getAttribute("data-billing-manage-offer-action")).toBe("DOWNGRADE");
   });
@@ -248,22 +251,39 @@ describe("the manage-plan drawer offers the moves the server listed", () => {
     // subscription" would discourage a legitimate choice by implying a
     // consequence that does not exist.
     mountManage(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
-    const down = screen.getByRole("button", { name: "Switch to Pro" });
+    const down = screen.getByRole("button", { name: "Move to Pro" });
     expect(down.className).not.toMatch(/danger/i);
   });
 
-  it("a FREE account is offered BOTH tiers — TEAM needs no workspace first", () => {
-    mountManage(
+  it("offers NOTHING to buy to an account with no subscription behind it", () => {
+    /*
+     * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — this asserted the
+     * opposite, and the opposite was the defect.
+     *
+     * The manage drawer is for a subscription that exists. An account without
+     * one is CHOOSING, and its purchases belong in the chooser, where a
+     * payment method is selected before anything is committed. Rendering
+     * checkout offers here is exactly how a FREE customer came to be shown two
+     * "upgrades" and an "End subscription" for a plan nobody had paid for.
+     */
+    const { container } = mountManage(
       personal({
-        plan: { ...personal().plan, planKey: "FREE", displayName: "Free", model: "FREE" },
+        plan: {
+          ...personal().plan,
+          planKey: "FREE",
+          accessKind: "FREE",
+          displayName: "Free",
+          model: "FREE",
+        },
         planOffers: [
           { ...OFFER_PRO, action: "CHECKOUT", effect: "IMMEDIATE", actionLabel: "Subscribe to Pro" },
           { ...OFFER_TEAM, action: "CHECKOUT", effect: "IMMEDIATE", actionLabel: "Subscribe to Team" },
         ],
-      }),
+      } as never),
     );
-    expect(screen.getByRole("button", { name: "Subscribe to Pro" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Subscribe to Team" })).toBeTruthy();
+
+    expect(screen.queryByRole("button", { name: /^Subscribe to / })).toBeNull();
+    expect(container.querySelector("[data-billing-manage-move]")).toBeNull();
   });
 
   it("no offer renders a workspace name, a provider id or a price id", () => {
@@ -296,7 +316,7 @@ describe("a subscription that is ending", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toMatch(/Upgrade to Team/);
+    expect(text).toMatch(/Move to Team/);
     expect(text).toMatch(/Cancel subscription/);
     expect(container.querySelector("[data-billing-manage-cancel]")).not.toBeNull();
   });
@@ -367,7 +387,7 @@ describe("a scheduled downgrade", () => {
     // The provider holds ONE schedule. Offering another would let a customer
     // queue two changes and be told both were accepted.
     mountManage(scheduled);
-    expect(screen.queryByRole("button", { name: /Switch to|Upgrade to/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Move to / })).toBeNull();
   });
 
   it("with no date, it still says the change is coming rather than nothing", () => {
@@ -592,8 +612,8 @@ describe("direction and long copy", () => {
     it(`renders both plan moves in ${dir} without dropping either`, () => {
       document.documentElement.dir = dir;
       mountManage(personal({ planOffers: [OFFER_TEAM, OFFER_PRO] }));
-      expect(screen.getByRole("button", { name: "Upgrade to Team" })).toBeTruthy();
-      expect(screen.getByRole("button", { name: "Switch to Pro" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Move to Team" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Move to Pro" })).toBeTruthy();
     });
   }
 
