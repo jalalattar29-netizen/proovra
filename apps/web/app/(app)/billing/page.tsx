@@ -38,6 +38,8 @@ import { Card } from "../../../components/ui/Card";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+// The app's icon set, already the source of every other glyph in the shell.
+import { LifeBuoy } from "lucide-react";
 import { captureException } from "../../../lib/sentry";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../../lib/platform-context";
@@ -818,9 +820,23 @@ function BillingPageInner() {
     () => (
       <PageHeader
         title={
-          <h1 className="cc-title" data-billing-title>
+          /*
+            BILLING UI REFINEMENT (2026-09-01) — a SPAN, not an <h1>.
+
+            `PageHeader` renders its own <h1> around whatever `title` is given
+            (its own contract says so: "header renders a single <h1>"). Passing
+            an <h1> produced <h1><h1>Billing</h1></h1> — invalid heading
+            structure, a hydration error logged on every load of this page, and
+            two level-1 headings for anyone navigating by heading.
+
+            Fixed at the CONSUMER rather than by relaxing the shell: the shell
+            is right that a page has one <h1>, and other pages depend on it.
+            The class and the probe attribute are kept so the styling and the
+            existing contract tests are unaffected.
+          */
+          <span className="cc-title" data-billing-title>
             Billing
-          </h1>
+          </span>
         }
         subtitle={
           <span className="cc-subtitle" data-billing-subtitle>
@@ -947,76 +963,101 @@ function BillingPageInner() {
             <BillingOverview
               projection={projection}
               onManagePlan={() => openPlanManagement()}
+              /*
+                A granted account's way OUT of a tier it was given.
+
+                It opens the ordinary new-subscription checkout on the plan the
+                SERVER named — the same drawer, the same payment selector, the
+                same request body as any other purchase. Deliberately not the
+                plan-transition route: there is no provider subscription to
+                transition, and a failed, cancelled or abandoned checkout
+                therefore leaves the granted access exactly as it was.
+              */
+              onStartSubscription={(planKey) =>
+                setCheckout({ kind: "PLAN", planKey })
+              }
               changeBusyPlan={changeBusyPlan}
             />
 
-            <div className="bill-grid">
-              <div className="bill-grid__column">
-                <BillingHistorySection
-                  entries={history}
-                  state={historyState}
-                  onRetry={() => selected && void loadHistory(selected)}
-                  recheckBusy={recheckBusy}
-                  onRecheckPayment={(entry) => void handleRecheckPayment(entry)}
-                  onCancelPayment={(entry) => void handleCancelPayment(entry)}
-                  onAbandonPayment={(entry) => void handleAbandonPayment(entry)}
-                  rowBusyId={paymentBusyId}
-                  resumeUrls={resumeUrls}
-                  onRecheck={() => void handleAccountRecheck()}
-                />
-              </div>
+            {/*
+              BILLING UI REFINEMENT (2026-09-01) — the row order follows what a
+              customer came to find out.
 
-              <div className="bill-grid__column">
-                {/*
-                  BILLING PLAN-SELECTION CORRECTION (2026-08-31) — the second
-                  "Evidence credits" card was DELETED here, not hidden.
+              The two-column grid put the billing-history TABLE in a column of
+              its own, which made the longest, least-asked-about thing on the
+              page the widest and tallest thing on it, while Evidence and
+              Storage — the two allowances anyone actually opens Billing to
+              check — were stacked one under the other in a narrow column
+              beside it.
 
-                  It said the credit balance a second time, explained what
-                  credits are, and held the only purchase button — so the card
-                  that described the shortage was not the card that could fix
-                  it, and the page carried the same number twice under two
-                  headings. Balance, ledger history and the single "Buy
-                  credits" action all live in `EvidenceDetailCard`, which now
-                  stands exactly where the deleted card stood.
+              They are the same KIND of fact and they are now the same row:
+              two equal columns that align heading, value, track and action.
+              History spans the full width beneath them, where a wide table
+              belongs and where its width is a feature rather than a claim
+              about its importance.
+            */}
+            <div className="bill-row" data-billing-row="allowances">
+              <EvidenceDetailCard
+                projection={projection}
+                onBuyCredits={
+                  projection.actions.canBuyEvidenceCredits
+                    ? () => setCheckout({ kind: "CREDITS" })
+                    : undefined
+                }
+                onChoosePlan={() => openPlanManagement()}
+              />
 
-                  The placement is the point, not a detail. Merged into the
-                  LEFT column — beside the billing-history table, which is the
-                  tallest thing on the page — the combined card would have made
-                  the page 245px TALLER while removing a card from it, because
-                  a two-column grid is as tall as its tallest column. Here it
-                  occupies the space the card it replaces already had.
-                */}
-                <EvidenceDetailCard
-                  projection={projection}
-                  onBuyCredits={
-                    projection.actions.canBuyEvidenceCredits
-                      ? () => setCheckout({ kind: "CREDITS" })
-                      : undefined
-                  }
-                  onChoosePlan={() => openPlanManagement()}
-                />
-
-                <StorageAddonsSection
-                  projection={projection}
-                  onManageStorage={() => setCheckout({ kind: "STORAGE" })}
-                  onChoosePlan={() => openPlanManagement()}
-                  onCancelAddon={(id) => void handleCancelAddon(id)}
-                  cancelBusyId={cancelAddonBusy}
-                />
-
-                <PlanCapabilitiesCard projection={projection} />
-
-                <EnterpriseContractCard projection={projection} />
-              </div>
+              <StorageAddonsSection
+                projection={projection}
+                onManageStorage={() => setCheckout({ kind: "STORAGE" })}
+                onChoosePlan={() => openPlanManagement()}
+                onCancelAddon={(id) => void handleCancelAddon(id)}
+                cancelBusyId={cancelAddonBusy}
+              />
             </div>
 
-            {/* One line, not a card. It was a full-width panel carrying a
-                sentence and a button. */}
+            {/* The tier facts that are not meters, and the agreement, keep the
+                same compact row treatment rather than becoming full-width
+                cards carrying one value each. */}
+            <div className="bill-row" data-billing-row="details">
+              <PlanCapabilitiesCard projection={projection} />
+              <EnterpriseContractCard projection={projection} />
+            </div>
+
+            <BillingHistorySection
+              entries={history}
+              state={historyState}
+              onRetry={() => selected && void loadHistory(selected)}
+              recheckBusy={recheckBusy}
+              onRecheckPayment={(entry) => void handleRecheckPayment(entry)}
+              onCancelPayment={(entry) => void handleCancelPayment(entry)}
+              onAbandonPayment={(entry) => void handleAbandonPayment(entry)}
+              rowBusyId={paymentBusyId}
+              resumeUrls={resumeUrls}
+              onRecheck={() => void handleAccountRecheck()}
+            />
+
+            {/*
+              BILLING UI REFINEMENT (2026-09-01) — the way out, made visible.
+
+              It was grey text on a grey surface with a grey link, at the bottom
+              of the one page people reach when nothing above it answered their
+              question. The link did not look like a control, and the sentence
+              beside it — "Your billing records are the ones we act on" — was a
+              vague reassurance about money rather than an offer of help.
+
+              Still a STRIP and not a card: one compact row on desktop, stacking
+              on a narrow screen. A support prompt at the same visual weight as
+              the allowances above it would be the opposite mistake.
+            */}
             <div className="bill-support-strip" data-billing-support>
+              <span className="bill-support-strip__icon" aria-hidden="true">
+                <LifeBuoy size={17} strokeWidth={2} />
+              </span>
               <p className="bill-support-strip__copy">
                 {projection.actions.contactAccountManager
                   ? "Changes to your agreement go through your account manager."
-                  : "Something not right here? Your billing records are the ones we act on."}
+                  : "Something here not matching what you expected? We can look at it with you."}
               </p>
               <a
                 /*
@@ -1038,7 +1079,11 @@ function BillingPageInner() {
                 }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bill-support-strip__action"
+                /* The Billing secondary treatment, on an ANCHOR: this must stay
+                   a real link so the new tab, the middle-click and the context
+                   menu all behave as a link, while looking like the button it
+                   functionally is. */
+                className="bill-support-strip__action ui-button bill-secondary-action"
                 data-billing-support-action
               >
                 {projection.actions.contactAccountManager

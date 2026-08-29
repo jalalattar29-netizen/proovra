@@ -329,6 +329,83 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
     expect(p.plan.currentPeriodEndUtc ?? null).toBeNull();
   });
 
+  it("granted PRO is offered a real path to TEAM, and it is a PURCHASE", async () => {
+    /*
+     * BILLING UI REFINEMENT (2026-09-01) — truthful is not the same as usable.
+     *
+     * A granted tier has no provider subscription, so it correctly shows no
+     * cancellation and no prorated transition. On its own that left a granted
+     * PRO customer who outgrew PRO with nowhere to go on the page: honest, and
+     * commercially trapped.
+     *
+     * The way out is composed HERE, from the same ladder the offers use, and
+     * it is a PURCHASE — a new-subscription checkout, never the plan-change
+     * route, because there is nothing to change.
+     */
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    const p = await projectFor(t.owner.userId);
+
+    expect(p.plan.accessKind).toBe("GRANTED");
+    expect(p.actions.planManagement.mode).toBe("VIEW_ACCESS");
+    expect(p.actions.secondaryPlanAction).toEqual({
+      kind: "START_SUBSCRIPTION",
+      planKey: "TEAM",
+      label: "Start Team subscription",
+    });
+
+    // The offer behind it is a CHECKOUT, so nothing downstream can read it as
+    // a transition.
+    const team = (p.planOffers ?? []).find((o) => o.planKey === "TEAM");
+    expect(team?.action).toBe("CHECKOUT");
+  });
+
+  it("granted TEAM is offered nothing above it, and no cancellation", async () => {
+    // Not a special case: TEAM is the top of the self-service ladder, so "the
+    // tier above the granted one" is empty. A "View plans" that led nowhere
+    // would be the alternative.
+    const t = await seedPersonalTenant(deps, "TEAM", { credits: 0 });
+    const p = await projectFor(t.owner.userId);
+
+    expect(p.plan.accessKind).toBe("GRANTED");
+    expect(p.actions.secondaryPlanAction).toBeUndefined();
+    expect(p.actions.canRequestCancellation).toBe(false);
+  });
+
+  it("a granted tier CAN still buy storage, because the gate is the entitlement", async () => {
+    /*
+     * Canonical backend policy, not an inference: the storage-add-on route
+     * refuses on `scope.plan === FREE` and on nothing else, so a granted PRO
+     * account is eligible and the add-on stands as its own recurring
+     * subscription rather than hanging off a base subscription that does not
+     * exist. The surface tells the truth about that rather than hiding a
+     * capability the server would honour.
+     */
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    const p = await projectFor(t.owner.userId);
+
+    expect(p.plan.accessKind).toBe("GRANTED");
+    expect(p.actions.canBuyStorageAddon).toBe(true);
+    expect(p.storageAddonsLocked ?? null).toBeNull();
+    expect((p.storageAddons?.offers ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("a real subscription gets no second plan action — it has a manager", async () => {
+    const t = await seedPersonalTenant(deps, "PRO", { credits: 0 });
+    await seedSubscriptionRow(t.owner.userId, "PRO");
+    const p = await projectFor(t.owner.userId);
+
+    expect(p.actions.planManagement.mode).toBe("MANAGE");
+    expect(p.actions.secondaryPlanAction).toBeUndefined();
+  });
+
+  it("a FREE account gets no second plan action — the chooser offers both", async () => {
+    const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
+    const p = await projectFor(t.owner.userId);
+
+    expect(p.actions.planManagement.mode).toBe("CHOOSE");
+    expect(p.actions.secondaryPlanAction).toBeUndefined();
+  });
+
   // =========================================================================
   // 4. A viewer who may not act
   // =========================================================================
@@ -341,6 +418,9 @@ describe("BILLING PLAN SELECTION (live PostgreSQL 16)", () => {
     expect(p.actions.canStartCheckout).toBe(false);
     expect(p.actions.canRequestCancellation).toBe(false);
     expect(p.actions.canBuyEvidenceCredits).toBe(false);
+    // Including the granted account's way out: a viewer who may not manage
+    // billing may not start a subscription either.
+    expect(p.actions.secondaryPlanAction).toBeUndefined();
     // No catalogue is even projected to a viewer who cannot buy from it.
     expect(p.planOffers ?? null).toBeNull();
   });

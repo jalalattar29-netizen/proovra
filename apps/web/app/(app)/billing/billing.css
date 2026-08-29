@@ -56,22 +56,40 @@
   max-inline-size: 1120px;
 }
 
-.bill-grid {
+/* BILLING UI REFINEMENT (2026-09-01) — ROWS, not two standing columns.
+ *
+ * The 1.55fr/1fr grid gave the billing-history TABLE a permanent column of its
+ * own, so the longest and least-consulted thing on the page was also the
+ * widest, while Evidence and Storage — the two allowances people open Billing
+ * to check — were stacked in the narrow column beside it.
+ *
+ * A row of EQUAL columns instead, so the two allowance cards align heading,
+ * value, track and action and read as one deliberate row; history spans the
+ * full width beneath them. Equal columns are the point: unequal ones made the
+ * pair look like a main card and an afterthought.
+ *
+ * A stretched row (the default) so the two cards share a height and
+ * their borders line up, without either being FORCED to a fixed height that
+ * would clip a longer translation.
+ * ------------------------------------------------------------------------- */
+.bill-row {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
 }
 
-.bill-grid__column {
-  display: grid;
-  gap: 18px;
-  min-inline-size: 0;
-  align-content: start;
+/* An empty row must not leave a gap where a card would have been: both of the
+   detail row's children are conditional. */
+.bill-row:empty {
+  display: none;
 }
 
+/* One column below the tablet breakpoint. 980px is where two cards of this
+   content stop having room for a value and its track on one line — checked at
+   320, 375, 390, 768, 1024, 1280 and 1440. */
 @media (max-width: 980px) {
-  .bill-grid {
+  .bill-row {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -165,34 +183,26 @@
   color: var(--text-muted, #5f6878);
 }
 
-/* A status is a WORD first: the tone is a reinforcement, never the signal. */
-.bill-overview__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 650;
+/* BILLING UI REFINEMENT (2026-09-01) — `.bill-overview__status` is DELETED.
+ *
+ * It was a bordered, white-filled capsule with its own font size, which gave a
+ * passive fact ("Trial") the visual weight of a control on a card whose other
+ * inhabitants are a price and a button. It also carried three hard-coded
+ * colour literals that no other status in the product used, so Billing's
+ * "Active" was a different green from everything else's.
+ *
+ * The status is now `AppStatusText`, the product's canonical no-capsule
+ * status, which reads the same tone vocabulary as `AppStatusBadge`. All this
+ * file does is place it. Removed after proving the class had exactly one
+ * consumer, which was the element replaced.
+ * ------------------------------------------------------------------------- */
+.bill-overview__commercials .app-status-text {
+  /* Its own line under the price, so the two never compete for the same
+     baseline and the status sits in the SAME place on every plan — FREE, which
+     has no price line of its own, included. */
+  display: block;
+  margin-block-start: 4px;
   white-space: nowrap;
-  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.09));
-  background: var(--surface-card, #ffffff);
-  color: var(--text-muted, #475569);
-}
-
-.bill-overview__status[data-tone="verified"] {
-  border-color: rgba(22, 163, 74, 0.28);
-  color: #15803d;
-}
-
-.bill-overview__status[data-tone="pending"] {
-  border-color: rgba(180, 83, 9, 0.28);
-  color: #b45309;
-}
-
-.bill-overview__status[data-tone="risk"] {
-  border-color: rgba(220, 38, 38, 0.28);
-  color: #b91c1c;
 }
 
 .bill-overview__action > * {
@@ -356,27 +366,52 @@
 }
 
 /* A compact support line. It was a full-width card for one sentence. */
+/* BILLING UI REFINEMENT (2026-09-01) — the support strip reads as a way out.
+ *
+ * It was grey text on a grey surface with a grey link, at the bottom of a page
+ * somebody reaches when nothing above it answered their question — the one
+ * place on Billing where being hard to see is most expensive. It now carries
+ * the product's own violet tint, an icon, and a real secondary BUTTON.
+ *
+ * Still a strip and not a card: one compact row on desktop, stacking on narrow
+ * screens. Making it a panel would put a support prompt at the same weight as
+ * the allowances above it. */
 .bill-support-strip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.08));
-  background: var(--surface-muted, #f8fafc);
+  border: 1px solid var(--accent-200, #ddd3fb);
+  background: var(--accent-050, #f6f2ff);
   font-size: 0.88rem;
-  color: var(--text-muted, #475569);
+  color: var(--text-strong, #172033);
+}
+
+.bill-support-strip__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 999px;
+  background: var(--surface-card, #ffffff);
+  border: 1px solid var(--accent-200, #ddd3fb);
+  color: var(--accent-600, #6d28d9);
 }
 
 .bill-support-strip__copy {
   margin: 0;
   min-inline-size: 0;
   flex: 1 1 260px;
+  line-height: 1.55;
   overflow-wrap: anywhere;
 }
 
 .bill-support-strip__action {
+  flex: none;
   min-block-size: 44px;
   display: inline-flex;
   align-items: center;
@@ -871,4 +906,147 @@
   font-size: 0.95rem;
   color: var(--text-strong, #172033);
   overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------------------
+ * BILLING SECONDARY ACTION
+ *
+ * The non-destructive second-tier action on Billing: View plans, Buy credits,
+ * Re-check, Re-check purchases and billing, Start Team subscription.
+ *
+ * They were the shared `secondary` variant — a translucent pearl surface with
+ * a hairline border and grey ink — which on a page whose primary action is a
+ * saturated violet read as a row of DISABLED controls. Several of them are the
+ * only way to do the thing the customer came for.
+ *
+ * White surface, violet ink, neutral border at rest; violet border and a faint
+ * violet wash on hover; a visible violet focus ring. Not a second primary: the
+ * fill stays white, so the page still has exactly one filled CTA.
+ *
+ * `!important` for the same reason the drawer variants need it — `components/ui/
+ * Button` sets its variant colours INLINE, and no stylesheet rule outranks that
+ * by specificity. Scoped under `.bill-page`, `.bill-panel` and `.bill-overview`
+ * so it cannot reach a button on any other surface.
+ *
+ * NOT applied to: the checkout CTA (black), cancellation (white/red), abandon,
+ * or anything genuinely disabled.
+ * ------------------------------------------------------------------------- */
+.bill-page .bill-secondary-action.ui-button,
+.bill-panel .bill-secondary-action.ui-button,
+.bill-overview .bill-secondary-action.ui-button {
+  background: var(--surface-card, #ffffff) !important;
+  background-image: none !important;
+  color: var(--accent-600, #6d28d9) !important;
+  border: 1px solid var(--border-default, rgba(15, 23, 42, 0.12)) !important;
+  box-shadow: none !important;
+  min-height: 44px !important;
+}
+
+.bill-page .bill-secondary-action.ui-button:hover:not(:disabled),
+.bill-panel .bill-secondary-action.ui-button:hover:not(:disabled),
+.bill-overview .bill-secondary-action.ui-button:hover:not(:disabled) {
+  /* A wash, not a fill: the ink stays violet on a ground light enough to keep
+     it well clear of 4.5:1. */
+  background: var(--accent-050, #f6f2ff) !important;
+  border-color: var(--accent-500, #7c3aed) !important;
+  color: var(--accent-600, #6d28d9) !important;
+}
+
+.bill-page .bill-secondary-action.ui-button:active:not(:disabled),
+.bill-panel .bill-secondary-action.ui-button:active:not(:disabled),
+.bill-overview .bill-secondary-action.ui-button:active:not(:disabled) {
+  background: var(--accent-200, #d9c7fb) !important;
+  transform: translateY(1px);
+}
+
+.bill-page .bill-secondary-action.ui-button:focus-visible,
+.bill-panel .bill-secondary-action.ui-button:focus-visible,
+.bill-overview .bill-secondary-action.ui-button:focus-visible {
+  outline: 2px solid var(--accent-500, #7c3aed) !important;
+  outline-offset: 2px;
+}
+
+.bill-page .bill-secondary-action.ui-button:disabled,
+.bill-panel .bill-secondary-action.ui-button:disabled {
+  /* Genuinely unavailable reads as unavailable — this is the ONE state where
+     the violet is dropped, because a disabled control that still looks
+     actionable is worse than a grey one. */
+  background: var(--surface-muted, #f8fafc) !important;
+  color: var(--text-muted, #5f6878) !important;
+  border-color: var(--border-default, rgba(15, 23, 42, 0.09)) !important;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bill-page .bill-secondary-action.ui-button:active:not(:disabled),
+  .bill-panel .bill-secondary-action.ui-button:active:not(:disabled),
+  .bill-overview .bill-secondary-action.ui-button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * PAYMENT METHOD — the option is the mark.
+ *
+ * The rows read "Card" and "PayPal" in the same plain type as every other line
+ * in the drawer, so the one control that decides where a customer's money goes
+ * looked like a paragraph. The marks are official brand glyphs from the
+ * Font Awesome set bundled with `react-icons`; they are `aria-hidden`, and each
+ * option carries a real visually-hidden name instead.
+ * ------------------------------------------------------------------------- */
+.bill-pay__body {
+  /* Centre the marks on the row rather than starting them at the text column:
+     with no visible label there is no text for them to align to. */
+  justify-content: flex-start;
+  min-block-size: 28px;
+}
+
+.bill-pay__marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bill-pay__mark {
+  /* Sized in ems so the marks track the row's type scale, and given an
+     explicit block-size so an SVG with no intrinsic ratio cannot collapse. */
+  inline-size: auto;
+  block-size: 1.75em;
+  font-size: 1rem;
+  flex: none;
+}
+
+/* The brand colours, declared HERE rather than in JSX — this codebase keeps
+   colour literals out of components, and a mark is recognised by its colour as
+   much as its shape. */
+.bill-pay__mark[data-mark="visa"] {
+  color: #1434cb;
+}
+
+.bill-pay__mark[data-mark="mastercard"] {
+  color: #eb001b;
+}
+
+.bill-pay__mark[data-mark="paypal"] {
+  color: #003087;
+}
+
+/* Selection is never carried by the mark's colour: the radio is checked, the
+   row takes the selected border, and the accessible name is unchanged. This
+   only stops an unselected row's marks shouting as loudly as the selected
+   one's. */
+.bill-choice--payment .bill-choice__option[data-selected="false"] .bill-pay__mark {
+  opacity: 0.75;
+}
+
+.bill-choice--payment .bill-choice__option:hover .bill-pay__mark {
+  opacity: 1;
+}
+
+@media (forced-colors: active) {
+  /* In forced colours the glyphs lose their brand fill; the row's own border
+     and the native radio still carry the state. */
+  .bill-pay__mark {
+    forced-color-adjust: auto;
+  }
 }

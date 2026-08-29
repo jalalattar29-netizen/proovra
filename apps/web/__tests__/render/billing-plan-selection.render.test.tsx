@@ -28,7 +28,10 @@ vi.mock("../../lib/api", () => ({
 
 import { CheckoutDrawer } from "../../app/(app)/billing/_sections/CheckoutDrawer";
 import { ManagePlanDrawer } from "../../app/(app)/billing/_sections/ManagePlanDrawer";
-import { EvidenceDetailCard } from "../../app/(app)/billing/_sections/BillingOverview";
+import {
+  BillingOverview,
+  EvidenceDetailCard,
+} from "../../app/(app)/billing/_sections/BillingOverview";
 import { StorageAddonsSection } from "../../app/(app)/billing/_sections/StorageAndHistory";
 import type {
   BillingAccountProjection,
@@ -251,46 +254,84 @@ describe("the FREE plan chooser", () => {
 
   it("asks for a payment method BEFORE anything can be committed", () => {
     mountChooser();
-    // Both providers, as real radios — a customer must be able to see and
-    // change where they are about to be sent.
-    expect(screen.getByRole("radio", { name: "Card" })).toBeTruthy();
+    /*
+     * BILLING UI REFINEMENT (2026-09-01) — the options are named by their
+     * ACCESSIBLE name, which is no longer the visible text.
+     *
+     * The visible content is a brand mark; the name is a real label that says
+     * what the option IS. "Credit or debit card" rather than "Visa or
+     * Mastercard", because the marks beside it are the two most recognisable
+     * and not a claim about which networks the provider accepts.
+     */
+    expect(screen.getByRole("radio", { name: "Credit or debit card" })).toBeTruthy();
     expect(screen.getByRole("radio", { name: "PayPal" })).toBeTruthy();
   });
 
-  it("states the plan, the cadence and the total once a tier is selected", async () => {
+  it("does NOT expand a summary panel when a tier is selected", async () => {
+    /*
+     * BILLING UI REFINEMENT (2026-09-01) — this asserted the panel EXISTED.
+     *
+     * It restated the selected plan, the cadence, the total and a cancellation
+     * sentence directly under the card that already showed all of it, so
+     * choosing a tier made the drawer grow by a block that told the customer
+     * nothing new — and on a phone it pushed the payment selector and the
+     * button below the fold.
+     */
     const user = userEvent.setup();
     const { container } = mountChooser();
 
-    // Nothing to summarise before a choice exists — an empty summary is one
-    // more heading to scroll past.
+    await user.click(screen.getByRole("radio", { name: /Pro/ }));
+
     expect(container.querySelector("[data-billing-plan-summary]")).toBeNull();
+    // And none of what it said reappeared somewhere else.
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/Selected plan/i);
+    expect(text).not.toMatch(/\bTotal\b/);
+  });
+
+  it("keeps the selected plan unmistakable, and states its price once", async () => {
+    const user = userEvent.setup();
+    const { container } = mountChooser();
 
     await user.click(screen.getByRole("radio", { name: /Pro/ }));
 
-    const summary = container.querySelector("[data-billing-plan-summary]");
-    expect(summary).not.toBeNull();
-    expect(
-      summary!.querySelector("[data-billing-summary-plan]")!.textContent,
-    ).toBe("Pro");
-    expect(
-      summary!.querySelector("[data-billing-summary-cadence]")!.textContent,
-    ).toBe("Monthly");
-    expect(
-      summary!.querySelector("[data-billing-summary-total]")!.textContent,
-    ).toMatch(/19/);
-    // And it says what the customer is signing up to, in as many words.
-    expect(summary!.textContent).toMatch(/creates a monthly subscription/i);
+    const option = container.querySelector('[data-billing-plan-option="PRO"]')!;
+    expect(option.getAttribute("data-billing-plan-selected")).toBe("true");
+    // The card carries the whole decision: name, what it includes, and cost.
+    expect(option.textContent).toMatch(/Pro/);
+    expect(option.textContent).toMatch(/100 lifetime evidence records/);
+    expect(option.querySelector('[data-billing-plan-price="PRO"]')!.textContent).toMatch(
+      /19/,
+    );
+
+    // The chosen price appears exactly ONCE in the drawer's plan content.
+    const prices = (container.textContent ?? "").match(/\$19\.00/g) ?? [];
+    expect(prices).toHaveLength(1);
+
+    // And the payment selector and the CTA are both still reachable.
+    expect(container.querySelector("[data-billing-payment-choice]")).not.toBeNull();
+    expect(continueButton()).not.toBeNull();
   });
 
-  it("names the PROVIDER it is about to hand the customer to", async () => {
+  it("states the recurring nature ONCE for the section, not per tier", async () => {
+    const { container } = mountChooser();
+    const terms = container.querySelectorAll("[data-billing-plan-terms]");
+    expect(terms).toHaveLength(1);
+    expect(terms[0]!.textContent).toMatch(/billed monthly/i);
+  });
+
+  it("names the PLAN it is about to buy", async () => {
+    // The summary that used to restate the selection is gone, so the button is
+    // once more the last place a wrong tier can be caught — and the tier is
+    // the thing that would be wrong.
     const user = userEvent.setup();
     mountChooser();
 
     await user.click(screen.getByRole("radio", { name: /Pro/ }));
-    expect(continueButton().textContent).toBe("Continue with Card");
+    expect(continueButton().textContent).toBe("Continue with Pro");
 
-    await user.click(screen.getByRole("radio", { name: "PayPal" }));
-    expect(continueButton().textContent).toBe("Continue with PayPal");
+    await user.click(screen.getByRole("radio", { name: /Team/ }));
+    expect(continueButton().textContent).toBe("Continue with Team");
   });
 
   it("cannot continue until a plan is chosen", () => {
@@ -305,7 +346,7 @@ describe("the FREE plan chooser", () => {
 
 describe("the FREE checkout request", () => {
   for (const [providerLabel, path] of [
-    ["Card", "/v1/billing/checkout/stripe"],
+    ["Credit or debit card", "/v1/billing/checkout/stripe"],
     ["PayPal", "/v1/billing/checkout/paypal"],
   ] as const) {
     for (const plan of ["PRO", "TEAM"] as const) {
@@ -373,6 +414,308 @@ describe("the FREE checkout request", () => {
     } finally {
       if (original) Object.defineProperty(window, "location", original);
     }
+  });
+});
+
+// ===========================================================================
+// 2b. ONE payment selector, for every purchase Billing makes
+// ===========================================================================
+
+describe("the payment-method selector", () => {
+  const INTENTS = [
+    { kind: "PLAN" as const, label: "subscription" },
+    { kind: "CREDITS" as const, label: "evidence credits" },
+    { kind: "STORAGE" as const, label: "storage add-on" },
+  ];
+
+  const withCatalogue = () =>
+    paid("PRO", [MOVE_TEAM], {
+      storageAddons: {
+        offers: [
+          {
+            key: "PERSONAL_10_GB",
+            label: "+10 GB",
+            storageBytes: "10737418240",
+            storageLabel: "10 GB",
+            priceCents: 300,
+            currency: "USD",
+            billingCycle: "MONTHLY",
+          },
+        ],
+        active: [],
+      },
+    } as never);
+
+  for (const intent of INTENTS) {
+    it(`is the SAME control for a ${intent.label} purchase`, () => {
+      /*
+       * The payment rows were written inline in the checkout drawer, so every
+       * Billing purchase inherited whatever that drawer happened to do — and
+       * improving them anywhere would have meant improving them three times.
+       * There is one component; these are its three consumers.
+       */
+      const { container, unmount } = render(
+        <CheckoutDrawer
+          open
+          intent={intent.kind === "PLAN" ? { kind: "PLAN" } : { kind: intent.kind }}
+          projection={withCatalogue()}
+          onClose={noop}
+          onCompleted={noop}
+          onError={noop}
+        />,
+      );
+
+      const group = container.querySelector("[data-billing-payment-choice]");
+      expect(group).not.toBeNull();
+      expect(group!.getAttribute("role")).toBe("radiogroup");
+
+      // Both canonical providers, as native radios.
+      for (const provider of ["STRIPE", "PAYPAL"]) {
+        const option = container.querySelector(
+          `[data-billing-provider-option="${provider}"]`,
+        );
+        expect(option).not.toBeNull();
+        expect(option!.querySelector('input[type="radio"]')).not.toBeNull();
+      }
+
+      // The marks are present and DECORATIVE in every flow.
+      const marks = container.querySelectorAll(".bill-pay__mark");
+      expect(marks.length).toBe(3);
+      for (const mark of Array.from(marks)) {
+        expect(mark.getAttribute("aria-hidden")).toBe("true");
+      }
+
+      unmount();
+    });
+  }
+
+  it("names each option for a screen reader, and never by its marks", () => {
+    const { container } = mountChooser();
+
+    // The accessible name is a real label, not the brand glyphs.
+    expect(screen.getByRole("radio", { name: "Credit or debit card" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "PayPal" })).toBeTruthy();
+    // Nothing announces "Visa" or "Mastercard" — the marks are a signpost, and
+    // naming two networks would claim a coverage this surface cannot promise.
+    expect(screen.queryByRole("radio", { name: /Visa|Mastercard/i })).toBeNull();
+    // And the marks the customer SEES are there.
+    expect(container.querySelector('[data-mark="visa"]')).not.toBeNull();
+    expect(container.querySelector('[data-mark="mastercard"]')).not.toBeNull();
+    expect(container.querySelector('[data-mark="paypal"]')).not.toBeNull();
+  });
+
+  it("makes the WHOLE option the hit area, not just the radio", async () => {
+    const user = userEvent.setup();
+    const { container } = mountChooser();
+
+    const paypalOption = container.querySelector<HTMLElement>(
+      '[data-billing-provider-option="PAYPAL"]',
+    )!;
+    // Press the marks, which are the furthest thing from the radio circle.
+    await user.click(paypalOption.querySelector(".bill-pay__marks")!);
+
+    expect(
+      (screen.getByRole("radio", { name: "PayPal" }) as HTMLInputElement).checked,
+    ).toBe(true);
+  });
+
+  it("still submits the canonical provider value it always did", async () => {
+    const user = userEvent.setup();
+    mountChooser();
+
+    await user.click(screen.getByRole("radio", { name: /Pro/ }));
+    await user.click(screen.getByRole("radio", { name: "Credit or debit card" }));
+    await user.click(continueButton());
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+    expect((apiFetch.mock.calls[0] as [string])[0]).toBe(
+      "/v1/billing/checkout/stripe",
+    );
+  });
+
+  it("keeps the two drawers' groups independent", () => {
+    // Two mounted drawers sharing one radio-group name would let a selection
+    // in one silently clear the other — which is what a fixed `name` would do.
+    const a = render(
+      <CheckoutDrawer
+        open
+        intent={{ kind: "PLAN" }}
+        projection={free()}
+        onClose={noop}
+        onCompleted={noop}
+        onError={noop}
+      />,
+    );
+    const names = new Set(
+      Array.from(a.container.querySelectorAll('input[name^="billing-payment-method"]')).map(
+        (i) => (i as HTMLInputElement).name,
+      ),
+    );
+    expect(names.size).toBe(1);
+    expect([...names][0]).toContain("plan");
+    a.unmount();
+  });
+});
+
+// ===========================================================================
+// 2c. A granted tier is truthful AND has a way out
+// ===========================================================================
+
+describe("a granted tier", () => {
+  const granted = (planKey: "PRO" | "TEAM", secondary?: unknown) =>
+    ({
+      ...free(),
+      plan: {
+        ...free().plan,
+        planKey,
+        accessKind: "GRANTED",
+        displayName: planKey === "PRO" ? "Pro" : "Team",
+        model: "FREE",
+        lifecycle: "ACTIVE",
+      },
+      planOffers: planKey === "PRO" ? [CHECKOUT_TEAM] : [],
+      storageAddonsLocked: undefined,
+      actions: {
+        ...free().actions,
+        planManagement: {
+          label: "View access details",
+          mode: "VIEW_ACCESS",
+          enabled: true,
+        },
+        canRequestCancellation: false,
+        ...(secondary ? { secondaryPlanAction: secondary } : {}),
+      },
+    }) as unknown as BillingAccountProjection;
+
+  it("granted PRO offers a real path to TEAM, and it is a PURCHASE", async () => {
+    /*
+     * A manually granted tier is real access with no billing relationship, so
+     * its first action correctly says "View access details" and buys nothing.
+     * Truthful — and, on its own, a dead end: a granted PRO customer who
+     * outgrew PRO had nowhere to go on this page.
+     *
+     * The way out is a NEW subscription checkout, never the plan-transition
+     * route, because there is no provider subscription to transition.
+     */
+    const user = userEvent.setup();
+    const started: Array<"PRO" | "TEAM"> = [];
+    let managed = 0;
+
+    const { container } = render(
+      <BillingOverview
+        projection={granted("PRO", {
+          kind: "START_SUBSCRIPTION",
+          planKey: "TEAM",
+          label: "Start Team subscription",
+        })}
+        onManagePlan={() => {
+          managed += 1;
+        }}
+        onStartSubscription={(planKey) => started.push(planKey)}
+        changeBusyPlan={null}
+      />,
+    );
+
+    // The truthful label survives beside it.
+    expect(container.textContent).toMatch(
+      /Granted access — no active billing subscription/,
+    );
+    const start = container.querySelector<HTMLButtonElement>(
+      "[data-billing-start-subscription]",
+    )!;
+    expect(start.textContent).toBe("Start Team subscription");
+    expect(start.getAttribute("data-billing-start-subscription")).toBe("TEAM");
+
+    await user.click(start);
+    expect(started).toEqual(["TEAM"]);
+    // It is NOT the manage/transition surface.
+    expect(managed).toBe(0);
+  });
+
+  it("granted TEAM offers no second action, because there is nothing above it", () => {
+    const { container } = render(
+      <BillingOverview
+        projection={granted("TEAM")}
+        onManagePlan={noop}
+        onStartSubscription={noop}
+        changeBusyPlan={null}
+      />,
+    );
+    expect(container.querySelector("[data-billing-start-subscription]")).toBeNull();
+    // And no meaningless "View plans" in its place.
+    expect(container.textContent).not.toMatch(/View plans/);
+  });
+
+  it("neither granted tier is offered a cancellation", () => {
+    for (const planKey of ["PRO", "TEAM"] as const) {
+      const { container, unmount } = mountManage(granted(planKey));
+      expect(container.querySelector("[data-billing-manage-cancel]")).toBeNull();
+      expect(container.textContent).not.toMatch(/Cancel subscription/);
+      unmount();
+    }
+  });
+});
+
+// ===========================================================================
+// 2d. The metrics row, the status, and the page composition
+// ===========================================================================
+
+describe("the overview metrics", () => {
+  it("gives AI operations a track even when it is Not included", () => {
+    /*
+     * "AI operations — Not included" had no track, so the three meters did not
+     * line up and the row read as two measurements and a leftover. The absence
+     * said nothing either: a metric with no track and one that failed to load
+     * looked identical.
+     */
+    const { container } = render(
+      <BillingOverview projection={free()} onManagePlan={noop} changeBusyPlan={null} />,
+    );
+
+    const ai = container.querySelector('[data-billing-metric="AI operations"]')!;
+    expect(ai.textContent).toMatch(/Not included/);
+    const track = ai.querySelector(".bill-metric__track")!;
+    expect(track).not.toBeNull();
+    // Decoration, not a progressbar: a progressbar with no value would be a
+    // lie in the accessibility tree, so the WORDS carry the state.
+    expect(track.getAttribute("data-billing-metric-track")).toBe("empty");
+    expect(track.getAttribute("aria-hidden")).toBe("true");
+    expect(track.getAttribute("role")).toBeNull();
+    expect(track.querySelector(".bill-metric__fill")).toBeNull();
+
+    // Every metric in the row has one, so the three align.
+    const tracks = container.querySelectorAll(".bill-metric .bill-metric__track");
+    expect(tracks.length).toBe(
+      container.querySelectorAll("[data-billing-metric]").length,
+    );
+  });
+
+  it("renders a real progressbar where there IS a measurement", () => {
+    const { container } = render(
+      <BillingOverview projection={free()} onManagePlan={noop} changeBusyPlan={null} />,
+    );
+    const storage = container.querySelector('[data-billing-metric="Storage"]')!;
+    const bar = storage.querySelector('[role="progressbar"]')!;
+    expect(bar).not.toBeNull();
+    expect(bar.getAttribute("aria-valuenow")).toBe("0");
+    expect(bar.getAttribute("aria-label")).toMatch(/^Storage: /);
+  });
+
+  it("states the plan status as words, with no capsule", () => {
+    const { container } = render(
+      <BillingOverview
+        projection={paid("PRO", [MOVE_TEAM])}
+        onManagePlan={noop}
+        changeBusyPlan={null}
+      />,
+    );
+    const status = container.querySelector("[data-billing-plan-status]")!;
+    expect(status).not.toBeNull();
+    // The canonical no-capsule primitive, not a Billing-only pill.
+    expect(status.className).toMatch(/\bapp-status-text\b/);
+    expect(status.className).not.toMatch(/bill-overview__status/);
+    // Tone is a reinforcement; the WORD is the signal.
+    expect(status.textContent).toBeTruthy();
+    expect(status.getAttribute("data-tone")).toBeTruthy();
   });
 });
 
@@ -675,16 +1018,19 @@ describe("the FREE storage card", () => {
 
 describe("direction and reach", () => {
   for (const dir of ["ltr", "rtl"] as const) {
-    it(`renders the chooser and its summary in ${dir}`, async () => {
+    it(`renders the chooser, its marks and its CTA in ${dir}`, async () => {
       document.documentElement.dir = dir;
       const user = userEvent.setup();
       const { container } = mountChooser();
       await user.click(screen.getByRole("radio", { name: /Team/ }));
 
-      expect(container.querySelector("[data-billing-plan-summary]")).not.toBeNull();
       // Money and mixed number/label runs stay isolated so RTL cannot reorder
       // them into a different figure.
       expect(container.querySelectorAll("bdi").length).toBeGreaterThan(0);
+      // The payment marks compose in both directions rather than being
+      // positioned by a physical property that only works in one.
+      expect(container.querySelectorAll(".bill-pay__mark").length).toBe(3);
+      expect(continueButton().textContent).toBe("Continue with Team");
     });
   }
 

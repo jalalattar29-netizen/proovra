@@ -26,6 +26,10 @@
  */
 
 import { Button } from "../../../../components/ui/Button";
+import {
+  AppStatusText,
+  type AppTone,
+} from "../../../../components/app-primitives";
 import type { BillingAccountProjection } from "../../../../lib/api/billing-accounts";
 import {
   describeEvidenceAdmission,
@@ -46,13 +50,47 @@ type Metric = {
   tone: "neutral" | "pending";
 };
 
+/**
+ * Billing's lifecycle vocabulary → the product's canonical tone vocabulary.
+ *
+ * Billing says "verified / pending / risk / info / neutral" because that is
+ * what its own meters and badges have always said. `AppStatusText` reads the
+ * product-wide `AppTone`. Mapping here, in one place, is what lets the status
+ * be the SAME colour as every other status in PROOVRA without Billing having
+ * to rename a vocabulary its other surfaces still use.
+ */
+function statusTone(tone: "verified" | "pending" | "risk" | "neutral" | "info"): AppTone {
+  switch (tone) {
+    case "verified":
+      return "green";
+    case "pending":
+      return "amber";
+    case "risk":
+      return "red";
+    case "info":
+      return "blue";
+    default:
+      // Slate is the product's fallback for an unmapped or neutral state, and
+      // is a real declaration rather than whatever the base happens to paint.
+      return "slate";
+  }
+}
+
 export function BillingOverview({
   projection,
   onManagePlan,
+  onStartSubscription,
   changeBusyPlan,
 }: {
   projection: BillingAccountProjection;
   onManagePlan: () => void;
+  /**
+   * Open a NEW-subscription checkout on the given tier.
+   *
+   * Optional so a surface that has no checkout to open simply does not render
+   * the action, rather than rendering a button that does nothing.
+   */
+  onStartSubscription?: (planKey: "PRO" | "TEAM") => void;
   changeBusyPlan: string | null;
 }) {
   const { plan, account, actions, contract } = projection;
@@ -119,13 +157,29 @@ export function BillingOverview({
             </p>
           ) : null}
 
-          <span
-            className="bill-overview__status"
-            data-billing-plan-status
-            data-tone={lifecycle.tone}
+          {/*
+            BILLING UI REFINEMENT (2026-09-01) — the capsule is gone.
+
+            "Trial" sat in a bordered, shadowed pill beside a plan name and a
+            price, which gave a passive FACT the visual weight of a control —
+            and on a card whose whole job is "what am I on, and what can I do
+            about it", the one thing that was not a button looked the most like
+            one.
+
+            `AppStatusText` is the product's canonical no-capsule status: the
+            SAME tone vocabulary as `AppStatusBadge`, so a surface chooses how
+            a state looks without being able to change what its colour means.
+            Reused rather than restyled locally, which is how the capsule came
+            to differ from every other status in the product in the first place.
+          */}
+          <AppStatusText
+            tone={statusTone(lifecycle.tone)}
+            size="md"
+            data-billing-plan-status=""
+            data-tone-source={lifecycle.tone}
           >
             {lifecycle.label}
-          </span>
+          </AppStatusText>
         </div>
 
         <div className="bill-overview__action">
@@ -146,6 +200,34 @@ export function BillingOverview({
           >
             {actions.planManagement.label}
           </Button>
+
+          {/*
+            The SECOND action, and only where the server composed one.
+
+            A granted PRO account's first action is "View access details",
+            which is truthful and buys nothing — so a customer who outgrew the
+            tier they were given had nowhere to go. This is the way out, and it
+            is a PURCHASE: it opens a new-subscription checkout for the tier
+            the server named, never the plan-transition route, because there is
+            no provider subscription to transition.
+
+            The page does not work out that granted PRO can buy TEAM. It is
+            handed a plan key and a label.
+          */}
+          {actions.secondaryPlanAction && onStartSubscription ? (
+            <Button
+              variant="secondary"
+              size="md"
+              className="bill-secondary-action"
+              onClick={() =>
+                onStartSubscription(actions.secondaryPlanAction!.planKey)
+              }
+              disabled={!actions.planManagement.enabled || changeBusyPlan !== null}
+              data-billing-start-subscription={actions.secondaryPlanAction.planKey}
+            >
+              {actions.secondaryPlanAction.label}
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -184,6 +266,26 @@ export function BillingOverview({
             <dd className="bill-metric__value">
               <bdi>{m.value}</bdi>
             </dd>
+            {/*
+              BILLING UI REFINEMENT (2026-09-01) — the track is rendered for
+              EVERY metric, not only the ones with a number behind them.
+
+              "AI operations — Not included" had no track, so the three meters
+              did not line up and the row read as two measurements and a
+              leftover. The absence was not saying anything either: a customer
+              cannot tell a metric with no track from one that failed to load.
+
+              What changes with the state is the FILL and what is announced,
+              never whether the track exists:
+
+                measured    a real percentage, clamped so a bar cannot render
+                            past its track while the VALUE above still states
+                            the true overage
+                unmeasured  an empty track and no `progressbar` role at all —
+                            a progressbar with no value is a lie in the
+                            accessibility tree, so the muted rail is left as
+                            the decoration it is and the WORDS carry the state
+            */}
             {m.ratio !== null ? (
               <div
                 className="bill-metric__track"
@@ -193,15 +295,19 @@ export function BillingOverview({
                 aria-valuenow={Math.round(m.ratio * 100)}
                 aria-label={`${m.label}: ${m.value}`}
               >
-                {/* Clamped at 100% so a bar cannot render past its track,
-                    while the VALUE above still says the real overage. */}
                 <span
                   className="bill-metric__fill"
                   data-tone={m.tone}
                   style={{ width: `${Math.min(100, Math.round(m.ratio * 100))}%` }}
                 />
               </div>
-            ) : null}
+            ) : (
+              <div
+                className="bill-metric__track"
+                data-billing-metric-track="empty"
+                aria-hidden="true"
+              />
+            )}
             {m.note ? <p className="bill-metric__note">{m.note}</p> : null}
           </div>
         ))}
@@ -539,6 +645,7 @@ export function EvidenceDetailCard({
           <Button
             variant="secondary"
             size="sm"
+            className="bill-secondary-action"
             onClick={onBuyCredits}
             data-billing-buy-credits
             data-billing-evidence-action="BUY_CREDITS"
@@ -551,6 +658,7 @@ export function EvidenceDetailCard({
           <Button
             variant="secondary"
             size="sm"
+            className="bill-secondary-action"
             onClick={onChoosePlan}
             data-billing-evidence-action="SEE_PLANS"
           >

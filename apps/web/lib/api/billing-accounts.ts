@@ -287,6 +287,19 @@ export type BillingAccountProjection = {
         | "VIEW_AGREEMENT";
       enabled: boolean;
     };
+    /**
+     * A SECOND plan action, present only for a GRANTED tier with a real tier
+     * above it.
+     *
+     * It is a PURCHASE, not a transition: `planKey` opens the new-subscription
+     * checkout, because a granted tier has no provider subscription to change.
+     * The page renders what the server composed and derives none of it.
+     */
+    secondaryPlanAction?: {
+      kind: "START_SUBSCRIPTION";
+      planKey: "PRO" | "TEAM";
+      label: string;
+    };
     /** Why cancellation is absent, when it is. Present only then. */
     cancellationUnavailableReason?: "NOT_AUTHORIZED" | "NO_SUBSCRIPTION_BOUND";
   };

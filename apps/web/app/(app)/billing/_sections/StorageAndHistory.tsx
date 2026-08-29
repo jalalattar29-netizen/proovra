@@ -97,6 +97,7 @@ export function StorageAddonsSection({
                */
               variant="secondary"
               size="sm"
+              className="bill-secondary-action"
               onClick={onChoosePlan}
               data-billing-storage-upgrade
             >
@@ -225,8 +226,18 @@ export function StorageAddonsSection({
             handler.
           */}
           <Button
-            variant="primary"
+            /*
+             * The SAME treatment as "Buy credits" in the card beside it.
+             *
+             * These two are the same act — a purchase entry point on an
+             * allowance card — and they sit in one row, so painting one a
+             * filled violet and the other white made the row read as a main
+             * card and an afterthought. The page's single filled CTA is the
+             * plan action in the overview above.
+             */
+            variant="secondary"
             size="sm"
+            className="bill-secondary-action"
             onClick={onManageStorage}
             data-billing-manage-storage
           >
@@ -346,6 +357,7 @@ export function BillingHistorySection({
         <Button
           variant="secondary"
           size="sm"
+          className="bill-secondary-action"
           onClick={onRecheck}
           loading={recheckBusy}
           disabled={recheckBusy}
@@ -460,6 +472,7 @@ export function BillingHistorySection({
                           <Button
                             variant="secondary"
                             size="sm"
+                            className="bill-secondary-action"
                             onClick={() => onRecheckPayment(entry)}
                             loading={busy}
                             disabled={busy}

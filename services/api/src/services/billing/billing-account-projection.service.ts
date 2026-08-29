@@ -546,6 +546,35 @@ export type BillingAccountProjection = {
       enabled: boolean;
     };
     /**
+     * A SECOND plan action, for an account whose first one cannot buy anything.
+     *
+     * BILLING UI REFINEMENT (2026-09-01) — a manually GRANTED tier is real
+     * access with no billing relationship, so its one action correctly says
+     * "View access details" and offers no provider operation. That is truthful
+     * and it was also a dead end: a granted PRO customer who outgrew PRO had
+     * nowhere to go on this page. Truthful and commercially trapped is not an
+     * acceptable resting state.
+     *
+     * So the account keeps the honest label AND gets one legitimate move: a
+     * NEW subscription checkout for the tier above the one it was granted.
+     * That is a purchase, not a transition — there is no provider subscription
+     * to transition — so it names the checkout authority and nothing here
+     * claims proration, scheduling or an end of period.
+     *
+     * Absent for granted TEAM, and not by a special case: TEAM is the top
+     * self-service tier, so "the tier above the granted one" is empty and no
+     * action is composed. A meaningless "View plans" would be the alternative.
+     *
+     * It is a PURCHASE: `planKey` goes to the new-subscription checkout, never
+     * to the plan-transition route. The surface renders it; it does not decide
+     * that it exists.
+     */
+    secondaryPlanAction?: {
+      kind: "START_SUBSCRIPTION";
+      planKey: "PRO" | "TEAM";
+      label: string;
+    };
+    /**
      * Why cancellation is not on offer, when it is not.
      *
      * Absent when `canRequestCancellation` is true. Present so the surface can
@@ -834,6 +863,31 @@ function planOffersFor(params: {
             : `Lower limits than you have now. Nothing you have recorded is deleted.`,
     };
   });
+}
+
+/**
+ * The tier a GRANTED account can genuinely buy its way up to, if any.
+ *
+ * Deliberately derived from the same ladder the offers use rather than
+ * hard-coded, so a third tier would be picked up here without a second place
+ * to remember. Returns null at the top of the ladder — granted TEAM has
+ * nothing above it, and offering a move to nowhere is worse than offering
+ * none.
+ */
+function grantedUpgradeTarget(
+  currentPlan: prismaPkg.PlanType,
+): "PRO" | "TEAM" | null {
+  switch (currentPlan) {
+    case prismaPkg.PlanType.FREE:
+      // FREE is not granted access; it reaches the chooser, which offers both.
+      return null;
+    case prismaPkg.PlanType.PRO:
+      return "TEAM";
+    default:
+      // TEAM (top of the self-service ladder), ENTERPRISE (contracted) and the
+      // grandfathered PAYG overlay all have nothing to sell here.
+      return null;
+  }
 }
 
 function describeOffer(
@@ -1476,6 +1530,31 @@ export async function buildBillingAccountProjection(input: {
        * mistake the mode made, and it is corrected against the same fact.
        */
       canRequestCancellation: canCancel && liveSubscription,
+      /*
+       * The one legitimate move a GRANTED account has.
+       *
+       * Composed HERE, from the same ladder the offers use, because "what can
+       * this account actually buy" is a commercial question. The browser gets
+       * a plan key and a label; it does not work out that granted PRO can buy
+       * TEAM, and it cannot mistake this for a plan transition — there is no
+       * subscription to transition, which is exactly why the action exists.
+       */
+      ...(accessKind === "GRANTED" && canManage
+        ? (() => {
+            const next = grantedUpgradeTarget(scope.plan);
+            return next
+              ? {
+                  secondaryPlanAction: {
+                    kind: "START_SUBSCRIPTION" as const,
+                    planKey: next,
+                    label: `Start ${
+                      describeOffer(next, currency, false).displayName
+                    } subscription`,
+                  },
+                }
+              : {};
+          })()
+        : {}),
       /*
        * THE DEFECT THIS NAMES.
        *

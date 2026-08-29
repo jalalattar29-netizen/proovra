@@ -32,6 +32,10 @@ import type {
 } from "../../../../lib/api/billing-accounts";
 import { formatMoney } from "./format";
 import { BillingDrawer } from "./BillingDrawer";
+import {
+  PaymentMethodChoice,
+  type PaymentProvider,
+} from "./PaymentMethodChoice";
 
 export type PlanKey = "PRO" | "TEAM";
 
@@ -49,7 +53,14 @@ export type CheckoutIntent =
   | { kind: "CREDITS" }
   | { kind: "STORAGE"; addonKey?: string };
 
-type Provider = "STRIPE" | "PAYPAL";
+/*
+ * The provider type is the SHARED one now.
+ *
+ * It was declared here, and the payment rows were written here, so the credit
+ * and storage flows inherited whatever this drawer happened to do. There is
+ * one selector and one vocabulary; this file chooses neither.
+ */
+type Provider = PaymentProvider;
 
 export function CheckoutDrawer({
   open,
@@ -219,24 +230,20 @@ export function CheckoutDrawer({
   const selectedPlanOffer = planOffers.find((p) => p.planKey === selectedPlan);
 
   /**
-   * The primary action names the PAYMENT METHOD it is about to hand over to.
+   * The primary action names the PLAN it is about to buy.
    *
-   * BILLING PLAN-SELECTION CORRECTION (2026-08-31) — it used to name the plan
-   * ("Continue with Pro"), which is the fact the summary directly above the
-   * button already states. What a customer cannot otherwise tell at the moment
-   * of pressing is WHERE they are about to be sent, and being handed to a
-   * provider unannounced is the surprise worth removing.
+   * BILLING UI REFINEMENT (2026-09-01) — it briefly named the payment method
+   * instead, because a summary panel underneath the choice was already
+   * repeating the plan. That panel is gone (it duplicated the selected card
+   * and made the drawer taller than the decision inside it), so the button is
+   * once more the last place a wrong selection can be caught — and the plan is
+   * the thing that would be wrong. The method is stated by the marks in the
+   * selector directly above it.
    */
   const continueLabel =
-    intent.kind === "PLAN" && !selectedPlan
-      ? "Continue to payment"
-      : provider === "STRIPE"
-        ? "Continue with Card"
-        : "Continue with PayPal";
-
-  const selectedPlanPrice = selectedPlanOffer
-    ? formatMoney(selectedPlanOffer.priceCents, selectedPlanOffer.currency ?? currency)
-    : null;
+    intent.kind === "PLAN" && selectedPlanOffer
+      ? `Continue with ${selectedPlanOffer.displayName}`
+      : "Continue to payment";
 
   const nothingToBuy =
     (intent.kind === "PLAN" && planOffers.length === 0) ||
@@ -358,54 +365,33 @@ export function CheckoutDrawer({
                 );
               })}
             </div>
+            <p className="bill-summary__note" data-billing-plan-terms>
+              {/* Said ONCE for the section, before the provider page opens. A
+                  recurring charge a customer did not know was recurring is the
+                  complaint this sentence exists to prevent — and repeating it
+                  under each tier was what made the drawer long. */}
+              Plans are billed monthly. You can cancel at any time from this
+              page.
+            </p>
           </section>
         ) : null}
 
         {/*
-          WHAT IS ABOUT TO BE BOUGHT, once there is something to say.
+          BILLING UI REFINEMENT (2026-09-01) — the SUMMARY panel that stood
+          here is DELETED.
 
-          A customer pressing a payment button had no statement of the thing
-          they were committing to — the plan was a selected radio somewhere
-          above, and the total appeared nowhere at all. Three lines, and only
-          after a selection exists: an empty summary is a fourth heading to
-          scroll past.
+          It restated the selected plan, the cadence, the total and a
+          cancellation sentence directly beneath the card that already showed
+          the plan, its allowances and its price — so choosing a tier made the
+          drawer grow by a block that told the customer nothing new, and on a
+          phone it pushed the payment selector and the button below the fold.
 
-          Every value is the SERVER's. "Monthly" is not a guess either: it is
-          the only cadence the plan checkout creates, and the request body says
-          so.
+          Nothing was lost with it. The selected card carries the plan, the
+          allowance line and the price; the price appears exactly once; the
+          cadence is in that price ("/ month"); and the recurring-charge
+          sentence moved to the plan section's own note, where it is said once
+          for the section rather than once per selection.
         */}
-        {intent.kind === "PLAN" && selectedPlanOffer ? (
-          <section>
-            <h3 className="bill-section__heading">Summary</h3>
-            <div className="bill-summary" data-billing-plan-summary>
-              <div className="bill-summary__row">
-                <span>Selected plan</span>
-                <span data-billing-summary-plan>{selectedPlanOffer.displayName}</span>
-              </div>
-              <div className="bill-summary__row">
-                <span>Billing</span>
-                <span data-billing-summary-cadence>Monthly</span>
-              </div>
-              {selectedPlanPrice ? (
-                <div className="bill-summary__row bill-summary__row--total">
-                  <span>Total</span>
-                  <span data-billing-summary-total>
-                    <bdi>{selectedPlanPrice}</bdi>
-                    {" / month"}
-                  </span>
-                </div>
-              ) : null}
-              <p className="bill-summary__note">
-                {/* Said once, plainly, before the provider page opens. A
-                    recurring charge a customer did not know was recurring is
-                    the complaint this sentence exists to prevent. */}
-                This creates a monthly subscription. You can cancel it at any
-                time from this page.
-              </p>
-            </div>
-          </section>
-        ) : null}
-
         {intent.kind === "CREDITS" && wallet ? (
           /*
            * ONE summary card, in the order a person checks a purchase: what I
@@ -522,47 +508,19 @@ export function CheckoutDrawer({
         ) : null}
 
         {!nothingToBuy ? (
-          <section>
-            <h3 className="bill-section__heading" id="billing-provider-choice">
-              Payment method
-            </h3>
-            <div
-              role="radiogroup"
-              aria-labelledby="billing-provider-choice"
-              className="bill-choice"
-            >
-              {(["STRIPE", "PAYPAL"] as const).map((p) => (
-                <label
-                  key={p}
-                  className="bill-choice__option"
-                  data-selected={provider === p ? "true" : "false"}
-                  data-billing-provider-option={p}
-                >
-                  <input
-                    className="bill-choice__input"
-                    type="radio"
-                    name="provider"
-                    value={p}
-                    checked={provider === p}
-                    onChange={() => setProvider(p)}
-                    disabled={busy}
-                  />
-                  <span className="bill-choice__body">
-                    <span className="bill-choice__title">
-                      {p === "STRIPE" ? "Card" : "PayPal"}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="bill-summary__note">
-              {/* Legally cautious, and true: no tax engine, no billing address
-                  and no VAT-id authority exists, so the product does not claim
-                  to calculate or collect VAT. */}
-              Displayed prices exclude any taxes that may be handled by the
-              payment provider where applicable.
-            </p>
-          </section>
+          /*
+            ONE payment selector, for the plan, the credits and the storage
+            add-on alike. The rows were written inline here, so every other
+            Billing purchase inherited whatever this drawer happened to do —
+            and improving them anywhere meant improving them three times.
+          */
+          <PaymentMethodChoice
+            value={provider}
+            onChange={setProvider}
+            disabled={busy}
+            name={`billing-payment-method-${intent.kind.toLowerCase()}`}
+            headingId={`billing-provider-choice-${intent.kind.toLowerCase()}`}
+          />
         ) : null}
       </div>
     </BillingDrawer>

@@ -58,6 +58,12 @@ const MANAGE = "../app/(app)/billing/_sections/ManagePlanDrawer.tsx";
  * it. What they said moved with them; the contracts follow.
  */
 const OVERVIEW = "../app/(app)/billing/_sections/BillingOverview.tsx";
+/**
+ * BILLING UI REFINEMENT (2026-09-01) — the payment-method selector is its own
+ * authority now, so the contracts about it point at the one file that owns it
+ * rather than at whichever drawer happened to declare the rows.
+ */
+const PAYMENT_CHOICE = "../app/(app)/billing/_sections/PaymentMethodChoice.tsx";
 const PRICING = "../app/pricing/page.tsx";
 
 /**
@@ -83,6 +89,7 @@ const billingSources = () =>
     FORMAT,
     MANAGE,
     OVERVIEW,
+    PAYMENT_CHOICE,
   ]
     .map(read)
     .concat(readRaw(BILLING_CSS))
@@ -701,16 +708,28 @@ test("FREE never reaches the paid plan-transition route", () => {
 test("the FREE chooser is a purchase, and says nothing a subscription would", () => {
   const drawer = read(CHECKOUT);
 
-  // A payment method is chosen BEFORE anything is committed.
-  assert.match(drawer, /data-billing-provider-option/);
-  assert.match(drawer, /Continue with Card|Continue with PayPal/);
+  // A payment method is chosen BEFORE anything is committed, through the ONE
+  // shared selector rather than rows written into this drawer.
+  assert.match(drawer, /<PaymentMethodChoice/);
+  assert.doesNotMatch(drawer, /data-billing-provider-option/);
+  // The CTA names the PLAN — the thing that could be wrong.
+  assert.match(drawer, /Continue with \$\{selectedPlanOffer\.displayName\}/);
   // The plan checkout authority, never the plan-change route.
   assert.match(drawer, /"\/v1\/billing\/checkout\/stripe"/);
   assert.match(drawer, /"\/v1\/billing\/checkout\/paypal"/);
   assert.doesNotMatch(drawer, /\/v1\/billing\/subscription\/plan/);
-  // And what a customer is committing to is stated before they commit.
-  assert.match(drawer, /data-billing-plan-summary/);
-  assert.match(drawer, /creates a monthly subscription/);
+  /*
+   * BILLING UI REFINEMENT (2026-09-01) — the SUMMARY panel is gone, and this
+   * asserted it was there.
+   *
+   * It restated the selected plan, the cadence, the total and a cancellation
+   * sentence beneath the card that already showed all of it, so choosing a
+   * tier grew the drawer by a block that said nothing new. The recurring-charge
+   * statement that mattered survives, said once for the section.
+   */
+  assert.doesNotMatch(drawer, /data-billing-plan-summary/);
+  assert.match(drawer, /data-billing-plan-terms/);
+  assert.match(drawer, /billed monthly/);
 
   // None of the words that belong to a subscription somebody already has.
   for (const forbidden of [
@@ -721,6 +740,189 @@ test("the FREE chooser is a purchase, and says nothing a subscription would", ()
   ]) {
     assert.doesNotMatch(drawer, forbidden);
   }
+});
+
+test("the Billing page renders exactly one level-1 heading", () => {
+  /*
+   * THE HYDRATION DEFECT.
+   *
+   * `PageHeader` renders its own <h1> around whatever `title` is given — its
+   * own contract says "header renders a single <h1>". Billing passed an <h1>,
+   * producing <h1><h1>Billing</h1></h1>: invalid heading structure, a React
+   * hydration error logged on every load, and two level-1 headings for anyone
+   * navigating by heading.
+   *
+   * Fixed at the CONSUMER, not by relaxing the shell — the shell is right that
+   * a page has one <h1>, and other pages depend on that.
+   */
+  const page = read(PAGE);
+
+  // The title is a SPAN handed to the header, never a heading of its own.
+  assert.match(page, /<span className="cc-title" data-billing-title>/);
+  assert.doesNotMatch(page, /<h1[\s>]/);
+
+  // And the shell it hands it to still owns the one <h1>.
+  const shell = read("../components/ui/PageShell.tsx");
+  const h1s = shell.match(/<h1[\s>]/g) ?? [];
+  assert.equal(h1s.length, 1, "PageShell must render exactly one <h1>");
+});
+
+test("ONE payment-method selector serves every Billing purchase", () => {
+  /*
+   * The card/PayPal rows were written inline in the checkout drawer, so every
+   * other Billing purchase inherited whatever that drawer happened to do —
+   * and improving them anywhere would have meant improving them three times.
+   */
+  const selector = read(PAYMENT_CHOICE);
+  const drawer = read(CHECKOUT);
+
+  // The selector owns the options, the marks and the accessible names.
+  assert.match(selector, /data-billing-provider-option/);
+  assert.match(selector, /"STRIPE"/);
+  assert.match(selector, /"PAYPAL"/);
+  assert.match(selector, /Credit or debit card/);
+
+  // The drawer CONSUMES it and declares none of that itself. All three intents
+  // — plan, credits, storage — go through this one drawer, so one usage here
+  // is one selector for all of them.
+  assert.match(drawer, /<PaymentMethodChoice/);
+  assert.doesNotMatch(drawer, /data-billing-provider-option/);
+  assert.doesNotMatch(drawer, /name="provider"/);
+
+  // And no OTHER Billing surface has grown its own copy.
+  const others = [PAGE, OVERVIEW, STORAGE_HISTORY, MANAGE, PLAN_USAGE].map(read).join("\n");
+  assert.doesNotMatch(others, /data-billing-provider-option/);
+  assert.doesNotMatch(others, /FaCcVisa|FaCcMastercard|FaCcPaypal/);
+});
+
+test("the payment marks are local, decorative, and not the accessible name", () => {
+  const selector = read(PAYMENT_CHOICE);
+
+  // Bundled with the app, not fetched at runtime and not hotlinked.
+  assert.match(selector, /from "react-icons\/fa"/);
+  assert.doesNotMatch(selector, /https?:\/\//);
+  // Every mark is hidden from assistive technology...
+  const marks = selector.match(/<FaCc\w+/g) ?? [];
+  assert.equal(marks.length, 3, "visa, mastercard and paypal");
+  assert.equal((selector.match(/aria-hidden/g) ?? []).length, 3);
+  // ...and each option carries a real name instead.
+  assert.match(selector, /app-visually-hidden/);
+  assert.match(selector, /label: "PayPal"/);
+  // The card option is never named after two networks — that would claim a
+  // coverage this surface has no authority to promise.
+  assert.doesNotMatch(selector, /label: "Visa/);
+});
+
+test("Evidence and Storage share a row, and history spans beneath them", () => {
+  const page = read(PAGE);
+
+  // The two allowance cards are siblings in the allowances row...
+  const row = page.slice(
+    page.indexOf('data-billing-row="allowances"'),
+    page.indexOf('data-billing-row="details"'),
+  );
+  assert.ok(row.length > 0, "the allowances row must exist");
+  assert.match(row, /<EvidenceDetailCard/);
+  assert.match(row, /<StorageAddonsSection/);
+
+  // ...and history is OUTSIDE it, at the page's own width.
+  assert.doesNotMatch(row, /<BillingHistorySection/);
+  assert.match(page, /<BillingHistorySection/);
+
+  // The two-standing-columns grid is gone, not merely unused.
+  assert.doesNotMatch(page, /bill-grid__column/);
+  const css = readRaw(BILLING_CSS).replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(css, /\.bill-grid/);
+  assert.match(css, /\.bill-row \{/);
+  // Equal columns: an unequal pair read as a main card and an afterthought.
+  assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+});
+
+test("the plan status is words, and the Billing-only capsule is deleted", () => {
+  const overview = read(OVERVIEW);
+  const css = readRaw(BILLING_CSS).replace(/\/\*[\s\S]*?\*\//g, "");
+
+  // The canonical no-capsule primitive, reused rather than restyled locally.
+  assert.match(overview, /<AppStatusText/);
+  assert.match(overview, /data-billing-plan-status/);
+  // The capsule and its three Billing-only colour literals are gone.
+  assert.doesNotMatch(css, /\.bill-overview__status\[/);
+  assert.doesNotMatch(css, /border-radius: 999px;[\s\S]{0,120}#15803d/);
+  assert.doesNotMatch(overview, /className="bill-overview__status"/);
+});
+
+test("the Billing secondary action is scoped, and skips the actions it must not touch", () => {
+  const css = readRaw(BILLING_CSS).replace(/\/\*[\s\S]*?\*\//g, "");
+
+  const rules = css
+    .split("\n")
+    .filter((l) => l.includes("bill-secondary-action") && l.includes("{"));
+  assert.ok(rules.length > 0, "the variant must exist");
+  for (const rule of rules) {
+    assert.match(
+      rule,
+      /\.bill-page |\.bill-panel |\.bill-overview /,
+      `unscoped rule: ${rule.trim()}`,
+    );
+  }
+  // Nothing global.
+  assert.doesNotMatch(css, /\.app-primary-action/);
+
+  // The actions that MUST NOT take it.
+  const drawer = read(MANAGE);
+  const cancelBlock = drawer.slice(drawer.indexOf("data-billing-manage-cancel") - 600);
+  assert.doesNotMatch(cancelBlock, /bill-secondary-action/);
+  const storage = read(STORAGE_HISTORY);
+  const abandon = storage.slice(
+    storage.indexOf("data-billing-payment-abandon") - 400,
+    storage.indexOf("data-billing-payment-abandon") + 200,
+  );
+  assert.doesNotMatch(abandon, /bill-secondary-action/);
+  // And the checkout CTA stays black.
+  assert.match(read(CHECKOUT), /className="bill-plan-action"/);
+  assert.doesNotMatch(read(CHECKOUT), /bill-secondary-action/);
+});
+
+test("the support strip is visible, actionable, and cannot take the session", () => {
+  const page = read(PAGE);
+  const css = readRaw(BILLING_CSS).replace(/\/\*[\s\S]*?\*\//g, "");
+
+  // It reads as a way out rather than grey text on a grey surface.
+  assert.match(css, /\.bill-support-strip \{[^}]*--accent-050/);
+  assert.match(page, /bill-support-strip__icon/);
+  assert.match(page, /bill-support-strip__action ui-button bill-secondary-action/);
+  // The vague reassurance about money is gone.
+  assert.doesNotMatch(page, /Your billing records are the ones we act on/);
+
+  // Still a strip, not another full-width card.
+  assert.doesNotMatch(css, /\.bill-support-strip \{[^}]*display: grid/);
+});
+
+test("a GRANTED tier keeps the truth and gains a real purchase", () => {
+  /*
+   * A manually granted tier has no provider subscription, so it must not show
+   * cancellation or a prorated transition — and it must not be a dead end
+   * either. The way out is a NEW checkout, decided by the SERVER.
+   */
+  const projection = readRaw(
+    "../../../services/api/src/services/billing/billing-account-projection.service.ts",
+  );
+  const overview = read(OVERVIEW);
+  const page = read(PAGE);
+
+  // The server composes it, from the same ladder the offers use.
+  assert.match(projection, /secondaryPlanAction/);
+  assert.match(projection, /kind: "START_SUBSCRIPTION" as const/);
+  assert.match(projection, /function grantedUpgradeTarget/);
+  assert.match(projection, /accessKind === "GRANTED" && canManage/);
+
+  // The page renders it and derives nothing.
+  assert.match(overview, /actions\.secondaryPlanAction/);
+  assert.match(overview, /data-billing-start-subscription/);
+  assert.doesNotMatch(overview, /=== "GRANTED" \? "TEAM"/);
+
+  // It opens a CHECKOUT, never the plan-transition route.
+  assert.match(page, /onStartSubscription=\{\(planKey\) =>\s*\n?\s*setCheckout\(\{ kind: "PLAN", planKey \}\)/);
 });
 
 test("the plan-drawer button hierarchy cannot reach a button outside it", () => {
