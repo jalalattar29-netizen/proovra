@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, PageShell, PageHeader, useToast } from "../../../components/ui";
-import { Button as ActionButton } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // P3 domain remediation (2026-07-21) — tenant-boundary dirty-work guard.
@@ -416,7 +415,6 @@ function CapturePageInner() {
   );
 
   const {
-    activeWorkflowStep,
     captureAiSummary,
     checklistStepItemMap,
     currentSessionId,
@@ -775,17 +773,15 @@ onClick={async () => {
               </span>
             }
             title="Capture Evidence"
-            subtitle="Collect, map, fingerprint, and prepare evidence materials before Review & Sign. Drafts save metadata only. File contents are not stored until finalization, and draft metadata expires automatically."
-            primaryAction={
-              <ActionButton
-                variant="primary"
-                disabled={busy}
-                onClick={openFilePicker}
-                leadingIcon={<ImageIcon size={16} strokeWidth={2.1} />}
-              >
-                Upload evidence
-              </ActionButton>
-            }
+            subtitle="Collect, map, fingerprint, and prepare evidence materials before Review & Sign. Drafts save metadata only — file contents are not stored until finalization."
+            /* NO UPLOAD ACTION HERE (2026-08-27).
+               The hero carried a primary "Upload evidence" button that opened
+               the same picker as the Evidence Materials section below, which
+               already owns Files / Folder / Photo / Video / Audio and the drop
+               zone. Two entry points for one operation meant the page's most
+               prominent control bypassed the surface that shows what was
+               added, what it mapped to and what is still required. The hero
+               introduces the page; Evidence Materials ingests. */
           />
 
           <Card
@@ -810,36 +806,13 @@ onClick={async () => {
           </Card>
         </section>
 
-        <section className="capture-enterprise-steps">
-          {[
-            ["1", "Intake method", "Choose how to collect"],
-            ["2", "Requirements", "Configure collection and mapping"],
-            ["3", "Evidence capture", "Upload or record source material"],
-            ["4", "Review & Sign", "Finalize the evidence session"],
-          ].map(([step, title, detail], index) => {
-            const stepNumber = index + 1;
-            const stepState =
-              activeWorkflowStep > stepNumber
-                ? "completed"
-                : activeWorkflowStep === stepNumber
-                  ? "active"
-                  : "future";
-
-            return (
-              <div
-                key={step}
-                className={`capture-enterprise-step ${stepState}`}
-              >
-                <div className="capture-enterprise-step-number">{step}</div>
-                <div>
-                  <strong>{title}</strong>
-                  <span>{detail}</span>
-                </div>
-              </div>
-            );
-          })}
-        </section>
-
+        {/* ONE STEPPER, NOT TWO (2026-08-27).
+            A page-local four-step list — Intake method / Requirements /
+            Evidence capture / Review & Sign — rendered here, directly above
+            the canonical five-stage `CaptureIntakeRail` further up. Two
+            trackers with different models gave one page two answers to "where
+            am I", and only the rail derives its state from the session.
+            The rail is the orientation; this list is gone. */}
         <section className="capture-enterprise-grid">
           <main className="capture-enterprise-card capture-main-panel">
 <section className="capture-setup-strip">

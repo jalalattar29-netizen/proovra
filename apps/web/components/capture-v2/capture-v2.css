@@ -18,7 +18,11 @@
   --capture-orange-soft: rgba(247, 144, 9, 0.11);
 
   min-height: 100%;
-padding: 72px 28px 28px;
+  /* TOP-OF-PAGE COMPRESSION (2026-08-27).
+     72px of padding sat above the first thing on the page, before the
+     workspace banner had even been read. 44px keeps the header clear of the
+     app chrome without spending a third of the first screen on nothing. */
+  padding: 44px 28px 28px;
   color: var(--capture-ink);
 }
 
@@ -35,7 +39,10 @@ padding: 72px 28px 28px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  /* 20px between every stacked section put four gaps between the top of the
+     page and the first control. 14px still separates the hierarchy levels
+     clearly and is the difference between reading the page and scrolling it. */
+  gap: 14px;
 }
 
 /* =========================
@@ -65,8 +72,11 @@ padding: 72px 28px 28px;
 }
 
 .capture-enterprise-title-card {
-  min-height: 100px;
-  padding: 20px;
+  /* Shorter now that it carries no primary action: a title, a sentence and
+     nothing to click. The 100px floor was sized around a button that is
+     gone. */
+  min-height: 0;
+  padding: 16px 18px;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   gap: 16px;
@@ -74,8 +84,8 @@ padding: 72px 28px 28px;
 }
 
 .capture-enterprise-security-card {
-  min-height: 100px;
-  padding: 18px;
+  min-height: 0;
+  padding: 14px 16px;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   gap: 14px;
