@@ -1,3 +1,43 @@
+/**
+ * THE PERSONAL ACCOUNT'S STORAGE AND ENTITLEMENT PROJECTION.
+ *
+ * WHAT THIS IS
+ * ---------------------------------------------------------------------------
+ * A convenience read for surfaces that need to show ONE person their own
+ * storage and plan facts: the Home page, the sidebar storage widget, and the
+ * storage wall that refuses an upload. It answers "how full am I, and what does
+ * my plan include" — nothing else.
+ *
+ * WHAT THIS IS NOT
+ * ---------------------------------------------------------------------------
+ * It is NOT the billing authority, and its name is older than that
+ * distinction. `/billing` reads `buildBillingAccountProjection`, which is
+ * account-scoped, capability-filtered, and the only thing that may state a
+ * price, a payment, a plan action or a contract term.
+ *
+ * It is also NOT a second commercial CALCULATOR, and never was — every figure
+ * below comes from `resolveCommercialContext`, `getWorkspaceUsage` and
+ * `getPlanCapabilities`, the same three primitives the canonical projection
+ * calls. What was wrong with it was its SHAPE: it used to return
+ * `workspaces.teams`, a per-workspace commercial rollup expressing the
+ * Owned-Workspace-as-billing-subject model that `billing-accounts.service.ts`
+ * retired on 2026-08-28. That rollup is gone (2026-09-03) along with the
+ * summary counters derived from it.
+ *
+ * THE BOUNDARY, STATED SO IT CANNOT BE CROSSED BY ACCIDENT
+ * ---------------------------------------------------------------------------
+ * There is exactly ONE subject here: `userId`'s personal account. It resolves
+ * no organization, reads no `EnterpriseContract`, and returns no seats,
+ * contract terms, prices or capability set. An ORGANIZATION billing account —
+ * the Enterprise subject — is reachable ONLY through
+ * `resolveBillingAccountForViewer` + `buildBillingAccountProjection`, which
+ * fail closed for a viewer without billing authority on it.
+ *
+ * If you are adding a consumer that needs a plan for a DECISION, a price, a
+ * contract, an organization, or anyone other than the caller: this is the
+ * wrong function. `billing-overview-boundary.test.ts` enforces that.
+ */
+
 import { resolveCommercialContext } from "./billing/commercial-context.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
@@ -83,6 +123,16 @@ function toStorageAddonSummary(
     updatedAt: addon.updatedAt.toISOString(),
   };
 }
+
+/**
+ * The projection's own name for what it returns. Inferred rather than
+ * hand-written so it cannot drift from the implementation, but EXPORTED so a
+ * consumer types against "a personal storage projection" rather than against
+ * an anonymous billing-shaped blob.
+ */
+export type PersonalStorageProjection = Awaited<
+  ReturnType<typeof readBillingOverview>
+>;
 
 export async function readBillingOverview(userId: string) {
   const entitlement = await ensureEntitlement(userId);

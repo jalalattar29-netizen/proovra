@@ -1593,6 +1593,74 @@ export async function buildBillingAccountProjection(input: {
  * CONTRACT, not by a checkout, so it offers no self-service actions at all and
  * its numbers come from the contract when the contract states them.
  */
+/**
+ * What an inactive agreement means, per state.
+ *
+ * Severity is honest about consequence: an agreement mid-activation is
+ * WAITING and nothing is wrong with it, while a suspended or ended one is a
+ * live commercial problem. Enterprise is invoiced by agreement, so no
+ * `reassurance` about a card is ever appropriate here — the previous
+ * implementation was right about that and it is kept.
+ */
+function contractStateNotice(
+  contract: { status?: string | null } | null,
+): {
+  severity: "CRITICAL" | "WARNING";
+  title: string;
+  messages: string[];
+  reassurance: null;
+} {
+  switch (contract?.status) {
+    case "DRAFT":
+      return {
+        severity: "WARNING",
+        title: "Agreement not yet in effect",
+        messages: [
+          "This organization's agreement is still being prepared. Your account manager can confirm when it takes effect.",
+        ],
+        reassurance: null,
+      };
+    case "PENDING_ACTIVATION":
+      return {
+        severity: "WARNING",
+        title: "Activation in progress",
+        messages: [
+          "This organization's agreement is signed and waiting for activation to finish. Contracted allowances apply once it is active.",
+        ],
+        reassurance: null,
+      };
+    case "SUSPENDED":
+      return {
+        severity: "CRITICAL",
+        title: "Agreement suspended",
+        messages: [
+          "This organization's agreement is suspended. Contracted allowances do not apply while it is, and your account manager can explain why and what is needed to resume it.",
+        ],
+        reassurance: null,
+      };
+    case "TERMINATED":
+      return {
+        severity: "CRITICAL",
+        title: "Agreement ended",
+        messages: [
+          "This organization's agreement has ended. The terms below are the record of what it covered, not allowances that still apply. Your account manager can discuss a new agreement.",
+        ],
+        reassurance: null,
+      };
+    default:
+      // No contract on file at all, or a status this build does not know.
+      // Neither is something to guess about.
+      return {
+        severity: "CRITICAL",
+        title: "Action required",
+        messages: [
+          "This organization's agreement is not currently active. Your account manager can confirm its status.",
+        ],
+        reassurance: null,
+      };
+  }
+}
+
 async function buildOrganizationProjection(input: {
   account: BillingAccountRef;
   currency: BillingCurrency;
@@ -1631,18 +1699,16 @@ async function buildOrganizationProjection(input: {
 
   return {
     account,
-    actionRequired: contractActive
-      ? null
-      : {
-          severity: "CRITICAL",
-          title: "Action required",
-          messages: [
-            "This organization's agreement is not currently active. Your account manager can confirm its status.",
-          ],
-          // Enterprise is invoiced by agreement; there is no card to
-          // reassure anyone about.
-          reassurance: null,
-        },
+    // WHICH inactive state, not merely that it is inactive.
+    //
+    // Every non-ACTIVE status collapsed into one sentence: "This
+    // organization's agreement is not currently active. Your account manager
+    // can confirm its status." An agreement waiting for its owner to finish
+    // activation, one that has been suspended, and one that has ENDED are
+    // three different situations with three different next steps, and an
+    // administrator reading the same words for all of them learns nothing
+    // about their own. The status is already on the row; this says it.
+    actionRequired: contractActive ? null : contractStateNotice(contract),
     plan: {
       planKey: "ENTERPRISE",
       displayName: "Enterprise",
