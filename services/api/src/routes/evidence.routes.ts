@@ -197,6 +197,12 @@ import {
 } from "../services/templates/identity-resolver.service.js";
 import { ed25519VerifyHexSignature, sha256Hex } from "../crypto.js";
 import { readBillingOverview } from "../services/billing-overview.service.js";
+// COMMERCIAL AUTHORITY (2026-09-03) — the canonical primitives, called
+// directly for the ONE subject each caller is about, instead of scanning an
+// account-wide rollup to find it.
+import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
+import { getWorkspaceUsage } from "../services/workspace-usage.service.js";
+import { getPlanCapabilities } from "../services/plan-catalog.service.js";
 import { createAiProvider } from "../services/ai/ai-provider.js";
 import { AiCostGuard } from "../services/ai/ai-cost-guard.js";
 import {
@@ -4097,72 +4103,68 @@ function computeDiscussionCapability(inputs: DiscussionCapabilityInputs): {
   return { discussionEnabled, discussionReadOnly };
 }
 
-function resolveWorkspaceCapabilitySnapshot(params: {
-  overview: BillingOverviewSnapshot;
+/**
+ * The workspace facts an evidence record's reviewer needs.
+ *
+ * COMMERCIAL AUTHORITY (2026-09-03) — this searched
+ * `readBillingOverview(userId).workspaces.teams` for the ONE workspace this
+ * record belongs to. That array is the retired
+ * Owned-Workspace-as-billing-subject shape, and building it cost a commercial
+ * context, a usage rollup, a subscription read and a storage-add-on query PER
+ * workspace the owner had — to answer a question about one of them.
+ *
+ * It resolves that one subject directly now, from the same three canonical
+ * primitives the aggregate itself called. Same authority, same answer, no
+ * dependency on the retired shape.
+ */
+async function resolveWorkspaceCapabilitySnapshot(params: {
+  ownerUserId: string;
   evidence: SelectedEvidence;
   discussion: DiscussionCapabilityInputs;
 }) {
-  const teamWorkspace = params.evidence.teamId
-    ? params.overview.workspaces.teams.find(
-        (team) => team.id === params.evidence.teamId
-      ) ?? null
-    : null;
-
   const discussionFlags = computeDiscussionCapability(params.discussion);
+  const teamId = params.evidence.teamId ?? null;
 
-  if (teamWorkspace) {
-    return {
-      workspaceType: "TEAM" as const,
-      workspaceName:
-        params.evidence.workspaceNameSnapshot?.trim() ||
-        teamWorkspace.name ||
-        "Team Workspace",
-      plan: teamWorkspace.plan,
-      effectivePlan: teamWorkspace.effectivePlan ?? teamWorkspace.plan,
-      reportsIncluded: Boolean(teamWorkspace.features?.reportsIncluded),
-      verificationPackageIncluded: Boolean(
-        teamWorkspace.features?.verificationPackageIncluded
-      ),
-      publicVerifyIncluded: Boolean(teamWorkspace.features?.publicVerifyIncluded),
-      billingStatus: teamWorkspace.billingStatus ?? null,
-      storageUsedLabel: teamWorkspace.storage?.usedLabel ?? null,
-      storageLimitLabel: teamWorkspace.storage?.limitLabel ?? null,
-      storageRemainingLabel: teamWorkspace.storage?.remainingLabel ?? null,
-      seatsIncluded: teamWorkspace.seats?.included ?? null,
-      seatsUsed: teamWorkspace.seats?.used ?? null,
-      seatsRemaining: teamWorkspace.seats?.remaining ?? null,
-      overSeatLimit: teamWorkspace.overSeatLimit ?? null,
-      ...discussionFlags,
-    };
-  }
+  const scope = (
+    await resolveCommercialContext(
+      teamId
+        ? { type: "WORKSPACE", teamId, requesterUserId: params.ownerUserId }
+        : { type: "PERSONAL_ACCOUNT", userId: params.ownerUserId },
+    )
+  ).scope;
+
+  const [usage, subscription] = await Promise.all([
+    getWorkspaceUsage(scope),
+    prisma.subscription.findFirst({
+      where: { userId: params.ownerUserId, teamId },
+      orderBy: { createdAt: "desc" },
+      select: { status: true },
+    }),
+  ]);
+
+  const caps = getPlanCapabilities(scope.plan);
+  const shared = scope.billingShape === "SHARED";
 
   return {
-    workspaceType: "PERSONAL" as const,
+    workspaceType: shared ? ("TEAM" as const) : ("PERSONAL" as const),
     workspaceName:
-      params.evidence.workspaceNameSnapshot?.trim() || "Personal Workspace",
-    plan: params.overview.workspaces.personal.plan,
-    effectivePlan: params.overview.workspaces.personal.plan,
-    reportsIncluded: Boolean(
-      params.overview.workspaces.personal.features?.reportsIncluded
-    ),
-    verificationPackageIncluded: Boolean(
-      params.overview.workspaces.personal.features
-        ?.verificationPackageIncluded
-    ),
-    publicVerifyIncluded: Boolean(
-      params.overview.workspaces.personal.features?.publicVerifyIncluded
-    ),
-    billingStatus:
-      params.overview.workspaces.personal.subscription?.status ?? null,
-    storageUsedLabel: params.overview.workspaces.personal.storage?.usedLabel ?? null,
-    storageLimitLabel:
-      params.overview.workspaces.personal.storage?.limitLabel ?? null,
-    storageRemainingLabel:
-      params.overview.workspaces.personal.storage?.remainingLabel ?? null,
-    seatsIncluded: null,
-    seatsUsed: null,
-    seatsRemaining: null,
-    overSeatLimit: null,
+      params.evidence.workspaceNameSnapshot?.trim() ||
+      (shared ? "Team Workspace" : "Personal Workspace"),
+    plan: scope.plan,
+    effectivePlan: scope.plan,
+    reportsIncluded: Boolean(caps.reportsIncluded),
+    verificationPackageIncluded: Boolean(caps.verificationPackageIncluded),
+    publicVerifyIncluded: Boolean(caps.publicVerifyIncluded),
+    billingStatus: subscription?.status ?? null,
+    storageUsedLabel: usage.storageLabel ?? null,
+    storageLimitLabel: usage.storageLimitLabel ?? null,
+    storageRemainingLabel: usage.storageRemainingLabel ?? null,
+    // Seats describe a SHARED workspace. A single-occupant one has none, and
+    // reporting "0 of 0" for it reads as a limit rather than as absence.
+    seatsIncluded: shared ? usage.seatLimit : null,
+    seatsUsed: shared ? usage.teamMemberCount : null,
+    seatsRemaining: shared ? usage.seatRemaining : null,
+    overSeatLimit: shared ? usage.teamMemberCount > usage.seatLimit : null,
     ...discussionFlags,
   };
 }
@@ -4204,7 +4206,9 @@ function resolveClientSignalState(params: {
 function buildPublicVerificationSummary(params: {
   evidence: SelectedEvidence;
   anchor: AnchorStatusSummary;
-  workspaceCapabilitySnapshot: ReturnType<typeof resolveWorkspaceCapabilitySnapshot>;
+  workspaceCapabilitySnapshot: Awaited<
+    ReturnType<typeof resolveWorkspaceCapabilitySnapshot>
+  >;
   sharePath: string;
   publicViewCount: number;
   authenticatedViewCount: number;
@@ -4568,12 +4572,28 @@ async function buildStorageLimitPayload(params: {
   reason?: string | null;
   incomingBytes?: string | null;
 }) {
-  const overview = await readBillingOverview(params.ownerUserId);
-
-  const workspace =
+  // COMMERCIAL AUTHORITY (2026-09-03) — the wall names ONE workspace, and it
+  // resolves that one canonically instead of scanning an account-wide rollup
+  // to find it. `summary` and `storageAddons` stay: those ARE account-level
+  // facts, and they are what the wall offers the customer next to the refusal.
+  const [overview, scope] = await Promise.all([
+    readBillingOverview(params.ownerUserId),
     params.teamId != null
-      ? overview.workspaces.teams.find((team) => team.id === params.teamId) ?? null
-      : overview.workspaces.personal;
+      ? resolveCommercialContext({
+          type: "WORKSPACE",
+          teamId: params.teamId,
+          requesterUserId: params.ownerUserId,
+        }).then((c) => c.scope)
+      : Promise.resolve(null),
+  ]);
+
+  const workspace = scope
+    ? {
+        id: params.teamId,
+        billingShape: scope.billingShape,
+        plan: scope.plan,
+      }
+    : overview.workspaces.personal;
 
   const upgradeSuggestion =
     workspace && workspace.billingShape === "SINGLE_OCCUPANT"
@@ -8164,7 +8184,6 @@ return {
 
         const [
           itemCount,
-          overview,
           storage,
           anchor,
           parts,
@@ -8183,7 +8202,11 @@ return {
           existingDiscussionThreadCount,
         ] = await Promise.all([
           getEvidenceItemCount(id),
-          readBillingOverview(ownerUserId),
+          // COMMERCIAL AUTHORITY (2026-09-03) — the account-wide billing
+          // aggregate was fetched here ONLY to find this record's workspace in
+          // its `workspaces.teams` array. The capability snapshot resolves that
+          // one workspace canonically now, so the aggregate — and every
+          // per-workspace query behind it — is not built at all.
           getStorageProtectionSummary(evidence.storageBucket, evidence.storageKey, {
             storageRegion: evidence.storageRegion,
             storageObjectLockMode: evidence.storageObjectLockMode,
@@ -8325,8 +8348,8 @@ return {
             : Promise.resolve(0),
         ]);
 
-        const workspaceCapabilitySnapshot = resolveWorkspaceCapabilitySnapshot({
-          overview,
+        const workspaceCapabilitySnapshot = await resolveWorkspaceCapabilitySnapshot({
+          ownerUserId,
           evidence,
           discussion: {
             team: discussionTeamRow,

@@ -217,7 +217,22 @@ describe("Phase IA-self-serve-completion — Settings tree gates /security-cente
     // the href prop rather than an inline <Link>.
     // Settings IA refactor (2026-07-17): personal account security is the
     // in-page Security SECTION of the unified workspace.
-    expect(SETTINGS).toMatch(/id="security"/);
+    //
+    // CONTEXT AUTHORITY (2026-09-03) — re-expressed for the pane architecture,
+    // the same way `apps/web/__tests__/phase-7c-internal-ux` was. A
+    // destination used to be a DOM anchor because Settings was one scrolling
+    // console; `id="security"` existed so `/settings#security` could SCROLL to
+    // the section. Panes mount one destination at a time, so the anchor was an
+    // anchor to an element that is not in the document, and it went with the
+    // scroll it served. Asserting it here again would have put a dead
+    // attribute back in the page to satisfy a second regex.
+    //
+    // What it protected — that `/settings#security` still lands on personal
+    // security, on the canonical surface — is asserted against the current
+    // architecture.
+    expect(SETTINGS).toMatch(/resolvePaneFromHash/);
+    expect(SETTINGS).toMatch(/pane === "security"/);
+    expect(SETTINGS).toMatch(/<PersonalSecuritySections \/>/);
     expect(SETTINGS).toMatch(/PersonalSecuritySections/);
   });
 });

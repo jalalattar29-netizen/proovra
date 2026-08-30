@@ -146,141 +146,21 @@ export async function readBillingOverview(userId: string) {
         addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE)
   );
 
-  const teams = await Promise.all(
-    ownedTeams.map(async (team) => {
-      // §9.7 — explicit WORKSPACE subject (overview lists workspaces of any kind).
-      const scope = (
-        await resolveCommercialContext({ type: "WORKSPACE", teamId: team.id, requesterUserId: userId })
-      ).scope;
-      const usage = await getWorkspaceUsage(scope);
-      const effectiveCaps = getPlanCapabilities(scope.plan);
-
-      const displayPlanForSeats =
-        team.billingPlan === prismaPkg.PlanType.TEAM
-          ? prismaPkg.PlanType.TEAM
-          : scope.plan;
-
-      const displaySeatCaps = getPlanCapabilities(displayPlanForSeats);
-
-      const [activeSubscription, teamStorageAddons] = await Promise.all([
-        prisma.subscription.findFirst({
-          where: {
-            userId,
-            teamId: team.id,
-          },
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            provider: true,
-            providerSubId: true,
-            status: true,
-            plan: true,
-            currentPeriodEnd: true,
-            createdAt: true,
-          },
-        }),
-        prisma.workspaceStorageAddon.findMany({
-          where: {
-            ownerUserId: userId,
-            teamId: team.id,
-          },
-          orderBy: [{ createdAt: "desc" }],
-        }),
-      ]);
-
-      const activeTeamStorageAddons = teamStorageAddons.filter(
-        (addon) =>
-          addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
-          addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE
-      );
-
-      const activeTeamStorageAddonBytes = activeTeamStorageAddons.reduce(
-        (sum, addon) => sum + addon.extraStorageBytes,
-        0n
-      );
-
-      const includedSeats = Math.max(
-        team.includedSeats ?? 0,
-        scope.teamSeats || 0,
-        displaySeatCaps.includedSeats ?? 0
-      );
-
-      return {
-        id: team.id,
-        name: team.name,
-        billingShape: "SHARED" as const,
-        plan: team.billingPlan,
-        effectivePlan: scope.plan,
-        billingStatus: team.billingStatus,
-        billingOwnerUserId: team.billingOwnerUserId,
-        overSeatLimit: team.overSeatLimit,
-        credits: scope.credits,
-        teamSeats: scope.teamSeats,
-        features: {
-          reportsIncluded: effectiveCaps.reportsIncluded,
-          verificationPackageIncluded:
-            effectiveCaps.verificationPackageIncluded,
-          publicVerifyIncluded: effectiveCaps.publicVerifyIncluded,
-        },
-        storage: {
-          usedBytes: usage.storageBytesUsed.toString(),
-          limitBytes: usage.storageBytesLimit.toString(),
-          remainingBytes: usage.storageBytesRemaining.toString(),
-          usedLabel: usage.storageLabel,
-          limitLabel: usage.storageLimitLabel,
-          remainingLabel: usage.storageRemainingLabel,
-          usageRatio: usage.storageUsageRatio,
-          usagePercent: usage.storageUsagePercent,
-          nearLimit: usage.isNearStorageLimit,
-          limitReached: usage.isStorageLimitReached,
-          basePlanLimitBytes: effectiveCaps.includedStorageBytes.toString(),
-          activeAddonBytes: activeTeamStorageAddonBytes.toString(),
-        },
-        seats: {
-          used: usage.teamMemberCount,
-          included: includedSeats,
-          remaining: Math.max(0, includedSeats - usage.teamMemberCount),
-          usageRatio:
-            includedSeats > 0 ? usage.teamMemberCount / includedSeats : 0,
-          usagePercent:
-            includedSeats > 0
-              ? Math.min(
-                  100,
-                  Math.round((usage.teamMemberCount / includedSeats) * 100)
-                )
-              : 0,
-          nearLimit:
-            includedSeats > 0 &&
-            usage.teamMemberCount >= Math.max(1, Math.floor(includedSeats * 0.8)),
-          limitReached: includedSeats > 0 && usage.teamMemberCount >= includedSeats,
-        },
-        workspaceHealth: {
-          storageNearLimit: usage.isNearStorageLimit,
-          storageLimitReached: usage.isStorageLimitReached,
-          seatNearLimit:
-            includedSeats > 0 &&
-            usage.teamMemberCount >= Math.max(1, Math.floor(includedSeats * 0.8)),
-          seatLimitReached: includedSeats > 0 && usage.teamMemberCount >= includedSeats,
-          overSeatLimit: Boolean(team.overSeatLimit),
-        },
-        counts: {
-          evidence: usage.evidenceCount,
-          members: usage.teamMemberCount,
-        },
-        subscription: activeSubscription,
-        storageAddons: teamStorageAddons
-          .slice()
-          .sort((a, b) => addonStatusSortValue(a.status) - addonStatusSortValue(b.status))
-          .map((addon) => toStorageAddonSummary(addon, team.name)),
-        activeStorageAddonSummary: {
-          count: activeTeamStorageAddons.length,
-          totalExtraStorageBytes: activeTeamStorageAddonBytes.toString(),
-        },
-        billingActivatedAt: team.billingActivatedAt,
-        billingCanceledAt: team.billingCanceledAt,
-      };
-    })
-  );
+  // COMMERCIAL AUTHORITY (2026-09-03) — the per-workspace rollup was DELETED.
+  //
+  // It resolved a commercial context, a usage rollup, a subscription and a
+  // storage-add-on set for EVERY workspace the caller owns, and shaped them as
+  // `workspaces.teams` — the Owned-Workspace-as-billing-subject model that
+  // `billing-accounts.service.ts` retired on 2026-08-28. Nothing consumed it
+  // any more once `/evidence` began reading the server's own capability
+  // snapshot and organization setup began reading the canonical ORGANIZATION
+  // billing account, so the shape and the work that built it are both gone.
+  //
+  // What remains here is a PERSONAL-account storage and entitlement
+  // projection. It is not a commercial authority and never was: every figure
+  // below comes from `resolveCommercialContext`, `getWorkspaceUsage` and
+  // `getPlanCapabilities` — the same three primitives the canonical billing
+  // projection calls.
 
   const paymentSummary = recentPayments.reduce(
     (acc, payment) => {
@@ -310,18 +190,6 @@ export async function readBillingOverview(userId: string) {
     }
   );
 
-  const activeTeamCount = teams.filter(
-    (team) => team.billingStatus === "ACTIVE" || team.billingStatus === "PAST_DUE"
-  ).length;
-
-  const overSeatLimitCount = teams.filter((team) => team.overSeatLimit).length;
-
-  const nearStorageLimitCount = teams.filter(
-    (team) =>
-      team.workspaceHealth.storageNearLimit ||
-      team.workspaceHealth.storageLimitReached
-  ).length;
-
   const personalActiveAddonBytes = activePersonalStorageAddons.reduce(
     (sum, addon) => sum + addon.extraStorageBytes,
     0n
@@ -340,10 +208,6 @@ export async function readBillingOverview(userId: string) {
     summary: {
       personalPlan: personalScope.plan,
       personalCredits: personalScope.credits,
-      totalTeams: teams.length,
-      activeTeamPlans: activeTeamCount,
-      overSeatLimitTeams: overSeatLimitCount,
-      nearStorageLimitTeams: nearStorageLimitCount,
       activeStorageAddons: allStorageAddons.filter(
         (addon) =>
           addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
@@ -396,7 +260,6 @@ export async function readBillingOverview(userId: string) {
           totalExtraStorageBytes: personalActiveAddonBytes.toString(),
         },
       },
-      teams,
     },
     storageAddons: {
       all: allStorageAddons

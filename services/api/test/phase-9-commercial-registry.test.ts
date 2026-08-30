@@ -111,7 +111,16 @@ describe("Phase 9 §12 — commercial-reader classification registry", () => {
     // `resolveCommercialContext` with an explicit WORKSPACE subject, so
     // neither makes a raw commercial decision any more. The floor tracks the
     // remaining surface; it may only go DOWN.
-    expect(rawDecisionFiles.length).toBeGreaterThanOrEqual(4);
+    //
+    // COMMERCIAL AUTHORITY (2026-09-03) — floor lowered 4 -> 3 by a further
+    // RATCHET REDUCTION. `billing-overview.service.ts` carried a raw
+    // `team.billingPlan === PlanType.TEAM` comparison inside the per-workspace
+    // rollup it built for `workspaces.teams`. That rollup — and the retired
+    // Owned-Workspace-as-billing-subject shape it produced — was deleted once
+    // its last consumers moved to the canonical projection, so the comparison
+    // went with it. The floor tracks the remaining surface; it may only go
+    // DOWN.
+    expect(rawDecisionFiles.length).toBeGreaterThanOrEqual(3);
     const unclassified = rawDecisionFiles.filter((f) => !REGISTRY[f]);
     expect(unclassified).toEqual([]);
   });
