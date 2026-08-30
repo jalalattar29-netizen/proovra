@@ -860,6 +860,30 @@ export function PrivacySection() {
       .catch(() => setCookieConsent(null));
   }, [user?.id, loadAcceptances]);
 
+  const [cookieBusy, setCookieBusy] = useState(false);
+  const [cookieError, setCookieError] = useState<string | null>(null);
+
+  /**
+   * Open the canonical consent manager, and SAY SO when it does not open.
+   *
+   * The click used to be fire-and-forget: it dispatched an event and assumed
+   * the dialog appeared. When the manager could not open one — it had not
+   * built its DOM, an extension had blocked the script, initialisation had
+   * failed — the person who asked got nothing at all, with no error anywhere.
+   * "I click it and nothing happens" was the complete and literal behaviour.
+   */
+  const handleManageCookies = useCallback(async () => {
+    setCookieBusy(true);
+    setCookieError(null);
+    const opened = await openCookiePreferences();
+    setCookieBusy(false);
+    if (!opened) {
+      setCookieError(
+        "Cookie preferences could not be opened. A browser extension or privacy setting may be blocking the consent manager — allow it for this site and try again.",
+      );
+    }
+  }, []);
+
   const consentCategories = cookieConsent
     ? (
         [
@@ -904,6 +928,16 @@ export function PrivacySection() {
           </p>
         )}
 
+        {cookieError ? (
+          <p
+            role="alert"
+            className="set-privacy__error"
+            data-cc-privacy-cookies-error
+          >
+            {cookieError}
+          </p>
+        ) : null}
+
         <div className="set-privacy__actions">
           {/* The ONE consent manager. `openCookiePreferences` dispatches to
               the handler installed by `CookieConsentInit` in the root layout,
@@ -911,11 +945,12 @@ export function PrivacySection() {
               there is no second cookie implementation here. */}
           <button
             type="button"
-            className="set-action--ink"
-            onClick={() => openCookiePreferences()}
+            className="set-action--secondary"
+            onClick={() => void handleManageCookies()}
+            disabled={cookieBusy}
             data-cc-privacy-manage-cookies
           >
-            Manage cookie preferences
+            {cookieBusy ? "Opening…" : "Manage cookie preferences"}
           </button>
         </div>
       </section>

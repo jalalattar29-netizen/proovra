@@ -1686,3 +1686,149 @@
     justify-items: start;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE SECONDARY ACTION (2026-09-04)
+
+   ONE white/purple family for every secondary act in Settings. The values are
+   the ones Capture already uses for its own secondary action
+   (`.capture-secondary-advisory-action`): a translucent white surface, a
+   purple border at 26% and purple ink, hovering to a 7% purple fill. Reused
+   rather than re-picked, so the two surfaces cannot drift apart.
+
+   Before this, the same weight of action was painted three different ways
+   across three panes — dark ink on Overview, the shared `secondary` grey in
+   Security, a raw unstyled button in Privacy & data — and nothing about the
+   act being performed explained the difference.
+
+   Applied BY HOOK rather than by asking eight call sites to add a class,
+   because several of them are the shared `Button` component and the styling
+   belongs to this surface rather than to it.
+--------------------------------------------------------------------------- */
+.settings-page-shell .set-main .set-action--secondary,
+.settings-page-shell .set-main .set-privacy__disclose,
+.settings-page-shell .set-main [data-cc-export-request],
+.settings-page-shell .set-main [data-cc-add-password-toggle],
+.settings-page-shell .set-main [data-cc-add-password-submit],
+.settings-page-shell .set-main [data-cc-mfa-enroll-start],
+.settings-page-shell .set-main [data-cc-preferences-detect-tz],
+.settings-page-shell [data-cc-profile-edit],
+.settings-page-shell .set-main [data-settings-open="security"],
+.settings-page-shell .set-main .set-action--secondary *,
+.settings-page-shell [data-cc-profile-edit] *,
+.settings-page-shell .set-main [data-settings-open="security"] * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid rgba(91, 33, 182, 0.26) !important;
+  border-radius: var(--set-radius-sm) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  background-image: none !important;
+  color: #4c1d95 !important;
+  -webkit-text-fill-color: #4c1d95 !important;
+  box-shadow: none !important;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 640;
+  cursor: pointer;
+}
+
+/* The inner spans of a composed Button inherit the surface; they must not
+   redraw it, or the label sits in a second bordered box. */
+.settings-page-shell .set-main .set-action--secondary *,
+.settings-page-shell [data-cc-profile-edit] *,
+.settings-page-shell .set-main [data-settings-open="security"] * {
+  min-height: 0;
+  padding: 0;
+  border: 0 !important;
+  background: none !important;
+}
+
+.settings-page-shell .set-main .set-action--secondary:hover:not(:disabled),
+.settings-page-shell .set-main .set-privacy__disclose:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-export-request]:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-add-password-toggle]:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-add-password-submit]:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-mfa-enroll-start]:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-preferences-detect-tz]:hover:not(:disabled),
+.settings-page-shell [data-cc-profile-edit]:hover,
+.settings-page-shell .set-main [data-settings-open="security"]:hover {
+  border-color: rgba(124, 58, 237, 0.42) !important;
+  background: rgba(124, 58, 237, 0.07) !important;
+  color: #3b0f7a !important;
+  -webkit-text-fill-color: #3b0f7a !important;
+}
+
+/* Pressed: a touch deeper, no movement — these sit in dense rows. */
+.settings-page-shell .set-main .set-action--secondary:active:not(:disabled),
+.settings-page-shell .set-main .set-privacy__disclose:active:not(:disabled),
+.settings-page-shell .set-main [data-cc-export-request]:active:not(:disabled),
+.settings-page-shell .set-main [data-cc-mfa-enroll-start]:active:not(:disabled),
+.settings-page-shell [data-cc-profile-edit]:active {
+  background: rgba(124, 58, 237, 0.13) !important;
+}
+
+.settings-page-shell .set-main .set-action--secondary:focus-visible,
+.settings-page-shell .set-main .set-privacy__disclose:focus-visible,
+.settings-page-shell .set-main [data-cc-export-request]:focus-visible,
+.settings-page-shell .set-main [data-cc-add-password-toggle]:focus-visible,
+.settings-page-shell .set-main [data-cc-add-password-submit]:focus-visible,
+.settings-page-shell .set-main [data-cc-mfa-enroll-start]:focus-visible,
+.settings-page-shell .set-main [data-cc-preferences-detect-tz]:focus-visible,
+.settings-page-shell [data-cc-profile-edit]:focus-visible,
+.settings-page-shell .set-main [data-settings-open="security"]:focus-visible {
+  outline: none !important;
+  border-color: var(--set-accent) !important;
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.24) !important;
+}
+
+/* Disabled reads as unavailable, not as a different (dark) kind of action. */
+.settings-page-shell .set-main .set-action--secondary:disabled,
+.settings-page-shell .set-main [data-cc-export-request]:disabled,
+.settings-page-shell .set-main [data-cc-add-password-submit]:disabled,
+.settings-page-shell .set-main [data-cc-mfa-enroll-start]:disabled,
+.settings-page-shell .set-main .set-action--secondary:disabled * {
+  border-color: rgba(91, 33, 182, 0.14) !important;
+  background: rgba(255, 255, 255, 0.55) !important;
+  color: rgba(76, 29, 149, 0.42) !important;
+  -webkit-text-fill-color: rgba(76, 29, 149, 0.42) !important;
+  cursor: not-allowed;
+}
+
+/* THE TEXT LINKS. Deliberately not buttons: they leave the surface. They were
+   bold and ink-coloured, which made them read as headings rather than links. */
+.settings-page-shell .set-main .set-privacy__links a,
+.settings-page-shell .set-main .set-privacy__muted a {
+  color: var(--set-accent) !important;
+  font-weight: 400 !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.settings-page-shell .set-main .set-privacy__links a:hover,
+.settings-page-shell .set-main .set-privacy__muted a:hover {
+  color: #4c1d95 !important;
+  text-decoration-thickness: 2px;
+}
+
+.settings-page-shell .set-main .set-privacy__links a:focus-visible,
+.settings-page-shell .set-main .set-privacy__muted a:focus-visible {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.settings-page-shell .set-main .set-privacy__error {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(180, 35, 24, 0.24);
+  border-radius: var(--set-radius-sm);
+  background: rgba(180, 35, 24, 0.05);
+  color: var(--set-danger);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  max-inline-size: 68ch;
+}

@@ -2345,3 +2345,51 @@ a.admin-stat--link:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   COOKIE CONSENT — the visibility contract, stated here.
+
+   `vanilla-cookieconsent/dist/cookieconsent.css` is imported at the top of
+   this file, and it carries the rules that make its modals appear: the plugin
+   toggles `show--consent` / `show--preferences` on <html> and the stylesheet
+   turns `#cc-main` from `display: none` into a visible dialog.
+
+   Those particular rules do not survive this project's CSS pipeline. Everything
+   INSIDE `#cc-main` arrives — the layout, the buttons, the typography — but the
+   `#cc-main` visibility rules themselves are dropped, so the plugin added its
+   class to <html>, built its DOM, and the dialog stayed `display: none`.
+
+   That is why "Manage cookie preferences" appeared to do nothing: the manager
+   was working the whole time and its dialog was never allowed to be seen.
+
+   Restated here, where nothing can drop them. Scoped to the plugin's own id
+   and its own state classes, so they cannot affect anything else, and written
+   to match the vendor's own behaviour rather than to restyle it.
+--------------------------------------------------------------------------- */
+#cc-main {
+  display: none;
+}
+
+html.show--consent #cc-main,
+html.show--preferences #cc-main {
+  /* `!important` because this is a VISIBILITY CONTRACT, not a style
+     preference: whatever the pipeline does to the vendor rules, a person who
+     asked for their cookie preferences must get the dialog. */
+  display: block !important;
+}
+
+html.show--consent #cc-main .cm-wrapper,
+html.show--preferences #cc-main .pm-wrapper {
+  display: block;
+}
+
+html.show--preferences #cc-main .pm {
+  display: flex;
+  visibility: visible;
+  opacity: 1;
+}
+
+html.show--consent #cc-main .cm {
+  visibility: visible;
+  opacity: 1;
+}

@@ -139,9 +139,43 @@ export function markCookieConsentSyncedForUser(userId: string): void {
   }
 }
 
-export function openCookiePreferences(): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent("proovra:open-cookie-preferences"));
+/**
+ * Ask the canonical consent manager to open its preferences dialog.
+ *
+ * Resolves TRUE when the dialog opened. The manager is initialised in the root
+ * layout and answers on `proovra:cookie-preferences-result`; if it is not
+ * listening at all — not yet loaded, blocked by an extension, failed to
+ * initialise — nothing answers and this resolves false rather than leaving the
+ * caller to assume success.
+ *
+ * There is ONE consent manager. This dispatches to it; it never opens a
+ * dialog of its own.
+ */
+export function openCookiePreferences(): Promise<boolean> {
+  if (typeof window === "undefined") return Promise.resolve(false);
+
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("proovra:cookie-preferences-result", onResult);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+
+    const onResult = (event: Event) => {
+      const detail = (event as CustomEvent<{ ok?: boolean }>).detail;
+      finish(detail?.ok === true);
+    };
+
+    window.addEventListener("proovra:cookie-preferences-result", onResult);
+    // Nothing listening, or a manager that never answers, must not hang the
+    // caller's button in a loading state for ever.
+    const timer = setTimeout(() => finish(false), 2500);
+
+    window.dispatchEvent(new CustomEvent("proovra:open-cookie-preferences"));
+  });
 }
 
 const PREFERENCE_STORAGE_KEYS = [

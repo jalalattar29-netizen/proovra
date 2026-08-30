@@ -30,6 +30,8 @@ type CookieConsentImport = {
 } & Partial<CookieConsentApi>;
 
 type CookieConsentConfig = {
+  /** See the call site: bot-hiding also skips DOM creation entirely. */
+  hideFromBots: boolean;
   revision: number;
   guiOptions: {
     consentModal: {
@@ -142,6 +144,8 @@ export async function initCookieConsent(): Promise<void> {
     __PROOVRA_CC_INITIALIZED__?: boolean;
     __PROOVRA_COOKIE_CONSENT__?: CookieConsentApi;
     __PROOVRA_CC_PREFS_HANDLER__?: () => void;
+    /** Outcome of the last open attempt, so a caller can report a failure. */
+    __PROOVRA_CC_LAST_RESULT__?: { ok: boolean; error: string | null };
   };
 
   if (w.__PROOVRA_CC_INITIALIZED__) return;
@@ -159,11 +163,37 @@ export async function initCookieConsent(): Promise<void> {
 
   if (!w.__PROOVRA_CC_PREFS_HANDLER__) {
     w.__PROOVRA_CC_PREFS_HANDLER__ = () => {
+      /*
+       * A FAILURE HERE USED TO BE INVISIBLE.
+       *
+       * This was `try { showPreferences() } catch { /* ignore *\/ }`, so when
+       * the modal could not open the person who asked for it got nothing at
+       * all: no dialog, no message, no console error. "I click it and nothing
+       * happens" was the literal, complete behaviour.
+       *
+       * The outcome is reported back on the event so the surface that asked
+       * can say so. Nothing is thrown at the window — this runs inside a
+       * listener, where a throw would only reach the console.
+       */
+      const detail = w.__PROOVRA_CC_LAST_RESULT__ ?? { ok: false, error: null };
       try {
-        w.__PROOVRA_COOKIE_CONSENT__?.showPreferences();
-      } catch {
-        // ignore
+        const api = w.__PROOVRA_COOKIE_CONSENT__;
+        if (!api || typeof api.showPreferences !== "function") {
+          detail.ok = false;
+          detail.error = "unavailable";
+        } else {
+          api.showPreferences();
+          detail.ok = true;
+          detail.error = null;
+        }
+      } catch (error) {
+        detail.ok = false;
+        detail.error = error instanceof Error ? error.message : "failed";
       }
+      w.__PROOVRA_CC_LAST_RESULT__ = detail;
+      window.dispatchEvent(
+        new CustomEvent("proovra:cookie-preferences-result", { detail }),
+      );
     };
 
     window.addEventListener(
@@ -173,6 +203,30 @@ export async function initCookieConsent(): Promise<void> {
   }
 
   cc.run({
+    /*
+     * BOT-HIDING OFF, DELIBERATELY.
+     *
+     * `hideFromBots` defaults to true in vanilla-cookieconsent v3, and it does
+     * not merely suppress the AUTO-SHOWN banner: it skips building the consent
+     * DOM at all. `showPreferences()` then throws
+     * "Cannot read properties of undefined (reading 'addEventListener')"
+     * because the modal it wants to open was never created.
+     *
+     * That breaks the one entry point a person has to their OWN cookie
+     * preferences — Settings → Privacy & data → Manage cookie preferences —
+     * for anybody the heuristic misfires on. The heuristic is
+     * `navigator.webdriver` plus a user-agent pattern, so it catches
+     * automation, some hardened and privacy-hardened browsers, and anything
+     * presenting an unusual UA. Those are exactly the people most likely to
+     * come looking for this control.
+     *
+     * Keeping a crawler out of a cookie banner is worth very little. Silently
+     * denying a user the ability to review and change their own consent is
+     * worth a great deal less, and it is a control we are obliged to keep
+     * reachable. The banner itself is still gated by consent state, so this
+     * does not show it to anyone who has already answered.
+     */
+    hideFromBots: false,
     revision: 1,
     guiOptions: {
       consentModal: {

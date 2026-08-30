@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "fbb6753dac547c138b31ffbfb4558d1f7cad39370aff0e7613238262b8489040",
-  "consumerInventoryHash": "094c37a78e2ef40481c45196686224703f77dcf61118d06e03f5139095a6e123",
+  "consumerInventoryHash": "185e4a17923b069971d7f947b38d405b216a76eba07adb6ea0a05c38978a22e1",
   "dispositionsHash": "1296d12ce5731f789ba39aebd9375c995bd4574ec17ac6c192ab7607d4b96fa5",
   "totals": {
     "RegisteredRoutes": 1117,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8182,
+      "METHOD_ON_VALUE": 8187,
       "UNRESOLVED_IDENTIFIER": 1035
     },
     "MutationFixpointRounds": 9,
@@ -18277,8 +18277,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1144",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1144",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1191",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1191",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -18310,8 +18310,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1082",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1082",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1119",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1119",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -36554,6 +36554,8 @@
         "POST /v1/admin/identity/sessions/:id/quarantine",
         "POST /v1/admin/identity/sessions/:id/revoke",
         "POST /v1/admin/identity/sessions/reconcile-stale",
+        "POST /v1/identity-security/my-sessions/:id/revoke",
+        "POST /v1/identity-security/my-sessions/revoke-others",
         "POST /v1/identity-security/sessions/revoke",
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
@@ -36572,7 +36574,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT+CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -94240,7 +94242,7 @@
       "method": "GET",
       "path": "/v1/identity-security/security-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1166",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1213",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130188,7 +130190,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1110",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1147",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -130225,12 +130227,14 @@
         "adminAuditLog",
         "authenticatedSession",
         "mfaFactor",
+        "revokedSession",
         "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "authenticatedSession",
         "mfaFactor",
+        "revokedSession",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
@@ -130238,7 +130242,9 @@
       "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 404",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -130283,12 +130289,14 @@
         "adminAuditLog",
         "authenticatedSession",
         "mfaFactor",
+        "revokedSession",
         "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "authenticatedSession",
         "mfaFactor",
+        "revokedSession",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
@@ -130296,7 +130304,9 @@
       "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -148987,7 +148997,7 @@
         },
         {
           "file": "apps/web/lib/cookieConsent.ts",
-          "line": 129,
+          "line": 131,
           "caller": "persistConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148997,7 +149007,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/providers.tsx:229 (Providers, WEB); apps/web/lib/cookieConsent.ts:129 (persistConsent, WEB)",
+      "dispositionEvidence": "apps/web/app/providers.tsx:229 (Providers, WEB); apps/web/lib/cookieConsent.ts:131 (persistConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

@@ -580,12 +580,36 @@ export async function installSettingsApi(
   );
 }
 
+/**
+ * The consent cookie the manager writes once a person has answered the banner.
+ *
+ * These actors are signed in and `/v1/users/cookie-consent/latest` returns a
+ * recorded consent for them, so the banner auto-showing over every Settings
+ * assertion contradicted the fixture's own data. This states the same fact in
+ * the place the CLIENT reads it.
+ */
+const ANSWERED_CONSENT = JSON.stringify({
+  categories: ["necessary", "preferences", "analytics"],
+  revision: 1,
+  data: null,
+  consentTimestamp: "2026-08-29T19:14:00.000Z",
+  consentId: "fixture-consent",
+  services: { necessary: [], preferences: [], analytics: [], marketing: [] },
+  languageCode: "en",
+  // v3 treats a record without these as invalid and re-shows the banner.
+  lastConsentTimestamp: "2026-08-29T19:14:00.000Z",
+  expirationTime: 4102444800000,
+});
+
 export async function openSettings(
   page: Page,
   actor: SettingsActor = "org-owner",
   hash = "",
 ): Promise<void> {
   await installSettingsApi(page, actor);
+  await page.addInitScript((value) => {
+    document.cookie = `cc_cookie=${encodeURIComponent(value)};path=/`;
+  }, ANSWERED_CONSENT);
   await page.goto(`/settings${hash}`);
   await page.waitForSelector("[data-settings-shell]", { timeout: 30_000 });
 }

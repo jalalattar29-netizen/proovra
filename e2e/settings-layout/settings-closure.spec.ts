@@ -91,21 +91,30 @@ test.describe("settings — Overview absorbed the account", () => {
     await expect(page.locator("[data-settings-group]")).toHaveCount(0);
   });
 
-  test("Edit profile and Review security are dark ink with white labels", async ({
+  test("Edit profile and Review security are the secondary action family", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await openSettings(page, "personal");
 
+    // They were dark ink with white labels, which is the weight this product
+    // reserves for a STRONG secondary — and these are ordinary ones, beside
+    // "Manage cookie preferences" and "Use my current timezone", which were
+    // painted three other ways. One white/purple family now, shared with the
+    // secondary action Capture already uses.
     for (const sel of ["[data-cc-profile-edit]", '[data-settings-open="security"]']) {
       const paint = await page.locator(sel).first().evaluate((el) => {
         const cs = getComputedStyle(el);
-        return { bg: cs.backgroundColor, fg: cs.color };
+        return { bg: cs.backgroundColor, fg: cs.color, border: cs.borderTopColor };
       });
-      expect(Math.max(...rgb(paint.bg)), `${sel} must be dark ink`).toBeLessThan(80);
-      expect(rgb(paint.fg).every((c) => c > 240), `${sel} label must be white`).toBe(
-        true,
-      );
+      const rgb = (v: string) => (v.match(/[0-9]+(\.[0-9]+)?/g) ?? []).map(Number);
+      const [br, bgc, bb] = rgb(paint.bg);
+      const [fr, fg, fb] = rgb(paint.fg);
+      const [dr, , db] = rgb(paint.border);
+      expect(Math.min(br, bgc, bb), `${sel} is light-surfaced`).toBeGreaterThan(200);
+      expect(fb, `${sel} ink is purple`).toBeGreaterThan(fg + 40);
+      expect(fr, `${sel} ink is purple, not blue`).toBeGreaterThan(40);
+      expect(db, `${sel} border is purple`).toBeGreaterThan(dr);
     }
   });
 
