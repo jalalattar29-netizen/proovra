@@ -93,7 +93,29 @@ test("all 15 required Phase 7 surfaces compose the render-proven primitives", ()
   const surfaces: Array<[string, RegExp[]]> = [
     // [file, required markers]
     ["components/cases-experience/matter-modals/CreateCaseModal.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],
-    ["app/(app)/capture/page.tsx", [/WorkspaceContextBanner/]],
+    // CAPTURE proves tenant isolation by BLOCKING the boundary crossing, not
+    // by narrating it.
+    //
+    // The banner rendered "Captured evidence will be stored in Personal Space
+    // · Personal Space" above the page title — the workspace named twice, in
+    // weaker type, under an app header that already names it. It was removed
+    // as redundant copy (a7ec4b57); the shared component is untouched and
+    // still wired on the eight surfaces that need it.
+    //
+    // The Phase 7 guarantee is unaffected, and what replaces the marker is
+    // strictly stronger than the banner was. A banner is a sentence: it can
+    // render the correct workspace name over material that is about to
+    // finalize into a different one. What Capture actually holds is the
+    // registration that makes that impossible — staged evidence is declared
+    // to the dirty-work registry, so the context switcher demands explicit
+    // confirmation before the tenant boundary is crossed at all. An in-app
+    // workspace switch is an envelope swap that never fires `beforeunload`,
+    // so this registration is the only thing standing between staged evidence
+    // and a silent finalize into the wrong workspace.
+    [
+      "app/(app)/capture/page.tsx",
+      [/useDirtyWork\(/, /sessionItems\.length > 0 && !busy/, /"Staged evidence in Capture"/],
+    ],
     ["app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts", [/useTenantGuard/, /ctxIsStale\(captured\)/]],
     ["app/(app)/evidence-lifecycle/legal-holds/page.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/, /teamId\]/]],
     ["app/(app)/evidence-lifecycle/retention/page.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/]],
@@ -179,7 +201,17 @@ test("Phase 7 wired reference surfaces adopt the primitives (not superficially)"
   assert.match(caseModal, /useWorkspaceContextSafety\(/);
   assert.match(caseModal, /WorkspaceContextBanner/);
   assert.match(caseModal, /runGuarded\(/); // guarded submit
+  // Capture's adoption is the dirty-work gate plus the tenant guard in its
+  // orchestration hook — see the surface table above for why the banner is
+  // not the marker here. Both halves are asserted, because either one alone
+  // is superficial: the gate stops the switch, the guard stops a response
+  // that crossed anyway from being applied.
   const capture = read("app/(app)/capture/page.tsx");
-  assert.match(capture, /WorkspaceContextBanner/);
-  assert.match(capture, /useDirtyWork\(/); // pre-existing dirty guard retained
+  assert.match(capture, /useDirtyWork\(/);
+  assert.match(capture, /"Staged evidence in Capture"/);
+  const captureSession = read(
+    "app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts",
+  );
+  assert.match(captureSession, /useTenantGuard\(\)/);
+  assert.match(captureSession, /ctxIsStale\(captured\)/);
 });

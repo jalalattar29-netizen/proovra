@@ -102,12 +102,35 @@ test("/settings renders through the shared PageShell (no bespoke silver-card her
     /className="app-hero app-hero-full"/,
     "settings index must not render the raw marketing hero",
   );
-  // Phase Final-D5-PT2 contract, updated for the 2026-07-17 IA refactor:
-  // personal account security is now the in-page Security SECTION (the
-  // old link-card became the section anchor); the gated workspace
-  // Identity & Security link keeps its marker.
-  assert.match(src, /id="security"/);
+  // Phase Final-D5-PT2 contract, re-expressed for the pane architecture
+  // (Settings IA redesign, 2026-09-03).
+  //
+  // WHAT THIS USED TO ASSERT, AND WHY IT NO LONGER HOLDS.
+  //   The 2026-07-17 refactor made Settings ONE scrolling console, so a
+  //   destination was a DOM anchor: `id="security"` existed so that
+  //   `/settings#security` scrolled to the personal security section, and
+  //   this test pinned that anchor. The pane redesign mounts one
+  //   destination at a time — an anchor to scroll to would be an anchor to
+  //   a section that is not in the document — so the id was removed with
+  //   the scroll it served. Re-adding it would put a dead attribute in the
+  //   page to satisfy a regex.
+  //
+  // WHAT THE ANCHOR ACTUALLY PROTECTED, asserted against the current
+  // architecture: `/settings#security` still LANDS on personal security,
+  // and the surface it lands on is the canonical one rather than a copy.
+  // The hash is resolved by the canonical resolver, the pane is real, and
+  // it mounts `PersonalSecuritySections`.
+  assert.match(src, /resolvePaneFromHash/);
+  assert.match(src, /pane === "security"/);
+  assert.match(src, /<PersonalSecuritySections \/>/);
+  // The gated workspace Identity & Security link keeps its marker.
   assert.match(src, /data-cc-security-link-card/);
+  // BEHAVIOUR — that the Security destination is offered, that selecting it
+  // switches the pane, that its nav item becomes `aria-current`, and that
+  // its heading and content render, is asserted end-to-end in a real engine
+  // by `e2e/settings-layout/settings-closure.spec.ts` ("the Security
+  // destination"). A source regex cannot prove a pane renders; that suite
+  // can, and does.
 });
 
 // (2026-07-20) The `/settings/persona` wizard PageShell test was removed

@@ -5,14 +5,23 @@
  *
  * Separate from the global app sidebar and rendered inside the page, because
  * Settings is a destination with its own map. On desktop it is a sticky rail;
- * below the two-column breakpoint it becomes a native `<select>`, which is the
- * one control that is guaranteed usable on every mobile browser and needs no
- * focus trap, no portal and no scroll lock.
+ * below the two-column breakpoint it collapses to one labelled control.
+ *
+ * That control is `AppListbox`, the same canonical listbox every other
+ * selector in the authenticated product uses. It was a native `<select>`,
+ * chosen because it needs no portal or scroll lock — but the option list a
+ * native select opens is drawn by the OS, so at 390 the ONE control on the
+ * page was the one thing that could not look like the product. The canonical
+ * listbox carries the full WAI-ARIA listbox contract (roving
+ * `aria-activedescendant`, Escape-to-close with focus returned to the
+ * trigger, Home/End, outside-click) and escapes clipping ancestors through
+ * `AppAnchoredOverlay`, so nothing is given up by moving to it.
  *
  * The model is resolved once by `resolveSettingsNavigation` — this component
  * decides nothing about who may see what.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import type {
   SettingsNavModel,
   SettingsPaneId,
@@ -36,24 +45,26 @@ export function SettingsNav({
 
   return (
     <nav className="set-nav" aria-label="Settings sections" data-settings-nav>
-      {/* NARROW: one native control, labelled, keyboard-complete. */}
+      {/* NARROW: one labelled control, keyboard-complete. */}
       <div className="set-nav__mobile">
-        <label className="set-nav__mobile-label" htmlFor="settings-section-select">
-          Settings section
-        </label>
-        <select
-          id="settings-section-select"
-          className="set-nav__select"
-          value={active}
-          onChange={(event) => onSelect(event.target.value as SettingsPaneId)}
-          data-settings-nav-select
+        <span
+          className="set-nav__mobile-label"
+          id="settings-section-select-label"
         >
-          {flat.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.group ? `${item.group} — ${item.label}` : item.label}
-            </option>
-          ))}
-        </select>
+          Settings section
+        </span>
+        <div className="set-nav__select" data-settings-nav-select>
+          <AppListbox
+            id="settings-section-select"
+            value={active}
+            options={flat.map((item) => ({
+              value: item.id,
+              label: item.group ? `${item.group} — ${item.label}` : item.label,
+            }))}
+            onChange={(next) => onSelect(next as SettingsPaneId)}
+            ariaLabelledby="settings-section-select-label"
+          />
+        </div>
       </div>
 
       {/* WIDE: the rail. */}

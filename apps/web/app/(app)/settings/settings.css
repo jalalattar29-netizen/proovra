@@ -1,48 +1,82 @@
 /* ===========================================================================
-   SETTINGS — the shell, its map, and the surfaces inside it
+   SETTINGS
    ===========================================================================
 
-   Written for the redesigned Settings: a sticky in-page rail beside one pane
-   of content, on the application background rather than on a white sheet.
+   ONE stylesheet for every Settings destination. It replaces three blocks that
+   had accreted one pass at a time — a shell layer, a form layer and a security
+   layer — each of which had solved its own page and left the three panes
+   looking like three products.
 
-   The rule throughout: the page background is the base, a surface exists only
-   where it groups something, and separation is a border and spacing rather
-   than a shadow. Values come from the product's own tokens; the fallbacks are
-   the canonical values those tokens hold.
+   THE SYSTEM
+
+     surface     the app background is the base; a panel is a translucent
+                 white with a quiet border, and there is exactly one of them
+     rhythm      one section pattern: title, one-line description, content,
+                 action — used by every pane
+     type        one scale; secondary copy is readable ink, never silver
+     colour      purple acts, green is configured, amber needs attention,
+                 red is destructive, slate is metadata. Nothing is coloured
+                 for decoration and no state is colour alone
+     controls    one geometry for every input, select, checkbox and radio
+
+   WHY SO MANY `!important`
+
+     The panes are assembled from components that predate this contract and
+     style themselves inline — `Card variant="admin"` paints `--surface-muted`
+     as an inline style, the security sections set their own fonts and colours
+     the same way. An inline style outranks any selector, so restating a value
+     here is the only way to reach it. Everything is scoped to
+     `.settings-page-shell`, so no shared primitive and no other route changes.
 =========================================================================== */
 
 .settings-page-shell {
-  --set-panel: rgba(255, 255, 255, 0.55);
+  /* SURFACES — one panel value, one quiet value, one hairline. */
+  --set-panel: rgba(255, 255, 255, 0.62);
+  --set-panel-solid: #ffffff;
+  --set-inset: rgba(16, 24, 40, 0.022);
   --set-line: rgba(16, 24, 40, 0.09);
-  --set-line-strong: rgba(16, 24, 40, 0.14);
-  --set-ink: var(--ink-primary, #101828);
-  --set-muted: var(--ink-secondary, #667085);
-  --set-accent: var(--accent-600, #6d28d9);
-  --set-accent-soft: var(--accent-050, #f4f0ff);
-  --set-radius: 14px;
+  --set-line-strong: rgba(16, 24, 40, 0.15);
 
-  /* Settings sits on the app background like every other workspace surface;
-     it does not paint a page-sized white sheet of its own. */
+  /* INK — the third value is the lightest text the sheet is allowed to use. */
+  --set-ink: var(--ink-primary, #101828);
+  --set-ink-2: #475467;
+  --set-muted: #667085;
+
+  /* SEMANTICS */
+  --set-accent: var(--accent-600, #6d28d9);
+  --set-accent-strong: var(--accent-700, #5b21b6);
+  --set-accent-soft: var(--accent-050, #f4f0ff);
+  --set-ok: #067647;
+  --set-ok-soft: rgba(6, 118, 71, 0.08);
+  --set-warn: #b54708;
+  --set-warn-soft: rgba(247, 144, 9, 0.1);
+  --set-danger: #b42318;
+  --set-danger-soft: rgba(240, 68, 56, 0.07);
+
+  --set-radius: 14px;
+  --set-radius-sm: 10px;
+
   background: transparent;
 }
 
 /* ---------------------------------------------------------------------------
-   THE SHELL
+   SHELL
 --------------------------------------------------------------------------- */
 
 .set-shell {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
-  gap: 28px;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 32px;
   align-items: start;
   width: 100%;
+  max-width: 1180px;
 }
 
 .set-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -55,26 +89,13 @@
 
 .set-nav__rail {
   position: sticky;
-  /* Clear of the app header, and no taller than the viewport so a long map
-     scrolls inside itself rather than pushing the page. */
   top: 84px;
-  max-height: calc(100vh - 104px);
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding-inline-end: 4px;
+  gap: 16px;
 }
 
-.set-nav__title {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--set-muted);
-}
-
+.set-nav__title,
 .set-nav__group-label {
   margin: 0 0 6px;
   font-size: 0.7rem;
@@ -87,7 +108,7 @@
 .set-nav__list {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -96,11 +117,11 @@
 .set-nav__item {
   display: block;
   width: 100%;
-  padding: 6px 11px;
+  padding: 7px 12px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--set-radius-sm);
   background: transparent;
-  color: var(--set-muted);
+  color: var(--set-ink-2);
   font-size: 0.875rem;
   font-weight: 550;
   text-align: start;
@@ -112,7 +133,6 @@
   color: var(--set-ink);
 }
 
-/* Selected: the product accent, subtly. One indicator, not a pill per item. */
 .set-nav__item[aria-current="page"] {
   background: var(--set-accent-soft);
   color: var(--set-accent);
@@ -125,45 +145,57 @@
 }
 
 /* ---------------------------------------------------------------------------
-   PANES
+   THE SECTION PATTERN — every pane, every section, the same shape.
 --------------------------------------------------------------------------- */
 
 .set-pane-head h2 {
   margin: 0;
-  font-size: 1.32rem;
+  font-size: 1.4rem;
   font-weight: 760;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: var(--set-ink);
 }
 
 .set-pane-head p {
   margin: 6px 0 0;
-  max-width: 76ch;
-  font-size: 0.9rem;
+  max-width: 78ch;
+  font-size: 0.925rem;
   line-height: 1.55;
-  color: var(--set-muted);
+  color: var(--set-ink-2);
 }
 
 .set-overview,
 .set-stack {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
 }
 
-.set-section__title {
-  margin: 0 0 12px;
-  font-size: 1.02rem;
-  font-weight: 720;
-  color: var(--set-ink);
+/* A section title inside a pane. Sentence case, not shouted uppercase — the
+   panes were using 14px all-caps with wide tracking, which is the weight of a
+   page heading, so every section competed with the pane's own title. */
+.set-section__title,
+.settings-page-shell .set-main .ui-card h2,
+.settings-page-shell .set-main .ui-card h3,
+.settings-page-shell .set-main .ops-panel__title {
+  margin: 0 0 4px !important;
+  font-size: 1rem !important;
+  font-weight: 720 !important;
+  letter-spacing: -0.005em !important;
+  text-transform: none !important;
+  color: var(--set-ink) !important;
 }
 
+/* The one-line description under a section title. */
+.settings-page-shell .set-main .ui-card > p,
+.settings-page-shell .set-main .ops-panel > p,
+.settings-page-shell .set-main .ops-muted,
 .set-note {
-  margin: 0;
+  margin: 0 0 2px;
   max-width: 84ch;
-  font-size: 0.85rem;
-  line-height: 1.55;
-  color: var(--set-muted);
+  font-size: 0.86rem !important;
+  line-height: 1.55 !important;
+  color: var(--set-ink-2) !important;
 }
 
 .set-note a {
@@ -176,33 +208,134 @@
 }
 
 /* ---------------------------------------------------------------------------
-   CARDS
+   PANELS — one surface, everywhere.
 
-   One surface treatment. Summary cards and destination cards differ in what
-   they contain, not in how they are painted.
+   `Card variant="admin"` paints `--surface-muted` inline; the notification
+   panels paint their own white. Both become the one panel value here, so the
+   page background runs between sections instead of slab meeting slab.
+--------------------------------------------------------------------------- */
+
+.set-card,
+.set-hero,
+.settings-page-shell .set-main .ui-card,
+.settings-page-shell .set-main .ops-panel {
+  display: block;
+  padding: 22px !important;
+  border: 1px solid var(--set-line) !important;
+  border-radius: var(--set-radius) !important;
+  background: var(--set-panel) !important;
+  box-shadow: none !important;
+  margin-bottom: 0 !important;
+}
+
+.settings-page-shell .set-main .ui-card + .ui-card,
+.settings-page-shell .set-main .ops-panel + .ops-panel {
+  margin-top: 22px !important;
+}
+
+/* Nothing inside a panel paints its own grey. The semantic tints below are
+   matched by their own selectors and are not caught by this. */
+.settings-page-shell .set-main .ui-card [style*="background: #f8fafc"],
+.settings-page-shell .set-main .ui-card [style*="background:#f8fafc"],
+.settings-page-shell .set-main .ui-card [style*="background: #f1f5f9"],
+.settings-page-shell .set-main [style*="rgb(241, 244, 249)"],
+.settings-page-shell .set-main .ops-panel > div[style*="background"] {
+  background: transparent !important;
+}
+
+/* ---------------------------------------------------------------------------
+   THE OVERVIEW HERO — the account, stated properly.
+--------------------------------------------------------------------------- */
+
+.set-hero {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+  padding: 26px !important;
+}
+
+.set-hero__identity {
+  min-width: 0;
+}
+
+/* The canonical identity component sizes itself for a narrower surface. */
+.set-hero__identity [data-cc-overview-section] {
+  max-width: none !important;
+}
+
+.set-hero__identity [data-cc-profile-card] {
+  gap: 16px !important;
+}
+
+/* A real avatar, not a 12px initial. */
+.set-hero__identity [data-cc-profile-card] > div:first-child {
+  inline-size: 56px !important;
+  block-size: 56px !important;
+  font-size: 1.25rem !important;
+  flex: 0 0 auto !important;
+}
+
+.set-hero__identity [data-cc-profile-display-name] {
+  font-size: 1.3rem !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.015em !important;
+  color: var(--set-ink) !important;
+}
+
+.set-hero__identity [data-cc-profile-card] > div:nth-child(2) > div:last-child {
+  font-size: 0.9rem !important;
+  color: var(--set-ink-2) !important;
+}
+
+/* Context, not a repeat of the cards' figures. */
+.set-hero__context {
+  display: flex;
+  gap: 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.set-hero__context li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.set-hero__context span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--set-muted);
+}
+
+.set-hero__context strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--set-ink);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   SUMMARY CARDS
 --------------------------------------------------------------------------- */
 
 .set-grid {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .set-grid--summary {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 208px), 1fr));
-}
-
-.set-grid--links {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 224px), 1fr));
 }
 
 .set-card {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px;
-  border: 1px solid var(--set-line);
-  border-radius: var(--set-radius);
-  background: var(--set-panel);
+  gap: 14px;
 }
 
 .set-card__head {
@@ -213,16 +346,18 @@
 
 .set-card__head h3 {
   margin: 0;
-  font-size: 0.86rem;
-  font-weight: 720;
-  color: var(--set-ink);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--set-muted);
 }
 
 .set-card__icon {
   display: grid;
   place-items: center;
-  inline-size: 28px;
-  block-size: 28px;
+  inline-size: 26px;
+  block-size: 26px;
   flex: 0 0 auto;
   border-radius: 8px;
   background: var(--set-accent-soft);
@@ -232,25 +367,24 @@
 .set-card__headline {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.35;
+  font-size: 1.2rem;
+  font-weight: 740;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
   color: var(--set-ink);
 }
 
 .set-card__action {
   margin-top: auto;
-  padding-top: 2px;
 }
 
-/* Label / value rows. No box per value — the card already groups them. */
 .set-facts {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
   margin: 0;
 }
 
@@ -262,542 +396,63 @@
 }
 
 .set-facts dt {
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--set-muted);
 }
 
 .set-facts dd {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   font-weight: 620;
   line-height: 1.4;
   color: var(--set-ink);
   overflow-wrap: anywhere;
 }
 
-/* A destination, as a card. Buttons because they switch panes in place. */
-.set-link-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 15px 16px;
-  border: 1px solid var(--set-line);
-  border-radius: var(--set-radius);
-  background: var(--set-panel);
-  text-align: start;
-  cursor: pointer;
-}
-
-.set-link-card:hover {
-  border-color: var(--set-line-strong);
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.set-link-card:focus-visible {
-  outline: 2px solid var(--set-accent);
-  outline-offset: 2px;
-}
-
-.set-link-card__label {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--set-ink);
-}
-
-.set-link-card__hint {
-  font-size: 0.8rem;
-  line-height: 1.45;
-  color: var(--set-muted);
-}
-
 /* ---------------------------------------------------------------------------
-   STATUS — words, with colour repeating them. §31: not every value is a pill.
+   STATUS — words in their own tone, and never a capsule per value.
 --------------------------------------------------------------------------- */
 
-.set-state {
-  font-size: 0.78rem;
+.set-state,
+.set-event-outcome,
+.set-method-status {
+  font-size: 0.8rem;
   font-weight: 680;
+  background: transparent;
+  border: 0;
+  padding: 0;
 }
 
-.set-state[data-tone="ok"] {
-  color: var(--success, #067647);
+.set-state[data-tone="ok"],
+.set-event-outcome[data-outcome="SUCCEEDED"] {
+  color: var(--set-ok);
 }
 
-.set-state[data-tone="attention"] {
-  color: #b54708;
+.set-state[data-tone="attention"],
+.set-event-outcome[data-outcome="PENDING"] {
+  color: var(--set-warn);
 }
 
 .set-state[data-tone="accent"] {
   color: var(--set-accent);
 }
 
-/* ---------------------------------------------------------------------------
-   ACTIONS — §30's hierarchy, and nothing beyond it.
---------------------------------------------------------------------------- */
-
-.set-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--set-line-strong);
-  border-radius: 9px;
-  background: #ffffff;
-  color: var(--set-ink);
-  font-size: 0.83rem;
-  font-weight: 650;
-  text-decoration: none;
-  cursor: pointer;
+.set-event-outcome[data-outcome="FAILED"],
+.set-event-outcome[data-outcome="DENIED"] {
+  color: var(--set-danger);
 }
 
-.set-action:hover {
-  background: rgba(16, 24, 40, 0.035);
-}
-
-.set-action:focus-visible {
-  outline: 2px solid var(--set-accent);
-  outline-offset: 2px;
-}
-
-.set-action--primary {
-  border-color: var(--set-accent);
-  background: var(--set-accent);
-  color: #ffffff;
-}
-
-.set-action--primary:hover {
-  background: var(--accent-700, #5b21b6);
-  border-color: var(--accent-700, #5b21b6);
-}
-
-.set-action--outline {
-  border-color: var(--set-accent);
-  background: transparent;
-  color: var(--set-accent);
-}
-
-.set-action--outline:hover {
-  background: var(--set-accent-soft);
-}
-
-/* ---------------------------------------------------------------------------
-   ROLES — summaries, and the matrix behind its disclosure
---------------------------------------------------------------------------- */
-
-.set-roles {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.set-disclosure {
-  align-self: flex-start;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--set-accent);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--set-accent);
-  font-size: 0.83rem;
-  font-weight: 680;
-  cursor: pointer;
-}
-
-.set-disclosure:hover {
-  background: var(--set-accent-soft);
-}
-
-.set-disclosure:focus-visible {
-  outline: 2px solid var(--set-accent);
-  outline-offset: 2px;
-}
-
-.set-matrix {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.set-matrix__group {
-  padding: 16px 18px;
-  border: 1px solid var(--set-line);
-  border-radius: var(--set-radius);
-  background: var(--set-panel);
-}
-
-.set-matrix__group h4 {
-  margin: 0 0 10px;
-  font-size: 0.72rem;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--set-ink);
-}
-
-/* The one place a horizontal scroll is correct: a role x capability grid has
-   an irreducible width. It scrolls INSIDE its own container so it can never
-   widen the page — which is what §35 asks for. */
-.set-matrix__scroll {
-  overflow-x: auto;
-}
-
-.set-matrix table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
-}
-
-.set-matrix thead th {
-  padding: 6px 8px;
-  text-align: center;
-  white-space: nowrap;
-  font-weight: 650;
-  color: var(--set-muted);
-}
-
-.set-matrix thead th:first-child {
-  text-align: start;
-  padding-inline-start: 2px;
-}
-
-.set-matrix thead th[data-cc-roles-column-mine="true"] {
-  color: var(--set-accent);
-  font-weight: 750;
-}
-
-.set-matrix tbody th {
-  padding: 9px 8px 9px 2px;
-  text-align: start;
-  font-weight: 620;
-  color: var(--set-ink);
-  border-top: 1px solid var(--set-line);
-}
-
-.set-matrix tbody th span {
-  display: block;
-  margin-top: 2px;
-  font-weight: 450;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  color: var(--set-muted);
-}
-
-.set-matrix tbody td {
-  padding: 9px 8px;
-  text-align: center;
-  border-top: 1px solid var(--set-line);
-}
-
-/* Granted and denied differ in glyph as well as colour — §36. */
-.set-matrix td[data-cc-roles-cell="granted"] {
-  color: var(--success, #067647);
-}
-
-.set-matrix td[data-cc-roles-cell="denied"] {
-  color: var(--set-muted);
-  opacity: 0.6;
-}
-
-/* ---------------------------------------------------------------------------
-   RESPONSIVE
-
-   Below the two-column breakpoint the rail becomes a labelled select and the
-   content takes the full width. Nothing overflows horizontally; the matrix,
-   when opened, scrolls inside its own container.
---------------------------------------------------------------------------- */
-
-@media (max-width: 900px) {
-  .set-shell {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-  }
-
-  .set-nav__rail {
-    display: none;
-  }
-
-  .set-nav__mobile {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .set-nav__mobile-label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--set-muted);
-  }
-
-  .set-nav__select {
-    width: 100%;
-    min-height: 44px;
-    padding: 0 12px;
-    border: 1px solid var(--set-line-strong);
-    border-radius: 10px;
-    background: #ffffff;
-    color: var(--set-ink);
-    font-size: 0.9rem;
-    font-weight: 620;
-  }
-
-  .set-nav__select:focus-visible {
-    outline: 2px solid var(--set-accent);
-    outline-offset: 2px;
-  }
-}
-
-@media (max-width: 560px) {
-  .set-card,
-  .set-link-card {
-    padding: 15px;
-  }
-
-  .set-card__action .set-action,
-  .set-action--primary {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
-/* ===========================================================================
-   SETTINGS — ONE FORM AND SURFACE CONTRACT
-   ===========================================================================
-
-   Every Settings destination shares these. Before this, Security was grey
-   slabs, Notifications was white panels with browser-default controls,
-   Overview was translucent cards and Profile was a naked table — four visual
-   languages for one product area.
-
-   Scoped to `.settings-page-shell` throughout: these are the Settings
-   treatment, not a change to the shared primitives other surfaces use.
-=========================================================================== */
-
-/* ---------------------------------------------------------------------------
-   SURFACES — the grey slabs, gone.
-
-   The sections inside Security and Notifications came from components that
-   paint their own card. On the Settings background those read as slab after
-   slab. They keep their border and lose the fill, so the page background runs
-   between them and the border does the grouping.
---------------------------------------------------------------------------- */
-
-.settings-page-shell .set-main .ui-card,
-.settings-page-shell .set-main [class*="rounded"][class*="border"],
-.settings-page-shell .set-main section[data-cc-security-card],
-.settings-page-shell .set-main [data-contact-factor-panel] {
-  background: var(--set-panel) !important;
-  box-shadow: none !important;
-}
-
-/* Anything painting a hard grey inside a Settings pane loses it: the page
-   background is the base here. Semantic tints are matched separately below
-   and are NOT caught by this, because they carry meaning. */
-.settings-page-shell .set-main [style*="background: #f8fafc"],
-.settings-page-shell .set-main [style*="background:#f8fafc"],
-.settings-page-shell .set-main [style*="background: #f1f5f9"],
-.settings-page-shell .set-main [style*="background: rgb(248, 250, 252)"] {
+/* The remaining capsules the adopted sections bring: the status is the word. */
+.settings-page-shell .set-main .ui-badge,
+.settings-page-shell .set-main [class*="badge"] {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
   background: transparent !important;
-}
-
-/* ---------------------------------------------------------------------------
-   TYPOGRAPHY — readable secondary text.
-
-   Descriptive copy was rendering in a pale silver that failed at a glance on
-   a light background. Settings secondary text is the product's muted ink.
---------------------------------------------------------------------------- */
-
-.settings-page-shell .set-main p,
-.settings-page-shell .set-main li,
-.settings-page-shell .set-main dd,
-.settings-page-shell .set-main label,
-.settings-page-shell .set-main td,
-.settings-page-shell .set-main th {
-  color: var(--set-ink);
-}
-
-.settings-page-shell .set-main p {
-  line-height: 1.55;
-}
-
-/* ---------------------------------------------------------------------------
-   FORM CONTROLS — one geometry, one focus ring.
---------------------------------------------------------------------------- */
-
-.settings-page-shell .set-main input[type="text"],
-.settings-page-shell .set-main input[type="email"],
-.settings-page-shell .set-main input[type="tel"],
-.settings-page-shell .set-main input[type="password"],
-.settings-page-shell .set-main input[type="number"],
-.settings-page-shell .set-main input[type="time"],
-.settings-page-shell .set-main textarea,
-.settings-page-shell .set-main select {
-  inline-size: 100%;
-  min-height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--set-line-strong);
-  border-radius: 10px;
-  background: #ffffff;
-  color: var(--set-ink);
-  font-size: 0.9rem;
-  font-family: inherit;
-}
-
-.settings-page-shell .set-main textarea {
-  padding: 10px 12px;
-  min-height: 84px;
-  line-height: 1.5;
-}
-
-.settings-page-shell .set-main input:focus-visible,
-.settings-page-shell .set-main textarea:focus-visible,
-.settings-page-shell .set-main select:focus-visible {
-  outline: 2px solid var(--set-accent);
-  outline-offset: 1px;
-  border-color: var(--set-accent);
-}
-
-/* THE SELECT.
-   `appearance: none` plus our own chevron: the native control rendered with
-   the platform's own arrow and focus treatment, which is the one thing on the
-   page that could not be made to match anything else. It stays a real
-   `<select>` — the accessible, keyboard-complete, mobile-native control —
-   and only its skin changes. */
-.settings-page-shell .set-main select {
-  appearance: none;
-  -webkit-appearance: none;
-  padding-inline-end: 34px;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 11px center;
-  cursor: pointer;
-}
-
-.settings-page-shell .set-main select:disabled {
-  background-color: rgba(16, 24, 40, 0.03);
-  color: var(--set-muted);
-  cursor: not-allowed;
-}
-
-/* A select that sits inside a table cell or beside a control should size to
-   its content rather than stretch the row. */
-.settings-page-shell .set-main td select,
-.settings-page-shell .set-main .set-inline-select select {
-  inline-size: auto;
-  min-inline-size: 168px;
-}
-
-/* CHECKBOXES AND RADIOS.
-   `accent-color` is the one-line, fully accessible way to recolour a native
-   control: it keeps the real input, its keyboard behaviour, its ARIA role and
-   its platform semantics, and only changes the fill. They were rendering in
-   the browser's default blue on a purple product. */
-.settings-page-shell .set-main input[type="checkbox"],
-.settings-page-shell .set-main input[type="radio"] {
-  accent-color: var(--set-accent);
-  inline-size: 16px;
-  block-size: 16px;
-  min-inline-size: 16px;
-  margin: 0;
-  cursor: pointer;
-}
-
-.settings-page-shell .set-main input[type="checkbox"]:focus-visible,
-.settings-page-shell .set-main input[type="radio"]:focus-visible {
-  outline: 2px solid var(--set-accent);
-  outline-offset: 2px;
-}
-
-.settings-page-shell .set-main input[type="checkbox"]:disabled,
-.settings-page-shell .set-main input[type="radio"]:disabled {
-  accent-color: var(--set-muted);
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-/* A locked control still has to read as locked without relying on the tint. */
-.settings-page-shell .set-main input[type="checkbox"]:disabled:checked {
-  accent-color: #98a2b3;
-}
-
-/* Field labels above their control. */
-.settings-page-shell .set-main .set-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-inline-size: 420px;
-}
-
-.settings-page-shell .set-main .set-field > label {
-  font-size: 0.82rem;
-  font-weight: 650;
-  color: var(--set-ink);
-}
-
-/* ---------------------------------------------------------------------------
-   BUTTONS — the Settings hierarchy.
---------------------------------------------------------------------------- */
-
-/* Strong secondary: dark ink, white label. Used where an action is important
-   but is not the product's primary accent path. */
-.set-action--ink,
-.set-action--ink * {
-  border-color: var(--set-ink) !important;
-  background: var(--set-ink) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-.set-action--ink:hover:not(:disabled) {
-  background: #2c3648 !important;
-  border-color: #2c3648 !important;
-}
-
-.set-action--ink:focus-visible {
-  outline: 2px solid var(--set-accent) !important;
-  outline-offset: 2px !important;
-}
-
-/* Disclosure controls — "Show 12 more sessions", "View more". One treatment,
-   wherever a Settings list defers the rest of itself. */
-.settings-page-shell .set-main .set-disclosure {
-  align-self: flex-start;
-  margin-top: 12px;
-  min-height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--set-accent);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--set-accent);
-  font-size: 0.82rem;
-  font-weight: 680;
-  cursor: pointer;
-}
-
-.settings-page-shell .set-main .set-disclosure:hover {
-  background: var(--set-accent-soft);
-}
-
-/* ---------------------------------------------------------------------------
-   THE IDENTITY BLOCK
---------------------------------------------------------------------------- */
-
-.set-identity {
-  padding: 18px;
-  border: 1px solid var(--set-line);
-  border-radius: var(--set-radius);
-  background: var(--set-panel);
-}
-
-/* The canonical identity component brings its own max-width; inside this
-   surface it takes the width it is given. */
-.set-identity > [data-cc-overview-section] {
-  max-width: none !important;
+  font-weight: 680 !important;
 }
 
 /* ---------------------------------------------------------------------------
@@ -816,7 +471,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-block: 9px;
+  padding-block: 10px;
   border-block-start: 1px solid var(--set-line);
 }
 
@@ -830,29 +485,27 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 8px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 650;
   color: var(--set-ink);
 }
 
 .set-signins__when {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--set-muted);
 }
 
 .set-signins__empty {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
+  color: var(--set-muted);
 }
 
 /* ---------------------------------------------------------------------------
-   FORM CONTROLS, RESTATED AT THE WEIGHT THE MARKUP NEEDS
+   FORM CONTROLS
 
-   The Settings sections predate this contract and style their own inputs with
-   inline `style={{…}}`, which beats any stylesheet rule regardless of
-   specificity. The controls are therefore restated here with `!important` —
-   the one thing that outranks an inline style — scoped to `.settings-page-shell`
-   so nothing outside Settings is touched.
+   Every input, select, checkbox and radio in Settings, one geometry. Restated
+   with `!important` because the adopted sections style theirs inline.
 --------------------------------------------------------------------------- */
 
 .settings-page-shell .set-main input[type="text"],
@@ -861,192 +514,232 @@
 .settings-page-shell .set-main input[type="password"],
 .settings-page-shell .set-main input[type="number"],
 .settings-page-shell .set-main input[type="time"],
-.settings-page-shell .set-main textarea,
-.settings-page-shell .set-main select {
-  min-height: 40px !important;
+.settings-page-shell .set-main textarea {
+  inline-size: 100%;
+  min-height: 42px !important;
+  padding: 0 14px !important;
   border: 1px solid var(--set-line-strong) !important;
-  border-radius: 10px !important;
-  background-color: #ffffff !important;
+  border-radius: var(--set-radius-sm) !important;
+  background-color: var(--set-panel-solid) !important;
   color: var(--set-ink) !important;
   font-size: 0.9rem !important;
   font-family: inherit !important;
   box-shadow: none !important;
 }
 
-.settings-page-shell .set-main select {
-  appearance: none !important;
-  -webkit-appearance: none !important;
-  padding: 0 34px 0 12px !important;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
-  background-repeat: no-repeat !important;
-  background-position: right 11px center !important;
+.settings-page-shell .set-main textarea {
+  padding: 12px 14px !important;
+  min-height: 88px !important;
+  line-height: 1.5;
+}
+
+.settings-page-shell .set-main input::placeholder,
+.settings-page-shell .set-main textarea::placeholder {
+  color: var(--set-muted);
+}
+
+.settings-page-shell .set-main input:hover:not(:disabled) {
+  border-color: rgba(109, 40, 217, 0.34) !important;
 }
 
 .settings-page-shell .set-main input:focus-visible,
-.settings-page-shell .set-main textarea:focus-visible,
-.settings-page-shell .set-main select:focus-visible {
-  outline: 2px solid var(--set-accent) !important;
-  outline-offset: 1px !important;
+.settings-page-shell .set-main textarea:focus-visible {
+  outline: none !important;
+  border-color: var(--set-accent) !important;
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.16) !important;
+}
+
+/* THE SELECTOR.
+   Every option list in Settings is `AppListbox`, the canonical listbox the
+   authenticated product already uses on 24 other surfaces. It was a styled
+   native `<select>`, which can be made to match the product closed and never
+   open: the option list a native select opens is drawn by the operating
+   system, so Settings showed an OS menu while the rest of the product showed
+   its own. The primitive carries the full WAI-ARIA listbox contract and
+   portals out of clipping ancestors, so nothing was traded for the look.
+
+   The trigger and the popup are styled by `app-primitives.css` — this file
+   does not restyle them, or there would be two authorities over one control.
+   What belongs here is only how the control SITS on a settings form. */
+
+/* The canonical popup caps at 360px, because a menu wider than that is hard
+   to scan. A trigger stretched to the full 640px column would open a menu
+   little more than half its width, so the trigger agrees with the menu. */
+.settings-page-shell .set-main .app-listbox,
+.settings-page-shell .set-nav__select {
+  max-inline-size: 360px;
+}
+
+/* Beside a label, or in a table cell, it sizes to its content instead. */
+.settings-page-shell .set-main td .app-listbox {
+  min-inline-size: 172px;
+}
+
+.settings-page-shell .set-main input:disabled {
+  background-color: var(--set-inset) !important;
+  color: var(--set-muted) !important;
+  cursor: not-allowed;
+}
+
+/* CHECKBOX AND RADIO — drawn, not tinted.
+
+   `accent-color` alone still renders the platform's own box, so the control
+   looked like Windows on a page that looks like PROOVRA. These are drawn with
+   `appearance: none` on the REAL input: the element, its keyboard behaviour,
+   its ARIA role and its label association are all untouched, and only the
+   painting is ours. */
+.settings-page-shell .set-main input[type="checkbox"],
+.settings-page-shell .set-main input[type="radio"] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  display: inline-grid !important;
+  place-content: center !important;
+  inline-size: 18px !important;
+  block-size: 18px !important;
+  min-inline-size: 18px !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1.5px solid var(--set-line-strong) !important;
+  background: var(--set-panel-solid) !important;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.settings-page-shell .set-main input[type="checkbox"] {
+  border-radius: 5px !important;
+}
+
+.settings-page-shell .set-main input[type="radio"] {
+  border-radius: 50% !important;
+}
+
+.settings-page-shell .set-main input[type="checkbox"]::before {
+  content: "";
+  inline-size: 10px;
+  block-size: 10px;
+  transform: scale(0);
+  transition: transform 110ms ease-in-out;
+  box-shadow: inset 1em 1em #ffffff;
+  /* A tick, as a clip-path, so it scales with the box and needs no font. */
+  clip-path: polygon(
+    14% 44%,
+    0 65%,
+    50% 100%,
+    100% 16%,
+    80% 0%,
+    43% 62%
+  );
+}
+
+.settings-page-shell .set-main input[type="radio"]::before {
+  content: "";
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  transform: scale(0);
+  transition: transform 110ms ease-in-out;
+  box-shadow: inset 1em 1em #ffffff;
+}
+
+.settings-page-shell .set-main input[type="checkbox"]:checked,
+.settings-page-shell .set-main input[type="radio"]:checked {
+  border-color: var(--set-accent) !important;
+  background: var(--set-accent) !important;
+}
+
+.settings-page-shell .set-main input[type="checkbox"]:checked::before,
+.settings-page-shell .set-main input[type="radio"]:checked::before {
+  transform: scale(1);
+}
+
+.settings-page-shell .set-main input[type="checkbox"]:hover:not(:disabled),
+.settings-page-shell .set-main input[type="radio"]:hover:not(:disabled) {
   border-color: var(--set-accent) !important;
 }
 
-/* Purple, not the browser's blue. `accent-color` keeps the real control and
-   only recolours its fill, so the keyboard behaviour and the ARIA semantics
-   are the platform's own. */
-.settings-page-shell .set-main input[type="checkbox"],
-.settings-page-shell .set-main input[type="radio"] {
-  accent-color: var(--set-accent) !important;
-  inline-size: 16px !important;
-  block-size: 16px !important;
+.settings-page-shell .set-main input[type="checkbox"]:focus-visible,
+.settings-page-shell .set-main input[type="radio"]:focus-visible {
+  outline: 2px solid var(--set-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* Disabled has to stay readable — a locked-on control is stating a fact, and
+   an invisible tick states nothing. */
+.settings-page-shell .set-main input[type="checkbox"]:disabled,
+.settings-page-shell .set-main input[type="radio"]:disabled {
+  cursor: not-allowed;
+  border-color: var(--set-line-strong) !important;
+  background: var(--set-inset) !important;
+}
+
+.settings-page-shell .set-main input[type="checkbox"]:disabled:checked,
+.settings-page-shell .set-main input[type="radio"]:disabled:checked {
+  border-color: #98a2b3 !important;
+  background: #98a2b3 !important;
+}
+
+/* Labels above controls. */
+.settings-page-shell .set-main label {
+  color: var(--set-ink);
+  font-size: 0.86rem;
+}
+
+.set-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-inline-size: 420px;
+}
+
+/* Forms do not stretch to the full content width — a password field 900px
+   wide is harder to use, not easier. */
+.settings-page-shell .set-main form,
+.settings-page-shell .set-main [data-cc-password-change-card] form {
+  max-inline-size: 460px;
+}
+
+/* ---------------------------------------------------------------------------
+   BUTTONS — four weights, and no fifth.
+--------------------------------------------------------------------------- */
+
+.set-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--set-line-strong);
+  border-radius: var(--set-radius-sm);
+  background: var(--set-panel-solid);
+  color: var(--set-ink);
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-decoration: none;
   cursor: pointer;
 }
 
-/* ---------------------------------------------------------------------------
-   BUTTONS INSIDE THE ADOPTED SECTIONS
-
-   These components bring the shared `Button` primitive with `variant`s chosen
-   for the surfaces they used to live on. Settings restates the two that carry
-   a different weight here.
---------------------------------------------------------------------------- */
-
-/* Edit profile — the account's own action, strong secondary. */
-.settings-page-shell [data-cc-profile-edit],
-.settings-page-shell [data-cc-profile-edit] * {
-  background: var(--set-ink) !important;
-  background-image: none !important;
-  border-color: var(--set-ink) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  box-shadow: none !important;
+.set-action:hover {
+  background: rgba(16, 24, 40, 0.035);
 }
 
-.settings-page-shell [data-cc-profile-edit]:hover:not(:disabled) {
-  background: #2c3648 !important;
-  border-color: #2c3648 !important;
+.set-action:focus-visible,
+.settings-page-shell .set-main button:focus-visible {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 2px;
 }
 
-/* Saving a preference is the accent path. */
-.settings-page-shell .set-main [data-cc-preferences-save],
-.settings-page-shell .set-main [data-cc-preferences-save] * {
-  background: var(--set-accent) !important;
-  background-image: none !important;
-  border-color: var(--set-accent) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-.settings-page-shell .set-main [data-cc-preferences-save]:disabled,
-.settings-page-shell .set-main [data-cc-preferences-save]:disabled * {
-  background: rgba(16, 24, 40, 0.06) !important;
-  border-color: var(--set-line-strong) !important;
-  color: var(--set-muted) !important;
-  -webkit-text-fill-color: var(--set-muted) !important;
-}
-
-/* ---------------------------------------------------------------------------
-   THE IDENTITY BLOCK'S OWN SPACING
---------------------------------------------------------------------------- */
-
-.set-identity [data-cc-profile-card] {
-  gap: 14px;
-}
-
-.set-identity [data-cc-profile-display-name] {
-  font-size: 1rem;
-}
-
-/* ---------------------------------------------------------------------------
-   PREFERENCES — the section's headings sit under the pane's own heading, so
-   they take the subsection scale rather than competing with it.
---------------------------------------------------------------------------- */
-
-.settings-page-shell .set-main [data-settings-preferences] h3 {
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: var(--set-ink);
-}
-
-.settings-page-shell .set-main [data-settings-preferences] > .set-section__title {
-  font-size: 1.02rem;
-  font-weight: 720;
-}
-
-/* ===========================================================================
-   SETTINGS — SECURITY, AND THE SHARED CARDS IT BRINGS WITH IT
-   ===========================================================================
-
-   The Security sections are built from `Card variant="admin"`, whose surface
-   is `--surface-muted` applied as an INLINE style. That is correct where the
-   variant is used — an admin config group on a white page — and wrong here,
-   where six of them stack on the Settings background and the page becomes
-   slab after slab.
-
-   The primitive is shared, so it is not changed. It is overridden inside
-   Settings only, at the weight an inline style requires.
-=========================================================================== */
-
-.settings-page-shell .set-main .ui-card {
-  background: var(--set-panel) !important;
-  border: 1px solid var(--set-line) !important;
-  box-shadow: none !important;
-}
-
-/* Section headings inside those cards were 14px uppercase with wide tracking —
-   the same weight as the pane's own heading. They are subsection titles. */
-.settings-page-shell .set-main .ui-card > h3:first-child,
-.settings-page-shell .set-main .ui-card > div > h3:first-child {
-  font-size: 0.86rem !important;
-  letter-spacing: 0.02em !important;
-  text-transform: none !important;
-  font-weight: 700 !important;
-  color: var(--set-ink) !important;
-}
-
-/* ---------------------------------------------------------------------------
-   SESSIONS — a list, not a card per row.
-
-   Fifteen bordered white boxes stacked inside a bordered card is three levels
-   of surface for one list. The rows keep their identity through a divider and
-   their state through the current-session tint.
---------------------------------------------------------------------------- */
-
-.settings-page-shell [data-cc-session-row] {
-  margin-bottom: 0 !important;
-  padding: 12px 2px !important;
-  border: 0 !important;
-  border-block-start: 1px solid var(--set-line) !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  font-size: 0.82rem !important;
-}
-
-.settings-page-shell [data-cc-session-row]:first-child {
-  border-block-start: 0 !important;
-}
-
-/* The current session is the one row that keeps a surface, because it is the
-   one a reader is looking for. */
-.settings-page-shell [data-cc-session-row][data-cc-session-current="true"] {
-  padding-inline: 12px !important;
-  border: 1px solid rgba(6, 118, 71, 0.28) !important;
-  border-radius: 10px !important;
-  background: rgba(6, 118, 71, 0.05) !important;
-}
-
-/* ---------------------------------------------------------------------------
-   BUTTONS BROUGHT IN BY THE SECURITY SECTIONS
-
-   These render the shared primitive with the weights their old surface used.
-   Settings restates them: the accent for the action a section exists to
-   perform, dark ink for a strong secondary, and neither of them blue.
---------------------------------------------------------------------------- */
-
+/* PURPLE — the action a section exists to perform. */
 .settings-page-shell .set-main [data-cc-password-submit],
 .settings-page-shell .set-main [data-cc-password-submit] *,
 .settings-page-shell .set-main [data-cc-mfa-enroll-start],
 .settings-page-shell .set-main [data-cc-mfa-enroll-start] *,
 .settings-page-shell .set-main [data-contact-factor-send],
-.settings-page-shell .set-main [data-contact-factor-send] * {
+.settings-page-shell .set-main [data-contact-factor-send] *,
+.settings-page-shell .set-main [data-cc-preferences-save],
+.settings-page-shell .set-main [data-cc-preferences-save] *,
+.set-action--primary {
   background: var(--set-accent) !important;
   background-image: none !important;
   border-color: var(--set-accent) !important;
@@ -1057,13 +750,72 @@
 
 .settings-page-shell .set-main [data-cc-password-submit]:hover:not(:disabled),
 .settings-page-shell .set-main [data-cc-mfa-enroll-start]:hover:not(:disabled),
-.settings-page-shell .set-main [data-contact-factor-send]:hover:not(:disabled) {
-  background: var(--accent-700, #5b21b6) !important;
-  border-color: var(--accent-700, #5b21b6) !important;
+.settings-page-shell .set-main [data-contact-factor-send]:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-preferences-save]:hover:not(:disabled),
+.set-action--primary:hover {
+  background: var(--set-accent-strong) !important;
+  border-color: var(--set-accent-strong) !important;
 }
 
-/* Anything still painting the platform blue inside Settings loses it: this
-   surface has one accent and blue is not it. */
+/* DARK INK — a strong secondary. */
+.set-action--ink,
+.set-action--ink *,
+.settings-page-shell [data-cc-profile-edit],
+.settings-page-shell [data-cc-profile-edit] *,
+.settings-page-shell .set-main [data-contact-verification-start],
+.settings-page-shell .set-main [data-contact-verification-start] *,
+.settings-page-shell .set-main [data-cc-connect-google],
+.settings-page-shell .set-main [data-cc-connect-google] *,
+.settings-page-shell .set-main [data-cc-connect-apple],
+.settings-page-shell .set-main [data-cc-connect-apple] * {
+  background: var(--set-ink) !important;
+  background-image: none !important;
+  border-color: var(--set-ink) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.set-action--ink:hover:not(:disabled),
+.settings-page-shell [data-cc-profile-edit]:hover:not(:disabled),
+.settings-page-shell .set-main [data-contact-verification-start]:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-connect-google]:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-connect-apple]:hover:not(:disabled) {
+  background: #2c3648 !important;
+  border-color: #2c3648 !important;
+}
+
+/* Disabled is disabled in every weight. */
+.settings-page-shell .set-main button:disabled,
+.settings-page-shell .set-main button:disabled * {
+  background: var(--set-inset) !important;
+  border-color: var(--set-line-strong) !important;
+  color: var(--set-muted) !important;
+  -webkit-text-fill-color: var(--set-muted) !important;
+  cursor: not-allowed;
+}
+
+/* WHITE/RED — destructive. */
+.settings-page-shell .set-main [data-cc-revoke-others],
+.settings-page-shell .set-main [data-cc-revoke-others] * {
+  background: var(--set-panel-solid) !important;
+  border-color: rgba(240, 68, 56, 0.34) !important;
+  color: var(--set-danger) !important;
+  -webkit-text-fill-color: var(--set-danger) !important;
+}
+
+.settings-page-shell .set-main [data-cc-revoke-others]:hover:not(:disabled) {
+  background: var(--set-danger-soft) !important;
+  border-color: #f04438 !important;
+}
+
+.settings-page-shell .set-main [data-cc-revoke-session],
+.settings-page-shell .set-main [data-cc-revoke-others] {
+  min-height: 34px !important;
+  border-radius: var(--set-radius-sm) !important;
+}
+
+/* Nothing in Settings is the platform blue. */
 .settings-page-shell .set-main button[style*="#2563eb"],
 .settings-page-shell .set-main button[style*="rgb(37, 99, 235)"],
 .settings-page-shell .set-main button[style*="#1d4ed8"] {
@@ -1072,133 +824,593 @@
   color: #ffffff !important;
 }
 
-/* Sign out is a per-row secondary; Sign out other sessions is destructive to
-   every other device, so it reads as the destructive control it is. */
-.settings-page-shell .set-main [data-cc-revoke-session],
-.settings-page-shell .set-main [data-cc-revoke-others] {
-  min-height: 32px !important;
-  border-radius: 9px !important;
+/* Disclosures — "Show 12 more sessions", "View more". */
+.settings-page-shell .set-main .set-disclosure,
+.settings-page-shell .set-main [data-cc-security-events-more] {
+  align-self: flex-start;
+  margin-top: 14px !important;
+  min-height: 34px !important;
+  padding: 0 14px !important;
+  border: 1px solid var(--set-line-strong) !important;
+  border-radius: var(--set-radius-sm) !important;
+  background: transparent !important;
+  color: var(--set-ink) !important;
+  font-size: 0.83rem !important;
+  font-weight: 650 !important;
+  cursor: pointer;
 }
 
-.settings-page-shell .set-main [data-cc-revoke-others],
-.settings-page-shell .set-main [data-cc-revoke-others] * {
-  background: #ffffff !important;
-  border-color: rgba(240, 68, 56, 0.34) !important;
-  color: var(--set-danger, #b42318) !important;
-  -webkit-text-fill-color: var(--set-danger, #b42318) !important;
-}
-
-.settings-page-shell .set-main [data-cc-revoke-others]:hover:not(:disabled) {
-  background: rgba(240, 68, 56, 0.06) !important;
-  border-color: #f04438 !important;
+.settings-page-shell .set-main .set-disclosure:hover,
+.settings-page-shell .set-main [data-cc-security-events-more]:hover {
+  border-color: var(--set-accent) !important;
+  background: var(--set-accent-soft) !important;
+  color: var(--set-accent) !important;
 }
 
 /* ---------------------------------------------------------------------------
-   SECURITY ACTIVITY — outcome in words and colour, not a grey pill each.
+   SECURITY
 --------------------------------------------------------------------------- */
 
-.settings-page-shell .set-main [data-cc-security-event-outcome] {
+/* The posture strip.
+   The card wraps its content one level deeper than it appears to: the grid
+   that lays the four facts out is a GRANDCHILD, so making the card itself a
+   grid produced one column containing one wrapper. The card stays a block and
+   the real grid is addressed where it lives. */
+.settings-page-shell .set-main [data-cc-security-summary] {
+  padding: 20px 22px !important;
+}
+
+.settings-page-shell .set-main [data-cc-security-summary] > div > div {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)) !important;
+  gap: 20px !important;
+}
+
+/* Each fact: label above, value below. */
+.settings-page-shell .set-main [data-cc-security-summary] > div > div > div {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
   padding: 0 !important;
   border: 0 !important;
+  background: transparent !important;
+}
+
+.settings-page-shell
+  .set-main
+  [data-cc-security-summary]
+  > div
+  > div
+  > div
+  > :first-child {
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--set-muted) !important;
+}
+
+.settings-page-shell .set-main [data-cc-security-summary-value] {
+  margin-top: 0 !important;
+  font-size: 1.05rem !important;
+  font-weight: 730 !important;
+  text-transform: none !important;
+  color: var(--set-ink) !important;
+}
+
+/* Sign-in method rows — a list with dividers, not three boxes. */
+.settings-page-shell .set-main [data-cc-login-method] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 14px 0 !important;
+  border: 0 !important;
+  border-block-start: 1px solid var(--set-line) !important;
   border-radius: 0 !important;
   background: transparent !important;
-  font-size: 0.76rem !important;
+}
+
+.settings-page-shell .set-main [data-cc-login-method]:first-child {
+  border-block-start: 0 !important;
+}
+
+/* Session rows — a list, and only the current one keeps a surface. */
+.settings-page-shell [data-cc-session-row] {
+  /* NO display change: the row already lays itself out with an inner flex
+     that puts the device on the left and the action on the right. Forcing
+     flex on the <li> made its children siblings of that layout and dropped
+     the Sign out button under the device name. */
+  margin-bottom: 0 !important;
+  padding: 14px 0 !important;
+  border: 0 !important;
+  border-block-start: 1px solid var(--set-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  font-size: 0.85rem !important;
+}
+
+.settings-page-shell [data-cc-session-row]:first-child {
+  border-block-start: 0 !important;
+}
+
+.settings-page-shell [data-cc-session-row][data-cc-session-current="true"] {
+  margin-block: 4px !important;
+  padding: 14px 16px !important;
+  border: 1px solid rgba(6, 118, 71, 0.26) !important;
+  border-radius: var(--set-radius-sm) !important;
+  background: var(--set-ok-soft) !important;
+}
+
+/* Security-activity rows — a timeline, not a stack of blocks. */
+.settings-page-shell .set-main [data-cc-security-event-row] {
+  padding: 14px 0 !important;
+  border: 0 !important;
+  border-block-start: 1px solid var(--set-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.settings-page-shell .set-main [data-cc-security-event-row]:first-of-type {
+  border-block-start: 0 !important;
+  padding-block-start: 0 !important;
+}
+
+/* "Technical details" is a disclosure, not body copy. */
+.settings-page-shell .set-main summary {
+  font-size: 0.78rem !important;
+  color: var(--set-muted) !important;
+  cursor: pointer;
+}
+
+.settings-page-shell .set-main summary:focus-visible {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   NOTIFICATIONS
+--------------------------------------------------------------------------- */
+
+/* The preference table. It is genuinely tabular — one row per category, one
+   column per channel — so it stays a table and loses the grid look. */
+.settings-page-shell .set-main .ops-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.settings-page-shell .set-main .ops-table th,
+.settings-page-shell .set-main .ops-table td {
+  padding: 14px 12px !important;
+  border: 0 !important;
+  border-block-start: 1px solid var(--set-line) !important;
+  background: transparent !important;
+  vertical-align: top;
+}
+
+.settings-page-shell .set-main .ops-table thead th {
+  padding-block: 0 10px !important;
+  border: 0 !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--set-muted) !important;
+}
+
+.settings-page-shell .set-main .ops-table th:first-child,
+.settings-page-shell .set-main .ops-table td:first-child {
+  padding-inline-start: 0 !important;
+}
+
+.settings-page-shell .set-main .ops-table th:last-child,
+.settings-page-shell .set-main .ops-table td:last-child {
+  padding-inline-end: 0 !important;
+}
+
+/* A category group heading inside the table. */
+.settings-page-shell .set-main .ops-table__group-row td {
+  padding-block: 18px 6px !important;
+  border-block-start: 0 !important;
+  font-size: 0.68rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--set-muted) !important;
+}
+
+/* The category's own name and its one line of explanation. */
+.settings-page-shell .set-main .ops-table td:first-child > :first-child {
+  font-size: 0.9rem !important;
+  font-weight: 680 !important;
+  color: var(--set-ink) !important;
+}
+
+.settings-page-shell .set-main .ops-table td .ops-muted {
+  font-size: 0.8rem !important;
+  line-height: 1.5 !important;
+  color: var(--set-ink-2) !important;
+  max-inline-size: 62ch;
+}
+
+.settings-page-shell .set-main .ops-toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* The legend above the table was a grey slab; it is a quiet note. */
+.settings-page-shell .set-main .ops-panel > div[style*="background"],
+.settings-page-shell .set-main .ops-legend,
+.settings-page-shell .set-main .ops-note {
+  padding: 14px 16px !important;
+  border: 1px solid var(--set-line) !important;
+  border-radius: var(--set-radius-sm) !important;
+  background: var(--set-inset) !important;
+  color: var(--set-ink-2) !important;
+  font-size: 0.84rem !important;
+  line-height: 1.6 !important;
+}
+
+/* Quiet hours / timezone choices read as choices. */
+.settings-page-shell .set-main [data-notification-schedule-card] label,
+.settings-page-shell .set-main .ops-panel label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------------------
+   RESPONSIVE
+--------------------------------------------------------------------------- */
+
+@media (max-width: 980px) {
+  .set-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .set-nav__rail {
+    display: none;
+  }
+
+  .set-nav__mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .set-nav__mobile-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--set-muted);
+  }
+
+  /* A WRAPPER, NOT THE CONTROL. This carried the border, radius, height and
+     background when it WAS the native select; the listbox inside draws all of
+     those itself, so leaving them here painted a second box around the first.
+     At this width the control takes the full column. */
+  .set-nav__select {
+    inline-size: 100%;
+    max-inline-size: none;
+  }
+
+  .set-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .set-hero__context {
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 620px) {
+  .set-card,
+  .set-hero,
+  .settings-page-shell .set-main .ui-card,
+  .settings-page-shell .set-main .ops-panel {
+    padding: 18px !important;
+  }
+
+  /* The preference table stacks: the channel controls move under the
+     category they belong to rather than being squeezed into columns. */
+  .settings-page-shell .set-main .ops-table,
+  .settings-page-shell .set-main .ops-table tbody,
+  .settings-page-shell .set-main .ops-table tr,
+  .settings-page-shell .set-main .ops-table td {
+    display: block !important;
+    inline-size: 100% !important;
+  }
+
+  .settings-page-shell .set-main .ops-table thead {
+    display: none !important;
+  }
+
+  .settings-page-shell .set-main .ops-table tr {
+    padding-block: 14px !important;
+    border-block-start: 1px solid var(--set-line) !important;
+  }
+
+  .settings-page-shell .set-main .ops-table td {
+    padding: 6px 0 !important;
+    border: 0 !important;
+    text-align: start !important;
+  }
+
+  /* The shared table carries `min-width: 560px` and its panel scrolls, so
+     stacking the cells alone still clipped every description at the card
+     edge. The stacked table is no longer a table and needs no floor. */
+  .settings-page-shell .set-main .ops-table {
+    min-inline-size: 0 !important;
+  }
+
+  /* `thead` is hidden once the rows stack, which left two unlabelled boxes
+     under each category. Each control says which channel it is. */
+  .settings-page-shell .set-main .ops-table td:not(:first-child) {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .settings-page-shell .set-main .ops-table td:not(:first-child)::before {
+    order: -1;
+    inline-size: 68px;
+    flex: 0 0 68px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--set-muted);
+  }
+
+  .settings-page-shell .set-main .ops-table td:nth-child(2)::before {
+    content: "In-app";
+  }
+
+  .settings-page-shell .set-main .ops-table td:nth-child(3)::before {
+    content: "Email";
+  }
+
+  .settings-page-shell .set-main td .app-listbox {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  /* The quiet-hours control is one flex row of label + box + sentence, so at
+     390 the sentence was squeezed into a four-line column beside empty
+     space. Its own label takes the line above. */
+  .settings-page-shell .set-main label:has(> [data-notification-schedule-quiet-enabled]) {
+    flex-wrap: wrap !important;
+  }
+
+  .settings-page-shell
+    .set-main
+    label:has(> [data-notification-schedule-quiet-enabled])
+    > .ops-field-label {
+    flex: 1 0 100%;
+  }
+
+  .settings-page-shell
+    .set-main
+    label:has(> [data-notification-schedule-quiet-enabled])
+    > .ops-muted {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  .settings-page-shell [data-cc-session-row] {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .set-hero__context {
+    gap: 16px 24px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   OVERVIEW — corrections found by rendering
+--------------------------------------------------------------------------- */
+
+/* Four summary cards across at desktop. At 224px they wrapped 3 + 1, which
+   left a hole the width of a card beside the last one. */
+.set-grid--summary {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 198px), 1fr));
+  align-items: start;
+}
+
+/* Each card is its own height. Stretching them to the tallest left Workspace
+   and Plan as mostly-empty boxes next to a card with four facts in it. */
+.set-grid--summary > .set-card {
+  height: auto;
+}
+
+/* The hero's action belongs beside the identity it acts on, not pushed to the
+   far edge with the context chips stranded after it. */
+.set-hero__identity [data-cc-profile-card] > div:last-child {
+  margin-left: 20px !important;
+}
+
+.set-hero__identity [data-cc-profile-card] {
+  justify-content: flex-start !important;
+}
+
+/* PREFERENCES — a section, not loose controls on the page.
+   The language and timezone fields were the only content on the retired
+   Profile page; moved here they were sitting directly on the background while
+   everything around them had a surface. */
+[data-settings-preferences] {
+  padding: 22px;
+  border: 1px solid var(--set-line);
+  border-radius: var(--set-radius);
+  background: var(--set-panel);
+}
+
+[data-settings-preferences] > .set-section__title {
+  margin-bottom: 16px !important;
+}
+
+/* Two fields side by side at desktop; each keeps a sensible measure. */
+[data-settings-preferences] [data-cc-preferences-form],
+[data-settings-preferences] > div > div {
+  min-width: 0;
+}
+
+[data-settings-preferences] h3 {
+  margin: 0 0 4px !important;
+  font-size: 0.86rem !important;
+  font-weight: 700 !important;
+  color: var(--set-ink) !important;
+}
+
+[data-settings-preferences] p {
+  margin: 0 0 10px !important;
+  font-size: 0.82rem !important;
+  line-height: 1.5 !important;
+  color: var(--set-ink-2) !important;
+}
+
+.settings-page-shell [data-settings-preferences] select,
+.settings-page-shell [data-settings-preferences] input[type="text"] {
+  max-inline-size: 420px;
+}
+
+/* The timezone row: field and its helper action on one line. */
+.settings-page-shell [data-settings-preferences] input[type="text"] + button,
+.settings-page-shell [data-settings-preferences] button:not([data-cc-preferences-save]) {
+  min-height: 42px !important;
+  border-radius: var(--set-radius-sm) !important;
+}
+
+/* Sign-in method rows: label, status, then the action at the far edge. */
+.settings-page-shell .set-main [data-cc-login-method] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+}
+
+.settings-page-shell .set-main [data-cc-login-method] > span:first-child {
+  display: inline-flex !important;
+  flex-wrap: wrap !important;
+  align-items: baseline !important;
+  gap: 10px !important;
+  font-size: 0.9rem !important;
+  font-weight: 620 !important;
+  color: var(--set-ink) !important;
+}
+
+/* Sessions: the row's own flex keeps its columns; this only tightens them. */
+.settings-page-shell [data-cc-session-row] > div:first-child {
+  gap: 14px !important;
+}
+
+.settings-page-shell [data-cc-session-row] [data-cc-revoke-session] {
+  flex: 0 0 auto !important;
+}
+
+.settings-page-shell .set-main .ops-legend strong,
+.settings-page-shell .set-main .ops-note strong {
+  color: var(--set-ink) !important;
   font-weight: 700 !important;
 }
 
-.settings-page-shell
-  .set-main
-  [data-cc-security-event-outcome][data-outcome="SUCCEEDED"] {
-  color: var(--success, #067647) !important;
+/* Quiet hours: when the window is off, its start/end fields are not shown at
+   full weight beside a control that has switched them off. */
+.settings-page-shell .set-main [data-notification-schedule-card] fieldset:disabled,
+.settings-page-shell .set-main [data-quiet-hours-window][aria-hidden="true"] {
+  display: none !important;
 }
 
-.settings-page-shell
-  .set-main
-  [data-cc-security-event-outcome][data-outcome="FAILED"] {
-  color: var(--set-danger, #b42318) !important;
+/* IDENTITY AT NARROW WIDTHS.
+   The identity row is `flex items-center` with the action pushed right by
+   `margin-left:auto`. The action does not shrink and the name column carries
+   `min-width:0`, so at 390 the whole width went to the button and "Reem
+   Ammar" wrapped one fragment per line. The action takes its own row instead. */
+@media (max-width: 620px) {
+  .settings-page-shell [data-cc-profile-card] {
+    flex-wrap: wrap;
+    row-gap: 14px;
+  }
+
+  .settings-page-shell [data-cc-profile-card] > div:nth-child(2) {
+    flex: 1 1 0;
+  }
+
+  .settings-page-shell [data-cc-profile-card] > div:last-child {
+    margin-left: 0 !important;
+    flex: 1 0 100%;
+  }
+
+  .settings-page-shell [data-cc-profile-card] [data-cc-profile-edit] {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* An address has no spaces to break on, so it is allowed to break anywhere
+   rather than push its own column wider than the card. */
+.settings-page-shell [data-cc-profile-card] [data-cc-profile-display-name] + div {
+  overflow-wrap: anywhere;
+}
+
+/* SIGN-IN METHOD ROWS AT NARROW WIDTHS.
+   The row is `space-between` + `flex-wrap`, so whether the action stayed on
+   the line depended on how long the provider's name happened to be — Apple
+   kept its Connect inline while Google's dropped below. Every row wraps the
+   same way instead. */
+@media (max-width: 620px) {
+  .settings-page-shell .set-main [data-cc-login-method] > span:first-child {
+    flex: 1 0 100%;
+  }
+
+  .settings-page-shell .set-main [data-cc-login-method] > :not(span:first-child) {
+    align-self: flex-start;
+  }
 }
 
 /* ---------------------------------------------------------------------------
-   THE SUMMARY STRIP at the top of Security
+   THE TABLET BAND (2026-09-03 closure)
+
+   Two defects that only appear between the desktop and mobile layouts, found
+   by rendering 1024 and 768 rather than by reasoning about them.
 --------------------------------------------------------------------------- */
 
-.settings-page-shell .set-main [data-cc-security-summary] {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)) !important;
-  gap: 0 !important;
-  padding: 16px 18px !important;
-  border: 1px solid var(--set-line) !important;
-  border-radius: var(--set-radius) !important;
-  background: var(--set-panel) !important;
+/* THE HERO. Identity and the context list share one row, which is right when
+   the row is 900px wide and wrong when the rail is still taking 216px of a
+   1024px window: the identity column was squeezed until "Reem Ammar" wrapped
+   onto two lines and the address onto three. The context list takes its own
+   row until there is width for both. */
+@media (max-width: 1200px) {
+  .set-hero {
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: start;
+    gap: 20px;
+  }
 }
 
-.settings-page-shell .set-main [data-cc-security-summary] > div {
-  padding-inline: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
+/* THE SUMMARY ROW. `auto-fit` fills the row it is given, which for FOUR cards
+   means three across and one alone below with a two-card hole beside it — the
+   exact dead whitespace this pass is meant to remove. Four cards only fit
+   above ~1368px, so the count is declared per band instead of discovered. */
+@media (min-width: 621px) and (max-width: 1367px) {
+  .set-grid--summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
-/* The security-activity outcome: a word in its own tone, not a capsule. */
-.set-event-outcome {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--set-muted);
+@media (min-width: 1368px) {
+  .set-grid--summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
 }
 
-.set-event-outcome[data-outcome="SUCCEEDED"] {
-  color: var(--success, #067647);
-}
-
-.set-event-outcome[data-outcome="FAILED"],
-.set-event-outcome[data-outcome="DENIED"] {
-  color: #b42318;
-}
-
-.set-event-outcome[data-outcome="PENDING"] {
-  color: #b54708;
-}
-
-/* ---------------------------------------------------------------------------
-   NOTIFICATIONS — the last two surfaces the pane brings with it
---------------------------------------------------------------------------- */
-
-/* The legend explaining in-app vs email came as a grey slab inside a panel. */
-.settings-page-shell .set-main .ops-panel [class*="ops-note"],
-.settings-page-shell .set-main .ops-panel > div[style*="background"] {
-  background: transparent !important;
-  border: 1px solid var(--set-line) !important;
-  border-radius: 10px !important;
-}
-
-/* Verifying a messaging contact is a strong secondary: it sends a real
-   message to a real handset, and it is not the accent path of this pane. */
-.settings-page-shell .set-main [data-contact-verification-start],
-.settings-page-shell .set-main [data-contact-verification-start] * {
-  min-height: 40px !important;
-  padding-inline: 18px !important;
-  border-radius: 10px !important;
-  border: 1px solid var(--set-ink) !important;
-  background: var(--set-ink) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-.settings-page-shell
-  .set-main
-  [data-contact-verification-start]:hover:not(:disabled) {
-  background: #2c3648 !important;
-  border-color: #2c3648 !important;
-}
-
-.settings-page-shell .set-main [data-contact-verification-start]:disabled {
-  background: rgba(16, 24, 40, 0.06) !important;
-  border-color: var(--set-line-strong) !important;
-  color: var(--set-muted) !important;
-  -webkit-text-fill-color: var(--set-muted) !important;
-}
-
-.settings-page-shell .set-main [data-contact-verification-start]:focus-visible {
-  outline: 2px solid var(--set-accent) !important;
-  outline-offset: 2px !important;
+@media (max-width: 620px) {
+  .set-grid--summary {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }

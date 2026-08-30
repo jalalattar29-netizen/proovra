@@ -183,21 +183,31 @@ export async function installSettingsApi(
         json({
           user: {
             id: "user-1",
-            email: "operator@example.invalid",
-            firstName: "Jamie",
-            lastName: "Okonkwo",
+            email: "reem.ammar@example.invalid",
+            displayName: "Reem Ammar",
+            firstName: "Reem",
+            lastName: "Ammar",
           },
         }),
       );
     }
+    // `fetchMe` reads `me.user` and returns null WITHOUT throwing when the
+    // key is absent — so a 200 whose body is the user at the top level left
+    // `useAuth().user` null, the identity block rendering "?" and "—", and the
+    // account security summary never running at all. The envelope is
+    // `{ user }`, and `displayName` is what the UI reads.
     if (path.endsWith("/v1/users/me")) {
       return route.fulfill(
         json({
-          id: "user-1",
-          email: "operator@example.invalid",
-          firstName: "Jamie",
-          lastName: "Okonkwo",
-          roles: [],
+          user: {
+            id: "user-1",
+            email: "reem.ammar@example.invalid",
+            displayName: "Reem Ammar",
+            firstName: "Reem",
+            lastName: "Ammar",
+            avatarUrl: null,
+            roles: [],
+          },
         }),
       );
     }
@@ -319,9 +329,22 @@ export async function installSettingsApi(
         }),
       );
     }
-    if (path.endsWith("/v1/me/notification-schedule")) {
+    // The panel calls this with a `?teamId=` query, so `endsWith` never
+    // matched and the section sat on "Loading…" forever. The body is the
+    // `ScheduleResponse` shape it actually reads.
+    if (path.includes("/v1/me/notification-schedule")) {
       return route.fulfill(
-        json({ quietHours: null, digestCadence: "DAILY", timezone: "UTC" }),
+        json({
+          schedule: {
+            teamId: "user-1",
+            timezone: null,
+            quietHoursEnabled: false,
+            quietStartMinute: 1320,
+            quietEndMinute: 420,
+            quietCriticalOverride: true,
+            updatedAt: null,
+          },
+        }),
       );
     }
     if (path.includes("/v1/workspaces/ai-policy")) {

@@ -56,6 +56,7 @@ import {
   summarizeLoginMethods,
   type LoginMethodsState,
 } from "../../../../lib/security/loginMethodsSummary";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import { useAuth } from "../../../providers";
 import { useTeamId } from "../../../../lib/platform-context";
 import { ContactFactorEnrollmentPanel } from "../../../../components/identity-security/ContactFactorEnrollmentPanel";
@@ -921,10 +922,17 @@ function LoginMethodsCard({
             <li key={row.key} data-cc-login-method={row.key} style={rowStyle}>
               <span style={{ minWidth: 0 }}>
                 {row.label}{" "}
-                <Badge
-                  tone={row.status === "not_connected" ? "neutral" : "verified"}
-                  subtle
-                  style={{ marginLeft: 6 }}
+                {/* WORDS, NOT A CAPSULE. Three grey pills down a three-row list made
+                    the status the shape rather than the word, and "Configured"
+                    read the same as "Not connected" until you looked closely.
+                    `AppStatusText` is the canonical no-surface sibling of the
+                    badge and shares its tone vocabulary, so what each colour
+                    MEANS is unchanged. */}
+                <AppStatusText
+                  tone={row.status === "not_connected" ? "slate" : "green"}
+                  size="sm"
+                  className="set-method-status"
+                  data-cc-login-method-status={row.key}
                 >
                   {row.status === "configured"
                     ? "Configured"
@@ -933,7 +941,7 @@ function LoginMethodsCard({
                       : row.key === "password"
                         ? "Not configured"
                         : "Not connected"}
-                </Badge>
+                </AppStatusText>
                 {row.lastUsedAtUtc ? (
                   <span style={{ ...mutedStyle, display: "inline", marginLeft: 8 }}>
                     last used {fmt(row.lastUsedAtUtc)}

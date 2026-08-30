@@ -25,6 +25,7 @@ import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useAuth } from "../../app/providers";
 import { resolveEffectiveTimezone } from "../../lib/notifications/effectiveTimezone";
 import { useOperationsUiContext } from "../../lib/notifications/useOperationsUiContext";
@@ -497,31 +498,29 @@ export function NotificationPreferencesPanel({
                     </label>
                     {channel === "EMAIL" && (locked ? true : enabled) ? (
                       <div style={{ marginTop: 6 }}>
-                        <select
-                          data-notification-preference-frequency={type}
-                          value={frequencyFor(type)}
-                          disabled={savingKey === `${type}|EMAIL|freq`}
-                          aria-label={`${TYPE_LABEL[type]} email frequency`}
-                          onChange={(e) =>
-                            void setFrequency(type, e.target.value as Frequency)
-                          }
-                          className="ops-select"
-                        >
-                          {frequencies
-                            .filter((f) => !(locked && f === "OFF"))
-                            .filter((f) => {
-                              // Organization minimum cadence — options
-                              // weaker than the policy floor are removed.
-                              const min = minFrequencyByType[type];
-                              if (!min) return true;
-                              return FREQUENCY_RANK[f] >= FREQUENCY_RANK[min];
-                            })
-                            .map((f) => (
-                              <option key={f} value={f}>
-                                {FREQUENCY_LABEL[f]}
-                              </option>
-                            ))}
-                        </select>
+                        <div data-notification-preference-frequency={type}>
+                          <AppListbox
+                            value={frequencyFor(type)}
+                            options={frequencies
+                              .filter((f) => !(locked && f === "OFF"))
+                              .filter((f) => {
+                                // Organization minimum cadence — options
+                                // weaker than the policy floor are removed.
+                                const min = minFrequencyByType[type];
+                                if (!min) return true;
+                                return FREQUENCY_RANK[f] >= FREQUENCY_RANK[min];
+                              })
+                              .map((f) => ({
+                                value: f,
+                                label: FREQUENCY_LABEL[f],
+                              }))}
+                            disabled={savingKey === `${type}|EMAIL|freq`}
+                            onChange={(next) =>
+                              void setFrequency(type, next as Frequency)
+                            }
+                            ariaLabel={`${TYPE_LABEL[type]} email frequency`}
+                          />
+                        </div>
                       </div>
                     ) : null}
                   </td>
@@ -681,25 +680,23 @@ function OrgNotificationPolicyManager({ orgId }: { orgId: string }) {
                   />
                 </td>
                 <td>
-                  <select
+                  <AppListbox
                     value={row.minimumFrequency ?? ""}
+                    options={[
+                      { value: "", label: "No minimum" },
+                      ...(["IMMEDIATE", "HOURLY", "DAILY", "WEEKLY"] as Frequency[]).map(
+                        (f) => ({ value: f as string, label: FREQUENCY_LABEL[f] }),
+                      ),
+                    ]}
                     disabled={busy}
-                    aria-label={`${TYPE_LABEL[cat]} minimum frequency`}
-                    onChange={(e) =>
+                    onChange={(next) =>
                       void save({
                         ...row,
-                        minimumFrequency: (e.target.value || null) as Frequency | null,
+                        minimumFrequency: (next || null) as Frequency | null,
                       })
                     }
-                    className="ops-select"
-                  >
-                    <option value="">No minimum</option>
-                    {(["IMMEDIATE", "HOURLY", "DAILY", "WEEKLY"] as Frequency[]).map((f) => (
-                      <option key={f} value={f}>
-                        {FREQUENCY_LABEL[f]}
-                      </option>
-                    ))}
-                  </select>
+                    ariaLabel={`${TYPE_LABEL[cat]} minimum frequency`}
+                  />
                 </td>
               </tr>
             );
@@ -929,27 +926,30 @@ export function NotificationScheduleCard({ teamId }: { teamId: string | null }) 
             <span className="ops-muted">Override for this workspace</span>
           </label>
           {schedule.timezone !== null ? (
-            <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-              <span className="ops-field-label">Workspace timezone</span>
-              <select
+            <div
+              style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}
+            >
+              <span className="ops-field-label" id="notification-workspace-tz-label">
+                Workspace timezone
+              </span>
+              <div
                 data-notification-schedule-timezone
-                value={schedule.timezone}
-                disabled={saving}
-                aria-label="Workspace timezone override"
-                onChange={(e) => void save({ ...schedule, timezone: e.target.value })}
-                className="ops-select"
-                style={{ maxWidth: 320 }}
+                style={{ maxWidth: 320, flex: "1 1 auto", minWidth: 0 }}
               >
-                {!timezones.includes(schedule.timezone) ? (
-                  <option value={schedule.timezone}>{schedule.timezone}</option>
-                ) : null}
-                {timezones.map((tz) => (
-                  <option key={tz} value={tz}>
-                    {tz}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <AppListbox
+                  value={schedule.timezone}
+                  options={[
+                    ...(timezones.includes(schedule.timezone)
+                      ? []
+                      : [{ value: schedule.timezone, label: schedule.timezone }]),
+                    ...timezones.map((tz) => ({ value: tz, label: tz })),
+                  ]}
+                  disabled={saving}
+                  onChange={(next) => void save({ ...schedule, timezone: next })}
+                  ariaLabelledby="notification-workspace-tz-label"
+                />
+              </div>
+            </div>
           ) : null}
           <p
             className="ops-muted"

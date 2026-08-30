@@ -70,7 +70,10 @@ test.describe("settings — Overview absorbed the account", () => {
     await expect(page.locator("[data-settings-identity]")).toBeVisible();
     await expect(page.locator("[data-cc-profile-edit]")).toBeVisible();
     await expect(page.locator("[data-settings-preferences]")).toBeVisible();
-    await expect(page.locator("[data-settings-preferences] select")).toBeVisible();
+    // The preference control is the canonical listbox, not a native select.
+    await expect(
+      page.locator('[data-settings-preferences] [role="combobox"]').first(),
+    ).toBeVisible();
 
     // The Account / Workspace / System card grids duplicated the rail. One
     // local navigation authority.
@@ -115,6 +118,65 @@ test.describe("settings — Overview absorbed the account", () => {
     } else {
       await expect(card).toContainText("No recent sign-in activity available");
     }
+  });
+});
+
+test.describe("settings — the Security destination", () => {
+  /**
+   * WHAT THIS REPLACES.
+   *   Before the pane redesign, Settings was one scrolling console and a
+   *   destination was a DOM anchor. `__tests__/phase-7c-internal-ux` pinned
+   *   `id="security"` in the page source, which proved the attribute existed
+   *   and nothing else — a regex over source cannot tell you that selecting
+   *   Security renders Security. The anchor went with the scroll it served.
+   *   What it stood for is asserted here instead, as behaviour, in a real
+   *   engine: the destination is offered, choosing it switches the pane,
+   *   the map marks it as current, and the canonical surface mounts.
+   */
+  test("is offered, selects, marks itself current, and mounts", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await openSettings(page, "personal");
+
+    // Offered.
+    const item = page.locator('[data-settings-nav-item="security"]');
+    await expect(item).toBeVisible();
+
+    // Not yet rendered — one pane at a time, so this is absence, not hiding.
+    await expect(page.locator("[data-cc-login-methods-card]")).toHaveCount(0);
+
+    await item.click();
+
+    // The map marks exactly one destination current, and it is this one.
+    await expect(item).toHaveAttribute("aria-current", "page");
+    await expect(
+      page.locator('[data-settings-nav-item][aria-current="page"]'),
+    ).toHaveCount(1);
+
+    // The heading is the pane's, and the landing pane is gone rather than
+    // scrolled past.
+    await expect(page.locator("h2").first()).toContainText("Security");
+    await expect(page.locator('[data-settings-pane="overview"]')).toHaveCount(0);
+
+    // And the canonical surface mounted — `PersonalSecuritySections`, not a
+    // Settings-local copy of it.
+    await expect(page.locator("[data-cc-login-methods-card]")).toBeVisible();
+    await expect(page.locator("[data-cc-session-row]").first()).toBeVisible();
+  });
+
+  test("the pre-pane deep link still lands on Security", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    // THE POINT OF THE OLD ANCHOR. Other surfaces link to `/settings#security`
+    // and must keep arriving at personal security — by pane resolution now
+    // rather than by scrolling to an element id.
+    await openSettings(page, "personal", "#security");
+
+    await expect(page.locator("h2").first()).toContainText("Security");
+    await expect(
+      page.locator('[data-settings-nav-item="security"]'),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(page.locator("[data-cc-login-methods-card]")).toBeVisible();
   });
 });
 
@@ -186,41 +248,128 @@ test.describe("settings — Security is a page, not a dump", () => {
 });
 
 test.describe("settings — one form contract", () => {
-  test("selects are the product's own control, not the browser's", async ({
+  test("every Settings selector is the canonical listbox, not a native select", async ({
+    page,
+  }) => {
+    // THE DECISION. A native <select> can be styled closed and not open: the
+    // option list is drawn by the OS. Settings was the last authenticated
+    // surface still on native selects while 24 others already used the
+    // canonical AppListbox, so the product's own menu appeared everywhere
+    // except here. Asserted as an ABSENCE plus a presence, because a partial
+    // migration is the failure mode that looks fine in a screenshot.
+    for (const hash of ["", "#notifications"]) {
+      await page.setViewportSize({ width: 1440, height: 1200 });
+      await openSettings(page, "personal", hash);
+      expect(
+        await page.locator(".set-main select, .set-nav select").count(),
+        `${hash || "#overview"} still has a native select`,
+      ).toBe(0);
+    }
+
+    await openSettings(page, "personal");
+    const trigger = page
+      .locator('[data-cc-preferences-locale-select] [role="combobox"]')
+      .first();
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute("aria-haspopup", "listbox");
+    const height = await trigger.evaluate(
+      (el) => el.getBoundingClientRect().height,
+    );
+    expect(height, "a real target").toBeGreaterThanOrEqual(38);
+  });
+
+  test("the open menu is the product's surface, and selecting commits", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await openSettings(page, "personal");
-    const select = page.locator("[data-settings-preferences] select").first();
-    const style = await select.evaluate((el) => {
+
+    const trigger = page
+      .locator('[data-cc-preferences-locale-select] [role="combobox"]')
+      .first();
+    await trigger.click();
+
+    const popup = page.locator('[role="listbox"]');
+    await expect(popup).toBeVisible();
+
+    // The menu is ours: an opaque product surface with a real border and a
+    // shadow, not a transparent list inheriting the page.
+    const paint = await popup.evaluate((el) => {
       const cs = getComputedStyle(el);
       return {
-        appearance: cs.appearance,
+        bg: cs.backgroundColor,
+        border: cs.borderTopWidth,
+        shadow: cs.boxShadow,
         radius: cs.borderTopLeftRadius,
-        image: cs.backgroundImage,
-        height: el.getBoundingClientRect().height,
       };
     });
-    expect(style.appearance).toBe("none");
-    expect(style.radius).toBe("10px");
-    expect(style.image, "the chevron is ours").toContain("svg");
-    expect(style.height).toBeGreaterThanOrEqual(38);
+    expect(paint.bg).not.toBe("rgba(0, 0, 0, 0)");
+    expect(paint.border).not.toBe("0px");
+    expect(paint.shadow).not.toBe("none");
+    expect(parseFloat(paint.radius)).toBeGreaterThan(0);
+
+    // It is not clipped by the panel it opens inside.
+    const clipped = await popup.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return (
+        r.bottom > window.innerHeight + 1 ||
+        r.right > window.innerWidth + 1 ||
+        r.left < -1
+      );
+    });
+    expect(clipped, "the menu is clipped or off-screen").toBe(false);
+
+    // The selected option is marked for a screen reader, not only painted.
+    await expect(page.locator('[role="option"][aria-selected="true"]')).toHaveCount(
+      1,
+    );
   });
 
-  test("checkboxes and radios are purple, never the browser blue", async ({
+  test("checkboxes and radios are drawn by us, and check purple", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1200 });
     await openSettings(page, "personal", "#notifications");
-    const box = page.locator('.set-main input[type="checkbox"]').first();
+
+    // NOT `accent-color`. That only re-tints the platform control, so the box
+    // keeps the host OS shape, size and focus ring and Settings still reads as
+    // three different products. These are real inputs — same element, same
+    // keyboard behaviour, same ARIA — with the box itself drawn in CSS.
+    const box = page.locator('.set-main input[type="checkbox"]:checked').first();
     await expect(box).toBeVisible();
-    const accent = rgb(
-      await box.evaluate((el) => getComputedStyle(el).accentColor),
-    );
-    // Violet has markedly more blue than green, and real red — the browser's
-    // default blue has almost no red at all.
-    expect(accent[2]).toBeGreaterThan(accent[1]);
-    expect(accent[0], "purple, not blue").toBeGreaterThan(80);
+
+    const paint = await box.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return {
+        appearance: cs.appearance,
+        bg: cs.backgroundColor,
+        size: Math.round(el.getBoundingClientRect().width),
+        tick: getComputedStyle(el, "::before").content,
+      };
+    });
+    expect(paint.appearance, "the platform control is replaced").toBe("none");
+    expect(
+      paint.size,
+      "a real target, not the 13px platform default",
+    ).toBeGreaterThanOrEqual(16);
+    expect(paint.tick, "the tick is drawn, not the platform glyph").not.toBe("none");
+
+    // Checked is the product violet: markedly more blue than green, with real
+    // red in it — the browser's default blue has almost none.
+    const fill = rgb(paint.bg);
+    expect(fill[2]).toBeGreaterThan(fill[1]);
+    expect(fill[0], "purple, not blue").toBeGreaterThan(80);
+
+    // The radio is the same control, drawn round.
+    const radio = page.locator('.set-main input[type="radio"]').first();
+    if ((await radio.count()) > 0) {
+      const r = await radio.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return { appearance: cs.appearance, radius: cs.borderTopLeftRadius };
+      });
+      expect(r.appearance).toBe("none");
+      expect(r.radius, "a radio is round").toBe("50%");
+    }
   });
 
   test("the messaging contact says it is a delivery address", async ({ page }) => {

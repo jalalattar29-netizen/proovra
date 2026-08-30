@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 
 import { supportedLocales, type Locale } from "@proovra/shared";
 import { useToast, Input } from "../../../../components/ui";
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -141,29 +142,21 @@ export function PreferencesSection() {
           Languages marked &ldquo;partial translation&rdquo; fall back to
           English for untranslated text.
         </p>
-        <select
-          aria-label="UI language"
-          className="mt-2"
-          value={selectedLocale}
-          onChange={(e) => setSelectedLocale(e.target.value as Locale)}
-          data-cc-preferences-locale-select
-          style={{
-            width: "100%",
-            minHeight: 40,
-            padding: "0 12px",
-            borderRadius: 10,
-            border: "1px solid var(--border-default, rgba(15,23,42,0.12))",
-            background: "var(--surface-card, #ffffff)",
-            color: "var(--ink-primary, #0f172a)",
-            fontSize: 13,
-          }}
-        >
-          {supportedLocales.map((lc) => (
-            <option key={lc} value={lc}>
-              {localeLabel(lc)}
-            </option>
-          ))}
-        </select>
+        {/* The canonical listbox, not a native <select>. A native option list
+            renders the OS popup: it cannot be styled, so Settings would show
+            a browser-blue menu while the rest of the authenticated product
+            shows the product's own. */}
+        <div className="mt-2" data-cc-preferences-locale-select>
+          <AppListbox
+            value={selectedLocale}
+            options={supportedLocales.map((lc) => ({
+              value: lc,
+              label: localeLabel(lc),
+            }))}
+            onChange={(next) => setSelectedLocale(next as Locale)}
+            ariaLabel="UI language"
+          />
+        </div>
       </div>
 
       <div data-cc-preferences-timezone>

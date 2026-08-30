@@ -45,6 +45,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { AppListbox } from "../app-primitives/AppListbox";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../lib/date";
 
@@ -382,22 +383,23 @@ export function ContactChannelVerificationCard({
       ) : null}
 
       <div className="ops-form">
-        <label style={{ display: "grid", gap: 4 }}>
-          <span className="ops-field-label">Channel</span>
-          <select
-            className="ops-select"
-            data-contact-verification-channel-select
-            value={channel}
-            disabled={stage.kind !== "IDLE"}
-            onChange={(e) => setChannel(e.target.value as Channel)}
-          >
-            {(Object.keys(CHANNEL_LABEL) as Channel[]).map((c) => (
-              <option key={c} value={c}>
-                {CHANNEL_LABEL[c]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div style={{ display: "grid", gap: 4 }}>
+          <span className="ops-field-label" id="contact-verification-channel-label">
+            Channel
+          </span>
+          <div data-contact-verification-channel-select>
+            <AppListbox
+              value={channel}
+              options={(Object.keys(CHANNEL_LABEL) as Channel[]).map((c) => ({
+                value: c,
+                label: CHANNEL_LABEL[c],
+              }))}
+              disabled={stage.kind !== "IDLE"}
+              onChange={(next) => setChannel(next as Channel)}
+              ariaLabelledby="contact-verification-channel-label"
+            />
+          </div>
+        </div>
 
         <label style={{ display: "grid", gap: 4 }}>
           <span className="ops-field-label">Mobile number</span>

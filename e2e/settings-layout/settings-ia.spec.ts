@@ -250,14 +250,68 @@ test.describe("settings — responsive", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openSettings(page, "org-owner");
 
-    // The rail is gone and a real, labelled <select> stands in its place.
+    // The rail is gone and one labelled control stands in its place. It is the
+    // canonical AppListbox rather than a native <select> — the native option
+    // list is drawn by the OS, so at this width the only control on the page
+    // was the one thing that could not look like the product.
     await expect(page.locator(".set-nav__rail")).toBeHidden();
-    const select = page.locator("[data-settings-nav-select]");
-    await expect(select).toBeVisible();
-    await expect(page.locator('label[for="settings-section-select"]')).toBeVisible();
+    const trigger = page.locator('[data-settings-nav-select] [role="combobox"]');
+    await expect(trigger).toBeVisible();
+    await expect(page.locator("#settings-section-select-label")).toBeVisible();
+    // Its accessible name is the words the reader sees.
+    await expect(trigger).toHaveAttribute(
+      "aria-labelledby",
+      "settings-section-select-label",
+    );
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
 
-    await select.selectOption("roles");
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await page.locator('[role="option"]', { hasText: "Roles & permissions" }).click();
     await expect(page.locator("h2").first()).toContainText("Roles & permissions");
+    // Closing returns focus to the trigger, so the next Tab is not from
+    // document start.
+    await expect(trigger).toBeFocused();
+  });
+
+  test("at 390 the pane control is keyboard-operable and Escape closes it", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openSettings(page, "org-owner");
+
+    const trigger = page.locator('[data-settings-nav-select] [role="combobox"]');
+    const popup = page.locator('[role="listbox"]');
+
+    // Opens from the keyboard.
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await expect(popup).toBeVisible();
+    // Focus moves INTO the list, which is what makes arrow keys reach it.
+    await expect(popup).toBeFocused();
+
+    // Escape closes it, changes nothing, and hands focus back to the trigger —
+    // so the next Tab continues from here rather than from document start.
+    await page.keyboard.press("Escape");
+    await expect(popup).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(page.locator("h2").first()).toContainText("Overview");
+
+    // Arrow keys move the selection and Enter commits it. Asserted as the
+    // OUTCOME — the pane actually changed — rather than as the popup's state
+    // at one instant, which is a race, not a contract.
+    // ArrowDown from the CLOSED trigger opens the list at the current
+    // selection — it does not also advance, which is the listbox pattern. The
+    // second press is the one that moves.
+    await page.keyboard.press("ArrowDown");
+    await expect(popup).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(page.locator("h2").first()).toContainText("Security");
+    await expect(popup).toHaveCount(0);
+    await expect(
+      page.locator('[data-settings-nav-item="security"]'),
+    ).toHaveAttribute("aria-current", "page");
   });
 
   test("the opened matrix scrolls inside itself, never widening the page", async ({

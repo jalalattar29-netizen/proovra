@@ -167,12 +167,34 @@ export function SettingsOverview({
         </p>
       </header>
 
-      {/* IDENTITY — the canonical block. `OverviewSection` already owns the
+      {/* IDENTITY — the account, stated properly.
+          Profile & preferences is no longer a destination, so this pane owns
+          the person: the canonical `OverviewSection` still supplies the
           avatar, the name, the email and the display-name form with its save
-          and cancel semantics; this pane asks for it WITHOUT its account-facts
-          table, because the summary cards below state those same five facts. */}
-      <section className="set-identity" data-settings-identity>
-        <OverviewSection ui={ui} security={security} showFacts={false} />
+          and cancel semantics, WITHOUT its account-facts table (the summary
+          cards below state those). The context chips beside it answer "as whom,
+          and where" without repeating the cards' own figures. */}
+      <section className="set-hero" data-settings-identity>
+        <div className="set-hero__identity">
+          <OverviewSection ui={ui} security={security} showFacts={false} />
+        </div>
+
+        <ul className="set-hero__context" aria-label="Account context">
+          {roleLabel ? (
+            <li>
+              <span>Role</span>
+              <strong>{roleLabel}</strong>
+            </li>
+          ) : null}
+          <li>
+            <span>Workspace</span>
+            <strong>{ui.activeWorkspaceName}</strong>
+          </li>
+          <li>
+            <span>Plan</span>
+            <strong>{ui.billing.displayPlan}</strong>
+          </li>
+        </ul>
       </section>
 
       {/* ----------------------------------------------------------------
