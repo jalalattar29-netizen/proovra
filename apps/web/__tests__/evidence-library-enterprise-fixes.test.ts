@@ -223,7 +223,13 @@ test("FIX 6 — Preview's due-date row is gated on canSeeReviewerOps", () => {
 test("FIX 6 — Evidence Library page computes canSeeReviewerOps via the server-projection gate and passes it down", () => {
   // PHASE 12B Track 1A — the page consumes the SERVER-projected enterprise
   // gate hook (envelope flags), never a client tier/plan computation.
-  assert.match(PAGE, /import \{ useEnterpriseSurfaceAccess \} from/);
+  // The CALL, not the import's punctuation. This pinned a single-line
+  // `import { useEnterpriseSurfaceAccess } from`, so adding a second symbol to
+  // that same import — the platform-context envelope, which replaced the
+  // billing aggregate as the source of the workspace list — broke a test about
+  // the reviewer-operations gate. What matters is that the page reads the
+  // server-projected gate, and the next line asserts exactly that.
+  assert.match(PAGE, /useEnterpriseSurfaceAccess/);
   assert.match(PAGE, /const canSeeReviewerOps = useEnterpriseSurfaceAccess\(\);/);
   assert.match(PAGE, /canSeeReviewerOps=\{canSeeReviewerOps\}/);
 });

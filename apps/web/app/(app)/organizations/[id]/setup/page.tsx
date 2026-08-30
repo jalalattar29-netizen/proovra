@@ -155,17 +155,55 @@ type MfaPolicyResponse = {
   };
 };
 
-// Billing (see billing/page.tsx → GET /v1/billing/overview).
-type BillingOverviewResponse = {
-  entitlement?: {
-    plan?: string;
-    teamSeats?: number;
+/**
+ * Billing — the ORGANIZATION's own billing account.
+ *
+ * COMMERCIAL AUTHORITY (2026-09-03) — this step read
+ * `GET /v1/billing/overview`, which is the VIEWER's personal aggregate. On an
+ * organization setup wizard it therefore printed the admin's OWN plan
+ * ("Plan: PRO"), the admin's OWN included team seats, and a count of the
+ * admin's OWN owned workspaces — labelled as if they were the organization's.
+ * An Enterprise organization under a contract was described by whatever the
+ * person configuring it happened to be paying for personally.
+ *
+ * It reads the canonical ORGANIZATION billing account instead: the same
+ * projection `/billing` renders, for this organization, resolved by
+ * `resolveBillingAccountForViewer` — which also means a viewer without
+ * billing authority on this organization gets the same 404 here as there.
+ */
+type OrgBillingProjection = {
+  plan?: {
+    displayName?: string;
+    lifecycle?: string;
   };
-  summary?: {
-    totalTeams?: number;
-    activeTeamPlans?: number;
+  contract?: {
+    status?: string;
+    seatCount?: number | null;
+    storageGb?: number | null;
+    endsAtUtc?: string | null;
+  } | null;
+  collaboration?: {
+    seats?: { used?: number; limit?: number | null };
   };
 };
+
+/** Contract status as a word, never the raw enum. */
+function contractStatusLabel(status: string): string {
+  switch (status) {
+    case "ACTIVE":
+      return "Active";
+    case "PENDING_ACTIVATION":
+      return "Pending activation";
+    case "DRAFT":
+      return "Draft";
+    case "SUSPENDED":
+      return "Suspended";
+    case "TERMINATED":
+      return "Ended";
+    default:
+      return status;
+  }
+}
 
 // Retention (see evidence-lifecycle/retention/page.tsx).
 const RETENTION_TEMPLATES = [
@@ -235,7 +273,7 @@ function OrganizationSetupInner() {
   const [workspaces, setWorkspaces] = useState<Loadable<WorkspacesResponse>>({ kind: "loading" });
   const [pending, setPending] = useState<Loadable<PendingInvitesResponse>>({ kind: "loading" });
   const [mfa, setMfa] = useState<Loadable<MfaPolicyResponse>>({ kind: "loading" });
-  const [billing, setBilling] = useState<Loadable<BillingOverviewResponse>>({ kind: "loading" });
+  const [billing, setBilling] = useState<Loadable<OrgBillingProjection>>({ kind: "loading" });
   const [retention, setRetention] = useState<Loadable<RetentionPoliciesResponse>>({ kind: "loading" });
   const [evidence, setEvidence] = useState<Loadable<EvidenceListResponse>>({ kind: "loading" });
 
@@ -289,9 +327,13 @@ function OrganizationSetupInner() {
 
   // Billing (account-tier) + evidence count load once.
   const loadAccountScoped = useCallback(async () => {
-    setBilling(await safeFetch<BillingOverviewResponse>("/v1/billing/overview"));
+    setBilling(
+      await safeFetch<OrgBillingProjection>(
+        `/v1/billing/accounts/ORGANIZATION/${encodeURIComponent(orgId)}`,
+      ),
+    );
     setEvidence(await safeFetch<EvidenceListResponse>("/v1/evidence?scope=active&limit=1"));
-  }, [safeFetch]);
+  }, [safeFetch, orgId]);
 
   useEffect(() => {
     void loadAccountScoped();
@@ -889,26 +931,35 @@ function OrganizationSetupInner() {
               <div style={{ display: "grid", gap: 10 }}>
                 <ReadOnlyRow
                   label="Plan"
-                  value={billing.data.entitlement?.plan ?? "—"}
+                  value={billing.data.plan?.displayName ?? "—"}
                   dataAttr="billing-plan"
                 />
                 <ReadOnlyRow
-                  label="Included team seats"
+                  label="Agreement"
                   value={
-                    typeof billing.data.entitlement?.teamSeats === "number"
-                      ? String(billing.data.entitlement.teamSeats)
-                      : "—"
+                    billing.data.contract?.status
+                      ? contractStatusLabel(billing.data.contract.status)
+                      : "Not on file"
+                  }
+                  dataAttr="billing-contract-status"
+                />
+                <ReadOnlyRow
+                  label="Contracted seats"
+                  value={
+                    typeof billing.data.contract?.seatCount === "number"
+                      ? String(billing.data.contract.seatCount)
+                      : "Contract-managed"
                   }
                   dataAttr="billing-seats"
                 />
                 <ReadOnlyRow
-                  label="Active team plans"
+                  label="Seats in use"
                   value={
-                    typeof billing.data.summary?.activeTeamPlans === "number"
-                      ? String(billing.data.summary.activeTeamPlans)
+                    typeof billing.data.collaboration?.seats?.used === "number"
+                      ? String(billing.data.collaboration.seats.used)
                       : "—"
                   }
-                  dataAttr="billing-active-teams"
+                  dataAttr="billing-seats-used"
                 />
                 <p style={{ margin: 0, opacity: 0.75, fontSize: 12.5 }}>
                   These values are read-only here. Manage plan and payment on{" "}

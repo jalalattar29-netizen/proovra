@@ -180,6 +180,8 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // the workspace operator-facing identity console (MFA policy,
       // trusted devices, session revocations, MFA recovery approvals).
       "workspace.security_center",
+      // Identity federation is administered from the same console.
+      "security_center.sso",
       "governance.policy",
       "governance.retention",
       "governance.lifecycle",

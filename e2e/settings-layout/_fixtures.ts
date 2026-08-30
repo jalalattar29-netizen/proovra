@@ -16,7 +16,22 @@ import type { Page } from "@playwright/test";
 
 import { envelopeFor } from "../attention-layout/_fixtures";
 
-export type SettingsActor = "org-owner" | "personal";
+/**
+ * CONTEXT AUTHORITY (2026-09-03) — two Enterprise actors were added.
+ *
+ * This project had exactly two: an organization OWNER holding every
+ * capability, and a personal space holding none of them. Between those sits
+ * the population an Enterprise deployment is mostly made of — members and
+ * viewers inside an organization — and nothing rendered them. The question
+ * they answer is the one a capability-resolved rail exists to get right:
+ * being INSIDE an Enterprise workspace must not, by itself, hand someone the
+ * administration of it.
+ */
+export type SettingsActor =
+  | "org-owner"
+  | "org-member"
+  | "org-viewer"
+  | "personal";
 
 const ORG_CAPABILITIES = [
   // The route gate itself (routeRegistry `account.settings`).
@@ -55,6 +70,47 @@ function settingsEnvelope(actor: SettingsActor): Record<string, unknown> {
       },
       flags: {
         ...((base.flags as Record<string, unknown>) ?? {}),
+        isEnterpriseWorkspace: true,
+      },
+    };
+  }
+
+  if (actor === "org-member" || actor === "org-viewer") {
+    // Inside an Enterprise organization, holding NO administrative capability.
+    // Every workspace capability is explicitly false rather than absent, so
+    // what is measured is the resolver's answer and not a missing key.
+    for (const key of ORG_CAPABILITIES) caps[key] = false;
+    // The one thing everybody has: their own settings.
+    caps.ACCOUNT_SETTINGS_VIEW = true;
+    return {
+      ...base,
+      capabilities: caps,
+      activeSpace: {
+        type: "ORGANIZATION",
+        id: "org-1",
+        displayName: "Proovra Insurance",
+      },
+      organizations: [
+        {
+          id: "org-1",
+          name: "Proovra Insurance",
+          role: actor === "org-member" ? "MEMBER" : "VIEWER",
+          plan: "ENTERPRISE",
+        },
+      ],
+      workspace: {
+        ...((base.workspace as Record<string, unknown>) ?? {}),
+        membership: {
+          role: actor === "org-member" ? "MEMBER" : "VIEWER",
+          isOwner: false,
+          isAdmin: false,
+        },
+      },
+      flags: {
+        ...((base.flags as Record<string, unknown>) ?? {}),
+        // The workspace IS enterprise. The actor is not an administrator of
+        // it — those are different facts, and conflating them is how an
+        // enterprise member comes to be offered an IdP console.
         isEnterpriseWorkspace: true,
       },
     };
@@ -344,6 +400,22 @@ export async function installSettingsApi(
             quietCriticalOverride: true,
             updatedAt: null,
           },
+        }),
+      );
+    }
+    // The AI usage counters, in the shape the route actually returns. The
+    // catch-all answered 200 with a body that had no `monthly`, so the
+    // Enterprise AI pane crashed on every render — and no test opened it.
+    if (path.includes("/v1/workspaces/ai-usage")) {
+      return route.fulfill(
+        json({
+          monthUtc: "2026-08",
+          dayUtc: "2026-08-30",
+          daily: { operations: 18, costUsdMicros: "420000" },
+          monthly: { operations: 240, costUsdMicros: "5600000" },
+          copilotRuns: 12,
+          blockedRuns: 0,
+          ledgerAvailable: true,
         }),
       );
     }

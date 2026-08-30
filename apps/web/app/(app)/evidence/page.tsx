@@ -8,7 +8,10 @@ import { X } from "lucide-react";
 import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { useEnterpriseSurfaceAccess } from "../../../lib/platform-context";
+import {
+  useEnterpriseSurfaceAccess,
+  usePlatformContext,
+} from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
 import { EvidenceLibraryHeader } from "./components/EvidenceLibraryHeader";
 import { EvidenceMetrics } from "./components/EvidenceMetrics";
@@ -27,7 +30,6 @@ import type {
   CasesListResponse,
   DetailWorkspaceState,
   EvidenceLibrarySummaryResponse,
-  EvidenceListItem,
   EvidenceListQuery,
   EvidenceListResponse,
   EvidenceResponse,
@@ -38,9 +40,9 @@ import type {
   PartsResponse,
   ReportResponse,
   VerificationPackageResponse,
+  WorkspaceCapabilitySnapshot,
 } from "./lib/evidence-library-types";
 import {
-  deriveWorkspaceCapabilities,
   getCaseName,
 } from "./lib/evidence-library-helpers";
 import { buildReviewPriority } from "./lib/evidence-library-alerts";
@@ -241,6 +243,8 @@ export default function EvidenceLibraryPage() {
 function EvidenceLibraryPageInner() {
   const router = useRouter();
   const { addToast } = useToast();
+  // The canonical workspace/context envelope — identity, not commerce.
+  const { envelope } = usePlatformContext();
   const detailCacheRef = useRef<Record<string, DetailWorkspaceState>>({});
   const evidenceRequestRef = useRef(0);
   /** Part 3 — monotonic id so only the NEWEST detail request may write state. */
@@ -249,9 +253,6 @@ function EvidenceLibraryPageInner() {
   const [filters, setFilters] = useState<EvidenceFilterState>(DEFAULT_FILTERS);
   const [debouncedSearch, setDebouncedSearch] = useState(DEFAULT_FILTERS.search);
   const [library, setLibrary] = useState<LibraryLoadState>({
-    billingOverview: null,
-    personalWorkspace: null,
-    teamWorkspaces: [],
     cases: [],
     savedViews: [],
     items: [],
@@ -391,9 +392,17 @@ function EvidenceLibraryPageInner() {
         return;
       }
 
-      const [casesRes, billingRes, savedViewsRes] = await Promise.allSettled([
+      // COMMERCIAL AUTHORITY (2026-09-03) — `/v1/billing/overview` was dropped.
+      //
+      // The library fetched the caller's ENTIRE billing aggregate — every
+      // workspace, its plan, storage and seats — on every load, to answer one
+      // question: is a PDF report included here. That is an entitlement the
+      // server already owns and already enforces
+      // (`billing-enforcement.service.ts` refuses with 409
+      // REPORT_NOT_INCLUDED), so deriving it again in the browser was a second
+      // opinion about a decision the browser does not get to make.
+      const [casesRes, savedViewsRes] = await Promise.allSettled([
         apiFetch("/v1/cases") as Promise<CasesListResponse>,
-        apiFetch("/v1/billing/overview"),
         apiFetch("/v1/evidence/saved-views") as Promise<EvidenceSavedViewsResponse>,
       ]);
 
@@ -403,16 +412,6 @@ function EvidenceLibraryPageInner() {
           casesRes.status === "fulfilled" && Array.isArray(casesRes.value.items)
             ? casesRes.value.items
             : current.cases,
-        billingOverview:
-          billingRes.status === "fulfilled" ? (billingRes.value ?? null) : current.billingOverview,
-        personalWorkspace:
-          billingRes.status === "fulfilled"
-            ? (billingRes.value?.workspaces?.personal ?? null)
-            : current.personalWorkspace,
-        teamWorkspaces:
-          billingRes.status === "fulfilled" && Array.isArray(billingRes.value?.workspaces?.teams)
-            ? billingRes.value.workspaces.teams
-            : current.teamWorkspaces,
         savedViews:
           savedViewsRes.status === "fulfilled" && Array.isArray(savedViewsRes.value.items)
             ? savedViewsRes.value.items
@@ -510,8 +509,14 @@ function EvidenceLibraryPageInner() {
       setDetailLoading(true);
 
       try {
-        const [evidenceRes, partsRes, originalRes, reportRes, verificationRes] =
-          await Promise.allSettled([
+        const [
+          evidenceRes,
+          partsRes,
+          originalRes,
+          reportRes,
+          verificationRes,
+          workspaceRes,
+        ] = await Promise.allSettled([
             apiFetch(`/v1/evidence/${evidenceId}`) as Promise<EvidenceResponse>,
             apiFetch(`/v1/evidence/${evidenceId}/parts`) as Promise<PartsResponse>,
             apiFetch(`/v1/evidence/${evidenceId}/original`) as Promise<OriginalResponse>,
@@ -519,6 +524,10 @@ function EvidenceLibraryPageInner() {
             apiFetch(
               `/v1/evidence/${evidenceId}/verification-package`
             ) as Promise<VerificationPackageResponse>,
+            // The workspace this record belongs to, as the SERVER resolved it.
+            apiFetch(`/v1/evidence/${evidenceId}/review-workspace`) as Promise<{
+              workspaceCapabilitySnapshot?: WorkspaceCapabilitySnapshot | null;
+            }>,
           ]);
 
         const evidence =
@@ -533,16 +542,10 @@ function EvidenceLibraryPageInner() {
           report: reportRes.status === "fulfilled" ? reportRes.value ?? null : null,
           verificationPackage:
             verificationRes.status === "fulfilled" ? verificationRes.value ?? null : null,
-          capabilities: deriveWorkspaceCapabilities({
-            evidence: evidence ?? {
-              teamId: selectedListItem.teamId,
-              caseId: selectedListItem.caseId,
-              workspaceNameSnapshot: null,
-            },
-            personal: library.personalWorkspace,
-            teams: library.teamWorkspaces,
-            cases: library.cases,
-          }),
+          capabilities:
+            workspaceRes.status === "fulfilled"
+              ? workspaceRes.value?.workspaceCapabilitySnapshot ?? null
+              : null,
           caseName: getCaseName(evidence?.caseId ?? selectedListItem.caseId, caseMap),
         };
 
@@ -565,7 +568,7 @@ function EvidenceLibraryPageInner() {
         }
       }
     },
-    [caseMap, library.cases, library.items, library.personalWorkspace, library.teamWorkspaces]
+    [caseMap, library.items]
   );
 
   useEffect(() => {
@@ -914,9 +917,18 @@ function EvidenceLibraryPageInner() {
     [selectedIds, visibleItems]
   );
 
+  // COMMERCIAL AUTHORITY (2026-09-03) — a saved view named "Team view: X"
+  // needs a workspace IDENTITY, not a commercial subject. This read the
+  // billing aggregate's `workspaces.teams`, which meant fetching every plan,
+  // storage figure and seat count the caller has in order to put two names in
+  // a menu. The envelope already carries the canonical owned-workspace list.
   const teamOptions = useMemo(
-    () => library.teamWorkspaces.map((team) => ({ id: team.id, name: team.name })),
-    [library.teamWorkspaces]
+    () =>
+      (envelope?.contextOptions?.ownedWorkspaces ?? []).map((workspace) => ({
+        id: workspace.workspaceId,
+        name: workspace.name ?? "Workspace",
+      })),
+    [envelope]
   );
 
   const applySavedView = useCallback(
@@ -1072,28 +1084,7 @@ function EvidenceLibraryPageInner() {
     router.push(`/evidence/${evidenceId}`);
   };
 
-  const canDownloadReportForItem = useCallback(
-    (item: EvidenceListItem) =>
-      deriveWorkspaceCapabilities({
-        evidence: {
-          teamId: item.teamId,
-          caseId: item.caseId,
-          workspaceNameSnapshot: null,
-        },
-        personal: library.personalWorkspace,
-        teams: library.teamWorkspaces,
-        cases: library.cases,
-      }).reportsIncluded,
-    [library.cases, library.personalWorkspace, library.teamWorkspaces]
-  );
-
   const downloadReport = async (evidenceId: string) => {
-    const item = library.items.find((entry) => entry.id === evidenceId);
-    if (item && !canDownloadReportForItem(item)) {
-      addToast("PDF reports are not included for this workspace plan", "info");
-      return;
-    }
-
     try {
       const data = (await apiFetch(`/v1/evidence/${evidenceId}/report/latest`)) as ReportResponse;
       if (!data?.url) {

@@ -85,11 +85,12 @@ export type SettingsNavInput = {
   /**
    * The SERVER-projected `envelope.flags.isEnterpriseWorkspace`.
    *
-   * The SSO/SCIM console at `/security-center/sso` is not in the route
-   * registry, so `resolveRouteAccess` cannot answer for it. This is the same
-   * server boolean `deriveSettingsUiContext` and `useEnterpriseSurfaceAccess`
-   * already consume — NOT a plan-name comparison, which is exactly what §33
-   * forbids and what would drift the moment a plan is renamed.
+   * Passed through to `resolveRouteAccess`, which fails every route in
+   * ENTERPRISE_ONLY_ROUTE_IDS closed without it. NOT a plan-name comparison —
+   * that is what §33 forbids, and it would drift the moment a plan is renamed.
+   *
+   * (2026-09-03) It no longer gates anything on this rail directly: the SSO
+   * console it used to gate by hand now has a registry entry.
    */
   isEnterpriseWorkspace: boolean;
 };
@@ -173,7 +174,17 @@ export function resolveSettingsNavigation(
   // destination. It stays for collaborative workspaces, which do have
   // workspace-wide settings to change.
   if (isOrg && has(input, "SETTINGS_MANAGE")) {
-    workspace.push({ id: "workspace", label: "General", href: null });
+    // CONTEXT AUTHORITY (2026-09-03) — "General" is now called what it is.
+    //
+    // The label said General and the pane's own subtitle said "Workspace
+    // settings and defaults for everyone working here", while the pane
+    // rendered exactly one section: AI assistance. Workspace defaults that do
+    // exist — rename, closure, ownership transfer, member and role
+    // administration — are owned by `/teams/[id]` and the organization admin
+    // console, and Settings correctly hands off to those rather than copying
+    // them. So there is no General domain here to fill; there is an AI one,
+    // and the destination names it.
+    workspace.push({ id: "workspace", label: "AI & assistance", href: null });
   }
   // Membership is administered on the organization admin surface. Offering
   // the entry without asking the canonical resolver would have produced a
@@ -190,7 +201,15 @@ export function resolveSettingsNavigation(
   }
   // Roles are a property of a workspace with membership; a personal space has
   // none, so the pane would describe roles nobody can hold.
-  if (isOrg) {
+  //
+  // CONTEXT AUTHORITY (2026-09-03) — this was gated on `isOrg` ALONE, with no
+  // capability at all: every member and viewer of an Enterprise organization
+  // was offered "Roles & permissions" under a WORKSPACE heading, beside
+  // destinations they could not reach, on a rail that is otherwise entirely
+  // capability-resolved. Being inside an organization is not authority over
+  // it. It asks for the same settings visibility every other administration
+  // destination here asks for.
+  if (isOrg && has(input, "SETTINGS_VIEW")) {
     workspace.push({ id: "roles", label: "Roles & permissions", href: null });
   }
   if (routeLoads("governance.retention", input)) {
@@ -215,10 +234,15 @@ export function resolveSettingsNavigation(
     });
   }
   // SSO/SCIM is an enterprise identity surface, and it is administered — a
-  // member of an enterprise workspace does not configure the IdP. Both
-  // conditions are server-projected: the enterprise flag and the Security
-  // Center capability, neither read from a plan name.
-  if (input.isEnterpriseWorkspace && has(input, "SECURITY_CENTER_VIEW")) {
+  // member of an enterprise workspace does not configure the IdP.
+  //
+  // CONTEXT AUTHORITY (2026-09-03) — this was the ONE destination on this rail
+  // decided by a hand-written pair (`isEnterpriseWorkspace &&
+  // has(SECURITY_CENTER_VIEW)`) rather than by the canonical resolver, because
+  // `/security-center/sso` had no registry entry for `resolveRouteAccess` to
+  // answer from. It has one now, carrying those same two conditions, so this
+  // asks the same question every other destination here asks.
+  if (routeLoads("security_center.sso", input)) {
     integrations.push({
       id: "sso",
       label: "SCIM & SSO",

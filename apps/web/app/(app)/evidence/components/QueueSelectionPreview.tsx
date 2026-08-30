@@ -123,7 +123,7 @@ function buildReportRow(item: EvidenceListItem, detail: DetailWorkspaceState): A
   const availability = buildReportAvailability(item, detail);
   const signature = detail.report?.pdfSignature ?? null;
 
-  if (!detail.capabilities.reportsIncluded) {
+  if (!detail.capabilities?.reportsIncluded) {
     return {
       key: "report",
       title: "Report",
@@ -172,7 +172,7 @@ function buildReportRow(item: EvidenceListItem, detail: DetailWorkspaceState): A
 function buildPackageRow(detail: DetailWorkspaceState): ArtifactRow {
   const availability = buildVerificationPackageAvailability(detail);
 
-  if (!detail.capabilities.verificationPackageIncluded) {
+  if (!detail.capabilities?.verificationPackageIncluded) {
     return {
       key: "package",
       title: "Verification package",
@@ -213,7 +213,7 @@ function buildPackageRow(detail: DetailWorkspaceState): ArtifactRow {
 function buildPublicVerificationRow(detail: DetailWorkspaceState): ArtifactRow {
   const anchor = detail.evidence?.anchor ?? null;
 
-  if (!detail.capabilities.publicVerifyIncluded) {
+  if (!detail.capabilities?.publicVerifyIncluded) {
     return {
       key: "public-verification",
       title: "Public verification",
@@ -546,17 +546,17 @@ export function QueueSelectionPreview({
     const publicVerification = hasPublicVerification(detail);
     const title = getDisplayTitle(item);
 
-    const reportDisabledReason = !detail.capabilities.reportsIncluded
+    const reportDisabledReason = !detail.capabilities?.reportsIncluded
       ? "PDF reports are not included in this workspace plan."
       : !report.available
         ? "No generated report is recorded for this record."
         : undefined;
-    const packageDisabledReason = !detail.capabilities.verificationPackageIncluded
+    const packageDisabledReason = !detail.capabilities?.verificationPackageIncluded
       ? "Verification packages are not included in this workspace plan."
       : !verificationPackage.available
         ? "No verification package is recorded for this record."
         : undefined;
-    const linkDisabledReason = !detail.capabilities.publicVerifyIncluded
+    const linkDisabledReason = !detail.capabilities?.publicVerifyIncluded
       ? "Public verification is not included in this workspace plan."
       : !publicVerification
         ? "No public verification anchor is configured for this record."

@@ -280,6 +280,7 @@ export function BillingHistorySection({
   onRetry,
   onRecheck,
   recheckBusy,
+  accessKind,
   onRecheckPayment,
   onCancelPayment,
   onAbandonPayment,
@@ -304,6 +305,8 @@ export function BillingHistorySection({
    */
   onRecheck: () => void;
   recheckBusy: boolean;
+  /** The server's access kind for this account. */
+  accessKind: BillingAccountProjection["plan"]["accessKind"];
   /**
    * BILLING SURFACE CORRECTION (2026-08-29) — ONE row's own actions.
    *
@@ -367,23 +370,43 @@ export function BillingHistorySection({
     );
   }
 
+  /*
+   * CONTEXT AUTHORITY (2026-09-03) — reconciliation needs a provider.
+   *
+   * The action and its subtitle both promised to "check your payment
+   * provider", and both rendered on a contract-managed account that has no
+   * payment provider and never will — directly above "No payments yet". The
+   * button reached a real endpoint, so it was not dead; it was untrue.
+   *
+   * `accessKind` is the server's own word for how this account is governed.
+   * CONTRACT is the one kind where no self-serve payment can exist, so it is
+   * the one kind with nothing to reconcile.
+   */
+  const providerBacked = accessKind !== "CONTRACT";
+
   return (
     <Card
       variant="summary"
       title="Billing history"
-      subtitle="Checks your payment provider for anything we have not recorded on this account. Nothing is charged again."
+      subtitle={
+        providerBacked
+          ? "Checks your payment provider for anything we have not recorded on this account. Nothing is charged again."
+          : "Payments recorded against your organization's agreement."
+      }
       headerAction={
-        <Button
-          variant="secondary"
-          size="sm"
-          className="bill-secondary-action"
-          onClick={onRecheck}
-          loading={recheckBusy}
-          disabled={recheckBusy}
-          data-billing-recheck
-        >
-          Re-check purchases and billing
-        </Button>
+        providerBacked ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="bill-secondary-action"
+            onClick={onRecheck}
+            loading={recheckBusy}
+            disabled={recheckBusy}
+            data-billing-recheck
+          >
+            Re-check purchases and billing
+          </Button>
+        ) : null
       }
       data-billing-history
     >

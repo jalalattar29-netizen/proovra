@@ -39,7 +39,6 @@ import {
   WorkspaceContextBanner,
   useWorkspaceContextSafety,
 } from "../../../../lib/platform-context";
-import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import { AiCapabilityStatusTable } from "../../../../components/ai-copilot/AiCapabilityStatusTable";
@@ -85,15 +84,6 @@ type Usage = {
   copilotRuns: number;
   blockedProhibitedClaims: number;
   ledgerAvailable?: boolean;
-};
-
-const sectionTitle: React.CSSProperties = {
-  margin: "0 0 8px",
-  fontSize: 14,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-  color: "var(--ink-primary, #0f172a)",
 };
 
 const muted: React.CSSProperties = {
@@ -246,12 +236,7 @@ export function AiSection() {
   // ---------------------------------------------------------------------
   if (mode === "personal-not-included") {
     return (
-      <Card
-        variant="admin"
-        padding="comfortable"
-        data-cc-ai-not-included
-        style={{ maxWidth: 640 }}
-      >
+      <section className="set-card" data-cc-ai-not-included>
         <p style={muted}>
           AI assistance is not included in your plan. Plans with AI
           assistance include a monthly operation allowance for advisory
@@ -264,7 +249,7 @@ export function AiSection() {
             </Button>
           </Link>
         </div>
-      </Card>
+      </section>
     );
   }
 
@@ -295,7 +280,7 @@ export function AiSection() {
   const reset = usage ? resetDateLabel(usage.monthUtc) : null;
 
   return (
-    <div style={{ display: "grid", gap: 14, maxWidth: 720 }} data-cc-ai-personal>
+    <div className="set-stack" data-cc-ai-personal>
         {/* PHASE 7 §10.5 — AI policy is workspace-scoped; show the owning
             workspace/org so a policy change lands in the intended context. */}
         <WorkspaceContextBanner action="AI settings for" />
@@ -339,8 +324,8 @@ export function AiSection() {
 
         {/* USAGE — plan allowance from the enforcement ledger. No internal
             dollar costs, no copilot counters. */}
-        <Card variant="admin" padding="comfortable" data-cc-ai-usage-card>
-          <h2 style={sectionTitle}>Monthly usage</h2>
+        <section className="set-card" data-cc-ai-usage-card>
+          <h3>Monthly usage</h3>
           {allowance ? (
             <>
               <div className="grid gap-1.5 text-[13px]">
@@ -423,11 +408,11 @@ export function AiSection() {
           ) : (
             <p style={muted}>Usage is unavailable right now.</p>
           )}
-        </Card>
+        </section>
 
         {/* MASTER CONTROL */}
-        <Card variant="admin" padding="comfortable" data-cc-ai-master-card>
-          <h2 style={sectionTitle}>AI assistance</h2>
+        <section className="set-card" data-cc-ai-master-card>
+          <h3>AI assistance</h3>
           <label
             style={{
               display: "flex",
@@ -455,11 +440,11 @@ export function AiSection() {
               </span>
             </span>
           </label>
-        </Card>
+        </section>
 
         {/* AVAILABLE FEATURES — launched personal features only. */}
-        <Card variant="admin" padding="comfortable" data-cc-ai-features-card>
-          <h2 style={sectionTitle}>Available features</h2>
+        <section className="set-card" data-cc-ai-features-card>
+          <h3>Available features</h3>
           <div style={{ display: "grid", gap: 10 }}>
             {LAUNCHED_PERSONAL_AI_FEATURES.map((f) => (
               <label
@@ -495,11 +480,11 @@ export function AiSection() {
               </label>
             ))}
           </div>
-        </Card>
+        </section>
 
         {/* DATA USE SUMMARY */}
-        <Card variant="admin" padding="comfortable" data-cc-ai-data-use-card>
-          <h2 style={sectionTitle}>How AI uses your data</h2>
+        <section className="set-card" data-cc-ai-data-use-card>
+          <h3>How AI uses your data</h3>
           <ul style={{ ...muted, margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
             <li>These features use metadata only — never your evidence files.</li>
             <li>
@@ -523,7 +508,7 @@ export function AiSection() {
               Review AI transparency and subprocessors →
             </Link>
           </div>
-        </Card>
+        </section>
 
         <div>
           <Button
@@ -621,8 +606,8 @@ function OrgAiView({
 
         {draft ? (
           <>
-            <Card variant="admin" padding="comfortable" data-cc-ai-org-master>
-              <h2 style={sectionTitle}>Master AI policy</h2>
+            <section className="set-card" data-cc-ai-org-master>
+              <h3>Master AI policy</h3>
               {canEdit ? (
                 <label
                   style={{
@@ -654,10 +639,10 @@ function OrgAiView({
                   <span>— managed by your organization.</span>
                 </p>
               )}
-            </Card>
+            </section>
 
-            <Card variant="admin" padding="comfortable" data-cc-ai-org-capabilities>
-              <h2 style={sectionTitle}>Capabilities &amp; data classes</h2>
+            <section className="set-card" data-cc-ai-org-capabilities>
+              <h3>Capabilities &amp; data classes</h3>
               <div style={{ display: "grid", gap: 8, opacity: draft.aiEnabled ? 1 : 0.55 }}>
                 {GOVERNANCE_TOGGLES.map(({ key, label, hint }) =>
                   canEdit ? (
@@ -703,7 +688,7 @@ function OrgAiView({
                   ),
                 )}
               </div>
-            </Card>
+            </section>
 
             {canEdit ? (
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -734,9 +719,14 @@ function OrgAiView({
         {/* Usage & governance counters — an ORGANIZATION admin surface
             (cost visibility is a governance duty here, unlike the personal
             assistance page). */}
-        {canEdit && usage ? (
-          <Card variant="admin" padding="comfortable" data-cc-ai-org-usage>
-            <h2 style={sectionTitle}>Usage &amp; governance</h2>
+        {/* CONTEXT AUTHORITY (2026-09-03) — the members are guarded too.
+            `usage` being present did not mean `usage.monthly` was: a 200 whose
+            body lacked the counters read `undefined.operations` and took the
+            whole Enterprise pane down to the 500 boundary. A missing counter is
+            a missing number, not a broken page. */}
+        {canEdit && usage?.monthly && usage?.daily ? (
+          <section className="set-card" data-cc-ai-org-usage>
+            <h3>Usage &amp; governance</h3>
             {usage.ledgerAvailable === false ? (
               <p style={muted}>
                 The durable usage ledger is not active in this environment yet.
@@ -767,7 +757,7 @@ function OrgAiView({
             <p style={{ ...muted, marginTop: 8 }}>
               No prompts or evidence content are stored or shown here.
             </p>
-          </Card>
+          </section>
         ) : null}
 
         {/* Runtime capability disclosure — governance/audit surface for

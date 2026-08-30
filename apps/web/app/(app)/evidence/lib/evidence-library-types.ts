@@ -1,9 +1,4 @@
 import type { EvidenceIntelligence } from "@proovra/shared";
-import type {
-  BillingOverviewResponse,
-  PersonalWorkspaceSummary,
-  TeamWorkspaceSummary,
-} from "../../../../components/billing/types";
 
 /**
  * Library scopes.
@@ -663,14 +658,30 @@ export type DetailWorkspaceState = {
   original: OriginalResponse | null;
   report: ReportResponse | null;
   verificationPackage: VerificationPackageResponse | null;
-  capabilities: WorkspaceCapabilitySnapshot;
+  /**
+   * COMMERCIAL AUTHORITY (2026-09-03) — the SERVER's snapshot, read from
+   * `GET /v1/evidence/:id/review-workspace`.
+   *
+   * This was derived in the browser from the caller's whole billing
+   * aggregate. The same three entitlement booleans were already being
+   * computed server-side by `resolveWorkspaceCapabilitySnapshot` from the
+   * canonical plan catalogue, and the server is what enforces them, so the
+   * client asks rather than deciding. `null` while the detail loads or when
+   * the workspace read failed — callers must not assume a capability.
+   */
+  capabilities: WorkspaceCapabilitySnapshot | null;
   caseName: string | null;
 };
 
+/**
+ * COMMERCIAL AUTHORITY (2026-09-03) — the three billing fields are gone.
+ *
+ * The library held the caller's whole billing aggregate so it could decide,
+ * in the browser, whether a PDF report was included. The server owns that
+ * entitlement and enforces it; the library now asks and reports what it is
+ * told.
+ */
 export type LibraryLoadState = {
-  billingOverview: BillingOverviewResponse | null;
-  personalWorkspace: PersonalWorkspaceSummary | null;
-  teamWorkspaces: TeamWorkspaceSummary[];
   cases: CaseOption[];
   savedViews: EvidenceSavedView[];
   items: EvidenceListItem[];

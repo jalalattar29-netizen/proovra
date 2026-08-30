@@ -565,7 +565,15 @@ test("neither surface claims VAT handling the product cannot perform", () => {
   // No tax engine, no billing address, no VAT-id authority exists.
   assert.doesNotMatch(pricing, /VAT may apply/);
   assert.match(pricing, /exclude any taxes that may be handled by/);
-  assert.doesNotMatch(billing, /VAT/);
+  // A WORD boundary, not a substring. The bare pattern also matched inside
+  // "ACTIVATED" — the enterprise contract activation state — so a value the
+  // server sends would have failed a test about tax claims the product does
+  // not make.
+  // A WORD boundary, not a substring. The bare pattern also matched inside
+  // "ACTIVATED" — the enterprise contract activation state — so a value the
+  // server sends would have failed a test about tax claims the product does
+  // not make.
+  assert.doesNotMatch(billing, /\bVAT\b/);
 });
 
 test("Pricing renders no fabricated fallback for a served commercial value", () => {

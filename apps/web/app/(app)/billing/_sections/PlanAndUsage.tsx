@@ -26,6 +26,7 @@
 import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import type { BillingAccountProjection } from "../../../../lib/api/billing-accounts";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import { formatDate } from "./format";
 
 export function ActionRequiredBanner({
@@ -122,6 +123,35 @@ export function ActionRequiredBanner({
 }
 
 
+/**
+ * WHERE AN AGREEMENT IS IN ITS OWN SETUP.
+ *
+ * `activationState` was projected onto the contract and then never rendered,
+ * so an organization whose agreement had been signed but whose owner had not
+ * yet been onboarded saw a generic "Action required" with nothing to act on —
+ * the one fact that explains it was on the wire and thrown away.
+ *
+ * Three states, in the product's words rather than the enum's. Amber is
+ * WAITING, not failing: nothing has gone wrong while an invitation is
+ * outstanding, and painting it red would send an administrator to support over
+ * a step that is simply not finished yet.
+ */
+function activationPresentation(
+  state: string | null | undefined,
+): { label: string; tone: "green" | "amber" } | null {
+  switch (state) {
+    case "ACTIVATED":
+      return { label: "Activated", tone: "green" };
+    case "OWNER_INVITED":
+      return { label: "Owner invitation pending", tone: "amber" };
+    case "PENDING_OWNER":
+      return { label: "Owner setup required", tone: "amber" };
+    default:
+      // An agreement that states no activation step has none to report.
+      return null;
+  }
+}
+
 export function EnterpriseContractCard({
   projection,
 }: {
@@ -129,6 +159,8 @@ export function EnterpriseContractCard({
 }) {
   const contract = projection.contract;
   if (!contract) return null;
+
+  const activation = activationPresentation(contract.activationState);
 
   const rows: Array<[string, string]> = [];
   const effective = formatDate(contract.effectiveAtUtc);
@@ -145,6 +177,28 @@ export function EnterpriseContractCard({
 
   return (
     <Card variant="summary" title="Agreement" data-billing-contract>
+      {activation ? (
+        <p
+          style={{ margin: "0 0 14px" }}
+          data-billing-contract-activation={contract.activationState}
+        >
+          <AppStatusText tone={activation.tone} size="sm">
+            {activation.label}
+          </AppStatusText>
+          {activation.tone === "amber" ? (
+            <span
+              style={{
+                marginInlineStart: 8,
+                fontSize: "0.9rem",
+                color: "var(--text-muted, #475569)",
+              }}
+            >
+              Your account manager is completing setup for this organization.
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+
       {contract.derivedFromLegacyFallback ? (
         // Honest rather than confident: this projection was derived, not read
         // from a contract record, so no number here is published as a term.

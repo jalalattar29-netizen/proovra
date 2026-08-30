@@ -95,8 +95,9 @@ const PANE_COPY: Record<
       "Manage consent, policy records, data export, and account lifecycle.",
   },
   workspace: {
-    title: "General",
-    description: "Workspace settings and defaults for everyone working here.",
+    title: "AI & assistance",
+    description:
+      "Whether AI assistance is available in this workspace, what it may be used for, and the allowance your plan or agreement provides.",
   },
   members: {
     title: "Members",

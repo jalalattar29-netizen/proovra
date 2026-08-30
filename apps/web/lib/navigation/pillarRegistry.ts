@@ -320,6 +320,8 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["account.organization_admin_integrations", "ADMIN"],
   ["workspace.integrations", "ADMIN"],
   ["workspace.security_center", "ADMIN"],
+  // The SSO/SCIM console sits with the identity console it belongs to.
+  ["security_center.sso", "ADMIN"],
   // Phase C — workflow templates administration; moved from CAPTURE.
   ["workspace.workflows", "ADMIN"],
   ["account.settings", "ADMIN"],

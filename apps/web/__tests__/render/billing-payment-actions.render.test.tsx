@@ -81,6 +81,7 @@ function mount(
       onRetry={noop}
       onRecheck={noop}
       recheckBusy={false}
+      accessKind="SUBSCRIPTION"
       onRecheckPayment={over.onRecheckPayment ?? noop}
       onCancelPayment={over.onCancelPayment ?? noop}
       onAbandonPayment={over.onAbandonPayment ?? noop}

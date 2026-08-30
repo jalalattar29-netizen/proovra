@@ -816,6 +816,19 @@ function BillingPageInner() {
     [confirm, addToast, refresh],
   );
 
+  /**
+   * May this viewer act on a catalogue price at all?
+   *
+   * FALSE for a contract-managed account, and FALSE when there is no billing
+   * account to act on. Both are server-decided: `accessKind` is projected by
+   * `buildBillingAccountProjection`, and the absence of an account is the
+   * `listBillingAccounts` answer.
+   */
+  const selfServePricingRelevant =
+    phase.kind !== "NO_ACCOUNTS" &&
+    Boolean(selected) &&
+    projection?.plan.accessKind !== "CONTRACT";
+
   const header = useMemo(
     () => (
       <PageHeader
@@ -845,6 +858,21 @@ function BillingPageInner() {
         }
         primaryAction={
           /*
+           * CONTEXT AUTHORITY (2026-09-03) — pricing is offered only where it
+           * is relevant.
+           *
+           * This was unconditional. An Enterprise organization under an
+           * agreement, and an organization member told "billing is managed for
+           * you", were both handed a link to the self-serve tier table — an
+           * invitation to compare prices that have nothing to do with their
+           * contract, on a page whose whole point is that they cannot buy here.
+           *
+           * The condition is the SERVER's own `plan.accessKind`, not a plan
+           * name: CONTRACT means an agreement governs this account, and there
+           * is no catalogue tier to look up.
+           */
+          selfServePricingRelevant ? (
+          /*
            * BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — Pricing opens in
            * a NEW TAB.
            *
@@ -866,10 +894,11 @@ function BillingPageInner() {
           >
             <span>View pricing</span>
           </a>
+          ) : null
         }
       />
     ),
-    [],
+    [selfServePricingRelevant],
   );
 
   if (phase.kind === "LOADING") {
@@ -1035,6 +1064,7 @@ function BillingPageInner() {
               rowBusyId={paymentBusyId}
               resumeUrls={resumeUrls}
               onRecheck={() => void handleAccountRecheck()}
+              accessKind={projection.plan.accessKind}
             />
 
             {/*

@@ -255,7 +255,7 @@ test("each writing step declares the EXISTING endpoint it reuses", () => {
   assert.equal(byId.workspace, "PATCH /v1/teams/:id");
   assert.equal(byId.branding, "PATCH /v1/orgs/:id");
   assert.equal(byId.invite, "POST /v1/orgs/:id/invites");
-  assert.equal(byId.billing, "GET /v1/billing/overview");
+  assert.equal(byId.billing, "GET /v1/billing/accounts/ORGANIZATION/:id");
   assert.equal(byId.security, "PUT /v1/identity-security/mfa-policy");
   assert.equal(byId.retention, "POST /v1/lifecycle/retention/policies");
   assert.equal(byId.legalHolds, "POST /v1/lifecycle/legal-holds");
@@ -268,8 +268,18 @@ test("page calls the reused endpoints verbatim", () => {
   assert.match(PAGE, /apiFetch\(`\/v1\/teams\/\$\{primaryWorkspaceId\}`,\s*\{\s*method:\s*"PATCH"/);
   // Invite.
   assert.match(PAGE, /apiFetch\(`\/v1\/orgs\/\$\{orgId\}\/invites`,\s*\{\s*method:\s*"POST"/);
-  // Billing overview (read, via the safeFetch wrapper around apiFetch).
-  assert.match(PAGE, /safeFetch<[^>]*>\("\/v1\/billing\/overview"\)/);
+  // Billing — the ORGANIZATION's own account (read, via the safeFetch wrapper).
+  //
+  // COMMERCIAL AUTHORITY (2026-09-03) — this pinned `/v1/billing/overview`,
+  // which is the VIEWER's personal aggregate. On an organization setup wizard
+  // it printed the administrator's OWN plan and OWN included seats as if they
+  // were the organization's, so an Enterprise organization under a contract
+  // was described by whatever the person configuring it happened to pay for
+  // personally. It reads the canonical organization billing account now.
+  assert.match(
+    PAGE,
+    /safeFetch<[^>]*>\(\s*`\/v1\/billing\/accounts\/ORGANIZATION\/\$\{encodeURIComponent\(orgId\)\}`/,
+  );
   // MFA policy (read + write).
   assert.match(PAGE, /\/v1\/identity-security\/mfa-policy\?teamId=/);
   assert.match(PAGE, /apiFetch\("\/v1\/identity-security\/mfa-policy",\s*\{\s*method:\s*"PUT"/);

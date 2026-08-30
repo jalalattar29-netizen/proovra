@@ -105,7 +105,7 @@ export const WIZARD_STEPS: ReadonlyArray<WizardStep> = [
     title: "Billing confirmation",
     subtitle: "Review the plan and seats provisioned for your organization.",
     skippable: false,
-    endpoint: "GET /v1/billing/overview",
+    endpoint: "GET /v1/billing/accounts/ORGANIZATION/:id",
   },
   {
     id: "security",

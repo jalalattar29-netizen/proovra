@@ -232,6 +232,7 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   // Identity / security operator consoles.
   "workspace.security_center",
   "security_center.mfa_recovery",
+  "security_center.sso",
   // Enterprise analytics / intelligence / investigation power tools.
   "workspace.executive",
   "workspace.intelligence",
@@ -722,6 +723,41 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: ["SECURITY_CENTER_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "REQUEST_ACCESS",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
+  },
+  {
+    /*
+     * CONTEXT AUTHORITY (2026-09-03) — the SSO/SCIM console joins the registry.
+     *
+     * It was reachable and correctly gated, but it was the one Settings
+     * destination `resolveRouteAccess` could not answer for: with no entry
+     * here, `routeLoads()` returned false for it, so the Settings rail carried
+     * a bespoke `isEnterpriseWorkspace && SECURITY_CENTER_VIEW` pair written
+     * out by hand. Two authorities decided who may see identity federation,
+     * and only one of them was the canonical one.
+     *
+     * The entry states the same two conditions the bespoke pair did — the
+     * capability here, the enterprise requirement via
+     * ENTERPRISE_ONLY_ROUTE_IDS — so nothing about who reaches it changes.
+     * What changes is that one resolver now answers for every Settings
+     * destination.
+     *
+     * `sidebarEligible: false`: this is administered from Settings and from
+     * the Security Center, not from the primary rail.
+     */
+    id: "security_center.sso",
+    href: "/security-center/sso",
+    label: "SCIM & SSO",
+    description:
+      "Single sign-on and directory provisioning for this organization — identity provider configuration, attribute mapping and connection health.",
+    domain: "ORGANIZATION_WORKSPACE",
+    requiredCapabilities: ["SECURITY_CENTER_VIEW"],
+    requiredActiveSpace: "ORGANIZATION_ONLY",
     fallbackBehavior: "REQUEST_ACCESS",
 
     advancedByDefault: true,
