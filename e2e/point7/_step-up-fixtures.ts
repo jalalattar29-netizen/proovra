@@ -445,26 +445,82 @@ export async function dropPasswordCredential(userId: string): Promise<void> {
 // ===========================================================================
 
 /**
- * Create an OWNED workspace through the real route, from inside the page.
+ * An OWNED workspace, seeded.
  *
- * `POST /v1/teams` is plan-gated, so the calling account must be PRO or better;
- * the created row's `ownerUserId` is the caller, which is the bar the closure
- * and transfer routes check (a stricter bar than the OWNER team-role the UI
- * reads for its affordances).
+ * WHY THIS NO LONGER GOES THROUGH THE PRODUCT
+ * ---------------------------------------------------------------------------
+ * This used to `POST /v1/teams`. That route's creation body was DELETED in
+ * `f7584082` along with the per-plan workspace allowance it enforced: the
+ * commercial model has one Personal Workspace and TEAM is a tier OF it, so an
+ * additional Owned Workspace is not something any self-service plan includes.
+ * The route now always answers 409 WORKSPACE_CREATION_NOT_SELF_SERVICE.
+ *
+ * The scenarios that use this are not about workspace CREATION. They are about
+ * context restoration, cache and dirty-work isolation across two workspaces,
+ * invite mailbox isolation, step-up, and the closure blocker an OWNED
+ * workspace raises — and OWNED is the kind they need, because workspace
+ * closure refuses an ORGANIZATION workspace outright
+ * (`ORG_WORKSPACE_OWNERSHIP_IS_ORG_GOVERNED`), so an org workspace would prove
+ * something different rather than the same thing.
+ *
+ * So the workspace becomes a seeded PRECONDITION, exactly as
+ * `makeWorkspaceBillingActive` below already seeds the billing state its
+ * blocker reads: the state is written directly, and every behaviour under test
+ * is still computed by production. `provisionEnterpriseWorkspace` in
+ * `_binary-fixtures.ts` has done the same for org workspaces all along.
+ *
+ * `page` is retained in the signature and deliberately unused: every call site
+ * passes the browser context whose account owns the workspace, and threading
+ * the owner id through nineteen of them would be a larger edit than the one
+ * this is.
  */
 export async function createOwnedWorkspace(
   page: Page,
   name: string,
 ): Promise<string> {
-  const res = await directApiCall(page, {
-    method: "POST",
-    path: "/v1/teams",
-    body: { name },
-  });
-  expect(res.status, `create owned workspace: ${res.body}`).toBeLessThan(300);
-  return (JSON.parse(res.body) as { id: string }).id;
+  const ownerUserId = await currentUserIdFromBrowser(page);
+
+  // Phase 2.7X made `teams.organization_id` NOT NULL, so even an OWNED
+  // workspace is Organization-backed. SYSTEM kind: this is the internal 1:1
+  // container every workspace gets, never a customer Organization, and
+  // `OrganizationKind` exists precisely so the two cannot be confused.
+  const org = (
+    await sql<{ id: string }>(
+      `INSERT INTO organizations (name, billing_owner_user_id, status, kind, updated_at)
+       VALUES ($1, $2, 'ACTIVE'::"OrganizationStatus", 'SYSTEM'::"OrganizationKind", NOW())
+       RETURNING id`,
+      [`${name}-container`, ownerUserId],
+    )
+  )[0]!;
+
+  const ws = (
+    await sql<{ id: string }>(
+      `INSERT INTO teams (name, owner_user_id, billing_owner_user_id, is_personal,
+                          organization_id, workspace_kind, updated_at)
+       VALUES ($1, $2, $2, false, $3, 'OWNED'::"WorkspaceKind", NOW())
+       RETURNING id`,
+      [name, ownerUserId, org.id],
+    )
+  )[0]!;
+
+  await sql(
+    `INSERT INTO team_members (team_id, user_id, role, status)
+     VALUES ($1, $2, 'OWNER'::"TeamRole", 'ACTIVE'::"TeamMemberStatus")`,
+    [ws.id, ownerUserId],
+  );
+
+  return ws.id;
 }
 
+/** The signed-in account's id, read from the envelope the browser already has. */
+async function currentUserIdFromBrowser(page: Page): Promise<string> {
+  const res = await directApiCall(page, { method: "GET", path: "/v1/users/me" });
+  expect(res.status, `resolve current user: ${res.body}`).toBeLessThan(300);
+  const body = JSON.parse(res.body) as { user?: { id?: string }; id?: string };
+  const id = body.user?.id ?? body.id;
+  expect(typeof id, "current user id").toBe("string");
+  return id as string;
+}
 /**
  * Give a workspace an active billing relationship.
  *

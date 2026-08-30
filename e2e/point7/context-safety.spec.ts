@@ -30,6 +30,15 @@ import {
   waitForRecordedEmail,
 } from "./_harness";
 
+// A second OWNED workspace, seeded rather than created through the product.
+//
+// `POST /v1/teams` refuses every caller since `f7584082` — an additional Owned
+// Workspace is not part of any self-service plan — and these scenarios are
+// about context restoration, cache isolation and invite mailboxes ACROSS two
+// workspaces, not about creating one. The shared fixture seeds the
+// precondition; everything under test is still production behaviour.
+import { createOwnedWorkspace } from "./_step-up-fixtures";
+
 const SUITE = "e2e/point7/context-safety.spec.ts";
 const proven = (id: string) => provenBrowserScenario(SUITE, id);
 
@@ -39,18 +48,6 @@ const proven = (id: string) => provenBrowserScenario(SUITE, id);
 // from twenty-two scenarios that were never written.
 
 
-async function createOwnedWorkspace(
-  page: import("@playwright/test").Page,
-  name: string,
-): Promise<string> {
-  const res = await directApiCall(page, {
-    method: "POST",
-    path: "/v1/teams",
-    body: { name },
-  });
-  expect(res.status, res.body).toBeLessThan(300);
-  return (JSON.parse(res.body) as { id: string }).id;
-}
 
 test.describe("context restoration", () => {
   test("p7.ctx.restore.inaccessible_previous_workspace", async ({ page }) => {
