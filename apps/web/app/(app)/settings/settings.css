@@ -1414,3 +1414,275 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   PRIVACY & DATA (2026-09-03)
+
+   The pane that restores cookie consent, policy acceptance, the personal data
+   export and account closure. It is composed from the same panel, heading,
+   status and button vocabulary as Overview, Security and Notifications — the
+   rules below are only what those three did not already need, and every one of
+   them is scoped to this pane so it cannot become a fourth visual language.
+--------------------------------------------------------------------------- */
+
+/* A section's one line of orientation, under its heading. */
+.settings-page-shell .set-main .set-card__sub {
+  margin: 6px 0 0;
+  max-inline-size: 68ch;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--set-ink-2);
+}
+
+.settings-page-shell .set-main .set-privacy__muted {
+  margin: 10px 0 0;
+  max-inline-size: 68ch;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--set-muted);
+}
+
+/* THE FACTS. Consent version, when it was recorded, what it allows — read as
+   a short definition list, not as a key/value box with its own fill. */
+.settings-page-shell .set-main .set-privacy__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 16px 28px;
+  margin: 18px 0 0;
+}
+
+.settings-page-shell .set-main .set-privacy__facts dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--set-muted);
+}
+
+.settings-page-shell .set-main .set-privacy__facts dd {
+  margin: 5px 0 0;
+  font-size: 0.9rem;
+  font-weight: 620;
+  color: var(--set-ink);
+  overflow-wrap: anywhere;
+}
+
+.settings-page-shell .set-main .set-privacy__actions {
+  margin-block-start: 20px;
+}
+
+/* THE STATUS BLOCK, composed inside Policies & consent rather than being a
+   card of its own — one subject, one panel. */
+.settings-page-shell .set-main .set-privacy__status {
+  margin-block-start: 18px;
+  padding-block-start: 18px;
+  border-block-start: 1px solid var(--set-line);
+}
+
+/* THE DISCLOSURE. History is the longest thing on this pane and the least
+   often needed, so it opens on request. */
+.settings-page-shell .set-main .set-privacy__disclose {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-block-start: 18px;
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--set-line-strong) !important;
+  border-radius: var(--set-radius-sm);
+  background: var(--set-panel-solid) !important;
+  color: var(--set-ink) !important;
+  font-size: 0.84rem;
+  font-weight: 640;
+  cursor: pointer;
+}
+
+.settings-page-shell .set-main .set-privacy__disclose:hover {
+  border-color: rgba(109, 40, 217, 0.34) !important;
+}
+
+.settings-page-shell .set-main .set-privacy__count {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--set-inset);
+  color: var(--set-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.settings-page-shell .set-main .set-privacy__history {
+  margin-block-start: 16px;
+}
+
+.settings-page-shell .set-main .set-privacy__rows {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+/* Policy / action / version / when, on one line at desktop. */
+.settings-page-shell .set-main .set-privacy__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 8px 18px;
+  padding-block: 11px;
+  border-block-start: 1px solid var(--set-line);
+  font-size: 0.84rem;
+}
+
+.settings-page-shell .set-main .set-privacy__rows > li:first-child {
+  border-block-start: 0;
+}
+
+.settings-page-shell .set-main .set-privacy__row-name {
+  font-weight: 640;
+  color: var(--set-ink);
+}
+
+.settings-page-shell .set-main .set-privacy__row-kind,
+.settings-page-shell .set-main .set-privacy__row-meta {
+  color: var(--set-muted);
+}
+
+.settings-page-shell .set-main .set-privacy__more {
+  margin-block-start: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--set-accent);
+  font-size: 0.84rem;
+  font-weight: 640;
+  cursor: pointer;
+}
+
+.settings-page-shell .set-main .set-privacy__links {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.settings-page-shell .set-main .set-privacy__links a,
+.settings-page-shell .set-main .set-privacy__muted a {
+  color: var(--set-ink);
+  font-weight: 620;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* THE DANGER ZONE.
+   Separated by a rail and a tint, not by a red slab: the section is a place
+   you can arrive at safely and read, and only its ACTION is destructive. */
+.settings-page-shell .set-main .set-danger {
+  border-color: rgba(180, 35, 24, 0.26) !important;
+  box-shadow: inset 3px 0 0 0 var(--set-danger) !important;
+}
+
+.settings-page-shell .set-main .set-danger__title {
+  color: var(--set-danger) !important;
+}
+
+.settings-page-shell .set-main [data-cc-closure-blockers] {
+  margin-block-start: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(180, 35, 24, 0.22);
+  border-radius: var(--set-radius-sm);
+  background: rgba(180, 35, 24, 0.045);
+}
+
+.settings-page-shell .set-main [data-cc-closure-blocker-action] {
+  color: var(--set-ink) !important;
+}
+
+/* Destructive weight: white ground, red word, red edge. Solid red is kept for
+   nothing here, because nothing on this pane is a one-click destruction. */
+.settings-page-shell .set-main [data-cc-closure-open],
+.settings-page-shell .set-main [data-cc-closure-submit] {
+  background: var(--set-panel-solid) !important;
+  background-image: none !important;
+  border: 1px solid rgba(180, 35, 24, 0.42) !important;
+  color: var(--set-danger) !important;
+  -webkit-text-fill-color: var(--set-danger) !important;
+  box-shadow: none !important;
+}
+
+.settings-page-shell .set-main [data-cc-closure-open]:hover:not(:disabled),
+.settings-page-shell .set-main [data-cc-closure-submit]:hover:not(:disabled) {
+  background: rgba(180, 35, 24, 0.06) !important;
+  border-color: var(--set-danger) !important;
+}
+
+/* NARROW. Four columns of history do not fit 390, so each record stacks into
+   its own block rather than compressing a desktop table. */
+@media (max-width: 620px) {
+  .settings-page-shell .set-main .set-privacy__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+
+  .settings-page-shell .set-main .set-privacy__disclose,
+  .settings-page-shell .set-main [data-cc-privacy-manage-cookies],
+  .settings-page-shell .set-main [data-cc-export-request],
+  .settings-page-shell .set-main [data-cc-closure-open] {
+    inline-size: 100%;
+    justify-content: center;
+  }
+}
+
+/* A RAW BUTTON needs the geometry the shared `Button` component brings with
+   it. `.set-action--ink` only ever painted a surface, because until now it
+   was always applied to a component that already had a shape. */
+.settings-page-shell .set-main button.set-action--ink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--set-ink);
+  border-radius: var(--set-radius-sm);
+  font-size: 0.84rem;
+  font-weight: 640;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* THE EXPORT ROW. Status first, then the facts underneath it — this was one
+   run-on sentence with the checksum trailing off the end of it. */
+.settings-page-shell .set-main .set-privacy__export-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-block: 14px;
+  border-block-start: 1px solid var(--set-line);
+}
+
+.settings-page-shell .set-main .set-privacy__export {
+  display: grid;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.settings-page-shell .set-main .set-privacy__export-meta {
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--set-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The policy status rows are `space-between` with `flex-wrap`, so whether the
+   version stayed on the line depended on how long the policy's name happened
+   to be — "Cookie policy" kept its version inline while "Terms of Service"
+   pushed it below. At 390 every row stacks the same way. */
+@media (max-width: 620px) {
+  .settings-page-shell .set-main [data-cc-legal-status-current-row],
+  .settings-page-shell .set-main [data-cc-legal-status-missing] {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px !important;
+    justify-items: start;
+  }
+}

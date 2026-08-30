@@ -19,7 +19,7 @@ const rgb = (value: string) =>
   ((value.match(/\d+/g) ?? []).slice(0, 3).map(Number) as [number, number, number]);
 
 test.describe("settings — the personal map is short on purpose", () => {
-  test("a personal space offers exactly Overview, Security, Notifications", async ({
+  test("a personal space offers exactly Overview, Security, Notifications, Privacy & data", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -27,8 +27,19 @@ test.describe("settings — the personal map is short on purpose", () => {
 
     // Profile & preferences was a second page for the same subject; General
     // held one sentence about AI assistance and a link to pricing; Billing &
-    // plan restated four facts and linked to the page that owns them.
-    expect(await navIds(page)).toEqual(["overview", "security", "notifications"]);
+    // plan restated four facts and linked to the page that owns them. None of
+    // them come back.
+    //
+    // Privacy & data is the one addition, and it is not a fourth tab for the
+    // sake of it: cookie consent, policy acceptance, the personal data export
+    // and account closure are account-scoped controls that had no reachable
+    // destination at all — see `settings-privacy.spec.ts`.
+    expect(await navIds(page)).toEqual([
+      "overview",
+      "security",
+      "notifications",
+      "privacy",
+    ]);
   });
 
   test("the retired destinations still resolve rather than 404", async ({

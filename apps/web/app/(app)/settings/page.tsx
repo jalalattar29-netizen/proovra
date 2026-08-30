@@ -89,6 +89,11 @@ const PANE_COPY: Record<
     description:
       "Which updates reach you in-app and by email, plus quiet hours and digest cadence.",
   },
+  privacy: {
+    title: "Privacy & data",
+    description:
+      "Manage consent, policy records, data export, and account lifecycle.",
+  },
   workspace: {
     title: "General",
     description: "Workspace settings and defaults for everyone working here.",
@@ -100,10 +105,6 @@ const PANE_COPY: Record<
   roles: {
     title: "Roles & permissions",
     description: "Understand workspace roles and what each role can do.",
-  },
-  "cases-evidence": {
-    title: "Cases & evidence",
-    description: "Defaults for how cases and evidence are handled here.",
   },
   retention: {
     title: "Retention & lifecycle",
@@ -255,6 +256,8 @@ function SettingsWorkspace() {
 
               {pane === "notifications" ? <NotificationsSection /> : null}
 
+              {pane === "privacy" ? <PrivacySection /> : null}
+
               {pane === "workspace" ? (
                 <div className="set-stack">
                   <AiSection />
@@ -262,12 +265,6 @@ function SettingsWorkspace() {
               ) : null}
 
               {pane === "roles" ? <RolesSection /> : null}
-
-              {pane === "cases-evidence" ? (
-                <div className="set-stack">
-                  <PrivacySection />
-                </div>
-              ) : null}
 
               {pane === "billing" ? <BillingSection ui={ui} /> : null}
 

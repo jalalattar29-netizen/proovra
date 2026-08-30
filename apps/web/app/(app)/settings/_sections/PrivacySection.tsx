@@ -31,9 +31,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
-import { Badge } from "../../../../components/ui/Badge";
+import {
+  AppStatusText,
+  type AppTone,
+} from "../../../../components/app-primitives";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { openCookiePreferences } from "../../../../lib/consent";
@@ -89,15 +91,6 @@ function presentPolicy(key: string): { title: string; kind: string } {
   );
 }
 
-const sectionTitle: React.CSSProperties = {
-  margin: "0 0 8px",
-  fontSize: 14,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-  color: "var(--ink-primary, #0f172a)",
-};
-
 const muted: React.CSSProperties = {
   margin: 0,
   fontSize: 13,
@@ -113,6 +106,20 @@ type ExportRequestRow = {
   failureCode: string | null;
   packageSha256: string | null;
   downloadCount: number;
+};
+
+/**
+ * The export lifecycle, said in colour as well as in words. READY is the one
+ * state with something to do; PROCESSING and REQUESTED are waiting, not
+ * problems; FAILED is a problem; EXPIRED and CANCELLED are neither.
+ */
+const EXPORT_STATUS_TONE: Record<string, AppTone> = {
+  REQUESTED: "blue",
+  PROCESSING: "blue",
+  READY: "green",
+  FAILED: "red",
+  EXPIRED: "slate",
+  CANCELLED: "slate",
 };
 
 const EXPORT_STATUS_LABEL: Record<string, string> = {
@@ -236,9 +243,9 @@ function DataExportCard() {
   );
 
   return (
-    <Card variant="admin" padding="comfortable" data-cc-privacy-export>
-      <h2 style={sectionTitle}>Personal data export</h2>
-      <p style={muted}>
+    <section className="set-card" data-cc-privacy-export>
+      <h3>Your data</h3>
+      <p className="set-card__sub">
         Request a copy of your personal account data — profile, login
         methods, preferences, consent records, account activity, sessions,
         and organization memberships. Evidence and organization records are
@@ -250,26 +257,19 @@ function DataExportCard() {
       ) : rows.length === 0 ? (
         <p style={{ ...muted, marginTop: 10 }}>No exports requested yet.</p>
       ) : (
-        <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
+        <ul className="set-privacy__rows">
           {rows.slice(0, 3).map((r) => (
             <li
               key={r.id}
               data-cc-export-row={r.status}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 10,
-                flexWrap: "wrap",
-                padding: "8px 2px",
-                borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.07))",
-                fontSize: 13,
-              }}
+              className="set-privacy__export-row"
             >
-              <span style={{ color: "var(--ink-primary, #0f172a)" }}>
-                {EXPORT_STATUS_LABEL[r.status] ?? r.status}
-                <span style={{ ...muted, display: "inline", marginLeft: 8 }}>
-                  requested {formatUserDateTime(r.requestedAtUtc)}
+              <span className="set-privacy__export">
+                <AppStatusText tone={EXPORT_STATUS_TONE[r.status] ?? "slate"} size="sm">
+                  {EXPORT_STATUS_LABEL[r.status] ?? r.status}
+                </AppStatusText>
+                <span className="set-privacy__export-meta">
+                  Requested {formatUserDateTime(r.requestedAtUtc)}
                   {r.status === "READY" && r.completedAtUtc
                     ? ` · created ${formatUserDateTime(r.completedAtUtc)}`
                     : ""}
@@ -278,12 +278,12 @@ function DataExportCard() {
                     : ""}
                 </span>
                 {r.status === "READY" && r.packageSha256 ? (
-                  <span style={{ ...muted, display: "block", marginTop: 2 }}>
+                  <span className="set-privacy__export-meta">
                     Checksum (SHA-256): {r.packageSha256.slice(0, 16)}…
                   </span>
                 ) : null}
                 {r.status === "FAILED" ? (
-                  <span style={{ ...muted, display: "block", marginTop: 2 }}>
+                  <span className="set-privacy__export-meta">
                     The export could not be generated. You can request a new
                     one below.
                   </span>
@@ -308,7 +308,7 @@ function DataExportCard() {
       {!active ? (
         <div className="mt-4">
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
             onClick={() => void requestExport()}
             loading={busy}
@@ -367,7 +367,7 @@ function DataExportCard() {
           {notice}
         </div>
       ) : null}
-    </Card>
+    </section>
   );
 }
 
@@ -537,9 +537,9 @@ function AccountClosureCard() {
   const phraseExpected = state?.confirmationPhrase ?? "close my account";
 
   return (
-    <Card variant="admin" padding="comfortable" data-cc-privacy-closure>
-      <h2 style={sectionTitle}>Close account</h2>
-      <p style={muted}>
+    <section className="set-card set-danger" data-cc-privacy-closure>
+      <h3 className="set-danger__title">Close account</h3>
+      <p className="set-card__sub">
         Closing your account signs you out everywhere, removes your login
         methods, and anonymizes your personal details after a{" "}
         {state?.coolingOffDays ?? 7}-day cancellation window. Evidence is
@@ -734,7 +734,105 @@ function AccountClosureCard() {
           {error}
         </div>
       ) : null}
-    </Card>
+    </section>
+  );
+}
+
+/**
+ * POLICY ACCEPTANCE HISTORY — the immutable record, disclosed on request.
+ *
+ * This rendered every row it was given, always open, under the status card
+ * that says the same policies are current. On an account with a few years of
+ * re-acceptances that is the longest thing on the page, and it is the part a
+ * reader needs least often: the question "am I up to date?" is answered above
+ * it. Collapsed by default, and bounded when opened.
+ */
+function PolicyHistory({
+  acceptances,
+}: {
+  acceptances: LegalAcceptanceItem[] | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const FIRST = 8;
+
+  if (acceptances === null) {
+    return (
+      <p className="set-privacy__muted" data-cc-privacy-acceptances-loading>
+        Loading…
+      </p>
+    );
+  }
+
+  const shown = showAll ? acceptances : acceptances.slice(0, FIRST);
+
+  return (
+    <div data-cc-privacy-acceptances>
+      <button
+        type="button"
+        className="set-privacy__disclose"
+        aria-expanded={open}
+        aria-controls="privacy-acceptance-history"
+        onClick={() => setOpen((v) => !v)}
+        data-cc-privacy-history-toggle
+      >
+        {open ? "Hide acceptance history" : "View acceptance history"}
+        {acceptances.length > 0 ? (
+          <span className="set-privacy__count">{acceptances.length}</span>
+        ) : null}
+      </button>
+
+      {open ? (
+        <div id="privacy-acceptance-history" className="set-privacy__history">
+          {/* LEGAL MEANING, PRESERVED. A record exists only because the person
+              took an explicit action; opening this list is not one of them. */}
+          <p className="set-privacy__muted">
+            Records are written only when you explicitly accept — viewing a
+            policy is never recorded as consent.
+          </p>
+
+          {acceptances.length === 0 ? (
+            <p className="set-privacy__muted">
+              No acceptance records on this account yet.
+            </p>
+          ) : (
+            <>
+              <ul className="set-privacy__rows">
+                {shown.map((item) => {
+                  const p = presentPolicy(item.policyKey);
+                  return (
+                    <li
+                      key={item.id}
+                      data-cc-privacy-acceptance-row={item.policyKey}
+                      className="set-privacy__row"
+                    >
+                      <span className="set-privacy__row-name">{p.title}</span>
+                      <span className="set-privacy__row-kind">{p.kind}</span>
+                      <span className="set-privacy__row-meta">
+                        v{item.policyVersion}
+                      </span>
+                      <span className="set-privacy__row-meta">
+                        {formatUserDateTime(item.acceptedAt)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {!showAll && acceptances.length > FIRST ? (
+                <button
+                  type="button"
+                  className="set-privacy__more"
+                  onClick={() => setShowAll(true)}
+                  data-cc-privacy-history-more
+                >
+                  View {acceptances.length - FIRST} more
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -777,147 +875,105 @@ export function PrivacySection() {
     : null;
 
   return (
-    <div style={{ display: "grid", gap: 14, maxWidth: 720 }} data-cc-privacy>
-        {/* A. Cookie preferences */}
-        <Card variant="admin" padding="comfortable" data-cc-privacy-cookies>
-          <h2 style={sectionTitle}>Cookie preferences</h2>
-          {cookieConsent ? (
-            <div className="grid gap-1.5 text-[13px]">
-              <div className="flex items-center justify-between gap-3">
-                <span style={muted}>Consent version</span>
-                <span style={{ color: "var(--ink-primary, #0f172a)", fontWeight: 600 }}>
-                  v{cookieConsent.consentVersion}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span style={muted}>Recorded</span>
-                <span style={{ color: "var(--ink-primary, #0f172a)" }}>
-                  {formatUserDateTime(cookieConsent.createdAt)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span style={muted}>Allowed categories</span>
-                <span style={{ color: "var(--ink-primary, #0f172a)" }}>
-                  {consentCategories || "Necessary only"}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <p style={muted}>No cookie consent recorded on this account yet.</p>
-          )}
-          <div className="mt-4">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => openCookiePreferences()}
-              data-cc-privacy-manage-cookies
-            >
-              Manage Cookie Preferences
-            </Button>
-          </div>
-        </Card>
+    <div className="set-stack" data-cc-privacy>
+      {/* A. PRIVACY PREFERENCES ------------------------------------------ */}
+      <section className="set-card" data-cc-privacy-cookies>
+        <h3>Privacy preferences</h3>
+        <p className="set-card__sub">
+          Manage your cookie and consent preferences.
+        </p>
 
-        {/* B0. PHASE 12 VERTICAL A — live acceptance STATUS from the server
-            (GET /v1/users/legal-status). This is the resolution surface for
-            the 428 LEGAL_REACCEPT_REQUIRED gate that fronts billing and
-            checkout; the history card below is the immutable record. */}
+        {cookieConsent ? (
+          <dl className="set-privacy__facts">
+            <div>
+              <dt>Consent version</dt>
+              <dd>v{cookieConsent.consentVersion}</dd>
+            </div>
+            <div>
+              <dt>Recorded</dt>
+              <dd>{formatUserDateTime(cookieConsent.createdAt)}</dd>
+            </div>
+            <div>
+              <dt>Allowed categories</dt>
+              <dd>{consentCategories || "Necessary only"}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="set-privacy__muted">
+            No cookie consent recorded on this account yet.
+          </p>
+        )}
+
+        <div className="set-privacy__actions">
+          {/* The ONE consent manager. `openCookiePreferences` dispatches to
+              the handler installed by `CookieConsentInit` in the root layout,
+              which opens the same preferences modal the public banner does —
+              there is no second cookie implementation here. */}
+          <button
+            type="button"
+            className="set-action--ink"
+            onClick={() => openCookiePreferences()}
+            data-cc-privacy-manage-cookies
+          >
+            Manage cookie preferences
+          </button>
+        </div>
+      </section>
+
+      {/* B. POLICIES & CONSENT -------------------------------------------- */}
+      <section className="set-card" data-cc-privacy-policies>
+        <h3>Policies &amp; consent</h3>
+        <p className="set-card__sub">
+          Review the policies currently accepted for this account and the
+          history of recorded consent.
+        </p>
+
+        {/* Server-authoritative status — the resolution surface for the 428
+            LEGAL_REACCEPT_REQUIRED gate that fronts billing and checkout. */}
         <LegalAcceptanceStatusCard onAccepted={loadAcceptances} />
 
-        {/* B. Legal acceptance history — structured, typed rows */}
-        <Card variant="admin" padding="comfortable" data-cc-privacy-acceptances>
-          <h2 style={sectionTitle}>Policy acceptance history</h2>
-          <p style={muted}>
-            Records are written only when you explicitly accept — viewing a
-            policy is never recorded as consent.
-          </p>
-          {acceptances === null ? (
-            <p style={{ ...muted, marginTop: 10 }}>Loading…</p>
-          ) : acceptances.length === 0 ? (
-            <p style={{ ...muted, marginTop: 10 }}>
-              No acceptance records on this account yet.
-            </p>
-          ) : (
-            <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
-              {acceptances.map((item) => {
-                const p = presentPolicy(item.policyKey);
-                return (
-                  <li
-                    key={item.id}
-                    data-cc-privacy-acceptance-row={item.policyKey}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      padding: "9px 2px",
-                      borderBottom:
-                        "1px solid var(--border-default, rgba(15,23,42,0.07))",
-                      fontSize: 13,
-                    }}
-                  >
-                    <span style={{ color: "var(--ink-primary, #0f172a)", fontWeight: 600 }}>
-                      {p.title}
-                      <Badge tone="neutral" subtle style={{ marginLeft: 8 }}>
-                        {p.kind}
-                      </Badge>
-                    </span>
-                    <span style={muted}>
-                      v{item.policyVersion} · {formatUserDateTime(item.acceptedAt)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
+        <PolicyHistory acceptances={acceptances} />
+      </section>
 
-        {/* B2. Personal account data export (lifecycle Phase 4) — a REAL
-            asynchronous flow: request (step-up) → generated on the platform
-            cron → download (step-up, authenticated, user-bound) → expires
-            after 7 days with secure payload deletion. Account-level and
-            never plan-gated. */}
-        <DataExportCard />
+      {/* C. YOUR DATA ------------------------------------------------------ */}
+      <DataExportCard />
 
-        <AccountClosureCard />
+      {/* D. DANGER ZONE ---------------------------------------------------- */}
+      <AccountClosureCard />
 
-        {/* C+D. Privacy actions + essential references. Only REAL flows —
-            no invented deletion/export buttons. */}
-        <Card variant="admin" padding="comfortable" data-cc-privacy-references>
-          <h2 style={sectionTitle}>Privacy actions &amp; references</h2>
-          <div className="grid gap-2 text-[13.5px]">
-            <Link href="/settings/legal/privacy-requests" style={{ color: "var(--ink-primary, #0f172a)" }}>
-              Submit a privacy request →
+      {/* Real flows only — no invented deletion or export links. */}
+      <section className="set-card" data-cc-privacy-references>
+        <h3>Privacy actions &amp; references</h3>
+        <ul className="set-privacy__links">
+          <li>
+            <Link href="/settings/legal/privacy-requests">
+              Submit a privacy request
             </Link>
-            <Link href="/settings/legal/privacy" style={{ color: "var(--ink-secondary, #475569)" }}>
-              Privacy Policy
-            </Link>
-            <Link href="/settings/legal/terms" style={{ color: "var(--ink-secondary, #475569)" }}>
-              Terms of Service
-            </Link>
-            <Link href="/settings/legal/cookies" style={{ color: "var(--ink-secondary, #475569)" }}>
-              Cookie Policy
-            </Link>
-          </div>
-          <p style={{ ...muted, marginTop: 10 }}>
-            The full legal library (DPA, subprocessors, retention, disclosure
-            policies, …) lives in the public Trust Center and the site footer.{" "}
-            <a
-              href="/trust"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-cc-open-public-trust-center
-              style={{
-                color: "var(--ink-secondary, #475569)",
-                textDecoration: "underline",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Open public Trust Center <span aria-hidden="true">↗</span>
-            </a>{" "}
-            (opens in a new tab — this app stays open).
-          </p>
-        </Card>
+          </li>
+          <li>
+            <Link href="/settings/legal/privacy">Privacy Policy</Link>
+          </li>
+          <li>
+            <Link href="/settings/legal/terms">Terms of Service</Link>
+          </li>
+          <li>
+            <Link href="/settings/legal/cookies">Cookie Policy</Link>
+          </li>
+        </ul>
+        <p className="set-privacy__muted">
+          The full legal library (DPA, subprocessors, retention, disclosure
+          policies, …) lives in the public Trust Center and the site footer.{" "}
+          <a
+            href="/trust"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-cc-open-public-trust-center
+          >
+            Open public Trust Center <span aria-hidden="true">↗</span>
+          </a>{" "}
+          (opens in a new tab — this app stays open).
+        </p>
+      </section>
     </div>
   );
 }

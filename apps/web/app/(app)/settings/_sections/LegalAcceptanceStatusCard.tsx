@@ -30,9 +30,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
-import { Badge } from "../../../../components/ui/Badge";
+import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { captureException } from "../../../../lib/sentry";
@@ -68,15 +67,6 @@ const POLICY_HREF: Record<string, string> = {
 function labelFor(key: string): string {
   return POLICY_LABEL[key] ?? key;
 }
-
-const sectionTitle: React.CSSProperties = {
-  margin: "0 0 8px",
-  fontSize: 14,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-  color: "var(--ink-primary, #0f172a)",
-};
 
 const muted: React.CSSProperties = {
   margin: 0,
@@ -152,8 +142,7 @@ export function LegalAcceptanceStatusCard({
   }, [state, stamp, isStale, load, onAccepted]);
 
   return (
-    <Card variant="admin" padding="comfortable" data-cc-legal-status={state.kind}>
-      <h2 style={sectionTitle}>Policy acceptance status</h2>
+    <div className="set-privacy__status" data-cc-legal-status={state.kind}>
 
       {state.kind === "LOADING" ? (
         <p style={muted} data-cc-legal-status-loading>
@@ -179,9 +168,9 @@ export function LegalAcceptanceStatusCard({
       ) : state.status.requiresReacceptance ? (
         <div data-cc-legal-status-action-required>
           <p style={{ ...muted, color: "var(--ink-primary, #0f172a)" }}>
-            <Badge tone="pending" subtle>
+            <AppStatusText tone="amber" size="sm">
               Action needed
-            </Badge>{" "}
+            </AppStatusText>{" "}
             Some parts of the product — including billing and checkout — stay
             locked until these are accepted.
           </p>
@@ -249,9 +238,9 @@ export function LegalAcceptanceStatusCard({
       ) : (
         <div data-cc-legal-status-current>
           <p style={{ ...muted, color: "var(--ink-primary, #0f172a)" }}>
-            <Badge tone="verified" subtle>
+            <AppStatusText tone="green" size="sm">
               Up to date
-            </Badge>{" "}
+            </AppStatusText>{" "}
             Your account has accepted every policy version currently required.
           </p>
           <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
@@ -273,12 +262,15 @@ export function LegalAcceptanceStatusCard({
                 <span style={{ color: "var(--ink-primary, #0f172a)", fontWeight: 600 }}>
                   {labelFor(key)}
                 </span>
+                <AppStatusText tone="green" size="sm">
+                  Up to date
+                </AppStatusText>
                 <span style={muted}>v{state.status.requiredVersions[key]}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
-    </Card>
+    </div>
   );
 }

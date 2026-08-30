@@ -39,10 +39,10 @@ export type SettingsPaneId =
   | "overview"
   | "security"
   | "notifications"
+  | "privacy"
   | "workspace"
   | "members"
   | "roles"
-  | "cases-evidence"
   | "retention"
   | "integrations"
   | "sso"
@@ -143,6 +143,20 @@ export function resolveSettingsNavigation(
       href: routeLoads("workspace.security_center", input) ? "/security-center" : null,
     },
     { id: "notifications", label: "Notifications", href: null },
+    // PRIVACY & DATA (2026-09-03) — cookie consent, policy acceptance, the
+    // personal data export and account closure.
+    //
+    // These were not missing from the product; they were unreachable. The
+    // section was mounted under the org-only WORKSPACE pane "Cases &
+    // evidence", so a personal space — the only scope these controls have —
+    // was never offered them at all. Every route behind them is
+    // `requireAuth` keyed by `getAuthUserId`, with the API's own
+    // `TENANT_SCOPE_EXCEPTION: account_tier_user_scoped`: there is no
+    // workspace dimension to gate on, and a person's privacy rights do not
+    // depend on their role in someone else's workspace. So it is offered to
+    // every authenticated actor, unconditionally, in ACCOUNT where its scope
+    // actually lies.
+    { id: "privacy", label: "Privacy & data", href: null },
   ];
 
   // -------------------------------------------------------------------------
@@ -178,9 +192,6 @@ export function resolveSettingsNavigation(
   // none, so the pane would describe roles nobody can hold.
   if (isOrg) {
     workspace.push({ id: "roles", label: "Roles & permissions", href: null });
-  }
-  if (isOrg) {
-    workspace.push({ id: "cases-evidence", label: "Cases & evidence", href: null });
   }
   if (routeLoads("governance.retention", input)) {
     workspace.push({
@@ -273,10 +284,22 @@ export function resolvePaneFromHash(
   const legacy: Record<string, SettingsPaneId> = {
     profile: "overview",
     preferences: "overview",
-    privacy: "overview",
     ai: "workspace",
     billing: "overview",
     workspace: "overview",
+    // PRIVACY & DATA. `#privacy` used to fall through to the Overview,
+    // because the pane it named was not offered — which meant a bookmark to
+    // a privacy control landed on a page that has none of them. It resolves
+    // to the destination that owns the feature now. `cases-evidence` is
+    // here because that is where the section used to be mounted, and
+    // `#cookies` / `#consent` / `#export` / `#account` because those are
+    // the anchors the individual cards were linked by.
+    cookies: "privacy",
+    consent: "privacy",
+    export: "privacy",
+    account: "privacy",
+    data: "privacy",
+    "cases-evidence": "privacy",
   };
   const mapped = legacy[raw];
   if (mapped && model.allowed.has(mapped)) return mapped;

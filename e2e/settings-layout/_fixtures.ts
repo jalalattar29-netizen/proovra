@@ -360,17 +360,117 @@ export async function installSettingsApi(
         }),
       );
     }
+    // PRIVACY & DATA.
+    //
+    // These four stubs answered 200 with keys nothing reads — `consent`,
+    // `acceptances`, `exports`, `requests: []` for a route that returns a
+    // single `request` — so every card fell to its empty state and the pane
+    // could only ever be measured blank. The bodies below are the shapes the
+    // API actually returns.
     if (path.endsWith("/v1/users/cookie-consent/latest")) {
-      return route.fulfill(json({ consent: null, categories: {} }));
+      return route.fulfill(
+        json({
+          record: {
+            id: "cc-1",
+            consentVersion: "2026-04-06",
+            necessary: true,
+            preferences: true,
+            analytics: true,
+            marketing: false,
+            createdAt: "2026-08-29T19:14:00.000Z",
+          },
+        }),
+      );
+    }
+    if (path.endsWith("/v1/users/legal-status")) {
+      return route.fulfill(
+        json({
+          ok: true,
+          requiresReacceptance: false,
+          missingPolicies: [],
+          acceptedVersions: {
+            terms: "2026-04-06",
+            privacy: "2026-04-06",
+            cookies: "2026-04-06",
+          },
+          requiredVersions: {
+            terms: "2026-04-06",
+            privacy: "2026-04-06",
+            cookies: "2026-04-06",
+          },
+        }),
+      );
     }
     if (path.endsWith("/v1/users/legal-acceptance")) {
-      return route.fulfill(json({ acceptances: [], documents: [], required: {} }));
+      return route.fulfill(
+        json({
+          items: [
+            {
+              id: "la-1",
+              policyKey: "terms",
+              policyVersion: "2026-04-06",
+              acceptedAt: "2026-08-29T19:14:00.000Z",
+              source: "signup",
+            },
+            {
+              id: "la-2",
+              policyKey: "privacy",
+              policyVersion: "2026-04-06",
+              acceptedAt: "2026-08-29T19:14:00.000Z",
+              source: "signup",
+            },
+            {
+              id: "la-3",
+              policyKey: "cookies",
+              policyVersion: "2026-04-06",
+              acceptedAt: "2026-08-29T19:14:00.000Z",
+              source: "banner",
+            },
+          ],
+        }),
+      );
     }
     if (path.endsWith("/v1/identity/data-export")) {
-      return route.fulfill(json({ exports: [], items: [] }));
+      return route.fulfill(
+        json({
+          requests: [
+            {
+              id: "ex-1",
+              status: "READY",
+              requestedAtUtc: "2026-08-28T09:00:00.000Z",
+              completedAtUtc: "2026-08-28T09:06:00.000Z",
+              expiresAtUtc: "2026-09-04T09:06:00.000Z",
+              failureCode: null,
+              packageSha256:
+                "9f2c1b7ae4d0f35c8a1e6b0d47f92c3a5e8b1d6f0c4a97e2b5d8f1a3c6e9b2d4",
+              downloadCount: 0,
+            },
+          ],
+        }),
+      );
     }
+    // An organization owner carries a live subscription, which is a real
+    // closure blocker; a personal space here has none. Both branches of the
+    // Danger zone are therefore reachable in this project.
     if (path.endsWith("/v1/identity/account-closure")) {
-      return route.fulfill(json({ requests: [], items: [], active: null }));
+      return route.fulfill(
+        json({
+          request: null,
+          blockers:
+            actor === "org-owner"
+              ? [
+                  {
+                    code: "BILLING_SUBSCRIPTION_ACTIVE",
+                    message:
+                      "You have an active subscription. Cancel it before closing your account.",
+                    count: 1,
+                  },
+                ]
+              : [],
+          confirmationPhrase: "close my account",
+          coolingOffDays: 7,
+        }),
+      );
     }
     if (path.endsWith("/v1/me/inbox/summary")) {
       return route.fulfill(
