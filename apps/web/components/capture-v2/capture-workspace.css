@@ -2538,3 +2538,209 @@
   background: transparent !important;
   box-shadow: none !important;
 }
+
+/* ===========================================================================
+   CAPTURE (2026-09-03) — the rail's two remaining dense surfaces
+=========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   INTEGRITY PREPARATION — a status list, not a table.
+
+   The grid lines were not borders: the list was `gap: 1px` over a tinted
+   background with opaque white cells, so the tint showed through every gap as
+   a rule and each of the four statuses sat in its own box. In a 352px rail
+   that is four cells of two columns each, and the values had nowhere to go.
+
+   Four rows, label left, value right, one hairline between them. Nothing is
+   boxed and nothing is a pill.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-integrity-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.capture-enterprise-page .capture-integrity-list > div {
+  display: grid !important;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) !important;
+  align-items: baseline !important;
+  gap: 14px !important;
+  min-height: 36px !important;
+  padding: 9px 0 !important;
+  border: 0 !important;
+  border-block-start: 1px solid var(--cap-divider) !important;
+  background: transparent !important;
+}
+
+.capture-enterprise-page .capture-integrity-list > div:first-child {
+  border-block-start: 0 !important;
+  padding-block-start: 0 !important;
+}
+
+/* The label reads as a label, not as a shouted uppercase column header. */
+.capture-enterprise-page .capture-integrity-list span {
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: var(--capture-muted) !important;
+  white-space: nowrap !important;
+}
+
+/* These four states describe a pipeline that has not run. None of them is a
+   success and none is a failure, so none of them is coloured. */
+.capture-enterprise-page .capture-integrity-list strong {
+  font-size: 0.82rem !important;
+  font-weight: 650 !important;
+  text-align: end !important;
+  color: var(--capture-ink) !important;
+  /* The value gets the room it needs; wrapping is allowed before collision. */
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Narrow rail: stack rather than collide. */
+@media (max-width: 1180px) {
+  .capture-enterprise-page .capture-integrity-list > div {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .capture-enterprise-page .capture-integrity-list > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 2px !important;
+  }
+
+  .capture-enterprise-page .capture-integrity-list strong {
+    text-align: start !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   AI ADVISORY — the expanded panel
+
+   Four white mini-cards on a grey block, all of it in near-black and silver.
+   The panel keeps every word and every safety boundary; what changes is that
+   the numbers become legible as numbers and the disclaimer becomes legible as
+   prose.
+--------------------------------------------------------------------------- */
+
+.capture-enterprise-page .capture-phase7-ai-card,
+.capture-enterprise-page .capture-phase7-ai-body {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* The pre-check state line. */
+.capture-enterprise-page .capture-phase7-ai-status {
+  border: 1px solid var(--capture-line) !important;
+  border-radius: 12px !important;
+  background: var(--cap-inset-hover) !important;
+  box-shadow: none !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-status strong {
+  font-size: var(--cap-fs-body) !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-status p,
+.capture-enterprise-page .capture-phase7-ai-status div {
+  font-size: 0.8rem !important;
+  line-height: 1.45 !important;
+  color: var(--capture-muted) !important;
+}
+
+/* The metrics: a 2x2 grid whose cells are separated by rules rather than by
+   being four floating cards. */
+.capture-enterprise-page .capture-phase7-ai-context-grid {
+  gap: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid var(--capture-line) !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-context-grid > div {
+  gap: 3px !important;
+  padding: 12px 14px !important;
+  border: 0 !important;
+  border-block-start: 1px solid var(--capture-line) !important;
+  border-inline-start: 1px solid var(--capture-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-context-grid > div:nth-child(-n + 2) {
+  border-block-start: 0 !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-context-grid > div:nth-child(odd) {
+  border-inline-start: 0 !important;
+}
+
+/* Label above, number below — the number is the thing being read. */
+.capture-enterprise-page .capture-phase7-ai-context-grid > div > :first-child {
+  font-size: var(--cap-fs-label) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  color: var(--capture-muted) !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-context-grid strong {
+  font-size: 1.05rem !important;
+  font-weight: 760 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: var(--capture-ink) !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-context-grid small {
+  font-size: 0.75rem !important;
+  line-height: 1.35 !important;
+  color: var(--capture-muted) !important;
+}
+
+/* The disclaimer is a boundary statement, so it is readable prose rather than
+   pale fine print. */
+.capture-enterprise-page .capture-ai-advisory-shell p,
+.capture-enterprise-page .capture-phase7-ai-body p {
+  font-size: 0.82rem !important;
+  line-height: 1.5 !important;
+  color: var(--capture-muted) !important;
+}
+
+/* THE ADVISORY CTA — dark ink, never the accent.
+   Review & Sign is the product's primary action; an advisory pre-check that
+   decides nothing must not wear the same colour. */
+.capture-enterprise-page .capture-phase7-ai-body button,
+.capture-enterprise-page .capture-phase7-ai-body button *,
+.capture-enterprise-page [data-capture-ai-run],
+.capture-enterprise-page [data-capture-ai-run] * {
+  background-image: none !important;
+  background-color: var(--capture-ink) !important;
+  border-color: var(--capture-ink) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-body button:hover:not(:disabled),
+.capture-enterprise-page .capture-phase7-ai-body button:hover:not(:disabled) * {
+  background-color: #344054 !important;
+  border-color: #344054 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.capture-enterprise-page .capture-phase7-ai-body button:focus-visible {
+  outline: 2px solid var(--capture-accent) !important;
+  outline-offset: 2px !important;
+}

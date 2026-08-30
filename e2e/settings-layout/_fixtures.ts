@@ -70,8 +70,17 @@ function settingsEnvelope(actor: SettingsActor): Record<string, unknown> {
     capabilities: caps,
     activeSpace: { type: "PERSONAL", id: "user-1", displayName: "Personal Space" },
     organizations: [],
+    // Personal mode is an ACTIVE workspace whose scope is PERSONAL, which is
+    // what `useTeamWorkspaceGate` reads: scope !== "TEAM" resolves to
+    // { status: "no-workspace", reason: "personal" }, so `useTeamId()` is
+    // null. Several panels key their availability off exactly that. The
+    // envelope's `workspace` is never absent — code reads `workspace.id`
+    // unguarded — so this states personal mode rather than removing the field.
     workspace: {
       ...((base.workspace as Record<string, unknown>) ?? {}),
+      id: "user-1",
+      scope: "PERSONAL",
+      status: "active",
       membership: { role: null, isOwner: false, isAdmin: false },
     },
     flags: {
@@ -195,9 +204,41 @@ export async function installSettingsApi(
     // The three reads `useAccountSecuritySummary` composes. Without them the
     // Security and Activity cards sit in their loading state forever, and this
     // project would be measuring a spinner rather than the layout.
+    // `LoginMethodsState` — the shape `summarizeLoginMethods` consumes. A
+    // guess at it is what dropped the Security pane into the 500 boundary:
+    // `links` is mapped, so an absent array throws during render.
     if (path.endsWith("/v1/identity/links")) {
       return route.fulfill(
-        json({ providers: [{ provider: "google", linked: true }], hasPassword: true }),
+        json({
+          passwordConfigured: true,
+          links: [
+            {
+              id: "link-1",
+              provider: "google",
+              status: "ACTIVE",
+              lastUsedAtUtc: "2026-08-28T09:00:00.000Z",
+            },
+          ],
+          legacyProvider: null,
+          usableMethods: 2,
+        }),
+      );
+    }
+    // Twelve events, so the latest-three default and its disclosure are both
+    // exercised by what the page actually renders.
+    if (path.includes("/v1/identity-security/security-events")) {
+      return route.fulfill(
+        json({
+          events: Array.from({ length: 12 }, (_, i) => ({
+            id: `evt-${i}`,
+            type: i % 3 === 0 ? "auth.login.succeeded" : "identity.profile.updated",
+            outcome: i % 5 === 0 ? "FAILED" : "SUCCEEDED",
+            occurredAtUtc: new Date(Date.UTC(2026, 7, 29 - i, 12, 0, 0)).toISOString(),
+            summary: i % 3 === 0 ? "Signed in with email and password" : "Profile updated",
+            ipPreview: "87.101.93.x",
+            uaPreview: "Chrome on Windows",
+          })),
+        }),
       );
     }
     if (path.endsWith("/v1/identity/mfa/factors")) {
@@ -206,14 +247,22 @@ export async function installSettingsApi(
     if (path.endsWith("/v1/identity-security/my-sessions")) {
       return route.fulfill(
         json({
-          sessions: [
-            { isCurrent: true, issuedAtUtc: "2026-08-29T14:42:00.000Z" },
-            { isCurrent: false, issuedAtUtc: "2026-08-20T09:10:00.000Z" },
-            { isCurrent: false, issuedAtUtc: "2026-08-11T18:02:00.000Z" },
-          ],
+          sessions: Array.from({ length: 15 }, (_, i) => ({
+            id: `sess-${i}`,
+            isCurrent: i === 0,
+            issuedAtUtc: new Date(Date.UTC(2026, 7, 29 - i, 8, 0, 0)).toISOString(),
+            expiresAtUtc: "2026-12-31T00:00:00.000Z",
+            lastSeenAtUtc: new Date(Date.UTC(2026, 7, 30 - i, 14, 42, 0)).toISOString(),
+            ipPreview: "87.101.93.x",
+            uaPreview: "Chrome on Windows",
+            countryCode: i % 2 === 0 ? "DE" : "SE",
+            ssoConnectionId: null,
+            quarantined: false,
+          })),
         }),
       );
     }
+
     // Each pane's own reads, in the shape its consumer expects. A bare {}
     // is what dropped four of them into the error boundary: a component that
     // maps an array the fixture never sent throws during render, and this
@@ -221,8 +270,54 @@ export async function installSettingsApi(
     if (path.endsWith("/v1/communications/preferences")) {
       return route.fulfill(json({ preferences: [], channels: [] }));
     }
-    if (path.endsWith("/v1/me/notification-preferences")) {
-      return route.fulfill(json({ preferences: [], categories: [], items: [] }));
+    // The panel's real `Response` shape. `catalog` is dereferenced during
+    // render, so a bare {} threw and this project measured an error page.
+    if (path.includes("/v1/me/notification-preferences")) {
+      return route.fulfill(
+        json({
+          teamId: "user-1",
+          preferences: [
+            {
+              preferenceType: "EVIDENCE_REQUEST_UPDATE",
+              channel: "IN_APP",
+              enabled: true,
+              updatedAt: "2026-08-01T00:00:00.000Z",
+            },
+            {
+              preferenceType: "EVIDENCE_REQUEST_UPDATE",
+              channel: "EMAIL",
+              enabled: true,
+              frequency: "IMMEDIATE",
+              updatedAt: "2026-08-01T00:00:00.000Z",
+            },
+            {
+              preferenceType: "MENTION",
+              channel: "IN_APP",
+              enabled: true,
+              updatedAt: "2026-08-01T00:00:00.000Z",
+            },
+            {
+              preferenceType: "MENTION",
+              channel: "EMAIL",
+              enabled: false,
+              frequency: "DAILY",
+              updatedAt: "2026-08-01T00:00:00.000Z",
+            },
+          ],
+          lockedTypes: ["EVIDENCE_REQUEST_UPDATE"],
+          emailLockedTypes: [],
+          minimumFrequencyByType: {},
+          organizationId: null,
+          canManageOrgPolicy: false,
+          isPersonalWorkspace: true,
+          catalog: {
+            preferenceTypes: ["EVIDENCE_REQUEST_UPDATE", "MENTION"],
+            channels: ["IN_APP", "EMAIL"],
+            frequencies: ["IMMEDIATE", "HOURLY", "DAILY", "WEEKLY", "OFF"],
+            defaults: { IN_APP: true, EMAIL: false, frequency: "DAILY" },
+          },
+        }),
+      );
     }
     if (path.endsWith("/v1/me/notification-schedule")) {
       return route.fulfill(

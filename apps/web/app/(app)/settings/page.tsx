@@ -52,8 +52,6 @@ import {
   type SettingsPaneId,
 } from "../../../lib/settings/settingsNavigation";
 import { PersonalSecuritySections } from "../security-center/components/PersonalSecuritySections";
-import { OverviewSection } from "./_sections/OverviewSection";
-import { PreferencesSection } from "./_sections/PreferencesSection";
 import { NotificationsSection } from "./_sections/NotificationsSection";
 import { AiSection } from "./_sections/AiSection";
 import { PrivacySection } from "./_sections/PrivacySection";
@@ -80,11 +78,6 @@ const PANE_COPY: Record<
   overview: {
     title: "Overview",
     description: "A summary of your account and workspace.",
-  },
-  profile: {
-    title: "Profile & preferences",
-    description:
-      "Your identity, contact details, interface language and account timezone.",
   },
   security: {
     title: "Security",
@@ -245,13 +238,6 @@ function SettingsWorkspace() {
                 <h2>{copy.title}</h2>
                 <p>{copy.description}</p>
               </header>
-
-              {pane === "profile" ? (
-                <div className="set-stack">
-                  <OverviewSection ui={ui} security={security} />
-                  <PreferencesSection />
-                </div>
-              ) : null}
 
               {pane === "security" ? (
                 <div className="set-stack">

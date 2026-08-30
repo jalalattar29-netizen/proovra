@@ -252,3 +252,66 @@ test.describe("capture — responsive", () => {
     }
   });
 });
+
+test.describe("capture — the rail's dense surfaces", () => {
+  test("Integrity preparation is a status list, not a table of cells", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openCapture(page);
+
+    // It was `gap: 1px` over a tinted background with opaque white cells, so
+    // the tint showed through every gap as a rule and each of the four
+    // statuses sat in its own box.
+    const list = page.locator(".capture-integrity-list");
+    const shape = await list.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const row = el.querySelector("div")!;
+      const rcs = getComputedStyle(row);
+      return {
+        listBg: cs.backgroundColor,
+        gap: cs.gap,
+        rowBg: rcs.backgroundColor,
+        rowLeftBorder: rcs.borderLeftWidth,
+        rowRightBorder: rcs.borderRightWidth,
+      };
+    });
+    expect(shape.listBg, "the list must not paint a grid").toBe("rgba(0, 0, 0, 0)");
+    expect(shape.gap, "a 1px gap IS the grid").not.toBe("1px");
+    expect(shape.rowBg, "rows must not be opaque cells").toBe("rgba(0, 0, 0, 0)");
+    expect(shape.rowLeftBorder, "no vertical rules").toBe("0px");
+    expect(shape.rowRightBorder, "no vertical rules").toBe("0px");
+
+    // Four rows, and every label and value readable.
+    const rows = list.locator("> div");
+    await expect(rows).toHaveCount(4);
+    for (const label of ["Fingerprint", "Custody", "Package", "Location"]) {
+      await expect(list).toContainText(label);
+    }
+  });
+
+  test("the AI advisory CTA is dark ink, never the accent", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await openCapture(page);
+    await page.locator(".capture-phase7-ai-toggle").click();
+
+    const cta = page.locator(".capture-phase7-ai-body button").last();
+    await expect(cta).toBeVisible();
+    const paint = await cta.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { bg: cs.backgroundColor, fg: cs.color };
+    });
+    const rgb = (v: string) =>
+      ((v.match(/\d+/g) ?? []).slice(0, 3).map(Number) as [number, number, number]);
+    expect(
+      Math.max(...rgb(paint.bg)),
+      "AI is advisory; Review & Sign owns the accent",
+    ).toBeLessThan(80);
+    expect(rgb(paint.fg).every((c) => c > 240)).toBe(true);
+
+    // And the boundary statement is still there, in full.
+    await expect(page.locator(".capture-ai-advisory-shell")).toContainText(
+      /does not determine authenticity, truth, authorship, legal admissibility/i,
+    );
+  });
+});

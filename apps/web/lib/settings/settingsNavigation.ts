@@ -37,7 +37,6 @@ const ROUTE_BY_ID: ReadonlyMap<string, RouteDefinition> = new Map(
 /** An in-page section of the Settings shell. */
 export type SettingsPaneId =
   | "overview"
-  | "profile"
   | "security"
   | "notifications"
   | "workspace"
@@ -131,8 +130,12 @@ export function resolveSettingsNavigation(
   // authenticated person has a profile, a password and notification
   // preferences regardless of where they are working.
   // -------------------------------------------------------------------------
+  // Profile & preferences is NOT a destination any more. It repeated the
+  // workspace, plan, sign-in and two-factor facts the Overview already
+  // summarised, and added a language and a timezone control; both now live on
+  // the Overview beside the identity they belong to. `#profile` still
+  // resolves — see `resolvePaneFromHash`.
   const account: SettingsNavItem[] = [
-    { id: "profile", label: "Profile & preferences", href: null },
     {
       id: "security",
       label: "Security",
@@ -150,7 +153,12 @@ export function resolveSettingsNavigation(
   // functionality that does not exist. This is the §34 boundary.
   // -------------------------------------------------------------------------
   const workspace: SettingsNavItem[] = [];
-  if (has(input, "SETTINGS_MANAGE") || isOrg) {
+  // General carries workspace-wide defaults, which a personal space does not
+  // have: there, the pane held one sentence about AI assistance not being in
+  // the plan, and a link to pricing. That is a line on the Plan summary, not a
+  // destination. It stays for collaborative workspaces, which do have
+  // workspace-wide settings to change.
+  if (isOrg && has(input, "SETTINGS_MANAGE")) {
     workspace.push({ id: "workspace", label: "General", href: null });
   }
   // Membership is administered on the organization admin surface. Offering
@@ -216,7 +224,12 @@ export function resolveSettingsNavigation(
   if (routeLoads("workspace.audit_transparency", input)) {
     system.push({ id: "audit", label: "Audit log", href: "/audit-transparency" });
   }
-  if (routeLoads("account.billing", input)) {
+  // Billing & plan was a second billing summary that restated the plan, the
+  // scope, the workspace and the storage — every one of them already on the
+  // Overview's Plan card — and then linked to the page that owns the domain.
+  // The Plan card links there directly now. The destination remains only where
+  // a workspace has billing to administer beyond the personal plan.
+  if (isOrg && routeLoads("account.billing", input)) {
     system.push({ id: "billing", label: "Billing & plan", href: "/billing" });
   }
 
@@ -247,13 +260,25 @@ export function resolvePaneFromHash(
   hash: string,
   model: SettingsNavModel,
 ): SettingsPaneId {
-  const raw = hash.replace(/^#/, "").trim();
-  // The pre-redesign anchors, kept working.
+  const raw = hash.replace(/^#/, "").trim() as SettingsPaneId;
+
+  // A pane this actor actually has always wins. `#billing` means the Billing
+  // pane for a workspace that still has one; it only falls through to the
+  // compatibility map below for an actor whose Settings no longer offers it.
+  if (model.allowed.has(raw)) return raw;
+
+  // Retired destinations, still linked from elsewhere and from bookmarks.
+  // Each resolves to the pane that absorbed it rather than 404-ing or landing
+  // on a surface the resolver refused.
   const legacy: Record<string, SettingsPaneId> = {
-    preferences: "profile",
-    privacy: "profile",
+    profile: "overview",
+    preferences: "overview",
+    privacy: "overview",
     ai: "workspace",
+    billing: "overview",
+    workspace: "overview",
   };
-  const candidate = (legacy[raw] ?? raw) as SettingsPaneId;
-  return model.allowed.has(candidate) ? candidate : "overview";
+  const mapped = legacy[raw];
+  if (mapped && model.allowed.has(mapped)) return mapped;
+  return "overview";
 }

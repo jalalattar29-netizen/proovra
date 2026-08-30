@@ -31,10 +31,12 @@ test.describe("settings — the landing pane", () => {
       await expect(page.locator(`[data-settings-summary="${card}"]`)).toBeVisible();
     }
 
-    // Account / Workspace / Integrations / System, as sections on the page and
-    // as groups in the rail — one model drives both, so they cannot disagree.
-    for (const group of ["account", "workspace", "integrations", "system"]) {
-      await expect(page.locator(`[data-settings-group="${group}"]`)).toBeVisible();
+    // The groups are the RAIL's, not the page body's: the Overview used to
+    // repeat them as card grids whose only job was to open a pane the rail
+    // already lists. One local navigation authority.
+    await expect(page.locator("[data-settings-group]")).toHaveCount(0);
+    for (const group of ["Account", "Workspace", "Integrations", "System"]) {
+      await expect(page.locator("[data-settings-nav]")).toContainText(group);
     }
   });
 
@@ -72,7 +74,6 @@ test.describe("settings — the map is the resolver's answer", () => {
     const ids = await navIds(page);
     for (const id of [
       "overview",
-      "profile",
       "security",
       "notifications",
       "workspace",
@@ -97,12 +98,12 @@ test.describe("settings — the map is the resolver's answer", () => {
       expect(ids, `personal space must not offer ${id}`).not.toContain(id);
     }
     // What it does have, it keeps.
-    for (const id of ["overview", "profile", "security", "notifications"]) {
+    for (const id of ["overview", "security", "notifications"]) {
       expect(ids).toContain(id);
     }
-    // And the page's own groups match the rail exactly.
-    await expect(page.locator('[data-settings-group="workspace"]')).toHaveCount(0);
-    await expect(page.locator('[data-settings-group="account"]')).toBeVisible();
+    // The rail carries no Workspace group at all in a personal space.
+    await expect(page.locator("[data-settings-nav]")).not.toContainText("Workspace");
+    await expect(page.locator("[data-settings-nav]")).toContainText("Account");
   });
 });
 
@@ -175,10 +176,11 @@ test.describe("settings — navigation and hand-offs", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
-    // `#preferences` was a section of the old scroll; Profile owns it now, and
-    // other surfaces still link to the old anchor.
+    // `#preferences` was a section of the old scroll and then a tab of its
+    // own; the Overview owns it now, and other surfaces still link to the old
+    // anchor.
     await openSettings(page, "org-owner", "#preferences");
-    await expect(page.locator("h2").first()).toContainText("Profile & preferences");
+    await expect(page.locator("h2").first()).toContainText("Overview");
   });
 
   test("an unreachable pane in the URL falls back to Overview", async ({ page }) => {
@@ -300,7 +302,7 @@ test.describe("settings — accessibility", () => {
     // One h1 for the page, one h2 for the pane.
     await expect(page.locator("h1")).toHaveCount(1);
     const focusRing = await page
-      .locator('[data-settings-nav-item="profile"]')
+      .locator('[data-settings-nav-item="security"]')
       .evaluate((el) => {
         el.focus();
         return getComputedStyle(el).outlineWidth;

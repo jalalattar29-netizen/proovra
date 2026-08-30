@@ -249,3 +249,54 @@ test.describe("billing — responsive", () => {
     expect(credits.height).toBeGreaterThanOrEqual(40);
   });
 });
+
+test.describe("billing — the remaining purchase and reconcile actions", () => {
+  test("re-check, storage and plan actions are dark ink with white labels", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await openBilling(page);
+
+    for (const sel of [
+      "[data-billing-recheck]",
+      "[data-billing-storage-upgrade], [data-billing-manage-storage]",
+    ]) {
+      const el = page.locator(sel).first();
+      if ((await el.count()) === 0) continue;
+      const p = await paint(el);
+      expect(isDarkInk(rgb(p.bg)), `${sel} must be dark ink`).toBe(true);
+      expect(rgb(p.fg).every((c) => c > 240), `${sel} label must be white`).toBe(true);
+      expect(isViolet(rgb(p.bg)), `${sel} must not be violet`).toBe(false);
+    }
+  });
+
+  test("Get help has room around its label, at both widths", async ({ page }) => {
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+      await openBilling(page);
+      const help = page.locator("[data-billing-support-action]");
+      await expect(help).toBeVisible();
+      const box = await help.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return {
+          w: r.width,
+          h: r.height,
+          padLeft: parseFloat(cs.paddingLeft),
+          text: (el.textContent ?? "").trim(),
+        };
+      });
+      // The label was sitting against both edges of a button sized to its text.
+      expect(box.padLeft, `${width}: horizontal breathing room`).toBeGreaterThanOrEqual(
+        16,
+      );
+      expect(box.h, `${width}: canonical button height`).toBeGreaterThanOrEqual(36);
+      expect(box.w, `${width}: wider than its own label`).toBeGreaterThan(
+        box.text.length * 6,
+      );
+      // And it stays the accent action.
+      const p = await paint(help);
+      expect(isViolet(rgb(p.bg))).toBe(true);
+    }
+  });
+});

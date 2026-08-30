@@ -13,8 +13,6 @@
  * decides nothing about who may see what.
  */
 
-import { HelpCircle, ExternalLink } from "lucide-react";
-
 import type {
   SettingsNavModel,
   SettingsPaneId,
@@ -97,31 +95,6 @@ export function SettingsNav({
           </div>
         ))}
 
-        {/* ONE support surface, at the foot of the map — §29. */}
-        <aside className="set-nav__help" data-settings-help>
-          <p className="set-nav__help-title">
-            <HelpCircle size={14} strokeWidth={2.1} aria-hidden="true" />
-            Need help?
-          </p>
-          <p className="set-nav__help-copy">
-            Contact support if you are not sure what a setting does.
-          </p>
-          {/* The same destination and the same target Billing already uses.
-              It opens in a new tab deliberately: /support is outside the
-              authenticated route group, and the session token is held in
-              memory only, so following it in this tab would destroy the only
-              copy of it. */}
-          <a
-            className="set-action set-action--outline"
-            href="/support"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-settings-support-action
-          >
-            Contact support
-            <ExternalLink size={13} strokeWidth={2.1} aria-hidden="true" />
-          </a>
-        </aside>
       </div>
     </nav>
   );

@@ -890,9 +890,20 @@ function LoginMethodsCard({
 
   return (
     <Card variant="admin" style={{ marginBottom: 14 }} data-cc-login-methods-card>
-      <h2 style={sectionTitleStyle}>Login methods</h2>
+      {/* "Sign-in methods", not "Login methods" (AUDIT, 2026-09-03).
+          Account linking is REAL here: `POST /v1/identity/links/google|apple`
+          verifies the provider token server-side with the same verifiers the
+          login flow uses, one provider identity belongs to exactly one account
+          (DB-unique on provider+subject, 409 on conflict, accounts NEVER
+          merged, email equality never treated as ownership), every mutation
+          requires account step-up, and an unlink that would leave zero usable
+          methods is refused. So connecting Google or Apple adds a way into
+          THIS account — the copy now says so, because "Login methods" beside
+          a Connect button invites exactly the opposite reading. */}
+      <h2 style={sectionTitleStyle}>Sign-in methods</h2>
       <p style={mutedStyle}>
-        The ways you can sign in to this account.
+        Choose which verified methods can sign in to this same PROOVRA account.
+        Connecting Google or Apple does not create a second account.
         {oauthProviderLabel && state && !state.passwordConfigured
           ? ` Your ${oauthProviderLabel} password is managed in your ${oauthProviderLabel} account; add a PROOVRA password below if you also want to sign in with email.`
           : ""}{" "}
@@ -1579,6 +1590,7 @@ function ActiveSessionsCard({
   const [stepUpMsg, setStepUpMsg] = useState("");
   const { confirm } = useConfirmAction();
 
+  const [sessionsExpanded, setSessionsExpanded] = useState(false);
   const current = (sessions ?? []).filter((s) => s.isCurrent);
   const others = (sessions ?? []).filter((s) => !s.isCurrent);
 
@@ -1802,16 +1814,42 @@ function ActiveSessionsCard({
           purpose="Your current sign-in is active, but no session records could be listed right now. Try again shortly."
         />
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, marginTop: 10 }}>
-          {current.map(sessionRow)}
-          {others.length > 0 ? (
-            others.map(sessionRow)
-          ) : (
-            <li style={{ ...mutedStyle, padding: "6px 2px" }} data-cc-no-other-sessions>
-              No other active sessions.
-            </li>
-          )}
-        </ul>
+        <>
+          {/* THE LATEST THREE, then the rest on request.
+              An account with fifteen live sessions rendered fifteen cards, and
+              the page below them — the security activity — was unreachable
+              without a long scroll past information nobody had asked for. The
+              current session is always among the three. */}
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, marginTop: 10 }}>
+            {current.map(sessionRow)}
+            {others.length > 0 ? (
+              (sessionsExpanded ? others : others.slice(0, Math.max(0, 3 - current.length))).map(
+                sessionRow,
+              )
+            ) : (
+              <li style={{ ...mutedStyle, padding: "6px 2px" }} data-cc-no-other-sessions>
+                No other active sessions.
+              </li>
+            )}
+          </ul>
+          {others.length > Math.max(0, 3 - current.length) ? (
+            <button
+              type="button"
+              className="set-disclosure"
+              aria-expanded={sessionsExpanded}
+              onClick={() => setSessionsExpanded((open) => !open)}
+              data-cc-sessions-toggle
+            >
+              {sessionsExpanded
+                ? "Show fewer sessions"
+                : `Show ${others.length - Math.max(0, 3 - current.length)} more ${
+                    others.length - Math.max(0, 3 - current.length) === 1
+                      ? "session"
+                      : "sessions"
+                  }`}
+            </button>
+          ) : null}
+        </>
       )}
 
       {stepUpOpen ? (
@@ -1885,6 +1923,10 @@ function severityDot(sev: string | null): React.CSSProperties {
   };
 }
 
+// THREE by default. This is a summary of recent account activity on a
+// settings page, not an audit log — the full history belongs to the audit
+// surface. "View more" still extends it a page at a time.
+const EVENTS_FIRST = 3;
 const EVENTS_PAGE = 8;
 
 function SecurityEventsCard() {
@@ -1892,7 +1934,7 @@ function SecurityEventsCard() {
   const [error, setError] = useState<string | null>(null);
   // Progressive disclosure (2026-07-17): latest N events render in the
   // page flow (no nested scrollbar); "View more" extends the list.
-  const [visibleCount, setVisibleCount] = useState(EVENTS_PAGE);
+  const [visibleCount, setVisibleCount] = useState(EVENTS_FIRST);
 
   useEffect(() => {
     void (async () => {
@@ -1958,10 +2000,21 @@ function SecurityEventsCard() {
                 <strong style={{ fontWeight: 700 }}>
                   {presentSecurityEvent(ev.action).title}
                 </strong>
+                {/* WORDS, IN THE TONE THE OUTCOME MEANS.
+                    Every outcome rendered in the same neutral capsule, so a
+                    failed sign-in and a successful one looked identical until
+                    the label was read. The outcome string is unchanged; the
+                    tone now follows it, and the word still carries it for
+                    anyone who cannot see the colour. */}
                 {presentOutcome(ev.outcome) ? (
-                  <Badge tone="neutral" subtle style={{ marginLeft: 8 }}>
+                  <span
+                    className="set-event-outcome"
+                    data-cc-security-event-outcome
+                    data-outcome={String(ev.outcome ?? "").toUpperCase()}
+                    style={{ marginLeft: 8 }}
+                  >
                     {presentOutcome(ev.outcome)}
-                  </Badge>
+                  </span>
                 ) : null}
               </div>
               {presentSecurityEvent(ev.action).description ? (
@@ -2058,7 +2111,23 @@ export function PersonalSecuritySections() {
        * the unreachability NEW-058 exists to close, just for a different set
        * of users.
        */}
-      <ContactFactorEnrollmentPanel teamId={contactFactorTeamId} />
+      {/* ENROLMENT NEEDS A WORKSPACE, so the form only renders where one
+          exists (AUDIT, 2026-09-03). The factor is account-owned, but the
+          verification ATTEMPT that proves it is tenant-scoped — its rate limit
+          and its audit trail are — so `enroll/start` and `enroll/verify` both
+          take a `teamId` in a STRICT schema. In a personal space
+          `useTeamId()` is null, so the panel rendered its whole form disabled
+          under the line "Open a workspace before enrolling a device": a
+          prominent, permanently dead control on the account's security page.
+          Every operation this factor gates — evidence publication and
+          withdrawal, reviewer approve and reject, escalation resolve, bulk
+          reviewer operations, destruction approve and execute, governance
+          policy update, department membership grant and revoke — is a
+          workspace operation, so a personal space has nothing to step up FOR.
+          Hidden there rather than shown broken. */}
+      {contactFactorTeamId ? (
+        <ContactFactorEnrollmentPanel teamId={contactFactorTeamId} />
+      ) : null}
       <ActiveSessionsCard
         sessions={sessions}
         sessionsError={sessionsError}

@@ -338,12 +338,20 @@ export function ContactChannelVerificationCard({
       data-contact-verification-card={stage.kind}
       data-contact-verification-channel={channel}
     >
-      <h3 className="ops-panel__title">Verified messaging contacts</h3>
+      {/* "Messaging contact" — a DELIVERY DESTINATION (AUDIT, 2026-09-03).
+          This is not MFA, not login recovery and not step-up verification: it
+          is the number this workspace may send evidence requests and reminders
+          to, gated by `/v1/communications/verify/*` and a durable channel
+          preference. The security device on the Security page is the separate,
+          step-up control. Both ask for a phone and both send a code, so the
+          heading has to say which one this is. */}
+      <h3 className="ops-panel__title">Messaging contact</h3>
       <div className="ops-muted" style={{ marginBottom: 12 }}>
         <p style={{ margin: "0 0 4px" }}>
-          Evidence requests and reminders can be delivered by text message
-          or WhatsApp. A number must confirm a one-time code before this
-          workspace will message it.
+          Verify a phone number that PROOVRA may use for evidence-request and
+          reminder messages, by text message or WhatsApp. This is a delivery
+          address for notifications — it is not used for signing in or for
+          confirming sensitive actions.
         </p>
         <p style={{ margin: 0 }}>
           Confirmation is decided by the messaging provider and recorded on

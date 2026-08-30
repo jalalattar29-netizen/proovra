@@ -1222,3 +1222,67 @@
     align-items: stretch;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * BILLING (2026-09-03) — the rest of the purchase/administration actions
+ *
+ * "Start Team subscription", "Buy credits" and "Add storage" already moved to
+ * dark ink. These are the remaining actions of the same kind: they open a
+ * choice that ends in money, or they reconcile against the payment provider.
+ * The violet stays for the page's own primary path and for support.
+ * ------------------------------------------------------------------------- */
+
+.bill-page [data-billing-evidence-action="SEE_PLANS"].ui-button,
+.bill-page [data-billing-storage-upgrade].ui-button,
+.bill-page [data-billing-recheck].ui-button,
+.bill-panel [data-billing-evidence-action="SEE_PLANS"].ui-button,
+.bill-panel [data-billing-storage-upgrade].ui-button,
+.bill-panel [data-billing-recheck].ui-button {
+  background: var(--text-strong, #172033) !important;
+  background-image: none !important;
+  border: 1px solid var(--text-strong, #172033) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: none !important;
+  border-radius: 10px !important;
+}
+
+.bill-page [data-billing-evidence-action="SEE_PLANS"].ui-button:hover:not(:disabled),
+.bill-page [data-billing-storage-upgrade].ui-button:hover:not(:disabled),
+.bill-page [data-billing-recheck].ui-button:hover:not(:disabled),
+.bill-panel [data-billing-evidence-action="SEE_PLANS"].ui-button:hover:not(:disabled),
+.bill-panel [data-billing-storage-upgrade].ui-button:hover:not(:disabled),
+.bill-panel [data-billing-recheck].ui-button:hover:not(:disabled) {
+  /* A dark neutral step — never the violet the secondary treatment reaches
+     for on hover, which is what made these read as violet in disguise. */
+  background: #2c3648 !important;
+  border-color: #2c3648 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.bill-page [data-billing-evidence-action="SEE_PLANS"].ui-button:focus-visible,
+.bill-page [data-billing-storage-upgrade].ui-button:focus-visible,
+.bill-page [data-billing-recheck].ui-button:focus-visible {
+  outline: 2px solid var(--accent-500, #7c3aed) !important;
+  outline-offset: 2px !important;
+}
+
+/* GET HELP — room around the label.
+   The button was sized to its text with the compact padding a small button
+   carries, so "Get help" sat against both edges and read as cramped rather
+   than as the one action on that strip. */
+.bill-page [data-billing-support-action].ui-button {
+  padding-inline: 22px !important;
+  min-inline-size: 132px !important;
+  justify-content: center !important;
+}
+
+@media (max-width: 560px) {
+  .bill-page [data-billing-support-action].ui-button {
+    /* Full width on a narrow screen rather than a wide button floating in a
+       narrow strip. */
+    inline-size: 100% !important;
+    min-inline-size: 0 !important;
+  }
+}

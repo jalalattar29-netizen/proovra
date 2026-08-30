@@ -62,6 +62,7 @@ function FactRow({
   value,
   marker,
 }: {
+  showFacts?: boolean;
   label: string;
   value: React.ReactNode;
   marker?: string;
@@ -80,10 +81,19 @@ function FactRow({
   );
 }
 
+/**
+ * `showFacts` — the account-facts table (plan / workspace / last sign-in /
+ * two-factor / subscription) is now stated by the Overview's own summary
+ * cards, so the pane that hosts this component asks for the identity and the
+ * editing form without it. Nothing is removed here; the caller chooses whether
+ * the table is the right thing on its surface.
+ */
 export function OverviewSection({
+  showFacts = true,
   ui,
   security,
 }: {
+  showFacts?: boolean;
   ui: SettingsUiContext;
   security: AccountSecuritySummary;
 }) {
@@ -257,48 +267,52 @@ export function OverviewSection({
         </form>
       ) : null}
 
-      {/* Account facts — plan / workspace / last sign-in / two-factor /
-          subscription scope. Full controls live in their sections below. */}
-      <div className="mt-5" data-cc-overview-facts>
-        <FactRow
-          label="Plan"
-          value={ui.billing.displayPlan}
-          marker="plan"
-        />
-        <FactRow label="Workspace" value={ui.activeWorkspaceName} marker="workspace" />
-        <FactRow
-          label="Last sign-in"
-          value={
-            security.lastLoginAtUtc
-              ? formatUserDateTime(security.lastLoginAtUtc)
-              : "…"
-          }
-          marker="last-login"
-        />
-        <FactRow
-          label="Two-factor authentication"
-          value={
-            security.mfaConfigured === null ? (
-              "…"
-            ) : (
-              <Badge tone={security.mfaConfigured ? "verified" : "neutral"} subtle>
-                {security.mfaConfigured ? "Enabled" : "Not configured"}
-              </Badge>
-            )
-          }
-          marker="mfa"
-        />
-        <FactRow
-          label="Subscription"
-          value={ui.billing.scopeLabel}
-          marker="subscription"
-        />
-      </div>
-      {ui.billing.managedByOrgName ? (
-        <p style={{ ...muted, marginTop: 8 }}>
-          Billing is managed under {ui.billing.managedByOrgName}. Details are in
-          the Billing section below.
-        </p>
+      {showFacts ? (
+        <>
+        {/* Account facts — plan / workspace / last sign-in / two-factor /
+            subscription scope. Full controls live in their sections below. */}
+        <div className="mt-5" data-cc-overview-facts>
+          <FactRow
+            label="Plan"
+            value={ui.billing.displayPlan}
+            marker="plan"
+          />
+          <FactRow label="Workspace" value={ui.activeWorkspaceName} marker="workspace" />
+          <FactRow
+            label="Last sign-in"
+            value={
+              security.lastLoginAtUtc
+                ? formatUserDateTime(security.lastLoginAtUtc)
+                : "…"
+            }
+            marker="last-login"
+          />
+          <FactRow
+            label="Two-factor authentication"
+            value={
+              security.mfaConfigured === null ? (
+                "…"
+              ) : (
+                <Badge tone={security.mfaConfigured ? "verified" : "neutral"} subtle>
+                  {security.mfaConfigured ? "Enabled" : "Not configured"}
+                </Badge>
+              )
+            }
+            marker="mfa"
+          />
+          <FactRow
+            label="Subscription"
+            value={ui.billing.scopeLabel}
+            marker="subscription"
+          />
+        </div>
+        {ui.billing.managedByOrgName ? (
+          <p style={{ ...muted, marginTop: 8 }}>
+            Billing is managed under {ui.billing.managedByOrgName}. Details are in
+            the Billing section below.
+          </p>
+        ) : null}
+        </>
       ) : null}
     </div>
   );

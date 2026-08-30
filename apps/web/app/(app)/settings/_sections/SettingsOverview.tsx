@@ -3,25 +3,20 @@
 /**
  * Settings — Overview.
  *
- * The landing pane, and deliberately a SUMMARY. Settings used to open on every
- * domain at once: the profile form, the whole security console, notifications,
- * AI governance, privacy, billing, and seven role×capability matrices, all
- * expanded, in one scroll. A reader arriving to change their timezone met the
- * entire administration surface of the product.
+ * The landing pane, and now the ONLY personal-account destination: Profile &
+ * preferences was a second page that restated the workspace, the plan, the
+ * sign-in method and the two-factor state this pane already summarised, then
+ * added a language control and a timezone control. Two destinations, one
+ * subject. The identity and its preferences live here, beside the summaries
+ * they belong to, and `#profile` resolves here.
  *
- * This answers three questions per card — what is this, what is its current
- * state, what can I do — and hands off. Every figure is read from a canonical
- * source already loaded by the shell:
+ * The navigation cards that used to fill the lower half — Account / Workspace /
+ * System grids whose only job was to open a pane the rail already lists — are
+ * gone. One local navigation authority, and the Overview is an overview.
  *
- *   workspace   the platform-context envelope
- *   plan        `deriveSettingsUiContext`, which owns the billing reality
- *   security    `useAccountSecuritySummary`, the account security read
- *   activity    the same summary's `lastLoginAtUtc`
- *
- * Nothing here fetches. Nothing here decides. A value that has not loaded — or
- * that this deployment does not project — is omitted rather than guessed at,
- * because a fabricated seat count on a settings page is worse than an absent
- * one.
+ * Nothing here fetches or decides. Every figure comes from a canonical source
+ * the shell already loaded, and a value that has not loaded, or that this
+ * deployment does not project, is omitted rather than guessed at.
  */
 
 import Link from "next/link";
@@ -35,7 +30,12 @@ import {
 
 import type { SettingsUiContext } from "../../../../lib/settings/settingsUiContext";
 import type { AccountSecuritySummary } from "../../../../lib/security/useAccountSecuritySummary";
-import type { SettingsNavModel, SettingsPaneId } from "../../../../lib/settings/settingsNavigation";
+import type {
+  SettingsNavModel,
+  SettingsPaneId,
+} from "../../../../lib/settings/settingsNavigation";
+import { OverviewSection } from "./OverviewSection";
+import { PreferencesSection } from "./PreferencesSection";
 
 export type OverviewFact = { label: string; value: ReactNode };
 
@@ -44,13 +44,15 @@ function SummaryCard({
   title,
   headline,
   facts,
+  children,
   action,
   testId,
 }: {
   icon: ReactNode;
   title: string;
   headline?: ReactNode;
-  facts: OverviewFact[];
+  facts?: OverviewFact[];
+  children?: ReactNode;
   action?: ReactNode;
   testId: string;
 }) {
@@ -65,40 +67,36 @@ function SummaryCard({
 
       {headline ? <p className="set-card__headline">{headline}</p> : null}
 
-      <dl className="set-facts">
-        {facts.map((fact) => (
-          <div key={fact.label}>
-            <dt>{fact.label}</dt>
-            <dd>{fact.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {facts && facts.length > 0 ? (
+        <dl className="set-facts">
+          {facts.map((fact) => (
+            <div key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd>{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
+      {children}
 
       {action ? <div className="set-card__action">{action}</div> : null}
     </section>
   );
 }
 
-/** A destination inside the Settings shell. */
-function PaneLink({
-  pane,
-  onOpen,
-  children,
-}: {
-  pane: SettingsPaneId;
-  onOpen: (pane: SettingsPaneId) => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className="set-action"
-      onClick={() => onOpen(pane)}
-      data-settings-open={pane}
-    >
-      {children}
-    </button>
-  );
+/**
+ * A country code as a readable place, using the browser's own data. Falls back
+ * to the code itself rather than to an invented country name.
+ */
+function countryName(code: string | null): string | null {
+  if (!code) return null;
+  try {
+    const display = new Intl.DisplayNames(undefined, { type: "region" });
+    return display.of(code.toUpperCase()) ?? code.toUpperCase();
+  } catch {
+    return code.toUpperCase();
+  }
 }
 
 export function SettingsOverview({
@@ -113,23 +111,10 @@ export function SettingsOverview({
   security: AccountSecuritySummary;
   model: SettingsNavModel;
   onOpen: (pane: SettingsPaneId) => void;
-  /** SERVER-projected membership role; null when there is none to state. */
   roleLabel: string | null;
-  /** SERVER-projected workspace status; null when not projected. */
   workspaceStatus: string | null;
 }) {
   const can = (pane: SettingsPaneId) => model.allowed.has(pane);
-  const hrefFor = (pane: SettingsPaneId): string | null => {
-    for (const group of model.groups) {
-      const item = group.items.find((i) => i.id === pane);
-      if (item) return item.href;
-    }
-    return null;
-  };
-
-  // ---------------------------------------------------------------------
-  // WORKSPACE — what workspace am I in, and as what?
-  // ---------------------------------------------------------------------
   const workspaceFacts: OverviewFact[] = [];
   if (roleLabel) workspaceFacts.push({ label: "Role", value: roleLabel });
   workspaceFacts.push({
@@ -137,11 +122,6 @@ export function SettingsOverview({
     value: ui.isPersonalWorkspace ? "Personal space" : "Organization",
   });
 
-  // ---------------------------------------------------------------------
-  // PLAN — the commercial reality of the ACTIVE context, from the one
-  // resolver that owns it. Storage and renewal live on Billing and are not
-  // restated here from a second source.
-  // ---------------------------------------------------------------------
   const planFacts: OverviewFact[] = [
     { label: "Scope", value: ui.billing.scopeLabel },
   ];
@@ -149,10 +129,6 @@ export function SettingsOverview({
     planFacts.push({ label: "Managed by", value: ui.billing.managedByOrgName });
   }
 
-  // ---------------------------------------------------------------------
-  // SECURITY — account security state, summarised. The Security Center owns
-  // the controls; this is the entry point, not a second security product.
-  // ---------------------------------------------------------------------
   const securityFacts: OverviewFact[] = [
     {
       label: "Two-factor",
@@ -180,32 +156,28 @@ export function SettingsOverview({
     });
   }
 
-  // ---------------------------------------------------------------------
-  // ACTIVITY — one fact the account read already carries. No new telemetry,
-  // and no IP or location: this deployment does not project them here, and
-  // inventing them would be inventing a security signal.
-  // ---------------------------------------------------------------------
-  const activityFacts: OverviewFact[] = [
-    {
-      label: "Last sign-in",
-      value: security.lastLoginAtUtc ? (
-        new Date(security.lastLoginAtUtc).toLocaleString()
-      ) : (
-        <span className="set-muted">Not available</span>
-      ),
-    },
-  ];
-
-  const auditHref = hrefFor("audit");
   const billingHref = ui.billing.billingHref;
 
   return (
     <div className="set-overview" data-settings-pane="overview">
       <header className="set-pane-head">
         <h2>Overview</h2>
-        <p>A summary of your account and workspace.</p>
+        <p>
+          Your account, its preferences, and the workspace you are working in.
+        </p>
       </header>
 
+      {/* IDENTITY — the canonical block. `OverviewSection` already owns the
+          avatar, the name, the email and the display-name form with its save
+          and cancel semantics; this pane asks for it WITHOUT its account-facts
+          table, because the summary cards below state those same five facts. */}
+      <section className="set-identity" data-settings-identity>
+        <OverviewSection ui={ui} security={security} showFacts={false} />
+      </section>
+
+      {/* ----------------------------------------------------------------
+          SUMMARIES
+      ---------------------------------------------------------------- */}
       <div className="set-grid set-grid--summary">
         <SummaryCard
           testId="workspace"
@@ -223,14 +195,27 @@ export function SettingsOverview({
           }
           facts={workspaceFacts}
           action={
+            /* No action where there is nothing to open: a personal space has
+               no workspace settings destination, and a button that opens
+               nothing is worse than no button. */
             can("members") ? (
-              <PaneLink pane="members" onOpen={onOpen}>
+              <button
+                type="button"
+                className="set-action set-action--ink"
+                onClick={() => onOpen("members")}
+                data-settings-open="members"
+              >
                 Manage members
-              </PaneLink>
+              </button>
             ) : can("workspace") ? (
-              <PaneLink pane="workspace" onOpen={onOpen}>
+              <button
+                type="button"
+                className="set-action set-action--ink"
+                onClick={() => onOpen("workspace")}
+                data-settings-open="workspace"
+              >
                 Open workspace settings
-              </PaneLink>
+              </button>
             ) : null
           }
         />
@@ -243,7 +228,11 @@ export function SettingsOverview({
           facts={planFacts}
           action={
             billingHref ? (
-              <Link className="set-action" href={billingHref} data-settings-billing-link>
+              <Link
+                className="set-action set-action--ink"
+                href={billingHref}
+                data-settings-billing-link
+              >
                 View billing
               </Link>
             ) : null
@@ -256,73 +245,68 @@ export function SettingsOverview({
           title="Security"
           facts={securityFacts}
           action={
-            <PaneLink pane="security" onOpen={onOpen}>
+            <button
+              type="button"
+              className="set-action set-action--ink"
+              onClick={() => onOpen("security")}
+              data-settings-open="security"
+            >
               Review security
-            </PaneLink>
+            </button>
           }
         />
 
+        {/* ACTIVITY — the three most recent sign-ins, from the fields the
+            sessions route actually projects. It said "Not available" for an
+            account with fifteen live sessions because the summary kept only
+            the timestamp of the session flagged current, and dropped the
+            device and country it was already being sent. */}
         <SummaryCard
           testId="activity"
           icon={<Activity size={16} strokeWidth={2} />}
-          title="Activity"
-          facts={activityFacts}
-          action={
-            auditHref ? (
-              <Link className="set-action" href={auditHref} data-settings-audit-link>
-                View audit log
-              </Link>
-            ) : null
-          }
-        />
+          title="Recent sign-ins"
+        >
+          {security.recentSignIns.length > 0 ? (
+            <ul className="set-signins" data-settings-recent-signins>
+              {security.recentSignIns.map((entry) => {
+                const place = countryName(entry.countryCode);
+                return (
+                  <li key={entry.id}>
+                    <span className="set-signins__device">
+                      {entry.device ?? "Unrecognised device"}
+                      {entry.isCurrent ? (
+                        <span className="set-state" data-tone="ok">
+                          This device
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="set-signins__when">
+                      {new Date(entry.lastSeenAtUtc).toLocaleString()}
+                      {place ? ` · ${place}` : ""}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="set-muted set-signins__empty">
+              No recent sign-in activity available.
+            </p>
+          )}
+        </SummaryCard>
       </div>
 
-      {/* The rest of the shell, as a map rather than as its contents. Each
-          group here mirrors the navigation exactly, so the page and the nav
-          can never offer different sets of destinations. */}
-      {model.groups.map((group) => (
-        <section key={group.id} className="set-section" data-settings-group={group.id}>
-          <h3 className="set-section__title">{group.label}</h3>
-          <div className="set-grid set-grid--links">
-            {group.items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="set-link-card"
-                onClick={() => onOpen(item.id)}
-                data-settings-open={item.id}
-              >
-                <span className="set-link-card__label">{item.label}</span>
-                <span className="set-link-card__hint">
-                  {DESTINATION_HINT[item.id]}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
+      {/* ----------------------------------------------------------------
+          PREFERENCES. The language and timezone controls that were the only
+          unique content on the retired Profile page, on the pane that now
+          owns the account.
+      ---------------------------------------------------------------- */}
+      <section className="set-section" data-settings-preferences>
+        <h3 className="set-section__title">Preferences</h3>
+        <PreferencesSection />
+      </section>
     </div>
   );
 }
-
-/**
- * One line per destination: what it is, in the reader's terms. Deliberately
- * short — §25. No implementation names, no phase labels, no entity names.
- */
-const DESTINATION_HINT: Record<SettingsPaneId, string> = {
-  overview: "A summary of your account and workspace.",
-  profile: "Your name, contact details, language and timezone.",
-  security: "Password, two-factor, sessions and devices.",
-  notifications: "Which updates reach you, and how.",
-  workspace: "Workspace name, defaults and assistance settings.",
-  members: "Invite people and manage who belongs to this workspace.",
-  roles: "What each role can do here.",
-  "cases-evidence": "Defaults for how cases and evidence are handled.",
-  retention: "How long records are kept, and how they are archived.",
-  integrations: "API access, keys and connected services.",
-  sso: "Single sign-on and directory provisioning.",
-  audit: "A record of what happened in this workspace.",
-  billing: "Plan, seats, storage and payment.",
-};
 
 export default SettingsOverview;

@@ -265,10 +265,12 @@ test("the capability matrix is NOT on the landing pane", () => {
   assert.match(ROLES, /cap\.roles\.includes\(role\.id\)/);
 
   // Roles is a pane of its own; the landing pane does not mount it.
+  // Roles is a pane of its own; the landing branch does not mount it.
   const landing = OVERVIEW.slice(
-    OVERVIEW.indexOf("pane === \"overview\""),
-    OVERVIEW.indexOf("pane === \"profile\""),
+    OVERVIEW.indexOf('pane === "overview"'),
+    OVERVIEW.indexOf('pane === "security"'),
   );
+  assert.ok(landing.length > 0, "the landing branch must be findable");
   assert.doesNotMatch(landing, /RolesSection/);
 });
 
