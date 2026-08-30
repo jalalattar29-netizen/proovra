@@ -187,7 +187,20 @@ const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // step-seeding effect's real inputs). Correctness change with a bounded
 // footprint: one useMemo, three honest dependency arrays and their rationale.
 // No new UI, no new POST surface, no re-absorbed mechanism.
-export const PRE_CR5_PAGE_BYTES = 52520;
+// DRAFT RESUME rebaseline (2026-09-04): 52,520 -> 52,555. `d90aaf82` fixed a
+// reported defect in which Resume "did nothing": `GET /v1/capture/sessions/:id`
+// returns five restorable fields and `fetchDetail` mapped all five, but the
+// effect that applies a resumed draft read only three. `useLocation` and the
+// `itemsSnapshot` naming every staged material were fetched and dropped, and
+// the success toast fired from the click handler BEFORE anything was applied.
+//
+// The growth is two field reads, the toast moved into the effect that does the
+// work, and the comments explaining why. It is a correctness change with a
+// bounded footprint, which is the same ground the 51,999 -> 52,040 and
+// 52,040 -> 52,520 rebaselines above stand on: no new UI, no new POST surface,
+// no re-absorbed mechanism. The invariant this number PROXIES for is asserted
+// directly below, so the ratchet is no longer the only thing guarding it.
+export const PRE_CR5_PAGE_BYTES = 52555;
 // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744. The capture
 // orchestration now stamps the ACTIVE workspace id (useActiveSpaceId →
 // `teamId` in the POST /v1/evidence body) so personal evidence is never
@@ -301,6 +314,35 @@ describe("CR5 Group 1 — upload truth: backend-owned", () => {
   it("page.tsx byte size MUST NOT exceed pre-CR5 baseline (only shrinks)", () => {
     expect(statSync(webPath("app/(app)/capture/page.tsx")).size)
       .toBeLessThanOrEqual(PRE_CR5_PAGE_BYTES);
+  });
+
+  /**
+   * WHAT THE BYTE PIN IS FOR.
+   *
+   * A size ratchet is a proxy: it notices that the page grew, not WHY. The
+   * thing it is protecting is that upload and finalize truth stays behind the
+   * orchestrator and the backend, and never re-accretes into the page — so
+   * that is asserted directly, where a rebaseline cannot quietly widen it.
+   */
+  it("the page owns no upload or finalize mechanism of its own", () => {
+    const page = readFileSync(webPath("app/(app)/capture/page.tsx"), "utf8");
+
+    // Finalize belongs to the orchestrator, which documents that it is the
+    // only caller. A page that reached it would be a second authority over
+    // when a record becomes complete.
+    expect(/\/v1\/evidence\/[^"'`\n]*\/complete/.test(page)).toBe(false);
+
+    // Upload transport belongs to `useResumableUploads`. A direct part-upload
+    // or multipart call here would be a second transport with its own retry,
+    // ordering and failure semantics.
+    expect(/\/v1\/evidence\/[^"'`\n]*\/parts/.test(page)).toBe(false);
+    expect(/\bnew XMLHttpRequest\b/.test(page)).toBe(false);
+
+    // And the browser never stamps custody or upload times — the same rule
+    // every capture surface is held to below.
+    expect(/uploadedAt\s*[:=]\s*(?:new\s+Date|Date\.now\b)/.test(page)).toBe(
+      false,
+    );
   });
 
   it("useCaptureSessionOrchestration.ts MUST NOT exceed pre-CR5 baseline", () => {

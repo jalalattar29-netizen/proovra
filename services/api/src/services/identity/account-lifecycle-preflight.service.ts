@@ -310,7 +310,7 @@ export async function evaluateWorkspaceClosurePreflight(
 ): Promise<{ blockers: WorkspaceClosureBlocker[] }> {
   const blockers: WorkspaceClosureBlocker[] = [];
 
-  const [team, activeHolds, activeSubs, pendingDestruction] =
+  const [team, activeHolds, activeSubCount, pendingDestruction] =
     await Promise.all([
       prisma.team.findUnique({
         where: { id: teamId },
@@ -346,12 +346,12 @@ export async function evaluateWorkspaceClosurePreflight(
 
   const billingActive =
     team?.billingStatus === "ACTIVE" || team?.billingStatus === "PAST_DUE";
-  if (billingActive || activeSubs > 0) {
+  if (billingActive || activeSubCount > 0) {
     blockers.push({
       code: "BILLING_SUBSCRIPTION_ACTIVE",
       message:
         "This workspace has an active billing relationship. Cancel it before closure.",
-      count: Math.max(activeSubs, 1),
+      count: Math.max(activeSubCount, 1),
     });
   }
 

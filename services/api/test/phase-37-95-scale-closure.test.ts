@@ -285,7 +285,15 @@ describe("Phase 37.95 — legacy context field non-regression", () => {
         // `SurfaceGate.tsx` documents the NEW-070 refresh rule by writing the
         // expression the rule is about, and counting that sentence as new code
         // would send a future PR to rewrite a comment instead of a call site.
-        const src = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        // LINE comments too (2026-09-04). The rule above already says a
+        // legacy field NAMED in a comment is not a consumer of it, but only
+        // block comments were stripped — so a one-line note explaining why
+        // a call site had MIGRATED AWAY from the field counted as a call
+        // site, and the guard asked for the explanation to be deleted
+        // rather than the code. Same rationale, both comment forms.
+        const src = readFileSync(file, "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/^\s*\/\/.*$/gm, "");
         if (pattern.test(src)) {
           offenders.push(normalized);
         }

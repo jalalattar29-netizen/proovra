@@ -37,6 +37,21 @@ export type SettingsUiContext = {
   // WORKSPACE
   showNotifications: boolean;
   activeWorkspaceName: string;
+  /**
+   * The viewer's role in the ACTIVE organization, or null outside one.
+   *
+   * LEGACY FIELD MIGRATION (2026-09-04) — Settings read this from
+   * `envelope.workspace.membership.role`. `envelope.workspace` is in its
+   * deprecation window (`phase-37-95-scale-closure` names the replacement:
+   * `envelope.organizations` + `envelope.personalSpace`), and this file
+   * already resolves `activeOrg` from exactly that — the organization whose
+   * id matches the active space and whose membership is ACTIVE.
+   *
+   * Null in a personal space, because a personal space has no organization
+   * role to hold. It was null there before too; the difference is where the
+   * answer comes from.
+   */
+  activeRole: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null;
   isPersonalWorkspace: boolean;
   showAiSettings: boolean;
   showReviewerCriteria: boolean;
@@ -188,6 +203,7 @@ export function deriveSettingsUiContext(
     showReviewerCriteria: input.planFeatures?.reviewerOperationsIncluded === true,
     billing,
     showOrgAdminLinks: isOrg && canAdministerWorkspace,
+    activeRole: activeOrg?.role ?? null,
     orgAdminOrgId: isOrg && canAdministerWorkspace ? activeOrgId : null,
   };
 }

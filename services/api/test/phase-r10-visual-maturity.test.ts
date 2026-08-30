@@ -278,15 +278,52 @@ describe("R10 Group 5 — no new icon libraries beyond lucide-react", () => {
     /from\s+["']@tabler\/icons/,
     /from\s+["']ionicons/,
   ];
+  /**
+   * PAYMENT BRAND MARKS ARE NOT AN ICON SYSTEM.
+   *
+   * This rule exists so the product has ONE icon vocabulary and a second set
+   * cannot drift in beside lucide-react. `PaymentMethodChoice` is not that:
+   * it renders the Visa, Mastercard and PayPal BRAND marks beside the payment
+   * options, and lucide-react has no brand marks — by design, since they are
+   * trademarks rather than interface glyphs. The alternative to a declared
+   * dependency is drawing someone else's logo by hand or hotlinking it, and
+   * both are worse.
+   *
+   * The marks are local inline SVG, `aria-hidden`, and never the accessible
+   * name — each option carries a real visually-hidden label, so a screen
+   * reader hears "Credit or debit card" rather than "Visa Mastercard" and
+   * nobody is told only those networks are accepted.
+   *
+   * Scoped to the one file, so a second import anywhere still fails.
+   */
+  const BRAND_MARK_EXCEPTIONS = new Map<string, RegExp>([
+    ["app/(app)/billing/_sections/PaymentMethodChoice.tsx", /from\s+["']react-icons\//],
+  ]);
+
   for (const pattern of FORBIDDEN_ICON_LIBS) {
     it(`no app file imports from ${pattern}`, () => {
       const hits: string[] = [];
       for (const file of APP_FILES) {
-        if (pattern.test(file.text)) hits.push(file.label);
+        if (!pattern.test(file.text)) continue;
+        const allowed = BRAND_MARK_EXCEPTIONS.get(file.label);
+        if (allowed && allowed.source === pattern.source) continue;
+        hits.push(file.label);
       }
       expect(hits, `Forbidden icon lib in: ${hits.join(", ")}`).toEqual([]);
     });
   }
+
+  it("the brand-mark exception is exactly one file, and still a brand mark", () => {
+    // A named exception that nobody checks becomes a hole. This keeps it
+    // honest: the file must still exist, still import ONLY the brand set, and
+    // still hide the marks from assistive technology.
+    const file = APP_FILES.find(
+      (f) => f.label === "app/(app)/billing/_sections/PaymentMethodChoice.tsx",
+    );
+    expect(file, "the excepted file must exist").toBeDefined();
+    expect(/from\s+["']react-icons\/fa["']/.test(file!.text)).toBe(true);
+    expect(/aria-hidden/.test(file!.text)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

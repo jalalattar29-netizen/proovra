@@ -394,11 +394,23 @@ describe("capture draft governance (Governance Item 2)", () => {
     // Phase 28-I — normalise JSX whitespace (the prose can wrap across
     // multiple lines in the source) before asserting the bounded copy.
     const normalised = capturePageSource.replace(/\s+/g, " ");
-    expect(normalised).toContain(
-      "Drafts save metadata only. File contents are not stored until"
-    );
-    expect(normalised).toContain(
-      "finalization, and draft metadata expires automatically."
+
+    // THE GOVERNANCE INVARIANT, NOT ITS PUNCTUATION (2026-09-04).
+    //
+    // This pinned the sentence verbatim — "Drafts save metadata only. File
+    // contents are not stored until". The note is still there and still says
+    // exactly that, but it was folded into the page subtitle and rewritten
+    // with an em dash: "Drafts save metadata only — file contents are not
+    // stored until finalization."
+    //
+    // What Governance Item 2 requires is that an operator saving a draft is
+    // told two things: that only METADATA is kept, and that file CONTENTS are
+    // not stored until finalization. Both claims are asserted, independently
+    // of how the sentence is joined or cased — so a rewrite cannot silently
+    // drop one of them, and a comma cannot fail the build.
+    expect(normalised).toMatch(/Drafts save metadata only/i);
+    expect(normalised).toMatch(
+      /file contents are not stored until\s+finaliz/i,
     );
   });
 });

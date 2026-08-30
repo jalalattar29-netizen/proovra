@@ -543,6 +543,39 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     surfaces: { home: true, notifications: true, operations: true },
   },
   {
+    /*
+     * The provider has stopped accepting our credential.
+     *
+     * `recordProviderReconciliationFailure` has emitted this since the
+     * reconciliation work landed, and the registry was never extended for it —
+     * so the one incident class that NO customer action and no retry can
+     * resolve arrived at Operations as an unregistered source. Consumers
+     * classify, scope and route by registry entry, which means the incident
+     * that most needs an operator was the one they were least able to see.
+     *
+     * PLATFORM-WIDE, not workspace-scoped: a refused API key is our
+     * relationship with Stripe or PayPal, not one tenant's problem, and
+     * `recordIncident` is called with `teamId: null` for exactly that reason.
+     * Deduped by the hour at the emitter, so a bad key opens one incident
+     * rather than one per customer who presses Re-check.
+     */
+    id: "billing.provider_authorization",
+    owner: "payment provider credential",
+    // No tenant column exists on this condition at all — the emitter passes
+    // `teamId: null` because a refused key is ours, not a customer's.
+    scopeAuthority: "PLATFORM_TELEMETRY",
+    discovery:
+      "written when a provider reconciliation call fails with AUTHORIZATION_FAILED — the provider refused our credentials",
+    fingerprint: "one condition per (provider, hour)",
+    resolution:
+      "the condition stops recurring once a working credential is in place — the emitter dedupes hourly and there is no probe that can observe a provider key becoming valid again",
+    freshnessParticipating: false,
+    // Not a workspace's business, and nothing a customer can act on: this is
+    // an operator page fact. It reaches Notifications because nobody is
+    // watching Operations at 3am, and never Home, which is a customer surface.
+    surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
     id: "storage.immutable_drift",
     owner: "immutable storage reconciliation",
     scopeAuthority: "WORKSPACE_EVIDENCE_SCOPE",

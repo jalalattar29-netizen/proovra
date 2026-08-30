@@ -1267,6 +1267,77 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
         "A HIGH/CRITICAL governance notification was raised and deduped by its own key; the notification is the record, and closure is the operator's written follow-up.",
     },
     {
+      /*
+       * THE PROVIDER REFUSED OUR CREDENTIALS.
+       *
+       * `recordProviderReconciliationFailure` has emitted this since the
+       * reconciliation work landed, and no lifecycle contract was ever written
+       * for it — so the one incident class that NO customer action and no
+       * retry can resolve arrived at Operations unregistered, where consumers
+       * classify, scope and route by this table. The incident that most needs
+       * an operator was the one they could see least.
+       */
+      sourceId: "billing.provider_authorization",
+      category: "RECONCILIATION",
+      displayLabel: "Payment provider refused our credentials",
+      producers: [
+        "services/api/src/services/billing/pending-payments.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [],
+      // -------------------------------------------------------------------
+      // SOURCE_TRUTH. Nobody may conclude this away.
+      // -------------------------------------------------------------------
+      // The condition is "the payment provider is rejecting our API
+      // credential". Reconciliation, re-check and every retry a customer can
+      // press fail the same way until somebody replaces the key.
+      //
+      // NO_DIRECT_RESOLUTION, and it is the honest answer.
+      //
+      // There is no probe that reads "is our Stripe key valid" — the only way
+      // to learn it is to make a real charge-path call, which the product does
+      // not do speculatively. So nothing in the system can observe recovery,
+      // and claiming SOURCE_TRUTH here would promise a source that does not
+      // exist.
+      // NO_DIRECT_RESOLUTION, and the registry is right to insist on it.
+      //
+      // There is no probe that reads "is our Stripe key valid" — the only way
+      // to learn it is a real charge-path call, which the product does not
+      // make speculatively. And this is PLATFORM_INTERNAL, which may not
+      // offer a Resolve: a mutation-shaped action belongs to the tenant who
+      // can act, and no tenant can replace our credential.
+      //
+      // It ends the way it began: the emitter dedupes by the hour, so once a
+      // working key is in place the condition simply stops recurring. Nobody
+      // asserts it is fixed; it stops being true.
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      // A key rotated badly a second time is a second outage, not a
+      // continuation of the closed one.
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      // There is no action inside the product that fixes this. The credential
+      // lives with the provider, and offering a button would be offering a
+      // remedy we cannot perform.
+      remediationDisposition: "NO_SAFE_REMEDIATION_AUTHORITY",
+      requiredCapability: "operations.view",
+      // PLATFORM_ONLY: a refused key is our relationship with Stripe or
+      // PayPal, not one tenant's problem. The emitter passes `teamId: null`
+      // for exactly that reason, and no customer should be shown it.
+      audience: "PLATFORM_INTERNAL",
+      cardinality: "AGGREGATE",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      // REFUSE: there is no close to offer. Allowing one would let somebody
+      // mark a live outage handled without anything having changed.
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
+      rationale:
+        "The payment provider is rejecting our credential. No retry and no customer action changes that, and no probe can observe recovery; the emitter dedupes hourly, so the condition stops recurring once a working key is in place rather than being closed by anyone.",
+    },
+    {
       sourceId: "billing.dependent_cancellation_failed",
       category: "STORAGE",
       displayLabel: "Storage add-on still billing after cancellation",

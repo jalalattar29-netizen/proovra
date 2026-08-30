@@ -366,6 +366,21 @@ const TEAM_WORDING_ALLOWLIST = new Set<string>([
   // that beside "Pro" and "Enterprise" it cannot be misread as the workspace.
   "app/(app)/admin/workspaces/page.tsx",
   "app/(app)/admin/users/page.tsx",
+  // -------------------------------------------------------------------
+  // BILLING (2026-09-04) — the same pricing-tier reason, on the customer
+  // side of it.
+  //
+  // The Billing overview's AI meter says "Available on Pro and Team" when
+  // the current plan does not include AI. Those are the names of the two
+  // tiers that do — the identical FREE / PAYG / PRO / TEAM / ENTERPRISE
+  // ladder the admin consoles above are allowlisted for, and the same
+  // pricing mirror. Spelling it "Workspace" would name no plan at all and
+  // tell a customer to look for a tier that does not exist.
+  //
+  // This is the file's ONLY Team string; every other use of the word on
+  // the billing surface is a plan key, not prose.
+  // -------------------------------------------------------------------
+  "app/(app)/billing/_sections/BillingOverview.tsx",
 ]);
 
 describe("Phase G5.2 — Team → Workspace carryover", () => {

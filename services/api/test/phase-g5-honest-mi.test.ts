@@ -41,6 +41,20 @@ function walk(dir: string): string[] {
       if (name === "node_modules" || name === ".next" || name === "dist") {
         continue;
       }
+      // TESTS ARE NOT OPERATOR-FACING COPY (2026-09-04).
+      //
+      // This scan walked `__tests__` too, so the guards that FORBID the
+      // overclaim vocabulary were flagged for naming it: both
+      // `capture-target-surfaces` and `capture-workflow-hierarchy` carry a
+      // `["Court-ready", "Legally admissible", "Court approved"]` list and
+      // assert the capture UI contains none of them.
+      //
+      // Nothing in a spec file is shown to anybody, and a rule that punishes
+      // the code enforcing it has one outcome: somebody deletes the
+      // enforcement. The rule is about strings that ship.
+      if (name === "__tests__") {
+        continue;
+      }
       out.push(...walk(full));
       continue;
     }

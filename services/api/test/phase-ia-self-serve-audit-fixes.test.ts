@@ -347,9 +347,20 @@ describe("Phase IA-self-serve-audit-fixes — Capture terminology", () => {
     expect(SUMMARY).not.toMatch(/Capture operational summary —/);
   });
 
-  it("capture page eyebrow is 'Capture & upload' (not 'Evidence intake workspace')", () => {
-    expect(CAPTURE).toMatch(/Capture &amp; upload/);
-    expect(CAPTURE).not.toMatch(/>\s*Evidence intake workspace\s*</);
+  it("the capture page names itself in product terms, not internal ones", () => {
+    // WHAT THIS USED TO ASSERT. The page carried an eyebrow reading
+    // "Capture & upload" above its title, and this pinned that string to stop
+    // "Evidence intake workspace" — an internal phrase — coming back.
+    //
+    // `d90aaf82` removed the eyebrow, deliberately: a 15px glyph and the words
+    // "Capture & upload" sat directly above a title saying the same thing in
+    // three times the size. Re-adding it to satisfy a regex would put back a
+    // duplicate heading.
+    //
+    // The terminology is what mattered, and it is asserted where the page now
+    // says it — plus the ABSENCE that was the actual point.
+    expect(CAPTURE).toMatch(/title="Capture Evidence"/);
+    expect(CAPTURE).not.toMatch(/Evidence intake workspace/i);
   });
 
   it("material detail note heading renamed 'Reviewer note' → 'Your notes'", () => {

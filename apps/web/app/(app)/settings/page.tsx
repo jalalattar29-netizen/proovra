@@ -229,7 +229,9 @@ function SettingsWorkspace() {
               security={security}
               model={model}
               onOpen={openPane}
-              roleLabel={envelope?.workspace?.membership?.role ?? null}
+              // The canonical role, resolved from `envelope.organizations`
+              // rather than the deprecated `envelope.workspace`.
+              roleLabel={ui.activeRole}
               workspaceStatus={
                 envelope?.activeSpace?.type === "ORGANIZATION" ? "Active" : null
               }
