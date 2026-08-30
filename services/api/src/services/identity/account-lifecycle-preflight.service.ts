@@ -79,7 +79,7 @@ export async function evaluateAccountClosurePreflight(
 ): Promise<{ blockers: AccountClosureBlocker[] }> {
   const blockers: AccountClosureBlocker[] = [];
 
-  const [ownedOrgMemberships, ownedTeams, activeHoldCount, activeSubCount] =
+  const [ownedOrgMemberships, ownedTeams, activeHoldCount, activeSubs] =
     await Promise.all([
       prisma.organizationMembership.findMany({
         where: { userId, role: "ORG_OWNER" },
@@ -93,8 +93,13 @@ export async function evaluateAccountClosurePreflight(
       // stores. Closing an account is irreversible, so a hold sitting in a
       // not-yet-converted legacy store has to block it too.
       countActiveHoldsAllStores({ team: { ownerUserId: userId } }),
-      prisma.subscription.count({
+      // The subscriptions themselves, not just a count: one that is already
+      // CANCELLING (cancelAtPeriodEnd) needs different words from one that is
+      // not. Telling somebody to cancel a subscription they have already
+      // cancelled is the most frustrating kind of wrong.
+      prisma.subscription.findMany({
         where: { userId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
+        select: { cancelAtPeriodEnd: true, currentPeriodEnd: true },
       }),
     ]);
 
@@ -148,12 +153,24 @@ export async function evaluateAccountClosurePreflight(
     });
   }
 
-  if (activeSubCount > 0) {
+  if (activeSubs.length > 0) {
+    // Access runs to the end of the paid period, so a cancelled subscription
+    // still blocks closure — but the person has nothing left to do except
+    // wait, and the message says which case they are in.
+    const allCancelling = activeSubs.every((s) => s.cancelAtPeriodEnd);
+    const endsAt = activeSubs
+      .map((s) => s.currentPeriodEnd)
+      .filter((d): d is Date => d instanceof Date)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+
     blockers.push({
       code: "BILLING_SUBSCRIPTION_ACTIVE",
-      message:
-        "You have an active subscription. Cancel it before closing your account.",
-      count: activeSubCount,
+      message: allCancelling
+        ? endsAt
+          ? `Your subscription is already cancelled and ends on ${endsAt.toISOString().slice(0, 10)}. You can close your account after that.`
+          : "Your subscription is already cancelled and ends at the end of the paid period. You can close your account after that."
+        : "You have an active subscription. Cancel it before closing your account.",
+      count: activeSubs.length,
     });
   }
 

@@ -137,7 +137,20 @@ describe("Phase IA-collapse — Account Security home (unified /settings Securit
   });
 
   it("renders the Security section and mounts PersonalSecuritySections", () => {
-    expect(ACCOUNT_SECURITY).toContain('id="security"');
+    // SETTINGS PANE ARCHITECTURE (2026-09-03) — re-expressed, as in
+    // `phase-7c-internal-ux` and `phase-ia-self-serve-completion`.
+    //
+    // A destination used to be a DOM anchor because Settings was one
+    // scrolling console: `id="security"` existed so `/settings#security`
+    // could SCROLL to the section. Panes mount one destination at a time, so
+    // the anchor pointed at an element that is not in the document, and it
+    // was removed with the scroll it served. Re-adding it would put a dead
+    // attribute in the page to satisfy a third regex.
+    //
+    // What it protected — that the hash still lands on personal security, on
+    // the canonical surface — is asserted against the current architecture.
+    expect(ACCOUNT_SECURITY).toContain("resolvePaneFromHash");
+    expect(ACCOUNT_SECURITY).toContain('pane === "security"');
     expect(ACCOUNT_SECURITY).toContain("PersonalSecuritySections");
   });
 

@@ -1079,6 +1079,43 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
         NOT?: { sessionIdHash: string };
       } = { userId, revokedAtUtc: null };
       if (currentHash) where.NOT = { sessionIdHash: currentHash };
+      /*
+       * REVOKE THE TOKENS, NOT ONLY THE LIST.
+       *
+       * This wrote `revokedAtUtc` on `AuthenticatedSession` and stopped
+       * there. That table is the session INVENTORY — what the Security page
+       * lists — and it is not what authentication consults. The authority is
+       * `RevokedSession`, which `isSessionRevoked` checks inside
+       * `requireAuth` on every request.
+       *
+       * So "Sign out other sessions" emptied the list and left every other
+       * device signed in and fully able to act. A person who tested it on
+       * their phone found themselves still logged in — which is exactly the
+       * report, and a security control that says it did something it did not
+       * do is worse than one that is missing.
+       *
+       * Each other session is revoked by its OWN hash (SINGLE_SESSION) rather
+       * than with one ALL_FOR_USER row, because that scope invalidates every
+       * token issued before it — including the caller's own, which this
+       * action explicitly promises to keep.
+       */
+      const targets = await prisma.authenticatedSession.findMany({
+        where,
+        select: { id: true, sessionIdHash: true, teamId: true },
+      });
+
+      for (const target of targets) {
+        if (!target.sessionIdHash) continue;
+        await revokeSession({
+          userId,
+          sessionIdHash: target.sessionIdHash,
+          teamId: target.teamId ?? null,
+          // The canonical reason for a person ending their own session.
+          reason: "USER_LOGGED_OUT",
+          actorUserId: userId,
+        });
+      }
+
       const upd = await prisma.authenticatedSession.updateMany({
         where,
         data: {
@@ -1139,6 +1176,16 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
             code: "current_session_not_revocable",
             message: "Sign out to end your current session.",
           },
+        });
+      }
+      // Same defect, same fix, one session: the inventory row alone does not
+      // invalidate a token. `RevokedSession` is what `requireAuth` consults.
+      if (target.sessionIdHash) {
+        await revokeSession({
+          userId,
+          sessionIdHash: target.sessionIdHash,
+          reason: "USER_LOGGED_OUT",
+          actorUserId: userId,
         });
       }
       await prisma.authenticatedSession.update({
