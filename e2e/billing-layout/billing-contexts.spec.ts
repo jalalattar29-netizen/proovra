@@ -162,6 +162,14 @@ test.describe("billing — Enterprise, mid-activation", () => {
       );
       await expect(activation).toBeVisible();
       await expect(activation).toContainText(words);
+      // One sentence explaining what is being waited for. "Owner setup
+      // required" alone tells an administrator a state, not what to do about
+      // it or who is expected to act.
+      await expect(activation).toContainText(
+        hook === "PENDING_OWNER"
+          ? "waiting for an organization owner to complete activation"
+          : "has been invited and has not completed setup",
+      );
       // Waiting is not failing: an outstanding invitation must not be painted
       // as an error and send an administrator to support.
       const colour = await activation
@@ -180,20 +188,79 @@ test.describe("billing — Enterprise, mid-activation", () => {
     });
   }
 
-  test("a suspended agreement states it without inventing a remedy", async ({
+  test("a suspended agreement says SUSPENDED, and that allowances lapse", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1200 });
     await openBillingAs(page, "enterprise-suspended");
 
+    // Not the generic "not currently active" every inactive state used to
+    // share. A suspension is a live commercial problem with its own remedy.
     await expect(page.locator("[data-billing-page]")).toContainText(
-      "not currently active",
+      "Agreement suspended",
     );
-    // No "reactivate" button: the product cannot honour one.
+    await expect(page.locator("[data-billing-page]")).toContainText(
+      "Contracted allowances do not apply",
+    );
+    await expect(
+      page.locator('[data-billing-contract-status="SUSPENDED"]'),
+    ).toContainText("Suspended");
+
+    // Still no self-serve remedy: the product cannot honour one.
     for (const selector of SELF_SERVE_HOOKS) {
       await expect(page.locator(selector)).toHaveCount(0);
     }
     await expect(page.locator("[data-billing-support-action]")).toBeVisible();
+  });
+
+  test("an ended agreement is not described in the present tense", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await openBillingAs(page, "enterprise-terminated");
+
+    await expect(page.locator("[data-billing-page]")).toContainText(
+      "Agreement ended",
+    );
+    await expect(
+      page.locator('[data-billing-contract-status="TERMINATED"]'),
+    ).toContainText("Ended");
+
+    // THE POINT. The contract row still carries seats, storage and a term
+    // date, and printing them under "Contracted seats" / "Term ends" reads as
+    // allowances that still apply. The server already refuses to let them
+    // govern anything — `contractGovernsCapability` is false for every
+    // non-ACTIVE status — and the card now says the same thing in the words a
+    // reader actually looks at.
+    const contract = page.locator("[data-billing-contract]");
+    await expect(contract).toContainText("Term ended");
+    await expect(contract).toContainText("Seats covered");
+    await expect(contract).toContainText("Storage covered");
+    await expect(contract).not.toContainText("Contracted seats");
+    await expect(contract).not.toContainText("Term ends");
+
+    // No renewal, no self-service, no invented remedy.
+    for (const selector of SELF_SERVE_HOOKS) {
+      await expect(page.locator(selector)).toHaveCount(0);
+    }
+    const words = (await page.locator("[data-billing-page]").innerText()).toLowerCase();
+    expect(words).not.toContain("renew now");
+    expect(words).not.toContain("reactivate");
+  });
+
+  test("an ACTIVE agreement reads as active, and states its status", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await openBillingAs(page, "enterprise-active");
+
+    await expect(
+      page.locator('[data-billing-contract-status="ACTIVE"]'),
+    ).toContainText("Active");
+    // The live terms are described as terms that apply.
+    const contract = page.locator("[data-billing-contract]");
+    await expect(contract).toContainText("Contracted seats");
+    await expect(contract).toContainText("Term ends");
   });
 });
 
@@ -227,6 +294,7 @@ test.describe("billing — responsive across contexts", () => {
     "team",
     "enterprise-active",
     "enterprise-pending-owner",
+    "enterprise-terminated",
     "no-account",
   ];
 

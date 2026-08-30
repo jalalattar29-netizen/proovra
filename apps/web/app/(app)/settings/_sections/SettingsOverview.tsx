@@ -186,12 +186,25 @@ export function SettingsOverview({
               <strong>{roleLabel}</strong>
             </li>
           ) : null}
+          {/* CONTEXT AUTHORITY (2026-09-03) — the labels name the CONTEXT.
+              In an organization, `activeWorkspaceName` IS the organization,
+              and calling it "Workspace" left an Enterprise administrator
+              unable to tell which of the two they were looking at. "Plan" had
+              the same problem: an agreement is not a plan, and
+              `deriveSettingsUiContext` already computes the word for it
+              (`scopeLabel` — "Organization agreement" / "Organization plan" /
+              "Personal plan") and was the only thing here not using it. No new
+              field, no second commercial calculation. */}
           <li>
-            <span>Workspace</span>
+            <span>
+              {ui.billing.contextType === "personal"
+                ? "Workspace"
+                : "Organization"}
+            </span>
             <strong>{ui.activeWorkspaceName}</strong>
           </li>
           <li>
-            <span>Plan</span>
+            <span>{ui.billing.scopeLabel}</span>
             <strong>{ui.billing.displayPlan}</strong>
           </li>
         </ul>

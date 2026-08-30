@@ -311,7 +311,12 @@ const HANDOFF_COPY: Partial<Record<SettingsPaneId, string>> = {
   integrations:
     "API keys, webhook endpoints and connected services are managed together. Keys are shown once when created and never again.",
   sso: "Single sign-on and directory provisioning are configured in the identity console, alongside certificate rotation and connection health.",
-  audit: "The full record of workspace activity, with filters, lives in the Audit & Transparency Center.",
+  // ORGANIZATION audit, said so explicitly. Settings also carries "Account &
+  // security activity" on the Security pane — that one is the reader's OWN
+  // sign-ins and account events. Two different records, and a sentence that
+  // says only "activity" leaves an administrator unsure which they are opening.
+  audit:
+    "Everything that happened in this organization — by whom, to what, and when — is recorded in the Audit & Transparency Center. Your own sign-ins and account events are on the Security page.",
 };
 
 const HANDOFF_ACTION: Partial<Record<SettingsPaneId, string>> = {

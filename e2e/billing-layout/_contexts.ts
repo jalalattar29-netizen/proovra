@@ -34,6 +34,7 @@ export type BillingContext =
   | "enterprise-pending-owner"
   | "enterprise-owner-invited"
   | "enterprise-suspended"
+  | "enterprise-terminated"
   | "no-account";
 
 type Json = Record<string, unknown>;
@@ -230,23 +231,48 @@ function teamProjection(): Json {
  * ORGANIZATION — contract-managed
  * ------------------------------------------------------------------ */
 
+/**
+ * The per-state notice `contractStateNotice` builds. Every non-ACTIVE status
+ * used to share one sentence; an agreement mid-activation, a suspended one and
+ * an ENDED one are three different situations with three different next steps.
+ */
+const CONTRACT_NOTICE: Record<string, Json | null> = {
+  ACTIVE: null,
+  PENDING_ACTIVATION: {
+    severity: "WARNING",
+    title: "Activation in progress",
+    messages: [
+      "This organization's agreement is signed and waiting for activation to finish. Contracted allowances apply once it is active.",
+    ],
+    reassurance: null,
+  },
+  SUSPENDED: {
+    severity: "CRITICAL",
+    title: "Agreement suspended",
+    messages: [
+      "This organization's agreement is suspended. Contracted allowances do not apply while it is, and your account manager can explain why and what is needed to resume it.",
+    ],
+    reassurance: null,
+  },
+  TERMINATED: {
+    severity: "CRITICAL",
+    title: "Agreement ended",
+    messages: [
+      "This organization's agreement has ended. The terms below are the record of what it covered, not allowances that still apply. Your account manager can discuss a new agreement.",
+    ],
+    reassurance: null,
+  },
+};
+
 function orgProjection(opts: {
-  status: "ACTIVE" | "PENDING_ACTIVATION" | "SUSPENDED";
+  status: "ACTIVE" | "PENDING_ACTIVATION" | "SUSPENDED" | "TERMINATED";
   activationState: string | null;
 }): Json {
   const contractActive = opts.status === "ACTIVE";
   return {
     account: ORG_ACCOUNT,
-    actionRequired: contractActive
-      ? null
-      : {
-          severity: "CRITICAL",
-          title: "Action required",
-          messages: [
-            "This organization's agreement is not currently active. Your account manager can confirm its status.",
-          ],
-          reassurance: null,
-        },
+    // The server states WHICH inactive state, not merely that it is inactive.
+    actionRequired: contractActive ? null : CONTRACT_NOTICE[opts.status],
     plan: {
       planKey: "ENTERPRISE",
       displayName: "Enterprise",
@@ -323,6 +349,8 @@ export function projectionFor(context: BillingContext): Json | null {
       });
     case "enterprise-suspended":
       return orgProjection({ status: "SUSPENDED", activationState: "ACTIVATED" });
+    case "enterprise-terminated":
+      return orgProjection({ status: "TERMINATED", activationState: "ACTIVATED" });
     case "no-account":
       return null;
   }

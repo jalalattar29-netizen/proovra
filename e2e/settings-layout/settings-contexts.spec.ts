@@ -135,6 +135,107 @@ test.describe("settings — Enterprise membership is not Enterprise authority", 
   }
 });
 
+test.describe("settings — the Overview names the context it is in", () => {
+  test("an organization is called an organization, and an agreement an agreement", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await openSettings(page, "org-owner");
+
+    const context = page.locator(".set-hero__context");
+    await expect(context).toBeVisible();
+
+    // In an organization, `activeWorkspaceName` IS the organization — and it
+    // was labelled "Workspace", so an Enterprise administrator could not tell
+    // which of the two they were reading. "Plan" had the same problem: an
+    // agreement is not a plan, and `deriveSettingsUiContext` already computes
+    // the right word (`scopeLabel`).
+    await expect(context).toContainText("Organization");
+    await expect(context).toContainText("Proovra Insurance");
+    await expect(context).not.toContainText("Personal plan");
+  });
+
+  test("a personal space still reads as a personal space", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await openSettings(page, "personal");
+
+    const context = page.locator(".set-hero__context");
+    await expect(context).toContainText("Workspace");
+    await expect(context).toContainText("Personal Space");
+    await expect(context).toContainText("Personal plan");
+    // A personal account is not in an organization, and must not be told it is.
+    await expect(context).not.toContainText("Organization");
+  });
+});
+
+test.describe("settings — the Enterprise role matrix", () => {
+  /**
+   * Every destination, per actor, decided by CAPABILITY.
+   *
+   * The actors here differ only in the capabilities their envelope carries —
+   * no role name is compared anywhere in the resolver, and none is compared
+   * here. `org-owner` holds the administration capabilities; `org-member` and
+   * `org-viewer` stand in the SAME Enterprise organization holding none.
+   */
+  const MATRIX = [
+    { actor: "org-owner", visible: [...ACCOUNT_RAIL, ...ADMIN_RAIL], hidden: [] },
+    { actor: "org-member", visible: ACCOUNT_RAIL, hidden: ADMIN_RAIL },
+    { actor: "org-viewer", visible: ACCOUNT_RAIL, hidden: ADMIN_RAIL },
+  ] as const;
+
+  for (const row of MATRIX) {
+    test(`${row.actor}: visible and hidden destinations`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1200 });
+      await openSettings(page, row.actor as "org-owner");
+      const ids = await navIds(page);
+
+      for (const id of row.visible) {
+        expect(ids, `${row.actor} must see ${id}`).toContain(id);
+      }
+      for (const id of row.hidden) {
+        expect(ids, `${row.actor} must not see ${id}`).not.toContain(id);
+      }
+    });
+  }
+
+  test("a refused destination does not render when named in the URL", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+
+    // Hiding a nav item is not authorization. `resolvePaneFromHash` only
+    // returns panes the resolver ALLOWED, so a deep link to one it refused
+    // falls back rather than mounting the surface behind it.
+    for (const hash of ["#roles", "#members", "#retention", "#audit", "#billing"]) {
+      await openSettings(page, "org-member", hash);
+      await expect(
+        page.locator('[data-settings-pane="overview"]'),
+        `${hash} must fall back for a member`,
+      ).toBeVisible();
+      await expect(page.locator("[data-cc-roles-summary-role]")).toHaveCount(0);
+      await expect(page.locator("[data-settings-handoff]")).toHaveCount(0);
+    }
+  });
+
+  test("Roles is capability-gated, not organization-gated", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+
+    // THE DEFECT THIS PINS. It was gated on `isOrg` ALONE — no capability at
+    // all — so every member and viewer of an Enterprise organization was
+    // offered "Roles & permissions" under a WORKSPACE heading, beside
+    // destinations they could not reach, on a rail that is otherwise entirely
+    // capability-resolved.
+    await openSettings(page, "org-owner");
+    expect(await navIds(page)).toContain("roles");
+
+    await openSettings(page, "org-member");
+    expect(await navIds(page)).not.toContain("roles");
+
+    await openSettings(page, "org-viewer");
+    expect(await navIds(page)).not.toContain("roles");
+  });
+});
+
 test.describe("settings — SSO/SCIM is decided by the route registry", () => {
   test("an Enterprise administrator is offered it, and it hands off", async ({
     page,

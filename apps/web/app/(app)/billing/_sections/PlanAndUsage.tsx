@@ -138,16 +138,54 @@ export function ActionRequiredBanner({
  */
 function activationPresentation(
   state: string | null | undefined,
-): { label: string; tone: "green" | "amber" } | null {
+): { label: string; tone: "green" | "amber"; detail: string | null } | null {
   switch (state) {
     case "ACTIVATED":
-      return { label: "Activated", tone: "green" };
+      // Nothing outstanding, so nothing more to say about it.
+      return { label: "Activated", tone: "green", detail: null };
     case "OWNER_INVITED":
-      return { label: "Owner invitation pending", tone: "amber" };
+      return {
+        label: "Owner invitation pending",
+        tone: "amber",
+        detail:
+          "An organization owner has been invited and has not completed setup yet.",
+      };
     case "PENDING_OWNER":
-      return { label: "Owner setup required", tone: "amber" };
+      return {
+        label: "Owner setup required",
+        tone: "amber",
+        detail:
+          "The agreement is waiting for an organization owner to complete activation.",
+      };
     default:
       // An agreement that states no activation step has none to report.
+      return null;
+  }
+}
+
+/**
+ * The agreement's own status, as a word.
+ *
+ * Separate from the activation step: an agreement can be ACTIVE while its
+ * owner onboarding is still finishing, and it can be TERMINATED with that
+ * onboarding long since ACTIVATED. Two facts, two rows.
+ */
+function contractStatusPresentation(status: string | null | undefined): {
+  label: string;
+  tone: "green" | "amber" | "red";
+} | null {
+  switch (status) {
+    case "ACTIVE":
+      return { label: "Active", tone: "green" };
+    case "DRAFT":
+      return { label: "Draft", tone: "amber" };
+    case "PENDING_ACTIVATION":
+      return { label: "Pending activation", tone: "amber" };
+    case "SUSPENDED":
+      return { label: "Suspended", tone: "red" };
+    case "TERMINATED":
+      return { label: "Ended", tone: "red" };
+    default:
       return null;
   }
 }
@@ -161,22 +199,47 @@ export function EnterpriseContractCard({
   if (!contract) return null;
 
   const activation = activationPresentation(contract.activationState);
+  const status = contractStatusPresentation(contract.status);
+  // An agreement that has ended or been suspended is not describing
+  // allowances that apply — it is the record of what it covered. The server
+  // already refuses to let its numbers govern anything
+  // (`contractGovernsCapability` is false for every non-ACTIVE status); this
+  // is the same truth said in the heading a reader actually looks at.
+  const isHistorical =
+    contract.status === "TERMINATED" || contract.status === "SUSPENDED";
 
   const rows: Array<[string, string]> = [];
   const effective = formatDate(contract.effectiveAtUtc);
   const ends = formatDate(contract.endsAtUtc);
   if (effective) rows.push(["Effective from", effective]);
-  if (ends) rows.push(["Term ends", ends]);
+  if (ends) rows.push([isHistorical ? "Term ended" : "Term ends", ends]);
   if (contract.seatCount !== null) {
-    rows.push(["Contracted seats", String(contract.seatCount)]);
+    rows.push([
+      isHistorical ? "Seats covered" : "Contracted seats",
+      String(contract.seatCount),
+    ]);
   }
   if (contract.storageGb !== null) {
-    rows.push(["Contracted storage", `${contract.storageGb} GB`]);
+    rows.push([
+      isHistorical ? "Storage covered" : "Contracted storage",
+      `${contract.storageGb} GB`,
+    ]);
   }
   if (contract.region) rows.push(["Region", contract.region]);
 
   return (
     <Card variant="summary" title="Agreement" data-billing-contract>
+      {status ? (
+        <p
+          style={{ margin: "0 0 10px" }}
+          data-billing-contract-status={contract.status}
+        >
+          <AppStatusText tone={status.tone} size="sm">
+            {status.label}
+          </AppStatusText>
+        </p>
+      ) : null}
+
       {activation ? (
         <p
           style={{ margin: "0 0 14px" }}
@@ -185,7 +248,7 @@ export function EnterpriseContractCard({
           <AppStatusText tone={activation.tone} size="sm">
             {activation.label}
           </AppStatusText>
-          {activation.tone === "amber" ? (
+          {activation.detail ? (
             <span
               style={{
                 marginInlineStart: 8,
@@ -193,7 +256,7 @@ export function EnterpriseContractCard({
                 color: "var(--text-muted, #475569)",
               }}
             >
-              Your account manager is completing setup for this organization.
+              {activation.detail}
             </span>
           ) : null}
         </p>
