@@ -88,9 +88,9 @@ ReleaseBlockingClosure                      PASS
 
 BROWSER — NOW CLOSED
 Point7Fresh                                 true
-BrowserProvenScenarios                        94
-ImplementedUiCapabilities                     24
-BrowserVerifiedUiCapabilities                 24
+BrowserProvenScenarios                        92
+ImplementedUiCapabilities                     23
+BrowserVerifiedUiCapabilities                 23
 NEW-027Runtime                              PASS
 NEW-028Runtime                              PASS
 NEW-029Runtime                              PASS

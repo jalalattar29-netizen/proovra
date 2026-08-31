@@ -78,15 +78,6 @@
       "provingScenario": "p7.ui.governance.destruction_review_opened"
     },
     {
-      "capabilityId": "workspace.created",
-      "page": "/workspaces",
-      "control": "[data-testid=\"create-workspace-submit\"]",
-      "method": "POST",
-      "path": "/v1/teams",
-      "consumer": "apps/web/components/workspace-admin/CreateWorkspaceCard.tsx",
-      "provingScenario": "p7.ui.workspace.created"
-    },
-    {
       "capabilityId": "workspace.closure_requested",
       "page": "/teams/:id",
       "control": "[data-action=\"request-workspace-closure\"]",

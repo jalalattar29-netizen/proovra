@@ -2,7 +2,7 @@
   "$comment": "PHASE 12 POINT 7 — machine-written record of which product-behaviour scenarios actually EXECUTED, at which layer. Written by the integration and browser runners, read by services/api/test/phase-12-point7-closure-gate.test.ts. Each record carries the SHA-256 of its own suite, the run id, and a digest of the production authority it ran against; the gate re-derives all three. Do not hand-edit.",
   "suites": {
     "services/api/test/point7/plan-matrix.integration.test.ts": {
-      "sha256": "b8c4219b3668052f5d455ab69e8c691211ba3fa7f278956610cf0bcd603c7bb5",
+      "sha256": "4db9bdb0cdd2aee8307726408e6bd5e61e8ddafc8a1f5e74db782bca87371a21",
       "layer": "SERVER",
       "scenarios": [
         "p7.enterprise.contract_expired.no_deletion",
@@ -27,9 +27,8 @@
         "p7.payg.no_promotion.retry_and_restore",
         "p7.payg.no_promotion.workspace_switch",
         "p7.pro.members.limit_enforced_by_server",
-        "p7.pro.owned_workspace.created_within_limit",
+        "p7.pro.owned_workspace.creation_unavailable",
         "p7.pro.owned_workspace.does_not_inherit_owner_plan",
-        "p7.pro.owned_workspace.limit_reached_denied",
         "p7.pro.seats.suspended_and_revoked_are_not_seats",
         "p7.pro.two_workspaces_diverge_commercially",
         "p7.team.collaboration.works",
@@ -37,10 +36,10 @@
         "p7.team.direct_api.ui_locked_action_denied",
         "p7.team.removal.preserves_history"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T04:51:40.591Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:16:35.415Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -53,7 +52,7 @@
       }
     },
     "services/api/test/point7/context-safety.integration.test.ts": {
-      "sha256": "5a7aa8b9e242ba2f93eb15c859cdc753d7d21cbe75e7f2905e42a2bc79ef6fd7",
+      "sha256": "3f69094bb3b019a41c304ecf6490983a5e3e5d3d209c405fdb5e43f3050367b5",
       "layer": "SERVER",
       "scenarios": [
         "p7.ctx.restore.foreign_tenant_stored_id",
@@ -71,10 +70,10 @@
         "p7.overlimit.reducing_usage_restores_operation",
         "p7.xtenant.foreign_ids_concealed_without_side_effects"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T04:52:35.934Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:17:22.168Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -104,10 +103,10 @@
         "p7.obs.transport.staging_never_uses_production_project",
         "p7.obs.unexpected_failure_still_captured"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T04:53:07.151Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:17:52.732Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -130,10 +129,10 @@
         "p7.sem.team_plan_is_not_a_personal_purchase_target",
         "p7.sem.team_user_keeps_personal_space"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T04:55:18.129Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:19:27.018Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -146,7 +145,7 @@
       }
     },
     "e2e/point7/context-safety.spec.ts": {
-      "sha256": "5ef724db24b817cfb22a76ceb3ad6bc1960db79014101a24924abdf2e98d32f9",
+      "sha256": "e50ec2c9b470a00eea0627083d237e606236c605013532a6607e7682cc6c9f02",
       "layer": "BROWSER",
       "scenarios": [
         "p7.ctx.dirty.no_silent_data_loss",
@@ -160,10 +159,10 @@
         "p7.invite.resend_reuses_the_durable_idempotency_key",
         "p7.invite.revoked_link_still_fails_server_side"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.334Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.578Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -187,10 +186,10 @@
         "p7.sem.no_personal_space_true_blocks_every_route",
         "p7.sem.team_user_keeps_personal_space"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.337Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.581Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -206,7 +205,7 @@
       }
     },
     "e2e/point7/plan-journeys.spec.ts": {
-      "sha256": "bd3ad0c012ec627089992333f4aee7bc088e90dde7f94e34168dfd3f0b444984",
+      "sha256": "9cc39a79e0a35711771a09bc977f76d78dab75747ca5d4a8553323d361ea1f93",
       "layer": "BROWSER",
       "scenarios": [
         "p7.enterprise.no_personal_space.blocks_server_fallback",
@@ -224,17 +223,16 @@
         "p7.payg.no_promotion.retry_and_restore",
         "p7.payg.no_promotion.workspace_switch",
         "p7.pro.members.limit_enforced_by_server",
-        "p7.pro.owned_workspace.created_within_limit",
-        "p7.pro.owned_workspace.limit_reached_denied",
+        "p7.pro.owned_workspace.creation_unavailable",
         "p7.team.collaboration.works",
         "p7.team.commercial_state_belongs_to_workspace",
         "p7.team.direct_api.ui_locked_action_denied",
         "p7.team.switch.isolates_cache_and_mutations"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.349Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.595Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -258,10 +256,10 @@
         "p7.new027.download.streams_from_the_api_origin",
         "p7.new027.download.suspended_member_refused"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.339Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.584Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -284,10 +282,10 @@
         "p7.new028.bytes.unauthorized_reads_refused",
         "p7.new028.thumbnail.renders_from_the_api_origin"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.341Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.585Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -313,10 +311,10 @@
         "p7.org.roster.suspend_restore_round_trip",
         "p7.org.roster.terminal_state_offers_no_transition"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.347Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.593Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -343,10 +341,10 @@
         "p7.ui.governance.destruction_review_opened",
         "p7.ui.governance.policy_created"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.357Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.602Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -371,10 +369,10 @@
         "p7.ui.automation.rule_updated",
         "p7.ui.intelligence.provider_budget_created"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.354Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.599Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -390,21 +388,20 @@
       }
     },
     "e2e/point7/ui-capabilities-workspace.spec.ts": {
-      "sha256": "973821fc6b3646c054d11dccbc41d3bf45068c63d498ece1ba3d2d45a932c3fa",
+      "sha256": "9ff5da3d6ff25599fc5abfdbda82434b7cd76b1b55f9a22ea47f06a3945d3987",
       "layer": "BROWSER",
       "scenarios": [
         "p7.ui.org.workspace_resumed",
         "p7.ui.org.workspace_suspended",
         "p7.ui.workspace.closure_cancelled",
         "p7.ui.workspace.closure_requested",
-        "p7.ui.workspace.created",
         "p7.ui.workspace.ownership_transferred",
         "p7.ui.workspace.reopened"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.361Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.606Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -427,10 +424,10 @@
         "p7.ui.evidence.public_verify_unpublished",
         "p7.ui.redaction.video_frames_and_tracks_authored"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.355Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.601Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -453,10 +450,10 @@
         "p7.ui.security.capture_devices_listed",
         "p7.ui.security.mfa_recovery_requested"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.359Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.604Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -487,10 +484,10 @@
         "p7.stepup.workspace_closure.panel_opens_from_server_denial",
         "p7.stepup.workspace_closure.proof_retries_original_mutation"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.352Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.597Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -512,10 +509,10 @@
         "p7.new029.cancel_aborts_storage_and_session",
         "p7.new029.cancel_survives_abort_network_failure"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.343Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.588Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {
@@ -531,7 +528,7 @@
       }
     },
     "e2e/point7/new-058-account-bound-step-up.spec.ts": {
-      "sha256": "4b51c9c1a2e4c4609a9fd3e23f415225f786ba1ba94a3c88595a075b58192e2e",
+      "sha256": "19a664b00ed35930ebeae036d6e11bcd674037d1136b3d024a1a64a9d92146cb",
       "layer": "BROWSER",
       "scenarios": [
         "p7.new058.enroll.journey_activates_an_account_bound_factor",
@@ -543,10 +540,10 @@
         "p7.new058.stepup.unenrolled_account_is_offered_enrolment",
         "p7.new058.stepup.wrong_code_refused_without_elevation"
       ],
-      "runId": "a2e8230b",
-      "buildId": "c3c1c9b48ca69f673f0d25fcade3c3745712ad8ae78c04146982b782168cff2e",
-      "binding": "7ac01b3050203334f86c177417bce9bdcac14e36c48a40b0b0d077a192b38c13",
-      "recordedAtUtc": "2026-08-28T05:04:00.345Z",
+      "runId": "530bc7a3",
+      "buildId": "64a10a07124956951c74414141c1852d5edc239049909e31f2ce2e55ed7f9907",
+      "binding": "fa9c887d21b63499798fb7cedbb7a6fd17f34097d462c4c1bbfbe7df289e3cef",
+      "recordedAtUtc": "2026-08-31T01:26:54.590Z",
       "webRuntimeMode": "production-build",
       "strictCsp": true,
       "isolation": {

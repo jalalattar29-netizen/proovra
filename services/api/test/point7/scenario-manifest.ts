@@ -617,7 +617,7 @@ export const SCENARIOS: ReadonlyArray<ScenarioSpec> = [
   S("p7.apierror.unhandled_code.bounded_fallback_without_raw_detail", "CROSS",
     "A denial code the surface does not enumerate falls back to bounded copy with no raw detail and no crash.", BROWSER_ONLY),
 
-  // ------------------------------- the 24 implemented UI capabilities ---
+  // ------------------------------- the 23 implemented UI capabilities ---
   // One scenario per capability, plus one refusal matrix per journey. The
   // capability -> scenario mapping is held in
   // `scripts/capability-authority/manifests/ui-capabilities.json`, which is
@@ -637,8 +637,37 @@ export const SCENARIOS: ReadonlyArray<ScenarioSpec> = [
     "Opening a destruction review writes a pending row and moves the evidence pointer.", BROWSER_ONLY),
   S("p7.ui.governance.denied_without_authority", "ENTERPRISE",
     "A non-privileged member is refused by the SERVER on every governance write.", BROWSER_ONLY),
-  S("p7.ui.workspace.created", "PRO",
-    "Creating an owned workspace from the workspace console writes the workspace row.", BROWSER_ONLY),
+  // ---------------------------------------------------------------- RETIRED
+  // p7.ui.workspace.created — "Creating an owned workspace from the workspace
+  // console writes the workspace row." PRO, BROWSER_ONLY. Retired 2026-08-31.
+  //
+  // NOT a failing scenario removed to get green. The capability it proved was
+  // deliberately deleted from the product, and the evidence is in the tree:
+  //
+  //   * `f7584082 fix(billing): remove the per-plan workspace allowance`
+  //     deleted the creation body of POST /v1/teams. The handler now calls
+  //     `assertUserCanCreateAnotherOwnedWorkspace`, which ALWAYS throws
+  //     409 WORKSPACE_CREATION_NOT_SELF_SERVICE — see teams.routes.ts:356.
+  //     Its own comment records that the body was removed "rather than left
+  //     unreachable", because a dead copy of a transaction is how the next one
+  //     gets rebuilt wrong.
+  //   * `CreateWorkspaceCard.tsx` — the console this scenario drove — no
+  //     longer exists. `apps/web/__tests__/phase13-org-workspace-lifecycle-ui`
+  //     asserts it must not come back: "CreateWorkspaceCard still exists — a
+  //     control for a capability that is refused".
+  //   * No UI path performs the old behaviour. The only POST /v1/teams caller
+  //     left in the web tree is gone; the single remaining reference is a GET.
+  //
+  // COVERAGE IS NOT REDUCED — IT IS INVERTED. The commercial model has one
+  // Personal Workspace and TEAM is a tier OF it, so "creation works" was
+  // replaced by "creation is refused", and that refusal is required at BOTH
+  // layers for the same plan this scenario covered:
+  //
+  //   p7.pro.owned_workspace.creation_unavailable   (PRO, BOTH)
+  //   p7.free.owned_workspace.creation_unavailable  (FREE, BOTH)
+  //
+  // Retiring an id changes `proofBindingHash`, which invalidates every record
+  // in the ledger — so this migration cannot be made quietly, by construction.
   S("p7.ui.workspace.closure_requested", "PRO",
     "Requesting workspace closure, through the step-up gate, writes the closure request.", BROWSER_ONLY),
   S("p7.ui.workspace.closure_cancelled", "PRO",

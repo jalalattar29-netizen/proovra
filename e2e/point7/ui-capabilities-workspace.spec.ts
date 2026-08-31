@@ -125,111 +125,28 @@ async function signInAsOwner(
   return { page, probe, fixture };
 }
 
-/** Owned workspaces this account holds, by the classifier the route uses. */
-const ownedWorkspaceCount = (ownerUserId: string) =>
-  countRows(
-    "teams",
-    "owner_user_id = $1 AND is_personal = false AND workspace_kind = 'OWNED'",
-    [ownerUserId],
-  );
-
 test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
-  // =========================================================================
+  // ---------------------------------------------------------------- RETIRED
   // 7. POST /v1/teams — CreateWorkspaceCard
-  // =========================================================================
-
-  test("p7.ui.workspace.created", async ({ page }) => {
-    const fixture = await buildEnterpriseFixture({ label: "ws-create" });
-    const { probe } = await signInAsOwner(page, fixture);
-
-    const workspaceName = `P7 UI owned ${Date.now().toString(36)}`;
-
-    /**
-     * `CreateWorkspaceCard` is mounted TWICE on this page — once inside the
-     * empty-organizations state and once in the Actions section
-     * (WorkspaceAdministrationHome.tsx:139 and :206). This account IS in an
-     * organization, so only the Actions instance renders; scoping to the
-     * section anyway means the selector stays unambiguous for an account
-     * where both would be present, rather than depending on which one the
-     * page happened to render.
-     */
-    const scope = '[data-workspace-admin-section="actions"]';
-    const submit = () => page.locator(`${scope} [data-testid="create-workspace-submit"]`);
-
-    // Cache-invalidation evidence: the card re-reads the platform envelope
-    // rather than patching its local list, so a fresh GET of the envelope
-    // AFTER the create is what "the surface refreshed" means here. The
-    // baseline is taken in `arm()`, which runs immediately before each fire.
-    let envelopeReadsBeforeFire = 0;
-
-    const open = async () => {
-      await page.goto(`/workspaces`, { waitUntil: "domcontentloaded" });
-      await expectSurfaceRendered(page, WORKSPACE_ADMIN_ROUTE_ID);
-      await waitForSurface(page, scope);
-      const reveal = page.locator(`${scope} [data-action="open-create-workspace"]`);
-      // Idempotent: on the second pass the form may already be open.
-      if ((await reveal.count()) > 0 && (await reveal.first().isVisible())) {
-        await reveal.first().click();
-      }
-      await expect(page.locator(`${scope} [data-create-workspace-form]`)).toBeVisible({
-        timeout: 30_000,
-      });
-    };
-
-    const arm = async () => {
-      await page
-        .locator(`${scope} [data-testid="create-workspace-name"]`)
-        .fill(workspaceName);
-      envelopeReadsBeforeFire = probe.apiMutations(
-        "GET",
-        "/v1/platform/context",
-      ).length;
-    };
-
-    await proveMutationCapability({
-      page,
-      probe,
-      descriptor: {
-        capabilityId: "p7.ui.workspace.created",
-        pageUrl: "/workspaces",
-        control: '[data-workspace-admin-section="actions"] [data-testid="create-workspace-submit"]',
-        method: "POST",
-        apiPath: "POST /v1/teams",
-        pathFragment: "/v1/teams",
-        tenantWorkspaceId: fixture.tenant.workspaceId,
-      },
-      open,
-      arm,
-      fire: async ({ double, keyboard }) => {
-        if (double) await activateTwice(submit(), keyboard);
-        else await activateOnce(submit(), keyboard);
-      },
-      submitControl: submit,
-      statusRegion: () => page.locator(`${scope} [data-create-workspace-status]`),
-      countHere: () => ownedWorkspaceCount(fixture.owner.userId),
-      // The outsider owns a workspace of their own; it must not move.
-      countThere: () => ownedWorkspaceCount(fixture.outsider.userId),
-      successCopy: /created\. You own it/i,
-      expectStatus: 201,
-      expectRefreshed: async () => {
-        await expect
-          .poll(
-            async () =>
-              probe.apiMutations("GET", "/v1/platform/context").length -
-              envelopeReadsBeforeFire,
-            {
-              message:
-                "the card must re-read the platform envelope — the spaces list " +
-                "is server state and is never patched locally",
-              timeout: 20_000,
-            },
-          )
-          .toBeGreaterThan(0);
-      },
-    });
-
-    proven("p7.ui.workspace.created");
-  });
+  //
+  // `p7.ui.workspace.created` proved that submitting the create-workspace card
+  // wrote the workspace row. Both halves of that sentence are gone: the card
+  // was deleted, and the route's creation body was deleted with it in
+  // `f7584082` — POST /v1/teams now answers 409
+  // WORKSPACE_CREATION_NOT_SELF_SERVICE unconditionally, because an additional
+  // Owned Workspace is not part of any self-service plan.
+  //
+  // The scenario is not deleted quietly. It carries a retirement record in
+  // `services/api/test/point7/scenario-manifest.ts`, where the required
+  // inventory lives, naming the evidence and the two invariants that now hold
+  // this ground at BOTH layers:
+  //
+  //   p7.pro.owned_workspace.creation_unavailable
+  //   p7.free.owned_workspace.creation_unavailable
+  //
+  // Nothing is re-added here to make those pass. A browser test that drove a
+  // control which no longer exists could only be made green by rebuilding the
+  // capability the product removed.
 
   // =========================================================================
   // 8. POST /v1/teams/:id/closure — WorkspaceClosureCard, request leg
