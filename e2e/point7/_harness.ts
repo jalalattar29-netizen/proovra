@@ -611,6 +611,58 @@ export function recordRequests(page: Page): RequestLog {
 }
 
 /**
+ * THE COOKIE BANNER IS A PRECONDITION, NOT A SUBJECT.
+ *
+ * The consent manager renders a modal over the page until the visitor answers
+ * it, and it is `position: fixed` — so Playwright resolves a button, finds it
+ * visible and enabled, and then every click is intercepted by
+ * `#cc-main`. A long UI journey does not fail an assertion; it burns its
+ * timeout retrying a click that can never land.
+ *
+ * It did not use to appear here. `vanilla-cookieconsent` defaults
+ * `hideFromBots` to true, which suppressed the banner whenever
+ * `navigator.webdriver` was set — every automated run. That default was turned
+ * OFF deliberately (`f1d4ba49`): it does not merely hide the banner, it skips
+ * building the consent DOM at all, which left "Manage cookie preferences" in
+ * Settings unable to open a dialog for any real person the heuristic misfired
+ * on. Hiding a consent control from the people most likely to want it is a
+ * worse bug than a blocked test.
+ *
+ * So the banner is answered the way a returning user's browser answers it:
+ * with the record the manager writes once consent has been given. These
+ * accounts are signed-in operators driving product journeys, not first-time
+ * visitors deciding about cookies, and nothing in Point 7 asserts anything
+ * about the banner. `lastConsentTimestamp` and `expirationTime` are required —
+ * a record without them is treated as invalid and the banner returns.
+ */
+const ANSWERED_COOKIE_CONSENT = JSON.stringify({
+  // NECESSARY ONLY — and that is not merely the polite default.
+  //
+  // Accepting analytics here switched the analytics client ON, and its calls
+  // fail against the point7 API with "Invalid analytics payload". Every point7
+  // journey ends in `assertClean`, which requires an empty console, so a
+  // consent record that opted IN failed seven journeys that had nothing to do
+  // with consent. Declining non-essential categories is the answer a
+  // privacy-respecting default gives anyway.
+  categories: ["necessary"],
+  revision: 1,
+  data: null,
+  consentTimestamp: "2026-01-01T00:00:00.000Z",
+  consentId: "point7-consent",
+  services: { necessary: [], preferences: [], analytics: [], marketing: [] },
+  languageCode: "en",
+  lastConsentTimestamp: "2026-01-01T00:00:00.000Z",
+  expirationTime: 4102444800000,
+});
+
+/** Seed the consent record before any page script runs, on every navigation. */
+async function answerCookieBanner(page: Page): Promise<void> {
+  await page.addInitScript((value: string) => {
+    document.cookie = `cc_cookie=${encodeURIComponent(value)};path=/`;
+  }, ANSWERED_COOKIE_CONSENT);
+}
+
+/**
  * Sign in through the REAL login form.
  *
  * Not by injecting a token, not by seeding a cookie: the point of a browser
@@ -621,6 +673,7 @@ export function recordRequests(page: Page): RequestLog {
 export async function login(page: Page, account: BrowserAccount): Promise<void> {
   await resetRateLimits();
   await blockThirdParties(page);
+  await answerCookieBanner(page);
   await page.goto(`${WEB_BASE}/login`, { waitUntil: "domcontentloaded" });
   const form = page.locator('form:has(input[type="password"])').first();
   await form.locator('input[type="email"]').fill(account.email);

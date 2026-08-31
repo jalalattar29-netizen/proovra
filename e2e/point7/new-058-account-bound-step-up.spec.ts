@@ -287,7 +287,20 @@ test.describe("NEW-058 — an account acquires its own factor", () => {
       /enrolled|replacement_complete/,
       { timeout: 30_000 },
     );
-    expect(await ui.active()).toBe("true");
+    // RETRIED, because these two attributes have different sources.
+    // `data-contact-factor-state` is local phase state and flips to
+    // `enrolled` the moment verification returns;
+    // `data-contact-factor-active` is derived from the REFETCHED factor list,
+    // so it stays "false" until the server confirms an ACTIVE row. The panel
+    // is right to say so — until the refetch lands it has no confirmed factor
+    // — but a one-shot `getAttribute` in that window read the truth of a
+    // moment and called it a failure. Same attribute, same expected value,
+    // waited for rather than sampled.
+    await expect(ui.panel).toHaveAttribute(
+      "data-contact-factor-active",
+      "true",
+      { timeout: 30_000 },
+    );
 
     // The durable postcondition: ACTIVE, and verified. The database CHECK
     // refuses ACTIVE without `verified_at_utc`, so both together are what

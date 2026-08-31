@@ -35,6 +35,11 @@ import {
 // stayed invisible until the browser layer was re-executed. One authority
 // means a future rename cannot pass the server layer and fail here.
 import { DENIAL_CODES } from "../../services/api/test/point7/plan-contract";
+// An Owned Workspace is SEEDED, never created: POST /v1/teams answers 409
+// WORKSPACE_CREATION_NOT_SELF_SERVICE for every plan. These scenarios are
+// about what a workspace's commercial state does once it exists, so the
+// workspace is a precondition and one seeding helper serves every suite.
+import { createOwnedWorkspace } from "./_step-up-fixtures";
 
 const SUITE = "e2e/point7/plan-journeys.spec.ts";
 const proven = (id: string) => provenBrowserScenario(SUITE, id);
@@ -199,7 +204,7 @@ test.describe("FREE", () => {
       body: { name: "p7 browser free owned" },
     });
     expect(res.status).toBeGreaterThanOrEqual(400);
-    expect(res.body).toContain("TEAM_CREATION_NOT_ALLOWED");
+    expect(res.body).toContain(DENIAL_CODES.ownedWorkspaceCreationNotAllowed);
     expect(
       await countRows("teams", "owner_user_id = $1 AND is_personal = false", [
         account.userId,
@@ -286,7 +291,7 @@ test.describe("PAYG", () => {
       body: { name: "p7 browser payg owned" },
     });
     expect(owned.status).toBeGreaterThanOrEqual(400);
-    expect(owned.body).toContain("TEAM_CREATION_NOT_ALLOWED");
+    expect(owned.body).toContain(DENIAL_CODES.ownedWorkspaceCreationNotAllowed);
     expect(
       await countRows("teams", "owner_user_id = $1 AND is_personal = false", [
         account.userId,
@@ -404,13 +409,7 @@ test.describe("PRO", () => {
   test("p7.pro.members.limit_enforced_by_server", async ({ page }) => {
     const account = await createAccount({ label: "pro-members", plan: "PRO" });
     await login(page, account);
-    const created = await directApiCall(page, {
-      method: "POST",
-      path: "/v1/teams",
-      body: { name: "p7 browser pro members" },
-    });
-    expect(created.status, created.body).toBeLessThan(300);
-    const teamId = (JSON.parse(created.body) as { id: string }).id;
+    const teamId = await createOwnedWorkspace(page, "p7 browser pro members");
 
     // The seat figure the browser renders comes from the server projection —
     // the client holds no plan-name → limit table any more.
@@ -433,13 +432,7 @@ test.describe("TEAM", () => {
   test("p7.team.commercial_state_belongs_to_workspace", async ({ page }) => {
     const account = await createAccount({ label: "team-state", plan: "TEAM" });
     await login(page, account);
-    const created = await directApiCall(page, {
-      method: "POST",
-      path: "/v1/teams",
-      body: { name: "p7 browser team ws" },
-    });
-    expect(created.status, created.body).toBeLessThan(300);
-    const teamId = (JSON.parse(created.body) as { id: string }).id;
+    const teamId = await createOwnedWorkspace(page, "p7 browser team ws");
 
     // Give the WORKSPACE its own live TEAM subscription, then switch into it.
     await sql(
@@ -486,12 +479,7 @@ test.describe("TEAM", () => {
     const owner = await createAccount({ label: "team-lock-owner", plan: "TEAM" });
     const viewer = await createAccount({ label: "team-lock-viewer", plan: "FREE" });
     await login(page, owner);
-    const created = await directApiCall(page, {
-      method: "POST",
-      path: "/v1/teams",
-      body: { name: "p7 browser team lock" },
-    });
-    const teamId = (JSON.parse(created.body) as { id: string }).id;
+    const teamId = await createOwnedWorkspace(page, "p7 browser team lock");
     await sql(
       `UPDATE teams SET billing_plan = 'TEAM'::"PlanType", billing_status = 'ACTIVE' WHERE id = $1`,
       [teamId],
@@ -524,24 +512,8 @@ test.describe("TEAM", () => {
   test("p7.team.switch.isolates_cache_and_mutations", async ({ page }) => {
     const account = await createAccount({ label: "team-switch", plan: "TEAM" });
     await login(page, account);
-    const a = JSON.parse(
-      (
-        await directApiCall(page, {
-          method: "POST",
-          path: "/v1/teams",
-          body: { name: "p7 browser switch A" },
-        })
-      ).body,
-    ) as { id: string };
-    const b = JSON.parse(
-      (
-        await directApiCall(page, {
-          method: "POST",
-          path: "/v1/teams",
-          body: { name: "p7 browser switch B" },
-        })
-      ).body,
-    ) as { id: string };
+    const a = { id: await createOwnedWorkspace(page, "p7 browser switch A") };
+    const b = { id: await createOwnedWorkspace(page, "p7 browser switch B") };
     // A is left UNSUBSCRIBED and B is given a live TEAM subscription, so the
     // two workspaces of one account differ commercially — which is what makes
     // "the projection changed with the switch" observable rather than a
