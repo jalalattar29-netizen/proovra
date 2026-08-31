@@ -209,121 +209,83 @@ const headerPrimaryCtaStyle: React.CSSProperties = {
 // engine + trust floors); nothing here invents copy.
 // ============================================================================
 
-const EXEC_STATE: Record<
-  ExecutiveSummary["overallStatus"],
-  { tone: "ok" | "warn" | "danger" | "neutral"; accent: string; tint: string }
-> = {
-  healthy: { tone: "ok", accent: HOME_COLORS.ok, tint: HOME_TINTS.ok },
-  needs_attention: { tone: "warn", accent: HOME_COLORS.warn, tint: HOME_TINTS.warn },
-  action_required: { tone: "danger", accent: HOME_COLORS.danger, tint: HOME_TINTS.danger },
-  critical: { tone: "danger", accent: HOME_COLORS.dangerDeep, tint: "rgba(220, 38, 38, 0.12)" },
-  onboarding: { tone: "neutral", accent: HOME_COLORS.indigo, tint: HOME_TINTS.indigo },
-};
+// EXEC_STATE (the dark band's per-status accent/tint table) was removed
+// with the band itself: a white alert takes its severity from the rail, the
+// badge and the action, all of which are CSS.
 
+/**
+ * THE CRITICAL BANNER — a white card with a red edge.
+ *
+ * It was a dark navy slab carrying the PROOVRA mark as artwork, with a
+ * glass button and a reserved column for the graphic. The single most
+ * urgent statement on the page was the one rendered as a marketing panel:
+ * the title sat at 15px on a dark ground, the explanation at 12.5px in
+ * 78%-opacity slate, and a decorative hexagon took a fifth of the width.
+ *
+ * The severity now lives where it can be read — a coloured rail, a
+ * semantic badge, and an OUTLINED action. Nothing about the decision is
+ * changed: the status, the sentence, the secondary signals and the action
+ * all still come from `vm.executiveSummary`.
+ */
 export function ExecutiveSummaryBand({ summary }: { summary: ExecutiveSummary }) {
-  const s = EXEC_STATE[summary.overallStatus];
   return (
     <section
-      className="home-card ops-banner-card"
+      className="home-alert"
       data-self-serve-section="executive-summary"
       data-exec-status={summary.overallStatus}
-      // Phase HOME-ENTERPRISE — the "command center" bar now renders on the
-      // SHARED `.ops-banner-card` shell (dark-navy surface + icon-card
-      // artwork + shadow + [content | action] row). Only the dynamic,
-      // status-coloured left rail stays inline so the shell can be reused
-      // by the Case detail header with a neutral accent instead.
-      style={{ borderLeft: `4px solid ${s.accent}` }}
     >
-      <span
-        data-exec-status-chip
-        style={{
-          ...homeChipStyle,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          background: "rgba(255, 255, 255, 0.06)",
-          border: `1px solid ${s.accent}`,
-          color: "#f8fafc",
-          fontSize: 10.5,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: 0.6,
-          flexShrink: 0,
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: 999,
-            background: s.accent,
-            boxShadow: `0 0 0 3px ${s.accent}33`,
-          }}
-        />
+      <span className="home-alert__badge" data-exec-status-chip>
         {summary.statusLabel}
       </span>
-      <div style={{ flex: 1, minWidth: 240 }}>
-        <div
-          data-exec-title
-          style={{ fontSize: 15, fontWeight: 750, color: "#ffffff", letterSpacing: -0.2 }}
-        >
+
+      <div className="home-alert__body">
+        <div className="home-alert__title" data-exec-title>
           {summary.summaryTitle}
         </div>
-        <p
-          data-exec-sentence
-          style={{ margin: "3px 0 0 0", fontSize: 12.5, lineHeight: 1.5, color: "rgba(226, 232, 240, 0.78)" }}
-        >
+        <p className="home-alert__text" data-exec-sentence>
           {summary.summarySentence}
         </p>
         {summary.secondarySignals.length > 0 ? (
-          <p
-            data-exec-secondary
-            style={{ margin: "5px 0 0 0", fontSize: 11, color: "rgba(226, 232, 240, 0.52)" }}
-          >
+          <p className="home-alert__also" data-exec-secondary>
             Also: {summary.secondarySignals.join(" · ")}
           </p>
         ) : null}
       </div>
+
       {summary.actionHref && summary.actionLabel ? (
-        // Glass button — reads as PART of the dark card, not a heavy
-        // floating red block. Styling + hover live in `.home-exec-action`
-        // (app-shell-v2.css) so the hover state works.
         <Link
           href={summary.actionHref}
           data-exec-action
-          className="home-exec-action"
+          className="home-alert__action"
           title={summary.recommendedAction ?? undefined}
         >
           <span>{summary.actionLabel}</span>
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden
-            style={{ opacity: 0.9, flexShrink: 0 }}
-          >
-            <path
-              d="M5 12h14M13 6l6 6-6 6"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <ArrowRight />
         </Link>
       ) : null}
-      {/* Artwork column — reserves the right zone for the PROOVRA hexagon
-          background so the action button sits BETWEEN the alert copy and the
-          artwork (not flush to the far-right edge, not floating over the
-          mark). It shrinks toward zero and wraps on narrow screens so the
-          layout stacks naturally: text, then button, then artwork. */}
-      <div
-        aria-hidden
-        style={{ flex: "0 1 clamp(120px, 20%, 260px)", minWidth: 0 }}
-      />
     </section>
+  );
+}
+
+/** The one right-facing arrow every inline Home action uses. */
+export function ArrowRight({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      style={{ flexShrink: 0 }}
+    >
+      <path
+        d="M9 6l6 6-6 6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -368,13 +330,15 @@ function Sparkline({ values, color, uid }: { values: number[]; color: string; ui
 export function KpiRow({ kpis }: { kpis: HomeKpi[] }) {
   return (
     <div className="home-kpi-grid" data-home-kpi-row>
-      {kpis.map((k) => {
+      {kpis.map((k, index) => {
         const surface = KPI_SURFACE[k.key];
         const tone = toneColor(k.tone);
         return (
           <Link
             key={k.key}
             href={k.href}
+            className="home-kpi"
+            data-home-kpi-index={index}
             style={{
               ...kpiCardStyle,
               // Reference-accurate: the deep diagonal gradient IS the
@@ -438,6 +402,13 @@ const PRIORITY_SEVERITY: Record<
   critical: { label: "Critical", tone: "danger" },
   warning: { label: "Warning", tone: "warn" },
   info: { label: "Info", tone: "neutral" },
+};
+
+/** Severity tone -> the three pill fills the stylesheet paints. */
+const PRIORITY_PILL_TONE: Record<"danger" | "warn" | "neutral", "bad" | "warn" | "info"> = {
+  danger: "bad",
+  warn: "warn",
+  neutral: "info",
 };
 
 export function WorkspacePrioritiesCard({
@@ -520,37 +491,51 @@ export function WorkspacePrioritiesCard({
         </div>
       ) : (
         <>
-          <ul style={priorityListStyle}>
+          {/*
+            A LIST, not four grey slabs.
+
+            Each item carried its own filled, rounded container, so the card
+            read as a stack of cards and the severity chip — the one thing
+            that ranks them — sat inside that container to the LEFT of the
+            title, competing with it for the start of the line.
+
+            The item is now rows in one white card: title and description on
+            the left, the severity pill on the right where the eye can scan
+            straight down it, and the action underneath. Same order, same
+            severities, same links, same data-* contract.
+          */}
+          <ul className="home-attn" style={priorityListStyle}>
             {top.map((p) => {
               const sev = PRIORITY_SEVERITY[p.severity];
-              const tone = toneColor(sev.tone);
               return (
-                <li key={p.key} style={{ margin: 0 }}>
-                  <div style={priorityRowV2Style} data-priority={p.key} data-priority-severity={p.severity}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                      <span
-                        data-priority-chip={p.severity}
-                        style={{ ...homeChipStyle, background: tone.bg, color: tone.fg, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}
-                      >
-                        {sev.label}
-                      </span>
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 650, color: HOME_COLORS.ink, minWidth: 0 }}>
-                        {p.label}
-                      </span>
-                    </div>
-                    {/* Phase HOME-DECISIONS — what it means + what to do. */}
-                    <p style={priorityReasonStyle} data-priority-why>
-                      {p.whyItMatters}
-                    </p>
-                    <Link
-                      href={p.href}
-                      style={priorityActionStyle}
-                      data-priority-action={p.key}
-                      title={p.recommendedAction}
-                    >
-                      {p.actionLabel} →
-                    </Link>
-                  </div>
+                <li
+                  key={p.key}
+                  className="home-attn__item"
+                  data-priority={p.key}
+                  data-priority-severity={p.severity}
+                >
+                  <span className="home-attn__title">{p.label}</span>
+                  <span
+                    className="home-attn__pill"
+                    data-priority-chip={p.severity}
+                    data-tone={PRIORITY_PILL_TONE[sev.tone]}
+                  >
+                    {sev.label}
+                  </span>
+                  {/* Phase HOME-DECISIONS — what it means + what to do. */}
+                  <p className="home-attn__text" data-priority-why>
+                    {p.whyItMatters}
+                  </p>
+                  <Link
+                    href={p.href}
+                    className="home-link"
+                    style={{ gridColumn: 1 }}
+                    data-priority-action={p.key}
+                    title={p.recommendedAction}
+                  >
+                    {p.actionLabel}
+                    <ArrowRight size={14} />
+                  </Link>
                 </li>
               );
             })}
@@ -1037,9 +1022,15 @@ function Donut({
   const gradId = (key: string) =>
     `donut-grad-${files ? "files" : "records"}-${key.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
   return (
+    // A REAL chart, not a thumbnail. The ring was locked to 128x128 — a
+    // 96px circle carrying five categories, a total and a caption, which is
+    // an icon rather than a visualisation. The geometry is unchanged
+    // (viewBox 0 0 128 128); only the rendered size grows, and it grows
+    // fluidly so it still fits a phone.
     <svg
-      width="128"
-      height="128"
+      className="home-donut"
+      width="260"
+      height="260"
       viewBox="0 0 128 128"
       shapeRendering="geometricPrecision"
       role="img"
@@ -1426,27 +1417,6 @@ const priorityListStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 6,
-};
-const priorityRowV2Style: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 5,
-  padding: "10px 12px",
-  borderRadius: 10,
-  background: HOME_COLORS.soft,
-};
-const priorityReasonStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 11.5,
-  lineHeight: 1.45,
-  color: HOME_COLORS.slate,
-};
-const priorityActionStyle: React.CSSProperties = {
-  alignSelf: "flex-start",
-  fontSize: 12,
-  fontWeight: 650,
-  color: HOME_COLORS.indigo,
-  textDecoration: "none",
 };
 const allClearStyle: React.CSSProperties = {
   display: "flex",

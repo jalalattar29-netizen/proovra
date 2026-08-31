@@ -1121,6 +1121,22 @@ const HEALTH_OVERALL: Record<
   action_required: { label: "Action required", tone: "danger" },
 };
 
+/**
+ * WORKSPACE HEALTH — a list of figures, not a board of tiles.
+ *
+ * Every metric used to sit in its own tinted, rounded cell in a two-column
+ * grid: eight little cards, eight fills, eight borders, for eight numbers.
+ * The tint carried the tone, so a healthy workspace was a patchwork of
+ * green and grey boxes and nothing read as a list.
+ *
+ * The card is the container now and the metrics are its rows —
+ * LABEL ....... VALUE — with the tone in the VALUE's colour, where a
+ * number's meaning belongs. The one filled row left is the overall
+ * verdict, which is a single statement about the whole card.
+ *
+ * Nothing about the metrics themselves changes: same source, same order,
+ * same tones, same `data-health-metric` / `data-health-tone` contract.
+ */
 export function WorkspaceHealthCard({
   metrics,
   overall,
@@ -1129,40 +1145,60 @@ export function WorkspaceHealthCard({
   overall: "healthy" | "needs_attention" | "action_required";
 }) {
   const verdict = HEALTH_OVERALL[overall];
-  const vc = toneColor(verdict.tone);
   return (
     <SectionCard title="Workspace health" testId="workspace-health" fill>
-      {/* Phase HOME-POLISH — one overall verdict derived from the
-          metric tones, then the health board. */}
       <div
+        className="home-verdict"
         data-health-overall={overall}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "8px 12px",
-          borderRadius: 10,
-          background: vc.bg,
-          marginBottom: 10,
-        }}
+        data-tone={HEALTH_ROW_TONE[verdict.tone] ?? "warn"}
       >
-        <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: vc.dot }} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: vc.fg }}>{verdict.label}</span>
+        <span
+          aria-hidden
+          style={{ width: 9, height: 9, borderRadius: 999, background: "currentColor" }}
+        />
+        <span>{verdict.label}</span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-        {metrics.map((m) => {
-          const c = toneColor(m.tone);
-          return (
-            <div key={m.key} data-health-metric={m.key} data-health-tone={m.tone} style={{ padding: "8px 10px", borderRadius: 10, background: c.bg, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: HOME_COLORS.slate }}>{m.label}</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: c.fg }}>{m.value}</span>
-            </div>
-          );
-        })}
+
+      <div className="home-rows">
+        {metrics.map((m) => (
+          <div
+            key={m.key}
+            className="home-row"
+            data-health-metric={m.key}
+            data-health-tone={m.tone}
+          >
+            <span className="home-row__label">{m.label}</span>
+            <span
+              className="home-row__value"
+              data-tone={HEALTH_ROW_TONE[m.tone] ?? "neutral"}
+            >
+              {m.value}
+            </span>
+          </div>
+        ))}
       </div>
     </SectionCard>
   );
 }
+
+/**
+ * The view-model's tone vocabulary, mapped to the three the stylesheet
+ * paints. Anything unrecognised stays neutral dark rather than guessing a
+ * colour for a state this file does not know.
+ */
+const HEALTH_ROW_TONE: Record<string, "ok" | "warn" | "bad" | "neutral"> = {
+  ok: "ok",
+  good: "ok",
+  positive: "ok",
+  warn: "warn",
+  warning: "warn",
+  pending: "warn",
+  danger: "bad",
+  critical: "bad",
+  bad: "bad",
+  neutral: "neutral",
+  info: "neutral",
+};
 
 // ============================================================================
 // 7. TRUST STATE — live integrity counts + zero scaffold.
@@ -1221,27 +1257,22 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
           captured.
         </p>
       ) : null}
-      <ul style={{ ...listStyle, gap: 4 }}>
+      {/*
+        A TABLE OF ROWS, and the colour is in the VALUE.
+
+        Every row carried a full tinted fill and a matching border, so a
+        workspace with two imperfect signals showed two wide pink slabs and
+        the card read as an alert rather than a summary. The tone now lives
+        where the meaning is — "34 failed" is red, the row is not — and the
+        rows are separated by a hairline instead of by five backgrounds.
+      */}
+      <ul className="home-rows" style={{ ...listStyle, gap: 0 }}>
         {rows.map((r) => {
           const ts = trustToneStyle(r.tone);
           return (
-            <li
-              key={r.key}
-              data-trust-key={r.key}
-              style={{
-                ...listItemStyle,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-                padding: "8px 10px",
-                borderRadius: 8,
-                background: ts.bg,
-                border: `1px solid ${ts.border}`,
-              }}
-            >
-              <span style={{ fontSize: 13, color: HOME_COLORS.ink, minWidth: 0 }}>{r.label}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: ts.value, whiteSpace: "nowrap", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+            <li key={r.key} className="home-row" data-trust-key={r.key} style={listItemStyle}>
+              <span className="home-row__label">{r.label}</span>
+              <span className="home-row__value" style={{ color: ts.value }}>
                 {r.value}
               </span>
             </li>
@@ -1257,7 +1288,9 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
           Capture first evidence
         </Link>
       ) : null}
-      <p style={{ marginTop: "auto", paddingTop: 10, fontSize: 11, color: "#94a3b8", lineHeight: 1.4 }}>
+      {/* The legal boundary, in the quiet cool strip it belongs in — the
+          wording is untouched and is never dressed up as a finding. */}
+      <p className="home-note" style={{ marginTop: "auto" }}>
         PROOVRA records integrity signals; it does not determine factual truth or legal admissibility.
       </p>
     </SectionCard>
@@ -1299,43 +1332,52 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
   }
   return (
     <SectionCard title="Recent activity" testId="activity">
+      {/*
+        EVERY ROW SAID THE SAME THING IN THE SAME COLOUR.
+
+        The feed was a 2px rail with an identical 9px dot on each row, so a
+        report generated, an evidence capture and an intake submission were
+        visually indistinguishable and the label was clipped to one line with
+        an ellipsis. The marker now carries the event's TYPE — its own colour,
+        drawn from the same `activityDot` table the dot already used, so no
+        new vocabulary is invented — and the label is allowed to wrap.
+      */}
       {groups.map((g) => (
-        <div key={g.key} data-activity-group={g.key} style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.4, margin: "4px 0" }}>
-            {g.label}
-          </div>
-          {/* Phase HOME-POLISH — timeline treatment: dot column with a
-              connecting rail, not a flat list. */}
-          <ul style={{ ...listStyle, gap: 0, borderLeft: "2px solid rgba(15,23,42,0.07)", marginLeft: 4, paddingLeft: 0 }}>
-            {g.events.map((e) => (
-              <li key={e.id} data-activity-kind={e.kind} style={{ ...listItemStyle, padding: "5px 8px 5px 0" }}>
-                <Link href={e.href} style={{ display: "flex", gap: 10, alignItems: "center", textDecoration: "none", color: "inherit" }}>
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 9,
-                      height: 9,
-                      borderRadius: 999,
-                      background: activityDot(e.kind),
-                      flex: "0 0 auto",
-                      marginLeft: -5.5,
-                      border: "2px solid white",
-                      boxShadow: "0 0 0 1px rgba(15,23,42,0.06)",
-                    }}
-                  />
-                  <span style={{ flex: 1, fontSize: 13, color: HOME_COLORS.ink, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {e.label}
-                    {/* Phase HOME-INTELLIGENCE — collapsed repeats. */}
-                    {e.repeatCount && e.repeatCount > 1 ? (
-                      <span data-activity-repeat={e.repeatCount} style={{ color: HOME_COLORS.muted, fontWeight: 600 }}>
-                        {" "}×{e.repeatCount}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span style={listItemTimeStyle}>{formatRelative(e.occurredAt)}</span>
-                </Link>
-              </li>
-            ))}
+        <div key={g.key} className="home-act__group" data-activity-group={g.key}>
+          <div className="home-act__label">{g.label}</div>
+          <ul style={{ ...listStyle, gap: 0 }}>
+            {g.events.map((e) => {
+              const tone = activityDot(e.kind);
+              return (
+                <li key={e.id} className="home-act__row" data-activity-kind={e.kind} style={listItemStyle}>
+                  <Link
+                    href={e.href}
+                    style={{ display: "contents", textDecoration: "none", color: "inherit" }}
+                  >
+                    <span className="home-act__icon" aria-hidden style={{ color: tone }}>
+                      <span
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: 999,
+                          background: "currentColor",
+                        }}
+                      />
+                    </span>
+                    <span className="home-act__text">
+                      {e.label}
+                      {/* Phase HOME-INTELLIGENCE — collapsed repeats. */}
+                      {e.repeatCount && e.repeatCount > 1 ? (
+                        <span className="home-act__count" data-activity-repeat={e.repeatCount}>
+                          ×{e.repeatCount}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="home-act__time">{formatRelative(e.occurredAt)}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}

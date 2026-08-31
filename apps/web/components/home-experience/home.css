@@ -1,0 +1,865 @@
+/* ===========================================================================
+   HOME — the workspace landing surface.
+   ===========================================================================
+
+   Scoped entirely under `.self-serve-home`, so nothing here reaches another
+   route. It sits ON the canonical app shell: the page background, the rail
+   and the global header are untouched, and every card here is a white
+   surface floating on that gradient rather than a second background.
+
+   THE SYSTEM
+
+     surface    solid white, one hairline border, one small elevation —
+                enough to separate a card from the gradient and no more
+     rows       a card holds ROWS. It does not hold a grid of little cards,
+                each with its own fill, which is what made a list of eight
+                numbers read as eight controls
+     colour     white cards, coloured VALUES. The KPI band is the one place
+                that is deliberately saturated, because those five figures
+                are the page's headline
+     type       one scale, and the numbers are allowed to be large
+
+   Every colour below is a token where the repository has one. The KPI band
+   and the callout tints are the exceptions: those hues are the design, and
+   they are declared once here as `--home-*` custom properties rather than
+   scattered through eleven components as literals.
+=========================================================================== */
+
+.self-serve-home {
+  /* Surfaces */
+  --home-card: #ffffff;
+  --home-line: rgba(15, 23, 42, 0.08);
+  --home-line-soft: rgba(15, 23, 42, 0.06);
+  --home-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+
+  /* Ink */
+  --home-ink: #0f172a;
+  --home-ink-2: #334155;
+  --home-muted: #64748b;
+  --home-eyebrow: #64748b;
+
+  /* Semantics — the repository's own, with a literal only as fallback. */
+  --home-ok: var(--success-ink, #167a5b);
+  --home-warn: var(--warning-ink, #b45309);
+  --home-bad: #b42318;
+  --home-action: var(--accent-600, #6d28d9);
+
+  /* Pale state fills. */
+  --home-ok-soft: rgba(22, 122, 91, 0.09);
+  --home-warn-soft: #fff4e5;
+  --home-bad-soft: #fdecec;
+  --home-info-soft: #eef2ff;
+
+  /* The KPI band. Five deliberately rich surfaces — indigo, blue, teal,
+     violet, earth — so the page's headline figures read as one object. */
+  --home-kpi-1: linear-gradient(150deg, #312e81 0%, #2a2a6e 100%);
+  --home-kpi-2: linear-gradient(150deg, #2c5aa0 0%, #274d8c 100%);
+  --home-kpi-3: linear-gradient(150deg, #0f5c62 0%, #0d4d55 100%);
+  --home-kpi-4: linear-gradient(150deg, #6d3fc4 0%, #5b32ab 100%);
+  --home-kpi-5: linear-gradient(150deg, #5b4636 0%, #4a382b 100%);
+
+  --home-radius: 14px;
+}
+
+/* ---------------------------------------------------------------------------
+   1. THE PAGE FRAME
+--------------------------------------------------------------------------- */
+
+/* Home is a dashboard: it earns more width than a reading page. */
+.self-serve-home {
+  --page-max-w: 1560px;
+}
+
+.self-serve-home .ui-page-shell,
+.self-serve-home {
+  gap: 22px;
+}
+
+/* ---------------------------------------------------------------------------
+   2. HEADER
+--------------------------------------------------------------------------- */
+
+.self-serve-home [data-home-header] h1,
+.self-serve-home .home-greeting {
+  font-size: clamp(1.75rem, 1.4rem + 1.1vw, 2.15rem);
+  font-weight: 780;
+  letter-spacing: -0.025em;
+  color: var(--home-ink);
+  margin: 0;
+}
+
+.self-serve-home .home-greeting-sub {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #4c5a72;
+}
+
+/* ---------------------------------------------------------------------------
+   3. THE TAB CONTROL
+
+   NORMAL FLOW. It was `position: sticky; top: var(--header-h)`, so it
+   detached and rode the viewport down the page, floating over the cards it
+   was supposed to introduce. A view switcher is part of the page it heads,
+   not a second toolbar; it scrolls away like everything else.
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-tabs {
+  position: static;
+  top: auto;
+  z-index: auto;
+  height: 46px;
+  padding: 5px;
+  gap: 4px;
+  border-radius: 12px;
+  background: var(--home-card);
+  border: 1px solid rgba(124, 58, 237, 0.14);
+  box-shadow: var(--home-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.self-serve-home .home-tab {
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 9px;
+  color: var(--home-ink-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.self-serve-home .home-tab:hover {
+  background: rgba(124, 58, 237, 0.05);
+  color: var(--home-ink);
+}
+
+/* Selected reads as a quiet cool fill with DARK text — not a solid violet
+   slab, which turned the switcher into the loudest control on the page. */
+.self-serve-home .home-tab[aria-selected="true"] {
+  background: var(--home-info-soft);
+  border-color: transparent;
+  color: var(--home-ink);
+  box-shadow: none;
+}
+
+.self-serve-home .home-tab[aria-selected="true"]:focus-visible {
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
+.self-serve-home .home-tabpanel {
+  gap: 22px;
+}
+
+/* ---------------------------------------------------------------------------
+   4. CARD SURFACES
+
+   Solid white. The translucent treatment let cards dissolve into the page
+   gradient, so a list of figures had no edge and the eye had nothing to
+   group by.
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-card,
+.self-serve-home [data-self-serve-section] {
+  background: var(--home-card);
+  border: 1px solid var(--home-line);
+  border-radius: var(--home-radius);
+  box-shadow: var(--home-shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.self-serve-home [data-self-serve-section] {
+  padding: 20px 22px;
+}
+
+/* Section eyebrows — the small uppercase card titles. */
+.self-serve-home .home-eyebrow {
+  margin: 0 0 14px;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--home-eyebrow);
+}
+
+/* ---------------------------------------------------------------------------
+   5. THE CRITICAL BANNER
+
+   It was a dark navy slab carrying a large decorative mark, which made the
+   single most urgent thing on the page look like a marketing panel. It is
+   now a white card with a red edge: the severity is in the rail, the badge
+   and the action, and the words are readable at full contrast.
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-alert {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 22px;
+  background: var(--home-card);
+  border: 1px solid var(--home-line);
+  border-inline-start: 4px solid var(--home-bad);
+  border-radius: var(--home-radius);
+  box-shadow: var(--home-shadow);
+}
+
+.self-serve-home .home-alert[data-exec-status="healthy"] {
+  border-inline-start-color: var(--home-ok);
+}
+.self-serve-home .home-alert[data-exec-status="needs_attention"] {
+  border-inline-start-color: var(--home-warn);
+}
+
+.self-serve-home .home-alert__badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--home-bad-soft);
+  color: var(--home-bad);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.self-serve-home .home-alert[data-exec-status="healthy"] .home-alert__badge {
+  background: var(--home-ok-soft);
+  color: var(--home-ok);
+}
+.self-serve-home .home-alert[data-exec-status="needs_attention"] .home-alert__badge {
+  background: var(--home-warn-soft);
+  color: var(--home-warn);
+}
+
+.self-serve-home .home-alert__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.self-serve-home .home-alert__title {
+  font-size: 1.02rem;
+  font-weight: 730;
+  letter-spacing: -0.012em;
+  color: var(--home-ink);
+}
+
+.self-serve-home .home-alert__text {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--home-muted);
+}
+
+.self-serve-home .home-alert__also {
+  margin: 5px 0 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+/* Outlined, never a filled red slab: a solid red block reads as the page's
+   primary action and pulls the eye away from the record it is about. */
+.self-serve-home .home-alert__action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--home-card);
+  border: 1px solid rgba(180, 35, 24, 0.4);
+  color: var(--home-bad);
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.self-serve-home .home-alert__action:hover {
+  background: var(--home-bad-soft);
+  border-color: var(--home-bad);
+}
+.self-serve-home .home-alert__action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.22);
+}
+
+/* ---------------------------------------------------------------------------
+   6. KPI BAND
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-kpi-grid {
+  gap: 16px;
+}
+
+.self-serve-home .home-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 168px;
+  padding: 20px;
+  border-radius: var(--home-radius);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+.self-serve-home .home-kpi[data-home-kpi-index="0"] { background: var(--home-kpi-1); }
+.self-serve-home .home-kpi[data-home-kpi-index="1"] { background: var(--home-kpi-2); }
+.self-serve-home .home-kpi[data-home-kpi-index="2"] { background: var(--home-kpi-3); }
+.self-serve-home .home-kpi[data-home-kpi-index="3"] { background: var(--home-kpi-4); }
+.self-serve-home .home-kpi[data-home-kpi-index="4"] { background: var(--home-kpi-5); }
+
+.self-serve-home .home-kpi__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.self-serve-home .home-kpi__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.self-serve-home .home-kpi__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.self-serve-home .home-kpi__value {
+  margin-block-start: auto;
+  font-size: clamp(2rem, 1.6rem + 1vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.self-serve-home .home-kpi__note {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+/* ---------------------------------------------------------------------------
+   7. THE OVERVIEW BODY — three columns.
+
+   Workspace Health and What Needs Attention answer "what needs me now";
+   the third column is the recent work. Two headings, one row.
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.self-serve-home .home-overview-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.self-serve-home .home-overview-heads {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: end;
+}
+
+.self-serve-home .home-section-title {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 740;
+  letter-spacing: -0.02em;
+  color: var(--home-ink);
+}
+
+.self-serve-home .home-section-sub {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--home-muted);
+}
+
+@media (max-width: 1400px) {
+  .self-serve-home .home-overview-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .self-serve-home .home-overview-grid > :last-child {
+    grid-column: 1 / -1;
+  }
+  .self-serve-home .home-overview-heads {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .self-serve-home .home-overview-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   8. ROW LISTS — the shape most Home cards actually need.
+
+   LABEL ......................................... VALUE
+
+   Not a grid of tinted mini-cards. Eight numbers do not need eight
+   backgrounds; the card is the container and the rows are its content.
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.self-serve-home .home-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-block-end: 1px solid var(--home-line-soft);
+}
+.self-serve-home .home-row:last-child {
+  border-block-end: 0;
+}
+
+.self-serve-home .home-row__label {
+  font-size: 0.9rem;
+  color: var(--home-ink-2);
+  min-width: 0;
+}
+
+.self-serve-home .home-row__value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--home-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.self-serve-home .home-row__value[data-tone="ok"] { color: var(--home-ok); }
+.self-serve-home .home-row__value[data-tone="warn"] { color: var(--home-warn); }
+.self-serve-home .home-row__value[data-tone="bad"] { color: var(--home-bad); }
+
+/* The one filled row: the overall verdict. */
+.self-serve-home .home-verdict {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 14px;
+  margin-block-end: 6px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.self-serve-home .home-verdict[data-tone="ok"] { background: var(--home-ok-soft); color: var(--home-ok); }
+.self-serve-home .home-verdict[data-tone="warn"] { background: var(--home-warn-soft); color: var(--home-warn); }
+.self-serve-home .home-verdict[data-tone="bad"] { background: var(--home-bad-soft); color: var(--home-bad); }
+
+/* ---------------------------------------------------------------------------
+   9. ATTENTION LIST
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-attn {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.self-serve-home .home-attn__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 14px;
+  align-items: start;
+}
+
+.self-serve-home .home-attn__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--home-ink);
+  letter-spacing: -0.008em;
+}
+
+.self-serve-home .home-attn__text {
+  grid-column: 1;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--home-muted);
+}
+
+.self-serve-home .home-attn__pill {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.self-serve-home .home-attn__pill[data-tone="bad"] { background: var(--home-bad-soft); color: var(--home-bad); }
+.self-serve-home .home-attn__pill[data-tone="warn"] { background: var(--home-warn-soft); color: var(--home-warn); }
+.self-serve-home .home-attn__pill[data-tone="info"] { background: var(--home-info-soft); color: #3730a3; }
+.self-serve-home .home-attn__pill[data-tone="ok"] { background: var(--home-ok-soft); color: var(--home-ok); }
+
+.self-serve-home .home-attn__foot {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+/* ---------------------------------------------------------------------------
+   10. INLINE ACTIONS — text, arrow, nothing else.
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: var(--home-action);
+  text-decoration: none;
+  cursor: pointer;
+}
+.self-serve-home .home-link:hover {
+  text-decoration: underline;
+}
+.self-serve-home .home-link:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
+/* ---------------------------------------------------------------------------
+   11. LIST ROWS — recent evidence, verification links, report rows, intake.
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.self-serve-home .home-list__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-block-end: 1px solid var(--home-line-soft);
+  min-width: 0;
+}
+.self-serve-home .home-list__row:last-of-type {
+  border-block-end: 0;
+}
+
+.self-serve-home .home-list__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 34px;
+  block-size: 34px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: #f5f3ff;
+  color: var(--home-action);
+}
+
+.self-serve-home .home-list__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.self-serve-home .home-list__title {
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--home-ink);
+  overflow-wrap: anywhere;
+}
+
+.self-serve-home .home-list__meta {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--home-muted);
+  overflow-wrap: anywhere;
+}
+
+.self-serve-home .home-list__trail {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--home-ok);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   12. OPERATIONS
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-ops-row,
+.self-serve-home .home-ops-row-2 {
+  gap: 20px;
+}
+
+/* The big numeric summary at the head of a card. */
+.self-serve-home .home-figs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+  gap: 12px;
+  margin-block-end: 18px;
+}
+
+.self-serve-home .home-fig {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border-radius: 11px;
+  background: transparent;
+}
+.self-serve-home .home-fig[data-tone="ok"] { background: var(--home-ok-soft); }
+.self-serve-home .home-fig[data-tone="warn"] { background: var(--home-warn-soft); }
+.self-serve-home .home-fig[data-tone="bad"] { background: var(--home-bad-soft); }
+
+.self-serve-home .home-fig__value {
+  font-size: 1.85rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--home-ink);
+  font-variant-numeric: tabular-nums;
+}
+.self-serve-home .home-fig[data-tone="ok"] .home-fig__value { color: var(--home-ok); }
+.self-serve-home .home-fig[data-tone="warn"] .home-fig__value { color: var(--home-warn); }
+.self-serve-home .home-fig[data-tone="bad"] .home-fig__value { color: var(--home-bad); }
+
+.self-serve-home .home-fig__label {
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--home-muted);
+}
+
+/* A warning strip inside a card. */
+.self-serve-home .home-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  margin-block-end: 14px;
+  border-radius: 10px;
+  background: var(--home-warn-soft);
+  color: var(--home-warn);
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.self-serve-home .home-strip[data-tone="bad"] {
+  background: var(--home-bad-soft);
+  color: var(--home-bad);
+}
+.self-serve-home .home-strip .home-link {
+  color: inherit;
+}
+
+/* The legal-boundary note. Quiet, cool, and never dressed up as a finding. */
+.self-serve-home .home-note {
+  margin: 16px 0 0;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: var(--home-info-soft);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  font-style: italic;
+  color: #475569;
+}
+
+/* Badges used inside report/verification rows. */
+.self-serve-home .home-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.self-serve-home .home-badge[data-tone="ok"] { background: var(--home-ok-soft); color: var(--home-ok); }
+.self-serve-home .home-badge[data-tone="info"] { background: var(--home-info-soft); color: #3730a3; }
+.self-serve-home .home-badge[data-tone="warn"] { background: var(--home-warn-soft); color: var(--home-warn); }
+
+/* ---------------------------------------------------------------------------
+   13. ANALYTICS
+--------------------------------------------------------------------------- */
+
+.self-serve-home .home-donut-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
+.self-serve-home .home-chart {
+  inline-size: 100%;
+  block-size: auto;
+}
+
+/* The Records / Preserved files switch. */
+.self-serve-home .home-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--home-line-soft);
+}
+
+.self-serve-home .home-switch__btn {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--home-ink-2);
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.self-serve-home .home-switch__btn[aria-pressed="true"] {
+  background: var(--home-info-soft);
+  color: var(--home-ink);
+}
+.self-serve-home .home-switch__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
+/* Activity feed. */
+.self-serve-home .home-act__group {
+  margin-block-start: 16px;
+}
+.self-serve-home .home-act__group:first-child {
+  margin-block-start: 0;
+}
+
+.self-serve-home .home-act__label {
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.self-serve-home .home-act__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-block-end: 1px solid var(--home-line-soft);
+}
+.self-serve-home .home-act__row:last-child {
+  border-block-end: 0;
+}
+
+.self-serve-home .home-act__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.self-serve-home .home-act__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  color: var(--home-muted);
+  overflow-wrap: anywhere;
+}
+.self-serve-home .home-act__text strong {
+  font-weight: 650;
+  color: var(--home-ink);
+}
+
+.self-serve-home .home-act__count {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  margin-inline-start: 6px;
+  border-radius: 5px;
+  background: #f1f5f9;
+  color: var(--home-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.self-serve-home .home-act__time {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   14. MOBILE
+--------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .self-serve-home .home-alert {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .self-serve-home .home-alert__action {
+    inline-size: 100%;
+    justify-content: center;
+  }
+  .self-serve-home .home-tabs {
+    inline-size: 100%;
+    justify-content: space-between;
+  }
+  .self-serve-home .home-tab {
+    padding: 0 12px;
+    flex: 1;
+  }
+  .self-serve-home [data-self-serve-section] {
+    padding: 16px;
+  }
+}
+
+/* The donut scales with its card instead of being pinned to a thumbnail. */
+.self-serve-home .home-donut {
+  inline-size: min(100%, 260px);
+  block-size: auto;
+}

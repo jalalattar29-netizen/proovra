@@ -834,10 +834,12 @@
    second header bar: a translucent pill that stays integrated with the page
    background (subtle backdrop blur, soft border, no thick separator/heavy
    shadow). */
+/* NORMAL FLOW.
+   This was `position: sticky; top: var(--header-h)`, so the view switcher
+   detached from the page and rode the viewport downward, floating over the
+   cards it introduces. A switcher belongs to the page it heads; it scrolls
+   away with it. The visual treatment lives in home-experience/home.css. */
 .home-tabs {
-  position: sticky;
-  top: var(--header-h, 72px);
-  z-index: 40;
   display: inline-flex;
   align-items: center;
   gap: 8px;

@@ -37,6 +37,8 @@ import { useState } from "react";
 
 import { PageShell, PageSection } from "../ui";
 
+import "./home.css";
+
 import { useHomeData } from "./useHomeData";
 import {
   ActiveMatters,
@@ -146,41 +148,56 @@ export function SelfServeHomeDashboard() {
               Analytics tab, in the old Action-Needed slot) beside What Needs
               Attention. The former standalone "Action Needed" queue is gone;
               its missing-package action is merged into What Needs Attention. */}
-          <PageSection
-            title="What needs you now"
-            description="Workspace health and the priorities ranked by severity."
-            style={sectionStyle}
-          >
-            <div style={rowQueueChartStyle}>
-              <WorkspaceHealthCard
-                metrics={vm.workspaceHealth}
-                overall={vm.workspaceHealthOverall}
-              />
-              {vm.showGettingStarted ? (
-                <GettingStartedChecklist
-                  steps={vm.checklist}
-                  complete={vm.checklistComplete}
-                />
-              ) : (
-                <WorkspacePrioritiesCard
-                  priorities={vm.workspacePriorities}
-                  operations={vm.operations}
-                />
-              )}
-            </div>
-          </PageSection>
+          {/*
+            THE OPERATIONAL BODY — one row, three columns, two headings.
 
-          {/* Recent evidence + active matters. */}
-          <PageSection
-            title="Your recent work"
-            description="The latest evidence you captured and the matters in progress."
-            style={sectionStyle}
-          >
-            <div style={rowTwoColStyle}>
+            It was two stacked two-column sections: health beside priorities,
+            then recent evidence beside matters. That reads as four equal
+            things when it is really two questions — what needs me now, and
+            what have I been doing — so the page had no spine and the right
+            half repeated the left half's weight.
+
+            Health and priorities now sit together under "What needs you
+            now"; the recent work stacks in its own column beside them. The
+            headings sit on one line above their columns, so the relationship
+            is visible rather than implied by order.
+          */}
+          <div className="home-overview-heads">
+            <div>
+              <h2 className="home-section-title">What needs you now</h2>
+              <p className="home-section-sub">
+                Workspace health and the priorities ranked by severity.
+              </p>
+            </div>
+            <div>
+              <h2 className="home-section-title">Your recent work</h2>
+              <p className="home-section-sub">
+                The latest evidence you captured and the matters in progress.
+              </p>
+            </div>
+          </div>
+
+          <div className="home-overview-grid" data-home-overview-grid>
+            <WorkspaceHealthCard
+              metrics={vm.workspaceHealth}
+              overall={vm.workspaceHealthOverall}
+            />
+            {vm.showGettingStarted ? (
+              <GettingStartedChecklist
+                steps={vm.checklist}
+                complete={vm.checklistComplete}
+              />
+            ) : (
+              <WorkspacePrioritiesCard
+                priorities={vm.workspacePriorities}
+                operations={vm.operations}
+              />
+            )}
+            <div className="home-overview-col">
               <RecentEvidenceCard rows={vm.richRecentEvidence} />
               <ActiveMatters rows={vm.activeMatters} summary={vm.caseHealthSummary} />
             </div>
-          </PageSection>
+          </div>
         </div>
       ) : null}
 
@@ -262,15 +279,3 @@ const sectionStyle: React.CSSProperties = { display: "block" };
 // minmax(0, …) keeps charts/lists from forcing horizontal overflow on
 // narrow viewports; auto-fit collapses to one column under ~720px. Gaps
 // tightened (16px) so the dashboard reads dense + premium, not spread out.
-const rowTwoColStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
-  gap: 16,
-  alignItems: "stretch",
-};
-const rowQueueChartStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))",
-  gap: 16,
-  alignItems: "stretch",
-};
