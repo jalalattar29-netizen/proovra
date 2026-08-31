@@ -962,14 +962,14 @@ function LoginMethodsCard({
                 ) : null}
               </span>
               {row.action === "add_password" ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
+                <button
+                  type="button"
+                  className="app-secondary-action app-secondary-action--lg"
                   onClick={() => setAddPwOpen((v) => !v)}
                   data-cc-add-password-toggle
                 >
                   Add password
-                </Button>
+                </button>
               ) : row.action === "connect" ? (
                 <Button
                   variant="secondary"
@@ -1028,16 +1028,15 @@ function LoginMethodsCard({
             />
           </label>
           <div style={{ marginTop: 10 }}>
-            <Button
+            <button
               type="submit"
-              variant="secondary"
-              size="sm"
-              loading={busy}
+              className="app-secondary-action app-secondary-action--lg"
               disabled={busy || !meetsPolicy(newPw)}
+              aria-busy={busy || undefined}
               data-cc-add-password-submit
             >
-              Add password
-            </Button>
+              {busy ? "Adding…" : "Add password"}
+            </button>
           </div>
         </form>
       ) : null}
@@ -1331,7 +1330,7 @@ function MfaCard({
             <div style={{ marginTop: 12 }}>
               <button
                 type="button"
-                className="app-primary-action"
+                className="app-secondary-action app-secondary-action--lg"
                 onClick={() => void startEnrollment()}
                 disabled={busy}
                 aria-busy={busy || undefined}

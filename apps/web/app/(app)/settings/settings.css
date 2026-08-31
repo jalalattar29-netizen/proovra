@@ -1277,8 +1277,8 @@
    The canonical action is EXCLUDED — it carries its own 36px height and 8px
    radius, and matching the input box height here would make one purple button
    in Settings taller than every other. */
-.settings-page-shell [data-settings-preferences] input[type="text"] + button:not(.app-primary-action),
-.settings-page-shell [data-settings-preferences] button:not([data-cc-preferences-save]):not(.app-primary-action) {
+.settings-page-shell [data-settings-preferences] input[type="text"] + button:not(.app-secondary-action),
+.settings-page-shell [data-settings-preferences] button:not([data-cc-preferences-save]):not(.app-secondary-action) {
   min-height: 42px !important;
   border-radius: var(--set-radius-sm) !important;
 }
@@ -1479,7 +1479,7 @@
 /* THE DISCLOSURE. History is the longest thing on this pane and the least
    often needed, so it opens on request.
 
-   LAYOUT ONLY. The control carries `.app-primary-action` now, so its surface,
+   LAYOUT ONLY. The control carries `.app-secondary-action` now, so its surface,
    ink, border and radius come from the canonical action; what is left here is
    the one thing that is genuinely local — where it sits on the pane. */
 .settings-page-shell .set-main .set-privacy__disclose {
@@ -1689,8 +1689,6 @@
    belongs to this surface rather than to it.
 --------------------------------------------------------------------------- */
 .settings-page-shell .set-main .set-action--secondary,
-.settings-page-shell .set-main [data-cc-add-password-toggle],
-.settings-page-shell .set-main [data-cc-add-password-submit],
 .settings-page-shell .set-main .set-action--secondary * {
   display: inline-flex;
   align-items: center;
@@ -1720,9 +1718,7 @@
   background: none !important;
 }
 
-.settings-page-shell .set-main .set-action--secondary:hover:not(:disabled),
-.settings-page-shell .set-main [data-cc-add-password-toggle]:hover:not(:disabled),
-.settings-page-shell .set-main [data-cc-add-password-submit]:hover:not(:disabled) {
+.settings-page-shell .set-main .set-action--secondary:hover:not(:disabled) {
   border-color: rgba(124, 58, 237, 0.42) !important;
   background: rgba(124, 58, 237, 0.07) !important;
   color: #3b0f7a !important;
@@ -1734,9 +1730,7 @@
   background: rgba(124, 58, 237, 0.13) !important;
 }
 
-.settings-page-shell .set-main .set-action--secondary:focus-visible,
-.settings-page-shell .set-main [data-cc-add-password-toggle]:focus-visible,
-.settings-page-shell .set-main [data-cc-add-password-submit]:focus-visible {
+.settings-page-shell .set-main .set-action--secondary:focus-visible {
   outline: none !important;
   border-color: var(--set-accent) !important;
   box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.24) !important;
@@ -1744,7 +1738,6 @@
 
 /* Disabled reads as unavailable, not as a different (dark) kind of action. */
 .settings-page-shell .set-main .set-action--secondary:disabled,
-.settings-page-shell .set-main [data-cc-add-password-submit]:disabled,
 .settings-page-shell .set-main .set-action--secondary:disabled * {
   border-color: rgba(91, 33, 182, 0.14) !important;
   background: rgba(255, 255, 255, 0.55) !important;
@@ -1791,36 +1784,24 @@
 /* ---------------------------------------------------------------------------
    THE CANONICAL ACTION, UNREPAINTED.
 
-   `.app-primary-action` is the filled violet action the authenticated product
-   already uses — the Evidence header, the Notifications refresh, Cases. The
-   Settings actions that used to be painted here now carry it, so this file
-   must stop having an opinion about them.
+   These controls carry `.app-secondary-action --lg`: the outlined action the
+   Evidence Library header uses for "New Case" and "Refresh". Measured on that
+   page it rests at rgba(255,255,255,0.9) with a rgba(124,58,237,0.24) border
+   and dark neutral ink, lifts to #F2ECFE on hover, and returns to white when
+   the pointer leaves. That resting white is the state this stylesheet must not
+   overwrite.
 
-   This block is a RESET, not a second button. It repaints nothing: it stops
-   the broad `!important` rules in this stylesheet — the whole-surface
-   `button:disabled`, and the descendant painters that were written for the
-   local treatments — from reaching a canonical action. That descendant painter
-   is precisely what broke "Set up two-factor authentication": the button was
-   claimed by BOTH the local purple block and the local white block, the white
-   one won on the element, and the purple one still painted the inner `<span>`
-   the shared Button component wraps its label in. A solid violet rectangle
-   inside a white button, from two stylesheets disagreeing about one control.
+   This block is a RESET, not a button. It declares no colour of its own; it
+   stops the broad `!important` rules in this file — the whole-surface
+   `button:disabled`, the outline-based focus, and the descendant painters
+   written for the retired local treatments — from reaching a canonical action.
 --------------------------------------------------------------------------- */
-.settings-page-shell .app-primary-action,
-.settings-page-shell .set-main .app-primary-action {
-  min-height: 36px;
-  border: 1px solid rgba(109, 40, 217, 0.5) !important;
-  border-radius: 8px !important;
-  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  font-size: 12.5px;
-  font-weight: 650;
-}
 
-/* Descendants carry the label, never a second surface. */
-.settings-page-shell .app-primary-action > *,
-.settings-page-shell .set-main .app-primary-action > * {
+/* Descendants carry the label, never a second surface. This is what the 2FA
+   control needed: the shared Button component wraps its label in a `<span>`,
+   and a local rule painting `[data-cc-mfa-enroll-start] *` turned that span
+   into a filled rectangle inside a white button. */
+.settings-page-shell .set-main .app-secondary-action > *:not(.set-privacy__count) {
   min-height: 0 !important;
   padding: 0 !important;
   border: 0 !important;
@@ -1829,47 +1810,30 @@
   -webkit-text-fill-color: inherit !important;
 }
 
-/* The one descendant that IS a surface: the acceptance-history count. It has
-   to read ON violet now, so it borrows the label's own colour at low alpha
-   rather than keeping the pale-grey chip it wore on a white button. */
-.settings-page-shell .set-main .app-primary-action > .set-privacy__count {
-  padding: 2px 8px !important;
-  border-radius: 999px !important;
-  background: rgba(255, 255, 255, 0.22) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-.settings-page-shell .app-primary-action:hover:not(:disabled),
-.settings-page-shell .set-main .app-primary-action:hover:not(:disabled) {
-  filter: brightness(1.05);
-  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
-  border-color: rgba(109, 40, 217, 0.5) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-.settings-page-shell .app-primary-action:focus-visible,
-.settings-page-shell .set-main .app-primary-action:focus-visible {
+/* FOCUS is the canonical ring, not this file's outline, so a keyboard user
+   sees the same affordance here as on Evidence. */
+.settings-page-shell .set-main .app-secondary-action:focus-visible {
   outline: none !important;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.35) !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28) !important;
 }
 
-/* Disabled reads as unavailable — the canonical treatment, not this file's
-   grey, so a busy action still looks like the action it is. */
-.settings-page-shell .set-main .app-primary-action:disabled,
-.settings-page-shell .set-main .app-primary-action:disabled * {
-  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
-  border-color: rgba(109, 40, 217, 0.5) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+/* DISABLED is the canonical dimming. The surface-wide rule replaces the
+   background and ink with greys, which would make a busy action look like a
+   different control rather than the same one, unavailable. */
+.settings-page-shell .set-main .app-secondary-action:disabled,
+.settings-page-shell .set-main .app-secondary-action:disabled * {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(124, 58, 237, 0.24) !important;
+  color: var(--app-ink-label) !important;
+  -webkit-text-fill-color: var(--app-ink-label) !important;
   opacity: 0.55;
   cursor: not-allowed;
 }
-.settings-page-shell .set-main .app-primary-action:disabled > * {
+.settings-page-shell .set-main .app-secondary-action:disabled > * {
   background: none !important;
   opacity: 1;
 }
+
 
 /* ---------------------------------------------------------------------------
    THE SUMMARY ROW — FOUR CARDS, ONE HEIGHT.
@@ -1897,7 +1861,7 @@
 /* The action sits on the baseline of the card, so a card that has one lines
    up with the three that do not. */
 .settings-page-shell .set-grid--summary > .set-card > .set-card__action,
-.settings-page-shell .set-grid--summary > .set-card > .app-primary-action {
+.settings-page-shell .set-grid--summary > .set-card > .app-secondary-action {
   margin-block-start: auto;
 }
 
@@ -1935,12 +1899,15 @@
   .settings-page-shell .set-grid--summary {
     grid-template-columns: minmax(0, 1fr);
   }
-  /* A long label must wrap rather than push the card sideways. */
-  .settings-page-shell .set-main .app-primary-action {
+  /* A long label must wrap rather than push the card sideways. The canonical
+     action is `white-space: nowrap` and a fixed 44px, which is right on a
+     desktop toolbar and wrong on a 390px column. Only the wrapping is relaxed;
+     the surface, ink, border and radius stay exactly as they rest. */
+  .settings-page-shell .set-main .app-secondary-action {
     white-space: normal;
-    min-height: 36px;
+    min-height: 44px;
     height: auto;
-    padding-block: 8px;
+    padding-block: 10px;
     text-align: center;
   }
 }

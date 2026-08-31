@@ -116,7 +116,7 @@ export function StorageAddonsSection({
                * filled CTA; that hierarchy note is preserved here because it is
                * still the reason "Manage storage" beside it was left alone.
                */
-              className="app-primary-action"
+              className="app-secondary-action app-secondary-action--lg"
               onClick={onChoosePlan}
               data-billing-storage-upgrade
             >
@@ -397,7 +397,7 @@ export function BillingHistorySection({
         providerBacked ? (
           <button
             type="button"
-            className="app-primary-action"
+            className="app-secondary-action app-secondary-action--lg"
             onClick={onRecheck}
             disabled={recheckBusy}
             aria-busy={recheckBusy || undefined}

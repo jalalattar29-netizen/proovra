@@ -205,7 +205,7 @@ export function OverviewSection({
           <div style={{ marginLeft: "auto" }}>
             <button
               type="button"
-              className="app-primary-action"
+              className="app-secondary-action app-secondary-action--lg"
               onClick={() => setEditing(true)}
               data-cc-profile-edit
             >

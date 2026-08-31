@@ -292,7 +292,7 @@ export function SettingsOverview({
           action={
             <button
               type="button"
-              className="app-primary-action"
+              className="app-secondary-action app-secondary-action--lg"
               onClick={() => onOpen("security")}
               data-settings-open="security"
             >

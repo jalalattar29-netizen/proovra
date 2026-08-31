@@ -309,7 +309,7 @@ function DataExportCard() {
         <div className="mt-4">
           <button
             type="button"
-            className="app-primary-action"
+            className="app-secondary-action app-secondary-action--lg"
             onClick={() => void requestExport()}
             disabled={busy}
             aria-busy={busy || undefined}
@@ -770,7 +770,7 @@ function PolicyHistory({
     <div data-cc-privacy-acceptances>
       <button
         type="button"
-        className="app-primary-action set-privacy__disclose"
+        className="app-secondary-action app-secondary-action--lg set-privacy__disclose"
         aria-expanded={open}
         aria-controls="privacy-acceptance-history"
         onClick={() => setOpen((v) => !v)}
@@ -945,7 +945,7 @@ export function PrivacySection() {
               there is no second cookie implementation here. */}
           <button
             type="button"
-            className="app-primary-action"
+            className="app-secondary-action app-secondary-action--lg"
             onClick={() => void handleManageCookies()}
             disabled={cookieBusy}
             aria-busy={cookieBusy || undefined}

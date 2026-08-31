@@ -186,7 +186,7 @@ export function PreferencesSection() {
           </div>
           <button
             type="button"
-            className="app-primary-action"
+            className="app-secondary-action app-secondary-action--lg"
             onClick={detectTimezone}
             data-cc-preferences-detect-tz
           >

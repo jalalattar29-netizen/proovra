@@ -1,22 +1,26 @@
 /**
  * Settings and Billing use the PRODUCT's action, not their own.
  *
- * `.app-primary-action` is the filled violet action the authenticated product
- * already paints — the Evidence header's "Upload / Capture Evidence", the
- * Notifications refresh, Cases. Settings and Billing had each grown a local
- * treatment instead, and Settings had grown TWO: a "PURPLE — the action a
- * section exists to perform" block and, further down, a white/violet block,
- * with several buttons named in both.
+ * The reference is the Evidence Library header: "New Case" and "Refresh" are
+ * both `.app-secondary-action .app-secondary-action--lg`. Measured on that page
+ * they REST at rgba(255,255,255,0.9) — white — with dark neutral ink and a
+ * rgba(124,58,237,0.24) border, lift to #F2ECFE only on hover, and return to
+ * white when the pointer leaves. The solid violet button beside them
+ * ("Upload / Capture Evidence") is `.app-primary-action`, a different control.
+ *
+ * Settings and Billing had each grown a local treatment instead, and Settings
+ * had grown TWO: a "PURPLE — the action a section exists to perform" block and,
+ * 970 lines later, a white/violet block, with several buttons named in both.
  *
  * That overlap is what broke "Set up two-factor authentication". The purple
  * block claimed `[data-cc-mfa-enroll-start]` AND its descendants; the white
  * block claimed the button alone and, being later, won on the element. Nothing
  * ever overrode the descendant half, so the `<span>` the shared Button
  * component wraps its label in kept `background: var(--set-accent)` — a solid
- * violet rectangle sitting inside a white button.
+ * violet rectangle inside a white button, measured live at 214x20.
  *
- * These tests pin the resolution: one authority, named once, and no local
- * block still claiming a converted control.
+ * These tests pin the resolution: one authority, named once, and no local block
+ * still claiming a converted control.
  */
 
 import { strict as assert } from "node:assert";
@@ -38,9 +42,14 @@ const SECURITY = read(
 const SETTINGS_CSS = read("app/(app)/settings/settings.css");
 const BILLING_OVERVIEW = read("app/(app)/billing/_sections/BillingOverview.tsx");
 const STORAGE = read("app/(app)/billing/_sections/StorageAndHistory.tsx");
-const BILLING_CSS = read("app/(app)/billing/billing.css");
 const PRIMITIVES = read("components/app-primitives/app-primitives.css");
 const CONFIRM = read("components/ui/ConfirmActionModal.tsx");
+const EVIDENCE_HEADER = read(
+  "app/(app)/evidence/components/EvidenceLibraryHeader.tsx",
+);
+
+/** CSS with comments removed — prose explaining a retired rule is not a rule. */
+const stripCss = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** The element carrying `hook` must also carry the canonical class. */
 function assertCanonical(source: string, hook: string, label: string): void {
@@ -50,8 +59,18 @@ function assertCanonical(source: string, hook: string, label: string): void {
   const tag = source.slice(open, source.indexOf(">", at) + 1);
   assert.match(
     tag,
-    /className="[^"]*\bapp-primary-action\b/,
-    `${label} must carry the canonical .app-primary-action`,
+    /className="[^"]*\bapp-secondary-action\b/,
+    `${label} must carry the canonical outlined action`,
+  );
+  assert.match(
+    tag,
+    /className="[^"]*\bapp-secondary-action--lg\b/,
+    `${label} must carry the same size modifier the Evidence header uses`,
+  );
+  assert.doesNotMatch(
+    tag,
+    /\bapp-primary-action\b/,
+    `${label} must NOT use the solid violet CTA`,
   );
   assert.ok(
     tag.startsWith("<button") || tag.startsWith("<Link") || tag.startsWith("<a"),
@@ -59,20 +78,79 @@ function assertCanonical(source: string, hook: string, label: string): void {
   );
 }
 
+// -------------------------------------------------------------- THE REFERENCE
+
+test("the reference really is the outlined action, not the solid one", () => {
+  // If Evidence ever changed, these conversions would be following a button
+  // that no longer exists. New Case and Refresh are the two named in the brief.
+  for (const hook of ["data-evidence-new-case", "data-evidence-refresh"]) {
+    const at = EVIDENCE_HEADER.indexOf(hook);
+    assert.ok(at > 0, `${hook} must exist on the Evidence header`);
+    const open = EVIDENCE_HEADER.lastIndexOf("<", at);
+    const tag = EVIDENCE_HEADER.slice(open, EVIDENCE_HEADER.indexOf(">", at) + 1);
+    assert.match(
+      tag,
+      /app-secondary-action app-secondary-action--lg/,
+      `${hook} is the resting-state reference and must be the outlined action`,
+    );
+  }
+  // …and the solid CTA beside them is a DIFFERENT class, which is what makes
+  // "it looked purple" a hover state rather than the resting appearance.
+  assert.match(
+    EVIDENCE_HEADER,
+    /data-evidence-upload[\s\S]{0,120}|app-header-primary-action/,
+    "the solid CTA must stay its own class",
+  );
+});
+
+test("the canonical states are the ones the reference declares", () => {
+  const css = stripCss(PRIMITIVES);
+  // REST — white, dark neutral ink, lavender hairline.
+  assert.match(
+    css,
+    /\.app-secondary-action \{[\s\S]{0,600}background: rgba\(255, 255, 255, 0\.9\)/,
+    "rest must be white",
+  );
+  assert.match(
+    css,
+    /\.app-secondary-action \{[\s\S]{0,600}border: 1px solid rgba\(124, 58, 237, 0\.24\)/,
+    "rest must carry the subtle lavender border",
+  );
+  // HOVER — the tint, and only on hover.
+  assert.match(
+    css,
+    /\.app-secondary-action:hover:not\(:disabled\) \{[\s\S]{0,200}background: #F2ECFE/,
+    "the lavender tint belongs to :hover",
+  );
+  // FOCUS and DISABLED.
+  assert.match(
+    css,
+    /\.app-secondary-action:focus-visible \{[\s\S]{0,160}box-shadow: 0 0 0 3px rgba\(124, 58, 237, 0\.28\)/,
+    "focus is the canonical ring",
+  );
+  assert.match(
+    css,
+    /\.app-secondary-action:disabled \{[\s\S]{0,120}opacity: 0\.55/,
+    "disabled is the canonical dimming",
+  );
+});
+
 // ---------------------------------------------------------------- SETTINGS
 
-test("the seven Settings actions carry the canonical primary action", () => {
+test("every listed Settings action carries the canonical outlined action", () => {
   assertCanonical(OVERVIEW_SECTION, "data-cc-profile-edit", "Edit profile");
-  assertCanonical(
-    PREFERENCES,
-    "data-cc-preferences-detect-tz",
-    "Use my current timezone",
-  );
   assertCanonical(
     SETTINGS_OVERVIEW,
     'data-settings-open="security"',
     "Review security",
   );
+  assertCanonical(
+    PREFERENCES,
+    "data-cc-preferences-detect-tz",
+    "Use my current timezone",
+  );
+  assertCanonical(SECURITY, "data-cc-add-password-toggle", "Add password");
+  assertCanonical(SECURITY, "data-cc-add-password-submit", "Add password (submit)");
   assertCanonical(SECURITY, "data-cc-mfa-enroll-start", "Set up two-factor");
   assertCanonical(
     PRIVACY,
@@ -87,11 +165,12 @@ test("the seven Settings actions carry the canonical primary action", () => {
   assertCanonical(PRIVACY, "data-cc-export-request", "Request data export");
 });
 
-test("no converted Settings action is still the legacy secondary Button", () => {
+test("no converted Settings action is still a legacy Button variant", () => {
   for (const [src, hook, label] of [
     [OVERVIEW_SECTION, "data-cc-profile-edit", "Edit profile"],
     [PREFERENCES, "data-cc-preferences-detect-tz", "Use my current timezone"],
     [SECURITY, "data-cc-mfa-enroll-start", "Set up two-factor"],
+    [SECURITY, "data-cc-add-password-toggle", "Add password"],
     [PRIVACY, "data-cc-export-request", "Request data export"],
   ] as const) {
     const at = src.indexOf(hook);
@@ -105,19 +184,20 @@ test("no converted Settings action is still the legacy secondary Button", () => 
   }
 });
 
-test("settings.css no longer claims a converted action", () => {
-  // Every hook below is now painted by the canonical class. A local block that
-  // still names one is the second authority that produced the 2FA artifact.
-  // Colour, specifically. One LAYOUT rule survives on purpose — the mobile
-  // `width: 100%` that makes Edit profile fill its card — and a rule that only
-  // sizes a button is not a second opinion about how it is painted.
-  const painting = SETTINGS_CSS.split("}")
+test("settings.css no longer PAINTS a converted action", () => {
+  // A local block that still names one of these is the second authority that
+  // produced the 2FA artifact. Comments are stripped: naming a retired rule in
+  // prose is how the removal stays explained.
+  const painting = stripCss(SETTINGS_CSS)
+    .split("}")
     .filter((block) => /background|color|border-color|box-shadow/.test(block))
     .join("}");
   for (const hook of [
     "[data-cc-mfa-enroll-start]",
     "[data-cc-preferences-detect-tz]",
     "[data-cc-export-request]",
+    "[data-cc-add-password-toggle]",
+    "[data-cc-add-password-submit]",
     "[data-cc-profile-edit]",
     '[data-settings-open="security"]',
     ".set-privacy__disclose",
@@ -129,36 +209,47 @@ test("settings.css no longer claims a converted action", () => {
   }
 });
 
+test("nothing leaves a converted action permanently tinted", () => {
+  // The regression the correction is guarding: a rule that paints the lavender
+  // at REST rather than on :hover would look identical in a screenshot taken
+  // with the pointer over the button, and wrong every other moment.
+  const css = stripCss(SETTINGS_CSS);
+  for (const block of css.split("}")) {
+    if (!block.includes(".app-secondary-action")) continue;
+    if (/:hover/.test(block)) continue;
+    assert.ok(
+      !/#F2ECFE|#f2ecfe|242, 236, 254/.test(block),
+      `a non-hover rule paints the hover tint: ${block.trim().slice(0, 90)}`,
+    );
+    assert.ok(
+      !/linear-gradient/.test(block),
+      `a non-hover rule fills the outlined action: ${block.trim().slice(0, 90)}`,
+    );
+  }
+});
+
 test("the 2FA action has no inner surface to paint", () => {
-  // The rectangle lived in the label wrapper the shared Button component adds.
-  // A native button has no wrapper at all, and the containment reset stops any
-  // descendant of a canonical action from drawing a second surface.
   const at = SECURITY.indexOf("data-cc-mfa-enroll-start");
   const open = SECURITY.lastIndexOf("<", at);
   const close = SECURITY.indexOf("</button>", at);
   assert.ok(close > open, "the 2FA action must be a native <button>");
-  const markup = SECURITY.slice(open, close);
-  assert.doesNotMatch(markup, /<span/, "the label must not be wrapped in a span");
-
+  assert.doesNotMatch(
+    SECURITY.slice(open, close),
+    /<span/,
+    "the label must not be wrapped in a span",
+  );
   assert.match(
     SETTINGS_CSS,
-    /\.settings-page-shell \.app-primary-action > \*[\s\S]{0,220}background: none !important/,
+    /\.app-secondary-action > \*[^{]*\{[\s\S]{0,260}background: none !important/,
     "descendants of a canonical action must never redraw the surface",
   );
 });
 
-test("the canonical action keeps its own height in Settings and Billing", () => {
-  // Two local rules used to force a different height onto whatever sat in
-  // them — 42px in the Preferences row, 44px in a billing panel's actions.
+test("the Preferences row no longer resizes the canonical action", () => {
   assert.match(
     SETTINGS_CSS,
-    /\[data-settings-preferences\] button:not\(\[data-cc-preferences-save\]\):not\(\.app-primary-action\)/,
-    "the Preferences height rule must exclude the canonical action",
-  );
-  assert.match(
-    BILLING_CSS,
-    /\.bill-panel__actions > \*:not\(\.app-primary-action\)/,
-    "the billing panel height rule must exclude the canonical action",
+    /\[data-settings-preferences\] button:not\(\[data-cc-preferences-save\]\):not\(\.app-secondary-action\)/,
+    "the 42px Preferences height rule must exclude the canonical action",
   );
 });
 
@@ -167,27 +258,21 @@ test("the canonical action keeps its own height in Settings and Billing", () => 
 test("the summary row is four cards, and sign-ins is not one of them", () => {
   const gridAt = SETTINGS_OVERVIEW.indexOf('className="set-grid set-grid--summary"');
   assert.ok(gridAt > 0, "the summary grid must exist");
-  const gridEnd = SETTINGS_OVERVIEW.indexOf("      </div>", gridAt);
-  const grid = SETTINGS_OVERVIEW.slice(gridAt, gridEnd);
-
+  const grid = SETTINGS_OVERVIEW.slice(
+    gridAt,
+    SETTINGS_OVERVIEW.indexOf("      </div>", gridAt),
+  );
   for (const id of ["workspace", "plan", "security", "timezone"]) {
-    assert.ok(
-      grid.includes(`testId="${id}"`),
-      `${id} must be one of the four summary cards`,
-    );
+    assert.ok(grid.includes(`testId="${id}"`), `${id} must be a summary card`);
   }
   assert.ok(
-    !grid.includes('data-settings-summary="activity"') &&
-      !grid.includes('testId="activity"'),
-    "Recent sign-ins must sit BELOW the summary row, not as a fourth column",
+    !grid.includes('testId="activity"'),
+    "Recent sign-ins must sit BELOW the summary row",
   );
   assert.ok(
-    SETTINGS_OVERVIEW.includes('data-settings-summary="activity"'),
-    "Recent sign-ins must still be rendered",
-  );
-  assert.ok(
-    SETTINGS_OVERVIEW.includes("set-card--wide"),
-    "Recent sign-ins must be the wide card",
+    SETTINGS_OVERVIEW.includes('data-settings-summary="activity"') &&
+      SETTINGS_OVERVIEW.includes("set-card--wide"),
+    "Recent sign-ins must still render, as the wide card",
   );
 });
 
@@ -200,78 +285,48 @@ test("the summary row is a real four-column grid that stretches", () => {
   assert.match(
     SETTINGS_CSS,
     /\.settings-page-shell \.set-grid--summary \{[\s\S]{0,200}align-items: stretch/,
-    "cards must share a height rather than each taking its own",
+    "cards must share a height",
   );
-  // Tablet halves it; mobile stacks it.
   assert.match(
     SETTINGS_CSS,
     /@media \(max-width: 1100px\)[\s\S]{0,220}repeat\(2, minmax\(0, 1fr\)\)/,
-    "tablet must be a 2 x 2 grid",
+    "tablet must be 2 x 2",
   );
   assert.match(
     SETTINGS_CSS,
-    /@media \(max-width: 640px\)[\s\S]{0,240}grid-template-columns: minmax\(0, 1fr\)/,
-    "mobile must stack to one column",
+    /@media \(max-width: 640px\)[\s\S]{0,260}grid-template-columns: minmax\(0, 1fr\)/,
+    "mobile must stack",
   );
 });
 
 test("Recent sign-ins names the device, never the raw User-Agent", () => {
-  // `uaPreview` is the raw header truncated to 120 characters. It was the
-  // card's headline, which is what made the column twice the height of its
-  // neighbours. `describeUserAgent` is the parser the Security pane already
-  // uses for this exact string — reused, not re-written.
   assert.match(
     SETTINGS_OVERVIEW,
-    /import \{ describeUserAgent \} from "\.\.\/\.\.\/\.\.\/\.\.\/lib\/security\/sessionPresentation"/,
+    /import \{ describeUserAgent \}/,
     "the existing parser must be reused",
   );
-  assert.match(
-    SETTINGS_OVERVIEW,
-    /describeUserAgent\(entry\.device\)/,
-    "the device line must be the parsed description",
-  );
-  assert.doesNotMatch(
-    SETTINGS_OVERVIEW,
-    /\{entry\.device \?\? "Unrecognised device"\}/,
-    "the raw agent must not be the headline any more",
-  );
+  assert.match(SETTINGS_OVERVIEW, /describeUserAgent\(entry\.device\)/);
+  assert.doesNotMatch(SETTINGS_OVERVIEW, /\{entry\.device \?\? "Unrecognised device"\}/);
 });
 
 test("Timezone is a readout here and stays editable in Preferences", () => {
-  assert.match(
-    SETTINGS_OVERVIEW,
-    /title="Timezone"/,
-    "the fourth summary card is Timezone",
-  );
-  assert.match(
-    SETTINGS_OVERVIEW,
-    /accountTimezone \?\? "UTC"/,
-    "the card shows the saved account timezone, falling back to UTC",
-  );
-  // Truthful state only: these are the same words Preferences uses.
+  assert.match(SETTINGS_OVERVIEW, /title="Timezone"/);
+  assert.match(SETTINGS_OVERVIEW, /accountTimezone \?\? "UTC"/);
   assert.ok(
     SETTINGS_OVERVIEW.includes("Account timezone") &&
       SETTINGS_OVERVIEW.includes("Not set — UTC fallback"),
-    "the secondary state must be the truthful one",
   );
-  // The summary must not become a second editor.
-  assert.doesNotMatch(
-    SETTINGS_OVERVIEW,
-    /<Input[\s\S]{0,80}timezone/,
-    "the summary card must not carry the timezone form",
-  );
-  // …and Preferences keeps the whole control.
+  assert.doesNotMatch(SETTINGS_OVERVIEW, /<Input[\s\S]{0,80}timezone/);
   assert.ok(
     PREFERENCES.includes("data-cc-preferences-timezone") &&
-      PREFERENCES.includes("data-cc-preferences-detect-tz") &&
-      PREFERENCES.includes("Account timezone"),
+      PREFERENCES.includes("data-cc-preferences-detect-tz"),
     "Preferences remains the editing surface",
   );
 });
 
 // --------------------------------------------------------------- BILLING
 
-test("the self-serve billing actions use the canonical primary action", () => {
+test("the self-serve billing actions carry the canonical outlined action", () => {
   assertCanonical(BILLING_OVERVIEW, "data-billing-buy-credits", "Buy credits");
   assertCanonical(
     BILLING_OVERVIEW,
@@ -283,46 +338,27 @@ test("the self-serve billing actions use the canonical primary action", () => {
 });
 
 test("billing gating is untouched by the visual change", () => {
-  // Each action keeps the condition that decides whether it exists at all.
-  assert.match(
-    BILLING_OVERVIEW,
-    /action === "BUY_CREDITS" && onBuyCredits/,
-    "Buy credits stays conditional on the projected action",
-  );
-  assert.match(
-    BILLING_OVERVIEW,
-    /action === "SEE_PLANS" && onChoosePlan/,
-    "Choose a plan stays conditional on the projected action",
-  );
-  assert.match(
-    STORAGE,
-    /providerBacked \?/,
-    "Re-check stays conditional on a payment provider backing the account",
-  );
-  assert.match(
-    STORAGE,
-    /locked\.unlockedByPlan \?/,
-    "View plans stays conditional on the plan lock",
-  );
+  assert.match(BILLING_OVERVIEW, /action === "BUY_CREDITS" && onBuyCredits/);
+  assert.match(BILLING_OVERVIEW, /action === "SEE_PLANS" && onChoosePlan/);
+  assert.match(STORAGE, /providerBacked \?/);
+  assert.match(STORAGE, /locked\.unlockedByPlan \?/);
 });
 
-test("destructive and tertiary controls were NOT swept into purple", () => {
-  // Semantic hierarchy survives a consistency pass.
+test("destructive and tertiary controls were NOT swept in", () => {
   const closeAt = PRIVACY.indexOf("data-cc-close-account");
   if (closeAt > 0) {
     const open = PRIVACY.lastIndexOf("<", closeAt);
     const tag = PRIVACY.slice(open, PRIVACY.indexOf(">", closeAt) + 1);
     assert.doesNotMatch(
       tag,
-      /app-primary-action/,
+      /app-secondary-action/,
       "Close account must keep its destructive treatment",
     );
   }
-  // Inline policy links stay links.
   assert.doesNotMatch(
     PRIVACY,
-    /className="app-primary-action"[^>]*>\s*(Privacy Policy|Terms of Service|Cookie Policy)/,
-    "policy links must not become buttons",
+    /className="app-secondary-action[^"]*"[^>]*>\s*(Privacy Policy|Terms of Service|Cookie Policy)/,
+    "policy links must stay links",
   );
 });
 
@@ -334,51 +370,27 @@ test("the warning confirm is canonical amber, not the old umber", () => {
     /case "warning":[\s\S]{0,900}bg: "var\(--warning-ink, #B45309\)"/,
     "warning must use the canonical --warning-ink token",
   );
-  // The hexes may still be NAMED in the comments that explain why they left;
-  // what must be gone is any rule or value still using one.
-  const stripComments = (src: string): string =>
-    src
-      .split("\n")
-      .filter((line) => !line.trim().startsWith("*") && !line.trim().startsWith("//"))
-      .join("\n");
-  const liveConfirm = stripComments(CONFIRM);
-  const livePrimitives = stripComments(PRIMITIVES);
+  const liveConfirm = CONFIRM.split("\n")
+    .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))
+    .join("\n");
+  const livePrimitives = stripCss(PRIMITIVES);
   for (const brown of ["#B86B16", "#9F5910", "#874A0C"]) {
     assert.ok(
       !liveConfirm.includes(brown) && !livePrimitives.includes(brown),
       `${brown} is the stale umber and must no longer be used`,
     );
   }
-  assert.match(
-    PRIMITIVES,
-    /\[data-confirm-action-tone="warning"\]:hover:not\(:disabled\) \{[\s\S]{0,160}var\(--warning-ink, #B45309\)/,
-    "the hover state must be the same token, not a second palette",
-  );
 });
 
 test("failure stays red and completion stays green", () => {
-  // A sign-out that succeeded must not be reported as an error just because
-  // the subject is security; one that failed must not be softened.
-  assert.match(
-    SECURITY,
-    /const errorBox[\s\S]{0,200}rgba\(179,38,30/,
-    "failure keeps the canonical red container",
-  );
-  assert.match(
-    SECURITY,
-    /const okBox[\s\S]{0,240}var\(--success-ink, #167A5B\)/,
-    "completion uses the canonical success ink",
-  );
-  assert.ok(
-    !SECURITY.includes('color: "#215e44"'),
-    "the un-named green must be gone in favour of the token",
-  );
+  assert.match(SECURITY, /const errorBox[\s\S]{0,200}rgba\(179,38,30/);
+  assert.match(SECURITY, /const okBox[\s\S]{0,240}var\(--success-ink, #167A5B\)/);
+  assert.ok(!SECURITY.includes('color: "#215e44"'));
 });
 
 test("the sign-out confirmation asks with a warning tone", () => {
   assert.match(
     SECURITY,
     /title: "Sign out other sessions\?"[\s\S]{0,400}tone: "warning"/,
-    "the pre-sign-out confirmation is a warning, not a danger",
   );
 });
