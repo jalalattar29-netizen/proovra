@@ -201,4 +201,65 @@ describe("PLATFORM TELEMETRY BOUNDARY (live PostgreSQL 16)", () => {
     });
   });
 
+
+  // =========================================================================
+  // The replacement is genuinely tenant-safe.
+  // =========================================================================
+
+  describe("workspace operational health carries no platform data", () => {
+    it("NEVER contains a process-global metric name or the registry shape", async () => {
+      for (const path of ["health", "alerts"]) {
+        const res = await get(
+          `/v1/workspaces/${freeWorkspaceId}/operations/${path}`,
+          freeUser.token,
+        );
+        expect(res.statusCode).toBe(200);
+        const raw = JSON.stringify(res.json());
+        for (const name of GLOBAL_METRIC_NAMES) {
+          expect(raw, `${path} leaked the global metric ${name}`).not.toContain(name);
+        }
+        // The registry shape itself must not appear.
+        expect(raw).not.toContain('"counters"');
+        expect(raw).not.toContain('"gauges"');
+        expect(raw).not.toContain('"uptimeSeconds"');
+      }
+    });
+
+    it("does not expose the internal dedup fingerprint", async () => {
+      const res = await get(
+        `/v1/workspaces/${freeWorkspaceId}/operations/alerts`,
+        freeUser.token,
+      );
+      expect(res.statusCode).toBe(200);
+      expect(JSON.stringify(res.json())).not.toContain("fingerprint");
+    });
+
+    it("never names another workspace", async () => {
+      const res = await get(
+        `/v1/workspaces/${freeWorkspaceId}/operations/health`,
+        freeUser.token,
+      );
+      expect(res.statusCode).toBe(200);
+      expect(JSON.stringify(res.json())).not.toContain(otherWorkspaceId);
+    });
+
+    it("the workspace route module imports nothing from the metric registry", async () => {
+      const { readFileSync } = await import("node:fs");
+      const { fileURLToPath } = await import("node:url");
+      const src = readFileSync(
+        fileURLToPath(
+          new URL("../src/routes/workspace-operations.routes.ts", import.meta.url),
+        ),
+        "utf8",
+      )
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "");
+      for (const forbidden of ["snapshotMetrics", "evaluateAlerts", "setGauge", "bump("]) {
+        expect(
+          src.includes(forbidden),
+          `workspace route reached for ${forbidden} — the registry is platform-wide`,
+        ).toBe(false);
+      }
+    });
+  });
 });
