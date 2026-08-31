@@ -308,6 +308,29 @@ function table() {
 }
 
 /** Link ids in the WIDE table, in render order. */
+/**
+ * Type into the search box and let the applied filter catch up.
+ *
+ * The box is DEBOUNCED — `useDebouncedSearchInput` keeps the input local and
+ * commits the query 250ms after typing settles, because binding the value
+ * straight to applied state made every keystroke a `router.replace()` and the
+ * character only appeared once that had round-tripped. So a `change` event
+ * updates what is typed, not yet what is filtered, and asserting in the same
+ * tick asserts the moment before the product does its work. These tests were
+ * written before the debounce existed and read as if it did not.
+ *
+ * Callers pair this with `waitFor` on the outcome rather than a fixed sleep:
+ * the wait is for the applied filter, not for a number of milliseconds.
+ */
+async function typeSearch(value: string): Promise<void> {
+  const box = document.querySelector(
+    "[data-intake-links-search]",
+  ) as HTMLInputElement;
+  await act(async () => {
+    fireEvent.change(box, { target: { value } });
+  });
+}
+
 function rowIds(): string[] {
   return Array.from(
     document.querySelectorAll("[data-intake-links-row-id]"),
@@ -524,41 +547,35 @@ describe("lifecycle and activity vocabulary", () => {
 describe("search, filters, sorting and pagination", () => {
   it("search narrows the rows and reaches the address bar", async () => {
     await mount();
-    const box = document.querySelector(
-      "[data-intake-links-search]",
-    ) as HTMLInputElement;
-    await act(async () => {
-      fireEvent.change(box, { target: { value: "insurance" } });
+    await typeSearch("insurance");
+    await waitFor(() => {
+      expect(new Set(rowIds())).toEqual(new Set(["submitted-1"]));
     });
-    expect(new Set(rowIds())).toEqual(new Set(["submitted-1"]));
     expect(replaced.at(-1)).toContain("q=insurance");
   });
 
   it("a search that matches nothing renders the no-match state, not an error", async () => {
     await mount();
-    await act(async () => {
-      fireEvent.change(
-        document.querySelector("[data-intake-links-search]") as HTMLInputElement,
-        { target: { value: "zzzz" } },
-      );
+    await typeSearch("zzzz");
+    await waitFor(() => {
+      expect(document.querySelector("[data-intake-links-no-match]")).toBeTruthy();
     });
-    expect(document.querySelector("[data-intake-links-no-match]")).toBeTruthy();
     expect(document.querySelector("[data-intake-links-error]")).toBeNull();
     expect(document.querySelector("[data-intake-links-table]")).toBeNull();
   });
 
   it("clearing filters restores every row and cleans the URL", async () => {
     await mount();
-    await act(async () => {
-      fireEvent.change(
-        document.querySelector("[data-intake-links-search]") as HTMLInputElement,
-        { target: { value: "zzzz" } },
-      );
+    await typeSearch("zzzz");
+    const clear = await waitFor(() => {
+      const el = document.querySelector(
+        "[data-intake-links-empty-clear]",
+      ) as HTMLElement | null;
+      expect(el, "the no-match state must offer a way back").toBeTruthy();
+      return el as HTMLElement;
     });
     await act(async () => {
-      fireEvent.click(
-        document.querySelector("[data-intake-links-empty-clear]") as HTMLElement,
-      );
+      fireEvent.click(clear);
     });
     expect(new Set(rowIds()).size).toBe(6);
     expect(replaced.at(-1)).toBe("?");

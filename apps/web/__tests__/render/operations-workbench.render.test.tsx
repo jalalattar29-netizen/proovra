@@ -701,10 +701,34 @@ describe("Operations — one design, three densities", () => {
 // ===========================================================================
 
 describe("Operations — filtering asks the server, not the page", () => {
-  it("opens on unresolved work", async () => {
+  it("opens on every status, and still sends one when it is chosen", async () => {
+    /*
+     * THE DEFAULT DELIBERATELY DOES NOT NARROW.
+     *
+     * This asserted `status=OPEN` on the opening read, which is what the page
+     * used to send. `DEFAULT_FILTERS` was changed on purpose — the page
+     * presented itself as the queue while silently withholding everything
+     * acknowledged, suppressed or resolved, and the Status control read "Open"
+     * as though the operator had asked for it. A default that narrows the
+     * collection is indistinguishable from a collection that is small.
+     *
+     * So the opening read must carry NO status, and the assertion that a
+     * status still reaches the server moves to where a status is actually
+     * chosen — otherwise correcting the default would have deleted the only
+     * proof that this filter is a server filter at all.
+     */
+    await mount(envelope(TEAM_ADMIN));
+    expect(lastListQuery()).not.toMatch(/status=/);
+    expect(lastListQuery()).toMatch(/limit=50/);
+
+    // ...and an explicit status still reaches the server, which is the half
+    // that must not be lost. `filtersFromParams` is documented to let an
+    // explicit `?status=` win over the default precisely so a shared link, a
+    // saved view and the Back button keep saying what they said before.
+    cleanup();
+    currentSearch = "status=OPEN";
     await mount(envelope(TEAM_ADMIN));
     expect(lastListQuery()).toMatch(/status=OPEN/);
-    expect(lastListQuery()).toMatch(/limit=50/);
   });
 
   it("a summary card sets one coherent view and re-reads", async () => {
@@ -2894,13 +2918,44 @@ describe("Operations — the grouped surface is layout- and direction-safe", () 
       "[data-ops-group-affected]",
       "[data-ops-group-threshold]",
       "[data-ops-group-metric-stale]",
-      "[data-ops-group-status]",
       ".opsw-group__owned",
       ".opsw-group__activity",
     ]) {
       const el = row.querySelector(sel);
       expect(el, `${sel} is missing`).not.toBeNull();
       expect(meta.contains(el), `${sel} escaped the wrapping meta line`).toBe(true);
+    }
+
+    /*
+     * STATUS LIVES IN THE HEAD NOW, AND THE HEAD WRAPS TOO.
+     *
+     * It was moved out of the metadata sentence to the row's trailing edge on
+     * purpose, so the same word sits in the same place on every row and can be
+     * scanned down the list. That makes "inside .opsw-group__meta" the wrong
+     * container to name — but NOT the wrong property to hold: what protects a
+     * phone from a widened row is that the container wraps, so that is what is
+     * asserted, for both containers, from the stylesheet that decides it.
+     */
+    const head = row.querySelector(".opsw-group__head") as HTMLElement;
+    const status = row.querySelector("[data-ops-group-status]");
+    expect(status, "[data-ops-group-status] is missing").not.toBeNull();
+    expect(
+      head.contains(status),
+      "[data-ops-group-status] escaped the wrapping head line",
+    ).toBe(true);
+
+    const { readFileSync: readCss } = await import("node:fs");
+    const { resolve: resolveCss } = await import("node:path");
+    const css = readCss(
+      resolveCss(process.cwd(), "app/(app)/operations/operations.css"),
+      "utf8",
+    );
+    for (const container of [".opsw-group__head", ".opsw-group__meta"]) {
+      const rule = css.slice(css.indexOf(`${container} {`));
+      expect(
+        rule.slice(0, rule.indexOf("}")),
+        `${container} must wrap, or a long label widens the row`,
+      ).toContain("flex-wrap: wrap");
     }
   });
 
