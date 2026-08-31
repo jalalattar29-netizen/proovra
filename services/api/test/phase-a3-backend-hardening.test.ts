@@ -41,12 +41,17 @@ import {
   WEBHOOK_SIGNATURE_FAILURE_REASONS,
 } from "@proovra/shared";
 
+import { classifyEventClass } from "../src/services/analytics-event.service.js";
+
 function readSource(rel: string): string {
   const url = new URL(rel, import.meta.url);
   return readFileSync(fileURLToPath(url), "utf8");
 }
 
 const ANALYTICS_ROUTES = readSource("../src/routes/analytics.routes.ts");
+const EVENT_LABELS_SOURCE = readSource(
+  "../src/services/analytics-event.service.ts",
+);
 const AI_ROUTES = readSource("../src/routes/ai.routes.ts");
 const WEBHOOK_ROUTES = readSource("../src/routes/webhooks.routes.ts");
 const WEBHOOK_AUDIT = readSource(
@@ -58,17 +63,27 @@ const METRICS_SERVICE = readSource(
 );
 
 describe("Phase A3 — shared bounded vocabularies", () => {
-  it("exports the analytics event allowlist", () => {
-    expect(ANALYTICS_EVENT_NAMES).toEqual([
-      "VERIFY_VIEW",
-      "REPORT_DOWNLOAD",
-      "PACKAGE_DOWNLOAD",
-      "CAPTURE_STARTED",
-      "CAPTURE_COMPLETED",
-      "AI_ASSISTANT_OPENED",
-      "PUBLIC_VERIFY_OPENED",
-      "REVIEW_SESSION_STARTED",
-    ]);
+  it("exports the analytics ingest allowlist", () => {
+    // The list is asserted EXACTLY, not by `toContain`. It is the set of
+    // claims an untrusted browser may make about itself, so it should be
+    // impossible to widen without a test saying so out loud.
+    expect(ANALYTICS_EVENT_NAMES).toEqual(["page_view"]);
+  });
+
+  it("names only events the persistence layer can classify", () => {
+    // The previous allowlist held eight UPPER_SNAKE_CASE names that nothing
+    // emitted and nothing understood: the classifiers key on lower_snake_case,
+    // so those rows would have persisted as class "custom" and been invisible
+    // to dashboards that filter on exact lowercase names. An allowlist entry
+    // that cannot be classified is an entry that produces unreadable data.
+    for (const name of ANALYTICS_EVENT_NAMES) {
+      expect(name, `${name} must be lower_snake_case`).toMatch(/^[a-z][a-z0-9_]*$/);
+      expect(
+        classifyEventClass(name),
+        `${name} must classify to a real event class, not the "custom" fallback`,
+      ).not.toBe("custom");
+      expect(EVENT_LABELS_SOURCE).toContain(`${name}:`);
+    }
   });
 
   it("exports analytics rejection reason categories", () => {

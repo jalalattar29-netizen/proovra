@@ -24,23 +24,36 @@
 // =============================================================================
 
 /**
- * The ONLY event names `POST /v1/analytics/track` accepts. Adding
- * a value requires a code change. The route rejects unknown event
+ * The ONLY event names `POST /v1/analytics/track` accepts from a browser.
+ * Adding a value requires a code change. The route rejects unknown event
  * names with a 422 and bumps `analytics_rejected_total`.
  *
- * Naming convention: UPPER_SNAKE_CASE describing a user-meaningful
- * action. NEVER PII-shaped (no user ids, no evidence ids in the name).
+ * Naming convention: lower_snake_case describing a user-meaningful action.
+ * NEVER PII-shaped (no user ids, no evidence ids in the name).
+ *
+ * THIS IS THE INGEST ALLOWLIST, NOT THE WHOLE VOCABULARY, AND THAT IS
+ * DELIBERATE. `AnalyticsEvent.eventType` is a free-text column and the
+ * product writes ~40 names into it, but nearly all of them are asserted by
+ * the SERVER after it has done the thing — `billing_payment_succeeded`,
+ * `evidence_created`, `login_completed`. A browser may not claim those: this
+ * endpoint is reachable by anyone, so anything listed here is something an
+ * untrusted client is allowed to assert about itself. Keeping the list to
+ * what the client genuinely emits is what stops the ingest route from
+ * becoming a way to forge billing or custody analytics.
+ *
+ * It previously held eight UPPER_SNAKE_CASE names — VERIFY_VIEW,
+ * REPORT_DOWNLOAD, PACKAGE_DOWNLOAD, CAPTURE_STARTED, CAPTURE_COMPLETED,
+ * AI_ASSISTANT_OPENED, PUBLIC_VERIFY_OPENED, REVIEW_SESSION_STARTED — and
+ * every one of them was unreachable. Nothing in the repository ever emitted
+ * one, and nothing downstream understood one: `classifyEventClass`,
+ * `classifySeverity` and `humanizeEventType` key on the lower_snake_case
+ * vocabulary, so such a row would have persisted as class "custom" and been
+ * invisible to every dashboard, all of which filter on exact lowercase names.
+ * The list described an intention; the product spoke a different language.
+ * The one name the client actually sends was the one name missing, so real
+ * page views were answered 422 while eight names nothing sent were welcome.
  */
-export const ANALYTICS_EVENT_NAMES = [
-  "VERIFY_VIEW",
-  "REPORT_DOWNLOAD",
-  "PACKAGE_DOWNLOAD",
-  "CAPTURE_STARTED",
-  "CAPTURE_COMPLETED",
-  "AI_ASSISTANT_OPENED",
-  "PUBLIC_VERIFY_OPENED",
-  "REVIEW_SESSION_STARTED",
-] as const;
+export const ANALYTICS_EVENT_NAMES = ["page_view"] as const;
 export type AnalyticsEventName = (typeof ANALYTICS_EVENT_NAMES)[number];
 
 /**

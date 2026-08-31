@@ -33,23 +33,46 @@ export default function PublicPageView() {
     const path = sanitizePublicPath(pathname);
     if (!path) return;
     if (!isTrackablePublicPath(path)) return;
+    // One event per logical route. `usePathname` does not change for
+    // query-string or hash-only navigation, and the sanitizer strips both
+    // anyway, so neither re-fires this.
     if (lastSent.current === path) return;
+
+    /*
+     * CLAIM THE PATH BEFORE SENDING, BUT BE ABLE TO GIVE IT BACK.
+     *
+     * Claiming first is what stops two overlapping effects racing out two
+     * events for one navigation. On its own, though, it loses the event
+     * entirely under `reactStrictMode`, which mounts, cleans up and mounts
+     * again: the first pass claimed the path and was then cancelled mid-import
+     * before it sent anything, and the second pass saw its own claim and
+     * returned. Both passes did nothing, so a beacon that reads as "fires
+     * once" actually fired never in development.
+     *
+     * So a claim that never became a send is released on cleanup, and the
+     * remount sends exactly once.
+     */
+    const previous = lastSent.current;
     lastSent.current = path;
 
     let cancelled = false;
+    let sent = false;
     void (async () => {
       try {
         const { trackEvent } = await import("../../lib/analytics");
         if (cancelled) return;
+        sent = true;
         // trackEvent is consent-gated; it no-ops when analytics consent is off.
         await trackEvent("page_view", { path }, { pathname: path });
       } catch {
-        // Analytics is best-effort; never surface to the user.
+        // Analytics is best-effort; never surface to the user. `sent` stays
+        // true: a failed beacon is not retried, it is dropped.
       }
     })();
 
     return () => {
       cancelled = true;
+      if (!sent) lastSent.current = previous;
     };
   }, [pathname]);
 

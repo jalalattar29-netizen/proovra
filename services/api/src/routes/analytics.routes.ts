@@ -1051,7 +1051,7 @@ const AnalyticsMetadataValueSchema: z.ZodType<unknown> = z.lazy(() =>
   ]),
 );
 
-const AnalyticsTrackSchema = z
+export const AnalyticsTrackSchema = z
   .object({
     eventType: z.enum(ANALYTICS_EVENT_NAMES),
     userId: z

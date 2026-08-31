@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "fbb6753dac547c138b31ffbfb4558d1f7cad39370aff0e7613238262b8489040",
-  "consumerInventoryHash": "185e4a17923b069971d7f947b38d405b216a76eba07adb6ea0a05c38978a22e1",
+  "consumerInventoryHash": "32447e4574cfc19fd1eebe9c32101c777fa50e20223806924837a07d48744a63",
   "dispositionsHash": "1296d12ce5731f789ba39aebd9375c995bd4574ec17ac6c192ab7607d4b96fa5",
   "totals": {
     "RegisteredRoutes": 1117,
@@ -7527,7 +7527,7 @@
       "method": "POST",
       "route": "/v1/analytics/track",
       "registeringFile": "services/api/src/routes/analytics.routes.ts",
-      "productConsumer": "apps/web/lib/analytics.ts:122",
+      "productConsumer": "apps/web/lib/analytics.ts:134",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -115926,7 +115926,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/analytics.ts",
-          "line": 122,
+          "line": 134,
           "caller": "trackEvent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115936,7 +115936,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/analytics.ts:122 (trackEvent, WEB)",
+      "dispositionEvidence": "apps/web/lib/analytics.ts:134 (trackEvent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

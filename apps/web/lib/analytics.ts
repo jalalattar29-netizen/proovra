@@ -1,3 +1,5 @@
+import type { AnalyticsEventName } from "@proovra/shared";
+
 import { apiFetch } from "./api";
 import { hasAnalyticsConsent } from "./consent";
 import { initSentry } from "./sentry";
@@ -104,8 +106,18 @@ export async function initAnalytics(): Promise<void> {
   }
 }
 
+/**
+ * Send one analytics event, if — and only if — the visitor consented.
+ *
+ * `eventType` is typed against the SHARED ingest allowlist rather than
+ * `string`, and that is the whole point of the type. This function used to
+ * take any string, so `trackEvent("page_view")` compiled cleanly while the
+ * API's `z.enum(ANALYTICS_EVENT_NAMES)` answered 422 — the two ends of one
+ * contract disagreeing with nothing in between to notice. Now the client
+ * cannot name an event the route would refuse, because it is the same list.
+ */
 export async function trackEvent(
-  eventType: string,
+  eventType: AnalyticsEventName,
   metadata?: AnalyticsMetadata,
   options?: { pathname?: string | null; referrer?: string | null }
 ): Promise<void> {
