@@ -86,6 +86,7 @@ import { adminAlertsRoutes } from "./routes/admin-alerts.routes.js";
 import { adminExecutiveRoutes } from "./routes/admin-executive.routes.js";
 import { adminOrganizationsRoutes } from "./routes/admin-organizations.routes.js";
 import { adminWorkspacesRoutes } from "./routes/admin-workspaces.routes.js";
+import { adminPlatformTelemetryRoutes } from "./routes/admin-platform-telemetry.routes.js";
 import { adminUsersRoutes } from "./routes/admin-users.routes.js";
 import { adminEvidenceOpsRoutes } from "./routes/admin-evidence-ops.routes.js";
 import { adminSecurityRoutes } from "./routes/admin-security.routes.js";
@@ -1141,6 +1142,9 @@ allowedHeaders: [
   // ADM-027 — THE workspace directory. The platform's central commercial and
   // tenancy object had no admin surface at all until this route.
   await app.register(adminWorkspacesRoutes);
+  // Global runtime telemetry, behind the platform gate. Replaces the workspace
+  // -ticketed /v1/ops/metrics + /v1/ops/alerts, which leaked it to any member.
+  await app.register(adminPlatformTelemetryRoutes);
   await app.register(adminUsersRoutes);
   await app.register(adminEvidenceOpsRoutes);
   await app.register(adminSecurityRoutes);

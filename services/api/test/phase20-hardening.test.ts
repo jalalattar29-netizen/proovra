@@ -403,6 +403,16 @@ describe("Phase 20 — safeEmitSecurityEvent observability", () => {
 // -----------------------------------------------------------------------------
 
 describe("Phase 20 — ops routes auth posture", () => {
+  /** The ops route source, read once per assertion. */
+  async function readOpsSource(): Promise<string> {
+    const { readFile } = await import("node:fs/promises");
+    const { fileURLToPath } = await import("node:url");
+    return readFile(
+      fileURLToPath(new URL("../src/routes/ops.routes.ts", import.meta.url)),
+      "utf8",
+    );
+  }
+
   it("/healthz and /readyz are public (no requireAuth preHandler)", async () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
@@ -424,21 +434,40 @@ describe("Phase 20 — ops routes auth posture", () => {
     }
   });
 
-  it("/v1/ops/health and /v1/ops/metrics use requireAuth + 404-on-non-member", async () => {
-    const { readFile } = await import("node:fs/promises");
-    const { fileURLToPath } = await import("node:url");
-    const src = await readFile(
-      fileURLToPath(new URL("../src/routes/ops.routes.ts", import.meta.url)),
-      "utf8",
-    );
+  it("/v1/ops/health uses requireAuth + 404-on-non-member", async () => {
+    const src = await readOpsSource();
     expect(src).toMatch(
-      /app\.get\(\s*"\/v1\/ops\/health"[\s\S]{0,200}preHandler:\s*requireAuth/,
-    );
-    expect(src).toMatch(
-      /app\.get\(\s*"\/v1\/ops\/metrics"[\s\S]{0,200}preHandler:\s*requireAuth/,
+      new RegExp('app\\.get\\(\\s*"/v1/ops/health"[\\s\\S]{0,200}preHandler:\\s*requireAuth'),
     );
     // requireOpsActor returns 404 for non-members (anti-enumeration).
     expect(src).toMatch(/code:\s*"not_found"/);
+  });
+
+  it("/v1/ops/metrics and /v1/ops/alerts require PLATFORM authority, not membership", async () => {
+    // THIS ASSERTION WAS INVERTED, AND THAT IS THE POINT.
+    //
+    // It previously required `preHandler: requireAuth` on /v1/ops/metrics,
+    // which encoded the vulnerable posture as the expected one. Both endpoints
+    // authorized a workspace member and then returned `snapshotMetrics()` —
+    // the PROCESS-GLOBAL counter and gauge registry — with no tenant filter.
+    // The workspace id was an authorization TICKET, never a FILTER, so any
+    // member of any workspace could read platform-wide telemetry.
+    //
+    // A membership gate cannot be correct for platform-wide data, so the gate
+    // moved rather than the data. See
+    // platform-telemetry-boundary.integration.test.ts, which proves the refusal
+    // over real HTTP rather than over source text.
+    const src = await readOpsSource();
+    for (const path of ["/v1/ops/metrics", "/v1/ops/alerts"]) {
+      expect(
+        src,
+        `${path} must be gated by platform authority, not membership`,
+      ).toMatch(
+        new RegExp(
+          'app\\.get\\(\\s*"' + path + '"[\\s\\S]{0,200}preHandler:\\s*requirePlatformAdmin',
+        ),
+      );
+    }
   });
 
   it("/v1/ops/reconcile is cron-secret protected (no requireAuth preHandler)", async () => {

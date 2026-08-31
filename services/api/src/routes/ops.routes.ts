@@ -47,6 +47,7 @@ import {
   isAssignableOperator,
   listAssignableOperators,
 } from "../services/operations/assignable-operators.service.js";
+import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
   cronSecretMatches,
@@ -622,9 +623,21 @@ export async function opsRoutes(app: FastifyInstance) {
   //   - If the user has no active workspace, return a bounded 400
   //     instead of a ZodError 500. Anti-enumeration is preserved —
   //     `requireOpsActor` still 404s non-members of the resolved team.
+  // DEPRECATED + HARD-GATED (security fix).
+  //
+  // This returned `snapshotMetrics()` — the PROCESS-GLOBAL registry — to any
+  // ACTIVE member of the workspace named in `?teamId=`. The workspace id was
+  // an authorization TICKET, never a FILTER, so a FREE personal-space user
+  // could read platform-wide incident counts, `secrets_fallback_total` and
+  // every other runtime counter.
+  //
+  // The gate is now the platform gate, because the DATA is platform-wide.
+  // Callers that legitimately want workspace health use
+  // GET /v1/workspaces/:workspaceId/operations/health, which reads durable
+  // tenant rows and cannot reach the registry at all.
   app.get(
     "/v1/ops/metrics",
-    { preHandler: requireAuth },
+    { preHandler: requirePlatformAdmin },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const rawQuery = (req.query ?? {}) as { teamId?: string };
       let resolvedTeamId = rawQuery.teamId;
@@ -726,9 +739,14 @@ export async function opsRoutes(app: FastifyInstance) {
   // currently firing. Authenticated; the operator dashboard polls
   // this to render the alert ribbon. Updates two gauges so a scraper
   // can also tell at a glance how many alerts are open.
+  // DEPRECATED + HARD-GATED (security fix). See /v1/ops/metrics above.
+  //
+  // This one also WROTE the shared registry (`setGauge`/`bump`), so every
+  // tenant poll rewrote the alert gauges that the platform dashboards and every
+  // other tenant were reading.
   app.get(
     "/v1/ops/alerts",
-    { preHandler: requireAuth },
+    { preHandler: requirePlatformAdmin },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = TeamIdQuery.parse(req.query ?? {});
       const actor = await requireOpsActor(req, reply, q.teamId);
