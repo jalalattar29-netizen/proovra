@@ -19,15 +19,25 @@
  *   - LEGAL_HOLD_ACTIVE — a workspace the caller owns carries an ACTIVE
  *     evidence legal hold. Custodial accountability cannot be dissolved
  *     while a hold is in force.
- *   - BILLING_SUBSCRIPTION_ACTIVE — the caller has an active/trialing/
- *     past-due subscription. It must be cancelled first so closure never
- *     silently abandons a billing relationship.
+ *   - BILLING_SUBSCRIPTION_ACTIVE — the caller still holds a LIVE paid
+ *     subscription, as judged by the canonical commercial authority. It must
+ *     be cancelled first so closure never silently abandons a billing
+ *     relationship.
  *
  * Closure is UNIVERSAL — no plan/entitlement is consulted anywhere here;
  * blockers protect other people and legal duties, never revenue.
  */
 
 import { prisma } from "../../db.js";
+import {
+  buildSubscriptionClosureBlocker,
+  type ClosureSubscriptionCandidate,
+} from "./account-closure-subscription-policy.js";
+
+export {
+  buildSubscriptionClosureBlocker,
+  type ClosureSubscriptionCandidate,
+} from "./account-closure-subscription-policy.js";
 
 export type AccountClosureBlockerCode =
   | "ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED"
@@ -40,6 +50,57 @@ export type AccountClosureBlocker = {
   message: string;
   count: number;
 };
+
+/**
+ * Ask the canonical authority whether each candidate row's SUBJECT is really
+ * paying right now.
+ *
+ * Resolution is per SUBJECT and memoised, so an account with several rows on
+ * one workspace costs one read. A subject that cannot be resolved FAILS
+ * CLOSED — closure is irreversible, so an unreadable billing state must stop
+ * it rather than be assumed harmless.
+ */
+async function judgeSubscriptionCandidates(
+  userId: string,
+  rows: ReadonlyArray<{
+    teamId: string | null;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: Date | null;
+  }>,
+): Promise<ClosureSubscriptionCandidate[]> {
+  const verdicts = new Map<string, boolean>();
+
+  const paidActiveFor = async (teamId: string | null): Promise<boolean> => {
+    const key = teamId ?? "__personal__";
+    const known = verdicts.get(key);
+    if (known !== undefined) return known;
+    let verdict: boolean;
+    try {
+      // Loaded ON DEMAND: the commercial authority pulls in the whole billing
+      // graph, and most callers of this preflight never reach a candidate row.
+      // Same authority, same verdict, loaded only when there is one to judge.
+      const { resolveCommercialContext } = await import(
+        "../billing/commercial-context.service.js"
+      );
+      const ctx = await resolveCommercialContext({ ownerUserId: userId, teamId });
+      verdict = ctx.lifecycle.paidActive;
+    } catch {
+      verdict = true;
+    }
+    verdicts.set(key, verdict);
+    return verdict;
+  };
+
+  const judged: ClosureSubscriptionCandidate[] = [];
+  for (const row of rows) {
+    judged.push({
+      cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+      currentPeriodEnd: row.currentPeriodEnd,
+      paidActiveForSubject: await paidActiveFor(row.teamId),
+    });
+  }
+  return judged;
+}
 
 /**
  * PHASE 12B CLUSTER 8 — ACTIVE hold count across ALL THREE legal-hold stores,
@@ -97,9 +158,18 @@ export async function evaluateAccountClosurePreflight(
       // CANCELLING (cancelAtPeriodEnd) needs different words from one that is
       // not. Telling somebody to cancel a subscription they have already
       // cancelled is the most frustrating kind of wrong.
+      // CANDIDATES, not a verdict. These statuses are the rows that COULD be
+      // live; `judgeSubscriptionCandidates` asks the canonical commercial
+      // authority which of them actually are. `teamId` is selected because it
+      // is the row's SUBJECT, and a workspace's subscription is not its
+      // purchaser's personal one.
       prisma.subscription.findMany({
         where: { userId, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] } },
-        select: { cancelAtPeriodEnd: true, currentPeriodEnd: true },
+        select: {
+          teamId: true,
+          cancelAtPeriodEnd: true,
+          currentPeriodEnd: true,
+        },
       }),
     ]);
 
@@ -154,26 +224,11 @@ export async function evaluateAccountClosurePreflight(
   }
 
   if (activeSubs.length > 0) {
-    // Access runs to the end of the paid period, so a cancelled subscription
-    // still blocks closure — but the person has nothing left to do except
-    // wait, and the message says which case they are in.
-    const allCancelling = activeSubs.every((s) => s.cancelAtPeriodEnd);
-    const endsAt = activeSubs
-      .map((s) => s.currentPeriodEnd)
-      .filter((d): d is Date => d instanceof Date)
-      .sort((a, b) => b.getTime() - a.getTime())[0];
-
-    blockers.push({
-      code: "BILLING_SUBSCRIPTION_ACTIVE",
-      message: allCancelling
-        ? endsAt
-          ? `Your subscription is already cancelled and ends on ${endsAt.toISOString().slice(0, 10)}. You can close your account after that.`
-          : "Your subscription is already cancelled and ends at the end of the paid period. You can close your account after that."
-        : "You have an active subscription. Cancel it before closing your account.",
-      count: activeSubs.length,
-    });
+    const subscriptionBlocker = buildSubscriptionClosureBlocker(
+      await judgeSubscriptionCandidates(userId, activeSubs),
+    );
+    if (subscriptionBlocker) blockers.push(subscriptionBlocker);
   }
-
   return { blockers };
 }
 
