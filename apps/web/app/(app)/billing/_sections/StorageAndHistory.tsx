@@ -244,7 +244,8 @@ export function StorageAddonsSection({
             three cards each carrying its own button that called this same
             handler.
           */}
-          <Button
+          <button
+            type="button"
             /*
              * The SAME treatment as "Buy credits" in the card beside it.
              *
@@ -254,14 +255,12 @@ export function StorageAddonsSection({
              * card and an afterthought. The page's single filled CTA is the
              * plan action in the overview above.
              */
-            variant="secondary"
-            size="sm"
-            className="bill-secondary-action"
+            className="app-secondary-action app-secondary-action--lg"
             onClick={onManageStorage}
             data-billing-manage-storage
           >
             {hasActive ? "Manage storage" : "Add storage"}
-          </Button>
+          </button>
         </div>
       ) : null}
 

@@ -1849,8 +1849,14 @@
    history moved to its own full-width row underneath where a horizontal list
    is the natural shape for it.
 --------------------------------------------------------------------------- */
+/* THREE cards, not four.
+
+   The fourth was Timezone, which restated what Preferences owns and offered
+   nothing to act on. Removing it left a gap rather than a grid, so the track
+   count follows the content instead of a filler card being invented to sit
+   in it. */
 .settings-page-shell .set-grid--summary {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
 }
 
@@ -1909,5 +1915,66 @@
     height: auto;
     padding-block: 10px;
     text-align: center;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   POLICY STATUS ROWS — NAME | STATUS | VERSION, on shared tracks.
+
+   These were flex rows with `justify-content: space-between`, which balances
+   the leftover space of one row against its own content. The policy names are
+   different lengths, so each row solved that sum differently and the three
+   "Up to date" values sat at three different x positions.
+
+   One grid, three tracks, every row on the same tracks. No per-row margin
+   compensates for anything.
+--------------------------------------------------------------------------- */
+.settings-page-shell .set-policy-rows {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.settings-page-shell .set-policy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 2px;
+  border-block-end: 1px solid var(--set-line);
+  font-size: 0.8125rem;
+}
+.settings-page-shell .set-policy-row:last-child {
+  border-block-end: 0;
+}
+
+.settings-page-shell .set-policy-row__name {
+  min-width: 0;
+  color: var(--set-ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* The status track starts at the same x on every row; the label inside it
+   starts at the same x too, so the column reads as a column. */
+.settings-page-shell .set-policy-row__status {
+  justify-self: start;
+}
+
+.settings-page-shell .set-policy-row__version {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* On a phone the three tracks do not fit; the row becomes name over
+   status + version rather than three squeezed columns. */
+@media (max-width: 560px) {
+  .settings-page-shell .set-policy-row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 4px 12px;
+  }
+  .settings-page-shell .set-policy-row__name {
+    grid-column: 1 / -1;
   }
 }

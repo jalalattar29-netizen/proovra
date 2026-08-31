@@ -24,12 +24,10 @@ import type { ReactNode } from "react";
 import {
   Activity,
   Building2,
-  Clock,
   CreditCard,
   ShieldCheck,
 } from "lucide-react";
 
-import { useAuth } from "../../../providers";
 import { describeUserAgent } from "../../../../lib/security/sessionPresentation";
 
 import type { SettingsUiContext } from "../../../../lib/settings/settingsUiContext";
@@ -161,12 +159,6 @@ export function SettingsOverview({
   }
 
   const billingHref = ui.billing.billingHref;
-
-  // The SAVED account timezone — the same `User.timezone` Preferences edits
-  // below. Never the browser's: this card reports what digests and quiet
-  // hours will actually use.
-  const { user } = useAuth();
-  const accountTimezone = user?.timezone?.trim() ? user.timezone.trim() : null;
 
   return (
     <div className="set-overview" data-settings-pane="overview">
@@ -301,23 +293,20 @@ export function SettingsOverview({
           }
         />
 
-        {/* TIMEZONE — a READOUT. The editing surface stays in Preferences
-            below; this card states what the account is currently set to, in
-            the same words that section uses when it is unset. */}
-        <SummaryCard
-          testId="timezone"
-          icon={<Clock size={16} strokeWidth={2} />}
-          title="Timezone"
-          headline={accountTimezone ?? "UTC"}
-          facts={[
-            {
-              label: "Source",
-              value: accountTimezone
-                ? "Account timezone"
-                : "Not set — UTC fallback",
-            },
-          ]}
-        />
+        {/*
+          THE TIMEZONE CARD IS GONE, and its absence is the point.
+
+          It restated what Preferences already owns — the saved zone and
+          whether it is set — while offering nothing to act on, so Settings
+          showed the same fact in three places: this card, the Preferences
+          editor, and the Notifications pane that inherits from it. A summary
+          card earns its place by telling you something you would otherwise
+          have to go and look for; this one sent you to the editor to change
+          the value it had just shown you.
+
+          The row is three cards now rather than four with a filler. Nothing
+          was invented to take its seat.
+        */}
       </div>
 
       {/* ----------------------------------------------------------------

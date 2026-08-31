@@ -255,14 +255,14 @@ test("the Preferences row no longer resizes the canonical action", () => {
 
 // ------------------------------------------------------- OVERVIEW STRUCTURE
 
-test("the summary row is four cards, and sign-ins is not one of them", () => {
+test("the summary row is three cards, and sign-ins is not one of them", () => {
   const gridAt = SETTINGS_OVERVIEW.indexOf('className="set-grid set-grid--summary"');
   assert.ok(gridAt > 0, "the summary grid must exist");
   const grid = SETTINGS_OVERVIEW.slice(
     gridAt,
     SETTINGS_OVERVIEW.indexOf("      </div>", gridAt),
   );
-  for (const id of ["workspace", "plan", "security", "timezone"]) {
+  for (const id of ["workspace", "plan", "security"]) {
     assert.ok(grid.includes(`testId="${id}"`), `${id} must be a summary card`);
   }
   assert.ok(
@@ -276,11 +276,14 @@ test("the summary row is four cards, and sign-ins is not one of them", () => {
   );
 });
 
-test("the summary row is a real four-column grid that stretches", () => {
+test("the summary row is a real equal-column grid that stretches", () => {
+  // THREE, not four. The fourth was Timezone, removed because it restated
+  // what Preferences owns and offered nothing to act on; the track count
+  // follows the content rather than a filler card being invented for it.
   assert.match(
     SETTINGS_CSS,
-    /\.settings-page-shell \.set-grid--summary \{[\s\S]{0,200}grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/,
-    "desktop must be four equal columns",
+    /\.settings-page-shell \.set-grid--summary \{[\s\S]{0,300}grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/,
+    "desktop must be three equal columns",
   );
   assert.match(
     SETTINGS_CSS,
@@ -309,14 +312,13 @@ test("Recent sign-ins names the device, never the raw User-Agent", () => {
   assert.doesNotMatch(SETTINGS_OVERVIEW, /\{entry\.device \?\? "Unrecognised device"\}/);
 });
 
-test("Timezone is a readout here and stays editable in Preferences", () => {
-  assert.match(SETTINGS_OVERVIEW, /title="Timezone"/);
-  assert.match(SETTINGS_OVERVIEW, /accountTimezone \?\? "UTC"/);
-  assert.ok(
-    SETTINGS_OVERVIEW.includes("Account timezone") &&
-      SETTINGS_OVERVIEW.includes("Not set — UTC fallback"),
-  );
-  assert.doesNotMatch(SETTINGS_OVERVIEW, /<Input[\s\S]{0,80}timezone/);
+test("Timezone lives in Preferences alone", () => {
+  // The Overview card was a third place showing the same value — after the
+  // Preferences editor and the Notifications pane that inherits from it —
+  // and it offered nothing to act on. Settings now states it once, where it
+  // can be changed.
+  assert.doesNotMatch(SETTINGS_OVERVIEW, /title="Timezone"/);
+  assert.doesNotMatch(SETTINGS_OVERVIEW, /accountTimezone/);
   assert.ok(
     PREFERENCES.includes("data-cc-preferences-timezone") &&
       PREFERENCES.includes("data-cc-preferences-detect-tz"),
@@ -335,6 +337,28 @@ test("the self-serve billing actions carry the canonical outlined action", () =>
   );
   assertCanonical(STORAGE, "data-billing-storage-upgrade", "View plans");
   assertCanonical(STORAGE, "data-billing-recheck", "Re-check purchases");
+  // The two that were missed: both were still the shared Button, so they kept
+  // matching the near-black `.ui-button` block in billing.css while "Buy
+  // credits" beside them had already left it.
+  assertCanonical(STORAGE, "data-billing-manage-storage", "Add storage");
+  assertCanonical(
+    BILLING_OVERVIEW,
+    "data-billing-start-subscription",
+    "Start Team subscription",
+  );
+});
+
+test("no billing action is painted near-black any more", () => {
+  const css = stripCss(read("app/(app)/billing/billing.css"));
+  // The block set #172033 on the .ui-button form of these hooks. All three
+  // are native canonical actions now, so the rules had nothing left to reach.
+  for (const hook of [
+    "[data-billing-start-subscription].ui-button",
+    "[data-billing-manage-storage].ui-button",
+    "[data-billing-buy-credits].ui-button",
+  ]) {
+    assert.ok(!css.includes(hook), `billing.css still paints ${hook}`);
+  }
 });
 
 test("billing gating is untouched by the visual change", () => {

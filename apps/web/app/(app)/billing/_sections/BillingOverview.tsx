@@ -215,10 +215,9 @@ export function BillingOverview({
             handed a plan key and a label.
           */}
           {actions.secondaryPlanAction && onStartSubscription ? (
-            <Button
-              variant="secondary"
-              size="md"
-              className="bill-secondary-action"
+            <button
+              type="button"
+              className="app-secondary-action app-secondary-action--lg"
               onClick={() =>
                 onStartSubscription(actions.secondaryPlanAction!.planKey)
               }
@@ -226,7 +225,7 @@ export function BillingOverview({
               data-billing-start-subscription={actions.secondaryPlanAction.planKey}
             >
               {actions.secondaryPlanAction.label}
-            </Button>
+            </button>
           ) : null}
         </div>
       </header>

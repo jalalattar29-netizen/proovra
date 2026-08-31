@@ -1079,54 +1079,20 @@
   align-items: center;
 }
 
-.bill-page [data-billing-start-subscription].ui-button,
-.bill-page [data-billing-buy-credits].ui-button,
-.bill-page [data-billing-manage-storage].ui-button,
-.bill-panel [data-billing-buy-credits].ui-button,
-.bill-panel [data-billing-manage-storage].ui-button,
-.bill-overview [data-billing-start-subscription].ui-button {
-  background: var(--text-strong, #172033) !important;
-  background-image: none !important;
-  border: 1px solid var(--text-strong, #172033) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  box-shadow: none !important;
-  min-height: 44px !important;
-  block-size: 44px !important;
-  border-radius: 10px !important;
-}
-
-.bill-page [data-billing-start-subscription].ui-button:hover:not(:disabled),
-.bill-page [data-billing-buy-credits].ui-button:hover:not(:disabled),
-.bill-page [data-billing-manage-storage].ui-button:hover:not(:disabled),
-.bill-panel [data-billing-buy-credits].ui-button:hover:not(:disabled),
-.bill-panel [data-billing-manage-storage].ui-button:hover:not(:disabled),
-.bill-overview [data-billing-start-subscription].ui-button:hover:not(:disabled) {
-  /* A dark neutral step, never the violet the secondary treatment reaches for
-     on hover — that is what made these read as violet buttons in disguise. */
-  background: #2c3648 !important;
-  border-color: #2c3648 !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-.bill-page [data-billing-start-subscription].ui-button:active:not(:disabled),
-.bill-page [data-billing-buy-credits].ui-button:active:not(:disabled),
-.bill-page [data-billing-manage-storage].ui-button:active:not(:disabled),
-.bill-panel [data-billing-buy-credits].ui-button:active:not(:disabled),
-.bill-panel [data-billing-manage-storage].ui-button:active:not(:disabled) {
-  background: #0f172a !important;
-  border-color: #0f172a !important;
-}
-
-.bill-page [data-billing-start-subscription].ui-button:focus-visible,
-.bill-page [data-billing-buy-credits].ui-button:focus-visible,
-.bill-page [data-billing-manage-storage].ui-button:focus-visible,
-.bill-panel [data-billing-buy-credits].ui-button:focus-visible,
-.bill-panel [data-billing-manage-storage].ui-button:focus-visible {
-  outline: 2px solid var(--accent-500, #7c3aed) !important;
-  outline-offset: 2px !important;
-}
+/* THE NEAR-BLACK PLAN/STORAGE ACTIONS ARE GONE.
+ *
+ * This block painted `[data-billing-start-subscription]`,
+ * `[data-billing-buy-credits]` and `[data-billing-manage-storage]` as filled
+ * #172033 buttons — but only in their `.ui-button` form, which is what the
+ * shared Button component emits. "Buy credits" stopped matching it the moment
+ * it became a native element carrying the canonical outlined action, so the
+ * page ended up with two purchase entry points in one row wearing two
+ * different treatments: one white and lavender, one solid black.
+ *
+ * All three now carry `.app-secondary-action --lg` — the action the Evidence
+ * header uses — so the rules below had no element left to reach and are
+ * removed rather than left waiting for one.
+ */
 
 /* ---------------------------------------------------------------------------
  * THE ALLOWANCE PAIR — one baseline for two different card bodies

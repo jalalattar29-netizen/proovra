@@ -1,6 +1,7 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { Prisma, User as PrismaUser } from "@prisma/client";
+import { isValidIanaTimezone } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
@@ -80,7 +81,7 @@ export async function usersRoutes(app: FastifyInstance) {
     return { user: pickMe(user) };
   });
 
-  app.patch("/v1/users/me", { preHandler: requireAuth }, async (req: FastifyRequest) => {
+  app.patch("/v1/users/me", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const userId = getAuthUserId(req);
     const body = (req.body ?? {}) as Record<string, unknown>;
 
@@ -89,7 +90,7 @@ export async function usersRoutes(app: FastifyInstance) {
     // against Prisma's update input so a field that leaves the model can no
     // longer be written here through an untyped index.
     const setStr = (
-      key: "displayName" | "firstName" | "lastName" | "avatarUrl" | "locale" | "timezone",
+      key: "displayName" | "firstName" | "lastName" | "avatarUrl" | "locale",
       max: number,
     ) => {
       const v = body[key];
@@ -102,7 +103,33 @@ export async function usersRoutes(app: FastifyInstance) {
     setStr("lastName", 80);
     setStr("avatarUrl", 512);
     setStr("locale", 12);
-    setStr("timezone", 64);
+
+    /*
+     * TIMEZONE IS VALIDATED, like every other timezone this product stores.
+     *
+     * `setStr` accepted any string up to 64 characters, so "Syria" — a
+     * country, not a zone — persisted silently and then flowed into the
+     * digest scheduler as the account timezone, where it can only fall back
+     * or throw. The notification-schedule route has always checked this with
+     * `isValidIanaTimezone`; the ACCOUNT timezone, which that route inherits
+     * from, had no check at all.
+     *
+     * Same validator, not a second one. Clearing the field (null) stays
+     * allowed — that is "no account timezone", which the scheduler already
+     * handles by falling back to UTC.
+     */
+    if (typeof body.timezone === "string") {
+      const tz = body.timezone.trim();
+      if (tz.length > 0 && !isValidIanaTimezone(tz)) {
+        return reply.code(400).send({
+          error: "invalid_timezone",
+          reason: "timezone must be a valid IANA timezone name, for example Europe/Berlin.",
+        });
+      }
+      data.timezone = tz.length > 0 ? tz.slice(0, 64) : null;
+    } else if (body.timezone === null) {
+      data.timezone = null;
+    }
 
     if (typeof body.country === "string") {
       const trimmed = body.country.trim();

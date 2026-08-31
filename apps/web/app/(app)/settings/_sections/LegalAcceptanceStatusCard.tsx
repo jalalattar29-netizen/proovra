@@ -243,29 +243,37 @@ export function LegalAcceptanceStatusCard({
             </AppStatusText>{" "}
             Your account has accepted every policy version currently required.
           </p>
-          <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
+          {/*
+            A GRID, because the columns have to agree with each other.
+
+            Each row was `display: flex; justify-content: space-between` with
+            three children. Space-between distributes the leftover space of
+            ONE row, and the policy names are different lengths — "Terms of
+            Service" against "Cookie policy" — so every row put its status in
+            a different place and the three "Up to date" values stepped
+            diagonally down the card.
+
+            Grid columns are shared by every row in the same grid, which is
+            the property this needs: the name track takes the remaining width,
+            the status and version tracks size to their widest content, and
+            all three rows line up because they are literally the same tracks.
+          */}
+          <ul className="set-policy-rows">
             {Object.keys(state.status.requiredVersions).map((key) => (
               <li
                 key={key}
+                className="set-policy-row"
                 data-cc-legal-status-current-row={key}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  padding: "8px 2px",
-                  borderBottom: "1px solid var(--border-default, rgba(15,23,42,0.07))",
-                  fontSize: 13,
-                }}
               >
-                <span style={{ color: "var(--ink-primary, #0f172a)", fontWeight: 600 }}>
-                  {labelFor(key)}
+                <span className="set-policy-row__name">{labelFor(key)}</span>
+                <span className="set-policy-row__status">
+                  <AppStatusText tone="green" size="sm">
+                    Up to date
+                  </AppStatusText>
                 </span>
-                <AppStatusText tone="green" size="sm">
-                  Up to date
-                </AppStatusText>
-                <span style={muted}>v{state.status.requiredVersions[key]}</span>
+                <span className="set-policy-row__version" style={muted}>
+                  v{state.status.requiredVersions[key]}
+                </span>
               </li>
             ))}
           </ul>

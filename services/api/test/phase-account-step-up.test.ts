@@ -37,6 +37,33 @@ describe("canonical account step-up verifier", () => {
     expect(SERVICE).toMatch(/issuedAtUtc/);
   });
 
+  it("reads the session hash from the ONE canonical accessor", () => {
+    /*
+     * THE REGRESSION THIS GUARDS.
+     *
+     * The recent-auth branch read `req.sessionIdHash`. `requireAuth` does not
+     * write that property — it puts the hashed `sid` on `req.user.sessionIdHash`,
+     * and `getAuthSessionId` is the single accessor for it. So the value was
+     * always undefined, the AuthenticatedSession lookup never ran, and every
+     * OAuth-only account was told to sign in again forever: the denial answered
+     * a re-authentication it had never read.
+     */
+    expect(SERVICE).toContain("getAuthSessionId(input.req)");
+    expect(SERVICE).not.toContain(
+      "(input.req as { sessionIdHash?: string | null }).sessionIdHash",
+    );
+    // The policy itself is unchanged: live session, this user, inside window.
+    expect(SERVICE).toMatch(/revokedAtUtc: null/);
+    expect(SERVICE).toContain("where: { userId, sessionIdHash, revokedAtUtc: null }");
+    expect(SERVICE).toMatch(/RECENT_AUTH_WINDOW_MS/);
+  });
+
+  it("an unresolvable session denies rather than passing", () => {
+    // getAuthSessionId throws when a token carries no sid. That must land in
+    // the deny path — an unbindable request is what this gate exists for.
+    expect(SERVICE).toContain("sessionIdHash = null;");
+  });
+
   it("never accepts a frontend boolean and reads proof from the body only", () => {
     expect(SERVICE).not.toMatch(/confirmed/i);
     // No query/URL parsing for proof material.

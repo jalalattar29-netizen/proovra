@@ -21,7 +21,11 @@ const IDSEC = readFileSync(
 
 describe("profile/preference mutation emitters", () => {
   const at = USERS.indexOf('app.patch("/v1/users/me"');
-  const H = USERS.slice(at, at + 3500);
+  // The window follows the handler, which grew when the timezone gained its
+  // IANA validation. The contract being asserted — metadata carries changed
+  // FIELD NAMES and never submitted values — is unchanged; it simply sits
+  // further down the function now.
+  const H = USERS.slice(at, at + 5200);
 
   it("PATCH /v1/users/me emits one identity.* audit event after a successful update", () => {
     expect(at).toBeGreaterThan(-1);

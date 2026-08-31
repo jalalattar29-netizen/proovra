@@ -33,6 +33,7 @@
 
 import type { FastifyReply, FastifyRequest } from "fastify";
 
+import { getAuthSessionId } from "../../auth.js";
 import { prisma } from "../../db.js";
 import { verifyPassword } from "../email-password-auth.service.js";
 import { verifyActiveTotp } from "../security/mfa.service.js";
@@ -192,7 +193,34 @@ export async function verifyAccountStepUp(input: {
   // No proof supplied. OAuth-only accounts (no password, no factor) may
   // proceed on a RECENT current session; everyone else must supply proof.
   if (methods.length === 1 && methods[0] === "reauth") {
-    const sessionIdHash = (input.req as { sessionIdHash?: string | null }).sessionIdHash ?? null;
+    /*
+     * THE SESSION WAS NEVER LOOKED UP.
+     *
+     * This read `req.sessionIdHash`. `requireAuth` does not write that
+     * property — it hashes the JWT's `sid` claim onto `req.user.sessionIdHash`,
+     * and `getAuthSessionId` is the one accessor for it (the same one the
+     * support-context token binding uses).
+     *
+     * So the value was ALWAYS undefined, the `AuthenticatedSession` lookup
+     * below never ran, and every request from an OAuth-only account fell
+     * through to "sign in again, then retry". Signing out and back in could
+     * not help: no session, however fresh, was ever consulted. That is the
+     * loop — "please re-authenticate" answered a re-authentication it had not
+     * read.
+     *
+     * The policy is unchanged and still server-side: a LIVE, unrevoked
+     * session belonging to THIS user, issued inside RECENT_AUTH_WINDOW_MS.
+     * Only the field being read is corrected. `getAuthSessionId` throws when
+     * the session is unresolved (a token with no `sid`), and that must deny
+     * rather than pass — an unbindable request is exactly the case this gate
+     * exists for.
+     */
+    let sessionIdHash: string | null = null;
+    try {
+      sessionIdHash = getAuthSessionId(input.req);
+    } catch {
+      sessionIdHash = null;
+    }
     if (sessionIdHash) {
       const session = await prisma.authenticatedSession.findFirst({
         where: { userId, sessionIdHash, revokedAtUtc: null },
