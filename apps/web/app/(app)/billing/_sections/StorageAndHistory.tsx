@@ -99,7 +99,8 @@ export function StorageAddonsSection({
         <p className="bill-panel__note">{locked.reason}</p>
         {locked.unlockedByPlan ? (
           <div className="bill-panel__actions">
-            <Button
+            <button
+              type="button"
               /*
                * "View plans", not "Add storage" or "Manage storage".
                *
@@ -109,19 +110,18 @@ export function StorageAddonsSection({
                * A customer who presses "Add storage" and lands on a list of
                * plans has been told something untrue about their own account.
                *
-               * It stays SECONDARY. Storage is not the page's primary action —
-               * the plan action in the overview is — and two primaries beside
-               * each other is how the overview stopped reading as one
-               * decision.
+               * PROMOTED to the canonical primary action alongside the other
+               * self-serve purchase entry points. It read as secondary before,
+               * on the reasoning that the overview owns the page's single
+               * filled CTA; that hierarchy note is preserved here because it is
+               * still the reason "Manage storage" beside it was left alone.
                */
-              variant="secondary"
-              size="sm"
-              className="bill-secondary-action"
+              className="app-primary-action"
               onClick={onChoosePlan}
               data-billing-storage-upgrade
             >
               View plans
-            </Button>
+            </button>
           </div>
         ) : null}
       </section>
@@ -395,17 +395,16 @@ export function BillingHistorySection({
       }
       headerAction={
         providerBacked ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="bill-secondary-action"
+          <button
+            type="button"
+            className="app-primary-action"
             onClick={onRecheck}
-            loading={recheckBusy}
             disabled={recheckBusy}
+            aria-busy={recheckBusy || undefined}
             data-billing-recheck
           >
-            Re-check purchases and billing
-          </Button>
+            {recheckBusy ? "Re-checking…" : "Re-check purchases and billing"}
+          </button>
         ) : null
       }
       data-billing-history

@@ -184,14 +184,14 @@ export function PreferencesSection() {
               maxLength={64}
             />
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
+          <button
+            type="button"
+            className="app-primary-action"
             onClick={detectTimezone}
             data-cc-preferences-detect-tz
           >
             Use my current timezone
-          </Button>
+          </button>
         </div>
       </div>
 

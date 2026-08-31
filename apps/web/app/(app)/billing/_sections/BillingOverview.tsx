@@ -642,28 +642,26 @@ export function EvidenceDetailCard({
 
       {action === "BUY_CREDITS" && onBuyCredits ? (
         <div className="bill-panel__actions">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="bill-secondary-action"
+          <button
+            type="button"
+            className="app-primary-action"
             onClick={onBuyCredits}
             data-billing-buy-credits
             data-billing-evidence-action="BUY_CREDITS"
           >
             Buy credits
-          </Button>
+          </button>
         </div>
       ) : action === "SEE_PLANS" && onChoosePlan ? (
         <div className="bill-panel__actions">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="bill-secondary-action"
+          <button
+            type="button"
+            className="app-primary-action"
             onClick={onChoosePlan}
             data-billing-evidence-action="SEE_PLANS"
           >
             Choose a plan
-          </Button>
+          </button>
         </div>
       ) : null}
     </section>

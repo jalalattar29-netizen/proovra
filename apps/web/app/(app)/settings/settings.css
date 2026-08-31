@@ -733,8 +733,6 @@
 /* PURPLE — the action a section exists to perform. */
 .settings-page-shell .set-main [data-cc-password-submit],
 .settings-page-shell .set-main [data-cc-password-submit] *,
-.settings-page-shell .set-main [data-cc-mfa-enroll-start],
-.settings-page-shell .set-main [data-cc-mfa-enroll-start] *,
 .settings-page-shell .set-main [data-contact-factor-send],
 .settings-page-shell .set-main [data-contact-factor-send] *,
 .settings-page-shell .set-main [data-cc-preferences-save],
@@ -749,7 +747,6 @@
 }
 
 .settings-page-shell .set-main [data-cc-password-submit]:hover:not(:disabled),
-.settings-page-shell .set-main [data-cc-mfa-enroll-start]:hover:not(:disabled),
 .settings-page-shell .set-main [data-contact-factor-send]:hover:not(:disabled),
 .settings-page-shell .set-main [data-cc-preferences-save]:hover:not(:disabled),
 .set-action--primary:hover {
@@ -760,8 +757,6 @@
 /* DARK INK — a strong secondary. */
 .set-action--ink,
 .set-action--ink *,
-.settings-page-shell [data-cc-profile-edit],
-.settings-page-shell [data-cc-profile-edit] *,
 .settings-page-shell .set-main [data-contact-verification-start],
 .settings-page-shell .set-main [data-contact-verification-start] *,
 .settings-page-shell .set-main [data-cc-connect-google],
@@ -777,7 +772,6 @@
 }
 
 .set-action--ink:hover:not(:disabled),
-.settings-page-shell [data-cc-profile-edit]:hover:not(:disabled),
 .settings-page-shell .set-main [data-contact-verification-start]:hover:not(:disabled),
 .settings-page-shell .set-main [data-cc-connect-google]:hover:not(:disabled),
 .settings-page-shell .set-main [data-cc-connect-apple]:hover:not(:disabled) {
@@ -1279,9 +1273,12 @@
   max-inline-size: 420px;
 }
 
-/* The timezone row: field and its helper action on one line. */
-.settings-page-shell [data-settings-preferences] input[type="text"] + button,
-.settings-page-shell [data-settings-preferences] button:not([data-cc-preferences-save]) {
+/* The timezone row: field and its helper action on one line.
+   The canonical action is EXCLUDED — it carries its own 36px height and 8px
+   radius, and matching the input box height here would make one purple button
+   in Settings taller than every other. */
+.settings-page-shell [data-settings-preferences] input[type="text"] + button:not(.app-primary-action),
+.settings-page-shell [data-settings-preferences] button:not([data-cc-preferences-save]):not(.app-primary-action) {
   min-height: 42px !important;
   border-radius: var(--set-radius-sm) !important;
 }
@@ -1480,25 +1477,13 @@
 }
 
 /* THE DISCLOSURE. History is the longest thing on this pane and the least
-   often needed, so it opens on request. */
-.settings-page-shell .set-main .set-privacy__disclose {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  margin-block-start: 18px;
-  min-height: 38px;
-  padding: 0 15px;
-  border: 1px solid var(--set-line-strong) !important;
-  border-radius: var(--set-radius-sm);
-  background: var(--set-panel-solid) !important;
-  color: var(--set-ink) !important;
-  font-size: 0.84rem;
-  font-weight: 640;
-  cursor: pointer;
-}
+   often needed, so it opens on request.
 
-.settings-page-shell .set-main .set-privacy__disclose:hover {
-  border-color: rgba(109, 40, 217, 0.34) !important;
+   LAYOUT ONLY. The control carries `.app-primary-action` now, so its surface,
+   ink, border and radius come from the canonical action; what is left here is
+   the one thing that is genuinely local — where it sits on the pane. */
+.settings-page-shell .set-main .set-privacy__disclose {
+  margin-block-start: 18px;
 }
 
 .settings-page-shell .set-main .set-privacy__count {
@@ -1622,10 +1607,8 @@
     gap: 3px;
   }
 
-  .settings-page-shell .set-main .set-privacy__disclose,
-  .settings-page-shell .set-main [data-cc-privacy-manage-cookies],
-  .settings-page-shell .set-main [data-cc-export-request],
-  .settings-page-shell .set-main [data-cc-closure-open] {
+    .settings-page-shell .set-main [data-cc-privacy-manage-cookies],
+    .settings-page-shell .set-main [data-cc-closure-open] {
     inline-size: 100%;
     justify-content: center;
   }
@@ -1706,17 +1689,9 @@
    belongs to this surface rather than to it.
 --------------------------------------------------------------------------- */
 .settings-page-shell .set-main .set-action--secondary,
-.settings-page-shell .set-main .set-privacy__disclose,
-.settings-page-shell .set-main [data-cc-export-request],
 .settings-page-shell .set-main [data-cc-add-password-toggle],
 .settings-page-shell .set-main [data-cc-add-password-submit],
-.settings-page-shell .set-main [data-cc-mfa-enroll-start],
-.settings-page-shell .set-main [data-cc-preferences-detect-tz],
-.settings-page-shell [data-cc-profile-edit],
-.settings-page-shell .set-main [data-settings-open="security"],
-.settings-page-shell .set-main .set-action--secondary *,
-.settings-page-shell [data-cc-profile-edit] *,
-.settings-page-shell .set-main [data-settings-open="security"] * {
+.settings-page-shell .set-main .set-action--secondary * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1738,9 +1713,7 @@
 
 /* The inner spans of a composed Button inherit the surface; they must not
    redraw it, or the label sits in a second bordered box. */
-.settings-page-shell .set-main .set-action--secondary *,
-.settings-page-shell [data-cc-profile-edit] *,
-.settings-page-shell .set-main [data-settings-open="security"] * {
+.settings-page-shell .set-main .set-action--secondary * {
   min-height: 0;
   padding: 0;
   border: 0 !important;
@@ -1748,14 +1721,8 @@
 }
 
 .settings-page-shell .set-main .set-action--secondary:hover:not(:disabled),
-.settings-page-shell .set-main .set-privacy__disclose:hover:not(:disabled),
-.settings-page-shell .set-main [data-cc-export-request]:hover:not(:disabled),
 .settings-page-shell .set-main [data-cc-add-password-toggle]:hover:not(:disabled),
-.settings-page-shell .set-main [data-cc-add-password-submit]:hover:not(:disabled),
-.settings-page-shell .set-main [data-cc-mfa-enroll-start]:hover:not(:disabled),
-.settings-page-shell .set-main [data-cc-preferences-detect-tz]:hover:not(:disabled),
-.settings-page-shell [data-cc-profile-edit]:hover,
-.settings-page-shell .set-main [data-settings-open="security"]:hover {
+.settings-page-shell .set-main [data-cc-add-password-submit]:hover:not(:disabled) {
   border-color: rgba(124, 58, 237, 0.42) !important;
   background: rgba(124, 58, 237, 0.07) !important;
   color: #3b0f7a !important;
@@ -1763,23 +1730,13 @@
 }
 
 /* Pressed: a touch deeper, no movement — these sit in dense rows. */
-.settings-page-shell .set-main .set-action--secondary:active:not(:disabled),
-.settings-page-shell .set-main .set-privacy__disclose:active:not(:disabled),
-.settings-page-shell .set-main [data-cc-export-request]:active:not(:disabled),
-.settings-page-shell .set-main [data-cc-mfa-enroll-start]:active:not(:disabled),
-.settings-page-shell [data-cc-profile-edit]:active {
+.settings-page-shell .set-main .set-action--secondary:active:not(:disabled) {
   background: rgba(124, 58, 237, 0.13) !important;
 }
 
 .settings-page-shell .set-main .set-action--secondary:focus-visible,
-.settings-page-shell .set-main .set-privacy__disclose:focus-visible,
-.settings-page-shell .set-main [data-cc-export-request]:focus-visible,
 .settings-page-shell .set-main [data-cc-add-password-toggle]:focus-visible,
-.settings-page-shell .set-main [data-cc-add-password-submit]:focus-visible,
-.settings-page-shell .set-main [data-cc-mfa-enroll-start]:focus-visible,
-.settings-page-shell .set-main [data-cc-preferences-detect-tz]:focus-visible,
-.settings-page-shell [data-cc-profile-edit]:focus-visible,
-.settings-page-shell .set-main [data-settings-open="security"]:focus-visible {
+.settings-page-shell .set-main [data-cc-add-password-submit]:focus-visible {
   outline: none !important;
   border-color: var(--set-accent) !important;
   box-shadow: 0 0 0 3px rgba(109, 40, 217, 0.24) !important;
@@ -1787,9 +1744,7 @@
 
 /* Disabled reads as unavailable, not as a different (dark) kind of action. */
 .settings-page-shell .set-main .set-action--secondary:disabled,
-.settings-page-shell .set-main [data-cc-export-request]:disabled,
 .settings-page-shell .set-main [data-cc-add-password-submit]:disabled,
-.settings-page-shell .set-main [data-cc-mfa-enroll-start]:disabled,
 .settings-page-shell .set-main .set-action--secondary:disabled * {
   border-color: rgba(91, 33, 182, 0.14) !important;
   background: rgba(255, 255, 255, 0.55) !important;
@@ -1831,4 +1786,161 @@
   font-size: 0.84rem;
   line-height: 1.6;
   max-inline-size: 68ch;
+}
+
+/* ---------------------------------------------------------------------------
+   THE CANONICAL ACTION, UNREPAINTED.
+
+   `.app-primary-action` is the filled violet action the authenticated product
+   already uses — the Evidence header, the Notifications refresh, Cases. The
+   Settings actions that used to be painted here now carry it, so this file
+   must stop having an opinion about them.
+
+   This block is a RESET, not a second button. It repaints nothing: it stops
+   the broad `!important` rules in this stylesheet — the whole-surface
+   `button:disabled`, and the descendant painters that were written for the
+   local treatments — from reaching a canonical action. That descendant painter
+   is precisely what broke "Set up two-factor authentication": the button was
+   claimed by BOTH the local purple block and the local white block, the white
+   one won on the element, and the purple one still painted the inner `<span>`
+   the shared Button component wraps its label in. A solid violet rectangle
+   inside a white button, from two stylesheets disagreeing about one control.
+--------------------------------------------------------------------------- */
+.settings-page-shell .app-primary-action,
+.settings-page-shell .set-main .app-primary-action {
+  min-height: 36px;
+  border: 1px solid rgba(109, 40, 217, 0.5) !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+/* Descendants carry the label, never a second surface. */
+.settings-page-shell .app-primary-action > *,
+.settings-page-shell .set-main .app-primary-action > * {
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+}
+
+/* The one descendant that IS a surface: the acceptance-history count. It has
+   to read ON violet now, so it borrows the label's own colour at low alpha
+   rather than keeping the pale-grey chip it wore on a white button. */
+.settings-page-shell .set-main .app-primary-action > .set-privacy__count {
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.settings-page-shell .app-primary-action:hover:not(:disabled),
+.settings-page-shell .set-main .app-primary-action:hover:not(:disabled) {
+  filter: brightness(1.05);
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+  border-color: rgba(109, 40, 217, 0.5) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.settings-page-shell .app-primary-action:focus-visible,
+.settings-page-shell .set-main .app-primary-action:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.35) !important;
+}
+
+/* Disabled reads as unavailable — the canonical treatment, not this file's
+   grey, so a busy action still looks like the action it is. */
+.settings-page-shell .set-main .app-primary-action:disabled,
+.settings-page-shell .set-main .app-primary-action:disabled * {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+  border-color: rgba(109, 40, 217, 0.5) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.settings-page-shell .set-main .app-primary-action:disabled > * {
+  background: none !important;
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   THE SUMMARY ROW — FOUR CARDS, ONE HEIGHT.
+
+   It was `auto-fit` over a 198px minimum with `align-items: start` and
+   `height: auto`, and the note beside it said each card should be its own
+   height. That reads well when the cards carry comparable amounts; it did not
+   survive Recent sign-ins, which carried a 120-character User-Agent in a
+   221px column and grew to 349px beside a 162px Workspace card. The row did
+   not look deliberate, it looked broken.
+
+   Four explicit columns, stretched to a common height, and the sign-in
+   history moved to its own full-width row underneath where a horizontal list
+   is the natural shape for it.
+--------------------------------------------------------------------------- */
+.settings-page-shell .set-grid--summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.settings-page-shell .set-grid--summary > .set-card {
+  height: 100%;
+}
+
+/* The action sits on the baseline of the card, so a card that has one lines
+   up with the three that do not. */
+.settings-page-shell .set-grid--summary > .set-card > .set-card__action,
+.settings-page-shell .set-grid--summary > .set-card > .app-primary-action {
+  margin-block-start: auto;
+}
+
+/* Recent sign-ins: a row of sessions, not a stack in a column. */
+.settings-page-shell .set-card--wide {
+  margin-block-start: 16px;
+}
+
+.settings-page-shell .set-signins--row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+}
+
+.settings-page-shell .set-signins--row > li {
+  min-width: 0;
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+
+/* The device line is a NAME now ("Chrome on Windows"), but a fallback string
+   must still never widen the card. */
+.settings-page-shell .set-signins--row .set-signins__device,
+.settings-page-shell .set-signins--row .set-signins__when {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .settings-page-shell .set-grid--summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-page-shell .set-grid--summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* A long label must wrap rather than push the card sideways. */
+  .settings-page-shell .set-main .app-primary-action {
+    white-space: normal;
+    min-height: 36px;
+    height: auto;
+    padding-block: 8px;
+    text-align: center;
+  }
 }

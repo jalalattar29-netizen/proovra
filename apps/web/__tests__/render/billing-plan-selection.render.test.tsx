@@ -827,7 +827,14 @@ describe("the plan-drawer button hierarchy", () => {
     // And no RULE in this file selects the global primary action. Comments
     // are stripped first, because naming what a file must not reach is how
     // the containment stays explained.
-    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    // A `:not(.app-primary-action)` exclusion is removed too: it is this file
+    // declining to style the canonical action, which is what the assertion is
+    // for. `.bill-panel__actions > *` was forcing 44px onto everything inside
+    // it, so the self-serve purchase actions were 44px here and 36px in the
+    // rest of the product — one class, two heights.
+    const withoutComments = css
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/:not\(\.app-primary-action\)/g, "");
     expect(withoutComments).not.toMatch(/\.app-primary-action/);
     // Nor any button primitive at the top level of this file.
     expect(withoutComments).not.toMatch(/^\s*\.ui-button/m);

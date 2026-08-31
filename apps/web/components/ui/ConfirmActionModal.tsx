@@ -149,11 +149,23 @@ function toneAccent(tone: ConfirmActionTone): {
     case "danger":
       return { color: "#fff", bg: "#C9363E", border: "#C9363E" };
     case "warning":
+      // THE CANONICAL AMBER, not a hand-mixed one.
+      //
+      // This was #B86B16 over rgba(135,74,12,…), with #9F5910 / #874A0C for
+      // hover and active in app-primitives. Those are umber: dark enough that
+      // the confirmation before "Sign out other sessions" read as brown rather
+      // than as caution, which is the one thing a warning tone has to do. The
+      // block above it even says "NOT pale brown/mustard/gold" — the values
+      // simply drifted from the words.
+      //
+      // `--warning-ink` (#B45309) is the repository's readable amber, the same
+      // token the status text, badges and empty states already use, so the
+      // warning confirm now says amber in the same voice as everything else.
       return {
         color: "#FFFFFF",
-        bg: "#B86B16",
-        border: "rgba(135, 74, 12, 0.28)",
-        shadow: "0 4px 12px rgba(159, 89, 16, 0.16)",
+        bg: "var(--warning-ink, #B45309)",
+        border: "var(--warning-ink, #B45309)",
+        shadow: "0 4px 12px rgba(180, 83, 9, 0.18)",
       };
     case "neutral":
     default:

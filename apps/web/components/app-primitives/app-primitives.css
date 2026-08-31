@@ -1739,15 +1739,21 @@ textarea.app-form-input {
  *      Warning is a controlled semantic accent — NOT destructive red, NOT
  *      pale brown/mustard/gold.
  * ------------------------------------------------------------------------- */
+/* Pressed states are a BRIGHTNESS of the token, the way
+   `.app-primary-action` expresses its own, so there is exactly one amber in
+   the system and no second palette to keep in step. The hexes that were here
+   were darker than the token and read as brown. */
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:hover:not(:disabled) {
-  background: #9F5910 !important;
+  background: var(--warning-ink, #B45309) !important;
+  filter: brightness(0.94);
 }
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:active:not(:disabled) {
-  background: #874A0C !important;
+  background: var(--warning-ink, #B45309) !important;
+  filter: brightness(0.88);
 }
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(184, 107, 22, 0.28) !important;
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.32) !important;
 }
 
 .app-grid-kpis {

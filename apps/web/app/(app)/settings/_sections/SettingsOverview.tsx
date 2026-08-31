@@ -24,9 +24,13 @@ import type { ReactNode } from "react";
 import {
   Activity,
   Building2,
+  Clock,
   CreditCard,
   ShieldCheck,
 } from "lucide-react";
+
+import { useAuth } from "../../../providers";
+import { describeUserAgent } from "../../../../lib/security/sessionPresentation";
 
 import type { SettingsUiContext } from "../../../../lib/settings/settingsUiContext";
 import type { AccountSecuritySummary } from "../../../../lib/security/useAccountSecuritySummary";
@@ -158,6 +162,12 @@ export function SettingsOverview({
 
   const billingHref = ui.billing.billingHref;
 
+  // The SAVED account timezone — the same `User.timezone` Preferences edits
+  // below. Never the browser's: this card reports what digests and quiet
+  // hours will actually use.
+  const { user } = useAuth();
+  const accountTimezone = user?.timezone?.trim() ? user.timezone.trim() : null;
+
   return (
     <div className="set-overview" data-settings-pane="overview">
       <header className="set-pane-head">
@@ -282,7 +292,7 @@ export function SettingsOverview({
           action={
             <button
               type="button"
-              className="set-action set-action--ink"
+              className="app-primary-action"
               onClick={() => onOpen("security")}
               data-settings-open="security"
             >
@@ -291,45 +301,75 @@ export function SettingsOverview({
           }
         />
 
-        {/* ACTIVITY — the three most recent sign-ins, from the fields the
-            sessions route actually projects. It said "Not available" for an
-            account with fifteen live sessions because the summary kept only
-            the timestamp of the session flagged current, and dropped the
-            device and country it was already being sent. */}
+        {/* TIMEZONE — a READOUT. The editing surface stays in Preferences
+            below; this card states what the account is currently set to, in
+            the same words that section uses when it is unset. */}
         <SummaryCard
-          testId="activity"
-          icon={<Activity size={16} strokeWidth={2} />}
-          title="Recent sign-ins"
-        >
-          {security.recentSignIns.length > 0 ? (
-            <ul className="set-signins" data-settings-recent-signins>
-              {security.recentSignIns.map((entry) => {
-                const place = countryName(entry.countryCode);
-                return (
-                  <li key={entry.id}>
-                    <span className="set-signins__device">
-                      {entry.device ?? "Unrecognised device"}
-                      {entry.isCurrent ? (
-                        <span className="set-state" data-tone="ok">
-                          This device
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="set-signins__when">
-                      {new Date(entry.lastSeenAtUtc).toLocaleString()}
-                      {place ? ` · ${place}` : ""}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="set-muted set-signins__empty">
-              No recent sign-in activity available.
-            </p>
-          )}
-        </SummaryCard>
+          testId="timezone"
+          icon={<Clock size={16} strokeWidth={2} />}
+          title="Timezone"
+          headline={accountTimezone ?? "UTC"}
+          facts={[
+            {
+              label: "Source",
+              value: accountTimezone
+                ? "Account timezone"
+                : "Not set — UTC fallback",
+            },
+          ]}
+        />
       </div>
+
+      {/* ----------------------------------------------------------------
+          RECENT SIGN-INS — a ROW, not a fourth column.
+
+          It carried the raw `User-Agent` as its headline, which is 120
+          characters of syntax; in a 221px column that wrapped into a card
+          twice the height of its neighbours and made the whole summary row
+          look accidental. The device name now comes from
+          `describeUserAgent`, the parser the Security pane already uses for
+          exactly this string — no second parser, and it never returns the raw
+          value. The full agent stays available as the row's title attribute
+          for anyone who needs it.
+      ---------------------------------------------------------------- */}
+      <section
+        className="set-card set-card--wide"
+        data-settings-summary="activity"
+      >
+        <div className="set-card__head">
+          <span className="set-card__icon" aria-hidden="true">
+            <Activity size={16} strokeWidth={2} />
+          </span>
+          <h3 className="set-card__title">Recent sign-ins</h3>
+        </div>
+        {security.recentSignIns.length > 0 ? (
+          <ul className="set-signins set-signins--row" data-settings-recent-signins>
+            {security.recentSignIns.map((entry) => {
+              const place = countryName(entry.countryCode);
+              return (
+                <li key={entry.id} title={entry.device ?? undefined}>
+                  <span className="set-signins__device">
+                    {describeUserAgent(entry.device)}
+                    {entry.isCurrent ? (
+                      <span className="set-state" data-tone="ok">
+                        This device
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="set-signins__when">
+                    {new Date(entry.lastSeenAtUtc).toLocaleString()}
+                    {place ? ` · ${place}` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="set-muted set-signins__empty">
+            No recent sign-in activity available.
+          </p>
+        )}
+      </section>
 
       {/* ----------------------------------------------------------------
           PREFERENCES. The language and timezone controls that were the only

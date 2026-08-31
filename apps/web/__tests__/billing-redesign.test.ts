@@ -874,7 +874,16 @@ test("the Billing secondary action is scoped, and skips the actions it must not 
     );
   }
   // Nothing global.
-  assert.doesNotMatch(css, /\.app-primary-action/);
+  //
+  // A `:not(.app-primary-action)` EXCLUSION is not a global reach — it is this
+  // file declining to style the canonical action, which is the same thing this
+  // assertion is protecting. `.bill-panel__actions > *` forced a 44px height
+  // onto whatever sat in it, including the canonical action, which is how a
+  // button that is 36px everywhere else in the product became 44px here. So
+  // the exclusions are removed before the check, and what remains must still
+  // contain no mention of the shared class.
+  const withoutExclusions = css.replace(/:not\(\.app-primary-action\)/g, "");
+  assert.doesNotMatch(withoutExclusions, /\.app-primary-action/);
 
   // The actions that MUST NOT take it.
   const drawer = read(MANAGE);
@@ -952,8 +961,12 @@ test("the plan-drawer button hierarchy cannot reach a button outside it", () => 
     assert.match(rule, /\.bill-drawer\s/, `unscoped rule: ${rule.trim()}`);
   }
 
-  // Nothing global is touched by this file.
-  assert.doesNotMatch(declared, /\.app-primary-action/);
+  // Nothing global is touched by this file. As above, an exclusion is this
+  // file declining to style the canonical action, not reaching for it.
+  assert.doesNotMatch(
+    declared.replace(/:not\(\.app-primary-action\)/g, ""),
+    /\.app-primary-action/,
+  );
   assert.doesNotMatch(declared, /^\s*\.ui-button/m);
 
   // The scope class is actually on the panel, or every rule above is inert.

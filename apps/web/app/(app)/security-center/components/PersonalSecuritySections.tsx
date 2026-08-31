@@ -100,6 +100,8 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 4,
 };
 
+/* Failure — canonical red. A sign-out that did not happen must not be
+   reported in any softer colour. */
 const errorBox: React.CSSProperties = {
   marginTop: 8,
   padding: "8px 10px",
@@ -110,13 +112,16 @@ const errorBox: React.CSSProperties = {
   fontSize: 12,
 };
 
+/* Completion — canonical success. "12 other session(s) signed out" is a
+   result, not an alarm, and colouring it red because the subject is security
+   would be telling the person something untrue about what just happened. */
 const okBox: React.CSSProperties = {
   marginTop: 8,
   padding: "8px 10px",
   borderRadius: 8,
-  background: "rgba(47,125,91,0.07)",
-  border: "1px solid rgba(47,125,91,0.35)",
-  color: "#215e44",
+  background: "rgba(22, 122, 91, 0.07)",
+  border: "1px solid rgba(22, 122, 91, 0.35)",
+  color: "var(--success-ink, #167A5B)",
   fontSize: 12,
 };
 
@@ -1324,16 +1329,16 @@ function MfaCard({
               method — however you sign in.
             </p>
             <div style={{ marginTop: 12 }}>
-              <Button
-                variant="secondary"
-                size="sm"
+              <button
+                type="button"
+                className="app-primary-action"
                 onClick={() => void startEnrollment()}
-                loading={busy}
                 disabled={busy}
+                aria-busy={busy || undefined}
                 data-cc-mfa-enroll-start
               >
-                Set up two-factor authentication
-              </Button>
+                {busy ? "Starting…" : "Set up two-factor authentication"}
+              </button>
             </div>
           </>
         ) : (

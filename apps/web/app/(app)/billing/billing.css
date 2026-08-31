@@ -351,7 +351,9 @@
   gap: 8px;
 }
 
-.bill-panel__actions > * {
+/* The canonical action is EXCLUDED: it carries the products 36px height, and
+   a purple button that is 44px here and 36px on Evidence is two buttons. */
+.bill-panel__actions > *:not(.app-primary-action) {
   min-block-size: 44px;
   block-size: 44px;
 }

@@ -203,14 +203,14 @@ export function OverviewSection({
         </div>
         {!editing ? (
           <div style={{ marginLeft: "auto" }}>
-            <Button
-              variant="secondary"
-              size="sm"
+            <button
+              type="button"
+              className="app-primary-action"
               onClick={() => setEditing(true)}
               data-cc-profile-edit
             >
               Edit profile
-            </Button>
+            </button>
           </div>
         ) : null}
       </div>
