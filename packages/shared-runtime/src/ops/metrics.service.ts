@@ -62,6 +62,14 @@ export const COUNTER_NAMES = [
   // signals for the /ops UI; bumped from the incident service,
   // alert provider, webhook handlers, and the request lifecycle.
   "operational_incident_opened",
+  // ADM-013 PHASE 4 — the loser of a create race. Two evaluators observing one
+  // condition in the same moment both miss the dedupe read and both create; the
+  // unique index refuses one, and that one recovers onto the winner row rather
+  // than dropping the observation. A non-zero rate here is normal under
+  // concurrent evaluation and is not a fault. A rate that TRACKS
+  // operational_incident_opened means the dedupe read is not finding rows it
+  // should, which is.
+  "operational_incident_create_raced",
   "operational_incident_increment",
   // A reopen is not an increment, and the metric must not say it is: the
   // whole point of the correction is that the two are different events.

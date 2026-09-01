@@ -232,6 +232,23 @@ export type RecordIncidentResult = {
   incident: prismaPkg.OperationalIncident;
 };
 
+/**
+ * Is this the unique index refusing a duplicate identity?
+ *
+ * Narrow on PURPOSE. Any other Prisma error — a dead connection, a missing
+ * column, a foreign key — must propagate: a writer that treats every failure
+ * as "somebody else got there first" silently drops observations, which is a
+ * worse defect than the duplicate it was meant to prevent.
+ */
+function isIncidentIdentityCollision(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
+}
+
 export async function recordIncident(
   input: RecordIncidentInput,
   client: PrismaClient = defaultPrisma,
@@ -320,29 +337,83 @@ export async function recordIncident(
     });
   }
 
-  const existing = input.teamId
-    ? await client.operationalIncident.findUnique({
-        where: {
-          teamId_fingerprint: {
-            teamId: input.teamId,
-            fingerprint: input.fingerprint,
+  /**
+   * ADM-013 PHASE 4 — the dedupe read, NAMED so it can be run twice.
+   *
+   * The NULL-team arm is a `findFirst` and not a `findUnique`, and that is a
+   * consequence rather than a style choice: `@@unique([teamId, fingerprint])`
+   * does not deduplicate these rows at all. A standard Postgres unique index
+   * treats NULL as distinct from NULL, so `(NULL, 'x')` and `(NULL, 'x')` both
+   * insert. Measured, not assumed: against a fully-migrated PostgreSQL 16
+   * database, two identical NULL-team rows insert with no error.
+   *
+   * `orderBy: firstSeenAtUtc asc` therefore picks the OLDEST of however many
+   * exist — the one carrying the real history — rather than an arbitrary one.
+   */
+  const readExisting = () =>
+    input.teamId
+      ? client.operationalIncident.findUnique({
+          where: {
+            teamId_fingerprint: {
+              teamId: input.teamId,
+              fingerprint: input.fingerprint,
+            },
           },
-        },
-        select: DEDUPE_SELECT,
-      })
-    : await client.operationalIncident.findFirst({
-        where: { teamId: null, fingerprint: input.fingerprint },
-        orderBy: { firstSeenAtUtc: "asc" },
-        select: DEDUPE_SELECT,
-      });
+          select: DEDUPE_SELECT,
+        })
+      : client.operationalIncident.findFirst({
+          where: { teamId: null, fingerprint: input.fingerprint },
+          orderBy: { firstSeenAtUtc: "asc" },
+          select: DEDUPE_SELECT,
+        });
 
-  let row: prismaPkg.OperationalIncident;
-  let created: boolean;
+  let existing = await readExisting();
+
+  // Definite assignment: exactly one of the two branches below assigns `row`,
+  // and the compiler cannot see that through the race recovery.
+  let row!: prismaPkg.OperationalIncident;
+  let created = false;
   let existingStatusBeforeWrite: prismaPkg.IncidentStatus | null = null;
   /** What the shared authority decided. A create is not a decision it makes. */
   let decision: IncidentTransitionDecision = "OBSERVATION_ONLY";
   if (!existing) {
-    row = await client.operationalIncident.create({
+    // -----------------------------------------------------------------------
+    // READ-THEN-CREATE IS A RACE. THIS IS WHERE IT LOSES SAFELY.
+    //
+    // Two evaluators observing the same condition in the same moment both miss
+    // on the read above and both reach this create.
+    //
+    //   * For a WORKSPACE row the unique index rejects the loser, and that
+    //     surfaced as an unhandled P2002 out of a scanner — a real condition
+    //     dropped because a colleague observed it first.
+    //   * For a PLATFORM or legacy NULL-team row nothing rejected anything and
+    //     BOTH rows were written. That is one of the ways the incident table
+    //     accumulated siblings that read as separate faults.
+    //
+    // Losing the race is not an error: the winner's row is the row this
+    // observation wanted. The loser re-reads and continues down the UPDATE
+    // path — the same path a second observation a moment later would take — so
+    // the occurrence is counted once, on one row, either way.
+    //
+    // This is the WRITER half, and it is the half that is SAFE TO SHIP ALONE.
+    // The database half is a partial unique index on (fingerprint) WHERE
+    // team_id IS NULL, created at the end of
+    // `sql/convergence/2026-09-01-operational-incident-platform-identity.sql`
+    // — an OPERATOR script rather than a migration, because creating that index
+    // requires first MERGING the duplicates that already exist, and a merge
+    // DELETEs production rows. That decision belongs to somebody who has read
+    // the production diagnostic, not to an unattended `migrate deploy`. The
+    // repository's own migration safety gate agrees: DELETE_FROM in a
+    // post-baseline migration is CRITICAL with no guarded form.
+    //
+    // Neither half is sufficient alone. Without the index a platform duplicate
+    // is silent; without this catch the index turns a duplicate into a LOST
+    // OBSERVATION, which is worse than the duplicate it prevents. Shipping this
+    // half first is therefore the correct order: it is a no-op until the index
+    // exists, and it is already load-bearing for WORKSPACE rows, whose unique
+    // constraint has been rejecting racing writers all along.
+    // -----------------------------------------------------------------------
+    const createData = {
       data: {
         teamId: input.teamId ?? null,
         // THE DECLARED SOURCE. Persisted so no reader has to infer it.
@@ -374,10 +445,27 @@ export async function recordIncident(
                 | prismaPkg.Prisma.InputJsonValue
                 | undefined),
       },
-    });
-    created = true;
-    bump("operational_incident_opened");
-  } else {
+    } satisfies prismaPkg.Prisma.OperationalIncidentCreateArgs;
+
+    try {
+      row = await client.operationalIncident.create(createData);
+      created = true;
+      bump("operational_incident_opened");
+    } catch (err) {
+      if (!isIncidentIdentityCollision(err)) throw err;
+      bump("operational_incident_create_raced");
+      existing = await readExisting();
+      if (!existing) {
+        // The index rejected the insert and the row it collided with is not
+        // visible to this read. That is a real inconsistency — a constraint
+        // this writer does not model — and swallowing it would drop the
+        // observation while reporting success.
+        throw err;
+      }
+    }
+  }
+
+  if (existing) {
     // ---------------------------------------------------------------------
     // ONE AUTHORITY DECIDES WHAT AN OBSERVATION MAY DO.
     //

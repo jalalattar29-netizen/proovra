@@ -640,6 +640,37 @@ export const CHANGED_PATH_CLASSES = Object.freeze([
   // suffix rule further down was claiming them as prose. A recovery snapshot
   // filed as documentation is a recovery snapshot nobody protects.
   { class: "RECOVERY_SNAPSHOT", test: (p) => p.startsWith(".p12snapshot/") },
+  /**
+   * ADM-013 PHASE 4 — OPERATOR SQL: its own class, added by the same procedure
+   * as `SCHEMA_DECLARATION` and `ENVIRONMENT_TEMPLATE` above. It matched
+   * nothing, the table correctly refused to default, and somebody had to look
+   * at it.
+   *
+   * Having looked. It is not HISTORICAL_MIGRATION: nothing applies it, Prisma
+   * does not know it exists, and no checksum is recorded for it — the whole
+   * reason it is here rather than under `migrations/` is that applying it is a
+   * DECISION. It is not PRODUCTION_RUNTIME: no module imports it and no request
+   * path executes it. And it is emphatically not DOCUMENTATION, which is the
+   * class a `.sql` suffix rule would otherwise hand it — prose describes the
+   * system, whereas an operator pastes this into psql and it BECOMES the
+   * system, so a wrong line here is a wrong database rather than a wrong
+   * sentence. Filing a destructive convergence as prose is precisely the
+   * mistake the RECOVERY_SNAPSHOT rule above exists to prevent for snapshots.
+   *
+   * What it is: SQL an operator runs deliberately, once, against a live
+   * database, after reading what it will do. Two things follow and are worth
+   * stating because the class is what carries them:
+   *
+   *   * it is held to the migration safety gate's STANDARDS even though the
+   *     gate does not scan it — it is idempotent, it is one transaction, and it
+   *     guards every object it names; and
+   *   * it ships with a read-only `.preview.sql` sibling, because a script
+   *     that deletes rows and cannot first say which rows is not reviewable.
+   */
+  {
+    class: "OPERATOR_SQL",
+    test: (p) => /(^|\/)sql\/(convergence|drift-patches)\//.test(p),
+  },
   {
     class: "PRODUCT_BEHAVIOR_TEST",
     test: (p) =>
