@@ -255,35 +255,33 @@ test("the Preferences row no longer resizes the canonical action", () => {
 
 // ------------------------------------------------------- OVERVIEW STRUCTURE
 
-test("the summary row is three cards, and sign-ins is not one of them", () => {
+test("the summary row is four cards, sign-ins among them", () => {
   const gridAt = SETTINGS_OVERVIEW.indexOf('className="set-grid set-grid--summary"');
   assert.ok(gridAt > 0, "the summary grid must exist");
   const grid = SETTINGS_OVERVIEW.slice(
     gridAt,
     SETTINGS_OVERVIEW.indexOf("      </div>", gridAt),
   );
-  for (const id of ["workspace", "plan", "security"]) {
+  for (const id of ["workspace", "plan", "security", "activity"]) {
     assert.ok(grid.includes(`testId="${id}"`), `${id} must be a summary card`);
   }
-  assert.ok(
-    !grid.includes('testId="activity"'),
-    "Recent sign-ins must sit BELOW the summary row",
-  );
-  assert.ok(
-    SETTINGS_OVERVIEW.includes('data-settings-summary="activity"') &&
-      SETTINGS_OVERVIEW.includes("set-card--wide"),
-    "Recent sign-ins must still render, as the wide card",
-  );
+  // Recent sign-ins is back IN the row. It moved out when its headline was a
+  // 120-character User-Agent; the device line is a parsed name now, so the
+  // card is three short rows and sits beside its neighbours.
+  // `SummaryCard` renders `data-settings-summary` from its `testId`, so the
+  // attribute is generated rather than written out.
+  assert.ok(SETTINGS_OVERVIEW.includes('testId="activity"'));
+  assert.match(SETTINGS_OVERVIEW, /describeUserAgent\(entry\.device\)/);
 });
 
 test("the summary row is a real equal-column grid that stretches", () => {
-  // THREE, not four. The fourth was Timezone, removed because it restated
-  // what Preferences owns and offered nothing to act on; the track count
-  // follows the content rather than a filler card being invented for it.
+  // FOUR: Workspace, Plan, Security, Recent sign-ins. Timezone left (it
+  // restated what Preferences owns) and sign-ins took the seat rather than a
+  // filler being invented for it.
   assert.match(
     SETTINGS_CSS,
-    /\.settings-page-shell \.set-grid--summary \{[\s\S]{0,300}grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/,
-    "desktop must be three equal columns",
+    /\.settings-page-shell \.set-grid--summary \{[\s\S]{0,300}grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/,
+    "desktop must be four equal columns",
   );
   assert.match(
     SETTINGS_CSS,
@@ -388,11 +386,15 @@ test("destructive and tertiary controls were NOT swept in", () => {
 
 // ----------------------------------------------------- FEEDBACK SEMANTICS
 
-test("the warning confirm is canonical amber, not the old umber", () => {
+test("the warning confirm is the canonical ORANGE, not umber or amber", () => {
+  // It went umber (#B86B16) -> amber (--warning-ink #B45309) -> orange.
+  // `--orange-ink` is what `AppStatusText` resolves for tone `orange`, which
+  // is what Operations paints a High incident, so the confirmation before
+  // "Sign out other sessions" now speaks the product's one warning colour.
   assert.match(
     CONFIRM,
-    /case "warning":[\s\S]{0,900}bg: "var\(--warning-ink, #B45309\)"/,
-    "warning must use the canonical --warning-ink token",
+    /case "warning":[\s\S]{0,1100}bg: "var\(--orange-ink, #C2410C\)"/,
+    "warning must use the canonical --orange-ink token",
   );
   const liveConfirm = CONFIRM.split("\n")
     .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))

@@ -148,10 +148,11 @@ test("the Overview timezone card is gone", () => {
   assert.doesNotMatch(OVERVIEW, /title="Timezone"/);
   assert.doesNotMatch(OVERVIEW, /testId="timezone"/);
   // …and the summary row follows the content rather than keeping a hole.
+  // The seat Timezone left was taken by Recent sign-ins, not by a filler.
   assert.match(
     SETTINGS_CSS,
-    /\.settings-page-shell \.set-grid--summary \{[\s\S]{0,240}grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/,
-    "three cards, not four with a filler",
+    /\.settings-page-shell \.set-grid--summary \{[\s\S]{0,300}grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/,
+    "four cards: Workspace, Plan, Security, Recent sign-ins",
   );
 });
 

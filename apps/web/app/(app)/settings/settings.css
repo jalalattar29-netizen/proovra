@@ -46,12 +46,17 @@
   --set-accent: var(--accent-600, #6d28d9);
   --set-accent-strong: var(--accent-700, #5b21b6);
   --set-accent-soft: var(--accent-050, #f4f0ff);
-  --set-ok: #067647;
-  --set-ok-soft: rgba(6, 118, 71, 0.08);
-  --set-warn: #b54708;
-  --set-warn-soft: rgba(247, 144, 9, 0.1);
-  --set-danger: #b42318;
-  --set-danger-soft: rgba(240, 68, 56, 0.07);
+  /* The PRODUCT tokens. These were four hand-written hexes — #067647,
+     #b54708, #b42318 — so "Not configured" in Settings was a brown-amber
+     while the same attention state on Operations is the orange
+     `AppStatusText` resolves for tone `orange` (--orange-ink). One product,
+     one warning colour. */
+  --set-ok: var(--success-standard, #15803D);
+  --set-ok-soft: rgba(21, 128, 61, 0.08);
+  --set-warn: var(--orange-ink, #C2410C);
+  --set-warn-soft: rgba(194, 65, 12, 0.09);
+  --set-danger: var(--error, #DC2626);
+  --set-danger-soft: rgba(220, 38, 38, 0.07);
 
   --set-radius: 14px;
   --set-radius-sm: 10px;
@@ -1849,14 +1854,14 @@
    history moved to its own full-width row underneath where a horizontal list
    is the natural shape for it.
 --------------------------------------------------------------------------- */
-/* THREE cards, not four.
+/* FOUR cards: Workspace, Plan, Security, Recent sign-ins.
 
-   The fourth was Timezone, which restated what Preferences owns and offered
-   nothing to act on. Removing it left a gap rather than a grid, so the track
-   count follows the content instead of a filler card being invented to sit
-   in it. */
+   Timezone was removed from here (it restated what Preferences owns), and
+   Recent sign-ins took the seat rather than a filler being invented for it —
+   it is compact now that the device line is a parsed name instead of a raw
+   User-Agent, so it no longer runs away from its neighbours' height. */
 .settings-page-shell .set-grid--summary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: stretch;
 }
 
@@ -1872,6 +1877,8 @@
 }
 
 /* Recent sign-ins: a row of sessions, not a stack in a column. */
+/* `.set-card--wide` is retained for a genuinely full-width summary; the
+   sign-ins card no longer uses it. */
 .settings-page-shell .set-card--wide {
   margin-block-start: 16px;
 }

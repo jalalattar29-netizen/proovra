@@ -33,21 +33,40 @@
   --home-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 
   /* Ink */
-  --home-ink: #0f172a;
+  --home-ink: var(--ink-primary, #0f172a);
   --home-ink-2: #334155;
   --home-muted: #64748b;
   --home-eyebrow: #64748b;
 
-  /* Semantics — the repository's own, with a literal only as fallback. */
-  --home-ok: var(--success-ink, #167a5b);
-  --home-warn: var(--warning-ink, #b45309);
-  --home-bad: #b42318;
-  --home-action: var(--accent-600, #6d28d9);
+  /* SEMANTICS — the product's tokens, resolved the way `AppStatusText` maps
+     the shared `AppTone` vocabulary. This is the whole point: Operations
+     paints "High" by asking for tone `orange`, which resolves to
+     `--orange-ink`, and Home must ask for the same thing rather than pick a
+     hue that looks similar.
+
+       tone orange -> --orange-ink        (Operations "High")
+       tone red    -> --error             (Operations "Critical")
+       tone blue   -> --info              (Notifications / Search actions)
+       tone green  -> --success-standard
+       tone ink    -> --ink-primary       (titles, record names)
+
+     WHAT WAS WRONG. `--home-warn` was `--warning-ink` (#B45309) — the AMBER
+     used for warning TEXT on a white card, not the orange Operations gives a
+     High incident (#C2410C). Side by side they read as two different states.
+     `--home-bad` was a hand-written #b42318, darker than the canonical
+     `--error` (#DC2626) every other critical surface uses. And `--home-action`
+     was the accent violet, so Home's inline actions were purple while the same
+     action on Notifications and Search is blue. */
+  --home-ok: var(--success-standard, #15803d);
+  --home-warn: var(--orange-ink, #c2410c);
+  --home-bad: var(--error, #dc2626);
+  --home-action: var(--info, #2563eb);
+  --home-accent: var(--accent-600, #6d28d9);
 
   /* Pale state fills. */
-  --home-ok-soft: rgba(22, 122, 91, 0.09);
-  --home-warn-soft: #fff4e5;
-  --home-bad-soft: #fdecec;
+  --home-ok-soft: rgba(21, 128, 61, 0.09);
+  --home-warn-soft: rgba(194, 65, 12, 0.09);
+  --home-bad-soft: rgba(220, 38, 38, 0.08);
   --home-info-soft: #eef2ff;
 
   /* The KPI band. Five deliberately rich surfaces — indigo, blue, teal,
@@ -104,46 +123,80 @@
    not a second toolbar; it scrolls away like everything else.
 --------------------------------------------------------------------------- */
 
+/* THE CASES SEGMENT STRIP, not something that resembles it.
+
+   Every value below is copied from `.cases-segments` / `.cases-filter-chip`
+   in cases-experience.css, which is the control this must match — container
+   radius 14 over chip radius 10, 44px strip around 36px chips, the neutral
+   #5F6878 inactive label, and the shared violet active language
+   (#F2ECFE on #D9C7FB). A test reads BOTH stylesheets and fails if they
+   diverge, so "matches Cases" is checked rather than asserted.
+
+   NORMAL FLOW is still the point of the position rule: this was
+   `position: sticky; top: var(--header-h)`, so the switcher rode the
+   viewport down the page, floating over the cards it introduces. */
 .self-serve-home .home-tabs {
   position: static;
   top: auto;
   z-index: auto;
-  height: 46px;
-  padding: 5px;
-  gap: 4px;
-  border-radius: 12px;
-  background: var(--home-card);
-  border: 1px solid rgba(124, 58, 237, 0.14);
-  box-shadow: var(--home-shadow);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  height: auto;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  max-width: max-content;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.self-serve-home .home-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .self-serve-home .home-tab {
+  flex: none;
   height: 36px;
-  padding: 0 20px;
-  border-radius: 9px;
-  color: var(--home-ink-2);
-  font-size: 14px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13px;
   font-weight: 600;
+  color: #5f6878;
 }
 
 .self-serve-home .home-tab:hover {
-  background: rgba(124, 58, 237, 0.05);
-  color: var(--home-ink);
+  background: rgba(15, 23, 42, 0.045);
+  color: #172033;
 }
 
-/* Selected reads as a quiet cool fill with DARK text — not a solid violet
-   slab, which turned the switcher into the loudest control on the page. */
 .self-serve-home .home-tab[aria-selected="true"] {
-  background: var(--home-info-soft);
-  border-color: transparent;
-  color: var(--home-ink);
-  box-shadow: none;
+  background: #f2ecfe;
+  border-color: #d9c7fb;
+  color: #6d28d9;
+  box-shadow: 0 3px 10px rgba(124, 58, 237, 0.08);
 }
 
-.self-serve-home .home-tab[aria-selected="true"]:focus-visible {
+/* An inactive hovered tab must not read as active, and an active hovered tab
+   must not lose its language — both straight from the Cases control. */
+.self-serve-home .home-tab[aria-selected="true"]:hover {
+  background: #f2ecfe;
+  color: #6d28d9;
+}
+
+.self-serve-home .home-tab:focus-visible {
+  outline: none;
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+.self-serve-home .home-tab[aria-selected="true"]:focus-visible {
+  box-shadow: 0 3px 10px rgba(124, 58, 237, 0.08),
+    0 0 0 3px rgba(124, 58, 237, 0.28);
 }
 
 .self-serve-home .home-tabpanel {
@@ -502,25 +555,39 @@
   color: var(--home-muted);
 }
 
+/* SEVERITY IS A WORD, not a filled capsule.
+
+   CRITICAL and WARNING sat in rounded tinted chips, which gave four small
+   coloured slabs down the right edge of a white card and made the severity
+   compete with the thing it qualifies. The colour still carries the meaning;
+   the background was only decoration. */
 .self-serve-home .home-attn__pill {
   grid-row: 1 / span 2;
   grid-column: 2;
   align-self: start;
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 9px;
-  border-radius: 6px;
-  font-size: 10px;
+  background: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 10.5px;
   font-weight: 750;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
 }
-.self-serve-home .home-attn__pill[data-tone="bad"] { background: var(--home-bad-soft); color: var(--home-bad); }
-.self-serve-home .home-attn__pill[data-tone="warn"] { background: var(--home-warn-soft); color: var(--home-warn); }
-.self-serve-home .home-attn__pill[data-tone="info"] { background: var(--home-info-soft); color: #3730a3; }
-.self-serve-home .home-attn__pill[data-tone="ok"] { background: var(--home-ok-soft); color: var(--home-ok); }
+.self-serve-home .home-attn__pill[data-tone="bad"] { color: var(--home-bad); }
+.self-serve-home .home-attn__pill[data-tone="warn"] { color: var(--home-warn); }
+.self-serve-home .home-attn__pill[data-tone="info"] { color: var(--home-action); }
+.self-serve-home .home-attn__pill[data-tone="ok"] { color: var(--home-ok); }
+
+/* The item TITLE stays navy. Severity is stated beside it; letting the title
+   inherit the severity colour made three red headlines and no hierarchy. */
+.self-serve-home .home-attn__title {
+  color: var(--home-ink);
+}
 
 .self-serve-home .home-attn__foot {
   margin: 2px 0 0;
@@ -605,15 +672,24 @@
   overflow-wrap: anywhere;
 }
 
+/* The trailing state ("Report ready") is green TEXT — no chip, no surface. */
 .self-serve-home .home-list__trail {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  background: none;
+  padding: 0;
+  border: 0;
   font-size: 0.82rem;
   font-weight: 650;
   color: var(--home-ok);
   white-space: nowrap;
+}
+
+/* The record name is the navy title; it is never the accent colour. */
+.self-serve-home .home-list__title {
+  color: var(--home-ink);
 }
 
 /* ---------------------------------------------------------------------------
@@ -700,20 +776,25 @@
 }
 
 /* Badges used inside report/verification rows. */
+/* Same reasoning as the severity words: "Live", "Report ready" and
+   "Package ready" are states, and a state reads perfectly well as coloured
+   text. The chips turned every row into a row of buttons. */
 .self-serve-home .home-badge {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 10.5px;
+  background: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
-.self-serve-home .home-badge[data-tone="ok"] { background: var(--home-ok-soft); color: var(--home-ok); }
-.self-serve-home .home-badge[data-tone="info"] { background: var(--home-info-soft); color: #3730a3; }
-.self-serve-home .home-badge[data-tone="warn"] { background: var(--home-warn-soft); color: var(--home-warn); }
+.self-serve-home .home-badge[data-tone="ok"] { color: var(--home-ok); }
+.self-serve-home .home-badge[data-tone="info"] { color: var(--home-action); }
+.self-serve-home .home-badge[data-tone="warn"] { color: var(--home-warn); }
+.self-serve-home .home-badge[data-tone="bad"] { color: var(--home-bad); }
 
 /* ---------------------------------------------------------------------------
    13. ANALYTICS

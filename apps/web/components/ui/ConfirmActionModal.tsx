@@ -158,13 +158,13 @@ function toneAccent(tone: ConfirmActionTone): {
       // block above it even says "NOT pale brown/mustard/gold" — the values
       // simply drifted from the words.
       //
-      // `--warning-ink` (#B45309) is the repository's readable amber, the same
-      // token the status text, badges and empty states already use, so the
+      // `--orange-ink` (#C2410C) is the orange Operations gives a High
+      // incident — the one `AppStatusText` resolves for tone `orange` — so the
       // warning confirm now says amber in the same voice as everything else.
       return {
         color: "#FFFFFF",
-        bg: "var(--warning-ink, #B45309)",
-        border: "var(--warning-ink, #B45309)",
+        bg: "var(--orange-ink, #C2410C)",
+        border: "var(--orange-ink, #C2410C)",
         shadow: "0 4px 12px rgba(180, 83, 9, 0.18)",
       };
     case "neutral":

@@ -91,15 +91,30 @@ function SummaryCard({
  * A country code as a readable place, using the browser's own data. Falls back
  * to the code itself rather than to an invented country name.
  */
-function countryName(code: string | null): string | null {
-  if (!code) return null;
-  try {
-    const display = new Intl.DisplayNames(undefined, { type: "region" });
-    return display.of(code.toUpperCase()) ?? code.toUpperCase();
-  } catch {
-    return code.toUpperCase();
-  }
+/**
+ * "Sep 1, 2026 · 3:38 AM".
+ *
+ * `toLocaleString()` produced "9/1/2026, 3:38:24 AM" — an ambiguous numeric
+ * date and a seconds field nobody reads, on a card with room for neither.
+ */
+function formatSignInMoment(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const date = d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${date} · ${time}`;
 }
+
+// `countryName` went with the wide sign-ins row: the compact card states the
+// device and the moment, and a country adds a third column it has no width
+// for. The location is still on the Security pane, where sessions are managed.
 
 export function SettingsOverview({
   ui,
@@ -307,35 +322,21 @@ export function SettingsOverview({
           The row is three cards now rather than four with a filler. Nothing
           was invented to take its seat.
         */}
-      </div>
+        {/* RECENT SIGN-INS — the fourth summary card.
 
-      {/* ----------------------------------------------------------------
-          RECENT SIGN-INS — a ROW, not a fourth column.
-
-          It carried the raw `User-Agent` as its headline, which is 120
-          characters of syntax; in a 221px column that wrapped into a card
-          twice the height of its neighbours and made the whole summary row
-          look accidental. The device name now comes from
-          `describeUserAgent`, the parser the Security pane already uses for
-          exactly this string — no second parser, and it never returns the raw
-          value. The full agent stays available as the row's title attribute
-          for anyone who needs it.
-      ---------------------------------------------------------------- */}
-      <section
-        className="set-card set-card--wide"
-        data-settings-summary="activity"
-      >
-        <div className="set-card__head">
-          <span className="set-card__icon" aria-hidden="true">
-            <Activity size={16} strokeWidth={2} />
-          </span>
-          <h3 className="set-card__title">Recent sign-ins</h3>
-        </div>
-        {security.recentSignIns.length > 0 ? (
-          <ul className="set-signins set-signins--row" data-settings-recent-signins>
-            {security.recentSignIns.map((entry) => {
-              const place = countryName(entry.countryCode);
-              return (
+            It sat in its own full-width row below, which was right while its
+            headline was a 120-character User-Agent. It is not any more: the
+            device line is `describeUserAgent`, so the card is three short
+            rows and belongs beside the other three summaries. Compact, and
+            capped at the three the summary already carries. */}
+        <SummaryCard
+          testId="activity"
+          icon={<Activity size={16} strokeWidth={2} />}
+          title="Recent sign-ins"
+        >
+          {security.recentSignIns.length > 0 ? (
+            <ul className="set-signins" data-settings-recent-signins>
+              {security.recentSignIns.map((entry) => (
                 <li key={entry.id} title={entry.device ?? undefined}>
                   <span className="set-signins__device">
                     {describeUserAgent(entry.device)}
@@ -346,19 +347,19 @@ export function SettingsOverview({
                     ) : null}
                   </span>
                   <span className="set-signins__when">
-                    {new Date(entry.lastSeenAtUtc).toLocaleString()}
-                    {place ? ` · ${place}` : ""}
+                    {formatSignInMoment(entry.lastSeenAtUtc)}
                   </span>
                 </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="set-muted set-signins__empty">
-            No recent sign-in activity available.
-          </p>
-        )}
-      </section>
+              ))}
+            </ul>
+          ) : (
+            <p className="set-muted set-signins__empty">
+              No recent sign-in activity available.
+            </p>
+          )}
+        </SummaryCard>
+      </div>
+
 
       {/* ----------------------------------------------------------------
           PREFERENCES. The language and timezone controls that were the only

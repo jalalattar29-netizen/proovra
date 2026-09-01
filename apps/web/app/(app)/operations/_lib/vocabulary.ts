@@ -113,7 +113,12 @@ export const OPERATIONS_TONE: Readonly<Record<OperationsSemantic, AppTone>> =
 
     UNRESOLVED: "black",
 
-    OVERDUE: "red",
+    // Overdue is a TIMING fact, not a failure: the work is late against a
+    // promise this workspace made, and nothing has broken. Blue is the
+    // informational tone. Changed HERE rather than on the card, because this
+    // table is the only reason the SLA badge and the Overdue card agree — the
+    // header above records what happened last time they did not.
+    OVERDUE: "blue",
     DUE_SOON: "silver",
     ON_TIME: "blue",
     // An absent promise is not a warning. Treating it as one would push every

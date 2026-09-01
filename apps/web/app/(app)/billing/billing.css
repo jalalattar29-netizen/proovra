@@ -317,12 +317,19 @@
 /* ---------------------------------------------------------------------------
  * 2c. PANELS — the small surfaces in the grid
  * ------------------------------------------------------------------------- */
+/* The canonical panel surface, not a Billing one.
+
+   These were pure #ffffff with a hand-written 0 6px 18px shadow, which on
+   Billing's near-white page left Evidence, Storage, Plan capabilities and
+   Billing history with almost no edge — the cards dissolved into the page.
+   `--radius-card` / `--shadow-card` are what `.ops-panel` uses on Operations
+   and Notifications, where the same card reads as a card. */
 .bill-panel {
   padding: 18px;
-  border-radius: 14px;
+  border-radius: var(--radius-card, 14px);
   border: 1px solid var(--border-default, rgba(15, 23, 42, 0.08));
   background: var(--surface-card, #ffffff);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(15, 23, 42, 0.06));
   display: grid;
   gap: 12px;
   align-content: start;

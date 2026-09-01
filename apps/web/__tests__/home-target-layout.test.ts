@@ -62,13 +62,17 @@ test("the switcher keeps its tab semantics and keyboard affordance", () => {
   );
 });
 
-test("the selected tab is a light fill with dark text, not a solid slab", () => {
+test("the selected tab carries the Cases active language", () => {
+  // The switcher now matches the Cases status strip exactly — see
+  // canonical-semantic-colors, which compares BOTH stylesheets declaration by
+  // declaration. Active is the shared violet on #F2ECFE, not a light cool
+  // fill this file invented and not a solid slab.
   const block = live(HOME_CSS).slice(
     live(HOME_CSS).indexOf('.home-tab[aria-selected="true"] {'),
   );
   const rule = block.slice(0, block.indexOf("}"));
-  assert.match(rule, /background: var\(--home-info-soft\)/);
-  assert.match(rule, /color: var\(--home-ink\)/, "the label stays dark");
+  assert.match(rule, /background: #f2ecfe/);
+  assert.match(rule, /color: #6d28d9/, "the Cases active label colour");
   assert.doesNotMatch(rule, /#fff|#FFF|white/, "the label is never reversed out");
 });
 

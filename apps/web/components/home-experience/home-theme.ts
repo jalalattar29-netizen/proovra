@@ -21,16 +21,31 @@ export const HOME_COLORS = {
   violet: "#6d28d9",
   teal: "#0e7490",
 
-  // Status
-  ok: "#059669",
-  okDeep: "#065f46",
-  warn: "#d97706",
-  warnDeep: "#92400e",
-  danger: "#dc2626",
-  dangerDeep: "#991b1b",
+  /*
+   * STATUS — the product tokens, not a second palette.
+   *
+   * These were hand-written hexes: `warn` was #d97706 (amber-600) while
+   * Operations paints a High incident with tone `orange` -> `--orange-ink`
+   * (#C2410C), and `ok` was #059669 against the canonical
+   * `--success-standard` (#15803D). Two palettes for one product, so the same
+   * state wore a different colour depending on which page you were looking at.
+   *
+   * They are `var()` references now with the canonical value as the fallback,
+   * which works because every consumer here puts them in a CSS property.
+   * `AppStatusText` resolves the same tone vocabulary the same way.
+   */
+  ok: "var(--success-standard, #15803D)",
+  okDeep: "var(--success-standard, #15803D)",
+  warn: "var(--orange-ink, #C2410C)",
+  warnDeep: "var(--orange-ink, #C2410C)",
+  danger: "var(--error, #DC2626)",
+  dangerDeep: "var(--error, #DC2626)",
+
+  /** Inline navigational actions — the blue Notifications and Search use. */
+  action: "var(--info, #2563EB)",
 
   // Text
-  ink: "#0f172a",
+  ink: "var(--ink-primary, #0F172A)",
   slate: "#475569",
   muted: "#94a3b8",
 
@@ -152,34 +167,50 @@ export const HOME_ACCENT = {
   border: "rgba(124, 58, 237, 0.10)",
 } as const;
 
-/** ONE unified enterprise semantic colour system for the Operations tab.
- * Every success/healthy/completed state uses the SAME green; every pending
- * uses the SAME amber; every failure uses the SAME red; zero/neutral states
- * stay quiet. No turquoise/mint/cyan, no per-card random greens. */
+/**
+ * The Operations-tab semantic colours — the PRODUCT's, not this file's.
+ *
+ * This block called itself "ONE unified enterprise semantic colour system",
+ * and within Home it was: every pending used the same amber, every failure
+ * the same red. The problem is that it was a THIRD system. `#A86612` is a
+ * brown; Operations paints a pending state with tone `orange`, which
+ * `AppStatusText` resolves to `--orange-ink` (#C2410C). `#B9383E` is a
+ * muted rose; canonical critical is `--error` (#DC2626). `#167A5B` is a
+ * teal-green against `--success-standard` (#15803D).
+ *
+ * So "10 pending" on Home and "High" on /operations described the same
+ * urgency in two different colours, and neither was wrong locally — they were
+ * just answering to different authorities.
+ *
+ * Every `strong` value is now the token `AppStatusText` would resolve for the
+ * same tone. The soft backgrounds are derived from those tokens rather than
+ * hand-mixed, so a tint can no longer drift away from the ink it sits behind.
+ */
 export const HOME_SEMANTIC = {
   success: {
-    strong: "#167A5B",
-    text: "#176B52",
-    icon: "#168064",
-    softBg: "#EAF7F1",
-    subtleBg: "rgba(22, 122, 91, 0.08)",
-    border: "rgba(22, 122, 91, 0.16)",
+    strong: "var(--success-standard, #15803D)",
+    text: "var(--success-standard, #15803D)",
+    icon: "var(--success-standard, #15803D)",
+    softBg: "rgba(21, 128, 61, 0.08)",
+    subtleBg: "rgba(21, 128, 61, 0.06)",
+    border: "rgba(21, 128, 61, 0.16)",
   },
   amber: {
-    strong: "#A86612",
-    softBg: "#FFF6E5",
-    border: "rgba(168, 102, 18, 0.17)",
+    strong: "var(--orange-ink, #C2410C)",
+    softBg: "rgba(194, 65, 12, 0.07)",
+    border: "rgba(194, 65, 12, 0.16)",
   },
   critical: {
-    strong: "#B9383E",
-    softBg: "#FDEEEF",
-    border: "rgba(185, 56, 62, 0.16)",
+    strong: "var(--error, #DC2626)",
+    softBg: "rgba(220, 38, 38, 0.07)",
+    border: "rgba(220, 38, 38, 0.16)",
   },
   info: {
-    // Restrained indigo for informational badges (e.g. "Report v2").
-    strong: "#5146D8",
-    softBg: "rgba(124, 58, 237, 0.08)",
-    border: "rgba(124, 58, 237, 0.12)",
+    /* Informational badges ("Report v2") and inline actions read as the
+       product's action blue, the one Notifications and Search use. */
+    strong: "var(--info, #2563EB)",
+    softBg: "rgba(37, 99, 235, 0.08)",
+    border: "rgba(37, 99, 235, 0.14)",
   },
   neutral: {
     numberInk: "#111827",

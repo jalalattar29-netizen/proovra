@@ -35,7 +35,6 @@ import type {
 } from "./home-view-model";
 import {
   ANALYTICS_PALETTE,
-  HOME_ACCENT,
   HOME_COLORS,
   HOME_SEMANTIC,
   HOME_TINTS,
@@ -71,7 +70,7 @@ function middleTruncate(id: string, head = 18, tail = 8): string {
   return `${id.slice(0, head)}…${id.slice(-tail)}`;
 }
 
-/** Shared indigo action-link colour for every "Open verify → / Open reports →
+/** Shared action-link colour for every "Open verify → / Open reports →
  * / View pipeline → / View all links →" affordance across the Operations
  * cards, with a subtle hover — one consistent accent, never per-card. */
 function OpsActionLink({
@@ -91,7 +90,10 @@ function OpsActionLink({
   const merged: React.CSSProperties = {
     fontSize: 12,
     fontWeight: 650,
-    color: HOME_ACCENT.ink,
+    // ONE action blue. This was HOME_ACCENT.ink (#6D28D9), so every
+    // "Open verify" / "Open reports" / "View intake" on Home was violet while
+    // the same affordance on Notifications and Search is blue.
+    color: HOME_COLORS.action,
     textDecoration: hover ? "underline" : "none",
     whiteSpace: "nowrap",
     ...style,
@@ -441,7 +443,7 @@ export function ActiveMatters({
                       display: "inline-flex",
                       fontSize: 12,
                       fontWeight: 650,
-                      color: HOME_COLORS.indigo,
+                      color: HOME_COLORS.action,
                     }}
                   >
                     Open matter →
@@ -455,7 +457,7 @@ export function ActiveMatters({
               <Link
                 href="/cases"
                 data-matter-view-all={rows.length}
-                style={{ display: "inline-block", marginTop: 4, fontSize: 12, fontWeight: 600, color: HOME_COLORS.indigo, textDecoration: "none" }}
+                style={{ display: "inline-block", marginTop: 4, fontSize: 12, fontWeight: 600, color: HOME_COLORS.action, textDecoration: "none" }}
               >
                 View all {rows.length} →
               </Link>
@@ -728,7 +730,7 @@ export function ReportProductionCard({
                 <span style={{ flex: 1, fontSize: 12.5, color: c.fg, fontWeight: 600 }}>
                   {i.count} · {i.label}
                 </span>
-                <Link href={i.href} style={{ fontSize: 12, fontWeight: 650, color: HOME_COLORS.indigo, textDecoration: "none" }}>
+                <Link href={i.href} style={{ fontSize: 12, fontWeight: 650, color: HOME_COLORS.action, textDecoration: "none" }}>
                   {i.actionLabel} →
                 </Link>
               </li>

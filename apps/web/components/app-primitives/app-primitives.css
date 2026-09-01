@@ -1744,16 +1744,16 @@ textarea.app-form-input {
    the system and no second palette to keep in step. The hexes that were here
    were darker than the token and read as brown. */
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:hover:not(:disabled) {
-  background: var(--warning-ink, #B45309) !important;
+  background: var(--orange-ink, #C2410C) !important;
   filter: brightness(0.94);
 }
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:active:not(:disabled) {
-  background: var(--warning-ink, #B45309) !important;
+  background: var(--orange-ink, #C2410C) !important;
   filter: brightness(0.88);
 }
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.32) !important;
+  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.32) !important;
 }
 
 .app-grid-kpis {
