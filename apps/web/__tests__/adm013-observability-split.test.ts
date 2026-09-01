@@ -270,7 +270,7 @@ test("every destination label names its scope", () => {
  * The files permitted to name `/admin/platform/observability` in CODE.
  *
  * `healthDestination.ts` owns the constant. The observability page is the
- * destination itself. `admin-nav-config.ts` is the platform console's own nav.
+ * destination itself. `adminNavigation.ts` is the platform console's own registry.
  * `runbooks` is a platform page cross-linking a platform sibling. Anything
  * else naming this href is a tenant surface pointing at a page its readers
  * cannot open.
@@ -285,7 +285,7 @@ const ALLOWED_HREF_OWNERS = new Set([
   // A platform page cross-linking a platform sibling; both need the same gate.
   "app/(app)/admin/platform/runbooks/page.tsx",
   // The platform console's own navigation.
-  "components/admin/admin-nav-config.ts",
+  "components/admin/adminNavigation.ts",
 ]);
 
 function walkSources(dir: string, acc: string[] = []): string[] {

@@ -4,80 +4,182 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
-  ADMIN_NAV_ITEMS,
-  TENANT_SCOPED_ADMIN_PATHS,
-  type AdminNavItem,
-} from "./admin-nav-config";
+  ADMIN_NAV_SECTIONS,
+  resolveAdminLocation,
+  type AdminNavSection,
+} from "./adminNavigation";
 
 /**
- * THE Platform Admin console navigation.
+ * THE Admin control-plane navigation.
  *
- * ADM-025 — rendered by EVERY genuine platform-admin page. Nineteen of the
- * thirty-nine admin pages used to omit it, so arriving on one from the command
- * palette left no route back into the console except the browser Back button.
+ * ===========================================================================
+ * WHAT REPLACED WHAT
+ * ===========================================================================
+ * Twenty pills in three undifferentiated rows, plus a "More advanced (24)"
+ * disclosure holding the rest. Twenty is a list to read, not a structure to
+ * navigate: an operator looking for queue depth had to already know it lives
+ * under a page called "Operations" and not the one called "System health".
  *
- * Grouped rather than flat: nineteen undifferentiated pills is a list to read,
- * not a structure to navigate, and the three groups encode a real distinction
- * (the control plane, the commercial surfaces, the analysis surfaces).
+ * Nine primary sections, and the open section's children as a second row. The
+ * page shows nine choices and then the handful that matter, instead of
+ * thirty-seven at once.
  *
- * Colours come from the canonical design tokens so the console matches the rest
- * of the product on the light enterprise surface.
+ * ===========================================================================
+ * THE FOUR THINGS THIS FIXES BEYOND THE COUNT
+ * ===========================================================================
+ * 1. STALE ACTIVE STATE. Active resolution is LONGEST-HREF-WINS, from the same
+ *    resolver the breadcrumb uses. Before, `/admin/evidence-ops/records` lit up
+ *    `/admin/evidence-ops`, so opening a child looked like going nowhere.
+ *
+ * 2. DEEP LINKS WITH NO PARENT. Arriving on `/admin/customers/<id>` from search
+ *    used to light up nothing. Contextual detail routes resolve to their
+ *    section, so a deep link keeps its place in the structure.
+ *
+ * 3. SCOPE, ON THE CONTROL. Several surfaces here administer ONE workspace
+ *    while sitting behind the platform gate and being titled "Platform". The
+ *    scope is a required field on every registry entry, and a workspace-scoped
+ *    child says so on its own chip — before the operator clicks it, rather than
+ *    in a banner after.
+ *
+ * 4. NO SEPARATE MOBILE TRUTH. The same two rows scroll horizontally inside
+ *    their own containers below the cutover. There is no second component with
+ *    its own copy of the list to fall out of step.
  */
-
-const GROUP_LABEL: Record<AdminNavItem["group"], string> = {
-  CONTROL_PLANE: "Control plane",
-  COMMERCIAL: "Commercial",
-  PLATFORM: "Platform",
-};
-
-const GROUP_ORDER: AdminNavItem["group"][] = [
-  "CONTROL_PLANE",
-  "COMMERCIAL",
-  "PLATFORM",
-];
-
 export default function AdminConsoleNav() {
   const pathname = usePathname();
-
-  // `/admin` must match exactly so it does not light up on every nested route.
-  // Every other entry treats a sub-path as active, so `/admin/workspaces/<id>`
-  // still highlights "Workspaces".
-  const isActive = (href: string) => {
-    if (href === "/admin") return pathname === "/admin";
-    return pathname === href || pathname?.startsWith(`${href}/`);
-  };
+  const location = resolveAdminLocation(pathname);
+  const activeSection = location?.section ?? null;
 
   return (
-    <nav aria-label="Platform admin sections" className="mb-6 flex flex-col gap-3">
-      {GROUP_ORDER.map((group) => {
-        const items = ADMIN_NAV_ITEMS.filter((i) => i.group === group);
-        if (items.length === 0) return null;
+    <nav className="adminnav" aria-label="Platform admin">
+      {/* ------------------------------------------------------------------ */}
+      {/* PRIMARY — nine sections, always all nine.                           */}
+      {/* ------------------------------------------------------------------ */}
+      <ul className="adminnav__primary">
+        {ADMIN_NAV_SECTIONS.map((section) => {
+          const active = activeSection?.id === section.id;
+          return (
+            <li key={section.id}>
+              <Link
+                href={section.href}
+                title={section.purpose}
+                aria-current={active ? "page" : undefined}
+                data-adminnav-section={section.id}
+                data-active={active ? "true" : "false"}
+                className="adminnav__primary-link"
+              >
+                {section.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* SECONDARY — only the open section's children, and only when there   */}
+      {/* is more than one. A single-child section renders no second row: one */}
+      {/* choice presented as a choice is furniture.                          */}
+      {/* ------------------------------------------------------------------ */}
+      {activeSection && activeSection.children.length > 1 ? (
+        <AdminSecondaryNav section={activeSection} pathname={pathname} />
+      ) : null}
+    </nav>
+  );
+}
+
+function AdminSecondaryNav({
+  section,
+  pathname,
+}: {
+  section: AdminNavSection;
+  pathname: string | null;
+}) {
+  const location = resolveAdminLocation(pathname);
+  return (
+    <ul
+      className="adminnav__secondary"
+      aria-label={`${section.label} surfaces`}
+      data-adminnav-secondary={section.id}
+    >
+      {section.children.map((child) => {
+        const active = location?.child?.href === child.href;
         return (
-          <div key={group} className="flex flex-wrap items-center gap-2.5">
-            <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[color:var(--ink-muted)]">
-              {GROUP_LABEL[group]}
-            </span>
-            {items.map((item) => {
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={item.purpose}
-                  aria-current={active ? "page" : undefined}
-                  className={`rounded-full border px-4 py-2 text-sm transition-all duration-200 ${
-                    active
-                      ? "border-[color:var(--accent-500)] bg-[color:var(--accent-050)] font-bold text-[color:var(--accent-600)] shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
-                      : "border-[color:var(--border-default)] bg-[color:var(--surface-card)] font-semibold text-[color:var(--ink-secondary)] hover:border-[color:var(--accent-500)] hover:bg-[color:var(--accent-050)] hover:text-[color:var(--accent-600)]"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
+          <li key={child.href}>
+            <Link
+              href={child.href}
+              title={child.purpose}
+              aria-current={active ? "page" : undefined}
+              data-active={active ? "true" : "false"}
+              data-scope={child.scope}
+              className="adminnav__secondary-link"
+            >
+              {child.label}
+              {child.scope === "WORKSPACE" ? (
+                <span className="adminnav__scope" aria-label="Workspace-scoped">
+                  Workspace
+                </span>
+              ) : null}
+            </Link>
+          </li>
         );
       })}
+    </ul>
+  );
+}
+
+/**
+ * The breadcrumb for `/admin/*`.
+ *
+ * Rendered by the layout so no page can omit it — nineteen of the thirty-nine
+ * admin pages omitted the console nav for exactly as long as rendering it was
+ * each page's job.
+ *
+ * It shows the SECTION and the SURFACE, and for a contextual detail it shows
+ * the list the detail came from. That last crumb is the return path: before it
+ * existed, an operator who reached a customer from search had the browser Back
+ * button and nothing else.
+ */
+export function AdminBreadcrumb() {
+  const pathname = usePathname();
+  const location = resolveAdminLocation(pathname);
+  if (!location) return null;
+
+  const { section, child, contextual } = location;
+
+  const crumbs: Array<{ label: string; href?: string }> = [
+    { label: "Platform admin", href: "/admin" },
+  ];
+  if (section.id !== "overview") {
+    crumbs.push({ label: section.label, href: section.href });
+  }
+  if (contextual && !child) {
+    crumbs.push({ label: contextual.parentLabel, href: contextual.parentHref });
+    crumbs.push({ label: contextual.label });
+  } else if (child && child.href !== section.href) {
+    crumbs.push({ label: child.label });
+  } else if (child) {
+    // The section's own landing surface. Naming it again after the section
+    // would read as two levels where there is one.
+  }
+
+  return (
+    <nav className="adminnav__crumbs" aria-label="Breadcrumb">
+      <ol>
+        {crumbs.map((crumb, i) => {
+          const isLast = i === crumbs.length - 1;
+          return (
+            <li key={`${crumb.label}-${i}`}>
+              {crumb.href && !isLast ? (
+                <Link href={crumb.href}>{crumb.label}</Link>
+              ) : (
+                <span aria-current={isLast ? "page" : undefined}>
+                  {crumb.label}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </nav>
   );
 }
@@ -85,16 +187,16 @@ export default function AdminConsoleNav() {
 /**
  * ADM-013 / ADM-034 — the honest label on a surface that is NOT platform-wide.
  *
- * Several pages under `/admin/*` resolve a `teamId` from the operator's own
+ * Several pages under `/admin/*` resolve a workspace from the operator's own
  * active workspace and call a tenant API. They sit behind the PLATFORM_ADMIN
  * gate and are titled "Platform" / "Identity operations", so an operator
- * reasonably reads them as cross-tenant. They are not, and a page that shows one
- * workspace's sessions while implying it shows every workspace's is a worse
+ * reasonably reads them as cross-tenant. They are not, and a page that shows
+ * one workspace's sessions while implying it shows every workspace's is a worse
  * failure than a missing page.
  *
- * Rendering this banner is the honest interim state while the re-homing lands:
- * it says plainly whose data is on screen. Do NOT delete it to tidy a page up —
- * delete it when the page moves out of `/admin/*`.
+ * Do NOT delete this to tidy a page up — delete it when the page moves out of
+ * `/admin/*`, or when it genuinely becomes cross-tenant and its registry entry
+ * changes to `scope: "PLATFORM"`.
  */
 export function AdminTenantScopeNotice({
   workspaceLabel,
@@ -102,29 +204,20 @@ export function AdminTenantScopeNotice({
   workspaceLabel?: string | null;
 }) {
   return (
-    <div
-      role="note"
-      className="mb-5 rounded-lg border border-[color:var(--warning-border,#e0b070)] bg-[color:var(--warning-surface,#fdf6ec)] px-4 py-3 text-sm text-[color:var(--ink-secondary)]"
-    >
-      <strong className="font-semibold text-[color:var(--ink-primary)]">
-        Workspace-scoped surface.
-      </strong>{" "}
-      This page administers{" "}
-      {workspaceLabel ? (
-        <strong>{workspaceLabel}</strong>
-      ) : (
-        "your own active workspace"
-      )}{" "}
-      — not the platform. Cross-tenant views live under Customers, Workspaces and
-      Operations.
+    <div role="note" className="adminnav__scope-notice">
+      <strong>Workspace-scoped surface.</strong> This page administers{" "}
+      {workspaceLabel ? <strong>{workspaceLabel}</strong> : "your own active workspace"}{" "}
+      — not the platform. Cross-tenant views live under Customers, Workspaces
+      and Platform operations.
     </div>
   );
 }
 
-/** Is this path one of the known workspace-scoped surfaces under `/admin/*`? */
-export function isTenantScopedAdminPath(pathname: string | null): boolean {
-  if (!pathname) return false;
-  return TENANT_SCOPED_ADMIN_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
-}
+/**
+ * Is this path one of the workspace-scoped surfaces under `/admin/*`?
+ *
+ * Re-exported from the registry rather than reimplemented. This used to be a
+ * second array of path strings matched independently of the nav list, and two
+ * lists of paths drift: a page could be promoted in one and left in the other.
+ */
+export { isWorkspaceScopedAdminPath as isTenantScopedAdminPath } from "./adminNavigation";
