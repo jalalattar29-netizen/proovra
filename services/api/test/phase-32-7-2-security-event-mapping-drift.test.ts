@@ -1179,6 +1179,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // PaymentStatus enum alone. No `security_events` column, index, enum or
       // mapping is altered by it, which is what this allowlist is about.
       "20280102000000_billing_payment_abandoned",
+      // ADM-013 PHASE 4 — ONE partial unique index on
+      // operational_incidents (fingerprint) WHERE team_id IS NULL, closing the
+      // NULL-is-distinct-from-NULL hole that left every platform-scope
+      // incident un-deduplicated. It touches operational_incidents alone: no
+      // `security_events` column, index, enum or mapping is altered by it,
+      // which is what this allowlist is about.
+      "20280104000000_operational_incident_platform_uniqueness",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
