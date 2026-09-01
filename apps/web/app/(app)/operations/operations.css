@@ -1149,3 +1149,31 @@
   gap: 4px;
   color: var(--ink-link);
 }
+
+/* ---------------------------------------------------------------------------
+   LIFECYCLE STATUS AT THE TRAILING EDGE.
+
+   The status column moved from fourth place — where it butted against the end
+   of an elastic Condition cell and therefore started at a different x on every
+   row — to the last track before the row menu. Right-aligned, so "which of
+   these has someone on it" reads straight down one edge.
+
+   Colour is untouched: Open and Acknowledged still come from the tone table.
+--------------------------------------------------------------------------- */
+.opsw-col-status {
+  text-align: end;
+}
+.opsw-table td.opsw-col-status {
+  white-space: nowrap;
+}
+
+/* The narrow rendering answers the same question in the same place: the head
+   is a flex row, so `auto` on the leading margin pushes the status to the
+   trailing edge without taking it out of flow. It wraps to its own line
+   rather than colliding when a title runs long. */
+.opsw-card__status {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  padding-inline-start: 12px;
+}

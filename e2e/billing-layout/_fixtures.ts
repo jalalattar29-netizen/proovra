@@ -93,6 +93,11 @@ export function billingProjection(): Record<string, any> {
       },
       ai: { state: "NOT_INCLUDED" },
     },
+    // A PERSONAL account reports its collaboration-team allowance, which is
+    // what `PlanCapabilitiesCard` renders. Without it the card returns null and
+    // its row measured zero wide, so the width this project is here to check
+    // could not be observed at all.
+    collaboration: { collaborationTeams: { used: 1, limit: 3 } },
     planOffers: [PLAN_OFFER_TEAM],
     wallet: {
       availableCredits: 0,

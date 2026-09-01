@@ -336,9 +336,6 @@ export function IncidentSurface({
                 Severity
               </th>
               <th scope="col">Condition</th>
-              <th scope="col" className="opsw-col-status">
-                Status
-              </th>
               {showOwnerColumn ? (
                 <th scope="col" className="opsw-col-owner">
                   Owner
@@ -349,6 +346,22 @@ export function IncidentSurface({
               </th>
               <th scope="col" className="opsw-col-activity">
                 Latest activity
+              </th>
+              {/*
+                STATUS SITS AT THE RIGHT EDGE.
+
+                It was the fourth column, wedged between Condition and Owner,
+                so the lifecycle word ran directly into the end of whatever
+                the incident happened to be called — and because Condition is
+                the only elastic column, the status started at a different x
+                on every row. Reading "which of these has someone on it"
+                meant scanning a ragged edge in the middle of the table.
+
+                It is the last column before the row menu now: one fixed
+                track, right-aligned, so the answer reads straight down.
+              */}
+              <th scope="col" className="opsw-col-status">
+                Status
               </th>
               <th scope="col" className="opsw-col-actions">
                 <span className="app-visually-hidden">Actions</span>
@@ -395,9 +408,6 @@ export function IncidentSurface({
                       <Condition row={row} />
                     </button>
                   </td>
-                  <td className="opsw-col-status">
-                    <StatusBadge row={row} />
-                  </td>
                   {showOwnerColumn ? (
                     <td className="opsw-col-owner">
                       <Owner row={row} />
@@ -408,6 +418,9 @@ export function IncidentSurface({
                   </td>
                   <td className="opsw-col-activity">
                     <Activity row={row} />
+                  </td>
+                  <td className="opsw-col-status">
+                    <StatusBadge row={row} />
                   </td>
                   <td className="opsw-col-actions">
                     <AppRowMenu
@@ -453,7 +466,12 @@ export function IncidentSurface({
                   />
                 ) : null}
                 <SeverityBadge row={row} />
-                <StatusBadge row={row} />
+                {/* Pushed to the trailing edge by `.opsw-card__status`, so the
+                    narrow rendering answers the same question in the same
+                    place the table does. */}
+                <span className="opsw-card__status">
+                  <StatusBadge row={row} />
+                </span>
               </div>
 
               <button

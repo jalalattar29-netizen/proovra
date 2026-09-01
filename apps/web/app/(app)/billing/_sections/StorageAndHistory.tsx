@@ -90,10 +90,17 @@ export function StorageAddonsSection({
       <section className="bill-panel" data-billing-storage-locked>
         <h3 className="bill-panel__title">Storage</h3>
         {/* One isolated run: "0 B of 100 GB" reorders to "100 GB of 0 B" in an
-            RTL paragraph when only the numbers are isolated. */}
+            RTL paragraph when only the numbers are isolated. The USED figure
+            is the metric and the total is the context it is measured against,
+            so they are separate spans inside that one run. */}
         {meter.state === "MEASURED" ? (
           <p className="bill-panel__lead">
-            <bdi>{`${meter.usedLabel} of ${meter.limitLabel} used`}</bdi>
+            <bdi>
+              <span className="bill-lead__used" data-billing-storage-used>
+                {meter.usedLabel}
+              </span>
+              <span className="bill-lead__of">{` of ${meter.limitLabel} used`}</span>
+            </bdi>
           </p>
         ) : null}
         <p className="bill-panel__note">{locked.reason}</p>
@@ -143,9 +150,16 @@ export function StorageAddonsSection({
       {meter.state === "MEASURED" ? (
         <>
           {/* One isolated run: "0 B of 100 GB" reorders to "100 GB of 0 B"
-              in an RTL paragraph when only the numbers are isolated. */}
+              in an RTL paragraph when only the numbers are isolated. The USED
+              figure is the metric and the total is the context it is measured
+              against, so they are separate spans inside that one run. */}
           <p className="bill-panel__lead">
-            <bdi>{`${meter.usedLabel} of ${meter.limitLabel}`}</bdi>
+            <bdi>
+              <span className="bill-lead__used" data-billing-storage-used>
+                {meter.usedLabel}
+              </span>
+              <span className="bill-lead__of">{` of ${meter.limitLabel}`}</span>
+            </bdi>
           </p>
           <dl className="bill-facts">
             <div className="bill-facts__row">

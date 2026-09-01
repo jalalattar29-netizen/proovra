@@ -159,6 +159,41 @@ export function describeMeter(meter: UsageMeter): {
   }
 }
 
+/**
+ * The leading COUNT of a headline, separated from the words after it.
+ *
+ * Both producers below build a headline as a number followed by what the
+ * number counts — "176 lifetime records", "176 of 127 included lifetime
+ * records" — and the Evidence card gives the figure the product's usage accent
+ * while the words stay neutral, exactly as the Storage card beside it does.
+ *
+ * Not every headline HAS a count: `describeMeter` also returns "Not included",
+ * "Contract-managed" and "Unavailable". Those come back whole, because
+ * colouring a word as though it were a metric is what this split exists to
+ * avoid. Grouping separators are taken only when a digit follows them, so
+ * "1,234 records" keeps its separator and "15.25 GB" stops before the unit.
+ */
+export function splitLeadingCount(headline: string): {
+  value: string;
+  rest: string;
+} {
+  const digit = (c: string | undefined) =>
+    c !== undefined && c >= "0" && c <= "9";
+  // Escaped: a raw NBSP and a raw narrow-NBSP are invisible in source, and a
+  // stray edit through either one cannot be seen in a diff.
+  const group = ",.\u00a0\u202f' ";
+  let i = 0;
+  while (i < headline.length) {
+    const c = headline[i];
+    if (digit(c)) i += 1;
+    else if (i > 0 && group.includes(c) && digit(headline[i + 1])) i += 1;
+    else break;
+  }
+  return i === 0
+    ? { value: "", rest: headline }
+    : { value: headline.slice(0, i), rest: headline.slice(i) };
+}
+
 export type EvidencePresentation = {
   /** The count, and the denominator only when there really is one. */
   headline: string;

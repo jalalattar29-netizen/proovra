@@ -85,6 +85,21 @@
   display: none;
 }
 
+/* A ROW OF ONE IS A ROW OF ONE.
+
+   `.bill-row` is a two-column grid, and several of its children render
+   nothing for a given account — `EnterpriseContractCard` returns null without
+   a contract, which is every self-serve account. The surviving card then sat
+   in column one at half width, directly above a full-width Billing history,
+   and looked like a mistake rather than a pair with a missing half.
+
+   The track count follows what actually rendered, so the card shares its
+   edges with the section below it. No width is stated: the row is still the
+   page grid, and the responsive rule below still applies. */
+.bill-row:has(> *:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* One column below the tablet breakpoint. 980px is where two cards of this
    content stop having room for a value and its track on one line — checked at
    320, 375, 390, 768, 1024, 1280 and 1440. */
@@ -582,11 +597,44 @@
   color: var(--text-muted, #5f6878);
 }
 
+/* ---------------------------------------------------------------------------
+   THE NUMBERS.
+
+   Every figure on these cards was `--text-strong`, so "100 included",
+   "49 above the agreed limit" and "0 credits available" carried identical
+   weight and the card read as a list of facts with no shape. The account
+   metrics take the product's usage accent; the one row that reports a
+   commercial problem keeps a semantic colour of its own.
+--------------------------------------------------------------------------- */
 .bill-facts__value {
-  color: var(--text-strong, #172033);
+  color: var(--accent-600, #6d28d9);
   font-weight: 600;
   text-align: end;
   overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* NOT PURPLE, and not for decoration.
+
+   `data-tone="pending"` is set only when `over > 0` — the account is past the
+   limit it agreed. It carried the marker already and nothing painted it, so a
+   real over-limit condition looked exactly like "credits available". It is the
+   canonical warning orange, the same token Operations gives a High incident. */
+.bill-facts__row[data-tone="pending"] .bill-facts__value {
+  color: var(--orange-ink, #c2410c);
+}
+.bill-facts__row[data-tone="pending"] .bill-facts__label {
+  color: var(--orange-ink, #c2410c);
+}
+
+/* The lead: the used figure is the metric, the total is what it is measured
+   against. */
+.bill-lead__used {
+  color: var(--accent-600, #6d28d9);
+}
+.bill-lead__of {
+  color: var(--text-muted, #5f6878);
+  font-weight: 600;
 }
 
 /* A stack of full-width actions inside a drawer, each a real target. */

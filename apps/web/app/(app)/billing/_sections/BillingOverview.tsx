@@ -37,6 +37,7 @@ import {
   formatDate,
   formatMoney,
   presentLifecycle,
+  splitLeadingCount,
 } from "./format";
 
 /** A meter reduced to what fits beside two others. */
@@ -528,6 +529,16 @@ export function EvidenceDetailCard({
    */
   const headline = offered?.headline ?? described?.headline ?? null;
 
+  /*
+   * The COUNT carries the accent; the words it counts do not.
+   *
+   * The whole sentence was one dark string while the Storage card beside it
+   * had already learnt this, so the two cards emphasised different things
+   * while reporting the same kind of fact. A headline with no number in it —
+   * "Not included", "Contract-managed" — comes back whole and stays neutral.
+   */
+  const lead = headline ? splitLeadingCount(headline) : null;
+
   const windowNote =
     meter.state === "MEASURED"
       ? meter.window === "ROLLING_30_DAYS"
@@ -573,9 +584,22 @@ export function EvidenceDetailCard({
     <section className="bill-panel" data-billing-evidence-detail>
       <h3 className="bill-panel__title">Evidence</h3>
 
-      {headline ? (
+      {lead ? (
         <p className="bill-panel__lead">
-          <bdi>{headline}</bdi>
+          {/* One isolation run over the whole sentence: isolating the number
+              on its own reorders "176 lifetime records" in an RTL paragraph. */}
+          <bdi>
+            {lead.value ? (
+              <>
+                <span className="bill-lead__used" data-billing-evidence-count>
+                  {lead.value}
+                </span>
+                <span className="bill-lead__of">{lead.rest}</span>
+              </>
+            ) : (
+              lead.rest
+            )}
+          </bdi>
         </p>
       ) : null}
 
