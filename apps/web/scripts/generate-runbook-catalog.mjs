@@ -60,6 +60,20 @@ const OUT_FILE = join(WEB_ROOT, "lib", "runbooks", "catalog.generated.ts");
  * ask it.
  */
 const SLUG_FILE = join(WEB_ROOT, "lib", "runbooks", "slugs.generated.ts");
+/**
+ * A third module: every runbook MINUS the bodies.
+ *
+ * The catalog page and the sidebar need slug, title, category, subsystems and
+ * summary. Importing the full catalog to get them shipped the entire 125 KB
+ * corpus to the client — the master page measured 51.9 kB of JS against 3.1 kB
+ * for the reader, which prerenders its body into static HTML and ships none of
+ * it.
+ *
+ * So: bodies live in `catalog.generated.ts`, which only the SSG reader imports;
+ * metadata lives here; slugs alone live in `slugs.generated.ts` for the link
+ * guards.
+ */
+const INDEX_FILE = join(WEB_ROOT, "lib", "runbooks", "index.generated.ts");
 
 /**
  * Files in `docs/runbooks/` that are NOT runbooks.
@@ -312,6 +326,53 @@ export function buildCatalog() {
   return entries;
 }
 
+export function renderIndexModule(entries) {
+  const L = [];
+  L.push("/**");
+  L.push(" * GENERATED FILE — DO NOT EDIT.");
+  L.push(" *");
+  L.push(" * Every runbook's metadata, WITHOUT the bodies.");
+  L.push(" *");
+  L.push(" * Import this for the catalog list and the sidebar. Importing");
+  L.push(" * `catalog.generated.ts` for those shipped the whole 125 KB corpus to the");
+  L.push(" * client: the master page measured 51.9 kB of JS against 3.1 kB for the");
+  L.push(" * reader, which prerenders its body into static HTML and ships none of it.");
+  L.push(" *");
+  L.push(" * Source: docs/runbooks/*.md");
+  L.push(" * Generator: apps/web/scripts/generate-runbook-catalog.mjs");
+  L.push(" */");
+  L.push("");
+  L.push("export type RunbookCategory =");
+  for (const c of CATEGORY_ORDER) L.push(`  | ${JSON.stringify(c)}`);
+  L.push("  ;");
+  L.push("");
+  L.push("export type RunbookIndexEntry = {");
+  L.push("  slug: string;");
+  L.push("  title: string;");
+  L.push("  category: RunbookCategory;");
+  L.push("  subsystems: readonly string[];");
+  L.push("  summary: string;");
+  L.push("};");
+  L.push("");
+  L.push("export const RUNBOOK_CATEGORY_ORDER: readonly RunbookCategory[] = [");
+  for (const c of CATEGORY_ORDER) L.push(`  ${JSON.stringify(c)},`);
+  L.push("];");
+  L.push("");
+  L.push("export const RUNBOOK_INDEX: readonly RunbookIndexEntry[] = [");
+  for (const e of entries) {
+    L.push("  {");
+    L.push(`    slug: ${JSON.stringify(e.slug)},`);
+    L.push(`    title: ${JSON.stringify(e.title)},`);
+    L.push(`    category: ${JSON.stringify(e.category)},`);
+    L.push(`    subsystems: ${JSON.stringify(e.subsystems)},`);
+    L.push(`    summary: ${JSON.stringify(e.summary)},`);
+    L.push("  },");
+  }
+  L.push("];");
+  L.push("");
+  return L.join("\n");
+}
+
 export function renderSlugModule(entries) {
   const L = [];
   L.push("/**");
@@ -446,6 +507,7 @@ if (invokedDirectly) {
   const outputs = [
     [OUT_FILE, renderModule(entries)],
     [SLUG_FILE, renderSlugModule(entries)],
+    [INDEX_FILE, renderIndexModule(entries)],
   ];
 
   if (process.argv.includes("--check")) {

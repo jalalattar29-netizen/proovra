@@ -22,16 +22,18 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+// Metadata only. Importing the full catalog here pulled every runbook BODY
+// into the client bundle — 125 KB of markdown to render a list of titles.
 import {
-  RUNBOOKS,
+  RUNBOOK_INDEX,
   RUNBOOK_CATEGORY_ORDER,
   type RunbookCategory,
-} from "../../../../../lib/runbooks/catalog.generated";
+} from "../../../../../lib/runbooks/index.generated";
 
 export function RunbookSidebar({ activeSlug }: { activeSlug?: string }) {
-  const byCategory = new Map<RunbookCategory, typeof RUNBOOKS>();
+  const byCategory = new Map<RunbookCategory, typeof RUNBOOK_INDEX>();
   for (const cat of RUNBOOK_CATEGORY_ORDER) {
-    const entries = RUNBOOKS.filter((r) => r.category === cat);
+    const entries = RUNBOOK_INDEX.filter((r) => r.category === cat);
     if (entries.length > 0) byCategory.set(cat, entries);
   }
 

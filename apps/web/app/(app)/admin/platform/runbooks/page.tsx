@@ -41,10 +41,12 @@ import { Card } from "../../../../../components/ui/Card";
 import { Badge } from "../../../../../components/ui/Badge";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../../components/ui";
+// Metadata only — see _RunbookLayout. The reader is the one page that needs
+// bodies, and it prerenders them into static HTML rather than shipping them.
 import {
-  RUNBOOKS,
+  RUNBOOK_INDEX,
   RUNBOOK_CATEGORY_ORDER,
-} from "../../../../../lib/runbooks/catalog.generated";
+} from "../../../../../lib/runbooks/index.generated";
 import { RunbookSidebar } from "./_RunbookLayout";
 import "./runbooks.css";
 
@@ -60,8 +62,8 @@ function RunbookCatalog() {
    */
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (q === "") return RUNBOOKS;
-    return RUNBOOKS.filter((r) =>
+    if (q === "") return RUNBOOK_INDEX;
+    return RUNBOOK_INDEX.filter((r) =>
       [r.title, r.slug, r.summary, ...r.subsystems]
         .join(" ")
         .toLowerCase()
@@ -105,8 +107,8 @@ function RunbookCatalog() {
               margin: "12px 0 16px",
             }}
           >
-            {matches.length} of {RUNBOOKS.length} runbook
-            {RUNBOOKS.length === 1 ? "" : "s"}
+            {matches.length} of {RUNBOOK_INDEX.length} runbook
+            {RUNBOOK_INDEX.length === 1 ? "" : "s"}
             {query.trim() === "" ? "" : ` matching “${query.trim()}”`}
           </div>
 

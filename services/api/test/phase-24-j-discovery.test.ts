@@ -287,6 +287,20 @@ describe("Phase 24-J — schema validation registrations", () => {
           continue;
         }
         if (!/\.(ts|tsx|mjs)$/.test(name)) continue;
+        // The runbook catalog is generated from docs/runbooks/*.md and carries
+        // those documents' text as string literals. `search-index-degraded`
+        // tells an operator that the tsv column and its GIN index are ABSENT
+        // by design and must not be recreated — which is the retirement being
+        // documented, not read.
+        //
+        // This is the same exemption the comment-stripping above grants, for
+        // prose that happens to travel in a data module rather than in a
+        // comment. It is one named file, not a pattern: a real consumer could
+        // not hide here without being generated from a markdown file that
+        // instructed operators to use the retired objects.
+        if (full.replace(/\\/g, "/").endsWith("apps/web/lib/runbooks/catalog.generated.ts")) {
+          continue;
+        }
         const code = readFileSync(full, "utf8")
           .replace(/\/\*[\s\S]*?\*\//g, "")
           .replace(/^\s*\/\/.*$/gm, "");

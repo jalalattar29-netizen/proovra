@@ -55,6 +55,7 @@ type CatalogGenerator = {
   buildCatalog: () => Array<{ slug: string; body: string }>;
   renderModule: (entries: unknown) => string;
   renderSlugModule: (entries: unknown) => string;
+  renderIndexModule: (entries: unknown) => string;
 };
 
 test("the generated catalog is current against docs/runbooks", async () => {
@@ -88,6 +89,43 @@ test("the generated catalog is current against docs/runbooks", async () => {
     "lib/runbooks/slugs.generated.ts is STALE — link guards would disagree " +
       "with the reader about which slugs exist.",
   );
+
+  const expectedIndex = gen.renderIndexModule(entries);
+  const actualIndex = read("lib/runbooks/index.generated.ts").replace(
+    /\r\n/g,
+    "\n",
+  );
+  assert.equal(
+    actualIndex,
+    expectedIndex,
+    "lib/runbooks/index.generated.ts is STALE — the catalog list would show " +
+      "different titles than the reader.",
+  );
+});
+
+test("the catalog list ships metadata, not bodies", () => {
+  // Importing the full catalog to render a list of titles put the entire
+  // 125 KB corpus in the client bundle: the master page measured 51.9 kB of
+  // JS against 3.1 kB for the reader, which prerenders its body into static
+  // HTML and ships none of it.
+  for (const rel of [
+    "app/(app)/admin/platform/runbooks/page.tsx",
+    "app/(app)/admin/platform/runbooks/_RunbookLayout.tsx",
+  ]) {
+    const src = read(rel);
+    assert.match(src, /lib\/runbooks\/index\.generated/, `${rel} must use the index`);
+    assert.doesNotMatch(
+      src,
+      /lib\/runbooks\/catalog\.generated/,
+      `${rel} pulls every runbook body into the client bundle`,
+    );
+  }
+  // Only the SSG reader may import bodies.
+  const reader = read("app/(app)/admin/platform/runbooks/[slug]/page.tsx");
+  assert.match(reader, /lib\/runbooks\/catalog\.generated/);
+
+  const bytes = read("lib/runbooks/index.generated.ts").length;
+  assert.ok(bytes < 20_000, `index.generated.ts is ${bytes} bytes — bodies leaked in`);
 });
 
 test("every markdown file is in the catalog, and vice versa", async () => {
