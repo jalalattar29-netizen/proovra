@@ -313,7 +313,39 @@ const rows = walkPages(ADMIN_DIR)
 
 const contradictions = rows.filter((r) => r.findings.length > 0);
 
-if (process.argv.includes("--json")) {
+if (process.argv.includes("--map")) {
+  // The re-homing table, generated. Hand-writing it would produce a document
+  // that was true on the day it was written.
+  const esc = (s) => String(s ?? "—").replace(/\|/g, "\\|");
+  const scopeOf = (r) => {
+    if (r.findings.some((f) => f.startsWith("PLATFORM_READS_WORKSPACE"))) {
+      return "**Workspace in fact**";
+    }
+    if (r.findings.some((f) => f.startsWith("PLATFORM_SCOPES_API_BY_TEAM"))) {
+      return "**Workspace in fact**";
+    }
+    return r.declaredSpace === "PLATFORM_ADMIN" ? "Platform" : (r.declaredSpace ?? "—");
+  };
+
+  console.log(
+    "| Route | Registry id | Declared scope | Actual scope | Authority | API surface | Gate | Findings |",
+  );
+  console.log("| --- | --- | --- | --- | --- | --- | --- | --- |");
+  for (const r of rows) {
+    const api =
+      r.platformScopedApis.length > 0
+        ? `${r.platformScopedApis.length} × /v1/admin`
+        : r.apiCount > 0
+          ? `${r.apiCount} endpoint${r.apiCount === 1 ? "" : "s"}`
+          : "none";
+    console.log(
+      `| \`${esc(r.route)}\` | \`${esc(r.registryId)}\` | ${esc(r.declaredSpace)} | ${scopeOf(r)} | ${esc((r.capabilities ?? []).join(", ") || "—")} | ${api} | \`${esc(r.gateRouteId ?? "layout only")}\` | ${r.findings.length === 0 ? "—" : r.findings.map((f) => f.split(":")[0]).join(", ")} |`,
+    );
+  }
+  console.log(
+    `\n${rows.length} admin pages · ${contradictions.length} with a scope contradiction`,
+  );
+} else if (process.argv.includes("--json")) {
   console.log(
     JSON.stringify(
       { generatedFrom: "apps/web tree", total: rows.length, contradictions: contradictions.length, rows },
