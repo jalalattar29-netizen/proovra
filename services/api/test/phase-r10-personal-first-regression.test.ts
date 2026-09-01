@@ -749,6 +749,12 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     // uses /:slug documentation syntax, so it needs an allowlist entry rather
     // than a disk check.
     "/admin/platform/runbooks/:slug",
+    // ADM-013 — the two commercial detail pages. Both render at
+    // app/(app)/admin/<list>/[id]/page.tsx; the registry uses /:id
+    // documentation syntax, so they need an allowlist entry rather than a
+    // disk check.
+    "/admin/contact-sales/:id",
+    "/admin/demo-requests/:id",
     // Platform Admin Control Center — dynamic detail routes. Each page lives at
     // the Next.js `[id]` path; the registry uses `/:id` documentation syntax,
     // which is why they need an allowlist entry rather than a disk check.

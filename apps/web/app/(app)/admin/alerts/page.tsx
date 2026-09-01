@@ -14,9 +14,13 @@
  * This is stated honestly in the page copy.
  *
  * The page inherits the `platform.admin` gate from admin/layout.tsx AND wraps
- * itself in an explicit <PageRouteGate routeId="platform.admin">. Errors
- * surface via toSafeUserError. When there are no signals the page shows an
- * honest "No active alerts" EmptyState.
+ * itself in an explicit gate on `platform.alerts` — its OWN registry id, so
+ * the gate, the breadcrumb and the command palette all resolve the same entry.
+ * It previously gated on the layout's id, which made the page unable to
+ * require anything the layout did not.
+ *
+ * Errors surface via toSafeUserError. When there are no signals the page shows
+ * an honest "No active alerts" EmptyState.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -134,7 +138,7 @@ export default function AdminAlertsPage() {
   const hasAlerts = total > 0;
 
   return (
-    <PageRouteGate routeId="platform.admin">
+    <PageRouteGate routeId="platform.alerts">
       <PageShell width="full" data-testid="admin-alerts">
         <PageHeader
           eyebrow="Platform admin"

@@ -154,7 +154,11 @@ test("the reader route exists and 404s an unknown slug", () => {
   // can change it, so the params must be closed rather than checked at
   // runtime.
   assert.match(src, /notFound\(\)/);
-  assert.match(src, /PageRouteGate routeId="platform\.runbooks"/);
+  // The reader gates on its OWN registry id. Gating on the catalog's id would
+  // make the detail page structurally unable to require anything the catalog
+  // does not, which is the shape that left eight admin pages declaring
+  // capabilities nothing checked.
+  assert.match(src, /PageRouteGate routeId="platform\.runbook_document"/);
 });
 
 test("no surface links a runbook slug without checking it resolves", () => {

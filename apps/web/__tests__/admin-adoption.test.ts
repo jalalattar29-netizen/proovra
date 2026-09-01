@@ -23,13 +23,17 @@ test("adoption console page exists", () => {
   assert.ok(exists(ADOPTION), "adoption console page must exist");
 });
 
-test("adoption console wraps the platform.admin PageRouteGate", () => {
+test("adoption console wraps its own PageRouteGate", () => {
+  // ADM-013 — the page now gates on its OWN registry id rather than the
+  // layout's `platform.admin`. Same authority (PLATFORM_ADMIN), but the gate,
+  // the breadcrumb and the command palette resolve one entry instead of two,
+  // and the page can require something the layout does not.
   const src = read(ADOPTION);
   assert.match(src, /PageRouteGate/, "must import + render PageRouteGate");
   assert.match(
     src,
-    /routeId="platform\.admin"/,
-    "must gate on the platform.admin route",
+    /routeId="platform\.adoption"/,
+    "must gate on the platform.adoption route",
   );
 });
 

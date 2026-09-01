@@ -36,13 +36,17 @@ test("platform-health page exists and renders through the shared PageShell", () 
   );
 });
 
-test("platform-health page wraps in PageRouteGate routeId=platform.admin (CR0)", () => {
+test("platform-health page wraps in its own PageRouteGate (CR0)", () => {
+  // ADM-013 — the page now gates on its OWN registry id rather than the
+  // layout's `platform.admin`. Same authority (PLATFORM_ADMIN), but the gate,
+  // the breadcrumb and the command palette resolve one entry instead of two,
+  // and the page can require something the layout does not.
   const src = read(PAGE);
   assert.match(src, /PageRouteGate/, "must import + use PageRouteGate");
   assert.match(
     src,
-    /<PageRouteGate\s+routeId="platform\.admin">/,
-    "must wrap the return in the platform.admin gate",
+    /<PageRouteGate\s+routeId="platform\.platform_health">/,
+    "must wrap the return in the platform.platform_health gate",
   );
 });
 

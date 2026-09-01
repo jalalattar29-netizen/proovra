@@ -615,7 +615,7 @@ function ExecutiveDashboardBody() {
 
 export default function AdminExecutivePage() {
   return (
-    <PageRouteGate routeId="platform.admin">
+    <PageRouteGate routeId="platform.executive">
       <ExecutiveDashboardBody />
     </PageRouteGate>
   );

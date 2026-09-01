@@ -149,7 +149,7 @@ export default function AdminSearchPage() {
   const hasResults = useMemo(() => groups.length > 0, [groups]);
 
   return (
-    <PageRouteGate routeId="platform.admin">
+    <PageRouteGate routeId="platform.search">
       <PageShell
         header={
           <PageHeader

@@ -45,13 +45,17 @@ test("renders through the shared PageShell (no marketing hero / legacy classes)"
   assert.match(src, /data-testid="admin-costs"/, "must expose the admin-costs test id");
 });
 
-test("wraps the page in the platform.admin PageRouteGate", () => {
+test("wraps the page in its own PageRouteGate", () => {
+  // ADM-013 — the page now gates on its OWN registry id rather than the
+  // layout's `platform.admin`. Same authority (PLATFORM_ADMIN), but the gate,
+  // the breadcrumb and the command palette resolve one entry instead of two,
+  // and the page can require something the layout does not.
   const src = read(COSTS);
   assert.match(src, /PageRouteGate/, "must import/use PageRouteGate");
   assert.match(
     src,
-    /routeId="platform\.admin"/,
-    "must gate on the platform.admin route",
+    /routeId="platform\.costs"/,
+    "must gate on the platform.costs route",
   );
 });
 

@@ -833,6 +833,231 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: false,
   },
   {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "admin.identity_access_reviews",
+    href: "/admin/identity/access-reviews",
+    label: "Access reviews",
+    description: "Periodic access review campaigns and their outcomes.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "admin.identity_permission_matrix",
+    href: "/admin/identity/permission-matrix",
+    label: "Permission matrix",
+    description: "Role-to-permission matrix as the runtime resolves it.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "admin.identity_providers",
+    href: "/admin/identity/providers",
+    label: "Identity providers",
+    description: "SAML and OIDC provider configuration and health.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "admin.identity_runtime",
+    href: "/admin/identity/runtime",
+    label: "Identity runtime",
+    description: "Live identity runtime signals — sessions, factors, risk.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "admin.identity_scim",
+    href: "/admin/identity/scim",
+    label: "SCIM operations",
+    description: "SCIM provisioning drift, reconciliation and run history.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "admin.identity_sessions",
+    href: "/admin/identity/sessions",
+    label: "Sessions & devices",
+    description: "Active sessions and devices across the platform.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "admin.identity_timeline",
+    href: "/admin/identity/timeline",
+    label: "Identity audit",
+    description: "Bounded identity audit timeline.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "platform.contact_sales_detail",
+    href: "/admin/contact-sales/:id",
+    label: "Contact sales request",
+    description: "One inbound contact-sales request and its handling.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
+    // ADM-013 — this page rendered with no registry entry. It inherited
+    // PLATFORM_ADMIN from admin/layout.tsx, so it was reachable and gated, but
+    // the sidebar, the command palette and the breadcrumb had nothing to
+    // resolve it against — which is why a deep link into it named no return
+    // path.
+    id: "platform.demo_request_detail",
+    href: "/admin/demo-requests/:id",
+    label: "Demo request",
+    description: "One inbound demo request and its handling.",
+    domain: "PLATFORM_ADMIN",
+    // Exactly what the layout gate already enforces. Registering it is not a
+    // grant; it is writing down the authority the page already had.
+    requiredCapabilities: ["PLATFORM_ADMIN"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    // Reached from the /admin/identity hub or from a list, not from the
+    // sidebar. Nine more near-identical rows would bury the surfaces an
+    // operator navigates by.
+    sidebarEligible: false,
+  },
+  {
     id: "review.escalations",
     href: "/reviewer-ops/escalations",
     label: "Escalations",

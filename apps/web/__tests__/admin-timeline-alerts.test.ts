@@ -26,14 +26,22 @@ test("both new admin pages exist", () => {
   assert.ok(exists(ALERTS), "alerts page must exist");
 });
 
-test("both pages wrap the platform.admin PageRouteGate", () => {
-  for (const rel of [TIMELINE, ALERTS]) {
+test("both pages wrap their OWN PageRouteGate", () => {
+  // ADM-013 — the page now gates on its OWN registry id rather than the
+  // layout's `platform.admin`. Same authority (PLATFORM_ADMIN), but the gate,
+  // the breadcrumb and the command palette resolve one entry instead of two,
+  // and the page can require something the layout does not.
+  const GATES: ReadonlyArray<readonly [string, string]> = [
+    [TIMELINE, "platform.timeline"],
+    [ALERTS, "platform.alerts"],
+  ];
+  for (const [rel, routeId] of GATES) {
     const src = read(rel);
     assert.match(src, /PageRouteGate/, `${rel} must use PageRouteGate`);
     assert.match(
       src,
-      /routeId="platform\.admin"/,
-      `${rel} must gate on platform.admin`,
+      new RegExp(`routeId="${routeId.replace(".", "\\.")}"`),
+      `${rel} must gate on ${routeId}, not on the layout id`,
     );
   }
 });

@@ -76,7 +76,7 @@ export default async function RunbookDetailPage({
   if (!rb) notFound();
 
   return (
-    <PageRouteGate routeId="platform.runbooks">
+    <PageRouteGate routeId="platform.runbook_document">
       <PageShell
         width="full"
         header={

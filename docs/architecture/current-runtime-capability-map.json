@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "5003d35a2b7aa26e8ee866f1ba6307e7fbd62b6490076602eebb80dede0fb23a",
-  "consumerInventoryHash": "5dcbef37a0431ba1bad6ee40edeae8bc87da64e1d94b567fe1c8a9387784acef",
+  "consumerInventoryHash": "71170220c872e4988c2b25d0b97b3cfb2f1f559edda34d50afb25d58ecbbaec6",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1123,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8238,
+      "METHOD_ON_VALUE": 8239,
       "UNRESOLVED_IDENTIFIER": 1040
     },
     "MutationFixpointRounds": 9,
@@ -152,9 +152,9 @@
       "PUBLIC_DATA": 15,
       "GLOBAL_USER_SELF": 57,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 734,
+      "WORKSPACE_SCOPED": 703,
       "ORGANIZATION_SCOPED": 105,
-      "MULTI_TENANT_PLATFORM_ADMIN": 83,
+      "MULTI_TENANT_PLATFORM_ADMIN": 114,
       "TOKEN_SCOPED": 45,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 15,
@@ -179,8 +179,8 @@
         "tagged": 10
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 432,
-        "tagged": 432
+        "primary": 401,
+        "tagged": 401
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 367,
@@ -191,8 +191,8 @@
         "tagged": 105
       },
       "PLATFORM_ADMIN": {
-        "primary": 83,
-        "tagged": 83
+        "primary": 114,
+        "tagged": 114
       },
       "API_KEY_SCOPED": {
         "primary": 14,
@@ -915,7 +915,7 @@
       "method": "GET",
       "route": "/v1/admin/alerts",
       "registeringFile": "services/api/src/routes/admin-alerts.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/alerts/page.tsx:104",
+      "productConsumer": "apps/web/app/(app)/admin/alerts/page.tsx:108",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -2441,7 +2441,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": null,
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
@@ -4469,7 +4469,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:235",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4481,7 +4481,7 @@
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:193",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4493,7 +4493,7 @@
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:196",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4505,7 +4505,7 @@
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
       "productConsumer": null,
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4517,7 +4517,7 @@
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:196",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4529,7 +4529,7 @@
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:151",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4541,7 +4541,7 @@
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:177",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4553,7 +4553,7 @@
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:158",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4565,7 +4565,7 @@
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:154",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4589,7 +4589,7 @@
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:133",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4601,7 +4601,7 @@
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
       "productConsumer": null,
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4613,7 +4613,7 @@
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:208",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4625,7 +4625,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:232",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4637,7 +4637,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:541",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4649,7 +4649,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:551",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -4661,7 +4661,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:564",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -8957,7 +8957,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": null,
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
@@ -11345,7 +11345,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:263",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11357,7 +11357,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:292",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11369,7 +11369,7 @@
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:535",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11381,7 +11381,7 @@
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
       "productConsumer": null,
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11393,7 +11393,7 @@
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:223",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11405,7 +11405,7 @@
       "registeringFile": "services/api/src/routes/operations-queues.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/queues/page.tsx:242",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11417,7 +11417,7 @@
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:153",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11429,7 +11429,7 @@
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:179",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11441,7 +11441,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:581",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11453,7 +11453,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:606",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11465,7 +11465,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:606",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11477,7 +11477,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:606",
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -11489,7 +11489,7 @@
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
       "productConsumer": null,
       "machineConsumer": null,
-      "authorization": "AUTHENTICATED",
+      "authorization": "MULTI_GATE",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -80656,7 +80656,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/alerts/page.tsx",
-          "line": 104,
+          "line": 108,
           "caller": "AdminAlertsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80666,7 +80666,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/alerts/page.tsx:104 (AdminAlertsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/alerts/page.tsx:108 (AdminAlertsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -88730,12 +88730,14 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/custody/attestations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:502",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:481",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [],
@@ -88746,17 +88748,18 @@
       "dispositionReason": "documented per-evidence operator coverage check + package-builder integration contract",
       "replacement": null,
       "result": "DISPOSED_ADMIN_OPERATOR",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -99680,12 +99683,14 @@
       "method": "GET",
       "path": "/v1/operations/custody-attestations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:387",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:366",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -99705,17 +99710,18 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -99736,12 +99742,14 @@
       "method": "GET",
       "path": "/v1/operations/exports",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:84",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:62",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -99761,19 +99769,20 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [
         "UPLOAD_DOWNLOAD_EXPORT_SHARE"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "report",
         "teamMember",
+        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
@@ -99795,12 +99804,14 @@
       "method": "GET",
       "path": "/v1/operations/exports/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:130",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:108",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -99828,19 +99839,20 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [
         "UPLOAD_DOWNLOAD_EXPORT_SHARE"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "report",
         "teamMember",
+        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
@@ -99862,12 +99874,14 @@
       "method": "GET",
       "path": "/v1/operations/exports/:id/manifest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:158",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:136",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [],
@@ -99878,19 +99892,20 @@
       "dispositionReason": "revalidated 2026-08-16: PRESERVED_DOCUMENTED_CONTRACT",
       "replacement": null,
       "result": "DISPOSED_INTENTIONALLY_BACKEND_ONLY",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [
         "UPLOAD_DOWNLOAD_EXPORT_SHARE"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "report",
         "teamMember",
+        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
@@ -99912,12 +99927,14 @@
       "method": "GET",
       "path": "/v1/operations/exports/object-lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:113",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:91",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -99937,18 +99954,19 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [
         "UPLOAD_DOWNLOAD_EXPORT_SHARE"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -99969,12 +99987,14 @@
       "method": "GET",
       "path": "/v1/operations/queues",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:94",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:73",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -99994,16 +100014,17 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100024,12 +100045,14 @@
       "method": "GET",
       "path": "/v1/operations/queues/:queueName/failed",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:167",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:146",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100049,16 +100072,17 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100079,12 +100103,14 @@
       "method": "GET",
       "path": "/v1/operations/queues/replay-safety",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:151",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:130",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100104,16 +100130,17 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100134,12 +100161,14 @@
       "method": "GET",
       "path": "/v1/operations/queues/workers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:132",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:111",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100159,16 +100188,17 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100249,12 +100279,14 @@
       "method": "GET",
       "path": "/v1/operations/recovery",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:67",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:46",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100274,17 +100306,18 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100305,12 +100338,14 @@
       "method": "GET",
       "path": "/v1/operations/recovery/reports",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:158",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:137",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [],
@@ -100321,17 +100356,18 @@
       "dispositionReason": "revalidated 2026-08-16: ADMIN_OPERATOR",
       "replacement": null,
       "result": "DISPOSED_ADMIN_OPERATOR",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100352,12 +100388,14 @@
       "method": "GET",
       "path": "/v1/operations/recovery/reports/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:181",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:160",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100377,17 +100415,18 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100408,12 +100447,14 @@
       "method": "GET",
       "path": "/v1/operations/signers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:91",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:70",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100433,17 +100474,18 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100464,12 +100506,14 @@
       "method": "GET",
       "path": "/v1/operations/signers/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:105",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:84",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100489,17 +100533,18 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100520,12 +100565,14 @@
       "method": "GET",
       "path": "/v1/operations/signers/:id/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:173",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:152",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100545,17 +100592,18 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -100576,12 +100624,14 @@
       "method": "GET",
       "path": "/v1/operations/signers/:id/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:133",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:112",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -100601,16 +100651,17 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -124095,12 +124146,14 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/custody/attestations/sign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:461",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:440",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [],
@@ -124111,18 +124164,19 @@
       "dispositionReason": "single-event operator sign helper; the console uses the bulk backfill path",
       "replacement": null,
       "result": "DISPOSED_ADMIN_OPERATOR",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "custodyEvent",
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -137642,12 +137696,14 @@
       "method": "POST",
       "path": "/v1/operations/custody-attestations/:id/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:440",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:419",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -137667,18 +137723,19 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "custodyEvent",
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -137699,12 +137756,14 @@
       "method": "POST",
       "path": "/v1/operations/custody-attestations/backfill",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:409",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:388",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -137724,12 +137783,12 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
@@ -137739,7 +137798,8 @@
         "securityEvent",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent",
@@ -137761,12 +137821,14 @@
       "method": "POST",
       "path": "/v1/operations/exports/:id/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:189",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-exports.routes.ts:167",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -137786,19 +137848,20 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [
         "UPLOAD_DOWNLOAD_EXPORT_SHARE"
       ],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "report",
         "teamMember",
+        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
@@ -137820,12 +137883,14 @@
       "method": "POST",
       "path": "/v1/operations/queues/:queueName/jobs/:jobId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:295",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:274",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [],
@@ -137836,16 +137901,17 @@
       "dispositionReason": "job cancel has no control; the queues console exposes retry and replay only",
       "replacement": null,
       "result": "DISPOSED_MISSING_PRODUCT_UI_POST_RELEASE",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -137866,12 +137932,14 @@
       "method": "POST",
       "path": "/v1/operations/queues/:queueName/jobs/:jobId/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:233",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:212",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -137899,12 +137967,12 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
@@ -137912,7 +137980,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent",
@@ -137934,12 +138003,14 @@
       "method": "POST",
       "path": "/v1/operations/queues/:queueName/jobs/:jobId/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:191",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-queues.routes.ts:170",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -137959,16 +138030,17 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -137989,12 +138061,14 @@
       "method": "POST",
       "path": "/v1/operations/recovery/validate-backup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:108",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:87",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -138014,12 +138088,12 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
@@ -138050,12 +138124,14 @@
       "method": "POST",
       "path": "/v1/operations/recovery/validate-restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:128",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-recovery.routes.ts:107",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -138075,12 +138151,12 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
@@ -138089,7 +138165,8 @@
         "securityEvent",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent",
@@ -138111,12 +138188,14 @@
       "method": "POST",
       "path": "/v1/operations/signers/:id/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:238",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:217",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -138136,17 +138215,18 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"
@@ -138167,12 +138247,14 @@
       "method": "POST",
       "path": "/v1/operations/signers/:id/promote",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:264",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:243",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -138192,12 +138274,12 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
@@ -138206,7 +138288,8 @@
         "securityEvent",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent",
@@ -138228,12 +138311,14 @@
       "method": "POST",
       "path": "/v1/operations/signers/:id/retire",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:304",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:283",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -138253,12 +138338,12 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
@@ -138266,7 +138351,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent",
@@ -138288,12 +138374,14 @@
       "method": "POST",
       "path": "/v1/operations/signers/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:344",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:323",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -138313,12 +138401,12 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
@@ -138326,7 +138414,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent",
@@ -138348,12 +138437,14 @@
       "method": "POST",
       "path": "/v1/operations/signers/stage",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:200",
-      "authorizationClass": "AUTHENTICATED",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:179",
+      "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
+        "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
+        "ADMIN_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [],
@@ -138364,17 +138455,18 @@
       "dispositionReason": "operator step in the signer-rotation runbooks, not a product surface",
       "replacement": null,
       "result": "DISPOSED_ADMIN_OPERATOR",
-      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "AUTHENTICATED",
-      "authorizationAuthority": "AUTHENTICATED",
-      "dataScope": "WORKSPACE_SCOPED",
-      "tenantType": "WORKSPACE",
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "securityEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "securityEvent"

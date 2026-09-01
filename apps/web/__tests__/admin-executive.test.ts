@@ -54,7 +54,11 @@ describe("Pin 2 — gated to platform-admin (reuses the existing gate)", () => {
       src,
       /import\s+\{\s*PageRouteGate\s*\}\s+from\s+["'][^"']*navigation\/PageRouteGate["']/
     );
-    assert.match(src, /<PageRouteGate\s+routeId="platform\.admin"/);
+        // ADM-013 — the page now gates on its OWN registry id rather than the
+    // layout's `platform.admin`. Same authority (PLATFORM_ADMIN), but the gate,
+    // the breadcrumb and the command palette resolve one entry instead of two,
+    // and the page can require something the layout does not.
+    assert.match(src, /<PageRouteGate\s+routeId="platform\.executive"/);
   });
 
   it("does NOT roll its own capability / admin check", () => {

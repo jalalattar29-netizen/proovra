@@ -70,7 +70,7 @@ function numberOrNull(value: number | null) {
 
 export default function AdminAdoptionPage() {
   return (
-    <PageRouteGate routeId="platform.admin">
+    <PageRouteGate routeId="platform.adoption">
       <AdminAdoptionInner />
     </PageRouteGate>
   );

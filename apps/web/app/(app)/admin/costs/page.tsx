@@ -594,7 +594,7 @@ function AdminCostsInner() {
 
 export default function AdminCostsPage() {
   return (
-    <PageRouteGate routeId="platform.admin">
+    <PageRouteGate routeId="platform.costs">
       <AdminCostsInner />
     </PageRouteGate>
   );

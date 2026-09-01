@@ -194,7 +194,7 @@ export default function AdminTimelinePage() {
   ];
 
   return (
-    <PageRouteGate routeId="platform.admin">
+    <PageRouteGate routeId="platform.timeline">
       <PageShell width="full" data-testid="admin-timeline">
         <PageHeader
           eyebrow="Platform admin"

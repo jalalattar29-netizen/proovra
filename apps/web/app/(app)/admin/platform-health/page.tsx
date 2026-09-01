@@ -355,7 +355,7 @@ function AdminPlatformHealthPage() {
 
 export default function AdminPlatformHealthPageGated() {
   return (
-    <PageRouteGate routeId="platform.admin">
+    <PageRouteGate routeId="platform.platform_health">
       <AdminPlatformHealthPage />
     </PageRouteGate>
   );
