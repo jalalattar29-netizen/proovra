@@ -35,6 +35,13 @@ const RUNBOOK_DIR = join(REPO_ROOT, "docs", "runbooks");
 const read = (rel: string): string =>
   readFileSync(resolve(APP_ROOT, rel), "utf8");
 
+/**
+ * Files in docs/runbooks that are NOT runbooks — the same list the generator
+ * keeps. A reference document about the corpus is not a procedure, and putting
+ * one in the operator catalog would file a meta-document among the runbooks.
+ */
+const NOT_A_RUNBOOK = new Set(["README.md", "RUNBOOK-SLUG-CLASSIFICATION.md"]);
+
 // ===========================================================================
 // 1 — freshness
 // ===========================================================================
@@ -86,7 +93,7 @@ test("the generated catalog is current against docs/runbooks", async () => {
 test("every markdown file is in the catalog, and vice versa", async () => {
   const { RUNBOOKS } = await import("../lib/runbooks/catalog.generated");
   const onDisk = readdirSync(RUNBOOK_DIR)
-    .filter((f) => f.endsWith(".md") && f !== "README.md")
+    .filter((f) => f.endsWith(".md") && !NOT_A_RUNBOOK.has(f))
     .map((f) => f.replace(/\.md$/, ""))
     .sort();
   const inCatalog = RUNBOOKS.map((r) => r.slug).sort();
@@ -339,8 +346,181 @@ test("the docs/runbooks README index lists every runbook", () => {
     .map((m) => m[1])
     .sort();
   const onDisk = readdirSync(RUNBOOK_DIR)
-    .filter((f) => f.endsWith(".md") && f !== "README.md")
+    .filter((f) => f.endsWith(".md") && !NOT_A_RUNBOOK.has(f))
     .map((f) => f.replace(/\.md$/, ""))
     .sort();
   assert.deepEqual(indexed, onDisk);
+});
+
+// ===========================================================================
+// 4 — slug classification: every emitted slug has a decision
+// ===========================================================================
+
+/**
+ * Every `runbookSlug` literal the API and worker emit.
+ *
+ * Read from source rather than from a list, because a list is the thing that
+ * goes stale. A new emitter appearing without a classification decision is
+ * exactly what these cases exist to catch.
+ */
+function emittedSlugs(): string[] {
+  const roots = [
+    resolve(REPO_ROOT, "services/api/src"),
+    resolve(REPO_ROOT, "services/worker/src"),
+    resolve(REPO_ROOT, "packages"),
+  ];
+  const found = new Set<string>();
+  const walk = (dir: string) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name === "node_modules" || e.name === "dist") continue;
+        walk(p);
+      } else if (/\.ts$/.test(e.name)) {
+        const src = readFileSync(p, "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/^\s*\/\/.*$/gm, "");
+        for (const m of src.matchAll(/runbookSlug:\s*"([a-z0-9-]+)"/g)) {
+          found.add(m[1]);
+        }
+      }
+    }
+  };
+  for (const r of roots) walk(r);
+  return [...found].sort();
+}
+
+test("every emitted runbook slug has an explicit classification", async () => {
+  const { RUNBOOK_SLUGS, RUNBOOK_ALIASES, RUNBOOK_LABEL_ONLY } = await import(
+    "../lib/runbooks/slugs.generated"
+  );
+  const undecided = emittedSlugs().filter(
+    (s) =>
+      !RUNBOOK_SLUGS.has(s) &&
+      !Object.prototype.hasOwnProperty.call(RUNBOOK_ALIASES, s) &&
+      !RUNBOOK_LABEL_ONLY.has(s),
+  );
+  assert.deepEqual(
+    undecided,
+    [],
+    "these slugs are emitted with no decision about whether they resolve. " +
+      "Add each to ALIASES or LABEL_ONLY in the generator, and record the " +
+      "reasoning in docs/runbooks/RUNBOOK-SLUG-CLASSIFICATION.md",
+  );
+});
+
+test("every alias target is a runbook that exists", async () => {
+  const { RUNBOOK_SLUGS, RUNBOOK_ALIASES } = await import(
+    "../lib/runbooks/slugs.generated"
+  );
+  for (const [from, to] of Object.entries(RUNBOOK_ALIASES)) {
+    assert.ok(
+      RUNBOOK_SLUGS.has(to),
+      `${from} is aliased to ${to}, which is not a runbook — the link would 404`,
+    );
+  }
+});
+
+test("a label-only slug never resolves, so it can never be linked", async () => {
+  const { RUNBOOK_LABEL_ONLY, resolveRunbookSlug, hasRunbook } = await import(
+    "../lib/runbooks/slugs.generated"
+  );
+  assert.ok(RUNBOOK_LABEL_ONLY.size > 0, "the classification records none");
+  for (const s of RUNBOOK_LABEL_ONLY) {
+    // Their absence from the resolver IS the mechanism that keeps a surface
+    // from rendering them as a link. If one ever resolved, the link would land
+    // on a 404 in the middle of an incident.
+    assert.equal(resolveRunbookSlug(s), null, `${s} resolves but has no runbook`);
+    assert.equal(hasRunbook(s), false, `${s} would be rendered as a link`);
+  }
+});
+
+test("an aliased slug resolves to its target, not to itself", async () => {
+  const { resolveRunbookSlug } = await import("../lib/runbooks/slugs.generated");
+  // The specific pairs that matter most: a TSA condition must not reach the
+  // OTS runbook, because one is retryable and the other is not.
+  assert.equal(resolveRunbookSlug("evidence-integrity"), "tsa-timestamp-failure");
+  assert.equal(resolveRunbookSlug("ots-anchoring"), "ots-degradation");
+  assert.equal(resolveRunbookSlug("report-pipeline"), "failed-report-generation");
+  // A refusal must not reach the failure runbook.
+  assert.equal(resolveRunbookSlug("package-generation-denied"), "export-blocked");
+  // An unmeasured queue must not reach the queue-outage runbook.
+  assert.equal(
+    resolveRunbookSlug("queue-inventory-unavailable"),
+    "observability-degraded",
+  );
+  assert.equal(resolveRunbookSlug("not-a-real-slug"), null);
+  assert.equal(resolveRunbookSlug(null), null);
+  assert.equal(resolveRunbookSlug(""), null);
+});
+
+test("the classification document and the generator agree", () => {
+  const doc = readFileSync(join(RUNBOOK_DIR, "RUNBOOK-SLUG-CLASSIFICATION.md"), "utf8");
+  const gen = readFileSync(
+    resolve(APP_ROOT, "scripts/generate-runbook-catalog.mjs"),
+    "utf8",
+  );
+  // Every slug the generator classifies must be argued for in the document.
+  // The document is where the reasoning lives; a mapping with no argument is a
+  // mapping nobody can review.
+  for (const m of gen.matchAll(/^\s*"([a-z0-9-]+)":\s*"([a-z0-9-]+)",$/gm)) {
+    if (!/ALIASES/.test(gen.slice(Math.max(0, m.index! - 3000), m.index!))) continue;
+    assert.ok(
+      doc.includes(`\`${m[1]}\``),
+      `${m[1]} is aliased in the generator but not explained in the classification document`,
+    );
+  }
+});
+
+test("the high-risk families each have an authoritative procedure", async () => {
+  const { resolveRunbookSlug } = await import("../lib/runbooks/slugs.generated");
+  // One representative emitted slug per family that must not be left to a
+  // condition's one-line summary.
+  const REQUIRED: ReadonlyArray<readonly [string, string]> = [
+    ["TSA", "evidence-integrity-recovery"],
+    ["report generation", "report-pipeline"],
+    ["verification packages", "package-pipeline"],
+    ["queue/worker", "queue-outage"],
+    ["search/indexing", "search-index"],
+    ["storage/immutability", "immutable-drift"],
+    ["authentication/security", "high-risk-session-surge"],
+    ["webhooks", "webhook-invalid-signature-burst"],
+    ["incident lifecycle", "reviewer-ops"],
+  ];
+  for (const [family, slug] of REQUIRED) {
+    const resolved = resolveRunbookSlug(slug);
+    assert.ok(
+      resolved,
+      `${family}: ${slug} resolves to no procedure — a high-risk actionable ` +
+        `condition must reach a reviewed runbook, by alias or in its own right`,
+    );
+    assert.ok(
+      readFileSync(join(RUNBOOK_DIR, `${resolved}.md`), "utf8").length > 500,
+      `${family}: ${resolved}.md is too short to be a procedure`,
+    );
+  }
+});
+
+test("no runbook link is a filesystem path", () => {
+  // `docs/runbooks/x.md` is not something a browser can open. The reader shows
+  // the source path as TEXT for an operator comparing against a checkout; it
+  // must never be an href.
+  for (const rel of [
+    "app/(app)/admin/platform/runbooks/page.tsx",
+    "app/(app)/admin/platform/runbooks/[slug]/page.tsx",
+    "lib/runbooks/render.tsx",
+  ]) {
+    const src = read(rel);
+    assert.doesNotMatch(
+      src,
+      /href=\{?["'`][^"'`]*docs\/runbooks/,
+      `${rel} links a filesystem path`,
+    );
+  }
 });

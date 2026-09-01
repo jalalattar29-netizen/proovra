@@ -33,6 +33,8 @@ add a runbook, add a row here, add a curation entry in
 | [observability-degraded](./observability-degraded.md) | Metrics endpoint not scraping / Sentry silent (FM-OBS-001) |
 | [privacy-leak](./privacy-leak.md) | Suspected privileged-data leak in metrics / logs / ledger (FM-PRIV-001/002, FM-OBS-003) |
 | [reviewer-escalation-storm](./reviewer-escalation-storm.md) | `runReconcile()` created ≥ threshold escalations in a single sweep |
+| [search-index-degraded](./search-index-degraded.md) | The workspace search index is out of step with its records and nothing is closing the gap. Nothing evidential is affected |
+| [signing-backlog](./signing-backlog.md) | Uploaded evidence is unsigned past the aged cutoff — the upload finished, the signing step did not |
 | [tsa-timestamp-failure](./tsa-timestamp-failure.md) | `Evidence.tsaStatus = FAILED` — the RFC3161 timestamp could not be obtained. There is no retry, by design |
 | [production-diagnostic-handoff](./production-diagnostic-handoff.md) | Operator procedure for running the read-only production diagnostic and destroying its output |
 | [reviewer-sla-breach](./reviewer-sla-breach.md) | A reviewer SLA cycle breached its due time |

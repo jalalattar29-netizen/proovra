@@ -62,6 +62,19 @@ const OUT_FILE = join(WEB_ROOT, "lib", "runbooks", "catalog.generated.ts");
 const SLUG_FILE = join(WEB_ROOT, "lib", "runbooks", "slugs.generated.ts");
 
 /**
+ * Files in `docs/runbooks/` that are NOT runbooks.
+ *
+ * An explicit list rather than a naming convention, because a convention is
+ * something the next person has to know. These are reference documents about
+ * the corpus; listing one in the operator catalog would put a meta-document
+ * among the procedures.
+ */
+const NOT_A_RUNBOOK = new Set([
+  "README.md",
+  "RUNBOOK-SLUG-CLASSIFICATION.md",
+]);
+
+/**
  * Not derived from the markdown, because neither fact is in it.
  *
  * `category` groups the catalog and `subsystems` is what an operator searches
@@ -82,6 +95,8 @@ const CURATION = {
   "ots-degradation": { category: "Storage & integrity", subsystems: ["ots", "anchor"] },
   "tsa-timestamp-failure": { category: "Storage & integrity", subsystems: ["tsa", "evidence_integrity"] },
   "storage-write-failure": { category: "Storage & integrity", subsystems: ["storage", "s3"] },
+  "search-index-degraded": { category: "Storage & integrity", subsystems: ["search", "reconciliation"] },
+  "signing-backlog": { category: "Storage & integrity", subsystems: ["signing", "evidence"] },
 
   "reviewer-sla-breach": { category: "Reviewer Ops", subsystems: ["reviewer", "sla"] },
   "reviewer-escalation-backlog": { category: "Reviewer Ops", subsystems: ["reviewer", "escalation"] },
@@ -108,6 +123,83 @@ const CURATION = {
   "production-diagnostic-handoff": { category: "Operator procedures", subsystems: ["diagnostics", "database"] },
   "sre-runbooks": { category: "Operator procedures", subsystems: ["sre"] },
 };
+
+/**
+ * EMITTED SLUG → THE RUNBOOK THAT COVERS IT.
+ *
+ * `runbookSlug` looked like a document reference and mostly was not one. Six of
+ * the slugs the incident services emit had a markdown file; the rest named a
+ * condition. Three surfaces linked all of them, so most "Runbook" links pointed
+ * at nothing — and once the reader existed with `dynamicParams = false` they
+ * would have pointed at a 404 mid-incident.
+ *
+ * This maps the ones a document genuinely covers. A slug that is deliberately
+ * label-only is NOT here and must not be added: its absence is what stops a
+ * surface rendering it as a link.
+ *
+ * `docs/runbooks/RUNBOOK-SLUG-CLASSIFICATION.md` carries the reasoning for
+ * every entry and every deliberate omission, and a test asserts the two agree.
+ */
+const ALIASES = {
+  // Cryptographic timestamping. TSA and OTS stay separate documents: a failed
+  // OTS anchor is retryable and a failed RFC3161 timestamp is not, and
+  // reasoning from one to the other is the mistake both runbooks warn about.
+  "evidence-integrity-recovery": "tsa-timestamp-failure",
+  "evidence-integrity": "tsa-timestamp-failure",
+  "ots-anchoring": "ots-degradation",
+
+  "report-pipeline": "failed-report-generation",
+
+  "package-pipeline": "failed-verification-package",
+  // A governance REFUSAL, not a failure. Pointing it at the failure runbook
+  // would send an operator looking for a fault that does not exist.
+  "package-generation-denied": "export-blocked",
+
+  "queue-outage": "worker-wedged",
+  "queue-failed-jobs": "worker-wedged",
+  "worker-heartbeat-stale": "worker-wedged",
+  // The inventory could not be READ. That is a measurement failure, not a queue
+  // failure, and treating it as one sends an operator to restart something that
+  // may be healthy while hiding that queue health is unmeasured.
+  "queue-inventory-unavailable": "observability-degraded",
+
+  // The same investigation as a login burst: establish whether the signal is an
+  // attack or a population shift, then decide whether the automatic response
+  // was right. Aliased rather than duplicated so the three cannot diverge.
+  "high-risk-session-surge": "suspicious-login-burst",
+  "runtime-adaptive-block": "suspicious-login-burst",
+  // Identical shape to a third-party outage. If IdP-specific steps are ever
+  // needed, write them — do not extend the Twilio runbook to cover both.
+  "idp-outage-response": "twilio-outage",
+
+  // The emitted slugs are CONDITION names; the runbooks are named for what
+  // they are about. Aliasing keeps the condition free to be renamed without
+  // breaking a link, and the runbook free to be titled for a reader.
+  "search-index": "search-index-degraded",
+  "signing-pipeline": "signing-backlog",
+
+  "reviewer-ops": "reviewer-queue-stuck",
+  "coordination-backlog": "reviewer-escalation-backlog",
+
+  // The two the evidence-health cohorts emit.
+  "report-generation-failure": "failed-report-generation",
+};
+
+/**
+ * Slugs that are deliberately label-only.
+ *
+ * Listed so the decision is recorded and testable, NOT so they resolve. A
+ * runbook per threshold would produce documents that each say "the number is
+ * above the number"; the condition already carries its source query, its
+ * threshold and its escalation point.
+ */
+const LABEL_ONLY = [
+  "worker-heartbeat",
+  "retry-storm",
+  "telemetry-sampler",
+  "billing-provider-authorization",
+  "operational-seeding",
+];
 
 export const CATEGORY_ORDER = [
   "Governance & lifecycle",
@@ -159,7 +251,7 @@ function summaryOf(body) {
 
 export function buildCatalog() {
   const files = readdirSync(RUNBOOK_DIR)
-    .filter((f) => f.endsWith(".md") && f !== "README.md")
+    .filter((f) => f.endsWith(".md") && !NOT_A_RUNBOOK.has(f))
     .sort();
 
   const slugs = files.map((f) => f.replace(/\.md$/, ""));
@@ -239,6 +331,34 @@ export function renderSlugModule(entries) {
   L.push("]);");
   L.push("");
   L.push("/**");
+  L.push(" * Emitted condition slugs that a runbook covers under a different name.");
+  L.push(" *");
+  L.push(" * A slug that is deliberately label-only is absent from here, and its");
+  L.push(" * absence is what stops a surface rendering it as a link. See");
+  L.push(" * docs/runbooks/RUNBOOK-SLUG-CLASSIFICATION.md for every decision.");
+  L.push(" */");
+  L.push("export const RUNBOOK_ALIASES: Readonly<Record<string, string>> = {");
+  for (const [from, to] of Object.entries(ALIASES).sort()) {
+    L.push(`  ${JSON.stringify(from)}: ${JSON.stringify(to)},`);
+  }
+  L.push("};");
+  L.push("");
+  L.push("/** Slugs deliberately classified as label-only. Recorded, never resolved. */");
+  L.push("export const RUNBOOK_LABEL_ONLY: ReadonlySet<string> = new Set([");
+  for (const s of [...LABEL_ONLY].sort()) L.push(`  ${JSON.stringify(s)},`);
+  L.push("]);");
+  L.push("");
+  L.push("/** The runbook slug to OPEN for an emitted slug, or null. */");
+  L.push("export function resolveRunbookSlug(");
+  L.push("  slug: string | null | undefined,");
+  L.push("): string | null {");
+  L.push('  if (typeof slug !== "string" || slug === "") return null;');
+  L.push("  if (RUNBOOK_SLUGS.has(slug)) return slug;");
+  L.push("  const aliased = RUNBOOK_ALIASES[slug];");
+  L.push("  return aliased && RUNBOOK_SLUGS.has(aliased) ? aliased : null;");
+  L.push("}");
+  L.push("");
+  L.push("/**");
   L.push(" * Whether a slug has a runbook to open.");
   L.push(" *");
   L.push(" * Most `runbookSlug` values emitted by incidents are labels rather than");
@@ -248,7 +368,7 @@ export function renderSlugModule(entries) {
   L.push(" * as plain text otherwise.");
   L.push(" */");
   L.push("export function hasRunbook(slug: string | null | undefined): boolean {");
-  L.push('  return typeof slug === "string" && RUNBOOK_SLUGS.has(slug);');
+  L.push("  return resolveRunbookSlug(slug) !== null;");
   L.push("}");
   L.push("");
   return L.join("\n");
