@@ -1,6 +1,11 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  EVIDENCE_HEALTH_COHORTS,
+  retryabilityContract,
+  type EvidenceHealthCohort,
+} from "./evidence-health-cohorts.service.js";
 import { liveEvidenceWhere } from "@proovra/shared-runtime";
 
 /**
@@ -86,6 +91,32 @@ export type AdminEvidenceRecord = {
   tsaStatus: string | null;
   otsStatus: string | null;
   createdAt: string;
+  /**
+   * ADM-013 — the four facts a row needs before an operator can act on it.
+   *
+   * A roster that shows a record and its failure state, and then leaves the
+   * reader to work out how old it is, whether anything can be done and where
+   * the instructions are, is a roster that gets read once.
+   *
+   * `cohort` is the row's OWN classification, derived from the record rather
+   * than inherited from the filter — a record in the `ALL_AFFECTED` list needs
+   * to say which half of it it is in, because the two halves need opposite
+   * handling.
+   */
+  cohort: EvidenceHealthCohort | null;
+  /** Whole days since the record was created. */
+  ageDays: number;
+  /**
+   * When the pipeline last touched this record. `updatedAt` is the honest
+   * available signal — there is no per-record attempt log — and it is labelled
+   * as "last change", not as "last retry", because those are different claims.
+   */
+  lastChangeAtUtc: string | null;
+  retryable: boolean;
+  /** Why not. Read from the remediation registry, never invented here. */
+  notRetryableReason: string | null;
+  operatorAction: string;
+  runbookSlug: string | null;
   workspace: {
     id: string;
     name: string;
@@ -99,6 +130,8 @@ export type AdminEvidenceRecord = {
 export type AdminEvidenceRecordsResult = {
   /** Null for a direct `evidenceId` lookup, which is not a signal query. */
   signal: EvidenceHealthSignal | null;
+  /** The overlapping-cohort filter this list was produced with, if any. */
+  cohort: EvidenceHealthCohort | null;
   label: string;
   items: AdminEvidenceRecord[];
   page: number;
@@ -115,6 +148,13 @@ export async function listAdminEvidenceRecords(
      * and pretending otherwise would force a caller to pick an arbitrary one.
      */
     signal?: EvidenceHealthSignal;
+    /**
+     * ADM-013 — an overlapping-cohort filter, from the SAME predicates the
+     * cohort summary counts with. A cohort and a signal are different
+     * questions: a signal is "which failure", a cohort is "which population,
+     * counted once". Both may be absent when `evidenceId` names one record.
+     */
+    cohort?: EvidenceHealthCohort;
     page: number;
     limit: number;
     teamId?: string;
@@ -136,9 +176,12 @@ export async function listAdminEvidenceRecords(
   const limit = Math.min(200, Math.max(1, input.limit));
   const signal = input.signal ? EVIDENCE_HEALTH_SIGNALS[input.signal] : null;
 
+  const cohort = input.cohort ? EVIDENCE_HEALTH_COHORTS[input.cohort] : null;
+
   const where: Prisma.EvidenceWhereInput = {
     ...liveEvidenceWhere(),
     ...((signal?.where as Prisma.EvidenceWhereInput | undefined) ?? {}),
+    ...((cohort?.where as Prisma.EvidenceWhereInput | undefined) ?? {}),
     ...(input.evidenceId ? { id: input.evidenceId } : {}),
     ...(input.teamId ? { teamId: input.teamId } : {}),
     ...(input.organizationId ? { organizationId: input.organizationId } : {}),
@@ -166,6 +209,8 @@ export async function listAdminEvidenceRecords(
         tsaStatus: true,
         otsStatus: true,
         createdAt: true,
+        updatedAt: true,
+        latestReportVersion: true,
         teamId: true,
         ownerUserId: true,
       },
@@ -204,11 +249,39 @@ export async function listAdminEvidenceRecords(
   const teamById = new Map(teams.map((t) => [t.id, t] as const));
   const emailByUser = new Map(owners.map((u) => [u.id, u.email ?? null] as const));
 
+  /**
+   * A record's OWN cohort, from its own columns.
+   *
+   * Not inherited from the filter: in the `ALL_AFFECTED` list every row must
+   * say which half it is in, because "retry" means something different for
+   * each and a row that does not say is a row an operator has to guess about.
+   */
+  const cohortOf = (r: {
+    tsaStatus: string | null;
+    status: string;
+    latestReportVersion: number | null;
+  }): EvidenceHealthCohort | null => {
+    const tsaFailed = r.tsaStatus === "FAILED";
+    const noReport = r.status === "SIGNED" && r.latestReportVersion === null;
+    if (tsaFailed && noReport) return "BOTH";
+    if (tsaFailed) return "TSA_FAILED_ONLY";
+    if (noReport) return "SIGNED_NO_REPORT_ONLY";
+    return null;
+  };
+
+  const DAY_MS = 86_400_000;
+
   return {
     signal: input.signal ?? null,
-    label: signal?.label ?? "Specific record",
+    cohort: input.cohort ?? null,
+    label: cohort?.label ?? signal?.label ?? "Specific record",
     items: rows.map((r) => {
       const team = r.teamId ? teamById.get(r.teamId) : undefined;
+      const rowCohort = cohortOf(r);
+      // The contract for THIS row's own cohort, not for the filter it arrived
+      // through. `ALL_AFFECTED` has no single answer, and a row inheriting it
+      // would claim one.
+      const contract = rowCohort ? retryabilityContract(rowCohort) : null;
       return {
         id: r.id,
         title: r.title ?? null,
@@ -239,6 +312,21 @@ export async function listAdminEvidenceRecords(
         ownerEmail: r.ownerUserId
           ? emailByUser.get(r.ownerUserId) ?? null
           : null,
+        cohort: rowCohort,
+        ageDays: Math.max(
+          0,
+          Math.floor((Date.now() - r.createdAt.getTime()) / DAY_MS),
+        ),
+        // "Last change", not "last attempt". There is no per-record attempt
+        // log, and calling `updatedAt` an attempt would be describing a
+        // measurement nobody takes.
+        lastChangeAtUtc: r.updatedAt ? r.updatedAt.toISOString() : null,
+        retryable: contract?.retryable ?? false,
+        notRetryableReason: contract?.reason ?? null,
+        operatorAction:
+          contract?.operatorAction ??
+          "No failure cohort applies to this record.",
+        runbookSlug: contract?.runbookSlug ?? null,
       };
     }),
     page,

@@ -27,6 +27,11 @@ import { z } from "zod";
 
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import {
+  EVIDENCE_HEALTH_COHORTS,
+  buildEvidenceHealthCohorts,
+  isEvidenceHealthCohort,
+} from "../services/admin/evidence-health-cohorts.service.js";
 import { buildEvidenceHealthSnapshot } from "../services/operations/evidence-health.service.js";
 import {
   EVIDENCE_HEALTH_SIGNALS,
@@ -63,8 +68,17 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
         windowHours: parsed.data.windowHours,
       });
 
+      // ADM-013 — the OVERLAPPING cohorts, with the overlap stated.
+      //
+      // The signal drill-downs below answer "which records have this failure".
+      // They cannot answer "how many records need attention", because a record
+      // with a failed timestamp AND no report appears under two signals and is
+      // one record. That question is what produced "34 + 16" being read as 50.
+      const cohorts = await buildEvidenceHealthCohorts();
+
       return reply.code(200).send({
         snapshot,
+        cohorts,
         // ADM-029 — every failure count is now traceable. The tile links here
         // with its own signal, and the roster below returns exactly the records
         // that count is over.
@@ -89,6 +103,8 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   const recordsQuerySchema = z.object({
     signal: z.string().trim().min(1).max(64).optional(),
+    /** ADM-013 — an overlapping-cohort filter. See the cohort service. */
+    cohort: z.string().trim().min(1).max(64).optional(),
     page: z.coerce.number().int().min(1).max(100000).optional().default(1),
     limit: z.coerce.number().int().min(1).max(200).optional().default(50),
     teamId: z.string().uuid().optional(),
@@ -109,10 +125,19 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
         parsed.success &&
         (parsed.data.signal === undefined ||
           isEvidenceHealthSignal(parsed.data.signal));
+      // An unknown COHORT degrades the same way an unknown signal would —
+      // into "every live record on the platform" — so it is refused for the
+      // same reason.
+      const cohortOk =
+        parsed.success &&
+        (parsed.data.cohort === undefined ||
+          isEvidenceHealthCohort(parsed.data.cohort));
       const targetOk =
         parsed.success &&
-        (parsed.data.signal !== undefined || parsed.data.evidenceId !== undefined);
-      if (!parsed.success || !signalOk || !targetOk) {
+        (parsed.data.signal !== undefined ||
+          parsed.data.cohort !== undefined ||
+          parsed.data.evidenceId !== undefined);
+      if (!parsed.success || !signalOk || !cohortOk || !targetOk) {
         return reply.code(400).send(
           createErrorResponse(
             ErrorCode.VALIDATION_ERROR,
@@ -122,8 +147,11 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
                 ? parsed.error.message
                 : !signalOk
                   ? `unknown signal '${parsed.data.signal}'`
-                  : "one of 'signal' or 'evidenceId' is required",
+                  : !cohortOk
+                    ? `unknown cohort '${parsed.data.cohort}'`
+                    : "one of 'signal', 'cohort' or 'evidenceId' is required",
               allowedSignals: Object.keys(EVIDENCE_HEALTH_SIGNALS),
+              allowedCohorts: Object.keys(EVIDENCE_HEALTH_COHORTS),
             },
             "Invalid evidence-records query",
           ),
@@ -134,6 +162,10 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
         signal:
           parsed.data.signal && isEvidenceHealthSignal(parsed.data.signal)
             ? parsed.data.signal
+            : undefined,
+        cohort:
+          parsed.data.cohort && isEvidenceHealthCohort(parsed.data.cohort)
+            ? parsed.data.cohort
             : undefined,
         evidenceId: parsed.data.evidenceId,
         page: parsed.data.page,

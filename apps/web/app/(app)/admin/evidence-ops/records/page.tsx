@@ -60,10 +60,25 @@ type RecordRow = {
   } | null;
   customer: { id: string; name: string } | null;
   ownerEmail: string | null;
+  /**
+   * ADM-013 — the row's OWN cohort, from its own columns rather than from the
+   * filter it arrived through. In the "All affected" list the two halves need
+   * opposite handling, so a row that does not say which half it is in is a row
+   * the operator has to guess about.
+   */
+  cohort: string | null;
+  ageDays: number;
+  /** Last pipeline change. NOT "last retry" — no per-record attempt log exists. */
+  lastChangeAtUtc: string | null;
+  retryable: boolean;
+  notRetryableReason: string | null;
+  operatorAction: string;
+  runbookSlug: string | null;
 };
 
 type Response = {
   signal: string | null;
+  cohort: string | null;
   label: string;
   items: RecordRow[];
   page: number;
@@ -73,6 +88,7 @@ type Response = {
 };
 
 const SIGNALS = [
+  { value: "", label: "— none (filter by cohort instead) —" },
   { value: "TSA_FAILED", label: "Timestamp (TSA) failures" },
   { value: "OTS_FAILED", label: "OpenTimestamps anchoring failures" },
   { value: "HASH_MISMATCH", label: "Hash mismatch" },
@@ -80,6 +96,27 @@ const SIGNALS = [
   { value: "SIGNED_NO_REPORT", label: "Signed, no report" },
   { value: "REPORTED_NO_PACKAGE", label: "Reported, no package" },
 ] as const;
+
+/**
+ * ADM-013 — the overlapping cohorts, from the same predicates the summary tiles
+ * count with. A SIGNAL asks "which failure"; a COHORT asks "which population,
+ * counted once". They are different questions and the filter offers both.
+ */
+const COHORTS = [
+  { value: "", label: "— none (filter by signal instead) —" },
+  { value: "ALL_AFFECTED", label: "All affected (union, counted once)" },
+  { value: "TSA_FAILED_ONLY", label: "Timestamp failed only" },
+  { value: "SIGNED_NO_REPORT_ONLY", label: "Signed without a report only" },
+  { value: "BOTH", label: "Both conditions" },
+  { value: "RETRYABLE", label: "Retryable" },
+  { value: "MANUAL_REVIEW", label: "Manual review" },
+] as const;
+
+const COHORT_SHORT: Record<string, string> = {
+  TSA_FAILED_ONLY: "Timestamp only",
+  SIGNED_NO_REPORT_ONLY: "Report only",
+  BOTH: "Both",
+};
 
 const PAGE_SIZE = 50;
 
@@ -95,7 +132,14 @@ export default function AdminEvidenceRecordsPage() {
   const params = useSearchParams();
 
   const evidenceId = params.get("evidenceId") ?? "";
-  const [signal, setSignal] = useState(params.get("signal") ?? "TSA_FAILED");
+  // A cohort in the URL wins over the signal default: the summary tiles link
+  // here with `?cohort=…`, and silently substituting a signal would show a
+  // different population than the tile that was clicked.
+  const initialCohort = params.get("cohort") ?? "";
+  const [cohort, setCohort] = useState(initialCohort);
+  const [signal, setSignal] = useState(
+    params.get("signal") ?? (initialCohort ? "" : "TSA_FAILED"),
+  );
   const [teamId, setTeamId] = useState(params.get("teamId") ?? "");
 
   const [loading, setLoading] = useState(true);
@@ -104,6 +148,15 @@ export default function AdminEvidenceRecordsPage() {
 
   const load = useCallback(
     async (targetPage: number) => {
+      // Clearing BOTH filters is not a query. The API refuses it rather than
+      // enumerating every live record on the platform, and surfacing that
+      // refusal as a toast would blame the operator for using the controls.
+      if (!evidenceId && !cohort && !signal) {
+        setData(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
         const qs = new URLSearchParams();
@@ -113,7 +166,13 @@ export default function AdminEvidenceRecordsPage() {
         // "this record, but only if it also has that failure", which is not what
         // a search click means.
         if (evidenceId) qs.set("evidenceId", evidenceId);
-        else if (signal) qs.set("signal", signal);
+        else {
+          // A cohort and a signal can be combined — "the retryable half of the
+          // TSA population" is a real question — but one of them must be
+          // present or the API refuses rather than listing every record.
+          if (cohort) qs.set("cohort", cohort);
+          if (signal) qs.set("signal", signal);
+        }
         if (teamId) qs.set("teamId", teamId);
 
         const res = (await apiFetch(
@@ -124,7 +183,8 @@ export default function AdminEvidenceRecordsPage() {
 
         if (!evidenceId) {
           const shareable = new URLSearchParams();
-          shareable.set("signal", signal);
+          if (cohort) shareable.set("cohort", cohort);
+          if (signal) shareable.set("signal", signal);
           if (teamId) shareable.set("teamId", teamId);
           router.replace(`/admin/evidence-ops/records?${shareable.toString()}`, {
             scroll: false,
@@ -142,13 +202,13 @@ export default function AdminEvidenceRecordsPage() {
         setLoading(false);
       }
     },
-    [addToast, evidenceId, signal, teamId, router],
+    [addToast, evidenceId, cohort, signal, teamId, router],
   );
 
   useEffect(() => {
     void load(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signal, teamId, evidenceId]);
+  }, [cohort, signal, teamId, evidenceId]);
 
   const columns = useMemo<DataTableColumn<RecordRow>[]>(
     () => [
@@ -172,6 +232,18 @@ export default function AdminEvidenceRecordsPage() {
         ),
       },
       { key: "type", header: "Type", render: (r) => r.type },
+      {
+        key: "cohort",
+        header: "Cohort",
+        render: (r) =>
+          r.cohort ? (
+            <Badge tone={r.cohort === "BOTH" ? "risk" : "info"} subtle>
+              {COHORT_SHORT[r.cohort] ?? r.cohort}
+            </Badge>
+          ) : (
+            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+          ),
+      },
       {
         key: "status",
         header: "Pipeline status",
@@ -235,7 +307,83 @@ export default function AdminEvidenceRecordsPage() {
         key: "createdAt",
         header: "Created",
         nowrap: true,
-        render: (r) => formatUserDateTime(r.createdAt),
+        render: (r) => (
+          <div style={{ minWidth: 0 }}>
+            <div>{formatUserDateTime(r.createdAt)}</div>
+            {/* Age in whole days is what makes a backlog readable at a glance:
+                a two-day failure and a nine-month failure are different
+                problems and the timestamp alone does not say which. */}
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--ink-muted, #94a3b8)",
+                marginTop: 2,
+              }}
+            >
+              {r.ageDays} day{r.ageDays === 1 ? "" : "s"} old
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "lastChange",
+        header: "Last change",
+        nowrap: true,
+        // Deliberately NOT "last attempt". There is no per-record attempt log,
+        // and labelling `updatedAt` as a retry would describe a measurement
+        // nobody takes.
+        render: (r) =>
+          r.lastChangeAtUtc ? (
+            formatUserDateTime(r.lastChangeAtUtc)
+          ) : (
+            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+          ),
+      },
+      {
+        key: "action",
+        header: "Required action",
+        render: (r) => (
+          <div style={{ minWidth: 220 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Badge tone={r.retryable ? "info" : "neutral"} subtle>
+                {r.retryable ? "Retryable" : "Manual"}
+              </Badge>
+              {r.runbookSlug ? (
+                <Link
+                  href={`/admin/runbooks/${r.runbookSlug}`}
+                  style={{ fontSize: 12.5 }}
+                >
+                  Runbook
+                </Link>
+              ) : null}
+            </div>
+            <div
+              style={{
+                marginTop: 4,
+                fontSize: 12.5,
+                lineHeight: 1.45,
+                color: "var(--ink-secondary, #475569)",
+              }}
+            >
+              {r.operatorAction}
+            </div>
+            {/* "You cannot retry this" with no reason is the message an
+                operator escalates about. The reason comes from the remediation
+                registry, not from this page. */}
+            {!r.retryable && r.notRetryableReason ? (
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  color: "var(--ink-muted, #94a3b8)",
+                }}
+              >
+                {r.notRetryableReason}
+              </div>
+            ) : null}
+          </div>
+        ),
       },
     ],
     [],
@@ -274,6 +422,12 @@ export default function AdminEvidenceRecordsPage() {
       {!evidenceId ? (
         <FilterBar>
           <FilterBar.Select
+            label="Cohort"
+            value={cohort}
+            onChange={setCohort}
+            options={COHORTS.map((c) => ({ value: c.value, label: c.label }))}
+          />
+          <FilterBar.Select
             label="Failure signal"
             value={signal}
             onChange={setSignal}
@@ -288,6 +442,36 @@ export default function AdminEvidenceRecordsPage() {
         </FilterBar>
       ) : null}
 
+      {/* Which population this is, in words. A table of rows with no statement
+          of what selected them is a table an operator reads as "everything". */}
+      {!evidenceId && cohort ? (
+        <Card variant="status" tone="info" padding="comfortable">
+          <div style={{ fontSize: 13.5, lineHeight: 1.55 }}>
+            <strong>{COHORTS.find((c) => c.value === cohort)?.label}</strong>
+            {cohort === "ALL_AFFECTED" ? (
+              <>
+                {" "}— every affected record, counted once. This is a mixed
+                population: the Cohort column says which half each row is in,
+                and the two halves need opposite handling. Filter to Retryable
+                or Manual review before acting in bulk.
+              </>
+            ) : (
+              <>
+                {" "}— the same predicate the summary tile counts with, so this
+                list and that number cannot disagree.
+              </>
+            )}
+            {signal ? (
+              <>
+                {" "}Narrowed further by the{" "}
+                {SIGNALS.find((x) => x.value === signal)?.label ?? signal}{" "}
+                signal.
+              </>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
+
       <Card>
         <DataTable<RecordRow>
           ariaLabel="Affected evidence records"
@@ -297,11 +481,19 @@ export default function AdminEvidenceRecordsPage() {
           loading={loading}
           emptyState={
             <EmptyState
-              title={evidenceId ? "Record not found" : "No affected records"}
+              title={
+                evidenceId
+                  ? "Record not found"
+                  : !cohort && !signal
+                    ? "Choose a cohort or a signal"
+                    : "No affected records"
+              }
               purpose={
                 evidenceId
                   ? "No live evidence record matches that id. It may have been deleted."
-                  : "No live evidence record currently carries this failure signal. An empty table here means zero, not unmeasured."
+                  : !cohort && !signal
+                    ? "This page lists a specific population. Pick a cohort to see records counted once each, or a signal to see one failure type. It will not list every record on the platform."
+                    : "No live evidence record currently matches this filter. An empty table here means zero, not unmeasured."
               }
             />
           }

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "5003d35a2b7aa26e8ee866f1ba6307e7fbd62b6490076602eebb80dede0fb23a",
-  "consumerInventoryHash": "99b26df9c53cf2314c36e33fa0e61cf019cdd6557a35a628c5a52cfe6107f0fe",
+  "consumerInventoryHash": "f1d49ee669c66d7d8bc69a35d5c2de5ff2cb5fd1fbf54dc67eeab15281d73a9f",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1123,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8230,
+      "METHOD_ON_VALUE": 8238,
       "UNRESOLVED_IDENTIFIER": 1040
     },
     "MutationFixpointRounds": 9,
@@ -1071,7 +1071,7 @@
       "method": "GET",
       "route": "/v1/admin/evidence-health",
       "registeringFile": "services/api/src/routes/admin-evidence-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/page.tsx:175",
+      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/page.tsx:353",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1083,7 +1083,7 @@
       "method": "GET",
       "route": "/v1/admin/evidence-health/records",
       "registeringFile": "services/api/src/routes/admin-evidence-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx:119",
+      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx:178",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -81474,7 +81474,7 @@
       "method": "GET",
       "path": "/v1/admin/evidence-health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-evidence-ops.routes.ts:46",
+      "registrationEvidence": "services/api/src/routes/admin-evidence-ops.routes.ts:51",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81487,7 +81487,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/evidence-ops/page.tsx",
-          "line": 175,
+          "line": 353,
           "caller": "AdminEvidenceOpsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81497,7 +81497,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/page.tsx:175 (AdminEvidenceOpsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/page.tsx:353 (AdminEvidenceOpsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81540,7 +81540,7 @@
       "method": "GET",
       "path": "/v1/admin/evidence-health/records",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-evidence-ops.routes.ts:100",
+      "registrationEvidence": "services/api/src/routes/admin-evidence-ops.routes.ts:116",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81553,7 +81553,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx",
-          "line": 119,
+          "line": 178,
           "caller": "AdminEvidenceRecordsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81563,7 +81563,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx:119 (AdminEvidenceRecordsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/records/page.tsx:178 (AdminEvidenceRecordsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

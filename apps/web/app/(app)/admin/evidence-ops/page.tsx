@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -32,6 +33,56 @@ import { Button } from "../../../../components/ui/Button";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 
 type Measured = number | null;
+
+/**
+ * ADM-013 — the cohort projection.
+ *
+ * The metric cards further down answer "which records carry this failure".
+ * They cannot answer "how many records need attention", because a record whose
+ * timestamp failed AND which has no report appears under two of them and is
+ * ONE record. Reading "TSA failures 34" and "Signed without report 16" as 50
+ * is the arithmetic this section exists to replace.
+ */
+interface CohortCount {
+  cohort: string;
+  label: string;
+  description: string;
+  /** `null` means the count could not be read. Never rendered as 0. */
+  count: number | null;
+  retryable: boolean;
+  reason: string | null;
+  operatorAction: string;
+  runbookSlug: string | null;
+  drillDown: string;
+}
+
+interface CohortProjection {
+  generatedAtUtc: string;
+  cohorts: CohortCount[];
+  arithmetic: {
+    disjointSum: number | null;
+    measuredUnion: number | null;
+    agrees: boolean | null;
+  };
+  unavailableCohorts: string[];
+}
+
+/**
+ * The three disjoint parts, then the union, then the two action cuts. Rendering
+ * them in this order is what makes the overlap legible: a reader sees 3 + 4 + 2
+ * and then sees 9, rather than seeing two totals and adding them.
+ */
+const COHORT_ORDER = [
+  "TSA_FAILED_ONLY",
+  "SIGNED_NO_REPORT_ONLY",
+  "BOTH",
+  "ALL_AFFECTED",
+  "RETRYABLE",
+  "MANUAL_REVIEW",
+] as const;
+
+/** The union and the two action cuts overlap the three parts by construction. */
+const OVERLAPPING = new Set(["ALL_AFFECTED", "RETRYABLE", "MANUAL_REVIEW"]);
 
 interface EvidenceHealthSnapshot {
   generatedAtUtc: string;
@@ -158,6 +209,132 @@ function MetricCard({
   );
 }
 
+/**
+ * One cohort. Shows the count, whether an operator can act, what the action is,
+ * and a link to exactly the records counted.
+ *
+ * A tile whose count is `null` says "Not measured" and offers no drill-down —
+ * a link promising records we could not count is a link that lands on an empty
+ * table and reads as "nothing wrong".
+ */
+function CohortCard({ c }: { c: CohortCount }) {
+  const unmeasured = c.count == null;
+  const overlapping = OVERLAPPING.has(c.cohort);
+  return (
+    <Card
+      variant="summary"
+      padding="comfortable"
+      data-cohort={c.cohort}
+      data-count={c.count == null ? "unmeasured" : String(c.count)}
+      data-retryable={String(c.retryable)}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--ink-muted, #94a3b8)",
+          }}
+        >
+          {c.label}
+        </div>
+        {/* The disposition, not the severity. "Retryable" is the fact an
+            operator needs before they look for a button. */}
+        <Badge tone={c.retryable ? "info" : "neutral"} subtle>
+          {c.retryable ? "Retryable" : "Manual"}
+        </Badge>
+      </div>
+
+      <div
+        style={{
+          marginTop: 12,
+          fontSize: unmeasured ? 15 : 30,
+          fontWeight: unmeasured ? 600 : 750,
+          lineHeight: 1.1,
+          letterSpacing: "-0.02em",
+          color: unmeasured
+            ? "var(--ink-muted, #94a3b8)"
+            : "var(--ink-primary, #0f172a)",
+        }}
+      >
+        {unmeasured ? "Not measured" : String(c.count)}
+      </div>
+
+      {overlapping ? (
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 11.5,
+            fontWeight: 600,
+            color: "var(--ink-muted, #94a3b8)",
+          }}
+        >
+          Overlaps the three cohorts above — do not add to them.
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          marginTop: 8,
+          fontSize: 12.5,
+          lineHeight: 1.5,
+          color: "var(--ink-secondary, #475569)",
+        }}
+      >
+        {c.description}
+      </div>
+
+      <div
+        style={{
+          marginTop: 10,
+          paddingTop: 10,
+          borderTop: "1px solid var(--border-subtle, #e2e8f0)",
+          fontSize: 12.5,
+          lineHeight: 1.5,
+          color: "var(--ink-secondary, #475569)",
+        }}
+      >
+        <strong style={{ color: "var(--ink-primary, #0f172a)" }}>Action:</strong>{" "}
+        {c.operatorAction}
+        {/* A refusal without a reason is what an operator escalates about. */}
+        {c.reason ? (
+          <div style={{ marginTop: 6, color: "var(--ink-muted, #94a3b8)" }}>
+            {c.reason}
+          </div>
+        ) : null}
+      </div>
+
+      <div
+        style={{
+          marginTop: 12,
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+          fontSize: 13,
+        }}
+      >
+        {unmeasured ? null : (
+          <Link href={c.drillDown} data-testid={`cohort-drilldown-${c.cohort}`}>
+            View {c.count} record{c.count === 1 ? "" : "s"}
+          </Link>
+        )}
+        {c.runbookSlug ? (
+          <Link href={`/admin/runbooks/${c.runbookSlug}`}>Runbook</Link>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
 const GRID: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -166,6 +343,7 @@ const GRID: React.CSSProperties = {
 
 export default function AdminEvidenceOpsPage() {
   const [snapshot, setSnapshot] = useState<EvidenceHealthSnapshot | null>(null);
+  const [cohorts, setCohorts] = useState<CohortProjection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -176,6 +354,7 @@ export default function AdminEvidenceOpsPage() {
         method: "GET",
       });
       setSnapshot((data?.snapshot ?? null) as EvidenceHealthSnapshot | null);
+      setCohorts((data?.cohorts ?? null) as CohortProjection | null);
       setError(null);
     } catch (err) {
       setError(
@@ -251,6 +430,69 @@ export default function AdminEvidenceOpsPage() {
         />
       ) : (
         <>
+          {/* ADM-013 — FIRST, because it is the only section that answers
+              "how many records need attention". Everything below it counts
+              failures; this counts records, once each. */}
+          {cohorts ? (
+            <PageSection
+              title="Records needing attention"
+              description="Records, counted once each. A record can carry more than one failure, so the three cohorts below are disjoint and the totals after them are measured unions — never sums."
+            >
+              <div style={GRID}>
+                {COHORT_ORDER.map((key) => {
+                  const c = cohorts.cohorts.find((x) => x.cohort === key);
+                  return c ? <CohortCard key={key} c={c} /> : null;
+                })}
+              </div>
+
+              {/* The self-check, shown rather than assumed. If the three
+                  disjoint parts stop summing to the measured union, one
+                  predicate changed and the other did not, and the page says so
+                  instead of rendering a total nobody can reconcile. */}
+              <div
+                style={{
+                  marginTop: 16,
+                  fontSize: 12.5,
+                  lineHeight: 1.6,
+                  color:
+                    cohorts.arithmetic.agrees === false
+                      ? "var(--danger-standard, #b91c1c)"
+                      : "var(--ink-muted, #94a3b8)",
+                }}
+                data-arithmetic-agrees={String(cohorts.arithmetic.agrees)}
+              >
+                {cohorts.arithmetic.agrees === true ? (
+                  <>
+                    Checked: {cohorts.arithmetic.disjointSum} disjoint records
+                    equals the measured union of{" "}
+                    {cohorts.arithmetic.measuredUnion}.
+                  </>
+                ) : cohorts.arithmetic.agrees === false ? (
+                  <>
+                    <strong>These counts do not reconcile.</strong> The three
+                    disjoint cohorts total{" "}
+                    {cohorts.arithmetic.disjointSum} but the measured union is{" "}
+                    {cohorts.arithmetic.measuredUnion}. Treat both as
+                    unreliable and report this.
+                  </>
+                ) : (
+                  <>
+                    The reconciliation check could not run — at least one cohort
+                    count is unavailable.
+                  </>
+                )}
+                {cohorts.unavailableCohorts.length > 0 ? (
+                  <>
+                    {" "}
+                    Unavailable: {cohorts.unavailableCohorts.join(", ")}. A
+                    missing count is shown as &ldquo;Not measured&rdquo;, never
+                    as zero.
+                  </>
+                ) : null}
+              </div>
+            </PageSection>
+          ) : null}
+
           <PageSection
             title="Uploads"
             description="In-flight and failed upload sessions across the platform."
