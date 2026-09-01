@@ -563,3 +563,97 @@ describe("raw-schema ownership — the credit-ledger partial UNIQUE index", () =
     ).not.toMatch(/@@unique\(\[\s*provider\s*,\s*providerRef/);
   });
 });
+
+// ===========================================================================
+// THE PLATFORM-INCIDENT PARTIAL UNIQUE INDEX
+// ===========================================================================
+//
+// The same failure, one migration later. `clean-db-boot` failed on a freshly
+// migrated database with:
+//
+//   FAIL — 1 UNREGISTERED schema divergence(s) appeared:
+//     + operational_incidents::-::Removed unique index on columns (fingerprint)
+//
+// `20280104000000_operational_incident_platform_uniqueness` created a PARTIAL
+// UNIQUE index and every other register was updated — the Point-6 curation, the
+// Point-8 release artifact, the deployment plan, the Phase-32.7.2 allowlist —
+// except this one, which is the register the fresh-database gate actually
+// reads. The migration was correct; the manifest simply did not know about it.
+//
+// It is raw-owned for the reason the category exists: the index ENFORCES
+// identity, and only over the platform-scope rows. `@@unique([fingerprint])`
+// would be unconditional and would reject two workspaces raising the same
+// condition, which is legal and ordinary. Prisma has no syntax for a predicate.
+//
+// `migrate diff` never reads `pg_index.indpred`, so the verifier cannot see the
+// predicate at all — a later edit could widen the index to a total UNIQUE and
+// the fresh-database gate would still report OK while workspace-scoped writes
+// began failing. These assertions are the only thing holding it.
+describe("raw-schema ownership — the platform-incident partial UNIQUE index", () => {
+  const INCIDENT_UNIQUE_OBJECT = "Removed unique index on columns (fingerprint)";
+  const INCIDENT_MIGRATION = resolve(
+    API_ROOT,
+    "prisma/migrations/20280104000000_operational_incident_platform_uniqueness/migration.sql",
+  );
+
+  it("is REGISTERED, exactly once, as a constraint rather than a bare index", () => {
+    const matches = manifest.objects.filter(
+      (o) =>
+        o.table === "operational_incidents" &&
+        o.sign === "-" &&
+        o.object === INCIDENT_UNIQUE_OBJECT,
+    );
+    expect(
+      matches.length,
+      "the partial unique index on operational_incidents must be registered " +
+        "exactly once, or clean-db-boot fails with an UNREGISTERED divergence",
+    ).toBe(1);
+    expect(matches[0]!.category).toBe("PARTIAL_UNIQUE_DECLARATION");
+  });
+
+  it("states its ownership POSITIVELY — creator, name, columns, predicate, mutation policy", () => {
+    const entry = manifest.objects.find(
+      (o) =>
+        o.table === "operational_incidents" &&
+        o.object === INCIDENT_UNIQUE_OBJECT,
+    )!;
+    expect(entry.indexName).toBe("operational_incidents_platform_fingerprint_uk");
+    expect(entry.columns).toEqual(["fingerprint"]);
+    expect(entry.predicate).toMatch(/team_id IS NULL/);
+    expect(entry.createdBy).toBe(
+      "20280104000000_operational_incident_platform_uniqueness",
+    );
+    expect(entry.prismaExpressible).toBe(false);
+    expect(entry.mayBeModifiedBy).toMatch(/forward migration/i);
+  });
+
+  it("the creating migration still declares that exact index, name and predicate", () => {
+    const sql = readFileSync(INCIDENT_MIGRATION, "utf8");
+    expect(sql).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS\s+"operational_incidents_platform_fingerprint_uk"/,
+    );
+    expect(sql).toMatch(/ON\s+"operational_incidents"\s*\(\s*"fingerprint"\s*\)/);
+    expect(
+      sql,
+      "WITHOUT the predicate this becomes a total UNIQUE and two workspaces " +
+        "raising the same condition can no longer both record it",
+    ).toMatch(/WHERE\s+"team_id"\s+IS\s+NULL/);
+  });
+
+  it("the datamodel owns the columns and does NOT declare the constraint", () => {
+    const start = SCHEMA.indexOf("model OperationalIncident {");
+    expect(start).toBeGreaterThan(-1);
+    const body = SCHEMA.slice(start, SCHEMA.indexOf("\n}", start));
+    // Existence is always the datamodel's.
+    expect(body).toMatch(/fingerprint/);
+    expect(body).toMatch(/teamId/);
+    // The platform-scope constraint is not, and must not become so.
+    expect(
+      body,
+      "an unconditional @@unique([fingerprint]) would reject two workspaces " +
+        "that legitimately raise the same condition",
+    ).not.toMatch(/@@unique\(\[\s*fingerprint\s*\]\)/);
+    // The workspace half stays where it already was.
+    expect(body).toMatch(/@@unique\(\[\s*teamId\s*,\s*fingerprint\s*\]\)/);
+  });
+});

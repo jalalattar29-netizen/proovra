@@ -97,9 +97,9 @@
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1,
     "PARTIAL_INDEX_DECLARATION": 2,
-    "PARTIAL_UNIQUE_DECLARATION": 1
+    "PARTIAL_UNIQUE_DECLARATION": 2
   },
-  "totalRegisteredObjects": 876,
+  "totalRegisteredObjects": 877,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -3367,6 +3367,21 @@
       "sign": "*",
       "object": "Renamed index operational_incidents_team_status_idx to operational_incidents_team_id_status_idx",
       "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "operational_incidents",
+      "sign": "-",
+      "object": "Removed unique index on columns (fingerprint)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "operational_incidents_platform_fingerprint_uk",
+      "columns": [
+        "fingerprint"
+      ],
+      "predicate": "team_id IS NULL",
+      "createdBy": "20280104000000_operational_incident_platform_uniqueness",
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional `@@unique([fingerprint])` would reject two workspaces that legitimately raise the same condition, and the workspace half of identity is already owned by `operational_incidents_team_id_fingerprint_key`.",
+      "prismaExpressible": false,
+      "purpose": "THE platform half of incident identity. A condition that belongs to the platform rather than to a workspace carries `team_id` NULL, and UNIQUE (team_id, fingerprint) does not constrain those rows at all — no two NULLs are equal — so PostgreSQL accepted unlimited duplicates of the same platform condition and the writer's P2002-recovery branch was unreachable code. The predicate scopes the index to exactly the platform-scope rows; the workspace half stays where it was."
     },
     {
       "table": "operational_timeline_events",

@@ -63,6 +63,33 @@ const SIGNED_NO_REPORT: Prisma.EvidenceWhereInput = {
   latestReportVersion: null,
 };
 
+/**
+ * THE COMPLEMENT OF `TSA_FAILED`, INCLUDING THE RECORDS THAT NEVER TRIED.
+ *
+ * `NOT: TSA_FAILED` compiles to `NOT (tsa_status = 'FAILED')`, and `tsaStatus`
+ * is NULLABLE — a record whose timestamp was never attempted holds NULL there.
+ * In SQL's three-valued logic `NULL = 'FAILED'` is NULL and `NOT NULL` is NULL,
+ * which is not TRUE, so every one of those records was silently dropped from
+ * the cohort.
+ *
+ * They were dropped from a cohort they belong in, and only from that one.
+ * `ALL_AFFECTED` uses OR and counted them, so the union exceeded the sum of the
+ * three disjoint parts and the projection's own `arithmetic.agrees` went false
+ * — which is precisely what that self-check exists to catch, and it did:
+ *
+ *   tsa_failed_only 102 + signed_no_report_only 1 + both 1  =  104
+ *   all_affected                                            =  195
+ *   signed, no report, timestamp never attempted            =   91
+ *
+ * A record signed with no report is a real operational problem whether or not
+ * anybody has asked a timestamp authority about it yet, and it is REGENERABLE,
+ * so it also belongs in `RETRYABLE`. The `IS NULL` arm is written explicitly
+ * rather than relying on a field-level `not` to decide how it treats NULL.
+ */
+const TSA_NOT_FAILED: Prisma.EvidenceWhereInput = {
+  OR: [{ tsaStatus: null }, { tsaStatus: { not: "FAILED" } }],
+};
+
 export const EVIDENCE_HEALTH_COHORTS = {
   TSA_FAILED_ONLY: {
     label: "Timestamp failed only",
@@ -74,7 +101,7 @@ export const EVIDENCE_HEALTH_COHORTS = {
     label: "Signed without a report only",
     description:
       "The record is signed and no report has been generated. The timestamp is fine.",
-    where: { ...LIVE, ...SIGNED_NO_REPORT, NOT: TSA_FAILED },
+    where: { ...LIVE, ...SIGNED_NO_REPORT, ...TSA_NOT_FAILED },
   },
   BOTH: {
     label: "Both conditions",
@@ -95,7 +122,11 @@ export const EVIDENCE_HEALTH_COHORTS = {
     // A missing report is regenerable; a failed timestamp is not. The
     // predicate follows the registry, and `retryabilityContract()` below is
     // asserted against it so the two cannot drift.
-    where: { ...LIVE, ...SIGNED_NO_REPORT, NOT: TSA_FAILED },
+    //
+    // Same NULL-safe complement as `SIGNED_NO_REPORT_ONLY`: a record whose
+    // timestamp was never attempted still has a report to regenerate, and
+    // `RETRYABLE` and `MANUAL_REVIEW` must partition the union as well.
+    where: { ...LIVE, ...SIGNED_NO_REPORT, ...TSA_NOT_FAILED },
   },
   MANUAL_REVIEW: {
     label: "Manual review",
