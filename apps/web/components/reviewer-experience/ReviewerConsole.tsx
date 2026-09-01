@@ -70,7 +70,8 @@ import type { ReviewerOpsQueueType } from "@proovra/shared";
 import { apiFetch } from "../../lib/api";
 // Canonical server-projected active space — bulk reviewer mutations are
 // team-only, and the frontend must never re-derive tenancy itself.
-import { useActiveSpace, useCan } from "../../lib/platform-context";
+import { useActiveSpace } from "../../lib/platform-context";
+import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { resolveSavedViewQueue } from "../../lib/reviewer-workspace/reviewer-api";
 import {
   ReviewerBulkOpsBar,
@@ -299,7 +300,11 @@ export function ReviewerConsole({
   const activeSpace = useActiveSpace();
   // Operator deep-links are gated on the canonical capability, never on
   // a client-side role or plan string.
-  const canObservability = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
+  // "check the health" goes for THIS actor. It returns the label with the href,
+  // so a link can never name a scope it does not open, and null when the actor
+  // holds neither authority — in which case no link is rendered at all.
+  const healthDestination = useHealthDestination();
   const [envelope, setEnvelope] = useState<ConsoleEnvelope | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -816,13 +821,12 @@ export function ReviewerConsole({
                   the canonical Governance Policy surface — the console
                   never edits policy itself. */}
               <a href="/governance/policy">Configure: Reviewer policy</a>
-              {/* Operator deep-link stays behind the canonical
-                  capability so personal / non-operator reviewers never
-                  see a link they cannot use. */}
-              {canObservability ? (
-                <a href="/admin/platform/observability">
-                  Diagnose: Worker &amp; cron health
-                </a>
+              {/* ADM-013 PHASE 1 — a reviewer who is not platform staff used
+                  to get NO link here, because the only branch tested a platform
+                  key. They now get their own workspace's health, labelled as
+                  such. An actor with neither authority still gets nothing. */}
+              {healthDestination ? (
+                <a href={healthDestination.href}>{healthDestination.label}</a>
               ) : null}
             </div>
           }

@@ -46,6 +46,7 @@ import {
   useCan,
   usePlatformContext,
 } from "../../lib/platform-context";
+import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import {
   emit as emitStateEvent,
   redactWorkspaceId,
@@ -458,7 +459,7 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
 
       {/* Phase 32.8C FINAL-4 — bulk action toolbar. Read-only chips
           documenting what operator actions are available; the
-          mutation routes live on /admin/platform/observability. The toolbar is
+          mutation routes live on /operations. The toolbar is
           permission-aware via the capability matrix. */}
       {capabilities ? (
         <BulkActionsToolbar
@@ -3130,7 +3131,11 @@ function SummaryStrip({
       key: "incidents",
       label: "Open incidents",
       value: d.openIncidentsCount,
-      href: "/admin/platform/observability",
+      // ADM-013 PHASE 1 — this tile counts THIS WORKSPACE's open conditions and
+      // used to link to the platform-admin observability page. The queue those
+      // conditions live in, and where a workspace operator can act on them, is
+      // /operations.
+      href: "/operations",
       visible: true,
       severe: d.openIncidentsCount > 0,
     },
@@ -4398,12 +4403,14 @@ function IncidentsSection({
   const correlations = section.correlations ?? [];
   const workflows = section.workflows ?? [];
   const causalityChains = section.causalityChains ?? [];
-  // STAGE 2 — gate ops/observability/runbooks deep-links on capability.
-  // Users without OBSERVABILITY_VIEW / RUNBOOKS_VIEW still see the
-  // incident list (it's diagnostic), but the deep-link into the
-  // operator surface stays hidden when they could not USE it.
-  const canObservability = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — `canObservability` gated these deep-links on a PLATFORM
+  // key while the incidents themselves belong to this workspace. The effect was
+  // that the only population who could follow an incident link was platform
+  // staff, and everybody else read a list of their own problems with no route
+  // to the queue that holds them. That queue is /operations, gated by the
+  // tenant authority; the health rollup comes from the canonical resolver.
   const canRunbooks = useCan("RUNBOOKS_VIEW");
+  const healthDestination = useHealthDestination();
   if (
     section.status === "unavailable" &&
     section.items.length === 0 &&
@@ -4428,9 +4435,9 @@ function IncidentsSection({
         <EnterpriseEmpty
           title="No open operational incidents"
           body="The incident generator scans real platform conditions on every dashboard load — report/package backlog, stale review assignments, retry storms, stale telemetry, worker heartbeat staleness, unsigned aged evidence, and stale coordination backlog. A 0-result state means every one of these thresholds is currently within tolerance. Workflows and causality chains follow incidents — when there are no incidents there is nothing to orchestrate."
-          hint="Detailed platform health remains accessible under Operations Center."
-          actionLabel={canObservability ? "Open observability" : undefined}
-          actionHref={canObservability ? "/admin/platform/observability" : undefined}
+          hint="Detailed health remains accessible from the Operations Center."
+          actionLabel={healthDestination?.label}
+          actionHref={healthDestination?.href}
         />
       </SectionShell>
     );
@@ -4491,9 +4498,7 @@ function IncidentsSection({
               const incidentHref =
                 i.runbookSlug && canRunbooks
                   ? `/admin/platform/runbooks#${i.runbookSlug}`
-                  : canObservability
-                    ? "/admin/platform/observability"
-                    : null;
+                  : "/operations";
               const incidentBody = (
                 <>
                   <span className="ec-incident-title">{i.title}</span>
@@ -4530,19 +4535,17 @@ function IncidentsSection({
         ))}
       </ul>
       ) : null}
-      {canObservability ? (
-        <div className="ec-section-foot">
-          Operator actions (acknowledge / assign / resolve / suppress, workflow
-          ownership transitions) live on the{" "}
-          <Link href="/admin/platform/observability">Operations Center</Link> incident +
-          workflow detail pages. The dashboard is read-only.
-        </div>
-      ) : (
-        <div className="ec-section-foot">
-          The dashboard is read-only. Operator actions are performed by
-          operations staff with access to the operations center.
-        </div>
-      )}
+      <div className="ec-section-foot">
+        {/* ADM-013 PHASE 1 — this sentence named the "Operations Center" and
+            linked to /admin/platform/observability, which is neither. Operator
+            actions on a workspace's own conditions live at /operations, and the
+            sentence is unconditional now because that surface is reachable by
+            the same actors who can read the list above it. */}
+        Operator actions (acknowledge / assign / resolve / suppress, workflow
+        ownership transitions) live on the{" "}
+        <Link href="/operations">Operations Center</Link> incident + workflow
+        detail pages. The dashboard is read-only.
+      </div>
     </SectionShell>
   );
 }
@@ -5290,11 +5293,12 @@ function BulkActionsToolbar({
   >["capabilities"];
   scope: WorkspaceScope;
 }) {
-  // STAGE 2 — gate the deep-link to /admin/platform/observability on the canonical
-  // capability for that route. The chips themselves remain visible
-  // (they're already permission-aware via the envelope.capabilities
-  // matrix and surface their own "Requires X" reason text).
-  const canObservability = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — every chip below pointed at /admin/platform/observability.
+  // These are WORKSPACE bulk actions on WORKSPACE conditions, authorized by
+  // `capabilities.bulkActions` (ADMIN or OWNER of the workspace) — a population
+  // that barely overlaps platform staff. So a chip told an ADMIN they could act
+  // and its href sent them to a page the platform gate refuses. The destination
+  // is the workspace conditions queue, where those mutations are performed.
   const actions: Array<{
     key: string;
     label: string;
@@ -5312,7 +5316,7 @@ function BulkActionsToolbar({
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/admin/platform/observability",
+      href: "/operations",
     },
     {
       key: "bulk_escalate_workflows",
@@ -5324,7 +5328,7 @@ function BulkActionsToolbar({
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/admin/platform/observability",
+      href: "/operations",
     },
     {
       key: "bulk_resolve_workflows",
@@ -5336,7 +5340,7 @@ function BulkActionsToolbar({
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/admin/platform/observability",
+      href: "/operations",
     },
     {
       key: "bulk_acknowledge_incidents",
@@ -5348,7 +5352,7 @@ function BulkActionsToolbar({
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/admin/platform/observability",
+      href: "/operations",
     },
     {
       key: "bulk_suppress_incidents",
@@ -5360,7 +5364,7 @@ function BulkActionsToolbar({
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/admin/platform/observability",
+      href: "/operations",
     },
     {
       key: "bulk_schedule_retry",
@@ -5372,7 +5376,7 @@ function BulkActionsToolbar({
           : capabilities.bulkActions
             ? "Records retry intent only — never invokes the queue."
             : "Requires ADMIN or OWNER",
-      href: "/admin/platform/observability",
+      href: "/operations",
     },
     {
       key: "bulk_add_mitigation",
@@ -5384,7 +5388,7 @@ function BulkActionsToolbar({
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/admin/platform/observability",
+      href: "/operations",
     },
     {
       key: "bulk_dismiss_recommendations",
@@ -5396,7 +5400,7 @@ function BulkActionsToolbar({
           : capabilities.bulkActions
             ? ""
             : "Requires ADMIN or OWNER",
-      href: "/admin/platform/observability",
+      href: "/operations",
     },
   ];
   const anyAvailable = actions.some((a) => a.canAct);
@@ -5436,7 +5440,7 @@ function BulkActionsToolbar({
             data-cc-bulk-action={a.key}
             data-cc-bulk-action-can-act={a.canAct ? "true" : "false"}
           >
-            {a.canAct && canObservability ? (
+            {a.canAct ? (
               <Link
                 href={a.href}
                 className="ec-chip"
@@ -5457,21 +5461,12 @@ function BulkActionsToolbar({
           </li>
         ))}
       </ul>
-      {canObservability ? (
-        <div className="ec-section-foot">
-          Bulk actions are executed on the Operations Center page (
-          <Link href="/admin/platform/observability">/admin/platform/observability</Link>). The
-          dashboard is read-only — chips above link to the canonical surface.
-          Every bulk run fans out to the underlying lifecycle service and is
-          audited per-target.
-        </div>
-      ) : (
-        <div className="ec-section-foot">
-          The dashboard is read-only. Bulk actions are executed by operations
-          staff with access to the operations center. Every bulk run is
-          audited per-target.
-        </div>
-      )}
+      <div className="ec-section-foot">
+        Bulk actions are executed on the Operations Center page (
+        <Link href="/operations">/operations</Link>). The dashboard is read-only
+        — chips above link to the canonical surface. Every bulk run fans out to
+        the underlying lifecycle service and is audited per-target.
+      </div>
     </section>
   );
 }

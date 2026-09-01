@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "fbb6753dac547c138b31ffbfb4558d1f7cad39370aff0e7613238262b8489040",
+  "capabilityRouteInventoryHash": "c03cf78b631e344e46a6017095455956399a8dc86778bd6c9113f4bea0e5ef2b",
   "totals": {
-    "routes": 1117,
+    "routes": 1122,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -520,6 +520,24 @@
     },
     {
       "routeId": "GET /v1/admin/platform-health",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/platform/alerts",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/platform/metrics",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/platform/readiness",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -3002,6 +3020,18 @@
     },
     {
       "routeId": "GET /v1/teams/:id/members/:memberId/removal-impact",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/teams/:workspaceId/operations/alerts",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/teams/:workspaceId/operations/health",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6784,5 +6814,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "9dae4a605ef3551a11df0831d1922f241884f6a8fa154fd1f118bcb068f1df71"
+  "contentHash": "ea2c00255646a9030cc2de59221bff2970a695f905998d0def003493461497f9"
 }

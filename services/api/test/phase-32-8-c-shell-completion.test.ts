@@ -265,8 +265,17 @@ describe("Phase 32.8C FINAL-4 — bulk actions toolbar", () => {
   });
 
   it("footnote explicitly states the dashboard is read-only", () => {
+    // ADM-013 PHASE 1 — the sentence is unchanged; the em dash it used to sit behind is
+    // not. The footnote was wrapped in `{canObservability ? … : …}`, so which
+    // of two sentences a reader saw depended on a PLATFORM capability on a
+    // WORKSPACE dashboard. Both sentences said the dashboard is read-only, so
+    // the branch bought nothing and cost the reader a different explanation
+    // for the same fact. It is now unconditional.
     expect(CC_TSX).toMatch(
-      /dashboard is read-only — chips above link to the canonical surface/,
+      /dashboard is read-only[\s\S]{0,40}chips above link to the canonical surface/,
+    );
+    expect(CC_TSX).toMatch(
+      /Bulk actions are executed on the Operations Center page[\s\S]{0,120}href="\/operations"/,
     );
   });
 });

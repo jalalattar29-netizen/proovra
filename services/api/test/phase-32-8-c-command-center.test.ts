@@ -566,15 +566,14 @@ describe("Phase 32.8C — runtime details delegate to Platform Health", () => {
   });
 
   it("Incidents footnote points at /operations (Phase 32.8A boundary preserved)", () => {
-    // Phase 32.8C control plane — the footnote was reworded to explain
-    // that operator actions (acknowledge/assign/resolve/suppress) live
-    // on the Operations Center page, not the dashboard. The boundary
-    // is preserved (the link still points at /admin/platform/observability;
-    // Phase 3 canonicalised /ops → /operations).
     expect(CC).toMatch(
       /Operator actions[\s\S]{0,200}Operations Center/,
     );
-    expect(CC).toMatch(/href="\/admin\/platform\/observability/);
+    // ADM-013 PHASE 1 — the assertion now matches its own title. The footnote said
+    // "Operations Center" and linked to /admin/platform/observability, which
+    // is a different page behind a different gate; the Command Center is a
+    // WORKSPACE dashboard and those mutations happen at /operations.
+    expect(CC).toMatch(/href="\/operations"/);
   });
 
   it("CommandCenter does NOT render the Phase 28-J /admin/runtime panels inline (no duplication of /ops)", () => {

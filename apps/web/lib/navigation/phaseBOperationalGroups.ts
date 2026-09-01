@@ -331,6 +331,9 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "platform.support_access",
 
       "workspace.operations",
+      // ADM-013 PHASE 1 — the tenant health rollup sits next to the queue it
+      // summarises, not next to the platform telemetry it is NOT.
+      "workspace.operations_health",
       "platform.observability",
       // Phase 8 — Platform production-readiness posture surface.
       "operations.readiness",

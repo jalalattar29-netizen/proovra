@@ -899,10 +899,14 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "platform.observability",
     href: "/admin/platform/observability",
-    label: "Observability",
-    description: "Runtime metrics + firing alerts.",
+    label: "Platform observability",
+    description:
+      "Process runtime, dependency probes and alert evaluation for the whole platform. Not scoped to a workspace.",
     domain: "OPS",
-    requiredCapabilities: ["OBSERVABILITY_VIEW"],
+    // ADM-013 PHASE 1 — the PLATFORM half of the observability split.
+    // `OBSERVABILITY_VIEW` spelled both halves at once; this route is the
+    // global registry and takes the key that says so.
+    requiredCapabilities: ["PLATFORM_TELEMETRY_VIEW"],
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
@@ -911,6 +915,30 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     commandPaletteVisible: true,
     allToolsVisible: true,
     sidebarEligible: true,
+  },
+  {
+    // ADM-013 PHASE 1 — the TENANT half of the observability split.
+    //
+    // Lives under `/operations` rather than `/workspaces/:id/...` because the
+    // `/workspaces` prefix is ENTERPRISE-tier with a `redirect` direct-access
+    // policy (lib/surface/tiers.ts), and a Next child layout nests inside its
+    // parent rather than replacing it — a health page there would bounce the
+    // Personal Pro operator who holds WORKSPACE_HEALTH_VIEW to
+    // /collaboration-teams. The scope is stated on the page instead.
+    id: "workspace.operations_health",
+    href: "/operations/health",
+    label: "Workspace health",
+    description:
+      "Unresolved operational conditions recorded against this workspace. No platform runtime.",
+    domain: "OPS",
+    requiredCapabilities: ["WORKSPACE_HEALTH_VIEW"],
+    requiredActiveSpace: "PERSONAL_OR_ORG",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: false,
+    commandPaletteVisible: true,
+    allToolsVisible: true,
+    sidebarEligible: false,
   },
   {
     id: "review.queue_detail",
@@ -1053,7 +1081,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     label: "Media intelligence ops",
     description: "Media intelligence + investigation graph operational metrics.",
     domain: "OPS",
-    requiredCapabilities: ["OBSERVABILITY_VIEW"],
+    // ADM-013 PHASE 1 — platform-global metrics; successor key.
+    requiredCapabilities: ["PLATFORM_TELEMETRY_VIEW"],
     // PHASE 4 — Operations is a platform-admin area (rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
@@ -2612,7 +2641,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description:
       "Backup/DR, key management, resiliency posture and runbooks (verified config only).",
     domain: "OPS",
-    requiredCapabilities: ["OBSERVABILITY_VIEW"],
+    // ADM-013 PHASE 1 — platform-global posture; successor key.
+    requiredCapabilities: ["PLATFORM_TELEMETRY_VIEW"],
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 

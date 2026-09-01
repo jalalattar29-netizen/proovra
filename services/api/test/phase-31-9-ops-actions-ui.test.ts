@@ -62,7 +62,12 @@ describe("Phase 31.9 — ops actions UI: endpoint surface", () => {
     const calls = noComments.match(/apiFetch\(\s*[`"][^`"]+[`"]/g) ?? [];
     const allowed = new Set([
       "/v1/users/me",
-      "/v1/ops/metrics",
+      // ADM-013 PHASE 1 — see the sibling note in
+      // phase-31-7-32-6-timeline-and-ops.test.ts. The metric read moved to the
+      // canonical platform namespace; the two MUTATIONS below are unchanged,
+      // and they are workspace-scoped, which is why the page still resolves a
+      // teamId even though the counters no longer involve one.
+      "/v1/admin/platform/metrics",
       "/v1/ops/media-intelligence/runs/${encodeURIComponent(trimmed)}/retry",
       "/v1/ops/media-intelligence/dlq/replay",
     ]);

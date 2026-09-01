@@ -321,12 +321,23 @@ describe("Phase R10 — Stage 2: hardcoded /ops links sit behind useCan() checks
       // `/admin/platform/*`. A file in this list may now legitimately link
       // to either — what this test protects is unchanged, and is the
       // useCan() gating relationship, not the URL.
-      expect(src).toMatch(/href=["']\/(operations|admin\/platform)/);
-      // useCan() call somewhere in the file — the relationship is
-      // structural (a capability is read and a link is conditionally
-      // rendered against it). Pairing the two is enforced by code
-      // review and the GlobalRuntimeIndicator footer test below.
-      expect(src).toMatch(/useCan\(\s*["']/);
+      // ADM-013 PHASE 1 — a THIRD acceptable shape. The two above are "a literal href"
+      // and "a useCan() call"; the new one is a resolved destination, where
+      // the href is not a literal at all because it depends on which
+      // authority the actor holds. A file that resolves its destination is
+      // strictly stronger than one that gates a literal, so it satisfies this
+      // gate — and a file that does NEITHER still fails it.
+      const literalOperatorLink = /href=["']\/(operations|admin\/platform)/.test(
+        src,
+      );
+      const resolvedOperatorLink = /useHealthDestination\(\)/.test(src);
+      expect(
+        literalOperatorLink || resolvedOperatorLink,
+        `${rel} has no operator deep-link at all — neither a literal /operations|/admin/platform href nor a resolved health destination`,
+      ).toBe(true);
+      // A capability is read somewhere in the file. useHealthDestination()
+      // reads two of them internally, so it counts.
+      expect(/useCan\(\s*["']/.test(src) || resolvedOperatorLink).toBe(true);
     });
   }
 });

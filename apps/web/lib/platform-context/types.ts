@@ -220,6 +220,12 @@ export const CAPABILITY_KEYS = [
   "OBSERVABILITY_VIEW",
   "RUNBOOKS_VIEW",
   "SECURITY_CENTER_VIEW",
+  // ADM-013 PHASE 1 — the observability split. PLATFORM_TELEMETRY_VIEW gates
+  // the process-global registry (platform staff only); WORKSPACE_HEALTH_VIEW
+  // gates a workspace's own durable health rollup. See the API-side
+  // `CAPABILITY_KEYS` for the full rationale — this list mirrors it.
+  "PLATFORM_TELEMETRY_VIEW",
+  "WORKSPACE_HEALTH_VIEW",
   "TEAM_VIEW",
   "TEAM_MANAGE",
   "BILLING_VIEW",

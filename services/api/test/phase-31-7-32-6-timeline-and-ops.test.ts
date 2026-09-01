@@ -177,7 +177,16 @@ describe("Phase 31.7 + 32.6 — /ops/media-graph page", () => {
     const apiFetchCalls = noComments.match(/apiFetch\(\s*[`"][^`"]+[`"]/g) ?? [];
     expect(apiFetchCalls.length).toBeGreaterThan(0);
     const allowedPrefixes = [
-      "/v1/ops/metrics",
+      // ADM-013 PHASE 1 — the metric read moved from "/v1/ops/metrics" to the
+      // canonical platform namespace. Both spellings answer the same
+      // process-global registry behind the same requirePlatformAdmin gate;
+      // this page is registered PLATFORM_ADMIN, so nothing about its audience
+      // changed. What changed is that the URL now says which scope it is.
+      //
+      // The OLD path is not left in the list as a permitted alternative: two
+      // acceptable spellings for one payload is how a page drifts back onto
+      // the compatibility path and takes the next reader with it.
+      "/v1/admin/platform/metrics",
       "/v1/users/me",
       "/v1/ops/media-intelligence/runs/",
       "/v1/ops/media-intelligence/dlq/replay",

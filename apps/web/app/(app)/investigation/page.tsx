@@ -36,6 +36,7 @@ import Link from "next/link";
 import { apiFetch } from "../../../lib/api";
 import { useCan, useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { useHealthDestination } from "../../../lib/navigation/healthDestination";
 import { HubQuickActionsBar } from "../../../components/hubs/HubQuickActionsBar";
 import { OperationalEmptyState } from "../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../lib/empty-state/classifier";
@@ -178,11 +179,19 @@ export default function InvestigationOverviewPage() {
 
 function InvestigationOverviewPageInner() {
   const teamId = useTeamId();
-  // STAGE 2 — /admin/platform/media-graph maps to OBSERVABILITY_VIEW in the
-  // canonical route registry. The "Open operations console" pivot
-  // below is the only deep-link off this page into an ops surface
-  // and must be hidden for actors without the capability.
-  const canObservability = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — TWO destinations, TWO gates, and they are not the same
+  // gate. `/admin/platform/media-graph` is a platform-admin route and is gated
+  // on the PLATFORM key alone; the empty-state diagnostics links go wherever
+  // the canonical resolver sends THIS actor. Gating both on one boolean is what
+  // put a platform href behind a check a tenant could pass.
+  const canPlatformTelemetry = useCan("PLATFORM_TELEMETRY_VIEW");
+  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
+  // "check the health" goes for THIS actor: Platform Observability for platform
+  // staff, workspace health for a tenant operator, and null for an actor with
+  // neither authority. It returns the label with the href so the link text can
+  // never disagree with the destination.
+  const healthDestination = useHealthDestination();
+  const canObservability = Boolean(healthDestination);
   // Wave 2 Phase 6 — refresh + ack/dismiss actions gated by
   // EVIDENCE_MANAGE (the closest UI-side capability that maps to the
   // backend evidence.update_metadata permission).
@@ -490,10 +499,16 @@ function InvestigationOverviewPageInner() {
 
       <PageSection title="Queue health">
         <QueueHealthGrid metrics={metrics} />
-        {canObservability ? (
+        {canPlatformTelemetry ? (
           <div style={pivotsStyle}>
             <Link href="/admin/platform/media-graph" style={pivotLinkStyle}>
-              Open operations console →
+              Open Media intelligence ops →
+            </Link>
+          </div>
+        ) : healthDestination ? (
+          <div style={pivotsStyle}>
+            <Link href={healthDestination.href} style={pivotLinkStyle}>
+              {healthDestination.label} →
             </Link>
           </div>
         ) : null}
@@ -586,6 +601,11 @@ function RecentSignalsList({
   onAck: (id: string) => void;
   onDismiss: (id: string) => void;
 }) {
+  // ADM-013 PHASE 1 — resolved HERE rather than threaded down as two more
+  // props. The destination is a property of the ACTOR, not of this section,
+  // and it must be read before the early returns below: a hook called after a
+  // conditional return is a hook-order violation.
+  const sectionHealthDestination = useHealthDestination();
   if (signals == null && !fetchError) {
     return <p style={emptyStyle}>Loading…</p>;
   }
@@ -601,8 +621,9 @@ function RecentSignalsList({
         reason={reason}
         nextAction={{ label: "Capture evidence", href: "/capture" }}
         adminAction={{ label: "Open cases", href: "/cases" }}
-        diagnosticsLink="/admin/platform/observability"
-        isAdmin={isAdmin}
+        diagnosticsLink={sectionHealthDestination?.href}
+        diagnosticsLabel={sectionHealthDestination?.label}
+        isAdmin={isAdmin && Boolean(sectionHealthDestination)}
       />
     );
   }
@@ -679,6 +700,11 @@ function GraphActivityList({
   fetchError: Error | null;
   isAdmin: boolean;
 }) {
+  // ADM-013 PHASE 1 — resolved HERE rather than threaded down as two more
+  // props. The destination is a property of the ACTOR, not of this section,
+  // and it must be read before the early returns below: a hook called after a
+  // conditional return is a hook-order violation.
+  const sectionHealthDestination = useHealthDestination();
   if (events == null && !fetchError) {
     return <p style={emptyStyle}>Loading…</p>;
   }
@@ -694,8 +720,9 @@ function GraphActivityList({
         reason={reason}
         nextAction={{ label: "Capture evidence", href: "/capture" }}
         adminAction={{ label: "Open cases", href: "/cases" }}
-        diagnosticsLink="/admin/platform/observability"
-        isAdmin={isAdmin}
+        diagnosticsLink={sectionHealthDestination?.href}
+        diagnosticsLabel={sectionHealthDestination?.label}
+        isAdmin={isAdmin && Boolean(sectionHealthDestination)}
       />
     );
   }

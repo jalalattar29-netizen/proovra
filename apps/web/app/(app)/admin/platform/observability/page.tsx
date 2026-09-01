@@ -8,14 +8,31 @@
  * Operations Center (`/operations`) — does NOT replace it. Polled every 15
  * seconds.
  *
- * The page reads:
- *   - `GET /v1/ops/metrics`  → counter + gauge snapshot
- *   - `GET /v1/ops/alerts`   → currently firing alerts
+ * SCOPE: PLATFORM. Every number on this page describes the API PROCESS and
+ * the platform as a whole. None of it is scoped to a workspace, and switching
+ * the active workspace cannot change a single value here.
  *
- * Both endpoints are authenticated and workspace-scoped. The page
- * uses the same canonical `useActiveWorkspaceId()` hook as the
- * Reviewer Ops surfaces so the workspace resolution is consistent
- * platform-wide.
+ * The page reads:
+ *   - `GET /v1/admin/platform/metrics`   → counter + gauge snapshot
+ *   - `GET /v1/admin/platform/alerts`    → alert evaluation over that snapshot
+ *   - `GET /v1/admin/platform/readiness` → runtime readiness aggregator
+ *
+ * ADM-013 PHASE 1 — WHY THE WORKSPACE ID IS GONE
+ * ---------------------------------------------------------------------------
+ * This page used to call `/v1/ops/metrics?teamId=…` and `/v1/ops/alerts?teamId=…`
+ * with the id of whatever workspace happened to be selected. Those endpoints
+ * proved membership of that workspace and then returned the PROCESS-GLOBAL
+ * registry, so the id was an authorization ticket and never a filter — the leak
+ * that 1afd5e0f closed by moving both payloads behind the platform-admin gate.
+ *
+ * Passing a workspace id to a global payload is not merely redundant. It makes
+ * the page LOOK tenant-scoped, which is how `operational_incidents_open 76`
+ * came to be read as the count for a workspace that had two. The parameter is
+ * removed rather than defaulted, and the scope is stated on screen.
+ *
+ * A consequence worth stating: after 1afd5e0f the old URLs return 403 to every
+ * non-platform caller and this page rendered its error box for them. It was
+ * BROKEN, not merely mis-scoped, until this change.
  *
  * Wording is operator-only. No marketing copy. No truth claims. No
  * raw evidence content.
@@ -26,21 +43,17 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
-import { useActiveSpaceId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { formatUserTime } from "../../../../../lib/date";
 import {
   OPS_INK,
   OPS_SURFACE,
   OPS_TONES,
-  RuntimeStatusBanner,
   Sparkline,
   type SparklineSeverity,
 } from "../../../../../components/operational";
 import { PageShell, PageHeader } from "../../../../../components/ui";
-import { Card } from "../../../../../components/ui/Card";
 import { Badge } from "../../../../../components/ui/Badge";
-import { EmptyState } from "../../../../../components/ui/EmptyState";
 
 type RuntimeReadinessReport = {
   status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
@@ -279,9 +292,10 @@ export default function ObservabilityDashboardPage() {
 }
 
 function ObservabilityDashboardPageInner() {
-  // PageRouteGate guarantees ALLOWED; activeSpaceId resolves the
-  // teamId without re-running the legacy workspace gate.
-  const teamId = useActiveSpaceId();
+  // NO workspace resolution. Deliberate: see the ADM-013 note in the file
+  // header. `platform.observability` requires PLATFORM_TELEMETRY_VIEW, which is
+  // granted to platform staff only, and the three endpoints below are gated by
+  // `requirePlatformAdmin` server-side. There is no id to resolve.
   const [metrics, setMetrics] = useState<MetricsResponse["metrics"] | null>(
     null,
   );
@@ -294,16 +308,14 @@ function ObservabilityDashboardPageInner() {
   const [lastPolledAtUtc, setLastPolledAtUtc] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!teamId) return;
     let cancelled = false;
     const tick = async () => {
       try {
         const [m, a] = await Promise.all([
-          apiFetch(
-            `/v1/ops/metrics?teamId=${encodeURIComponent(teamId)}`,
-            { method: "GET" },
-          ) as Promise<MetricsResponse>,
-          apiFetch(`/v1/ops/alerts?teamId=${encodeURIComponent(teamId)}`, {
+          apiFetch("/v1/admin/platform/metrics", {
+            method: "GET",
+          }) as Promise<MetricsResponse>,
+          apiFetch("/v1/admin/platform/alerts", {
             method: "GET",
           }) as Promise<AlertsResponse>,
         ]);
@@ -320,10 +332,9 @@ function ObservabilityDashboardPageInner() {
       // sets a flag so the rollup shows "Unknown" rather than implying
       // HEALTHY.
       try {
-        const r = (await apiFetch(
-          `/admin/runtime/readiness?teamId=${encodeURIComponent(teamId)}`,
-          { method: "GET" },
-        )) as RuntimeReadinessReport;
+        const r = (await apiFetch("/v1/admin/platform/readiness", {
+          method: "GET",
+        })) as RuntimeReadinessReport;
         if (!cancelled) {
           setReadiness(r);
           setReadinessError(false);
@@ -338,7 +349,9 @@ function ObservabilityDashboardPageInner() {
       cancelled = true;
       window.clearInterval(handle);
     };
-  }, [teamId]);
+    // Empty dependency list is the point: nothing this page reads varies with
+    // the active workspace, so nothing re-fetches when the operator switches.
+  }, []);
 
   const counterGroups = useMemo(() => {
     if (!metrics) return new Map<string, [string, number][]>();
@@ -470,49 +483,35 @@ function ObservabilityDashboardPageInner() {
     };
   }, [metrics]);
 
-  if (!teamId) {
-    return (
-      <PageShell
-        header={
-          <PageHeader
-            eyebrow="Operations"
-            title="Observability"
-            subtitle="Switch to a workspace to view operational telemetry."
-          />
-        }
-      >
-        <Card>
-          <EmptyState
-            compact
-            title="No workspace selected"
-            purpose="Switch to a workspace to view operational telemetry."
-          />
-        </Card>
-      </PageShell>
-    );
-  }
+  // ADM-013 PHASE 1 — the "No workspace selected" branch that stood here is
+  // deleted, not disabled. It withheld PLATFORM telemetry until the operator
+  // picked a workspace that the payload never consulted, which is the same
+  // false tenant-scoping the endpoint change removes.
 
   return (
     <PageShell
       header={
         <PageHeader
           eyebrow="Operations"
-          title="Observability"
+          title="Platform observability"
           subtitle={
             <>
-              Internal operator surface. In-process metrics + alert evaluation
-              for the API runtime. Polled every 15 s.
-              {lastPolledAtUtc
-                ? ` Last sample: ${formatUserTime(lastPolledAtUtc)}`
-                : ""}
+              Runtime of the API process and the platform as a whole. Not scoped
+              to a workspace — switching your active workspace does not change
+              any value on this page. Polled every 15 s.
             </>
           }
           contextStrip={
-            lastPolledAtUtc ? (
-              <Badge tone="neutral" subtle>
-                Last sample {formatUserTime(lastPolledAtUtc)}
+            <>
+              <Badge tone="info" subtle>
+                Scope: Platform
               </Badge>
-            ) : null
+              {lastPolledAtUtc ? (
+                <Badge tone="neutral" subtle>
+                  Last sample {formatUserTime(lastPolledAtUtc)}
+                </Badge>
+              ) : null}
+            </>
           }
           secondaryActions={
             <Link href="/operations" style={navLinkStyle}>
@@ -522,7 +521,11 @@ function ObservabilityDashboardPageInner() {
         />
       }
     >
-      <RuntimeStatusBanner teamId={teamId} />
+      {/* ADM-013 PHASE 1 — `RuntimeStatusBanner` is a WORKSPACE surface: it
+          takes a teamId and reports that workspace's conditions. On a page whose
+          every other number is platform-wide it read as a platform banner, which
+          is the conflation this split removes. Workspace runtime state now has
+          its own page at /operations/health. */}
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
@@ -912,16 +915,22 @@ function ObservabilityDashboardPageInner() {
             format. Public; optionally gated by <code style={codeStyle}>METRICS_SCRAPE_TOKEN</code>.
           </li>
           <li>
-            <code style={codeStyle}>GET /v1/ops/metrics?teamId=…</code> —
+            <code style={codeStyle}>GET /v1/admin/platform/metrics</code> —
             authenticated JSON snapshot used by this dashboard.
           </li>
           <li>
-            <code style={codeStyle}>GET /v1/ops/alerts?teamId=…</code> —
+            <code style={codeStyle}>GET /v1/admin/platform/alerts</code> —
             authenticated alert evaluation.
           </li>
           <li>
-            <code style={codeStyle}>GET /admin/runtime/readiness?teamId=…</code> —
-            cross-subsystem readiness used by the summary tiles + runtime banner.
+            {/* The tenant-scoped readiness endpoint is a DIFFERENT authority
+                for a different audience — it proves membership of a named
+                workspace and is not named here, because naming a workspace
+                parameter on this page is what made a global payload read as a
+                tenant one. */}
+            <code style={codeStyle}>GET /v1/admin/platform/readiness</code> —
+            cross-subsystem readiness used by the summary tiles. Platform-gated
+            and workspace-independent.
           </li>
           <li>
             <code style={codeStyle}>GET /readyz</code> — readiness probe (DB ping).

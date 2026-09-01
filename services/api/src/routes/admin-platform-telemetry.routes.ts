@@ -33,6 +33,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import { prisma } from "../db.js";
+import { runReadinessCheck } from "../runtime/runtime-readiness.js";
 import {
   bump,
   setGauge,
@@ -103,6 +105,51 @@ export async function adminPlatformTelemetryRoutes(
         },
         evaluatedAtUtc: new Date().toISOString(),
       });
+    },
+  );
+
+  /**
+   * GET /v1/admin/platform/readiness — the runtime readiness aggregator,
+   * reachable WITHOUT naming a workspace.
+   *
+   * ADM-013 PHASE 1. `/admin/runtime/readiness` answers the same question but
+   * takes `?teamId=` and proves membership plus `audit.read` against it. That
+   * gate is right for the tenant diagnostics surfaces that call it — and wrong
+   * for the platform observability page, which must not vary with, or depend on
+   * the existence of, the operator's currently selected workspace. Passing the
+   * operator's own personal space to satisfy a parameter the payload ignores is
+   * how a workspace id becomes a decorative ticket, which is the exact defect
+   * 1afd5e0f closed one endpoint earlier.
+   *
+   * The report itself is unchanged and is already global: `runReadinessCheck`
+   * probes the process, its dependencies and the live schema, and takes no
+   * tenant argument.
+   *
+   * TENANT_SCOPE_EXCEPTION: platform_admin_global.
+   */
+  app.get(
+    "/v1/admin/platform/readiness",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const report = await runReadinessCheck(prisma, req.id ?? null);
+        return reply.code(200).send({ scope: "PLATFORM", ...report });
+      } catch (err) {
+        // A readiness run that THREW is UNKNOWN, never HEALTHY and never a
+        // zeroed report — a caller that cannot tell those apart will render
+        // green over a failed read. See platform-health-snapshot.service.ts.
+        req.log.error({ err }, "admin.platform.readiness_failed");
+        return reply.code(200).send({
+          scope: "PLATFORM",
+          status: "UNKNOWN",
+          ranAtUtc: new Date().toISOString(),
+          durationMs: 0,
+          requestId: req.id ?? null,
+          subsystems: [],
+          degraded: true,
+          reason: "READINESS_EVALUATION_FAILED",
+        });
+      }
     },
   );
 }

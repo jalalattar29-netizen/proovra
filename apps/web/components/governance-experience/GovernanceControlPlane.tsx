@@ -22,6 +22,7 @@ import {
   useCan,
   usePlatformContext,
 } from "../../lib/platform-context";
+import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { RuntimeStatusBanner } from "../operational";
 // Phase 7D — shared enterprise design-system primitives. VISUAL-only
@@ -838,7 +839,11 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
   // capability still see the incident list, just without the deep-link
   // that they could not reach anyway.
   const canRunbooks = useCan("RUNBOOKS_VIEW");
-  const canObservability = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
+  // "check the health" goes for THIS actor. It returns the label with the href,
+  // so a link can never name a scope it does not open, and null when the actor
+  // holds neither authority — in which case no link is rendered at all.
+  const healthDestination = useHealthDestination();
   const canOpsCenter = useCan("OPS_CENTER_VIEW");
   if (i.status === "unavailable") {
     return (
@@ -900,8 +905,10 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
                 <Link href={`/admin/platform/runbooks#${row.runbookSlug}`}>
                   Runbook → {row.runbookSlug}
                 </Link>
-              ) : !row.runbookSlug && canObservability ? (
-                <Link href="/admin/platform/observability">Open observability</Link>
+              ) : !row.runbookSlug && healthDestination ? (
+                <Link href={healthDestination.href}>
+                  {healthDestination.label}
+                </Link>
               ) : null}
               <time dateTime={row.lastSeenAtUtc}>
                 Seen {relTime(row.lastSeenAtUtc)}

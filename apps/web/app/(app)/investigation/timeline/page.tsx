@@ -24,8 +24,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-import { useCan, useTeamId } from "../../../../lib/platform-context";
+import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 import { formatUserDate, formatUserTime } from "../../../../lib/date";
@@ -103,7 +104,13 @@ export default function InvestigationTimelinePage() {
 function InvestigationTimelinePageInner() {
   const teamId = useTeamId();
   // Wave 2 Phase 4 — diagnostics + admin-action gating.
-  const canDiagnostics = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
+  // "check the health" goes for THIS actor: Platform Observability for platform
+  // staff, workspace health for a tenant operator, and null for an actor with
+  // neither authority. It returns the label with the href so the link text can
+  // never disagree with the destination.
+  const healthDestination = useHealthDestination();
+  const canDiagnostics = Boolean(healthDestination);
   const [anchorEvidenceId, setAnchorEvidenceId] = useState<string | null>(null);
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
   const [truncated, setTruncated] = useState(false);
@@ -369,7 +376,8 @@ function InvestigationTimelinePageInner() {
               reason={queryFailedReason}
               nextAction={{ label: "Capture evidence", href: "/capture" }}
               adminAction={{ label: "Open cases", href: "/cases" }}
-              diagnosticsLink="/admin/platform/observability"
+              diagnosticsLink={healthDestination?.href}
+              diagnosticsLabel={healthDestination?.label}
               isAdmin={canDiagnostics}
             />
           ) : (
@@ -388,7 +396,8 @@ function InvestigationTimelinePageInner() {
                   reason={reason}
                   nextAction={{ label: "Capture evidence", href: "/capture" }}
                   adminAction={{ label: "Open cases", href: "/cases" }}
-                  diagnosticsLink="/admin/platform/observability"
+                  diagnosticsLink={healthDestination?.href}
+                  diagnosticsLabel={healthDestination?.label}
                   isAdmin={canDiagnostics}
                 />
               );

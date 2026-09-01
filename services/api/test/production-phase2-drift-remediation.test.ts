@@ -1151,7 +1151,24 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // candidates are the wrong homes: `admin-organizations.routes.ts` is about
 // CUSTOMER organizations (a different population), and `teams.routes.ts` is the
 // tenant-facing workspace API whose every route is workspace-scoped.
-const ROUTE_COUNT_PHASE_2_BASELINE = 126;
+// ADM-013 PHASE 1 (2026-09-01) — 126 → 128. The pin was already two behind
+// when this phase started: `1afd5e0f` added
+// `admin-platform-telemetry.routes.ts` and `527fcb2e` added
+// `workspace-operations.routes.ts`, and neither updated this number. So the
+// gate has been red on `origin/main` since 527fcb2e — it did exactly its job
+// and nobody read it.
+//
+// Both files are argued for in their own commits and both are NEW FILES for
+// the same reason the two above are: they are the opposite halves of a scope
+// split, and putting either into an existing module would have re-created the
+// single home whose ambiguity produced the leak. The telemetry module is
+// platform-gated and holds the process-global registry; the workspace module
+// imports none of `snapshotMetrics`, `evaluateAlerts`, `setGauge` or `bump`,
+// and a test asserts that absence.
+//
+// THIS PHASE ADDS NO ROUTE FILE. `GET /v1/admin/platform/readiness` was added
+// to the existing telemetry module, which is its correct home.
+const ROUTE_COUNT_PHASE_2_BASELINE = 128;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

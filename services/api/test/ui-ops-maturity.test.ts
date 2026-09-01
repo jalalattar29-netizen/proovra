@@ -141,9 +141,15 @@ describe("GlobalRuntimeIndicator (Phase 28-J)", () => {
 
   it("dropdown footer exposes the four quick links to canonical operator pages", () => {
     expect(src).toMatch(/href="\/operations"/);
-    expect(src).toMatch(/href="\/admin\/platform\/observability"/);
     expect(src).toMatch(/href="\/reviewer-ops\/escalations"/);
     expect(src).toMatch(/href="\/admin\/platform\/runbooks"/);
+    // ADM-013 PHASE 1 — the health link is no longer a constant. A hardcoded
+    // platform-admin href meant the footer showed three usable links and one
+    // refusal to a workspace operator; the resolver sends each actor to the
+    // health surface they can actually open, and renders nothing when there
+    // is none.
+    expect(src).toMatch(/href=\{healthDestination\.href\}/);
+    expect(src).toMatch(/label=\{healthDestination\.label\}/);
   });
 
   it("on any source failure the dropdown labels rows as unavailable, never silently empty", () => {

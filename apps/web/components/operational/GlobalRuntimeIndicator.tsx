@@ -48,6 +48,7 @@ import {
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
 import { useCan } from "../../lib/platform-context";
+import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { formatUserTime } from "../../lib/date";
 import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
 
@@ -524,10 +525,14 @@ function DropdownFooter({ onClose }: { onClose: () => void }) {
   // the deep-links into operator surfaces stay hidden for users who
   // could not USE them anyway.
   const canOpsCenter = useCan("OPS_CENTER_VIEW");
-  const canObservability = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
+  // "check the health" goes for THIS actor. It returns the label with the href,
+  // so a link can never name a scope it does not open, and null when the actor
+  // holds neither authority — in which case no link is rendered at all.
+  const healthDestination = useHealthDestination();
   const canEscalations = useCan("ESCALATIONS_VIEW");
   const canRunbooks = useCan("RUNBOOKS_VIEW");
-  if (!canOpsCenter && !canObservability && !canEscalations && !canRunbooks) {
+  if (!canOpsCenter && !healthDestination && !canEscalations && !canRunbooks) {
     return null;
   }
   return (
@@ -549,11 +554,11 @@ function DropdownFooter({ onClose }: { onClose: () => void }) {
           onClose={onClose}
         />
       ) : null}
-      {canObservability ? (
+      {healthDestination ? (
         <FooterLink
-          href="/admin/platform/observability"
+          href={healthDestination.href}
           icon={<Activity size={13} strokeWidth={2} />}
-          label="Observability"
+          label={healthDestination.label}
           onClose={onClose}
         />
       ) : null}

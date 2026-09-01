@@ -669,13 +669,16 @@ describe("Phase 32.8C FINAL-2 — frontend rendering", () => {
     );
   });
 
-  it("dashboard is read-only: footnote explicitly delegates lifecycle to /admin/platform/observability", () => {
+  it("dashboard is read-only: footnote delegates lifecycle to the workspace Operations Center", () => {
     // Allow whitespace (including newlines) between "workflow" and
     // "ownership transitions" since the JSX wraps the phrase.
     expect(CC_TSX).toMatch(
       /workflow\s+ownership transitions[\s\S]{0,300}Operations Center/,
     );
-    expect(CC_TSX).toMatch(/href="\/admin\/platform\/observability/);
+    // ADM-013 PHASE 1 — workflow ownership transitions are workspace mutations. The
+    // delegate link is /operations, which is what the sentence always claimed
+    // to name.
+    expect(CC_TSX).toMatch(/href="\/operations"/);
   });
 
   it("no inline mutation buttons in causality chains / workflows strips", () => {

@@ -236,6 +236,11 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   // -----------------------------------------------------------------
   ["workspace.operations", "OPERATIONS"],
   ["platform.observability", "OPERATIONS"],
+  // ADM-013 PHASE 1 — the tenant half of the observability split. Same
+  // pillar, different scope: an operator asking "is anything broken?" should
+  // find both in one place, and which one they can open is decided by
+  // capability, not by which pillar it was filed under.
+  ["workspace.operations_health", "OPERATIONS"],
   // Phase 8 — Platform production-readiness posture (backup/DR, keys, resiliency).
   ["operations.readiness", "OPERATIONS"],
   // Phase R2 — dedicated PLATFORM_ADMIN gates for the signer/export/recovery

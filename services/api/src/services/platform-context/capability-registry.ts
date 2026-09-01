@@ -150,6 +150,10 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
           "PLATFORM_ADMIN",
           "OPS_CENTER_VIEW",
           "OBSERVABILITY_VIEW",
+          // ADM-013 PHASE 1 — the successor key for global telemetry. Granted
+          // alongside OBSERVABILITY_VIEW during the deprecation window; the
+          // legacy key is read by nothing new.
+          "PLATFORM_TELEMETRY_VIEW",
           "RUNBOOKS_VIEW",
           "SECURITY_CENTER_VIEW",
           "DASHBOARD_VIEW",
@@ -363,6 +367,11 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
 
   if (canOperate) {
     map.OPERATIONS_VIEW = true;
+    // ADM-013 PHASE 1 — a workspace that can produce operational conditions
+    // can read its own health rollup. Granted from the SAME predicate rather
+    // than implied by OPERATIONS_VIEW so the two can diverge later without a
+    // consumer having to re-derive which one it meant.
+    map.WORKSPACE_HEALTH_VIEW = true;
     // VIEWER may look and may not act. Every mutation below requires a
     // non-viewer role; assignment and suppression additionally require
     // admin tier, mirroring CASE_ASSIGN and GOVERNANCE_ACT.
@@ -418,6 +427,7 @@ export function resolveCapabilities(input: CapabilityResolverInput): CapabilityM
         "PLATFORM_ADMIN",
         "OPS_CENTER_VIEW",
         "OBSERVABILITY_VIEW",
+        "PLATFORM_TELEMETRY_VIEW",
         "RUNBOOKS_VIEW",
         "SECURITY_CENTER_VIEW",
       ],

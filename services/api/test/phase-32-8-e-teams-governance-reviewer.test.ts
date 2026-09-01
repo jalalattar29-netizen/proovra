@@ -710,14 +710,33 @@ describe("Phase 32.8E — /review canonical reviewer console mount", () => {
     expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/sla"/);
     expect(REVIEWER_PANEL).toMatch(/href="\/reviewer-ops\/escalations"/);
     expect(REVIEWER_PANEL).toMatch(/href="\/governance\/policy"/);
-    expect(REVIEWER_PANEL).toMatch(/href="\/admin\/platform\/observability"/);
+    // ADM-013 PHASE 1 — the fifth link is no longer a constant href. See the sibling
+    // assertion below for why.
+    expect(REVIEWER_PANEL).toMatch(/href=\{healthDestination\.href\}/);
   });
 
-  it("gates the operator deep-link behind a canonical capability", () => {
-    expect(REVIEWER_PANEL).toMatch(/useCan\(\s*"OBSERVABILITY_VIEW"\s*\)/);
+  it("resolves the operator deep-link per actor rather than gating one href", () => {
+    // ADM-013 PHASE 1 — INVERTED, with the reason.
+    //
+    // This pinned `useCan("OBSERVABILITY_VIEW") ? <link to platform> : null`
+    // on the REVIEWER console. OBSERVABILITY_VIEW is granted to platform staff
+    // and to nobody else, so on a reviewer console the branch resolved false
+    // for essentially every reader: the console's own audience got no link,
+    // and the assertion recorded that as correct because a capability was
+    // being read.
+    //
+    // The relationship the test should protect is not "a capability is read
+    // and one href is conditionally rendered". It is "the destination matches
+    // the actor". One resolver returns the href AND its label together, so a
+    // link cannot name a scope it does not open, and returns null when the
+    // actor holds neither authority.
+    expect(REVIEWER_PANEL).toMatch(/useHealthDestination\(\)/);
     expect(REVIEWER_PANEL).toMatch(
-      /canObservability \?[\s\S]{0,200}\/admin\/platform\/observability/,
+      /healthDestination \?[\s\S]{0,200}healthDestination\.href/,
     );
+    expect(REVIEWER_PANEL).toMatch(/\{healthDestination\.label\}/);
+    // The hardcoded platform href must not come back.
+    expect(REVIEWER_PANEL).not.toMatch(/"\/admin\/platform\/observability"/);
   });
 
   it("renders distinct loading / error / empty states", () => {

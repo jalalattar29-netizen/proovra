@@ -60,10 +60,24 @@ const MOVED_CONSOLES = [
 ] as const;
 
 /**
- * The two `/operations/*` children that are genuinely tenant surfaces and
- * therefore stay. Both were already `PERSONAL_OR_ORG` before this phase.
+ * The `/operations/*` children that are genuinely tenant surfaces and therefore
+ * stay. Every one of them is `PERSONAL_OR_ORG`, which the sibling test above
+ * asserts independently — this list exists so that ADDING one is a deliberate,
+ * reviewed act rather than something a new directory does silently.
+ *
+ * `health` (ADM-013 PHASE 1) is the workspace half of the observability split.
+ * It reads `/v1/teams/:workspaceId/operations/health` and `/operations/alerts`,
+ * whose payloads are row counts inside the caller's own workspace, and it holds
+ * the tenant key `WORKSPACE_HEALTH_VIEW`. It is deliberately NOT at
+ * `/workspaces/:id/operations/health`: the `/workspaces` prefix is
+ * ENTERPRISE-tier with a `redirect` direct-access policy, which would bounce
+ * the Personal Pro operator the capability is granted to.
  */
-const TENANT_OPERATIONS_CHILDREN = ["quotas", "batch-analysis"] as const;
+const TENANT_OPERATIONS_CHILDREN = [
+  "quotas",
+  "batch-analysis",
+  "health",
+] as const;
 
 type Route = {
   id: string;

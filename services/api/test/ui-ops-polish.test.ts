@@ -255,8 +255,15 @@ describe("Observability dashboard — summary-first layout", () => {
     expect(src).toMatch(/<details[^>]*>\s*<summary[^>]*>\s*Scrape endpoints/);
   });
 
-  it("consumes runtime readiness via /admin/runtime/readiness", () => {
-    expect(src).toMatch(/\/admin\/runtime\/readiness\?teamId=/);
+  it("consumes runtime readiness via the workspace-independent platform route", () => {
+    // ADM-013 PHASE 1 — /admin/runtime/readiness?teamId= proves membership of the named
+    // workspace plus audit.read. That gate is correct for the tenant
+    // diagnostics surfaces and wrong here: this page must not vary with, or
+    // depend on the existence of, the operator's selected workspace. The
+    // report was always global — runReadinessCheck takes no tenant argument —
+    // so the tenant parameter was decorative.
+    expect(src).toMatch(/\/v1\/admin\/platform\/readiness/);
+    expect(src).not.toMatch(/readiness\?teamId=/);
   });
 
   it("top non-zero counters + gauges are surfaced (top-signal first)", () => {

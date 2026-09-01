@@ -26,6 +26,7 @@
 
 import Link from "next/link";
 
+import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { OPS_INK, OPS_SURFACE, OPS_TONES } from "./tokens";
 
 export type OperationalEmptyStateVariant = "neutral" | "degraded" | "unknown";
@@ -174,6 +175,20 @@ export type OperationalEmptyStateProps = {
    * backed by it). Rendered only when isAdmin === true.
    */
   diagnosticsLink?: string;
+  /**
+   * ADM-013 PHASE 1 — the link's TEXT, supplied by the caller.
+   *
+   * This used to be the fixed string "Open diagnostics", which named neither
+   * the scope it opened nor the authority it needed. Every caller sent a
+   * platform-admin surface, so a workspace operator who somehow saw the link
+   * got a refusal, and a platform operator could not tell from the link
+   * whether they were about to leave their tenant.
+   *
+   * Callers pass `useHealthDestination()?.label` — "Open Platform
+   * Observability" or "View workspace health" — so the words match the
+   * destination the same resolver chose.
+   */
+  diagnosticsLabel?: string;
   /** True when the current operator has admin/diagnostics access. */
   isAdmin?: boolean;
 };
@@ -204,6 +219,7 @@ export function OperationalEmptyState(props: OperationalEmptyStateProps) {
   const nextAction = props.nextAction;
   const adminAction = props.adminAction;
   const diagnosticsLink = props.diagnosticsLink;
+  const diagnosticsLabel = props.diagnosticsLabel;
   const isAdmin = Boolean(props.isAdmin);
   const tone = toneFor(variant);
   // The 4 required surfaces from the brief:
@@ -332,7 +348,7 @@ export function OperationalEmptyState(props: OperationalEmptyStateProps) {
             fontWeight: 600,
           }}
         >
-          → Open diagnostics
+          → {diagnosticsLabel ?? "Open diagnostics"}
         </Link>
       ) : null}
     </div>
@@ -401,7 +417,25 @@ function EmptyStateActionButton({
 // Convenience presets — bounded catalog of operator-recognized empty states.
 // -----------------------------------------------------------------------------
 
+/**
+ * ADM-013 PHASE 1 — the presets below listed an "Open Observability dashboard"
+ * action UNCONDITIONALLY. These are reviewer and runtime notices shown to
+ * workspace operators, and the href was a platform-admin page. Every reviewer
+ * who hit an empty escalation queue was handed a control that refused.
+ *
+ * They now ask the canonical resolver where health lives for the CURRENT actor
+ * and append that action only when there is one.
+ */
+function healthActions(
+  destination: { href: string; label: string } | null,
+): OperationalEmptyStateAction[] {
+  return destination
+    ? [{ label: destination.label, href: destination.href }]
+    : [];
+}
+
 export function NoEscalationsEmptyState() {
+  const healthDestination = useHealthDestination();
   return (
     <OperationalEmptyState
       kicker="Reviewer Ops"
@@ -412,7 +446,7 @@ export function NoEscalationsEmptyState() {
       actions={[
         { label: "Check reviewer ops queue", href: "/reviewer-ops" },
         { label: "View SLA policy", href: "/reviewer-ops/policy" },
-        { label: "Open observability dashboard", href: "/admin/platform/observability" },
+        ...healthActions(healthDestination),
       ]}
     />
   );
@@ -484,6 +518,7 @@ export function RuntimeDegradedNotice({
 }: {
   failingSubsystems: ReadonlyArray<string>;
 }) {
+  const healthDestination = useHealthDestination();
   return (
     <OperationalEmptyState
       kicker="Runtime"
@@ -493,7 +528,7 @@ export function RuntimeDegradedNotice({
       runtimeDependency={`Failing subsystems: ${failingSubsystems.join(", ")}.`}
       variant="degraded"
       actions={[
-        { label: "Open Observability dashboard", href: "/admin/platform/observability" },
+        ...healthActions(healthDestination),
         { label: "Review runbooks", href: "/admin/platform/runbooks" },
       ]}
     />
@@ -505,23 +540,25 @@ export function GovernanceSnapshotUnavailableNotice({
 }: {
   requestId?: string;
 }) {
+  const healthDestination = useHealthDestination();
   return (
     <OperationalEmptyState
       kicker="Governance"
       emptyStateCode="governance_snapshot_unavailable"
       title="Governance state could not be loaded."
-      reason="Export and package eligibility for this record cannot be confirmed right now. The platform is failing closed — treat as blocked until the snapshot is available."
+      reason={
+        requestId
+          ? `Export and package eligibility for this record cannot be confirmed right now. The platform is failing closed — treat as blocked until the snapshot is available. Quote request ${requestId.slice(0, 12)} to support.`
+          : "Export and package eligibility for this record cannot be confirmed right now. The platform is failing closed — treat as blocked until the snapshot is available."
+      }
       runtimeDependency="Database connectivity + canonical governance helpers."
       variant="unknown"
       actions={
-        requestId
-          ? [
-              {
-                label: `Reference request ${requestId.slice(0, 12)}`,
-                href: "/admin/platform/observability",
-              },
-            ]
-          : [{ label: "Open Observability dashboard", href: "/admin/platform/observability" }]
+        // The request id is a REFERENCE, not a destination. It was rendered as
+        // a link to the platform observability page, which neither accepts a
+        // request id nor is reachable by this notice's audience. It belongs in
+        // the reason text; only real destinations belong in `actions`.
+        healthActions(healthDestination)
       }
     />
   );

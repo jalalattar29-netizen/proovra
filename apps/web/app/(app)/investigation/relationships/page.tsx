@@ -32,8 +32,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../../lib/api";
-import { useCan, useTeamId } from "../../../../lib/platform-context";
+import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 // =============================================================================
@@ -80,7 +81,13 @@ export default function RelationshipInspectorPage() {
 function RelationshipInspectorPageInner() {
   const teamId = useTeamId();
   // Wave 2 Phase 4 — diagnostics + admin-action gate.
-  const canDiagnostics = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
+  // "check the health" goes for THIS actor: Platform Observability for platform
+  // staff, workspace health for a tenant operator, and null for an actor with
+  // neither authority. It returns the label with the href so the link text can
+  // never disagree with the destination.
+  const healthDestination = useHealthDestination();
+  const canDiagnostics = Boolean(healthDestination);
   const search = useSearchParams();
   const caseId = search?.get("caseId") ?? "";
   const focusedNodeId = search?.get("nodeId") ?? null;
@@ -203,7 +210,8 @@ useEffect(() => {
                   label: "Open investigation overview",
                   href: "/investigation",
                 }}
-                diagnosticsLink="/admin/platform/observability"
+                diagnosticsLink={healthDestination?.href}
+                diagnosticsLabel={healthDestination?.label}
                 isAdmin={canDiagnostics}
               />
             );
@@ -236,7 +244,8 @@ useEffect(() => {
                     label: "Open investigation overview",
                     href: "/investigation",
                   }}
-                  diagnosticsLink="/admin/platform/observability"
+                  diagnosticsLink={healthDestination?.href}
+                  diagnosticsLabel={healthDestination?.label}
                   isAdmin={canDiagnostics}
                 />
               );
@@ -285,7 +294,8 @@ useEffect(() => {
                   label: "Open investigation overview",
                   href: "/investigation",
                 }}
-                diagnosticsLink="/admin/platform/observability"
+                diagnosticsLink={healthDestination?.href}
+                diagnosticsLabel={healthDestination?.label}
                 isAdmin={canDiagnostics}
               />
             );

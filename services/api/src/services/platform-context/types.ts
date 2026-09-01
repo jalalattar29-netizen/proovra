@@ -304,6 +304,36 @@ export const CAPABILITY_KEYS = [
   "OBSERVABILITY_VIEW",
   "RUNBOOKS_VIEW",
   "SECURITY_CENTER_VIEW",
+  /**
+   * ADM-013 PHASE 1 — the PLATFORM half of the observability split.
+   *
+   * `OBSERVABILITY_VIEW` had to answer two different questions with one word:
+   * "may this actor read the PROCESS-GLOBAL runtime registry?" and "may this
+   * actor see whether their own workspace is healthy?". Those have different
+   * audiences, different data and different blast radii, and while one key
+   * spelled both, every tenant surface that wanted the second had to test for
+   * the first — so a workspace operator either saw a link they could not open,
+   * or saw nothing at all.
+   *
+   * This key gates ONLY the global projection: `/v1/admin/platform/metrics`,
+   * `/v1/admin/platform/alerts`, `/v1/admin/platform/health-snapshot` and the
+   * `/admin/platform/observability` page. Platform staff, and nobody else, in
+   * any workspace, on any plan.
+   */
+  "PLATFORM_TELEMETRY_VIEW",
+  /**
+   * ADM-013 PHASE 1 — the TENANT half of the observability split.
+   *
+   * "Is MY workspace healthy?" — answered from durable rows the workspace
+   * owns, never from the process registry. Gates `/operations/health` and the
+   * `/v1/teams/:workspaceId/operations/health` projection.
+   *
+   * Deliberately NOT folded into `OPERATIONS_VIEW`. They are granted together
+   * today, but the health projection may later carry a bounded platform
+   * service-status word, and widening a queue-read capability to cover that is
+   * the same conflation this split exists to undo.
+   */
+  "WORKSPACE_HEALTH_VIEW",
   // ===========================================================================
   // TENANT OPERATIONS — the workspace Operations Center (`/operations`).
   //

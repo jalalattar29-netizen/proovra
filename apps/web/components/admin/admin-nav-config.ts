@@ -165,6 +165,17 @@ export const ADMIN_NAV_ITEMS: ReadonlyArray<AdminNavItem> = [
     purpose: "Production readiness posture.",
     group: "PLATFORM",
   },
+  {
+    // ADM-013 PHASE 1 — promoted OUT of TENANT_SCOPED_ADMIN_PATHS. The page no
+    // longer resolves an active workspace, no longer passes a teamId, and reads
+    // three platform-gated endpoints. It is genuinely platform-wide now, so it
+    // belongs in the nav instead of behind the "this is not what it says it is"
+    // banner.
+    href: "/admin/platform/observability",
+    label: "Observability",
+    purpose: "Is the runtime healthy, and what is firing?",
+    group: "PLATFORM",
+  },
 ] as const;
 
 /**
@@ -187,7 +198,6 @@ export const TENANT_SCOPED_ADMIN_PATHS: ReadonlyArray<string> = [
   "/admin/identity/access-reviews",
   "/admin/identity/runtime",
   "/admin/identity/timeline",
-  "/admin/platform/observability",
   "/admin/platform/queues",
   "/admin/platform/exports",
   "/admin/platform/signers",

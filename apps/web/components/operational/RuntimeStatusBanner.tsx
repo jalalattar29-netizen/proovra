@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { useCan } from "../../lib/platform-context";
+import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { RuntimeDegradedNotice } from "./OperationalEmptyState";
 import { OPS_TONES } from "./tokens";
 
@@ -100,7 +101,11 @@ export function RuntimeStatusBanner({
   // anyone), but the deep-link into observability/runbooks is hidden
   // for actors who could not USE those surfaces. The banner text
   // degrades gracefully to a plain description.
-  const canObservability = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
+  // "check the health" goes for THIS actor. It returns the label with the href,
+  // so a link can never name a scope it does not open, and null when the actor
+  // holds neither authority — in which case no link is rendered at all.
+  const healthDestination = useHealthDestination();
   const canRunbooks = useCan("RUNBOOKS_VIEW");
 
   useEffect(() => {
@@ -226,19 +231,18 @@ export function RuntimeStatusBanner({
         }}
       >
         Runtime status is unknown for {failing.length || "some"} subsystem(s).
-        {canObservability ? (
+        {healthDestination ? (
           <>
             {" "}
-            Open the{" "}
             <a
-              href="/admin/platform/observability"
+              href={healthDestination.href}
               style={{
                 color: OPS_TONES.warning.link,
                 fontWeight: 700,
                 textDecoration: "underline",
               }}
             >
-              Observability dashboard
+              {healthDestination.label}
             </a>{" "}
             for detail.
           </>

@@ -24,8 +24,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../lib/api";
-import { useCan, useTeamId } from "../../../../lib/platform-context";
+import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -170,7 +171,13 @@ export default function ReviewerIntelligenceConsolePage() {
 function ReviewerIntelligenceConsolePageInner() {
   const teamId = useTeamId();
   // Wave 2 Phase 4 — diagnostics + admin-action gate.
-  const canDiagnostics = useCan("OBSERVABILITY_VIEW");
+  // ADM-013 PHASE 1 — `useHealthDestination()` is the ONE authority for where
+  // "check the health" goes for THIS actor: Platform Observability for platform
+  // staff, workspace health for a tenant operator, and null for an actor with
+  // neither authority. It returns the label with the href so the link text can
+  // never disagree with the destination.
+  const healthDestination = useHealthDestination();
+  const canDiagnostics = Boolean(healthDestination);
   const [data, setData] = useState<ConsoleResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Wave 2 Phase 4 — capture the underlying fetch error so the classifier
@@ -462,7 +469,8 @@ useEffect(() => {
                       label: "Open SLA policy",
                       href: "/reviewer-ops/policy",
                     }}
-                    diagnosticsLink="/admin/platform/observability"
+                    diagnosticsLink={healthDestination?.href}
+                    diagnosticsLabel={healthDestination?.label}
                     isAdmin={canDiagnostics}
                   />
                 </div>
@@ -516,7 +524,8 @@ useEffect(() => {
                       label: "Open SLA policy",
                       href: "/reviewer-ops/policy",
                     }}
-                    diagnosticsLink="/admin/platform/observability"
+                    diagnosticsLink={healthDestination?.href}
+                    diagnosticsLabel={healthDestination?.label}
                     isAdmin={canDiagnostics}
                   />
                 </div>
@@ -558,7 +567,8 @@ useEffect(() => {
                       label: "Open external review settings",
                       href: "/review/external",
                     }}
-                    diagnosticsLink="/admin/platform/observability"
+                    diagnosticsLink={healthDestination?.href}
+                    diagnosticsLabel={healthDestination?.label}
                     isAdmin={canDiagnostics}
                   />
                 </div>

@@ -87,7 +87,13 @@ describe("Reviewer console landing page (full adoption)", () => {
     expect(src).toMatch(/\/reviewer-ops\/escalations/);
     expect(src).toMatch(/\/reviewer-ops\/sla/);
     expect(src).toMatch(/\/governance\/policy/);
-    expect(src).toMatch(/\/admin\/platform\/observability/);
+    // ADM-013 PHASE 1 — the fourth link was a hardcoded platform-admin href behind a
+    // platform-admin capability, on a console whose audience is reviewers. It
+    // was "actionable" for a population of approximately zero. The console
+    // now asks useHealthDestination(), which sends a reviewer to their own
+    // workspace's health and platform staff to the global runtime.
+    expect(src).toMatch(/useHealthDestination\(\)/);
+    expect(src).not.toMatch(/\/admin\/platform\/observability/);
   });
 
   it("no banned wording in this console's string literals", () => {
@@ -245,33 +251,31 @@ describe("Observability dashboard (full adoption)", () => {
     "../../../apps/web/app/(app)/admin/platform/observability/page.tsx",
   );
 
-  it("imports RuntimeStatusBanner from the operational barrel", () => {
-    // Phase 28-I added the summary-tile rollup which also imports
-    // OPS_INK / OPS_SURFACE / OPS_TONES from the same barrel. Match the
-    // RuntimeStatusBanner symbol inside the imported set rather than
-    // requiring it to be the only import.
-    expect(src).toMatch(
+  it("does NOT mount the workspace runtime banner", () => {
+    // ADM-013 PHASE 1 — three assertions collapse into this one, INVERTED with the
+    // reason rather than deleted.
+    //
+    // RuntimeStatusBanner takes a teamId and reports THAT WORKSPACE's
+    // readiness. On a page where every other number is platform-wide it read
+    // as a platform banner, and it was the last thing keeping a workspace id
+    // on the page. Workspace runtime state now has its own surface at
+    // /operations/health, gated by the tenant key.
+    expect(src).not.toMatch(/<RuntimeStatusBanner/);
+    expect(src).not.toMatch(
       /import\s*\{[\s\S]*?RuntimeStatusBanner[\s\S]*?\}\s*from\s*"[./]+components\/operational"/,
     );
   });
 
-  it("renders RuntimeStatusBanner inside the main render", () => {
-    // Phase 32.7 — also accepts banner usage with `forDomains` prop.
-    expect(src).toMatch(
-      /<RuntimeStatusBanner[\s\S]{0,200}teamId=\{teamId\}/,
-    );
-  });
-
-  it("banner is rendered above the telemetry content (operator sees runtime state first)", () => {
-    // Phase 7C — the page migrated to the shared PageShell/PageHeader; the
-    // old `<header style={headerStyle}>` is gone. The runtime banner still
-    // renders ahead of the telemetry body so operators read runtime state
-    // before the metrics. Anchor on the first content section instead.
-    const bannerIdx = src.indexOf("RuntimeStatusBanner teamId");
+  it("states its scope where the banner used to be", () => {
+    // The banner is not merely removed. Something has to tell the operator
+    // whose runtime they are reading, or the page stays exactly as ambiguous
+    // as it was — only quieter about it.
+    expect(src).toContain("Scope: Platform");
+    const scopeIdx = src.indexOf("Scope: Platform");
     const contentIdx = src.indexOf("data-observability-summary");
-    expect(bannerIdx).toBeGreaterThan(0);
+    expect(scopeIdx).toBeGreaterThan(0);
     expect(contentIdx).toBeGreaterThan(0);
-    expect(bannerIdx).toBeLessThan(contentIdx);
+    expect(scopeIdx).toBeLessThan(contentIdx);
   });
 
   it("no banned wording in this page's string literals", () => {

@@ -521,8 +521,17 @@ describe("Phase Y — Operational dashboard page", () => {
   );
 
   it("polls the right endpoints", () => {
-    expect(src).toContain("/v1/ops/metrics");
-    expect(src).toContain("/v1/ops/alerts");
+    // ADM-013 PHASE 1 — INVERTED, with the reason, rather than deleted.
+    //
+    // 1afd5e0f moved the global registry behind requirePlatformAdmin and gave
+    // it /v1/admin/platform/*. This assertion kept pinning the OLD URLs, and
+    // it kept PASSING — because the page docblock still contained those
+    // strings. A toContain over whole source cannot tell a call from a
+    // comment, so it recorded the broken posture as the expected one and
+    // reported success while the page answered 403 to its own audience.
+    expect(src).toContain("/v1/admin/platform/metrics");
+    expect(src).toContain("/v1/admin/platform/alerts");
+    expect(src).toContain("/v1/admin/platform/readiness");
   });
 
   it("renders the canonical scrape endpoints documentation block", () => {
@@ -531,8 +540,20 @@ describe("Phase Y — Operational dashboard page", () => {
     expect(src).toContain("GET /healthz");
   });
 
-  it("reuses the canonical workspace hook so it does not regress on workspace resolution", () => {
-    expect(src).toContain("useActiveWorkspaceId");
+  it("resolves NO workspace — the payload is process-global", () => {
+    // ADM-013 PHASE 1 — INVERTED. This asserted the page reused the canonical workspace
+    // hook, which was right while the endpoints were membership-gated and is
+    // wrong now that they are platform-gated and global. A workspace id on
+    // this page was an authorization ticket, never a filter, and rendering
+    // operational_incidents_open 76 beside a workspace name is exactly how
+    // that number came to be read as that workspace's count.
+    for (const hook of [
+      "useActiveWorkspaceId",
+      "useActiveSpaceId",
+      "useTeamId",
+    ]) {
+      expect(src).not.toContain(hook);
+    }
   });
 
   it("uses muted operator language (no marketing/legal overclaim)", () => {

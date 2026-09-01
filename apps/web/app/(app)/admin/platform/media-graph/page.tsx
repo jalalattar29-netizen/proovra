@@ -4,11 +4,20 @@
  * Phase 31.7 + 32.6 — Media intelligence + investigation graph
  * operations console.
  *
- * Workspace-internal operator surface that pins the Phase 31.6 queue
- * counters/gauges and the Phase 32.5 graph query counters onto a
- * single dashboard. Consumes the existing `/v1/ops/metrics` endpoint
- * — no new server routes; this page is purely a projection of the
- * in-process metrics registry.
+ * PLATFORM operator surface that pins the Phase 31.6 queue counters/gauges
+ * and the Phase 32.5 graph query counters onto a single dashboard. It is a
+ * projection of the in-process metrics registry and adds no server route.
+ *
+ * ADM-013 PHASE 1 — "Workspace-internal" was wrong twice over, and the words
+ * outlived the thing they described. The registry is PROCESS-GLOBAL: identical
+ * for every tenant on the instance, reset on deploy. The page is registered
+ * `requiredActiveSpace: "PLATFORM_ADMIN"`, so its readers were never a
+ * workspace population. And since `1afd5e0f` the metric snapshot lives at
+ * `GET /v1/admin/platform/metrics` behind `requirePlatformAdmin`, which is
+ * what this page now reads. The `teamId` below is still real and still
+ * load-bearing — it scopes the two MUTATIONS (reindex / backfill), which act on
+ * one workspace — but it has nothing to do with the counters above them, and
+ * the two must not be read as one scope.
  *
  * Hard rules:
  *   * Tone is operational only. We never say "tampered" / "fake" /
@@ -31,6 +40,31 @@ type MetricsSnapshot = {
   uptimeSeconds: number;
   counters: Record<string, number>;
   gauges: Record<string, number>;
+};
+
+/**
+ * The ENVELOPE, which this page was reading as if it were the snapshot.
+ *
+ * ADM-013 PHASE 1 — a defect found while migrating the URL, not caused by it.
+ *
+ * `/v1/ops/metrics` has always answered `{ metrics: snapshotMetrics() }`. This
+ * page declared the response as `MetricsSnapshot` and then read
+ * `snapshot.counters`, which on the real body is `undefined`. The tile
+ * renderer treats a missing counter as "instrument missing" and prints an em
+ * dash rather than a zero — deliberately, and it is the right behaviour — so
+ * EVERY tile on this console has been printing "—" and the page looked like a
+ * quiet platform instead of a broken read. A cast silenced the only thing that
+ * would have said so.
+ *
+ * The platform endpoint keeps the same envelope and adds scope and sampling
+ * facts, so unwrapping is the fix for both spellings.
+ */
+type MetricsEnvelope = {
+  scope?: string;
+  metrics: MetricsSnapshot;
+  uptimeSeconds?: number;
+  countersResetOnRestart?: boolean;
+  sampledAtUtc?: string;
 };
 
 type Tile = {
@@ -229,11 +263,19 @@ useEffect(() => {
 
     const load = async () => {
       try {
-        const res = (await apiFetch("/v1/ops/metrics", {
+        // ADM-013 PHASE 1 — the canonical platform namespace. `/v1/ops/metrics`
+        // returns the same payload behind the same gate and is retained only
+        // as a compatibility spelling with no product consumer.
+        const res = (await apiFetch("/v1/admin/platform/metrics", {
           method: "GET",
-        })) as MetricsSnapshot;
+        })) as MetricsEnvelope;
+        // Unwrap. See the MetricsEnvelope note: reading the envelope as the
+        // snapshot is what made every tile render an em dash.
+        if (!res?.metrics?.counters || !res?.metrics?.gauges) {
+          throw new Error("metrics_envelope_unrecognised");
+        }
         if (!cancelled) {
-          setSnapshot(res);
+          setSnapshot(res.metrics);
           setLastFetchAt(Date.now());
           setError(null);
         }

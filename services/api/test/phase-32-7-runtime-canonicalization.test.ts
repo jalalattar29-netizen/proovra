@@ -391,7 +391,7 @@ describe("Phase 32.7 — page consumers scope the runtime banner", () => {
     });
   }
 
-  it("ops/observability page intentionally keeps the unscoped banner (it IS the runtime visibility surface)", () => {
+  it("the platform observability page mounts NO workspace banner at all", () => {
     const src = readFileSync(
       fileURLToPath(
         new URL(
@@ -401,9 +401,11 @@ describe("Phase 32.7 — page consumers scope the runtime banner", () => {
       ),
       "utf8",
     );
-    // The observability page is the dedicated runtime view; it
-    // should NOT pass forDomains.
-    expect(src).toMatch(/<RuntimeStatusBanner\s+teamId=\{teamId\}\s*\/>/);
+    // ADM-013 PHASE 1 — this asserted the page kept an UNSCOPED banner because it "IS
+    // the runtime visibility surface". The banner was never unscoped: it took
+    // a teamId and reported one workspace. Being the runtime surface is the
+    // reason it must not carry a tenant widget, not a licence to.
+    expect(src).not.toMatch(/<RuntimeStatusBanner/);
   });
 });
 
