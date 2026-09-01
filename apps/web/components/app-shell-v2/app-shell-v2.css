@@ -1709,3 +1709,73 @@
   color: var(--content-ink-muted);
   letter-spacing: 0.01em;
 }
+
+/* ---------------------------------------------------------------------------
+   ADM-013 — the narrow-viewport header, where two controls became unreachable.
+   ---------------------------------------------------------------------------
+   `.app-header-zone-right` is deliberately `min-width: max-content` (see the
+   rule above): its contents are real controls at their natural size, and
+   letting the zone size below them is what previously made them overflow its
+   START edge and paint over the centre.
+
+   That reasoning holds until the viewport is narrower than those controls.
+   Measured at 320px: the right zone demanded ~300px, the grid overflowed, and
+   the workspace chip rendered from left:-23px to right:148px — on top of the
+   "Open navigation" hamburger (14–50) and "Open command palette" (44–80).
+   `document.elementFromPoint` at both of their centres returned the workspace
+   switcher, so at 320px a user could not open the navigation OR the search.
+   On a 320px device that is the whole navigation.
+
+   The fix keeps the intent and drops the impossible part of it. Below 420px
+   the zone may shrink, and the pieces that can give without losing meaning do:
+
+     - the workspace chip's copy TRUNCATES rather than disappearing. The
+       persistent tenant chip exists so the operating tenant is unmistakable
+       before custody-sensitive actions; hiding it at narrow widths would
+       remove exactly the assurance it was added for. A truncated name is still
+       an identification, and the full name is one tap away in the panel.
+     - the account chip's copy is hidden, leaving the avatar. The avatar is
+       already a sufficient "who am I" affordance and the same text is the
+       first thing inside the menu it opens.
+
+   The two icon buttons are given an explicit stacking context so that even if
+   a future control overshoots again, it cannot paint over the only way to
+   navigate.
+   --------------------------------------------------------------------------- */
+@media (max-width: 419px) {
+  .app-header-zone-right {
+    /* Below its contents' natural width there is no arrangement that fits.
+       Shrinking and truncating beats overlapping. */
+    min-width: 0;
+  }
+
+  .app-topbar-v2-workspace-button {
+    /* Was 220px — two thirds of a 320px viewport. */
+    max-width: 132px;
+    min-width: 0;
+  }
+
+  .app-topbar-v2-workspace-copy {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .app-topbar-v2-workspace-copy > * {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The avatar stays; its label does not. The same text opens with the menu. */
+  .app-topbar-v2-user-copy {
+    display: none;
+  }
+
+  /* The only route to the navigation and the palette. Nothing may cover them. */
+  .app-account-toolbar-mobile-menu,
+  .app-header-search {
+    position: relative;
+    z-index: 2;
+  }
+}

@@ -562,3 +562,85 @@ test("no runbook link is a filesystem path", () => {
     );
   }
 });
+
+test("the tokenizer handles italics as well as bold", async () => {
+  // Found in a BROWSER, not by a test: the search-index runbook says "what is
+  // degraded is *finding* them" and the page showed the asterisks. The corpus
+  // uses single-asterisk emphasis and the renderer only knew the double form.
+  //
+  // What a span IS now lives in a pure tokenizer, so this class of defect is
+  // catchable without a DOM — which is precisely why it was not caught before.
+  const { tokenizeInline } = await import("../lib/runbooks/inline-tokens");
+
+  const italic = tokenizeInline("degraded is *finding* them");
+  assert.deepEqual(
+    italic.map((t) => t.kind),
+    ["text", "italic", "text"],
+  );
+  assert.equal(italic[1].value, "finding");
+
+  // Bold must still win at the same start position. The other precedence turns
+  // every bold span into an italic wrapping a stray asterisk.
+  const bold = tokenizeInline("**Nothing evidential** is affected");
+  assert.deepEqual(
+    bold.map((t) => t.kind),
+    ["bold", "text"],
+  );
+  assert.equal(bold[0].value, "Nothing evidential");
+});
+
+test("no runbook leaves an emphasis marker unrendered", async () => {
+  // A corpus-wide sweep. The browser found one instance; this finds the rest.
+  //
+  // It must group lines into PARAGRAPHS first, because that is what the
+  // renderer does — `renderInline(para.join(" "))`. Emphasis that opens on one
+  // source line and closes on the next is correct markdown and renders
+  // correctly; a line-by-line sweep reported six such spans as defects, which
+  // would have driven a "fix" to prose that was never broken.
+  const { RUNBOOKS } = await import("../lib/runbooks/catalog.generated");
+  const { tokenizeInline } = await import("../lib/runbooks/inline-tokens");
+  const offenders: string[] = [];
+
+  for (const r of RUNBOOKS) {
+    let inFence = false;
+    let para: string[] = [];
+
+    const flush = () => {
+      if (para.length === 0) return;
+      // The renderer strips the blockquote caret and list markers before
+      // tokenizing, so the sweep has to as well.
+      const text = para
+        .map((l) => l.replace(/^>\s?/, "").replace(/^\s*[-*]\s+/, "").replace(/^\s*\d+\.\s+/, ""))
+        .join(" ");
+      for (const t of tokenizeInline(text)) {
+        if (t.kind === "text" && t.value.includes("*")) {
+          offenders.push(`${r.slug}: ${text.slice(0, 80)}`);
+          break;
+        }
+      }
+      para = [];
+    };
+
+    for (const line of r.body.split("\n")) {
+      if (line.startsWith("```")) {
+        flush();
+        inFence = !inFence;
+        continue;
+      }
+      // Inside a fence an asterisk is content, and a table row is its own cell
+      // structure the renderer tokenizes per cell.
+      if (inFence || line.trimStart().startsWith("|")) {
+        flush();
+        continue;
+      }
+      if (line.trim() === "") {
+        flush();
+        continue;
+      }
+      para.push(line);
+    }
+    flush();
+  }
+
+  assert.deepEqual(offenders, [], "unrendered emphasis in the runbook corpus");
+});

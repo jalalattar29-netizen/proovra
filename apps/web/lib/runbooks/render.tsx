@@ -35,47 +35,39 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { tokenizeInline } from "./inline-tokens";
+
 // ---------------------------------------------------------------------------
 // Inline.
 // ---------------------------------------------------------------------------
 
 /**
- * Bold, inline code and links, in one pass.
+ * Map tokens to elements.
  *
- * One combined pattern rather than sequential passes, because a sequence would
- * let a link's URL be reinterpreted by a later rule.
+ * WHAT a span is, is decided by `tokenizeInline` — plain data, so the web
+ * suite can sweep the whole corpus for unrendered emphasis without a DOM. This
+ * function only decides how each token LOOKS.
  */
-const INLINE =
-  /(\*\*[^*]+\*\*)|(`[^`]+`)|(\[[^\]]+\]\([^)]+\))/g;
-
 export function renderInline(text: string, keyPrefix: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  let last = 0;
-  let i = 0;
-
-  for (const m of text.matchAll(INLINE)) {
-    const at = m.index ?? 0;
-    if (at > last) out.push(text.slice(last, at));
-    const tok = m[0];
-    const key = `${keyPrefix}-i${i++}`;
-
-    if (tok.startsWith("**")) {
-      out.push(<strong key={key}>{tok.slice(2, -2)}</strong>);
-    } else if (tok.startsWith("`")) {
-      out.push(
-        <code key={key} className="rb-code-inline">
-          {tok.slice(1, -1)}
-        </code>,
-      );
-    } else {
-      const label = tok.slice(1, tok.indexOf("]"));
-      const href = tok.slice(tok.indexOf("](") + 2, -1);
-      out.push(renderLink(label, href, key));
+  return tokenizeInline(text).map((t, i) => {
+    const key = `${keyPrefix}-i${i}`;
+    switch (t.kind) {
+      case "text":
+        return t.value;
+      case "bold":
+        return <strong key={key}>{t.value}</strong>;
+      case "italic":
+        return <em key={key}>{t.value}</em>;
+      case "code":
+        return (
+          <code key={key} className="rb-code-inline">
+            {t.value}
+          </code>
+        );
+      case "link":
+        return renderLink(t.value, t.href, key);
     }
-    last = at + tok.length;
-  }
-  if (last < text.length) out.push(text.slice(last));
-  return out;
+  });
 }
 
 /**
