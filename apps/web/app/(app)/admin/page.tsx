@@ -46,11 +46,18 @@ type PlatformOverview = {
   generatedAtUtc: string;
   status: {
     level: StatusLevel;
+    reason: string;
     activeIncidents: OverviewFigure;
     degradedServices: Metric<number>;
     unresolvedAlerts: Metric<number>;
     criticalAlerts: Metric<number>;
     highAlerts: Metric<number>;
+    incidentBackedSignals: Metric<number>;
+    additionalSignals: Metric<number>;
+    distinctAttentionItems: Metric<number>;
+    unavailableSources: string[];
+    freshnessSeconds: number | null;
+    stale: boolean;
     lastTelemetrySampleAtUtc: string | null;
   };
   customers: {
@@ -167,6 +174,20 @@ function evidenceFigure(
   };
 }
 
+/**
+ * Render a metric as TEXT for the reconciliation sentence.
+ *
+ * A sentence that reads "— open incidents · 78 unresolved signals" is worse
+ * than one that says which half is unknown, so an unmeasured value prints the
+ * word rather than a dash: the whole point of the sentence is that a reader
+ * can check the arithmetic, and they cannot check it against a dash.
+ */
+function metricText(metric: Metric<number>): string {
+  return metric.state === "VALUE" && typeof metric.value === "number"
+    ? String(metric.value)
+    : "an unknown number of";
+}
+
 export default function AdminOverviewPage() {
   const { addToast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -239,25 +260,110 @@ export default function AdminOverviewPage() {
           {/* ---- A. Posture ------------------------------------------------ */}
           <PageSection
             title="Platform posture"
-            description="Derived from live incidents, alerts and worker telemetry. 'Healthy' is claimed only when every input actually answered — a failed read shows as Unknown, never as green."
+            description="One authority. Incidents, signals, queues, workers, search, the evidence pipeline and every dependency probe are evaluated together by the platform health snapshot, and every global surface reads the same body. 'Healthy' is claimed only when every source answered and the evaluation is fresh — a failed read is Unknown, never green and never zero."
           >
-            <div style={{ marginBottom: 14, display: "flex", gap: 10, alignItems: "center" }}>
+            <div
+              style={{
+                marginBottom: 14,
+                display: "flex",
+                gap: 10,
+                alignItems: "baseline",
+                flexWrap: "wrap",
+              }}
+            >
               <Badge tone={STATUS_TONE[ov.status.level]} data-testid="admin-status-level">
                 {ov.status.level.toUpperCase()}
               </Badge>
-              <span style={{ fontSize: 12, color: "var(--ink-muted, #64748b)" }}>
-                Generated {formatUserDateTime(ov.generatedAtUtc)}
-                {ov.status.lastTelemetrySampleAtUtc
-                  ? ` · telemetry sampled ${formatUserDateTime(ov.status.lastTelemetrySampleAtUtc)}`
-                  : " · no telemetry sample recorded"}
+              {/* A state word with no reason is how "degraded" came to mean
+                  "something, somewhere". The snapshot always names what decided
+                  it, and the page always prints that sentence. */}
+              <span
+                style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}
+                data-testid="admin-status-reason"
+              >
+                {ov.status.reason}
               </span>
             </div>
+            <div
+              style={{
+                marginBottom: 14,
+                fontSize: 12,
+                color: "var(--ink-muted, #64748b)",
+              }}
+              data-testid="admin-status-freshness"
+            >
+              Generated {formatUserDateTime(ov.generatedAtUtc)}
+              {ov.status.freshnessSeconds === null
+                ? " · no fully-successful evaluation recorded in this process"
+                : ` · last complete evaluation ${ov.status.freshnessSeconds}s ago`}
+              {ov.status.stale ? " · STALE" : ""}
+              {ov.status.lastTelemetrySampleAtUtc
+                ? ` · telemetry sampled ${formatUserDateTime(ov.status.lastTelemetrySampleAtUtc)}`
+                : " · no telemetry sample recorded"}
+            </div>
+            {ov.status.unavailableSources.length > 0 ? (
+              <div
+                role="status"
+                data-testid="admin-status-unavailable-sources"
+                style={{
+                  marginBottom: 14,
+                  padding: "10px 12px",
+                  border: "1px solid var(--border-default, #cbd5e1)",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: "var(--ink-secondary, #475569)",
+                }}
+              >
+                <strong style={{ color: "var(--ink-primary, #0f172a)" }}>
+                  Partial evaluation.
+                </strong>{" "}
+                {ov.status.unavailableSources.join(", ")} did not answer. Figures
+                these sources feed are shown as unknown rather than as zero.
+              </div>
+            ) : null}
             <AdminStatGrid>
               <AdminStat label="Open incidents" figure={ov.status.activeIncidents} emphasis="critical" />
+              <AdminStat
+                label="Distinct attention items"
+                metric={ov.status.distinctAttentionItems}
+                hint="Incidents plus signals nothing durable owns, counted once each"
+                emphasis="attention"
+              />
               <AdminStat label="Degraded services" metric={ov.status.degradedServices} />
-              <AdminStat label="Unresolved alerts" metric={ov.status.unresolvedAlerts} />
               <AdminStat label="Critical alerts" metric={ov.status.criticalAlerts} emphasis="critical" />
             </AdminStatGrid>
+            {/* THE RECONCILIATION.
+                "72 open incidents" and "78 unresolved signals" are not 150
+                problems: the alert builder emits one signal per open incident,
+                so 72 of the 78 ARE the 72. Printing the two totals side by side
+                with nothing between them is what invited the addition. */}
+            <div
+              data-testid="admin-signal-reconciliation"
+              style={{
+                marginTop: 14,
+                padding: "12px 14px",
+                border: "1px solid var(--border-default, #cbd5e1)",
+                borderRadius: 8,
+                fontSize: 13,
+                lineHeight: 1.6,
+                color: "var(--ink-secondary, #475569)",
+              }}
+            >
+              <strong style={{ color: "var(--ink-primary, #0f172a)" }}>
+                Incidents and signals overlap.
+              </strong>{" "}
+              {metricText(ov.status.activeIncidents.metric)} open incidents ·{" "}
+              {metricText(ov.status.unresolvedAlerts)} unresolved signals ·{" "}
+              {metricText(ov.status.incidentBackedSignals)} of those signals are
+              linked to those incidents ·{" "}
+              {metricText(ov.status.additionalSignals)} additional signals
+              require review. The two totals are not added:{" "}
+              {metricText(ov.status.distinctAttentionItems)} distinct items need
+              attention.{" "}
+              <Link href="/admin/alerts" style={{ fontWeight: 600 }}>
+                Review the signals
+              </Link>
+            </div>
           </PageSection>
 
           {/* ---- B. Customers --------------------------------------------- */}

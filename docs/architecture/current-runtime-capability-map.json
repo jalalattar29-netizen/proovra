@@ -4,18 +4,18 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
-  "routeInventoryHash": "c03cf78b631e344e46a6017095455956399a8dc86778bd6c9113f4bea0e5ef2b",
-  "consumerInventoryHash": "d7d3da02c696f92a4720974b1effcee2495047e26949846f3826971c42101bc8",
+  "routeInventoryHash": "5003d35a2b7aa26e8ee866f1ba6307e7fbd62b6490076602eebb80dede0fb23a",
+  "consumerInventoryHash": "ba7f549c774db1822d916eab19819d4bc6fed8b0efc9b29b1e28d33ce5bdb650",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
-    "RegisteredRoutes": 1122,
-    "ProductionRegisteredRoutes": 1121,
+    "RegisteredRoutes": 1123,
+    "ProductionRegisteredRoutes": 1122,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 893,
+    "ProductConsumedRoutes": 894,
     "NonProductDispositionedRoutes": 228,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 893,
+    "ProductConsumerRoutes": 894,
     "MachineOnlyConsumerRoutes": 4,
     "NoConsumerRoutes": 225,
     "AuthorizationUnresolved": 0,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8206,
-      "UNRESOLVED_IDENTIFIER": 1036
+      "METHOD_ON_VALUE": 8230,
+      "UNRESOLVED_IDENTIFIER": 1040
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 893,
+      "PRODUCT_CONNECTED": 894,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -146,7 +146,7 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 122
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1120,
+    "TenantBindingResolved": 1121,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 15,
@@ -154,18 +154,18 @@
       "PLATFORM_GLOBAL": 52,
       "WORKSPACE_SCOPED": 734,
       "ORGANIZATION_SCOPED": 105,
-      "MULTI_TENANT_PLATFORM_ADMIN": 82,
+      "MULTI_TENANT_PLATFORM_ADMIN": 83,
       "TOKEN_SCOPED": 45,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 15,
       "NO_DATA_ACCESS": 11
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 198,
+    "OrganizationRoutesMeasured": 199,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1120,
+    "ClassifiedSecurityRoutes": 1121,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -191,8 +191,8 @@
         "tagged": 105
       },
       "PLATFORM_ADMIN": {
-        "primary": 82,
-        "tagged": 82
+        "primary": 83,
+        "tagged": 83
       },
       "API_KEY_SCOPED": {
         "primary": 14,
@@ -240,24 +240,24 @@
       }
     }
   },
-  "totalRoutes": 1122,
+  "totalRoutes": 1123,
   "classificationCounts": {
     "COMPATIBILITY_TEMPORARY": 3,
     "INTERNAL_REQUIRED": 226,
-    "TARGET_COMPLETE": 893
+    "TARGET_COMPLETE": 894
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 190
+    "UNPROVEN": 191
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 396,
+    "PLATFORM_CORE": 397,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -1251,7 +1251,7 @@
       "method": "GET",
       "route": "/v1/admin/overview",
       "registeringFile": "services/api/src/routes/admin-overview.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/page.tsx:178",
+      "productConsumer": "apps/web/app/(app)/admin/page.tsx:199",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1275,7 +1275,19 @@
       "method": "GET",
       "route": "/v1/admin/platform/alerts",
       "registeringFile": "services/api/src/routes/admin-platform-telemetry.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:319",
+      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:617",
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/platform/health-snapshot",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/platform/health-snapshot",
+      "registeringFile": "services/api/src/routes/admin-platform-telemetry.routes.ts",
+      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:648",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1299,7 +1311,7 @@
       "method": "GET",
       "route": "/v1/admin/platform/readiness",
       "registeringFile": "services/api/src/routes/admin-platform-telemetry.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:336",
+      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:634",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -82450,7 +82462,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/page.tsx",
-          "line": 178,
+          "line": 199,
           "caller": "AdminOverviewPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82460,7 +82472,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/page.tsx:178 (AdminOverviewPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/page.tsx:199 (AdminOverviewPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82588,7 +82600,7 @@
       "method": "GET",
       "path": "/v1/admin/platform/alerts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-platform-telemetry.routes.ts:83",
+      "registrationEvidence": "services/api/src/routes/admin-platform-telemetry.routes.ts:84",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -82601,7 +82613,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
-          "line": 319,
+          "line": 617,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82611,7 +82623,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:319 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:617 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82636,11 +82648,80 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/admin/platform/health-snapshot",
+      "method": "GET",
+      "path": "/v1/admin/platform/health-snapshot",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-platform-telemetry.routes.ts:175",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
+          "line": 648,
+          "caller": "tick",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:648 (tick, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "evidence",
+        "operationalIncident",
+        "payment",
+        "securityEvent",
+        "ssoConnection",
+        "uploadSession"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-platform-telemetry.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/operations/platform-health-snapshot.service.ts: operationalIncident.groupBy — no tenant or self predicate",
+        "services/api/src/services/operations/platform-health-snapshot.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/operations/platform-health-snapshot.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/admin/alerts.service.ts: operationalIncident.findMany — no tenant or self predicate",
+        "services/api/src/services/admin/alerts.service.ts: securityEvent.findMany — no tenant or self predicate",
+        "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
+        "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
+        "services/api/src/services/operations/evidence-health.service.ts: uploadSession.count — no tenant or self predicate",
+        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/operations/evidence-health.service.ts: evidence.count — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/admin/platform/metrics",
       "method": "GET",
       "path": "/v1/admin/platform/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-platform-telemetry.routes.ts:55",
+      "registrationEvidence": "services/api/src/routes/admin-platform-telemetry.routes.ts:56",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -82661,7 +82742,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
-          "line": 316,
+          "line": 614,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82671,7 +82752,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:269 (load, WEB); apps/web/app/(app)/admin/platform/observability/page.tsx:316 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:269 (load, WEB); apps/web/app/(app)/admin/platform/observability/page.tsx:614 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82700,7 +82781,7 @@
       "method": "GET",
       "path": "/v1/admin/platform/readiness",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-platform-telemetry.routes.ts:130",
+      "registrationEvidence": "services/api/src/routes/admin-platform-telemetry.routes.ts:131",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -82713,7 +82794,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
-          "line": 336,
+          "line": 634,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82723,7 +82804,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:336 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:634 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

@@ -42,11 +42,45 @@ describe("Platform Admin — Control Center Overview (item A)", () => {
   });
 
 
-  it("status only claims 'healthy' when real signals exist and are clear", () => {
-    // Must gate healthy behind haveSignals; a failed query → 'unknown'.
-    expect(serviceSrc).toMatch(/haveSignals/);
-    expect(serviceSrc).toMatch(/"unknown"/);
-    expect(serviceSrc).toMatch(/"healthy"/);
+  it("status is READ from the canonical snapshot, not recomputed here", () => {
+    // ADM-013 PHASE 3 — INVERTED, with the reason.
+    //
+    // This asserted the overview gated "healthy" behind its OWN `haveSignals`
+    // boolean. That was a correct rule implemented in the wrong place: the
+    // observability console had its own version of the same rule over its own
+    // inputs, and in production the two printed 72 and 76 for one question.
+    //
+    // The rule did not merely duplicate — it was also cruder than the one it
+    // duplicated. "Any open incident makes the platform CRITICAL" meant a
+    // single INFO condition in a single workspace outranked every other
+    // signal, which is why the control plane was permanently red.
+    //
+    // The overview now PROJECTS `buildPlatformHealthSnapshot()`, which applies
+    // severity ranking, the collector-failure rule, the freshness rule and the
+    // incident/signal reconciliation in one place.
+    expect(serviceSrc).toMatch(/buildPlatformHealthSnapshot/);
+    // The local computation must not come back.
+    expect(serviceSrc).not.toMatch(/haveSignals/);
+  });
+
+  it("carries the reconciliation so no card can add the two totals", () => {
+    // "72 open incidents" and "78 unresolved alerts" are 78 things, not 150 —
+    // one signal is emitted per open incident. The overlap ships as data.
+    for (const field of [
+      "incidentBackedSignals",
+      "additionalSignals",
+      "distinctAttentionItems",
+    ]) {
+      expect(serviceSrc).toContain(field);
+    }
+  });
+
+  it("a partial evaluation is reported as partial, never rendered as complete", () => {
+    // A source that failed contributes nothing, which is indistinguishable
+    // from a source that contributed zero unless the payload names it.
+    expect(serviceSrc).toContain("unavailableSources");
+    expect(serviceSrc).toContain("freshnessSeconds");
+    expect(serviceSrc).toContain("stale");
   });
 
   it("gross revenue is derived from succeeded Payment amountCents (real, not fabricated)", () => {

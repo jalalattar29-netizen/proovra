@@ -55,6 +55,72 @@ import {
 import { PageShell, PageHeader } from "../../../../../components/ui";
 import { Badge } from "../../../../../components/ui/Badge";
 
+/**
+ * ADM-013 PHASE 3 — the canonical platform health authority.
+ *
+ * This page used to compute its own headline from the process gauges, and the
+ * Admin Overview computed its own from the incident table. In production they
+ * printed 76 and 72 for the same question. The snapshot is now the ONE body
+ * both read; the counters below it are the RAW instrument, kept because an
+ * operator debugging the instrument needs it, and deliberately no longer the
+ * thing the page leads with.
+ */
+type PlatformHealthSnapshot = {
+  snapshotVersion: number;
+  scope: "PLATFORM";
+  overall: { state: HealthStateWord; reason: string };
+  incidents: {
+    openDurable: number | null;
+    unresolvedDurable: number | null;
+    bySeverity: {
+      critical: number | null;
+      high: number | null;
+      warning: number | null;
+      info: number | null;
+    };
+    platformInternal: number | null;
+  };
+  signals: {
+    activeUnresolved: number | null;
+    incidentBacked: number | null;
+    additional: number | null;
+    byCategory: Record<string, number>;
+  };
+  distinctAttentionItems: number | null;
+  dependencies: SnapshotSubsystem[];
+  queues: SnapshotSubsystem;
+  workers: SnapshotSubsystem;
+  search: SnapshotSubsystem;
+  evidencePipeline: SnapshotSubsystem;
+  evaluation: {
+    lastAttemptUtc: string;
+    lastSuccessUtc: string | null;
+    freshnessSeconds: number | null;
+    stale: boolean;
+    sources: Array<{
+      id: string;
+      label: string;
+      outcome: "OK" | "PARTIAL" | "UNAVAILABLE";
+      detail: string | null;
+    }>;
+    partialSources: string[];
+    unavailableSources: string[];
+  };
+};
+
+type HealthStateWord = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+
+type SnapshotSubsystem = {
+  id: string;
+  label: string;
+  state: HealthStateWord;
+  reason: string;
+  operatorAction: string | null;
+  runbookSlug: string | null;
+  affectedResource: string | null;
+  observedAtUtc: string | null;
+};
+
 type RuntimeReadinessReport = {
   status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
   ranAtUtc: string;
@@ -282,6 +348,237 @@ function severityBadgeStyle(
   };
 }
 
+/**
+ * The one posture statement every global surface shares.
+ *
+ * Four things are non-negotiable here and each closes one of the five
+ * contradictions this phase records:
+ *
+ *   * the STATE always carries its REASON — a word with no reason is how
+ *     "degraded" came to mean nothing;
+ *   * a failed evaluation says so, and never renders as zero or as green;
+ *   * FRESHNESS is printed, because a green computed four hours ago and a
+ *     green computed now are different claims;
+ *   * incidents and signals are reconciled in one sentence, because the two
+ *     totals overlap and every surface that printed them side by side invited
+ *     a reader to add them.
+ */
+function PlatformPostureBlock({
+  snapshot,
+  unavailable,
+}: {
+  snapshot: PlatformHealthSnapshot | null;
+  unavailable: boolean;
+}) {
+  if (unavailable) {
+    return (
+      <section
+        data-platform-posture
+        data-posture-state="UNKNOWN"
+        role="status"
+        style={postureBlockStyle("UNKNOWN")}
+      >
+        <div style={postureHeadStyle}>
+          <span style={postureStateStyle("UNKNOWN")}>UNKNOWN</span>
+          <span style={postureReasonStyle}>
+            Platform health could not be evaluated. This is not a statement that
+            the platform is healthy — it is a statement that nothing was
+            measured.
+          </span>
+        </div>
+      </section>
+    );
+  }
+  if (!snapshot) {
+    return (
+      <section
+        data-platform-posture
+        data-posture-state="PENDING"
+        style={postureBlockStyle("UNKNOWN")}
+      >
+        <div style={postureHeadStyle}>
+          <span style={postureStateStyle("UNKNOWN")}>EVALUATING</span>
+          <span style={postureReasonStyle}>
+            The first evaluation has not returned yet.
+          </span>
+        </div>
+      </section>
+    );
+  }
+
+  const { overall, incidents, signals, evaluation } = snapshot;
+  const n = (v: number | null): string =>
+    typeof v === "number" ? String(v) : "an unknown number of";
+
+  return (
+    <section
+      data-platform-posture
+      data-posture-state={overall.state}
+      style={postureBlockStyle(overall.state)}
+    >
+      <div style={postureHeadStyle}>
+        <span style={postureStateStyle(overall.state)}>{overall.state}</span>
+        <span style={postureReasonStyle}>{overall.reason}</span>
+      </div>
+
+      <div style={postureMetaStyle}>
+        Scope Platform · evaluated {formatUserTime(evaluation.lastAttemptUtc)}
+        {evaluation.freshnessSeconds === null
+          ? " · no fully-successful evaluation recorded in this process"
+          : ` · last complete evaluation ${evaluation.freshnessSeconds}s ago`}
+        {evaluation.stale ? " · STALE" : ""}
+      </div>
+
+      {evaluation.unavailableSources.length > 0 ? (
+        <div style={posturePartialStyle} role="status">
+          <strong>Partial evaluation.</strong>{" "}
+          {evaluation.unavailableSources.join(", ")} did not answer. Every figure
+          those sources feed is reported as unknown, not as zero.
+        </div>
+      ) : null}
+
+      {/* THE RECONCILIATION. */}
+      <div style={postureReconcileStyle} data-posture-reconciliation>
+        {n(incidents.openDurable)} open incidents ·{" "}
+        {n(signals.activeUnresolved)} unresolved signals ·{" "}
+        {n(signals.incidentBacked)} of those signals are linked to those
+        incidents · {n(signals.additional)} additional signals require review.
+        The two totals are not added: {n(snapshot.distinctAttentionItems)}{" "}
+        distinct items need attention.
+        {incidents.platformInternal !== null && incidents.platformInternal > 0
+          ? ` ${incidents.platformInternal} of the open incidents describe a PLATFORM component and are withheld from every tenant surface.`
+          : ""}
+      </div>
+
+      <ul style={postureSubsystemListStyle}>
+        {[
+          snapshot.queues,
+          snapshot.workers,
+          snapshot.search,
+          snapshot.evidencePipeline,
+        ].map((sub) => (
+          <li key={sub.id} style={postureSubsystemRowStyle}>
+            <span style={postureStateStyle(sub.state)}>{sub.state}</span>
+            <strong style={postureSubsystemLabelStyle}>{sub.label}</strong>
+            <span style={postureSubsystemReasonStyle}>{sub.reason}</span>
+            {sub.operatorAction ? (
+              <span style={postureSubsystemActionStyle}>
+                {sub.operatorAction}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const POSTURE_TONE: Record<HealthStateWord, { bg: string; border: string; ink: string }> = {
+  HEALTHY: { bg: "#f0fdf4", border: "#86efac", ink: "#166534" },
+  DEGRADED: { bg: "#fffbeb", border: "#fcd34d", ink: "#92400e" },
+  CRITICAL: { bg: "#fef2f2", border: "#fca5a5", ink: "#991b1b" },
+  // Neutral, not amber. UNKNOWN is not a lesser warning — it is the absence of
+  // a measurement, and colouring it like a warning claims an observation that
+  // was never made.
+  UNKNOWN: { bg: "#f8fafc", border: "#cbd5e1", ink: "#334155" },
+};
+
+function postureBlockStyle(state: HealthStateWord): React.CSSProperties {
+  const tone = POSTURE_TONE[state];
+  return {
+    marginBottom: 16,
+    padding: "14px 16px",
+    background: tone.bg,
+    border: `1px solid ${tone.border}`,
+    borderRadius: 10,
+  };
+}
+
+function postureStateStyle(state: HealthStateWord): React.CSSProperties {
+  const tone = POSTURE_TONE[state];
+  return {
+    display: "inline-block",
+    padding: "3px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    background: "#ffffff",
+    border: `1px solid ${tone.border}`,
+    color: tone.ink,
+    whiteSpace: "nowrap",
+  };
+}
+
+const postureHeadStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  alignItems: "baseline",
+  flexWrap: "wrap",
+};
+
+const postureReasonStyle: React.CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: "#0f172a",
+  fontWeight: 600,
+};
+
+const postureMetaStyle: React.CSSProperties = {
+  marginTop: 6,
+  fontSize: 12,
+  color: "#64748b",
+};
+
+const posturePartialStyle: React.CSSProperties = {
+  marginTop: 10,
+  padding: "8px 10px",
+  background: "#ffffff",
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  fontSize: 12.5,
+  lineHeight: 1.5,
+  color: "#334155",
+};
+
+const postureReconcileStyle: React.CSSProperties = {
+  marginTop: 10,
+  fontSize: 12.5,
+  lineHeight: 1.6,
+  color: "#334155",
+};
+
+const postureSubsystemListStyle: React.CSSProperties = {
+  listStyle: "none",
+  margin: "12px 0 0",
+  padding: 0,
+  display: "grid",
+  gap: 6,
+};
+
+const postureSubsystemRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "baseline",
+  flexWrap: "wrap",
+  fontSize: 12.5,
+  lineHeight: 1.5,
+};
+
+const postureSubsystemLabelStyle: React.CSSProperties = {
+  color: "#0f172a",
+  textTransform: "capitalize",
+};
+
+const postureSubsystemReasonStyle: React.CSSProperties = {
+  color: "#475569",
+};
+
+const postureSubsystemActionStyle: React.CSSProperties = {
+  color: "#334155",
+  fontStyle: "italic",
+};
+
 // Phase 38.11 — wrap in canonical PageRouteGate.
 export default function ObservabilityDashboardPage() {
   return (
@@ -304,6 +601,8 @@ function ObservabilityDashboardPageInner() {
     null,
   );
   const [readinessError, setReadinessError] = useState<boolean>(false);
+  const [snapshot, setSnapshot] = useState<PlatformHealthSnapshot | null>(null);
+  const [snapshotUnavailable, setSnapshotUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastPolledAtUtc, setLastPolledAtUtc] = useState<string | null>(null);
 
@@ -341,6 +640,23 @@ function ObservabilityDashboardPageInner() {
         }
       } catch {
         if (!cancelled) setReadinessError(true);
+      }
+      // The canonical posture. A failure here is NOT rendered as a calm page:
+      // the block below says the evaluation did not complete, which is a
+      // different statement from "nothing is wrong".
+      try {
+        const snap = (await apiFetch("/v1/admin/platform/health-snapshot", {
+          method: "GET",
+        })) as PlatformHealthSnapshot;
+        if (!cancelled) {
+          setSnapshot(snap);
+          setSnapshotUnavailable(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setSnapshot(null);
+          setSnapshotUnavailable(true);
+        }
       }
     };
     tick();
@@ -528,6 +844,20 @@ function ObservabilityDashboardPageInner() {
           its own page at /operations/health. */}
 
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
+
+      {/* ================================================================== */}
+      {/* PLATFORM POSTURE — the canonical authority, above the instrument.   */}
+      {/*                                                                     */}
+      {/* The raw counter and gauge dump below is the INSTRUMENT. It is kept   */}
+      {/* because an operator debugging the instrument needs it, and it is no  */}
+      {/* longer what the page leads with: a reader who has to derive posture  */}
+      {/* from 522 counters derives a different one each time, which is how    */}
+      {/* this page and the Admin Overview came to disagree.                   */}
+      {/* ================================================================== */}
+      <PlatformPostureBlock
+        snapshot={snapshot}
+        unavailable={snapshotUnavailable}
+      />
 
       {alerts && alerts.counts.total > 0 ? (
         <section style={alertRibbonStyle}>

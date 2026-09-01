@@ -53,12 +53,51 @@ export type PlatformAlert = {
   organizationId: string | null;
   createdAt: string;
   href: string | null;
+  /**
+   * ADM-013 PHASE 3 — the durable record this signal came FROM, or `null`
+   * when nothing durable owns it.
+   *
+   * Without this the two totals on the control plane were unreconcilable.
+   * "72 open incidents" and "78 unresolved alerts" read as 150 problems, when
+   * 72 of the 78 ARE the 72 — one alert is emitted per open incident by the
+   * block below. Nothing in the payload said so, so every surface that showed
+   * both invited the reader to add them.
+   *
+   * A set id also makes the drill-down possible at all: the alert used to
+   * carry `href: "/admin/security"` regardless of what produced it, so an
+   * operator reading "Open incident: X" had no route to incident X.
+   */
+  incidentId: string | null;
+  /**
+   * TRUE when an OperationalIncident produced this signal.
+   *
+   * Derived from `incidentId` today and stated separately on purpose: a
+   * future durable owner that is not an incident (a security case, a billing
+   * dispute) is still incident-BACKED in the sense the reconciliation cares
+   * about — "something with a lifecycle owns this" — and a consumer should be
+   * asking that question rather than testing an id for null.
+   */
+  incidentBacked: boolean;
 };
 
 export type AlertsResult = {
   items: PlatformAlert[];
   counts: Record<AlertSeverity, number>;
   total: number;
+  /**
+   * ADM-013 PHASE 3 — the reconciliation, computed HERE rather than by each
+   * surface that renders it.
+   *
+   * `total` is every signal. `incidentBacked` is the subset an incident
+   * produced, and `additional` is the rest. A card that prints `total`
+   * beside an incident count taken from anywhere else is printing two
+   * overlapping populations as if they were disjoint, which is what produced
+   * "72 incidents / 78 alerts" on a control plane with 78 things to look at.
+   */
+  reconciliation: {
+    incidentBacked: number;
+    additional: number;
+  };
   /** True — the list is a read-only point-in-time snapshot (no ack/resolve). */
   readOnly: true;
 };
@@ -112,7 +151,12 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         title: `Open incident: ${i.title}`,
         organizationId: null,
         createdAt: i.createdAt.toISOString(),
-        href: "/admin/security",
+        // ADM-013 PHASE 3 — the incident, not the security page. Every alert
+        // here used to point at /admin/security whatever produced it, so a row
+        // reading "Open incident: X" led to a list that was not X.
+        href: `/admin/operations?incident=${encodeURIComponent(i.id)}`,
+        incidentId: i.id,
+        incidentBacked: true,
       });
     }
   } catch {
@@ -147,6 +191,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         organizationId: null,
         createdAt: s.createdAt.toISOString(),
         href: "/admin/security",
+        incidentId: null,
+        incidentBacked: false,
       });
     }
   } catch {
@@ -171,6 +217,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
           organizationId: null,
           createdAt: new Date(now).toISOString(),
           href: "/admin/security",
+          incidentId: null,
+          incidentBacked: false,
         });
       } else if (q.health === "outage") {
         alerts.push({
@@ -180,6 +228,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
           organizationId: null,
           createdAt: new Date(now).toISOString(),
           href: "/admin/security",
+          incidentId: null,
+          incidentBacked: false,
         });
       } else if (q.health === "degraded") {
         alerts.push({
@@ -189,6 +239,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
           organizationId: null,
           createdAt: new Date(now).toISOString(),
           href: "/admin/security",
+          incidentId: null,
+          incidentBacked: false,
         });
       }
     }
@@ -201,6 +253,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
           organizationId: null,
           createdAt: new Date(now).toISOString(),
           href: "/admin/security",
+          incidentId: null,
+          incidentBacked: false,
         });
       }
     }
@@ -224,6 +278,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         organizationId: null,
         createdAt: new Date(now).toISOString(),
         href: "/admin/security",
+        incidentId: null,
+        incidentBacked: false,
       });
     }
     const openPackages = health.incidents.openPackage;
@@ -235,6 +291,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         organizationId: null,
         createdAt: new Date(now).toISOString(),
         href: "/admin/security",
+        incidentId: null,
+        incidentBacked: false,
       });
     }
   } catch {
@@ -256,6 +314,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         organizationId: null,
         createdAt: new Date(now).toISOString(),
         href: "/admin/billing",
+        incidentId: null,
+        incidentBacked: false,
       });
     }
   } catch {
@@ -284,6 +344,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         organizationId: null,
         createdAt: (c.outageDetectedAtUtc ?? new Date(now)).toISOString(),
         href: "/admin/security",
+        incidentId: null,
+        incidentBacked: false,
       });
     }
   } catch {
@@ -305,10 +367,16 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
   };
   for (const a of alerts) counts[a.severity] += 1;
 
+  const incidentBacked = alerts.filter((a) => a.incidentBacked).length;
+
   return {
     items: alerts,
     counts,
     total: alerts.length,
+    reconciliation: {
+      incidentBacked,
+      additional: alerts.length - incidentBacked,
+    },
     readOnly: true,
   };
 }

@@ -35,6 +35,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { prisma } from "../db.js";
 import { runReadinessCheck } from "../runtime/runtime-readiness.js";
+import { buildPlatformHealthSnapshot } from "../services/operations/platform-health-snapshot.service.js";
 import {
   bump,
   setGauge,
@@ -148,6 +149,49 @@ export async function adminPlatformTelemetryRoutes(
           subsystems: [],
           degraded: true,
           reason: "READINESS_EVALUATION_FAILED",
+        });
+      }
+    },
+  );
+
+  /**
+   * GET /v1/admin/platform/health-snapshot — THE platform health authority.
+   *
+   * ADM-013 PHASE 3. Five surfaces answered "is the platform healthy?" from
+   * five independent computations and disagreed with each other in production:
+   * 72 incidents on the overview, 76 on the observability gauge, 0 and
+   * "healthy" in the runtime popover, green readiness beside two missing
+   * schema objects, and "Status pending" in the header. Each was internally
+   * defensible; none owned the question.
+   *
+   * This is the one projection every global surface reads. The rules it
+   * enforces — a failed collector is UNKNOWN and never zero, stale cannot
+   * claim healthy, a restart cannot erase durable incidents, and summary
+   * counts equal drill-down counts — are documented and tested in
+   * platform-health-snapshot.service.ts.
+   *
+   * TENANT_SCOPE_EXCEPTION: platform_admin_global.
+   */
+  app.get(
+    "/v1/admin/platform/health-snapshot",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const snapshot = await buildPlatformHealthSnapshot();
+        return reply.code(200).send(snapshot);
+      } catch (err) {
+        // The builder degrades each SOURCE on its own and is not expected to
+        // throw. If it does, the answer is still not a zeroed body: a caller
+        // that receives 200 with empty counts renders a calm platform, which
+        // is the exact failure this authority exists to remove.
+        req.log.error({ err }, "admin.platform.health_snapshot_failed");
+        return reply.code(503).send({
+          error: {
+            code: "HEALTH_SNAPSHOT_UNAVAILABLE",
+            message:
+              "Platform health could not be evaluated. This is not a statement that the platform is healthy.",
+            requestId: req.id,
+          },
         });
       }
     },

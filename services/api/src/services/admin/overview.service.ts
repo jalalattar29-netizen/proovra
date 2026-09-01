@@ -5,6 +5,10 @@ import {
   liveEvidenceWith,
 } from "@proovra/shared-runtime";
 import { buildPlatformAlerts } from "./alerts.service.js";
+import {
+  buildPlatformHealthSnapshot,
+  type PlatformHealthSnapshot,
+} from "../operations/platform-health-snapshot.service.js";
 import { buildEvidenceHealthSnapshot } from "../operations/evidence-health.service.js";
 import {
   measure,
@@ -79,12 +83,41 @@ export type OverviewFigure = {
 export type PlatformOverview = {
   generatedAtUtc: string;
   status: {
+    /**
+     * ADM-013 PHASE 3 — DERIVED from the canonical snapshot, not computed here.
+     *
+     * This page and the observability console used to reach the same question
+     * by two different routes and print two different answers: 72 here from
+     * `operationalIncident.count({ status: "OPEN" })`, 76 there from a process
+     * gauge a scanner writes on its own schedule. Neither was wrong about its
+     * own input; there were simply two inputs for one fact.
+     */
     level: StatusLevel;
+    /** One sentence naming what decided `level`. Never empty. */
+    reason: string;
     activeIncidents: OverviewFigure;
     degradedServices: Metric<number>;
     unresolvedAlerts: Metric<number>;
     criticalAlerts: Metric<number>;
     highAlerts: Metric<number>;
+    /**
+     * ADM-013 PHASE 3 — THE RECONCILIATION.
+     *
+     * `activeIncidents` and `unresolvedAlerts` are OVERLAPPING populations:
+     * the alert builder emits one signal per open incident, so "72 incidents"
+     * and "78 alerts" describe 78 things and not 150. These three fields make
+     * the overlap explicit so no card has to guess, and so a reader is never
+     * invited to add the two totals.
+     */
+    incidentBackedSignals: Metric<number>;
+    additionalSignals: Metric<number>;
+    distinctAttentionItems: Metric<number>;
+    /** Sources that did not answer this evaluation. Empty when all answered. */
+    unavailableSources: string[];
+    /** Age of the last fully-successful evaluation. `null` if there is none. */
+    freshnessSeconds: number | null;
+    /** True when the snapshot is older than its staleness bound. */
+    stale: boolean;
     lastTelemetrySampleAtUtc: string | null;
   };
   customers: {
@@ -383,16 +416,51 @@ export async function buildPlatformOverview(
   ]);
 
   // ---- Status level -------------------------------------------------------
+  //
+  // ADM-013 PHASE 3 — the status block is now a PROJECTION of the canonical
+  // snapshot. The local incident count, the local alert rollup and the local
+  // three-branch level computation are gone: they were a second authority for
+  // a question that already has one, and the two disagreed in production.
+  //
+  // The snapshot is read on its own rather than through `m()` because its
+  // whole contract is that a failed SOURCE degrades to unknown without failing
+  // the evaluation — wrapping it in another catch would collapse that
+  // distinction back into one boolean.
+  let snapshot: PlatformHealthSnapshot | null = null;
+  try {
+    snapshot = await buildPlatformHealthSnapshot();
+  } catch (err) {
+    onError?.(err, "Platform health snapshot");
+    snapshot = null;
+  }
+
+  const snapshotUnavailable: Metric<number> = {
+    state: "ERROR",
+    value: null,
+    reason: "Platform health could not be evaluated.",
+  };
+  const fromSnapshot = (value: number | null | undefined): Metric<number> =>
+    typeof value === "number" ? metricValue(value) : snapshotUnavailable;
+
   const alertsValue = alerts.state === "VALUE" ? alerts.value : null;
-  const unresolvedAlerts: Metric<number> = alertsValue
-    ? metricValue(alertsValue.total)
-    : { state: "ERROR", value: null, reason: "Alert rollup unavailable." };
+  const unresolvedAlerts: Metric<number> = fromSnapshot(
+    snapshot?.signals.activeUnresolved,
+  );
   const criticalAlerts: Metric<number> = alertsValue
     ? metricValue(alertsValue.counts.critical)
     : { state: "ERROR", value: null, reason: "Alert rollup unavailable." };
   const highAlerts: Metric<number> = alertsValue
     ? metricValue(alertsValue.counts.high)
     : { state: "ERROR", value: null, reason: "Alert rollup unavailable." };
+  const incidentBackedSignals: Metric<number> = fromSnapshot(
+    snapshot?.signals.incidentBacked,
+  );
+  const additionalSignals: Metric<number> = fromSnapshot(
+    snapshot?.signals.additional,
+  );
+  const distinctAttentionItems: Metric<number> = fromSnapshot(
+    snapshot?.distinctAttentionItems,
+  );
 
   const evidenceOpsValue =
     evidenceOps.state === "VALUE" ? evidenceOps.value : null;
@@ -404,26 +472,25 @@ export async function buildPlatformOverview(
       ? metricNotMeasured("No worker-queue degradation signal in this sample.")
       : metricValue(degradedCount);
 
-  const openIncidentCount = metricNumber(openIncidents);
-  const criticalCount = metricNumber(criticalAlerts);
-  const highCount = metricNumber(highAlerts);
-
-  // Only claim "healthy" when every input actually answered. A failed query
-  // produces "unknown", never a reassuring green.
-  let level: StatusLevel;
-  const haveSignals =
-    alerts.state === "VALUE" &&
-    openIncidents.state === "VALUE" &&
-    evidenceOps.state === "VALUE";
-  if (!haveSignals) {
-    level = "unknown";
-  } else if ((criticalCount ?? 0) > 0 || (openIncidentCount ?? 0) > 0) {
-    level = "critical";
-  } else if ((highCount ?? 0) > 0 || (degradedCount ?? 0) > 0) {
-    level = "degraded";
-  } else {
-    level = "healthy";
-  }
+  // ADM-013 PHASE 3 — the level is READ, not recomputed.
+  //
+  // The rule this page implemented — "any open incident at all makes the
+  // platform CRITICAL" — is the reason the control plane was permanently red:
+  // one INFO-severity condition in one workspace outranked every other signal.
+  // The snapshot ranks by severity and by subsystem, and it applies the
+  // freshness and collector rules the local computation had no way to see.
+  const SNAPSHOT_LEVEL: Record<string, StatusLevel> = {
+    HEALTHY: "healthy",
+    DEGRADED: "degraded",
+    CRITICAL: "critical",
+    UNKNOWN: "unknown",
+  };
+  const level: StatusLevel = snapshot
+    ? (SNAPSHOT_LEVEL[snapshot.overall.state] ?? "unknown")
+    : "unknown";
+  const levelReason = snapshot
+    ? snapshot.overall.reason
+    : "Platform health could not be evaluated. This is not a statement that the platform is healthy.";
 
   // ---- Derived projections -------------------------------------------------
   const accountsByTier =
@@ -490,11 +557,23 @@ export async function buildPlatformOverview(
     generatedAtUtc: new Date(now).toISOString(),
     status: {
       level,
-      activeIncidents: figure(openIncidents, "/admin/operations?status=OPEN"),
+      reason: levelReason,
+      // The drill-down and the figure now come from the SAME predicate, so the
+      // card and the list behind it cannot disagree (snapshot rule 5).
+      activeIncidents: figure(
+        fromSnapshot(snapshot?.incidents.openDurable),
+        "/admin/operations?status=OPEN",
+      ),
       degradedServices,
       unresolvedAlerts,
       criticalAlerts,
       highAlerts,
+      incidentBackedSignals,
+      additionalSignals,
+      distinctAttentionItems,
+      unavailableSources: snapshot?.evaluation.unavailableSources ?? [],
+      freshnessSeconds: snapshot?.evaluation.freshnessSeconds ?? null,
+      stale: snapshot?.evaluation.stale ?? true,
       lastTelemetrySampleAtUtc: telemetrySampledAt,
     },
     customers: {
