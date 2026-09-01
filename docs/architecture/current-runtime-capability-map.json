@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "5003d35a2b7aa26e8ee866f1ba6307e7fbd62b6490076602eebb80dede0fb23a",
-  "consumerInventoryHash": "ba7f549c774db1822d916eab19819d4bc6fed8b0efc9b29b1e28d33ce5bdb650",
+  "consumerInventoryHash": "99b26df9c53cf2314c36e33fa0e61cf019cdd6557a35a628c5a52cfe6107f0fe",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1123,
@@ -1251,7 +1251,7 @@
       "method": "GET",
       "route": "/v1/admin/overview",
       "registeringFile": "services/api/src/routes/admin-overview.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/page.tsx:199",
+      "productConsumer": "apps/web/app/(app)/admin/page.tsx:380",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -82462,7 +82462,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/page.tsx",
-          "line": 199,
+          "line": 380,
           "caller": "AdminOverviewPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82472,7 +82472,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/page.tsx:199 (AdminOverviewPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/page.tsx:380 (AdminOverviewPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122553,7 +122553,7 @@
         },
         {
           "file": "apps/web/components/home-experience/HomeSections.tsx",
-          "line": 296,
+          "line": 298,
           "caller": "retry",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -122563,7 +122563,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/communications/page.tsx:173 (retryNow, WEB); apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:70 (retry, WEB); apps/web/components/home-experience/HomeSections.tsx:296 (retry, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/communications/page.tsx:173 (retryNow, WEB); apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:70 (retry, WEB); apps/web/components/home-experience/HomeSections.tsx:298 (retry, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

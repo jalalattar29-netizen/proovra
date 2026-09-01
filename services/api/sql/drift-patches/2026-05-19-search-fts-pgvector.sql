@@ -1,4 +1,39 @@
 -- =============================================================================
+-- RETIRED IN PART — ADM-013 (2026-09-01). READ BEFORE APPLYING.
+-- =============================================================================
+--
+-- The `tsv` GENERATED COLUMN and `evidence_search_documents_tsv_gin` below are
+-- SUPERSEDED and must NOT be applied to any environment. The SQL is left
+-- unedited because this file is a dated record of what was applied in May 2026,
+-- and rewriting a record of an applied action is not a cleanup.
+--
+-- WHY THEY ARE RETIRED
+--   * The canonical migration chain creates them in
+--     20260620100000_phase24_31_consolidated_drift_patches and then DROPS them
+--     in 20260925000000_phase0_schema_catchup — a diff generated against
+--     schema.prisma, which has no way to express a Postgres GENERATED column
+--     and therefore reads `tsv` as drift. Every fresh database ends the chain
+--     without them.
+--   * Nothing reads them. `evidence-search.service.ts` matches free text with
+--     Prisma `contains` (ILIKE) and has never referenced the column;
+--     `phase-24-j-discovery.test.ts` now asserts the absence of any runtime
+--     consumer, so a future one fails a test rather than resurrecting this.
+--   * They were the only two members of the `optional` severity tier in the
+--     runtime schema catalog, and that tier counted its members and then never
+--     read the count — which is how readiness rendered green beside
+--     "2 of 111 expected objects missing".
+--
+-- PROVEN, NOT ASSUMED: `adm013-search-functional.integration.test.ts` runs the
+-- full functional search suite against live PostgreSQL 16 twice — once on a
+-- database migrated from empty (no `tsv`) and once on a database where these
+-- objects were re-created by hand (`tsv` present). 15/15 on both. Their
+-- presence changes nothing, which is the definition of retired.
+--
+-- THE pgvector HALF BELOW IS NOT RETIRED. `embedding` and the IVFFLAT index are
+-- created by the canonical chain and are live.
+-- =============================================================================
+
+-- =============================================================================
 -- Phase 24-J — Search FTS + pgvector semantic foundations
 -- =============================================================================
 --

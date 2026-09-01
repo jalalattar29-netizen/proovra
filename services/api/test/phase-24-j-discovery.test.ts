@@ -23,7 +23,8 @@
  * pieces — pure string + structure assertions, no DB, no Fastify.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -40,6 +41,12 @@ import {
   getWorkEntryOrThrow,
   parseSearchIndexCommandId,
 } from "@proovra/shared";
+
+/** Repository root, for the consumer scan below. */
+const REPO_ROOT_FOR_SCAN = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -246,6 +253,53 @@ describe("Phase 24-J — schema validation registrations", () => {
     ]) {
       expect(src, `${col} not registered`).toContain(col);
     }
+  });
+
+  it("no runtime code reads the retired FTS objects", () => {
+    // ADM-013 — the removal of the two schema expectations is only safe if
+    // nothing reads them. That is a claim about ABSENCE, so it is a test.
+    //
+    // Comments are stripped: the readiness probe and the schema catalog both
+    // NAME these objects in the notes explaining why they are gone, and a gate
+    // that forbade the words would forbid the explanation.
+    const ROOTS = [
+      "services/api/src",
+      "services/worker/src",
+      "apps/web/app",
+      "apps/web/lib",
+      "apps/web/components",
+      "packages/shared/src",
+      "packages/shared-runtime/src",
+    ];
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      let entries: string[];
+      try {
+        entries = readdirSync(dir);
+      } catch {
+        return;
+      }
+      for (const name of entries) {
+        if (name === "node_modules" || name === ".next" || name === "dist") continue;
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!/\.(ts|tsx|mjs)$/.test(name)) continue;
+        const code = readFileSync(full, "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/^\s*\/\/.*$/gm, "");
+        if (/\btsv\b|evidence_search_documents_tsv_gin/.test(code)) {
+          offenders.push(full.replace(REPO_ROOT_FOR_SCAN, "").replace(/\\/g, "/"));
+        }
+      }
+    };
+    for (const root of ROOTS) walk(resolve(REPO_ROOT_FOR_SCAN, root));
+    expect(
+      offenders,
+      "these files reference the retired FTS objects in CODE — either the retirement is wrong, or this consumer needs to move to the free-text index the chain actually creates",
+    ).toEqual([]);
   });
 
   it("registers NO expectation the canonical migration chain removes", () => {
