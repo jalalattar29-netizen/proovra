@@ -67,14 +67,28 @@ const REGISTRY = join(WEB_ROOT, "lib", "navigation", "routeRegistry.ts");
 function readRegistry() {
   const src = readFileSync(REGISTRY, "utf8");
   const entries = [];
-  const re =
-    /\{\s*(?:\/\/[^\n]*\n\s*|\/\*[\s\S]*?\*\/\s*)*id:\s*"([^"]+)",\s*href:\s*"([^"]+)"([\s\S]*?)\n  \},/g;
+
+  // Split on entry BOUNDARIES, then pick fields out of each body.
+  //
+  // The first version of this required `id:` to be immediately followed by
+  // `href:`, and silently dropped every entry with a comment between the two —
+  // which is most of the interesting ones, because the entries that needed
+  // explaining are the ones people explained. `/admin/identity` carries a
+  // nine-line note about why it is PLATFORM_ADMIN and was therefore reported
+  // as UNREGISTERED. A parser that drops what it cannot match produces a
+  // confident wrong answer, so the boundary is now the structure (a
+  // two-space-indented object literal) and the fields are searched inside it.
+  const re = /\n {2}\{\n([\s\S]*?)\n {2}\},/g;
   for (const m of src.matchAll(re)) {
-    const [, id, href, body] = m;
+    const body = m[1];
     const pick = (key) => {
-      const hit = new RegExp(`${key}:\\s*"([^"]*)"`).exec(body);
+      const hit = new RegExp(`^\\s*${key}:\\s*"([^"]*)"`, "m").exec(body);
       return hit ? hit[1] : null;
     };
+    const id = pick("id");
+    const href = pick("href");
+    // Not every two-space object in the file is a route entry.
+    if (!id || !href) continue;
     const caps = /requiredCapabilities:\s*\[([^\]]*)\]/.exec(body);
     entries.push({
       id,
