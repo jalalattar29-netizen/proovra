@@ -47,42 +47,21 @@ import {
   signCustodyEvent,
   verifyCustodyAttestation,
 } from "../services/operations/custody-attestation.service.js";
+import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
 
-async function requireOpsActor(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true, status: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (member.status !== "ACTIVE") {
-    reply.code(403).send({ error: { code: "member_inactive" } });
-    return null;
-  }
-  const decision = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "identity.member.read",
-  });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
-}
+/**
+ * ADM-013 — the authority for this family lives in ONE place.
+ *
+ * This file used to carry its own local actor check, and so did the three
+ * sibling families; three of the four copies were byte-identical and the
+ * fourth differed only in name. All four authorized on
+ * `identity.member.read`, which every authenticated user holds in their own
+ * personal workspace — so every authenticated user could reach platform data
+ * by passing their own `teamId`.
+ *
+ * See `require-platform-ops-actor.ts` for what was proven and why the check is
+ * now platform authority AND workspace membership, in that order.
+ */
 
 export async function operationsSignersRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------
@@ -95,7 +74,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const signers = await listAllSigners({ teamId: q.teamId });
       return reply.code(200).send({ signers });
@@ -112,7 +91,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const signer = await getSignerById({
         teamId: q.teamId,
@@ -140,7 +119,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const snapshot = await probeSignerHealth();
       safeEmitSecurityEvent({
@@ -183,7 +162,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const events = await listSignerAudit({
         teamId: q.teamId,
@@ -213,7 +192,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           notes: z.string().max(400).nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       const result = await stageSigner({
         teamId: body.teamId,
@@ -245,7 +224,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       const result = await previewRotation({
         teamId: body.teamId,
@@ -274,7 +253,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           reason: z.string().min(1).max(240),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       const stepUp = await requireStepUpForSensitiveAction({
         req,
@@ -314,7 +293,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           reason: z.string().min(1).max(240),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       const stepUp = await requireStepUpForSensitiveAction({
         req,
@@ -354,7 +333,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           reason: z.string().min(1).max(240),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       const stepUp = await requireStepUpForSensitiveAction({
         req,
@@ -395,7 +374,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const attestations = await listAttestations({
         teamId: q.teamId,
@@ -416,7 +395,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           batchSize: z.number().int().min(1).max(200).optional(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       const stepUp = await requireStepUpForSensitiveAction({
         req,
@@ -447,7 +426,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       const report = await verifyCustodyAttestation({
         teamId: body.teamId,
@@ -473,7 +452,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           custodyEventId: z.string().uuid(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       // Validate the custody event belongs to the evidence ref.
       const evt = await prisma.custodyEvent.findFirst({
@@ -512,7 +491,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(200).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const attestations = await listAttestations({
         teamId: q.teamId,

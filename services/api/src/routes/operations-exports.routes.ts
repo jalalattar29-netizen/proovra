@@ -39,43 +39,21 @@ import {
 } from "../services/operations/export-manifest.service.js";
 import { verifyExportReproducibility } from "../services/operations/export-reproducibility.service.js";
 import { getObjectLockStatus } from "../services/operations/object-lock-status.service.js";
+import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
 
-async function requireOpsReader(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true, status: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (member.status !== "ACTIVE") {
-    reply.code(403).send({ error: { code: "member_inactive" } });
-    return null;
-  }
-  // Same permission gate as sibling `/v1/ops/*` routes.
-  const decision = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "identity.member.read",
-  });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
-}
+/**
+ * ADM-013 — the authority for this family lives in ONE place.
+ *
+ * This file used to carry its own local actor check, and so did the three
+ * sibling families; three of the four copies were byte-identical and the
+ * fourth differed only in name. All four authorized on
+ * `identity.member.read`, which every authenticated user holds in their own
+ * personal workspace — so every authenticated user could reach platform data
+ * by passing their own `teamId`.
+ *
+ * See `require-platform-ops-actor.ts` for what was proven and why the check is
+ * now platform authority AND workspace membership, in that order.
+ */
 
 export async function operationsExportsRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------
@@ -92,7 +70,7 @@ export async function operationsExportsRoutes(app: FastifyInstance) {
           kind: z.enum(EXPORT_KINDS).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireOpsReader(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const kinds: ReadonlyArray<ExportKind> = q.kind
         ? [q.kind]
@@ -117,7 +95,7 @@ export async function operationsExportsRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsReader(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const status = await getObjectLockStatus();
       return reply.code(200).send({ status });
@@ -137,7 +115,7 @@ export async function operationsExportsRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsReader(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const result = await resolveExportManifest({
         teamId: q.teamId,
@@ -165,7 +143,7 @@ export async function operationsExportsRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsReader(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const result = await resolveExportManifest({
         teamId: q.teamId,
@@ -196,7 +174,7 @@ export async function operationsExportsRoutes(app: FastifyInstance) {
       const body = z
         .object({ teamId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ctx = await requireOpsReader(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
 
       const result = await verifyExportReproducibility({

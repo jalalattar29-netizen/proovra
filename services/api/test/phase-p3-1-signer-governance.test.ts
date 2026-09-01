@@ -193,10 +193,17 @@ describe("Phase P3.1 — Routes registered + step-up gated", () => {
   });
 
   it("uses the same actor-gate pattern as other ops routes", () => {
+    // ADM-013 — the pattern is now a shared function rather than a copied
+    // block. Asserting the copy is what let the four copies drift into
+    // authorizing platform data on `identity.member.read`; asserting the CALL
+    // is what keeps them one rule. The gate's own properties — the 404
+    // anti-enumeration, the active-member check, `evaluateMemberAccess`, and
+    // the platform check that now precedes them — are pinned in
+    // phase-p2-final-closure.
     const r = readSource("../src/routes/operations-signers.routes.ts");
-    expect(r).toContain("evaluateMemberAccess");
-    expect(r).toMatch(/reply\.code\(404\)/);
-    expect(r).toContain('"member_inactive"');
+    expect(r).toContain("requirePlatformOpsActor");
+    expect(r).toContain('from "./require-platform-ops-actor.js"');
+    expect(r).not.toMatch(/async function requireOpsActor\(/);
   });
 });
 

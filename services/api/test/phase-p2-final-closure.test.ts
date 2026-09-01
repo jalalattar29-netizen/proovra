@@ -381,18 +381,54 @@ describe("Phase P2.7 — Coherence + bounded registries", () => {
   });
 
   it("tenant gating: every operations route uses the same actor gate", () => {
+    // ADM-013 — "the same gate" used to mean "the same code, copied". Each
+    // file carried its own actor check; three were byte-identical and the
+    // fourth differed only in name, which is how all four came to authorize
+    // on `identity.member.read` while serving platform data. They now call
+    // ONE function, so this asserts the call rather than the copy.
     for (const f of [
       "../src/routes/operations-exports.routes.ts",
       "../src/routes/operations-queues.routes.ts",
       "../src/routes/operations-recovery.routes.ts",
+      "../src/routes/operations-signers.routes.ts",
     ]) {
       const src = readSource(f);
-      // Anti-enumeration 404 for non-members.
-      expect(src).toMatch(/reply\.code\(404\)/);
-      // Active-member gate.
-      expect(src).toContain('"member_inactive"');
-      // Permission check via the access-policy service.
-      expect(src).toContain("evaluateMemberAccess");
+      expect(src).toContain("requirePlatformOpsActor");
+      expect(src).toContain('from "./require-platform-ops-actor.js"');
+      // And no file may reintroduce a local copy.
+      expect(
+        src,
+        `${f} declares its own actor gate again — that is how the four drifted apart`,
+      ).not.toMatch(/async function require(OpsActor|OpsReader)\(/);
     }
+  });
+
+  it("the one actor gate still carries every property the four used to", () => {
+    const src = readSource("../src/routes/require-platform-ops-actor.ts");
+    // Anti-enumeration 404 for non-members.
+    expect(src).toMatch(/reply\.code\(404\)/);
+    // Active-member gate.
+    expect(src).toContain('"member_inactive"');
+    // Permission check via the access-policy service.
+    expect(src).toContain("evaluateMemberAccess");
+    // And the property none of the four had: platform authority, evaluated
+    // BEFORE the workspace lookup so a non-operator cannot probe workspace ids
+    // by telling 404 from 403.
+    expect(src).toContain("resolvePlatformAdmin");
+    // Ordering is read from CODE. The file's header explains the ordering and
+    // names both calls in prose, so an index taken over the raw text reports
+    // the documentation's order rather than the function's.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    const platformAt = code.indexOf("resolvePlatformAdmin(");
+    const memberAt = code.indexOf("teamMember.findUnique");
+    expect(platformAt).toBeGreaterThan(0);
+    expect(memberAt).toBeGreaterThan(0);
+    expect(
+      platformAt,
+      "the workspace lookup runs before the platform check, which turns the " +
+        "404/403 difference into an enumeration oracle",
+    ).toBeLessThan(memberAt);
   });
 });

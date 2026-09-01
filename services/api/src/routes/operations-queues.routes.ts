@@ -48,42 +48,21 @@ import {
   replayFailedJob,
   retryFailedJob,
 } from "../services/operations/queue-replay-action.service.js";
+import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
 
-async function requireOpsActor(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-): Promise<{ userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true, status: true },
-  });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (member.status !== "ACTIVE") {
-    reply.code(403).send({ error: { code: "member_inactive" } });
-    return null;
-  }
-  const decision = await evaluateMemberAccess({
-    teamId,
-    userId,
-    permission: "identity.member.read",
-  });
-  if (!decision.allowed) {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: decision.reason,
-        detail: decision.detail ?? null,
-      },
-    });
-    return null;
-  }
-  return { userId };
-}
+/**
+ * ADM-013 — the authority for this family lives in ONE place.
+ *
+ * This file used to carry its own local actor check, and so did the three
+ * sibling families; three of the four copies were byte-identical and the
+ * fourth differed only in name. All four authorized on
+ * `identity.member.read`, which every authenticated user holds in their own
+ * personal workspace — so every authenticated user could reach platform data
+ * by passing their own `teamId`.
+ *
+ * See `require-platform-ops-actor.ts` for what was proven and why the check is
+ * now platform authority AND workspace membership, in that order.
+ */
 
 const KnownQueueName = z.enum(KNOWN_QUEUE_NAMES as [string, ...string[]]);
 
@@ -98,7 +77,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const items = await getQueueInventory();
       // Aggregate counters for the dashboard summary card. Queues
@@ -136,7 +115,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const workers = await getWorkerHealth();
       const missingCount = workers.filter((w) => w.status === "missing").length;
@@ -155,7 +134,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       return reply.code(200).send({ matrix: getReplaySafetyMatrix() });
     },
@@ -177,7 +156,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
           limit: z.coerce.number().int().min(1).max(50).optional(),
         })
         .parse(req.query ?? {});
-      const ctx = await requireOpsActor(req, reply, q.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
       const jobs = await listFailedJobs(params.queueName, q.limit);
       if (jobs.length > 0) bump("dlq_job_total");
@@ -201,7 +180,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
           reason: z.string().min(1).max(240),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       // Retry is allowed for `safe` and `requires_step_up` jobs.
       // The category gate runs INSIDE the action service.
@@ -245,7 +224,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
           expectedJobName: z.string().max(100).optional(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
 
       // If the caller knows the job name, we can pre-gate without an
@@ -305,7 +284,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
           reason: z.string().min(1).max(240),
         })
         .parse(req.body ?? {});
-      const ctx = await requireOpsActor(req, reply, body.teamId);
+      const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
       const result = await cancelJob({
         queueName: params.queueName,

@@ -1168,7 +1168,21 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 //
 // THIS PHASE ADDS NO ROUTE FILE. `GET /v1/admin/platform/readiness` was added
 // to the existing telemetry module, which is its correct home.
-const ROUTE_COUNT_PHASE_2_BASELINE = 128;
+// ADM-013 (this phase) — 128 → 129: `require-platform-ops-actor.ts`.
+//
+// It registers no route. It is the single authority for the four platform
+// `/v1/operations/*` families, which until now each carried their own copy of
+// one actor check — three byte-identical, the fourth differing only in name.
+// All four authorized on `identity.member.read`, the weakest read permission,
+// which every authenticated user holds in their own personal workspace. Proven
+// against a live database: an ordinary member read all eight endpoints, got
+// `kmsKeyArn` back in a 200, and started a platform DR backup validation.
+//
+// Argued for as a NEW FILE rather than a fifth copy or a home inside one of
+// the four: putting the shared rule inside any one family would make the other
+// three import from a sibling route module, and the reason this defect
+// survived is precisely that the rule had four homes and no owner.
+const ROUTE_COUNT_PHASE_2_BASELINE = 129;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {
