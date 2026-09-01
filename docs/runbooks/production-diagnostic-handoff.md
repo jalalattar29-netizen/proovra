@@ -3,16 +3,39 @@
 **Audience:** an operator with shell access to the PROOVRA production host and
 permission to run `docker`.
 **Effect:** read-only. Nothing is written to the database, and nothing is left
-on the host or in the container once step 9 completes.
+on the host or in the container once the last step completes.
 
 The diagnostic answers what source code cannot: how many incidents there really
 are, how many are the same condition wearing different rows, which alert signals
 are backed by an incident, which evidence is stuck and in which overlapping
 cohorts.
 
-## Before you start
+**Pinned commit:** `438a797ef7f558c63ef72d5ed019d5c56e06d38c`
 
-Two rules apply to every command below.
+## What was wrong with the previous version of this document
+
+It said to copy the script to `/tmp` and run `node /tmp/proovra-diagnostic.cjs`.
+Reproduced against the real production image, that failed every time:
+
+```
+proovra-diagnostic: could not load @prisma/client / @prisma/adapter-pg / pg
+(Cannot find module '@prisma/client' Require stack: - /tmp/proovra-diagnostic.cjs)
+```
+
+CommonJS resolves a bare specifier by walking up from the directory of the
+**file doing the requiring**, not from the working directory. The image installs
+hoisted into `/app/node_modules` and sets `WORKDIR` to `/app/services/api`, so
+the walk went `/tmp/node_modules` → `/node_modules` → nothing. Being in the
+right container did not help, and neither did the right working directory.
+
+The script now resolves explicitly — an operator-supplied `--require-base`, then
+its own directory, then the working directory, then a short list of conventional
+install roots — and prints which base won. Both `/tmp` and in-tree placements
+work, and a total failure names every base it tried. This is proven by
+`services/api/scripts/diagnostic-container-smoke.mjs`, 17 checks against the
+built image, which runs the exact command printed below.
+
+## Before you start
 
 **Use the running container's existing environment.** Do not `source .env`, do
 not `export DATABASE_URL`, do not pass `-e DATABASE_URL=...`. The container
@@ -21,9 +44,12 @@ value can silently point somewhere else — which is how a diagnostic ends up
 profiling staging and printing production-shaped JSON.
 
 **Do not assume the database name.** `dw` and `neondb` are both plausible and
-neither is verified. Step 2 asks the running process what it is actually
-connected to, and step 5 refuses to read anything if the answer does not match
-what you pass it.
+neither is verified. Step 2 asks the running process, and step 5 refuses to read
+anything if the answer does not match what you pass it.
+
+**Do not add `-w` to any `docker exec` below.** The commands rely on the image's
+own `WORKDIR`. A stray `-w /tmp` is survivable — the conventional-roots fallback
+covers it — but you will be relying on a fallback instead of the real answer.
 
 ---
 
@@ -32,7 +58,7 @@ what you pass it.
 Compose is not used here. `docker compose ps -q api` reads the compose file and
 interpolates variables from `.env`, which is exactly the dependency this
 procedure avoids; it also fails outright when run from the wrong directory.
-Query the daemon directly instead.
+Query the daemon directly.
 
 ```bash
 docker ps --filter "label=com.docker.compose.service=api" --format '{{.ID}}  {{.Image}}  {{.Names}}'
@@ -45,19 +71,21 @@ image name instead and read the output before choosing:
 docker ps --format '{{.ID}}  {{.Image}}  {{.Names}}  {{.Status}}'
 ```
 
-Set `API` to the **container ID** of the API service — an ID, not a name, so a
-rename or a second stack cannot redirect the following commands:
+Set `API` to the **container ID** — an ID, not a name, so a rename or a second
+stack cannot redirect the following commands:
 
 ```bash
 API=<container-id-from-above>
 ```
 
-Confirm you picked the right one. This prints the container's own name and
-proves `node` is present:
+Confirm you picked the right one:
 
 ```bash
-docker inspect --format '{{.Name}}  {{.Config.Image}}' "$API" && docker exec "$API" node --version
+docker inspect --format '{{.Name}}  {{.Config.Image}}  workdir={{.Config.WorkingDir}}' "$API" && docker exec "$API" node --version
 ```
+
+`workdir` should be `/app/services/api`. If it is something else, note it — you
+will pass it as `--require-base` in step 5.
 
 ## 2 — Ask it which database it is connected to
 
@@ -68,8 +96,6 @@ the container — the value the API is actually using — and never displays it.
 docker exec "$API" node -e 'const{Pool}=require("pg");const p=new Pool({connectionString:process.env.DATABASE_URL});p.query("select current_database() d").then(r=>{console.log(r.rows[0].d);return p.end()}).catch(e=>{console.error(e.message);process.exit(1)})'
 ```
 
-Record the output as `DB`:
-
 ```bash
 DB=<the-single-word-printed-above>
 ```
@@ -78,56 +104,72 @@ DB=<the-single-word-printed-above>
 > it by supplying a URL yourself — the error is telling you something true about
 > the container's configuration.
 
-## 3 — Put the diagnostic on the host and verify what you got
+## 3 — Extract the scripts from the server's own checkout
 
-The scripts are not in the image. Copy them from a checkout of the repository:
+**Preferred**, because it needs no network egress from the production host to
+github.com and does not depend on a public URL staying reachable. `git show`
+writes to stdout from the object database; it does not touch the working tree,
+so the checkout's branch, index and files are unchanged.
+
+```bash
+cd /opt/proovra/app
+```
+
+```bash
+git fetch origin
+```
+
+```bash
+git show 438a797ef7f558c63ef72d5ed019d5c56e06d38c:services/api/scripts/proovra-diagnostic.cjs > /tmp/proovra-diagnostic.cjs
+```
+
+```bash
+git show 438a797ef7f558c63ef72d5ed019d5c56e06d38c:services/api/scripts/proovra-diagnostic-summary.cjs > /tmp/proovra-diagnostic-summary.cjs
+```
+
+> **Do not** `git checkout`, `git reset`, `git pull`, or switch branches to get
+> these files. `git fetch` only downloads objects; extracting two files to /tmp
+> must not disturb what the server is running.
+
+If the host has no checkout, copy from a machine that does:
 
 ```bash
 scp services/api/scripts/proovra-diagnostic.cjs services/api/scripts/proovra-diagnostic-summary.cjs OPERATOR@HOST:/tmp/
 ```
 
-Or fetch them on the host by commit SHA:
-
-```bash
-curl -fsSL -o /tmp/proovra-diagnostic.cjs "https://raw.githubusercontent.com/jalalattar29-netizen/proovra/58fddfd2c0b3689dd953639bc20693c0a45a80c9/services/api/scripts/proovra-diagnostic.cjs"
-```
-
-```bash
-curl -fsSL -o /tmp/proovra-diagnostic-summary.cjs "https://raw.githubusercontent.com/jalalattar29-netizen/proovra/58fddfd2c0b3689dd953639bc20693c0a45a80c9/services/api/scripts/proovra-diagnostic-summary.cjs"
-```
-
-**Verify the bytes before running them against production.** Expected SHA-256,
-for commit `58fddfd2c0b3689dd953639bc20693c0a45a80c9`:
-
-| File | SHA-256 |
-| --- | --- |
-| `proovra-diagnostic.cjs` | `033638a886f493e1a44d00f8ce6e5bb5c9d8d4103780385be6d59ac9eb2ea615` |
-| `proovra-diagnostic-summary.cjs` | `9e29b2b5edee805d5759c4cf2ccb59ba673b692bac9ad579db1e0184d09b9b97` |
+**Verify the bytes before running them against production:**
 
 ```bash
 sha256sum /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs
 ```
 
-> Both files are LF-only in git, so these hashes hold whether the checkout you
-> copied from is Linux, macOS or Windows. **If a hash does not match, stop** —
-> a transfer that altered the bytes has also altered what the script does, and
-> the self-hash the diagnostic reports in step 5 would then attest to a file
-> nobody reviewed.
+| File | SHA-256 |
+| --- | --- |
+| `proovra-diagnostic.cjs` | `21c9092727d2e0448ad4fb941c040d465f7e4de47c0336aa97bfa8364d92bd3a` |
+| `proovra-diagnostic-summary.cjs` | `436760f19440fd69ca6ce5033fec384a3ef15e57f865ff370eb409adbd51a8a8` |
+
+> Both files are LF-only in git, so these hashes hold from any checkout. **If a
+> hash does not match, stop** — a transfer that altered the bytes altered what
+> the script does, and the self-hash the diagnostic reports would then attest to
+> a file nobody reviewed.
 
 ## 4 — Copy them into the container
-
-They must run inside, where `@prisma/client` and the generated schema live.
 
 ```bash
 docker cp /tmp/proovra-diagnostic.cjs "$API":/tmp/proovra-diagnostic.cjs && docker cp /tmp/proovra-diagnostic-summary.cjs "$API":/tmp/proovra-diagnostic-summary.cjs
 ```
 
-Confirm the bytes survived the copy — `docker cp` through a storage driver is
-one more place a file can change:
+Re-verify — `docker cp` through a storage driver is one more place bytes can
+change:
 
 ```bash
 docker exec "$API" sha256sum /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs
 ```
+
+> If `docker cp` is refused because the container runs with a read-only root
+> filesystem, `/tmp` is normally still a writable tmpfs and this will work. If it
+> does not, the container is fully read-only and the diagnostic cannot be
+> introduced at all — say so rather than remounting anything.
 
 ## 5 — Run it, saving the output on the host
 
@@ -136,27 +178,30 @@ lands on the host in your current directory. Nothing is written inside the
 container, which is deliberate: it is ephemeral, and a file left there is lost
 on the next deploy and forgotten before then.
 
-Restrict the file's permissions before anything is written into it:
-
 ```bash
 umask 077
 ```
 
 ```bash
-docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" --trace-account=<email-or-user-id> > diag.json
+docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" > diag.json
 ```
 
-Progress, warnings and refusals go to **stderr**, so they appear on your screen
-while `diag.json` receives only JSON. If the script refuses because
-`current_database()` does not equal `$DB`, that refusal is the point of the
-check — re-run step 2 rather than editing the argument.
+The second line of stderr says which base the runtime resolved from — expect
+`/app/services/api`. If step 1 showed a different `WorkingDir`, or if this line
+names a conventional root rather than the real one, re-run with it explicit:
 
-`--trace-account` is optional. Omit it entirely if no individual account is
-under investigation; the section then records that none was requested. Only an
-exact email or an exact user id resolves — a display name never does, because
-matching on a name is how a trace ends up describing the wrong person.
+```bash
+docker exec "$API" node /tmp/proovra-diagnostic.cjs --require-base=/app/services/api --expect-database="$DB" > diag.json
+```
 
-Confirm the file is yours alone:
+To trace one account, append `--trace-account=<email-or-user-id>`. Omit it
+entirely if no individual account is under investigation. Only an exact email or
+an exact user id resolves — a display name never does, because matching on a
+name is how a trace ends up describing the wrong person.
+
+If the script refuses because `current_database()` does not equal `$DB`, that
+refusal is the point of the check — re-run step 2 rather than editing the
+argument.
 
 ```bash
 ls -l diag.json && stat -c '%a %U' diag.json
@@ -178,10 +223,8 @@ do not summarise a partial capture.
 ## 7 — Print the safe summary
 
 Aggregates only: no id, no pseudonym, no email, no domain, no per-workspace row,
-and for a resolved account trace only the fact that it resolved. This is the
-output that is safe to put on a shared screen.
-
-The reader uses only Node builtins, so this works with no Node on the host:
+and for a resolved account trace only the fact that it resolved. **This is the
+output that is safe to share, and the only output that should leave the host.**
 
 ```bash
 docker exec -i "$API" node /tmp/proovra-diagnostic-summary.cjs < diag.json
@@ -203,10 +246,10 @@ echo "summary exit code: $?"
 
 The diagnostic selects **no secret**: no token, hash, cookie, session value,
 signing key, connection string or webhook secret. It reads **no evidence
-content**: no bytes, no storage key, no filename, no fingerprint, no GPS. Ids
-are per-run pseudonyms, emails reduce to a domain, IPs to a /24 or /48 network.
-A test asserts the absence of `INSERT`, `UPDATE`, `DELETE`, DDL and
-`$executeRaw` anywhere in the script.
+content**: no bytes, no storage key, no filename, no fingerprint, no GPS. Ids are
+per-run pseudonyms, emails reduce to a domain, IPs to a /24 or /48 network. The
+container smoke asserts the script contains no `INSERT`, `UPDATE`, `DELETE`,
+DDL or `$executeRaw`.
 
 So the risk is not that `diag.json` contains a credential. It is that:
 
@@ -223,10 +266,13 @@ covers looking at one customer — not on a shared screen, and never in a ticket
 or chat message.
 
 Do **not** paste `diag.json` into an issue tracker, a chat client or an AI
-assistant. Do not commit it: the repository ignores nothing by that name and
-committing it would place production shape data in git history permanently.
+assistant. Do not commit it.
 
-## 9 — Destroy the output when the review is finished
+## 9 — Keep the raw output only until it has been interpreted
+
+`diag.json` is the only copy of the measurement. Keep it until the summary has
+been read and any follow-up question answered from it, then destroy it in the
+same session. Do not archive it "in case", and do not move it off the host.
 
 Remove the copies inside the container first:
 
@@ -254,29 +300,65 @@ ls -l diag.json /tmp/proovra-diagnostic*.cjs 2>&1 | head
 
 > **An honest limit.** `shred` overwrites the blocks a file currently occupies.
 > On a copy-on-write or log-structured filesystem (btrfs, ZFS, overlayfs), on an
-> SSD with wear levelling, or where the file was written to a snapshotted
-> volume, earlier copies of those blocks can survive the overwrite. Treat `shred`
-> as making casual recovery impractical, not as making recovery impossible. If
-> the output must be provably destroyed, the host disk — not the file — is what
-> has to be handled.
+> SSD with wear levelling, or where the file was written to a snapshotted volume,
+> earlier copies of those blocks can survive the overwrite. Treat `shred` as
+> making casual recovery impractical, not as making recovery impossible. If the
+> output must be provably destroyed, the host disk — not the file — is what has
+> to be handled.
 
-Also clear it from anywhere it was copied: your terminal scrollback, a tmux
-buffer, `~/.bash_history` if you pasted content rather than a path, and any
-local copy you `scp`-ed off the host.
+Also clear it from anywhere it was copied: terminal scrollback, tmux buffers,
+`~/.bash_history` if you pasted content rather than a path, and any local copy.
 
 ---
 
-## Summary of the ten commands
+## One block, start to finish
+
+Adapted to `/opt/proovra/app`. Read the output of each step before running the
+next; the two `<placeholders>` are filled from steps 1 and 2.
 
 ```bash
 docker ps --filter "label=com.docker.compose.service=api" --format '{{.ID}}  {{.Image}}  {{.Names}}'
-API=<container-id>
+```
+
+```bash
+API=<container-id> && docker inspect --format 'workdir={{.Config.WorkingDir}}' "$API"
+```
+
+```bash
 docker exec "$API" node -e 'const{Pool}=require("pg");const p=new Pool({connectionString:process.env.DATABASE_URL});p.query("select current_database() d").then(r=>{console.log(r.rows[0].d);return p.end()}).catch(e=>{console.error(e.message);process.exit(1)})'
-DB=<name-printed>
+```
+
+```bash
+DB=<name-printed-above>
+```
+
+```bash
+cd /opt/proovra/app && git fetch origin && git show 438a797ef7f558c63ef72d5ed019d5c56e06d38c:services/api/scripts/proovra-diagnostic.cjs > /tmp/proovra-diagnostic.cjs && git show 438a797ef7f558c63ef72d5ed019d5c56e06d38c:services/api/scripts/proovra-diagnostic-summary.cjs > /tmp/proovra-diagnostic-summary.cjs
+```
+
+```bash
 sha256sum /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs
-docker cp /tmp/proovra-diagnostic.cjs "$API":/tmp/proovra-diagnostic.cjs && docker cp /tmp/proovra-diagnostic-summary.cjs "$API":/tmp/proovra-diagnostic-summary.cjs
-umask 077 && docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" > diag.json
-docker exec -i "$API" node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{JSON.parse(s);console.log("valid JSON,",s.length,"bytes")}catch(e){console.error("INVALID:",e.message);process.exit(1)}})' < diag.json
-docker exec -i "$API" node /tmp/proovra-diagnostic-summary.cjs < diag.json
-docker exec "$API" rm -f /tmp/proovra-diagnostic*.cjs && shred -u -z diag.json /tmp/proovra-diagnostic*.cjs
+```
+
+```bash
+docker cp /tmp/proovra-diagnostic.cjs "$API":/tmp/proovra-diagnostic.cjs && docker cp /tmp/proovra-diagnostic-summary.cjs "$API":/tmp/proovra-diagnostic-summary.cjs && docker exec "$API" sha256sum /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs
+```
+
+```bash
+umask 077 && docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" > diag.json ; echo "diagnostic exit: $?"
+```
+
+```bash
+docker exec -i "$API" node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);console.log("valid JSON,",s.length,"bytes, sections:",Object.keys(o.sections||{}).join(", "))}catch(e){console.error("INVALID:",e.message);process.exit(1)}})' < diag.json
+```
+
+```bash
+docker exec -i "$API" node /tmp/proovra-diagnostic-summary.cjs < diag.json ; echo "summary exit: $?"
+```
+
+**Share only the output of that last command.** Then, once it has been
+interpreted:
+
+```bash
+docker exec "$API" rm -f /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs && shred -u -z /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs diag.json && ls -l diag.json 2>&1 | head -1
 ```

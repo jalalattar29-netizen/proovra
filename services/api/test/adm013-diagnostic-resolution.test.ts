@@ -177,26 +177,72 @@ describe("the container smoke exists and covers the documented command", () => {
 describe("the runbook matches what was proven", () => {
   const md = readFileSync(RUNBOOK, "utf8");
 
-  it("no longer presents the bare /tmp invocation as the only way", () => {
-    // It may still show it — it works now — but it must record that it did
-    // not, or the next person to move the script will re-derive the bug.
-    expect(md).toMatch(/Cannot find module/);
-    expect(md).toMatch(/resolves? from the directory of the/i);
+  /**
+   * Only the runnable blocks.
+   *
+   * The prose deliberately NAMES the commands it forbids ("do not `git pull`")
+   * and quotes the error it used to produce. A check that cannot tell an
+   * instruction from a warning forbids writing the warning down — which is the
+   * part that stops the next operator re-deriving the bug.
+   */
+  const RUNNABLE = [...md.matchAll(/```bash\n([\s\S]*?)```/g)]
+    .map((m) => m[1])
+    .join("\n");
+
+  it("records the failure it used to produce, and why", () => {
+    // It shows the /tmp invocation again — it works now — so it must also
+    // record that it did not, or the next person to move the script will
+    // rediscover this the hard way.
+    expect(md).toMatch(/Cannot find module '@prisma\/client'/);
+    expect(md).toMatch(/not from the working directory/i);
+    expect(md).toMatch(/--require-base/);
   });
 
   it("offers extraction from the server's own checkout", () => {
     // A public GitHub Raw URL is a dependency on network egress from a
     // production host and on the repository staying reachable.
-    expect(md).toMatch(/git show/);
-    expect(md).toMatch(/git fetch origin/);
+    expect(RUNNABLE).toMatch(/git show [0-9a-f]{40}:services\/api\/scripts\//);
+    expect(RUNNABLE).toMatch(/git fetch origin/);
   });
 
-  it("never tells the operator to reset or deploy the checkout", () => {
-    for (const forbidden of [/git checkout \./, /git reset --hard/, /git pull/]) {
-      expect(md, "extracting two files must not disturb the server").not.toMatch(
-        forbidden,
-      );
+  it("pins one commit, and the same one everywhere", () => {
+    const pinned = [...md.matchAll(/\b([0-9a-f]{40})\b/g)].map((m) => m[1]);
+    expect(pinned.length, "no commit is pinned").toBeGreaterThan(0);
+    expect(
+      new Set(pinned).size,
+      `the runbook pins more than one commit: ${[...new Set(pinned)].join(", ")}`,
+    ).toBe(1);
+  });
+
+  it("never RUNS a command that disturbs the server checkout", () => {
+    for (const forbidden of [
+      /git checkout/,
+      /git reset/,
+      /git pull/,
+      /git merge/,
+      /git switch/,
+    ]) {
+      expect(
+        RUNNABLE,
+        `a runnable block contains ${forbidden} — extracting two files must ` +
+          `not disturb what the server is running`,
+      ).not.toMatch(forbidden);
     }
+  });
+
+  it("still warns against those commands in prose", () => {
+    // The inverse of the check above. Removing the warning would pass that
+    // one and leave the operator free to do the dangerous thing.
+    expect(md).toMatch(/Do not.{0,40}`git checkout`/s);
+  });
+
+  it("adapts to this deployment's application directory", () => {
+    expect(RUNNABLE).toMatch(/cd \/opt\/proovra\/app/);
+  });
+
+  it("asks for the summary only, never the raw document", () => {
+    expect(md).toMatch(/Share only the output of that last command/i);
+    expect(md).toMatch(/only output that should leave the host/i);
   });
 
   it("states the shred limit rather than implying more than it delivers", () => {
