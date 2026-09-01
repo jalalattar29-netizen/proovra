@@ -244,10 +244,33 @@ test("Settings summary is four cards again, with a compact sign-ins card", () =>
   );
   // The device line is a parsed name, and the moment is readable.
   assert.match(overview, /describeUserAgent\(entry\.device\)/);
-  assert.match(overview, /formatSignInMoment\(entry\.lastSeenAtUtc\)/);
-  // The helper's comment names the old format it replaced; the CODE must not
-  // use it. `toLocaleString()` produced "9/1/2026, 3:38:24 AM" — an ambiguous
-  // numeric date and a seconds field, on a card with room for neither.
+
+  // The moment goes through the CANONICAL wrapper, and the element carries the
+  // unambiguous instant.
+  //
+  // This asserted a LOCAL `formatSignInMoment` helper. The compact stamp it
+  // produced was the right call for a narrow column and the wrong place to
+  // produce it: the helper reached for `toLocaleDateString` and
+  // `toLocaleTimeString`, which the project-wide timestamp policy forbids
+  // outside `packages/shared/src/timestamp-format.ts` and its two thin app
+  // wrappers. `services/worker/test/timestamp-policy.contract.test.ts` failed
+  // on both lines.
+  //
+  // Locale-dependent rendering is a different string per viewer, and a client
+  // component that server-renders one and hydrates another produces a mismatch
+  // that only appears for readers outside the build machine's locale — which is
+  // why the policy exists rather than being a preference about date formats.
+  //
+  // `formatUserDateTimeCompact` lives in `apps/web/lib/date.ts`, the app's
+  // allowlisted wrapper, and composes `formatTimestampParts` exactly as
+  // `formatUserDate` and `formatUserTime` beside it already do. No Intl call
+  // moved; one was removed.
+  assert.match(overview, /formatUserDateTimeCompact\(entry\.lastSeenAtUtc\)/);
+  assert.match(overview, /<time[\s\S]{0,120}dateTime=\{entry\.lastSeenAtUtc\}/);
+  assert.doesNotMatch(overview, /function formatSignInMoment/);
+
+  // No direct locale formatting anywhere in the file, comments excluded — the
+  // comments above name the APIs they replaced.
   const code = overview
     .split("\n")
     .filter((l) => {
@@ -255,7 +278,41 @@ test("Settings summary is four cards again, with a compact sign-ins card", () =>
       return !t.startsWith("*") && !t.startsWith("//") && !t.startsWith("/*");
     })
     .join("\n");
-  assert.doesNotMatch(code, /toLocaleString\(\)/);
+  for (const banned of [
+    /toLocaleString\(/,
+    /toLocaleDateString\(/,
+    /toLocaleTimeString\(/,
+    /new Intl\.DateTimeFormat/,
+  ]) {
+    assert.doesNotMatch(code, banned);
+  }
+});
+
+/**
+ * The compact stamp is a WRAPPER, not a second authority.
+ *
+ * The whole value of a single timestamp layer is that there is one place where
+ * a format decision is made. A compact variant that re-implemented the
+ * formatting — even correctly, even once — would be the second place, and the
+ * two would drift the first time either changed.
+ */
+test("formatUserDateTimeCompact adds no formatting authority", () => {
+  const dateLib = read("lib/date.ts");
+  assert.match(dateLib, /export function formatUserDateTimeCompact/);
+  // It composes the shared helper.
+  const fn = dateLib.slice(
+    dateLib.indexOf("export function formatUserDateTimeCompact"),
+  );
+  const body = fn.slice(0, fn.indexOf("\n}"));
+  assert.match(body, /formatTimestampParts\(value, resolveViewerTimeZone\(\)\)/);
+  // And performs no formatting of its own.
+  for (const banned of [
+    /new Intl\./,
+    /toLocale/,
+    /getHours|getMinutes|getFullYear/,
+  ]) {
+    assert.doesNotMatch(body, banned);
+  }
 });
 
 test("Billing cards use the canonical panel surface", () => {

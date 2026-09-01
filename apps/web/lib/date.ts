@@ -43,6 +43,46 @@ export function formatUserTime(value?: string | Date | null): string {
   return parts ? `${parts.time} ${parts.timeZone}` : NOT_AVAILABLE;
 }
 
+/**
+ * Compact viewer-timezone stamp for a narrow surface: "03 Jul 2026 · 02:48".
+ *
+ * WHY THIS LIVES HERE AND NOT AT THE CALL SITE
+ * ---------------------------------------------------------------------------
+ * The Settings sign-in card needs a short stamp: `formatUserDateTime` renders
+ * "03 Jul 2026, 02:48:42 Europe/Berlin", and the card is one narrow column with
+ * room for neither the seconds nor the zone name. A caller reached for
+ * `toLocaleDateString` / `toLocaleTimeString` to get there, which is the
+ * project's ONE forbidden move for timestamps — every locale-dependent
+ * rendering is a different string per viewer, and a client component that
+ * server-renders one and hydrates the other is a hydration mismatch that only
+ * appears for readers outside the build machine's locale.
+ *
+ * This adds NO formatting authority. Every Intl call still happens exactly once,
+ * in `packages/shared/src/timestamp-format.ts`; this composes
+ * `formatTimestampParts` the same way `formatUserDate` and `formatUserTime`
+ * directly above already do. `apps/web/lib/date.ts` is the app's allowlisted
+ * thin wrapper precisely so a compact variant has somewhere to be that is not a
+ * component file.
+ *
+ * The seconds are dropped by SLICING a known-shape string, not by re-formatting:
+ * `formatTimestampParts` emits `HH:MM:SS` zero-padded on both its Intl path
+ * (`hour12: false`, 2-digit) and its UTC fallback path (`two()`), so the first
+ * five characters are always the hour and minute. A second `Intl` call to drop
+ * two digits would be a second place for the format to drift.
+ *
+ * The ZONE is dropped from the text, not from the computation: the value is
+ * still rendered in the viewer's IANA zone. A surface that hides the zone label
+ * should pair this with a `<time dateTime={iso}>` element so the unambiguous
+ * instant remains available to a screen reader and to copy-paste.
+ */
+export function formatUserDateTimeCompact(
+  value?: string | Date | null,
+): string {
+  if (value === null || value === undefined || value === "") return NOT_AVAILABLE;
+  const parts = formatTimestampParts(value, resolveViewerTimeZone());
+  return parts ? `${parts.date} · ${parts.time.slice(0, 5)}` : NOT_AVAILABLE;
+}
+
 /** UTC date only: "03 Jul 2026" — for UTC-boundary labels (usage resets). */
 export function formatUtcDate(value?: string | Date | null): string {
   if (value === null || value === undefined || value === "") return NOT_AVAILABLE;

@@ -28,6 +28,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { formatUserDateTimeCompact } from "../../../../lib/date";
 import { describeUserAgent } from "../../../../lib/security/sessionPresentation";
 
 import type { SettingsUiContext } from "../../../../lib/settings/settingsUiContext";
@@ -91,27 +92,6 @@ function SummaryCard({
  * A country code as a readable place, using the browser's own data. Falls back
  * to the code itself rather than to an invented country name.
  */
-/**
- * "Sep 1, 2026 · 3:38 AM".
- *
- * `toLocaleString()` produced "9/1/2026, 3:38:24 AM" — an ambiguous numeric
- * date and a seconds field nobody reads, on a card with room for neither.
- */
-function formatSignInMoment(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const date = d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  const time = d.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return `${date} · ${time}`;
-}
-
 // `countryName` went with the wide sign-ins row: the compact card states the
 // device and the moment, and a country adds a third column it has no width
 // for. The location is still on the Security pane, where sessions are managed.
@@ -346,9 +326,17 @@ export function SettingsOverview({
                       </span>
                     ) : null}
                   </span>
-                  <span className="set-signins__when">
-                    {formatSignInMoment(entry.lastSeenAtUtc)}
-                  </span>
+                  {/* `<time>` carries the unambiguous instant. The visible
+                      text is compact because the column is narrow; the ISO
+                      value is what a screen reader, a copy-paste and an
+                      RTL reader all get, and it does not reorder under
+                      bidirectional text the way a punctuated string can. */}
+                  <time
+                    className="set-signins__when"
+                    dateTime={entry.lastSeenAtUtc}
+                  >
+                    {formatUserDateTimeCompact(entry.lastSeenAtUtc)}
+                  </time>
                 </li>
               ))}
             </ul>
