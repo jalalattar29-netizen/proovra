@@ -807,6 +807,32 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     sidebarEligible: true,
   },
   {
+    // ADM-013 — the runbook reader. The catalog at
+    // /admin/platform/runbooks indexed thirty procedures and rendered none of
+    // them; two surfaces already linked `#<slug>` fragments at anchors that
+    // did not exist. This is where the text is.
+    //
+    // Same capability and same space as the catalog: a runbook is an operator
+    // procedure, and the reader must not be reachable by anyone the catalog
+    // is hidden from.
+    id: "platform.runbook_document",
+    href: "/admin/platform/runbooks/:slug",
+    label: "Runbook",
+    description: "One operator runbook, rendered from docs/runbooks/.",
+    domain: "OPS",
+    requiredCapabilities: ["RUNBOOKS_VIEW"],
+    requiredActiveSpace: "PLATFORM_ADMIN",
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
+
+    advancedByDefault: true,
+    // A detail document is reached from the catalog or from an incident, not
+    // from the palette — thirty near-identical entries would bury everything
+    // else in it.
+    commandPaletteVisible: false,
+    allToolsVisible: false,
+    sidebarEligible: false,
+  },
+  {
     id: "review.escalations",
     href: "/reviewer-ops/escalations",
     label: "Escalations",

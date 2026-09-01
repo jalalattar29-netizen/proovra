@@ -33,6 +33,7 @@ import { RuntimeStatusBanner } from "../operational";
 // canonical `app-tabs` hero/tab structure are preserved.
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
+import { hasRunbook } from "../../lib/runbooks/slugs.generated";
 import type { GovernanceControlPlaneEnvelope, SectionStatus } from "./types";
 
 // CR1.6 — The legacy `no_workspace` LoadState branch was removed.
@@ -901,10 +902,24 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
             </div>
             <div className="cc-incident-summary">{row.safeSummary}</div>
             <div className="cc-incident-row-foot">
-              {row.runbookSlug && canRunbooks ? (
-                <Link href={`/admin/platform/runbooks#${row.runbookSlug}`}>
+              {row.runbookSlug && canRunbooks && hasRunbook(row.runbookSlug) ? (
+                <Link href={`/admin/platform/runbooks/${row.runbookSlug}`}>
                   Runbook → {row.runbookSlug}
                 </Link>
+              ) : row.runbookSlug && canRunbooks ? (
+                // The slug names a condition with no runbook written for it.
+                // Showing it as text keeps the identifier — which is what an
+                // operator quotes when escalating — without promising a
+                // document that does not exist.
+                <span
+                  style={{
+                    fontSize: 12.5,
+                    color: "var(--ink-muted, #94a3b8)",
+                  }}
+                  data-runbook-missing={row.runbookSlug}
+                >
+                  Condition: {row.runbookSlug} (no runbook)
+                </span>
               ) : !row.runbookSlug && healthDestination ? (
                 <Link href={healthDestination.href}>
                   {healthDestination.label}

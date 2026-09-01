@@ -328,7 +328,7 @@ function CohortCard({ c }: { c: CohortCount }) {
           </Link>
         )}
         {c.runbookSlug ? (
-          <Link href={`/admin/runbooks/${c.runbookSlug}`}>Runbook</Link>
+          <Link href={`/admin/platform/runbooks/${c.runbookSlug}`}>Runbook</Link>
         ) : null}
       </div>
     </Card>

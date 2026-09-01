@@ -256,6 +256,7 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.communications", "OPERATIONS"],
   ["platform.media_graph", "OPERATIONS"],
   ["platform.runbooks", "OPERATIONS"],
+  ["platform.runbook_document", "OPERATIONS"],
   ["platform.automation", "OPERATIONS"],
   ["platform.analytics", "OPERATIONS"],
   ["dashboard.batch_analysis", "OPERATIONS"],

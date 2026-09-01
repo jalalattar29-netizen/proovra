@@ -162,7 +162,11 @@ export function retryabilityContract(
         operatorAction:
           tsa?.guidance ??
           "Open the record and decide whether the missing proof matters for this matter.",
-        runbookSlug: "evidence-integrity-recovery",
+        // docs/runbooks/tsa-timestamp-failure.md. The slug must name a
+        // runbook that EXISTS: most `runbookSlug` values in this codebase are
+        // condition labels with no document behind them, and a tile that links
+        // one sends an operator to a 404 mid-incident.
+        runbookSlug: "tsa-timestamp-failure",
       };
     case "SIGNED_NO_REPORT_ONLY":
     case "RETRYABLE":
@@ -172,7 +176,7 @@ export function retryabilityContract(
         reason: reportRetryable ? null : (report?.unsafeReason ?? null),
         operatorAction:
           report?.action?.label ?? "Regenerate report & verification package",
-        runbookSlug: "report-generation-failure",
+        runbookSlug: "failed-report-generation",
       };
     case "BOTH":
       return {
@@ -187,7 +191,7 @@ export function retryabilityContract(
           (tsa?.unsafeReason ?? ""),
         operatorAction:
           "Regenerate the report, then review the record: its timestamp will remain absent.",
-        runbookSlug: "evidence-integrity-recovery",
+        runbookSlug: "tsa-timestamp-failure",
       };
     case "ALL_AFFECTED":
       return {

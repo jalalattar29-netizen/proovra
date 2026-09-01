@@ -79,15 +79,26 @@ describe("/ops/runbooks page", () => {
     expect(src).toMatch(/export\s+default\s+function\s+OpsRunbooksPage/);
   });
 
+  // ADM-013 — the catalog is GENERATED from docs/runbooks now, so these
+  // assertions read the generated module rather than counting literals in the
+  // page. That is not a weakening: the page's hand-maintained list had drifted
+  // to 25 entries against 29 markdown files, and four runbooks were invisible
+  // in the product precisely because a test counted the page's own literals
+  // and found them plentiful.
+  const CATALOG = readSource(
+    "../../../apps/web/lib/runbooks/catalog.generated.ts",
+  );
+
   it("has a real, bounded runbook catalog (≥ 20 entries)", () => {
-    const matches = src.match(/slug:\s*"[a-z0-9-]+"/g) ?? [];
+    const matches = CATALOG.match(/slug:\s*"[a-z0-9-]+"/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(20);
   });
 
   it("includes the runbook slugs the platform references from incidents", () => {
-    // These slugs are emitted by the canonical incident services + appear
-    // in /docs/runbooks. The catalog must surface them so dashboards
-    // linking by runbookSlug don't 404.
+    // These slugs are emitted by the canonical incident services and exist in
+    // docs/runbooks. They must resolve, because the reader now sets
+    // `dynamicParams = false` and an unknown slug is a hard 404 rather than a
+    // landing on a list.
     const expected = [
       "export-blocked",
       "hold-override",
@@ -99,13 +110,32 @@ describe("/ops/runbooks page", () => {
       "observability-degraded",
     ];
     for (const slug of expected) {
-      expect(src, `runbook ${slug} missing`).toContain(`"${slug}"`);
+      expect(CATALOG, `runbook ${slug} missing`).toContain(`"${slug}"`);
     }
   });
 
-  it("uses light-surface tokens from the operational barrel", () => {
-    expect(src).toMatch(/from\s+"[./]+components\/operational"/);
-    expect(src).toMatch(/OPS_INK|OPS_SURFACE|OPS_TONES/);
+  it("renders each runbook as a link to its own reader, not a fragment", () => {
+    // What the old catalog could not do. `#<slug>` pointed at an anchor the
+    // page never rendered, so every incident's "Runbook" link landed at the
+    // top of a list of thirty.
+    expect(src).toMatch(/\/admin\/platform\/runbooks\/\$\{r\.slug\}/);
+    // Comments stripped: the page's header DESCRIBES the fragment link it
+    // replaced. An assertion that cannot tell an explanation from a call is an
+    // assertion that forbids recording why the change was made.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    expect(code).not.toMatch(/runbooks#/);
+  });
+
+  it("uses the shared design system, not the ad-hoc operational tokens", () => {
+    // ADM-013 supersedes the Phase 28-I assertion that this page import
+    // OPS_INK/OPS_SURFACE/OPS_TONES. Those were inline style objects local to
+    // this one page; admin surfaces render through the shared PageShell now,
+    // so the page and the rest of the console stop diverging.
+    expect(src).toMatch(/PageShell/);
+    expect(src).toMatch(/PageHeader/);
+    expect(src).not.toMatch(/OPS_INK|OPS_SURFACE|OPS_TONES/);
   });
 
   it("does not import server-only fs (build-time stable on any runtime)", () => {

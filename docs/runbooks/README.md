@@ -4,6 +4,12 @@ These runbooks are the operator's first stop when an incident fires. Each one is
 
 ## Index
 
+This table is complete against `docs/runbooks/` and is gated by
+`apps/web/__tests__/runbook-catalog-freshness.test.ts`, which also builds the
+in-product reader at `/admin/platform/runbooks` from these same files. If you
+add a runbook, add a row here, add a curation entry in
+`apps/web/scripts/generate-runbook-catalog.mjs`, and re-run that generator.
+
 | Slug | When it fires |
 |---|---|
 | [stuck-upload](./stuck-upload.md) | Upload session has been UPLOADING > 1 hour with no finalize event |
@@ -27,6 +33,17 @@ These runbooks are the operator's first stop when an incident fires. Each one is
 | [observability-degraded](./observability-degraded.md) | Metrics endpoint not scraping / Sentry silent (FM-OBS-001) |
 | [privacy-leak](./privacy-leak.md) | Suspected privileged-data leak in metrics / logs / ledger (FM-PRIV-001/002, FM-OBS-003) |
 | [reviewer-escalation-storm](./reviewer-escalation-storm.md) | `runReconcile()` created ≥ threshold escalations in a single sweep |
+| [tsa-timestamp-failure](./tsa-timestamp-failure.md) | `Evidence.tsaStatus = FAILED` — the RFC3161 timestamp could not be obtained. There is no retry, by design |
+| [production-diagnostic-handoff](./production-diagnostic-handoff.md) | Operator procedure for running the read-only production diagnostic and destroying its output |
+| [reviewer-sla-breach](./reviewer-sla-breach.md) | A reviewer SLA cycle breached its due time |
+| [reviewer-escalation-backlog](./reviewer-escalation-backlog.md) | Escalations accumulating faster than they are cleared |
+| [reviewer-inactivity](./reviewer-inactivity.md) | An assigned reviewer has gone quiet on live work |
+| [reviewer-queue-stuck](./reviewer-queue-stuck.md) | The reviewer queue stopped draining |
+| [disaster-recovery](./disaster-recovery.md) | DR posture, targets, and the restore procedure. Not incident-fired — read before you need it |
+| [security-review](./security-review.md) | Security review / procurement checklist. Not incident-fired |
+| [pentest-readiness](./pentest-readiness.md) | Penetration-test readiness. Not incident-fired |
+| [sre-runbooks](./sre-runbooks.md) | Index of SRE operator procedures. Not incident-fired |
+
 
 ## Phase Z failure-mode coverage
 

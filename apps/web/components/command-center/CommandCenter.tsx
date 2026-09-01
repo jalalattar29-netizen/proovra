@@ -61,6 +61,7 @@ import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { CommandCenterQuickActions } from "./CommandCenterQuickActions";
 import { WorkflowOperationsSection } from "./_sections/WorkflowOperationsSection";
 import { RuntimeStatusBanner } from "../operational";
+import { hasRunbook } from "../../lib/runbooks/slugs.generated";
 import type {
   AuditReadinessCounter,
   CaseOperationsItem,
@@ -4495,9 +4496,14 @@ function IncidentsSection({
               // has the capability for that destination. If they have
               // neither, render the same content as a non-anchor row
               // so the incident still shows up.
+              // Only a slug with a runbook behind it gets a runbook link.
+              // Most incident `runbookSlug` values are condition labels with
+              // no document, and the reader 404s on an unknown slug by design
+              // — sending an operator there mid-incident is worse than sending
+              // them to Operations.
               const incidentHref =
-                i.runbookSlug && canRunbooks
-                  ? `/admin/platform/runbooks#${i.runbookSlug}`
+                i.runbookSlug && canRunbooks && hasRunbook(i.runbookSlug)
+                  ? `/admin/platform/runbooks/${i.runbookSlug}`
                   : "/operations";
               const incidentBody = (
                 <>

@@ -342,6 +342,7 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       "operations.exports",
       "operations.recovery",
       "platform.runbooks",
+      "platform.runbook_document",
       "platform.reliability",
       "platform.media_graph",
       "platform.automation",

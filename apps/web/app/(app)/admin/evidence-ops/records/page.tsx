@@ -350,7 +350,7 @@ export default function AdminEvidenceRecordsPage() {
               </Badge>
               {r.runbookSlug ? (
                 <Link
-                  href={`/admin/runbooks/${r.runbookSlug}`}
+                  href={`/admin/platform/runbooks/${r.runbookSlug}`}
                   style={{ fontSize: 12.5 }}
                 >
                   Runbook

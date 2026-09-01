@@ -48,6 +48,7 @@ import { PlatformSecurityEvents } from "./_sections/PlatformSecurityEvents";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { hasRunbook } from "../../../../lib/runbooks/slugs.generated";
 
 type IncidentRow = {
   id: string;
@@ -342,8 +343,15 @@ export default function AdminOperationsPage() {
             >
               {r.assignedOperatorUserId ? "Unassign" : "Assign to me"}
             </Button>
-            {r.runbookSlug ? (
-              <Link href={`/admin/platform/runbooks#${r.runbookSlug}`}>
+            {/* Only a slug with a runbook behind it gets a button. Most
+                incident `runbookSlug` values are condition labels with no
+                document, and the reader 404s an unknown slug by design — a
+                Runbook button that dead-ends mid-incident is worse than no
+                button. The old link pointed at `#<slug>`, an anchor the
+                catalog never rendered, so it landed at the top of a list of
+                thirty. */}
+            {r.runbookSlug && hasRunbook(r.runbookSlug) ? (
+              <Link href={`/admin/platform/runbooks/${r.runbookSlug}`}>
                 <Button size="sm" variant="ghost">
                   Runbook
                 </Button>

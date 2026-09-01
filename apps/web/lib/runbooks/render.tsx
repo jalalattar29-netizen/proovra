@@ -1,0 +1,333 @@
+/**
+ * A MARKDOWN RENDERER FOR THE RUNBOOK CORPUS, AND NOTHING ELSE.
+ *
+ * ===========================================================================
+ * WHY NOT REUSE THE LEGAL RENDERER
+ * ===========================================================================
+ * `app/legal/legal-content.tsx` already renders markdown, but it renders LEGAL
+ * documents: it carries provider panels, contact blocks, an authenticated-exit
+ * rule for links that leave the App Shell, and a presentation vocabulary built
+ * for a policy corpus. Pointing an operator runbook at it would couple two
+ * surfaces that have nothing to do with each other, and the first change either
+ * one needed would break the other.
+ *
+ * ===========================================================================
+ * WHY NOT A LIBRARY
+ * ===========================================================================
+ * A markdown library brings a sanitiser and an HTML pipeline, and the
+ * combination invites `dangerouslySetInnerHTML`. Nothing here produces HTML at
+ * all — every construct becomes a React element — so there is no injection
+ * surface to sanitise. The runbook corpus is repository content under review,
+ * but "our own content" is exactly the assumption that turns into an incident
+ * the day someone pastes an example payload into a runbook.
+ *
+ * ===========================================================================
+ * WHAT IT SUPPORTS
+ * ===========================================================================
+ * Measured against the actual corpus rather than guessed at: headings (h1-h3),
+ * paragraphs, unordered and ordered lists, fenced code, tables, blockquotes,
+ * horizontal rules, and the inline set (bold, inline code, links). There are no
+ * images and no h4 in the corpus, and anything unrecognised falls through as
+ * literal text rather than disappearing — a runbook step that silently vanishes
+ * because of an unsupported construct is worse than one that renders plainly.
+ */
+
+import Link from "next/link";
+import type { ReactNode } from "react";
+
+// ---------------------------------------------------------------------------
+// Inline.
+// ---------------------------------------------------------------------------
+
+/**
+ * Bold, inline code and links, in one pass.
+ *
+ * One combined pattern rather than sequential passes, because a sequence would
+ * let a link's URL be reinterpreted by a later rule.
+ */
+const INLINE =
+  /(\*\*[^*]+\*\*)|(`[^`]+`)|(\[[^\]]+\]\([^)]+\))/g;
+
+export function renderInline(text: string, keyPrefix: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  let i = 0;
+
+  for (const m of text.matchAll(INLINE)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push(text.slice(last, at));
+    const tok = m[0];
+    const key = `${keyPrefix}-i${i++}`;
+
+    if (tok.startsWith("**")) {
+      out.push(<strong key={key}>{tok.slice(2, -2)}</strong>);
+    } else if (tok.startsWith("`")) {
+      out.push(
+        <code key={key} className="rb-code-inline">
+          {tok.slice(1, -1)}
+        </code>,
+      );
+    } else {
+      const label = tok.slice(1, tok.indexOf("]"));
+      const href = tok.slice(tok.indexOf("](") + 2, -1);
+      out.push(renderLink(label, href, key));
+    }
+    last = at + tok.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+/**
+ * A link, with the corpus's own conventions honoured.
+ *
+ * Runbooks cross-reference each other as `./other-runbook.md` — a relative
+ * repository path that means nothing in a browser. It is rewritten to the
+ * console route so a cross-reference is followable in the product, which is the
+ * whole reason the detail view exists.
+ *
+ * An absolute external URL opens in a new tab and carries `rel="noopener
+ * noreferrer"`: an operator following a provider status link mid-incident
+ * should not lose the runbook.
+ */
+function renderLink(label: string, href: string, key: string): ReactNode {
+  const runbook = /^\.?\/?([a-z0-9-]+)\.md(#.*)?$/i.exec(href);
+  if (runbook) {
+    return (
+      <Link key={key} href={`/admin/platform/runbooks/${runbook[1]}`}>
+        {label}
+      </Link>
+    );
+  }
+  if (/^https?:\/\//i.test(href)) {
+    return (
+      <a key={key} href={href} target="_blank" rel="noopener noreferrer">
+        {label}
+      </a>
+    );
+  }
+  if (href.startsWith("/")) {
+    return (
+      <Link key={key} href={href}>
+        {label}
+      </Link>
+    );
+  }
+  // A relative path that is not another runbook points at a repository file
+  // the browser cannot open. Rendering it as text with the path visible is
+  // more useful than a link that 404s.
+  return (
+    <span key={key}>
+      {label} (<code className="rb-code-inline">{href}</code>)
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Block.
+// ---------------------------------------------------------------------------
+
+function cells(row: string): string[] {
+  return row
+    .replace(/^\||\|$/g, "")
+    .split("|")
+    .map((c) => c.trim());
+}
+
+const IS_DIVIDER = (l: string) => /^\|?[\s:|-]+\|[\s:|-]*$/.test(l);
+
+export function renderRunbookMarkdown(md: string): ReactNode[] {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const out: ReactNode[] = [];
+  let i = 0;
+  let k = 0;
+  const key = () => `rb-${k++}`;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Fenced code. Consumed first and verbatim: everything inside is content,
+    // including lines that would otherwise look like headings or lists.
+    if (line.startsWith("```")) {
+      const lang = line.slice(3).trim();
+      const body: string[] = [];
+      i += 1;
+      while (i < lines.length && !lines[i].startsWith("```")) {
+        body.push(lines[i]);
+        i += 1;
+      }
+      i += 1; // closing fence
+      out.push(
+        <pre key={key()} className="rb-pre" data-lang={lang || undefined}>
+          <code>{body.join("\n")}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    if (line.trim() === "") {
+      i += 1;
+      continue;
+    }
+
+    // Horizontal rule.
+    if (/^-{3,}$/.test(line.trim())) {
+      out.push(<hr key={key()} className="rb-hr" />);
+      i += 1;
+      continue;
+    }
+
+    // Headings. h1 is the document title, which the page renders in its own
+    // header, so it is skipped here rather than repeated.
+    const h = /^(#{1,3})\s+(.*)$/.exec(line);
+    if (h) {
+      const depth = h[1].length;
+      const text = h[2].replace(/^Runbook\s+—\s+/, "");
+      if (depth === 1) {
+        i += 1;
+        continue;
+      }
+      const id = text
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      const Tag = depth === 2 ? "h2" : "h3";
+      out.push(
+        // The id makes every section deep-linkable, so an incident can point
+        // at the step rather than the document.
+        <Tag key={key()} id={id} className={`rb-h${depth}`}>
+          {renderInline(text, key())}
+        </Tag>,
+      );
+      i += 1;
+      continue;
+    }
+
+    // Table. A header row followed by a divider; anything else starting with
+    // `|` is treated as a paragraph so a stray pipe does not eat the document.
+    if (line.trimStart().startsWith("|") && IS_DIVIDER(lines[i + 1] ?? "")) {
+      const head = cells(line);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].trimStart().startsWith("|")) {
+        rows.push(cells(lines[i]));
+        i += 1;
+      }
+      out.push(
+        // Wide tables scroll inside their own container. The page body must
+        // never scroll horizontally.
+        <div key={key()} className="rb-table-wrap">
+          <table className="rb-table">
+            <thead>
+              <tr>
+                {head.map((c, n) => (
+                  <th key={n}>{renderInline(c, `${key()}-h${n}`)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, rn) => (
+                <tr key={rn}>
+                  {r.map((c, cn) => (
+                    <td key={cn}>{renderInline(c, `${key()}-c${rn}-${cn}`)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
+
+    // Blockquote. The corpus uses it for honesty notes and warnings, which are
+    // the paragraphs that most need to survive a skim.
+    if (line.startsWith(">")) {
+      const body: string[] = [];
+      while (i < lines.length && lines[i].startsWith(">")) {
+        body.push(lines[i].replace(/^>\s?/, ""));
+        i += 1;
+      }
+      out.push(
+        <blockquote key={key()} className="rb-quote">
+          {renderInline(body.join(" ").trim(), key())}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    // Unordered list, including the two nested items in the corpus.
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items: { depth: number; text: string }[] = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+        const indent = /^(\s*)/.exec(lines[i])![1].length;
+        items.push({
+          depth: indent >= 2 ? 1 : 0,
+          text: lines[i].replace(/^\s*[-*]\s+/, ""),
+        });
+        i += 1;
+      }
+      out.push(
+        <ul key={key()} className="rb-ul">
+          {items.map((it, n) => (
+            <li key={n} data-depth={it.depth} className="rb-li">
+              {renderInline(it.text, `${key()}-l${n}`)}
+            </li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+
+    // Ordered list. `start` is preserved, because a runbook's step 4 must not
+    // renumber itself to 1 when the list is interrupted by a code block.
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const first = Number(/^\s*(\d+)\./.exec(line)![1]);
+      const items: string[] = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
+        i += 1;
+      }
+      out.push(
+        <ol key={key()} className="rb-ol" start={first}>
+          {items.map((t, n) => (
+            <li key={n} className="rb-li">
+              {renderInline(t, `${key()}-o${n}`)}
+            </li>
+          ))}
+        </ol>,
+      );
+      continue;
+    }
+
+    // Paragraph — every consecutive non-blank line that starts no other block.
+    const para: string[] = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() !== "" &&
+      !lines[i].startsWith("```") &&
+      !lines[i].startsWith(">") &&
+      !/^#{1,3}\s/.test(lines[i]) &&
+      !/^\s*[-*]\s+/.test(lines[i]) &&
+      !/^\s*\d+\.\s+/.test(lines[i]) &&
+      !/^-{3,}$/.test(lines[i].trim())
+    ) {
+      para.push(lines[i]);
+      i += 1;
+    }
+    if (para.length > 0) {
+      out.push(
+        <p key={key()} className="rb-p">
+          {renderInline(para.join(" "), key())}
+        </p>,
+      );
+    } else {
+      // Nothing matched and nothing was consumed. Advance rather than loop
+      // forever: an infinite loop in a render is a hung tab, not an error
+      // anybody can diagnose.
+      i += 1;
+    }
+  }
+
+  return out;
+}

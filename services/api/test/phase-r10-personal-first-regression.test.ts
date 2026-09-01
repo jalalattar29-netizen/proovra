@@ -744,6 +744,11 @@ describe("Phase R10 — registry-page-existence invariant", () => {
     // apps/web/app/(app)/settings/legal/[slug]/page.tsx (Next.js [slug]
     // convention); the registry uses /:slug documentation syntax.
     "/settings/legal/:slug",
+    // ADM-013 — the runbook reader. The page lives at
+    // apps/web/app/(app)/admin/platform/runbooks/[slug]/page.tsx; the registry
+    // uses /:slug documentation syntax, so it needs an allowlist entry rather
+    // than a disk check.
+    "/admin/platform/runbooks/:slug",
     // Platform Admin Control Center — dynamic detail routes. Each page lives at
     // the Next.js `[id]` path; the registry uses `/:id` documentation syntax,
     // which is why they need an allowlist entry rather than a disk check.
