@@ -129,11 +129,16 @@ function ok(name) {
 }
 function ifRead(name, fn) {
   if (ok(name)) fn(sections[name]);
-  else
-    line(
-      `  Not read: ${sections[name]?.error ?? "section absent"}. ` +
-        `This is NOT a zero.`,
-    );
+  else {
+    // Collapsed and bounded again HERE, not only at the source. The source
+    // does bound it, but this reader renders a file it did not write — an
+    // older diagnostic, or one whose bounding was weaker — and a twenty-line
+    // pretty-printed query in the middle of the summary is what turns a
+    // scannable page into a wall.
+    const raw = sections[name]?.error ?? "section absent";
+    const reason = String(raw).replace(/\s+/g, " ").trim().slice(0, 200);
+    line(`  Not read: ${reason}. This is NOT a zero.`);
+  }
 }
 
 line("PROOVRA PRODUCTION DIAGNOSTIC — SUMMARY");

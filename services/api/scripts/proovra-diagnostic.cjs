@@ -138,6 +138,128 @@ function arg(name) {
 
 const EXPECTED_DATABASE = arg("expect-database");
 const TRACE_ACCOUNT = arg("trace-account");
+const REQUIRE_BASE = arg("require-base");
+
+// -----------------------------------------------------------------------------
+// Module resolution.
+// -----------------------------------------------------------------------------
+
+/**
+ * LOAD THE PRISMA RUNTIME, FROM WHEREVER THIS FILE HAPPENS TO SIT.
+ *
+ * ===========================================================================
+ * WHY THIS IS NOT A PLAIN `require`
+ * ===========================================================================
+ * CommonJS resolves a bare specifier by walking up from the DIRECTORY OF THE
+ * FILE DOING THE REQUIRING — not from the working directory. The production
+ * image installs with a hoisted linker, so everything lives in
+ * `/app/node_modules`, and the container's WORKDIR is `/app/services/api`.
+ *
+ * A runbook that said "docker cp the script to /tmp and run it" therefore
+ * produced, reliably:
+ *
+ *     Error: Cannot find module '@prisma/client'
+ *     Require stack:
+ *     - /tmp/proovra-diagnostic.cjs
+ *
+ * because the walk was `/tmp/node_modules` → `/node_modules` → nothing.
+ * `/app/node_modules` was never consulted, and the correct working directory
+ * did not help, because cwd plays no part in CommonJS resolution.
+ *
+ * ===========================================================================
+ * WHY RESOLUTION RATHER THAN "PUT THE FILE SOMEWHERE ELSE"
+ * ===========================================================================
+ * Copying the script into `/app/services/api/scripts` fixes it, and is proven
+ * to. But it requires `/app` to be writable, and a hardened deployment may run
+ * the container with a read-only root filesystem — in which case `/tmp` (a
+ * tmpfs) is the ONLY writable path, and the procedure that depends on writing
+ * to `/app` is the one that fails at 3am.
+ *
+ * So the script resolves explicitly instead, and works from either location.
+ * The bases, in order:
+ *
+ *   1. `--require-base`, if the operator passed one. An explicit instruction
+ *      always wins.
+ *   2. This file's own directory — correct when the script sits inside the
+ *      application tree, including the copy the image already ships.
+ *   3. The working directory — correct when the script sits in /tmp and the
+ *      container's WORKDIR is the API package, which is the documented case.
+ *   4. A bounded list of conventional container install roots, tried LAST.
+ *
+ * `createRequire` performs the ordinary upward walk from each base, so nothing
+ * assumes a repository checkout, and `NODE_PATH` is neither read nor required.
+ *
+ * ===========================================================================
+ * WHY THE FOURTH BASE, GIVEN THE FIRST THREE ARE THE HONEST ONES
+ * ===========================================================================
+ * Bases 2 and 3 both fail in one realistic case: the script in `/tmp` AND a
+ * working directory outside the application tree. That happens whenever an
+ * operator adds `-w /tmp` to the `docker exec`, which reads like a harmless
+ * tidying and is not.
+ *
+ * The fourth base converts that into a success instead of a puzzle. It is a
+ * short, explicit list of conventional roots — not a filesystem search, not a
+ * glob, not an environment variable — and it is tried only after the real
+ * bases have failed. Whichever base wins is printed to stderr, so the operator
+ * always knows where the runtime came from rather than trusting that it
+ * worked.
+ */
+function loadRuntimeDeps() {
+  const { createRequire } = require("node:module");
+
+  /**
+   * Conventional install roots, tried last. `/app/services/api` is where this
+   * image puts the API package and `/app` is where the hoisted install lives;
+   * the other two are the common alternatives for a Node service image.
+   */
+  const CONVENTIONAL_ROOTS = [
+    "/app/services/api",
+    "/app",
+    "/usr/src/app",
+    "/srv/app",
+  ];
+
+  const bases = [];
+  if (REQUIRE_BASE) bases.push(path.join(path.resolve(REQUIRE_BASE), "noop.cjs"));
+  bases.push(__filename);
+  bases.push(path.join(process.cwd(), "noop.cjs"));
+
+  // The fallback can be switched off. Two reasons it is a real switch rather
+  // than a test hook: a deployment that wants resolution to be strictly
+  // explicit can set it, and the container smoke needs SOME way to exercise
+  // the failure path — a guard nobody can trigger is a guard nobody has
+  // tested.
+  if (process.env.PROOVRA_DIAGNOSTIC_NO_FALLBACK !== "1") {
+    for (const root of CONVENTIONAL_ROOTS) {
+      bases.push(path.join(root, "noop.cjs"));
+    }
+  }
+
+  const tried = [];
+  for (const base of bases) {
+    try {
+      const req = createRequire(base);
+      const deps = {
+        PrismaClient: req("@prisma/client").PrismaClient,
+        PrismaPg: req("@prisma/adapter-pg").PrismaPg,
+        Pool: req("pg").Pool,
+      };
+      if (!deps.PrismaClient || !deps.PrismaPg || !deps.Pool) {
+        // A resolvable but wrong module is worse than an unresolvable one: it
+        // fails later, further from the cause.
+        throw new Error("resolved, but a required export was missing");
+      }
+      process.stderr.write(
+        `  runtime resolved from ${path.dirname(base)}\n`,
+      );
+      return deps;
+    } catch (err) {
+      tried.push(`${path.dirname(base)} (${err && err.code ? err.code : "failed"})`);
+    }
+  }
+
+  throw new Error(`tried: ${tried.join("; ")}`);
+}
 /** Bound every list so a pathological table cannot produce a gigabyte of JSON. */
 const LIST_LIMIT = Number(arg("limit") ?? 200);
 
@@ -227,8 +349,20 @@ function boundedError(err) {
     err && typeof err === "object" && "message" in err
       ? String(err.message)
       : String(err);
-  // Bounded and stripped of anything that looks like a connection string.
-  return message.replace(/postgres(?:ql)?:\/\/[^\s]*/gi, "<redacted-dsn>").slice(0, 300);
+  // Bounded, single-line, and stripped of anything that looks like a
+  // connection string.
+  //
+  // The collapse matters as much as the truncation: a Prisma validation error
+  // is a twenty-line pretty-printed query, and 300 characters of it spread
+  // over twenty lines turns the safe summary — the thing read on a shared
+  // screen during an incident — into a wall. One line also keeps the query
+  // shape from being reproduced verbatim in a document that gets pasted
+  // around.
+  return message
+    .replace(/postgres(?:ql)?:\/\/[^\s]*/gi, "<redacted-dsn>")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
 }
 
 // -----------------------------------------------------------------------------
@@ -279,14 +413,15 @@ async function main() {
   let PrismaPg;
   let Pool;
   try {
-    ({ PrismaClient } = require("@prisma/client"));
-    ({ PrismaPg } = require("@prisma/adapter-pg"));
-    ({ Pool } = require("pg"));
+    ({ PrismaClient, PrismaPg, Pool } = loadRuntimeDeps());
   } catch (err) {
     fail(
       `could not load @prisma/client / @prisma/adapter-pg / pg (${boundedError(err)}). ` +
         "This script must run INSIDE the API container, where the generated " +
-        "client lives — see STEP 3 in the header.",
+        "client lives. It searched the bases listed in the error above. If you " +
+        "are running it from a directory outside the application tree AND with " +
+        "a working directory outside it too, pass --require-base=/app/services/api " +
+        "(or wherever the API's package.json lives in this image).",
     );
   }
 
