@@ -248,13 +248,31 @@ describe("Phase 24-J — schema validation registrations", () => {
     }
   });
 
-  it("registers the FTS tsv column + GIN index at OPTIONAL severity (graceful fallback)", () => {
-    expect(src).toMatch(
-      /table:\s*"evidence_search_documents",\s*column:\s*"tsv",\s*severity:\s*"optional",\s*subsystem:\s*"search_discovery"/,
-    );
-    expect(src).toMatch(
-      /indexName:\s*"evidence_search_documents_tsv_gin",\s*severity:\s*"optional",\s*subsystem:\s*"search_discovery"/,
-    );
+  it("registers NO expectation the canonical migration chain removes", () => {
+    // ADM-013 PHASE 6 — INVERTED, with the reason.
+    //
+    // The `tsv` column and its GIN index were registered at severity
+    // `optional`, and they were the ONLY two members of that tier. Both were
+    // permanently absent: 20260925000000_phase0_schema_catchup drops the
+    // column at the end of the canonical chain, and dropping a column drops
+    // its dependent index.
+    //
+    // `optional` meant "logged as info only", and `rollUpSubsystems`
+    // implemented that by counting `missingOptional` and never reading it. So
+    // the subsystem reported `healthy` while the same report said two expected
+    // objects were missing — the "green beside 2 of 111 missing" the readiness
+    // page rendered. Both statements came out of one function.
+    //
+    // The two entries and the whole `optional` tier are removed. Severity now
+    // decides HOW BAD an absence is, never WHETHER it counts.
+    // Asserted on the REGISTRATION form, not on the strings: the catalog names
+    // both objects in the note explaining why they are absent, and a gate that
+    // forbade the words would forbid the explanation.
+    expect(src).not.toMatch(/column:\s*"tsv",\s*severity:/);
+    expect(src).not.toMatch(/indexName:\s*"evidence_search_documents_tsv_gin"/);
+    expect(src).not.toMatch(/severity:\s*"optional"/);
+    // And the rollup can no longer drop a failure on the floor.
+    expect(src).toMatch(/missingCritical \+ missingImportant !== subsystemFailures\.length/);
   });
 
   it("registers the search_audit_logs.fail_closed column (compliance-critical)", () => {

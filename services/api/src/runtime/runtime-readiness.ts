@@ -917,15 +917,20 @@ function checkCronSecrets(): SubsystemReadiness {
 //     SecurityEvent table)
 //   - schema presence of evidence_search_documents (already covered by
 //     `schema` subsystem; this check focuses on data freshness)
-//   - presence of the optional FTS `tsv` column (HEALTHY ⇒ FTS path is
-//     active; missing ⇒ ILIKE fallback, DEGRADED hint)
+//   - presence of the free-text index the migration chain creates
+//     (evidence_search_documents_searchable_text_trgm_idx)
 //
 // Status rollup:
 //   - CRITICAL when the search_audit_logs / evidence_search_documents
 //     tables are missing (schema drift on a load-bearing surface)
-//   - DEGRADED when any indexing lag > 30 min or FTS column missing
+//   - DEGRADED when any indexing lag > 30 min, or the free-text index is
+//     missing so every free-text query is a sequential scan
 //   - HEALTHY otherwise
 //   - UNKNOWN when the readiness probe itself failed
+//
+// ADM-013 PHASE 6 — the `tsv` column arm is gone. It reported DEGRADED on every
+// environment forever: the canonical migration chain drops the column at its
+// end, and no query has ever used it. See the probe body for the full trace.
 // -----------------------------------------------------------------------------
 
 const SEARCH_INDEXING_LAG_DEGRADED_SECONDS = 30 * 60;
@@ -935,7 +940,7 @@ async function checkSearchIndexing(
   prisma: PrismaClient,
 ): Promise<SubsystemReadiness> {
   try {
-    const [ocrLag, transcriptLag, ftsPresent, auditPresent, docsPresent] =
+    const [ocrLag, transcriptLag, freeTextIndex, auditPresent, docsPresent] =
       await Promise.all([
         // Oldest unindexed OCR row across the entire instance (workspace-
         // agnostic — readiness is a global signal).
@@ -953,14 +958,49 @@ async function checkSearchIndexing(
         ) as Promise<Array<{ lag: string | null }>>).catch(
           () => [{ lag: null }],
         ),
-        // FTS column presence — drives the "FTS active vs ILIKE
-        // fallback" branch of the readiness rollup.
+        // ADM-013 PHASE 6 — the object that ACTUALLY backs the free-text
+        // path, replacing a probe for one that nothing queries.
+        //
+        // This used to test for the `tsv` column and, when absent, report
+        // `search_indexing: DEGRADED / fts_column_missing`. That degradation
+        // was permanent and unclearable on every environment:
+        // 20260925000000_phase0_schema_catchup drops `tsv` at the end of the
+        // canonical chain (schema.prisma cannot express a GENERATED column, so
+        // the generated diff reads it as drift), and no query has ever used the
+        // column — `evidence-search.service.ts` runs free text through Prisma
+        // `contains`, which is ILIKE.
+        //
+        // So the probe reported a fault about a plan, not about the platform:
+        // "search is using the ILIKE fallback" was TRUE of the query path and
+        // would have stayed true even with the column present. A DEGRADED that
+        // cannot clear teaches operators that DEGRADED means nothing.
+        //
+        // What is worth probing is the free-text index the canonical chain
+        // DOES create and never drops. Verified against a clean PostgreSQL 16
+        // database with every migration applied: this index is present, and
+        // `tsv` / `evidence_search_documents_tsv_gin` are not.
+        //
+        //   CREATE INDEX evidence_search_documents_searchable_text_trgm_idx
+        //     ON evidence_search_documents
+        //     USING gin (to_tsvector('simple', COALESCE(searchable_text, '')))
+        //
+        // Its absence is real and clearable; its presence is the steady state.
+        //
+        // ONE THING THIS PROBE DOES NOT CLAIM: that the index serves the query
+        // the search service runs. It does not. The index is a TSVECTOR
+        // EXPRESSION index (its name says trgm, its definition says
+        // to_tsvector — a naming error in the Phase 24 base migration), and
+        // `evidence-search.service.ts` matches with Prisma `contains`, which
+        // is ILIKE. Aligning the two is a change to the evidence search query
+        // path and belongs to whoever makes that change; asserting the
+        // alignment here would be the same kind of claim-without-a-caller that
+        // put an unclearable DEGRADED on this probe in the first place.
         (prisma.$queryRawUnsafe(
           `SELECT EXISTS (
-             SELECT 1 FROM information_schema.columns
-             WHERE table_schema = 'public'
-               AND table_name = 'evidence_search_documents'
-               AND column_name = 'tsv'
+             SELECT 1 FROM pg_indexes
+             WHERE schemaname = 'public'
+               AND tablename = 'evidence_search_documents'
+               AND indexname = 'evidence_search_documents_searchable_text_trgm_idx'
            ) AS present`,
         ) as Promise<Array<{ present: boolean }>>).catch(
           () => [{ present: false }],
@@ -982,7 +1022,8 @@ async function checkSearchIndexing(
     const transcriptLagSeconds = transcriptLag[0]?.lag
       ? Number(transcriptLag[0].lag)
       : null;
-    const ftsActive = ftsPresent[0]?.present === true;
+    // Named for what it measures now: the free-text index is present.
+    const freeTextIndexPresent = freeTextIndex[0]?.present === true;
     const auditOk = auditPresent[0]?.present === true;
     const docsOk = docsPresent[0]?.present === true;
     const maxLag = Math.max(ocrLagSeconds ?? 0, transcriptLagSeconds ?? 0);
@@ -1001,7 +1042,8 @@ async function checkSearchIndexing(
         metadata: {
           docsPresent: docsOk,
           auditPresent: auditOk,
-          ftsActive,
+          freeTextIndexPresent,
+          freeTextMode: "ILIKE",
           ocrLagSeconds,
           transcriptLagSeconds,
         },
@@ -1020,34 +1062,39 @@ async function checkSearchIndexing(
         metadata: {
           docsPresent: true,
           auditPresent: true,
-          ftsActive,
+          freeTextIndexPresent,
+          freeTextMode: "ILIKE",
           ocrLagSeconds,
           transcriptLagSeconds,
         },
       };
     }
 
-    // Lag DEGRADED OR FTS missing (ILIKE fallback active).
+    // ADM-013 PHASE 6 — DEGRADED now means one of two CLEARABLE things:
+    // indexing has fallen behind, or the free-text index is genuinely gone.
+    // The old third arm — "the tsv column is missing" — was neither clearable
+    // nor about the query path, and it fired on every environment forever.
     if (
       maxLag >= SEARCH_INDEXING_LAG_DEGRADED_SECONDS ||
-      !ftsActive
+      !freeTextIndexPresent
     ) {
       return {
         id: "search_indexing",
         status: "DEGRADED",
-        reasonCode: !ftsActive
-          ? "fts_column_missing"
+        reasonCode: !freeTextIndexPresent
+          ? "free_text_index_missing"
           : "indexing_lag_degraded",
-        detail: !ftsActive
-          ? "Discovery FTS column (evidence_search_documents.tsv) is missing — search is using the ILIKE fallback. Apply the Phase 24-J FTS drift patch for full-text search performance."
+        detail: !freeTextIndexPresent
+          ? "The Discovery free-text index (evidence_search_documents_searchable_text_trgm_idx) is missing from the search document table."
           : `Discovery indexing is behind — oldest unindexed row is ${Math.round(maxLag / 60)} min old.`,
-        remediationHint: !ftsActive
-          ? "Apply services/api/sql/drift-patches/2026-05-19-search-fts-pgvector.sql."
+        remediationHint: !freeTextIndexPresent
+          ? "Re-apply migration 20260531100000_add_search_discovery_phase24, which creates the index."
           : "Check the search-indexing worker heartbeat.",
         metadata: {
           docsPresent: true,
           auditPresent: true,
-          ftsActive,
+          freeTextIndexPresent,
+          freeTextMode: "ILIKE",
           ocrLagSeconds,
           transcriptLagSeconds,
         },
@@ -1058,14 +1105,17 @@ async function checkSearchIndexing(
       id: "search_indexing",
       status: "HEALTHY",
       reasonCode: "ok",
-      detail: ftsActive
-        ? "Discovery indexing is current — FTS active, no indexing lag."
-        : "Discovery indexing is current — ILIKE fallback active.",
+      // The free-text MODE is stated as a fact rather than as a fault. ILIKE
+      // is what the search service implements today; reporting the implemented
+      // behaviour as a degradation is how an unclearable amber was born.
+      detail:
+        "Discovery indexing is current — no indexing lag, free-text index present. Free-text matching runs as ILIKE.",
       remediationHint: null,
       metadata: {
         docsPresent: true,
         auditPresent: true,
-        ftsActive,
+        freeTextIndexPresent,
+        freeTextMode: "ILIKE",
         ocrLagSeconds,
         transcriptLagSeconds,
       },
