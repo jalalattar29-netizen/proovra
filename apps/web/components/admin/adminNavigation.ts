@@ -457,10 +457,28 @@ export const ADMIN_CONTEXTUAL_ROUTES: ReadonlyArray<{
 
 export type AdminLocation = {
   section: AdminNavSection;
-  /** The child whose href matches, when the path is a listed surface. */
+  /**
+   * The listed surface this path belongs to.
+   *
+   * On a DETAIL page this is the LIST it came from, not the detail — the
+   * detail is not a listed surface. The navigation highlights it, which is
+   * right: an operator reading one customer is inside Customer directory.
+   */
   child: AdminNavChild | null;
   /** Present when the path is a contextual detail under a listed surface. */
   contextual: (typeof ADMIN_CONTEXTUAL_ROUTES)[number] | null;
+  /**
+   * TRUE when the path is a detail BENEATH `child`, rather than `child` itself.
+   *
+   * The one decision both consumers read, and the reason it is a field rather
+   * than each of them re-deriving it. The breadcrumb re-derived it as
+   * `contextual && !child` and got it wrong: `/admin/customers/<id>` matches
+   * the `/admin/customers` child by prefix, so `child` was set, the branch
+   * never fired, and the detail rendered a breadcrumb identical to the list's —
+   * no crumb naming the record, and no crumb back to the list. Which is the
+   * deep-link dead end this phase exists to close, reintroduced one level down.
+   */
+  isDetail: boolean;
   /** What the CURRENT page administers. Drives the scope chip and the notice. */
   scope: AdminSurfaceScope;
 };
@@ -505,6 +523,12 @@ export function resolveAdminLocation(
       section: best.section,
       child: best.child,
       contextual,
+      // Strictly deeper than the listed surface, and a contextual rule claims
+      // it. Both halves are load-bearing: without the depth test the list
+      // itself would read as a detail of itself, and without the contextual
+      // rule an unregistered deep path would claim a parent it has no crumb
+      // for.
+      isDetail: Boolean(contextual) && pathname !== best.child.href,
       scope: best.child.scope,
     };
   }
@@ -515,8 +539,9 @@ export function resolveAdminLocation(
       const parent = section.children.find((c) => c.href === contextual.parentHref);
       return {
         section,
-        child: null,
+        child: parent ?? null,
         contextual,
+        isDetail: true,
         // A detail inherits the scope of the list it came from. A workspace-
         // scoped list cannot produce a platform-scoped detail.
         scope: parent?.scope ?? "PLATFORM",

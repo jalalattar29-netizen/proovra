@@ -14,6 +14,8 @@ import {
   type Metric,
   type OverviewFigure,
 } from "../../../components/admin/AdminMetric";
+import "./admin-overview.css";
+
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
@@ -172,6 +174,185 @@ function evidenceFigure(
           },
     drillDown: `/admin/evidence-ops/records?signal=${signal}`,
   };
+}
+
+/**
+ * ADM-013 PHASE 12 — NEEDS ATTENTION.
+ *
+ * ===========================================================================
+ * THE PROBLEM WITH A GRID OF THIRTY TILES
+ * ===========================================================================
+ * The control centre rendered every figure it had, at equal weight, in seven
+ * sections. On a healthy platform that is thirty cards reading zero, and the
+ * two that do not read zero are somewhere in the middle of them. The operator's
+ * actual first question — "is there anything for me to do?" — took a scan of
+ * the whole page to answer, every time, and got harder to answer the healthier
+ * the platform was.
+ *
+ * This collects the figures that are BOTH attention-worthy AND non-zero into
+ * one list at the top, each one a link to the exact records behind it. When
+ * there are none it renders one line saying so, which is the honest and much
+ * shorter version of thirty zeros.
+ *
+ * ===========================================================================
+ * WHAT COUNTS, AND WHAT DELIBERATELY DOES NOT
+ * ===========================================================================
+ * A row appears when its figure is a real measured number greater than zero.
+ *
+ *   * A measured ZERO does not appear. That is the compaction.
+ *   * An UNMEASURED figure DOES appear, as "unknown" — because "we could not
+ *     read the failed-payment count" is exactly the kind of thing that needs
+ *     somebody, and rendering it as absent is the failure this whole
+ *     remediation is about.
+ *
+ * The sections below keep every figure, zero or not. This is a lens over them,
+ * not a replacement: an operator investigating still wants the whole grid, and
+ * an operator arriving wants the six things that are true.
+ */
+type AttentionRow = {
+  label: string;
+  metric: Metric<number>;
+  href: string | null;
+  /** Why this needs somebody, in the operator's words. */
+  why: string;
+  tone: "critical" | "attention";
+};
+
+function attentionRows(ov: PlatformOverview): AttentionRow[] {
+  const rows: AttentionRow[] = [
+    {
+      label: "Open incidents",
+      metric: ov.status.activeIncidents.metric,
+      href: ov.status.activeIncidents.drillDown,
+      why: "Durable operational conditions nobody has closed.",
+      tone: "critical",
+    },
+    {
+      label: "Additional signals",
+      metric: ov.status.additionalSignals,
+      href: "/admin/alerts",
+      why: "Unresolved signals that no incident owns.",
+      tone: "attention",
+    },
+    {
+      label: "Degraded services",
+      metric: ov.status.degradedServices,
+      href: "/admin/platform-health",
+      why: "Dependencies reporting a non-healthy state.",
+      tone: "attention",
+    },
+    {
+      label: "TSA failures",
+      metric: evidenceFigure(
+        ov.evidenceOps?.preservation?.tsaFailures,
+        "TSA_FAILED",
+      ).metric,
+      href: "/admin/evidence-ops/records?signal=TSA_FAILED",
+      why: "Evidence whose trusted timestamp did not complete.",
+      tone: "critical",
+    },
+    {
+      label: "Signed without a report",
+      metric: evidenceFigure(
+        ov.evidenceOps?.reports?.failedGeneration,
+        "SIGNED_NO_REPORT",
+      ).metric,
+      href: "/admin/evidence-ops/records?signal=SIGNED_NO_REPORT",
+      why: "Signed evidence with no report generated. Overlaps the row above.",
+      tone: "attention",
+    },
+    {
+      label: "High security events (7d)",
+      metric: ov.security.recentHighSecurityEvents.metric,
+      href: ov.security.recentHighSecurityEvents.drillDown,
+      why: "HIGH or CRITICAL security events in the last seven days.",
+      tone: "attention",
+    },
+    {
+      label: "SSO outages",
+      metric: ov.customers.ssoOutageConnections,
+      href: "/admin/customers",
+      why: "Customer identity providers with an unresolved outage.",
+      tone: "critical",
+    },
+    {
+      label: "Past due subscriptions",
+      metric: ov.billing.pastDueSubscriptions.metric,
+      href: ov.billing.pastDueSubscriptions.drillDown,
+      why: "Customers whose payment has not settled.",
+      tone: "attention",
+    },
+    {
+      label: "Failed payments (30d)",
+      metric: ov.billing.failedPaymentsLast30d.metric,
+      href: ov.billing.failedPaymentsLast30d.drillDown,
+      why: "Payment attempts that failed in the last thirty days.",
+      tone: "attention",
+    },
+  ];
+
+  return rows.filter((r) => {
+    if (r.metric.state === "VALUE") {
+      return typeof r.metric.value === "number" && r.metric.value > 0;
+    }
+    // An unmeasured figure is NOT quietly dropped. "We could not read this" is
+    // a thing that needs somebody.
+    return true;
+  });
+}
+
+function NeedsAttention({ ov }: { ov: PlatformOverview }) {
+  const rows = attentionRows(ov);
+  const unknownCount = rows.filter((r) => r.metric.state !== "VALUE").length;
+
+  if (rows.length === 0) {
+    return (
+      <div className="adminattn adminattn--clear" data-admin-attention="none">
+        <strong>Nothing needs attention.</strong> Every attention signal on this
+        page measured zero, and every one of them was actually measured — see
+        the sections below for the full figures.
+      </div>
+    );
+  }
+
+  return (
+    <ul className="adminattn" data-admin-attention={String(rows.length)}>
+      {rows.map((row) => {
+        const unknown = row.metric.state !== "VALUE";
+        return (
+          <li key={row.label} data-tone={unknown ? "unknown" : row.tone}>
+            <span className="adminattn__value">
+              {unknown ? "—" : String(row.metric.value)}
+            </span>
+            <span className="adminattn__text">
+              <strong>{row.label}</strong>
+              <span className="adminattn__why">
+                {unknown
+                  ? `Could not be measured. ${row.metric.reason ?? ""}`.trim()
+                  : row.why}
+              </span>
+            </span>
+            {row.href ? (
+              <Link className="adminattn__link" href={row.href}>
+                Open the records
+              </Link>
+            ) : null}
+          </li>
+        );
+      })}
+      {unknownCount > 0 ? (
+        <li data-tone="unknown-note">
+          <span className="adminattn__text">
+            <span className="adminattn__why">
+              {unknownCount} of these could not be measured. An unmeasured
+              signal is listed rather than hidden, because a figure that failed
+              to read is not a figure that read zero.
+            </span>
+          </span>
+        </li>
+      ) : null}
+    </ul>
+  );
 }
 
 /**
@@ -364,6 +545,14 @@ export default function AdminOverviewPage() {
                 Review the signals
               </Link>
             </div>
+          </PageSection>
+
+          {/* ---- A2. Needs attention -------------------------------------- */}
+          <PageSection
+            title="Needs attention"
+            description="Every attention signal on this page that is non-zero or unmeasured, with the records behind it. Measured zeros are omitted here and remain in the sections below — thirty cards reading zero is not a summary."
+          >
+            <NeedsAttention ov={ov} />
           </PageSection>
 
           {/* ---- B. Customers --------------------------------------------- */}

@@ -144,7 +144,7 @@ export function AdminBreadcrumb() {
   const location = resolveAdminLocation(pathname);
   if (!location) return null;
 
-  const { section, child, contextual } = location;
+  const { section, child, contextual, isDetail } = location;
 
   const crumbs: Array<{ label: string; href?: string }> = [
     { label: "Platform admin", href: "/admin" },
@@ -152,15 +152,17 @@ export function AdminBreadcrumb() {
   if (section.id !== "overview") {
     crumbs.push({ label: section.label, href: section.href });
   }
-  if (contextual && !child) {
+
+  if (isDetail && contextual) {
+    // The RETURN PATH. `parentHref` is a link and the record is not, so the
+    // last thing an operator can click is the list they came from.
     crumbs.push({ label: contextual.parentLabel, href: contextual.parentHref });
     crumbs.push({ label: contextual.label });
   } else if (child && child.href !== section.href) {
     crumbs.push({ label: child.label });
-  } else if (child) {
-    // The section's own landing surface. Naming it again after the section
-    // would read as two levels where there is one.
   }
+  // A section's own landing surface adds nothing: naming it again after the
+  // section reads as two levels where there is one.
 
   return (
     <nav className="adminnav__crumbs" aria-label="Breadcrumb">
