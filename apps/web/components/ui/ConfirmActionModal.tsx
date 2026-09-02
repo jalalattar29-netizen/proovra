@@ -158,14 +158,16 @@ function toneAccent(tone: ConfirmActionTone): {
       // block above it even says "NOT pale brown/mustard/gold" — the values
       // simply drifted from the words.
       //
-      // `--orange-ink` (#C2410C) is the orange Operations gives a High
-      // incident — the one `AppStatusText` resolves for tone `orange` — so the
-      // warning confirm now says amber in the same voice as everything else.
+      // It then went to `--orange-ink` (#C2410C), which was still the burnt
+      // end of the range. The product's declared authority for this hue is the
+      // Notifications card "High / Important, not urgent.", which paints
+      // `--orange-500` (#EA580C) — so that is what a warning confirmation says
+      // now, in the same voice as every other high/warning surface.
       return {
         color: "#FFFFFF",
-        bg: "var(--orange-ink, #C2410C)",
-        border: "var(--orange-ink, #C2410C)",
-        shadow: "0 4px 12px rgba(180, 83, 9, 0.18)",
+        bg: "var(--orange-500, #EA580C)",
+        border: "var(--orange-500, #EA580C)",
+        shadow: "0 4px 12px rgba(234, 88, 12, 0.18)",
       };
     case "neutral":
     default:
@@ -353,15 +355,22 @@ function ConfirmActionModal({
                 height: 34,
                 borderRadius: 10,
                 flexShrink: 0,
-                // Danger keeps the rose treatment; warning uses the soft,
-                // restrained amber container (§3): #FFF4E5 / #F4D3A4 / #A85F12.
+                // Danger keeps the rose treatment. WARNING no longer mixes its
+                // own container: #FFF4E5 / #F4D3A4 / #A85F12 were hand-picked,
+                // and #A85F12 is brown — the icon said "caution" in exactly the
+                // colour the tone is not allowed to be. It now takes the
+                // canonical orange family, the same one the outline action and
+                // the Notifications High card read from.
                 background:
-                  tone === "danger" ? "rgba(201,54,62,0.09)" : "#FFF4E5",
+                  tone === "danger"
+                    ? "rgba(201,54,62,0.09)"
+                    : "var(--orange-050, #FFF7ED)",
                 border:
                   tone === "danger"
                     ? "1px solid rgba(201,54,62,0.18)"
-                    : "1px solid #F4D3A4",
-                color: tone === "danger" ? "#C9363E" : "#A85F12",
+                    : "1px solid var(--orange-200, #FED7AA)",
+                color:
+                  tone === "danger" ? "#C9363E" : "var(--orange-500, #EA580C)",
               }}
             >
               {tone === "danger" ? (

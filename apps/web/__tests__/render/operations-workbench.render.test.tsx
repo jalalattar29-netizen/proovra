@@ -2950,13 +2950,42 @@ describe("Operations — the grouped surface is layout- and direction-safe", () 
       resolveCss(process.cwd(), "app/(app)/operations/operations.css"),
       "utf8",
     );
-    for (const container of [".opsw-group__head", ".opsw-group__meta"]) {
-      const rule = css.slice(css.indexOf(`${container} {`));
-      expect(
-        rule.slice(0, rule.indexOf("}")),
-        `${container} must wrap, or a long label widens the row`,
-      ).toContain("flex-wrap: wrap");
-    }
+    // The META line is still a wrapping flex row: it is a variable-length list
+    // of small facts, and wrapping is what stops the longest of them widening
+    // the row.
+    const metaRule = css.slice(css.indexOf(".opsw-group__meta {"));
+    expect(
+      metaRule.slice(0, metaRule.indexOf("}")),
+      ".opsw-group__meta must wrap, or a long label widens the row",
+    ).toContain("flex-wrap: wrap");
+
+    /*
+     * THE HEAD IS A GRID NOW, and the property this case protects is stronger
+     * for it.
+     *
+     * It was a wrapping flex row whose status carried `margin-inline-start:
+     * auto`. That could not place the status at the trailing edge, because the
+     * parent button is a column flex with `align-items: flex-start` and so
+     * shrink-wrapped the head to its content — measured, the status began 8px
+     * after the title and the head's right edge WAS the status's.
+     *
+     * A two-track grid cannot express that: the first track is
+     * `minmax(0, 1fr)`, which is precisely the "a long label cannot widen the
+     * row" guarantee this case was written to hold, and the second is sized to
+     * the status. The geometry itself is asserted in the browser, in
+     * `e2e/operations-layout/incident-status-position.spec.ts`.
+     */
+    const headRule = css.slice(css.indexOf(".opsw-group__head {"));
+    const headDeclarations = headRule.slice(0, headRule.indexOf("}"));
+    expect(headDeclarations).toContain("display: grid");
+    expect(
+      headDeclarations,
+      "the content track must be allowed to shrink below its content",
+    ).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(
+      headDeclarations,
+      "and the head must span the row, or there is no trailing edge to sit at",
+    ).toContain("inline-size: 100%");
   });
 
   it("the grouped stylesheet declares no physical left/right properties", async () => {

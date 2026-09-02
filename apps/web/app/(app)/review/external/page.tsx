@@ -919,7 +919,7 @@ function InvitationDetailDrawer({
           borderRadius: "var(--radius-md, 8px)",
           padding: 8,
           fontSize: 11,
-          color: "var(--status-pending-fg, #78350f)",
+          color: "var(--status-pending-fg, #EA580C)",
         }}
       >
         <strong style={{ display: "block", marginBottom: 4 }}>

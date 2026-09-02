@@ -1284,7 +1284,19 @@ function buildCollection(args: {
     (l) => l.status === "ACTIVE",
   );
   const latestByLink = latestDeliveryByLink(args.communications);
-  return links.slice(0, 5).map((l) => {
+  /*
+   * BOUNDED ABOVE WHAT THE CARD SHOWS.
+   *
+   * This sliced to exactly five, and the Intake card renders five — so
+   * `links.length > INTAKE_PREVIEW_LIMIT` could never be true and the
+   * "View intake →" footer was unreachable for every workspace, however many
+   * links it had. The projection has to carry at least one more than the card
+   * displays for the card to be able to say there are more.
+   *
+   * Still bounded: this is a preview, not the intake list, and ten rows is the
+   * most any Home card has ever needed to decide "is there more than this?".
+   */
+  return links.slice(0, 10).map((l) => {
     const d = latestByLink.get(l.id) ?? null;
     return {
       id: l.id,

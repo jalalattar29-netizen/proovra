@@ -133,32 +133,38 @@ export function GroupSurface({
               onClick={() => onOpen(g.groupKey)}
               data-ops-group-open-button={g.groupKey}
             >
+              {/*
+                TWO COLUMNS, NOT THREE ITEMS IN A ROW.
+
+                The severity and the title are ONE thing — what this group is —
+                so they share the first column and the status owns the second.
+                It was three flex siblings with `margin-inline-start: auto` on
+                the status, which reads as correct and was not: the parent
+                button is a column flex with `align-items: flex-start`, so this
+                head shrink-wrapped to its content and the auto margin had no
+                free space to absorb. Measured, the status began 8px after the
+                title's right edge and the head's own right edge was the
+                status's — the row was 457px of content in a 1,120px row.
+
+                A grid cannot express that mistake. The second track is sized to
+                the status and the first takes everything else, so the status
+                lands on the same x whether the title is two words or two
+                hundred characters.
+              */}
               <span className="opsw-group__head">
-                <AppStatusBadge
-                  tone={severity.tone}
-                  fill="solid"
-                  data-ops-group-severity={g.severity}
-                >
-                  {severity.label}
-                </AppStatusBadge>
-                <span className="app-table__primary opsw-group__title">
-                  {g.title}
+                <span className="opsw-group__lead">
+                  <AppStatusBadge
+                    tone={severity.tone}
+                    fill="solid"
+                    data-ops-group-severity={g.severity}
+                  >
+                    {severity.label}
+                  </AppStatusBadge>
+                  <span className="app-table__primary opsw-group__title">
+                    {g.title}
+                  </span>
                 </span>
 
-                {/*
-                  STATUS AT THE TRAILING EDGE.
-
-                  It used to sit inside the metadata sentence, between the
-                  source and the age, so a row read "Evidence integrity · Open
-                  · 34 affected records · last seen 20m ago" — one run-on line
-                  in which the lifecycle state was the hardest thing to find.
-                  Given the row's far edge it becomes a column: the same word
-                  in the same place on every row, scannable down the list
-                  without reading anything else.
-
-                  Same primitive, same tones, same words, no capsule. Only the
-                  position changed.
-                */}
                 <AppStatusText
                   tone={status.tone}
                   className="opsw-group__status"

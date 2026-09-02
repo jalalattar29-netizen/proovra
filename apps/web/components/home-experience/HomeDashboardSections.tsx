@@ -39,7 +39,7 @@ import {
   homeCardHeaderStyle,
   homeCardStyle,
   homeCardTitleStyle,
-  homeChipStyle,
+  plainStatusTextStyle,
   homeOuterCardStyle,
   iconBlockStyle,
   toneColor,
@@ -745,7 +745,13 @@ export function RecentEvidenceCard({ rows }: { rows: RichRecentEvidenceRow[] }) 
                       {r.caseId ? " · in case" : ""} · {formatRelativeShort(r.createdAt)}
                     </span>
                   </span>
-                  <span style={{ ...homeChipStyle, background: chip.bg, color: chip.fg }}>
+                  {/* "Report ready" is a fact about the record, not a control.
+                      It was a filled capsule beside the file name; it is the
+                      same word in the same tone, without the pill. */}
+                  <span
+                    style={{ ...plainStatusTextStyle(chip.fg), flexShrink: 0 }}
+                    data-recent-trust={r.trustChip.tone}
+                  >
                     {r.trustChip.label}
                   </span>
                   <span aria-hidden style={{ color: HOME_COLORS.muted, fontSize: 13 }}>→</span>

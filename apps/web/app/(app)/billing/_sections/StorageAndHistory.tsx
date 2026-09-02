@@ -421,6 +421,10 @@ export function BillingHistorySection({
         ) : null
       }
       data-billing-history
+      /* The Card sets its border as an INLINE style, so the page stylesheet
+         cannot reach it — this is the same one canonical step up the other
+         Billing panels take, applied where it can actually land. */
+      style={{ borderColor: "var(--border-strong, rgba(15, 23, 42, 0.14))" }}
     >
       {state === "LOADING" ? (
         <p style={{ margin: 0, color: "var(--text-muted, #5F6878)" }}>Loading…</p>

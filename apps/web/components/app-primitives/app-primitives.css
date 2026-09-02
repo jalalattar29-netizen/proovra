@@ -255,12 +255,12 @@
 }
 .app-secondary-action--orange {
   border-color: var(--orange-200, #FED7AA);
-  color: var(--orange-ink, #C2410C);
+  color: var(--orange-500, #EA580C);
 }
 .app-secondary-action--orange:hover:not(:disabled) {
   background: var(--orange-050, #FFF7ED);
   border-color: var(--orange-500, #EA580C);
-  color: var(--orange-ink, #C2410C);
+  color: var(--orange-500, #EA580C);
 }
 /* DESTRUCTIVE OUTLINE — a clearing or removing action.
  *
@@ -822,7 +822,7 @@ textarea.app-form-input {
    "needs attention"; a record type must not borrow it. */
 .app-status-badge[data-tone="orange"] {
   background: var(--orange-050, #FFF7ED);
-  color: var(--orange-ink, #C2410C);
+  color: var(--orange-500, #EA580C);
   border-color: var(--orange-200, #FED7AA);
 }
 /* PURPLE is the brand accent carrying WARNING severity — see the AppTone
@@ -979,11 +979,16 @@ textarea.app-form-input {
  *   red    --error             4.83:1
  *   indigo --accent-600        7.10:1
  *   blue   --info              5.17:1
- *   orange --orange-ink        5.18:1
+ *   orange --orange-500        3.60:1  <- the one exception, see below
  *   slate  --ink-secondary     7.58:1
  *   ink    --ink-primary      17.85:1
- * There is no sub-AA ink here. The fill exemption `--orange-fill` documents is
- * a FILL exemption; a word carries meaning and does not get to spend it.
+ * ORANGE IS THE ONE EXCEPTION, and it is deliberate. The product's declared
+ * authority for this hue is the Notifications card "High / Important, not
+ * urgent.", which paints `--orange-500` (#EA580C, 3.60:1). The darker
+ * `--orange-ink` held AA and read as brown, which is the one thing a caution
+ * must not do. Recorded as an approved visual-reference decision rather than
+ * presented as a pass — and every surface it paints states the same meaning in
+ * words beside it, so nothing here is carried by hue alone.
  * ------------------------------------------------------------------------- */
 .app-status-text {
   /* Text in the flow — not an inline-flex box with its own line box, which is
@@ -1005,7 +1010,8 @@ textarea.app-form-input {
 .app-status-text[data-tone="red"] { --app-status-tone: var(--error); }
 .app-status-text[data-tone="indigo"] { --app-status-tone: var(--accent-600); }
 .app-status-text[data-tone="blue"] { --app-status-tone: var(--info); }
-.app-status-text[data-tone="orange"] { --app-status-tone: var(--orange-ink); }
+/* Orange follows the Notifications High card — see `--tone-orange`. */
+.app-status-text[data-tone="orange"] { --app-status-tone: var(--orange-500); }
 /* Slate is the FALLBACK an unmapped state resolves to, so it is a real
    declaration rather than whatever the base happens to paint. */
 .app-status-text[data-tone="purple"] { --app-status-tone: var(--tone-purple); }
@@ -1744,16 +1750,16 @@ textarea.app-form-input {
    the system and no second palette to keep in step. The hexes that were here
    were darker than the token and read as brown. */
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:hover:not(:disabled) {
-  background: var(--orange-ink, #C2410C) !important;
+  background: var(--orange-500, #EA580C) !important;
   filter: brightness(0.94);
 }
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:active:not(:disabled) {
-  background: var(--orange-ink, #C2410C) !important;
+  background: var(--orange-500, #EA580C) !important;
   filter: brightness(0.88);
 }
 [data-confirm-action-submit][data-confirm-action-tone="warning"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.32) !important;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.32) !important;
 }
 
 .app-grid-kpis {

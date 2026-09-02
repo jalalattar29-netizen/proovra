@@ -442,7 +442,8 @@ function Stat({
         style={{
           fontSize: 22,
           fontWeight: 700,
-          color: tone === "warn" ? "#b45309" : "#0f172a",
+          // The product warning ink, not a literal amber - see `--tone-orange`.
+          color: tone === "warn" ? "var(--orange-500, #EA580C)" : "#0f172a",
         }}
       >
         {value}

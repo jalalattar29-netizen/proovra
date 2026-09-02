@@ -232,7 +232,7 @@ test("8. the Open action takes the tone of the record it opens", () => {
   assert.notEqual(typeToneOf("EVIDENCE"), "orange");
   assert.match(
     PRIM_CSS,
-    /\.app-secondary-action--orange \{[\s\S]{0,200}?--orange-ink/,
+    /\.app-secondary-action--orange \{[\s\S]{0,200}?--orange-500/,
   );
   // The orange comes from the token authority, not from a literal at the site.
   assert.match(TOKENS, /--orange-050: #FFF7ED;/);

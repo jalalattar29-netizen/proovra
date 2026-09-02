@@ -124,12 +124,12 @@ test("an over-limit row is a WARNING, and keeps a warning's colour", () => {
   assert.match(OVERVIEW, /over > 0 \? \([\s\S]{0,200}data-tone="pending"/);
   assert.match(
     BILL_CSS,
-    /\.bill-facts__row\[data-tone="pending"\] \.bill-facts__value \{[^}]*color: var\(--orange-ink/,
+    /\.bill-facts__row\[data-tone="pending"\] \.bill-facts__value \{[^}]*color: var\(--orange-500/,
     "the canonical warning orange, not the accent",
   );
   assert.match(
     BILL_CSS,
-    /\.bill-facts__row\[data-tone="pending"\] \.bill-facts__label \{[^}]*color: var\(--orange-ink/,
+    /\.bill-facts__row\[data-tone="pending"\] \.bill-facts__label \{[^}]*color: var\(--orange-500/,
   );
 });
 

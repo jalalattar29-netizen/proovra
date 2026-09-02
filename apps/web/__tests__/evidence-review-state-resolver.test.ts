@@ -154,10 +154,11 @@ test("H. Stable review state -> blue, Operational notes -> orange (canonical tok
   assert.match(status, /stable: "blue",/);
   assert.match(status, /informational: "orange",/);
   // The AppTone -> ink resolution: blue is the AA-safe --info, orange the
-  // AA-safe --orange-ink. No new colour tokens.
+  // The semantic warning orange — repointed to --orange-500 (#EA580C), the
+  // value the Notifications High card paints. No new colour tokens.
   const prim = read("apps/web/components/app-primitives/app-primitives.css");
   assert.match(prim, /\.app-status-text\[data-tone="blue"\] \{ --app-status-tone: var\(--info\); \}/);
-  assert.match(prim, /\.app-status-text\[data-tone="orange"\] \{ --app-status-tone: var\(--orange-ink\); \}/);
+  assert.match(prim, /\.app-status-text\[data-tone="orange"\] \{ --app-status-tone: var\(--orange-500\); \}/);
 });
 
 test("I. Integrity `Recorded` -> blue, and every state stays text-only", () => {

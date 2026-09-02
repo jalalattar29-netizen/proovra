@@ -289,7 +289,7 @@ export function PolicyViolationsPanel({
       {countsDenied ? (
         <p
           data-lifecycle-violations-fallback
-          style={{ fontSize: 11.5, color: "var(--status-pending-fg, #78350f)", marginTop: 8 }}
+          style={{ fontSize: 11.5, color: "var(--status-pending-fg, #EA580C)", marginTop: 8 }}
         >
           The violations summary is not available for your role, so the
           counts above fall back to the lifecycle dashboard totals and may

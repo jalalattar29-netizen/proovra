@@ -18,12 +18,18 @@
  * CRITICAL and WARNING now resolve to the SAME canonical tokens the metric
  * cards use (`--error`, `--accent-600`) rather than to private hexes. They
  * were `#b91c1c` and `#a16207`, one family off each, which is how the strip
- * and the rows drifted apart in the first place. `high` and `info` keep their
- * current values.
+ * and the rows drifted apart in the first place. HIGH now follows
+ * `--orange-500` too — the value this page's OWN severity card paints, so the
+ * card and the rows below it finally say High in one colour. `info` keeps its
+ * current value.
  */
 :root {
   --ops-tone-critical: var(--error);
-  --ops-tone-high: #c2410c;
+  /* HIGH follows the severity card on this same page, which paints
+     `--orange-500`. It was #c2410c, so the High CARD was bright and the High
+     ROWS, chips and bell dots beside it were burnt - two oranges for one
+     state on the surface that defines the state. */
+  --ops-tone-high: var(--orange-500);
   --ops-tone-warning: var(--accent-600);
   --ops-tone-info: #64748b;
 }

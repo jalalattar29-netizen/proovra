@@ -150,7 +150,6 @@ test("3. every status ink clears WCAG AA on the card it now sits on", () => {
     ["red", tokenHex("error")],
     ["indigo", tokenHex("accent-600")],
     ["blue", tokenHex("info")],
-    ["orange", tokenHex("orange-ink")],
     ["slate", tokenHex("ink-secondary")],
     ["ink", tokenHex("ink-primary")],
   ];
@@ -161,6 +160,35 @@ test("3. every status ink clears WCAG AA on the card it now sits on", () => {
       `${tone} (${hex}) measures ${ratio.toFixed(2)}:1 on white — below the 4.5:1 AA floor`,
     );
   }
+
+  /*
+   * ORANGE IS AN EXCEPTION, AND IT IS RECORDED RATHER THAN EXCUSED.
+   *
+   * Tone `orange` resolved to `--orange-ink` (#C2410C, 5.18:1) and now resolves
+   * to `--orange-500` (#EA580C, ~3.6:1). The product's declared authority for
+   * this hue is the Notifications severity card "High / Important, not
+   * urgent."; #C2410C read burnt beside it, which is the one thing a caution
+   * must not do.
+   *
+   * The exposure is bounded the way the fill's is: every surface this tone
+   * paints states the same meaning in WORDS — "High", "Warning", "Pending" —
+   * so no status is carried by hue alone.
+   *
+   * This asserts the exception is REAL and DOCUMENTED. It deliberately does not
+   * assert a pass: dropping orange from the list above without saying why is
+   * the same decision with the evidence removed.
+   */
+  const orangeRatio = contrast(tokenHex("orange-500"), "#FFFFFF");
+  assert.ok(
+    orangeRatio < 4.5,
+    `if orange now measures ${orangeRatio.toFixed(2)}:1 this recorded exception is stale`,
+  );
+  const toneDecl = TOKENS.slice(
+    TOKENS.lastIndexOf("/*", TOKENS.indexOf("--tone-orange:")),
+    TOKENS.indexOf("--tone-orange:"),
+  );
+  assert.match(toneDecl, /below WCAG AA/i, "the trade must be written where it is made");
+  assert.match(toneDecl, /in WORDS/, "and the bound on it stated");
   // The two sub-AA candidates that were considered and REJECTED for this job.
   // Named so the next person sees the decision instead of re-making it.
   assert.ok(contrast(tokenHex("success"), "#FFFFFF") < 4.5);
@@ -425,9 +453,11 @@ test("15. `Stable review state` is blue and `Operational notes` is orange", () =
     read("apps/web/app/(app)/evidence/lib/evidence-library-alerts.ts"),
     /return \{ level: "stable", label: "Stable review state", notes: \[\] \};/,
   );
-  // Blue resolves to the AA-safe --info; orange to the AA-safe --orange-ink.
+  // Blue resolves to the AA-safe --info. Orange resolves to --orange-500, the
+  // Notifications High value: below AA and recorded as an approved visual
+  // decision in the token itself - see search-classification-colour.
   assert.match(rule(PRIM_CSS, '.app-status-text[data-tone="blue"]'), /var\(--info\)/);
-  assert.match(rule(PRIM_CSS, '.app-status-text[data-tone="orange"]'), /var\(--orange-ink\)/);
+  assert.match(rule(PRIM_CSS, '.app-status-text[data-tone="orange"]'), /var\(--orange-500\)/);
 });
 
 test("16. the Evidence Detail hero states the record's status as text", () => {

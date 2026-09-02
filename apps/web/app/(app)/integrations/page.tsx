@@ -1389,7 +1389,8 @@ function SummaryStat({
         style={{
           fontSize: 22,
           fontWeight: 700,
-          color: tone === "warn" ? "#b45309" : "#0f172a",
+          // The product warning ink, not a literal amber - see `--tone-orange`.
+          color: tone === "warn" ? "var(--orange-500, #EA580C)" : "#0f172a",
         }}
       >
         {value}
@@ -2403,7 +2404,7 @@ function ApiKeyExpiryDialog({
           />
         </Field>
         {parsedInPast ? (
-          <p style={{ ...mutedStyle, color: "#b45309" }}>
+          <p style={{ ...mutedStyle, color: "var(--orange-500, #EA580C)" }}>
             That moment is in the past — the credential will reject every call
             as soon as you save.
           </p>

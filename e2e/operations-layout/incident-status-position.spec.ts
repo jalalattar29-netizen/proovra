@@ -173,3 +173,139 @@ for (const width of [1024, 768, 430, 390, 320]) {
     expect(await hasHorizontalOverflow(page)).toBe(false);
   });
 }
+
+// ===========================================================================
+// THE GROUPED SURFACE — the view `/operations` actually opens in.
+//
+// Two passes "moved the status column" and the screenshot kept showing
+// `[Critical] Trusted timestamping failed  Open`. Both passes were telling the
+// truth about the surfaces they changed: the table and the narrow cards. The
+// page opens GROUPED, this project had no stub for `/v1/ops/incident-groups`,
+// so the one renderer an operator lands on had never been rendered here at all.
+//
+// The defect underneath was a real one. `.opsw-group__head` was a flex row
+// whose status carried `margin-inline-start: auto`, inside a parent with
+// `align-items: flex-start` — which shrink-wraps the head to its content, so
+// there was no free space for the auto margin to absorb. Measured: the status
+// began 8px after the title's right edge, and the head's right edge WAS the
+// status's, in a row 1,120px wide.
+//
+// These assertions are geometry for that reason. "Status appears after title"
+// passed the whole time it was wrong.
+// ===========================================================================
+test("grouped rows put the status in a trailing column, not beside the title", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.addInitScript((v) => {
+    document.cookie = `cc_cookie=${encodeURIComponent(v as string)};path=/`;
+  }, ANSWERED_CONSENT);
+  await openOperations(page, "team-admin", { scenario: "long-title" });
+  await page.waitForSelector("[data-ops-group]");
+
+  const rows = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>("[data-ops-group]")).map((g) => {
+      const head = g.querySelector<HTMLElement>(".opsw-group__head")!;
+      const title = g.querySelector<HTMLElement>(".opsw-group__title")!;
+      const status = g.querySelector<HTMLElement>(".opsw-group__status")!;
+      const h = head.getBoundingClientRect();
+      const t = title.getBoundingClientRect();
+      const s = status.getBoundingClientRect();
+      return {
+        headWidth: Math.round(h.width),
+        statusLeft: Math.round(s.left),
+        statusRight: Math.round(s.right),
+        headRight: Math.round(h.right),
+        gapFromTitleText: Math.round(s.left - t.right),
+      };
+    }),
+  );
+
+  expect(rows.length).toBeGreaterThan(1);
+
+  // 1. The head spans the row. This is what was false: a shrink-wrapped head
+  //    cannot place anything at a trailing edge it does not reach.
+  const surface = await page
+    .locator("[data-ops-groups]")
+    .evaluate((n) => Math.round(n.getBoundingClientRect().width));
+  for (const r of rows) {
+    expect(r.headWidth, "the head must span its row").toBeGreaterThan(surface * 0.8);
+  }
+
+  // 2. Every row answers at the SAME x, whatever its title is.
+  expect([...new Set(rows.map((r) => r.statusLeft))]).toHaveLength(1);
+  expect([...new Set(rows.map((r) => r.statusRight))]).toHaveLength(1);
+
+  // 3. The status is at the trailing edge, and a long way from the title.
+  for (const r of rows) {
+    expect(r.headRight - r.statusRight, "flush with the row's end").toBeLessThanOrEqual(2);
+    expect(
+      r.gapFromTitleText,
+      "a status 8px from the title is the defect this pins",
+    ).toBeGreaterThan(120);
+  }
+});
+
+test("at 390 the grouped status takes its own line rather than the title's", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.addInitScript((v) => {
+    document.cookie = `cc_cookie=${encodeURIComponent(v as string)};path=/`;
+  }, ANSWERED_CONSENT);
+  await openOperations(page, "team-admin", { scenario: "long-title" });
+  await page.waitForSelector("[data-ops-group]");
+
+  const rows = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>("[data-ops-group]")).map((g) => {
+      const title = g.querySelector<HTMLElement>(".opsw-group__title")!;
+      const status = g.querySelector<HTMLElement>(".opsw-group__status")!;
+      const t = title.getBoundingClientRect();
+      const s = status.getBoundingClientRect();
+      return { belowTitle: s.top >= t.bottom - 1, right: Math.round(s.right) };
+    }),
+  );
+  for (const r of rows) {
+    expect(r.belowTitle, "never inline beside the title on a phone").toBe(true);
+  }
+  expect(await hasHorizontalOverflow(page)).toBe(false);
+});
+
+// ===========================================================================
+// HIGH IS THE ORANGE THE NOTIFICATIONS CARD PAINTS.
+// ===========================================================================
+test("a High severity badge resolves to the reference orange, not the classification fill", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.addInitScript((v) => {
+    document.cookie = `cc_cookie=${encodeURIComponent(v as string)};path=/`;
+  }, ANSWERED_CONSENT);
+  await openOperations(page, "team-admin", { scenario: "long-title" });
+  await page.getByRole("button", { name: "All conditions" }).click();
+  await page.waitForSelector("[data-ops-table-surface] tbody tr");
+
+  const measured = await page.evaluate(() => {
+    const badge = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-ops-severity="HIGH"]'),
+    ).find((n) => n.offsetParent !== null)!;
+    const metric = document.querySelector<HTMLElement>(
+      '[data-opsw-tone="orange"] .opsw-metric__value',
+    );
+    const token = getComputedStyle(document.documentElement)
+      .getPropertyValue("--orange-500")
+      .trim();
+    return {
+      badgeBg: getComputedStyle(badge).backgroundColor,
+      metricColor: metric ? getComputedStyle(metric).color : null,
+      token,
+    };
+  });
+
+  // #EA580C — the value the Notifications "High" card renders. NOT #F97316,
+  // which is the record-CLASSIFICATION fill Search's type labels use, and not
+  // #C2410C, the retired burnt orange.
+  expect(measured.token.toUpperCase()).toBe("#EA580C");
+  expect(measured.badgeBg).toBe("rgb(234, 88, 12)");
+  if (measured.metricColor) expect(measured.metricColor).toBe("rgb(234, 88, 12)");
+});

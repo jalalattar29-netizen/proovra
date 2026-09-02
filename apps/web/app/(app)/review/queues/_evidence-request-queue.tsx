@@ -267,7 +267,7 @@ export function EvidenceRequestReviewQueue({
             }`,
             color:
               state.kind === "FORBIDDEN"
-                ? "var(--status-pending-fg, #78350f)"
+                ? "var(--status-pending-fg, #EA580C)"
                 : "var(--status-risk-fg, #991b1b)",
             borderRadius: "var(--radius-md, 8px)",
             fontSize: 13,

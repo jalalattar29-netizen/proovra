@@ -25,7 +25,7 @@ export const HOME_COLORS = {
    * STATUS — the product tokens, not a second palette.
    *
    * These were hand-written hexes: `warn` was #d97706 (amber-600) while
-   * Operations paints a High incident with tone `orange` -> `--orange-ink`
+   * Operations paints a High incident with tone `orange` -> `--orange-500`
    * (#C2410C), and `ok` was #059669 against the canonical
    * `--success-standard` (#15803D). Two palettes for one product, so the same
    * state wore a different colour depending on which page you were looking at.
@@ -36,8 +36,8 @@ export const HOME_COLORS = {
    */
   ok: "var(--success-standard, #15803D)",
   okDeep: "var(--success-standard, #15803D)",
-  warn: "var(--orange-ink, #C2410C)",
-  warnDeep: "var(--orange-ink, #C2410C)",
+  warn: "var(--orange-500, #EA580C)",
+  warnDeep: "var(--orange-500, #EA580C)",
   danger: "var(--error, #DC2626)",
   dangerDeep: "var(--error, #DC2626)",
 
@@ -174,7 +174,7 @@ export const HOME_ACCENT = {
  * and within Home it was: every pending used the same amber, every failure
  * the same red. The problem is that it was a THIRD system. `#A86612` is a
  * brown; Operations paints a pending state with tone `orange`, which
- * `AppStatusText` resolves to `--orange-ink` (#C2410C). `#B9383E` is a
+ * `AppStatusText` resolves to `--orange-500` (#EA580C). `#B9383E` is a
  * muted rose; canonical critical is `--error` (#DC2626). `#167A5B` is a
  * teal-green against `--success-standard` (#15803D).
  *
@@ -196,9 +196,11 @@ export const HOME_SEMANTIC = {
     border: "rgba(21, 128, 61, 0.16)",
   },
   amber: {
-    strong: "var(--orange-ink, #C2410C)",
-    softBg: "rgba(194, 65, 12, 0.07)",
-    border: "rgba(194, 65, 12, 0.16)",
+    strong: "var(--orange-500, #EA580C)",
+    /* Derived from the ink above. These were rgba(194, 65, 12, …) — the
+       retired #C2410C — so the tint sat behind an ink it no longer matched. */
+    softBg: "rgba(234, 88, 12, 0.07)",
+    border: "rgba(234, 88, 12, 0.16)",
   },
   critical: {
     strong: "var(--error, #DC2626)",
@@ -231,6 +233,31 @@ const CHIP_BASE: React.CSSProperties = {
   fontWeight: 650,
   whiteSpace: "nowrap",
 };
+
+/* A STATUS THAT IS A WORD, NOT A CAPSULE.
+ *
+ * "Live", "Report ready", "Report v2" and "Package ready" are one-word facts
+ * sitting inside dense rows, and a filled pill around each of them turned every
+ * row into a strip of buttons competing with the record's own name. Same tones,
+ * same words, same data-* hooks — the container is what goes.
+ *
+ * Weight and colour carry the emphasis instead, which is exactly what
+ * `.app-status-text` already does for this job elsewhere in the product. */
+export const plainStatusTextStyle = (color: string): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  fontSize: 11,
+  fontWeight: 650,
+  whiteSpace: "nowrap",
+  color,
+});
+
+/** Plain GREEN status text — "Live", "Report ready", "Package ready". */
+export const successTextStyle = plainStatusTextStyle(HOME_SEMANTIC.success.strong);
+
+/** Plain BLUE status text — "Report v2". */
+export const infoTextStyle = plainStatusTextStyle(HOME_SEMANTIC.info.strong);
 
 /** Shared success badge (Live / Package ready / Active links / …). */
 export const successBadgeStyle: React.CSSProperties = {
@@ -318,9 +345,12 @@ export const homeCardTitleStyle: React.CSSProperties = {
   letterSpacing: 0.4,
 };
 
+/* "All evidence →", "Open reports →", "View intake →" — ONE action colour.
+   This was HOME_COLORS.indigo (#6D28D9), so Home's card links were purple
+   while the identical action on Notifications and Search is blue. */
 export const homeCardCtaStyle: React.CSSProperties = {
   fontSize: 12,
-  color: HOME_COLORS.indigo,
+  color: HOME_COLORS.action,
   textDecoration: "none",
   fontWeight: 600,
   whiteSpace: "nowrap",

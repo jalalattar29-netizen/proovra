@@ -91,18 +91,51 @@ test("2. white on the classification orange is 2.80:1 — recorded, not claimed 
   assert.match(decl, /BELOW/);
 });
 
-test("3. the exception buys a FILL and nothing else — orange TEXT is still AA", () => {
+test("3. the three oranges stay distinct, and the semantic one records its trade", () => {
   const ink = token("orange-ink");
-  assert.notEqual(ink, token("orange-fill"), "the ink and fill must stay distinct");
+  const fill = token("orange-fill");
+  const semantic = token("orange-500");
+  // Three values, three jobs: the outlined action's readable ink, the Figma
+  // classification fill, and the semantic warning/high hue.
+  assert.notEqual(ink, fill, "the ink and fill must stay distinct");
+  assert.notEqual(semantic, fill, "the semantic orange is not the classification fill");
+  assert.notEqual(semantic, ink, "the semantic orange is not the outline ink");
+
+  /*
+   * THE SEMANTIC ORANGE IS BELOW AA, AND THAT IS RECORDED RATHER THAN HIDDEN.
+   *
+   * `--orange-500` (#EA580C) measures ~3.6:1 on white against `--orange-ink`'s
+   * 5.18:1. It is what the Notifications severity card "High / Important, not
+   * urgent." paints, and that card is the product's declared authority for this
+   * hue — #C2410C read burnt, which is the one thing a caution must not do.
+   *
+   * The exposure is bounded the same way the fill's is: every surface it paints
+   * states the same meaning in WORDS beside it — "High", "Warning", "Pending",
+   * "Above the included allowance" — so no status is carried by hue alone.
+   *
+   * This asserts the measurement and the written record, NOT a pass. A test
+   * that quietly dropped the threshold would be the same decision with the
+   * evidence removed.
+   */
+  const semanticRatio = contrast(semantic, "#FFFFFF");
+  assert.ok(
+    semanticRatio < 4.5,
+    `if #EA580C now measures ${semanticRatio.toFixed(2)}:1 the recorded trade is stale`,
+  );
+  const toneDecl = TOKENS.slice(
+    TOKENS.lastIndexOf("/*", TOKENS.indexOf("--tone-orange:")),
+    TOKENS.indexOf("--tone-orange:"),
+  );
+  assert.match(toneDecl, /3\.6:1/, "the ratio must be stated where the alias is set");
+  assert.match(toneDecl, /below WCAG AA/i, "and named as what it is");
+
+  // The token named for orange TEXT stays AA. Its label now takes the semantic
+  // orange, so this asserts the ink itself has not been repurposed or moved.
+  const prim = read("apps/web/components/app-primitives/app-primitives.css");
   assert.ok(
     contrast(ink, "#FFFFFF") >= 4.5,
-    `orange text (${ink}) measures ${contrast(ink, "#FFFFFF").toFixed(2)}:1 on white`,
+    `the outline action's ink (${ink}) measures ${contrast(ink, "#FFFFFF").toFixed(2)}:1`,
   );
-
-  // `--orange-ink` had been lightened only to serve the badge. With the badge
-  // on its own token, its only consumer is the outlined action's TEXT.
-  const prim = read("apps/web/components/app-primitives/app-primitives.css");
-  assert.match(prim, /\.app-secondary-action--orange \{[\s\S]{0,200}?--orange-ink/);
 
   // The exception is a BACKGROUND for a non-interactive label, and nothing
   // else. It used to be expressed as "--orange-fill never appears in the

@@ -1599,7 +1599,7 @@ const COUNTER_TONE_STYLE: Record<
   },
   warning: {
     background: "var(--status-pending-bg, #fef3c7)",
-    color: "var(--status-pending-fg, #78350f)",
+    color: "var(--status-pending-fg, #EA580C)",
     border: "1px solid var(--status-pending-border, #fde68a)",
   },
   high: {

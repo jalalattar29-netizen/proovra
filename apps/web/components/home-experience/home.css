@@ -41,10 +41,10 @@
   /* SEMANTICS — the product's tokens, resolved the way `AppStatusText` maps
      the shared `AppTone` vocabulary. This is the whole point: Operations
      paints "High" by asking for tone `orange`, which resolves to
-     `--orange-ink`, and Home must ask for the same thing rather than pick a
+     `--orange-500`, and Home must ask for the same thing rather than pick a
      hue that looks similar.
 
-       tone orange -> --orange-ink        (Operations "High")
+       tone orange -> --orange-500        (Operations "High")
        tone red    -> --error             (Operations "Critical")
        tone blue   -> --info              (Notifications / Search actions)
        tone green  -> --success-standard
@@ -58,14 +58,16 @@
      was the accent violet, so Home's inline actions were purple while the same
      action on Notifications and Search is blue. */
   --home-ok: var(--success-standard, #15803d);
-  --home-warn: var(--orange-ink, #c2410c);
+  --home-warn: var(--orange-500, #ea580c);
   --home-bad: var(--error, #dc2626);
   --home-action: var(--info, #2563eb);
   --home-accent: var(--accent-600, #6d28d9);
 
   /* Pale state fills. */
   --home-ok-soft: rgba(21, 128, 61, 0.09);
-  --home-warn-soft: rgba(194, 65, 12, 0.09);
+  /* Derived from --home-warn. Was rgba(194, 65, 12, ...) - the retired
+     #C2410C - which left the tint a shade the ink no longer uses. */
+  --home-warn-soft: rgba(234, 88, 12, 0.09);
   --home-bad-soft: rgba(220, 38, 38, 0.08);
   --home-info-soft: #eef2ff;
 
@@ -508,6 +510,16 @@
 .self-serve-home .home-row__value[data-tone="warn"] { color: var(--home-warn); }
 .self-serve-home .home-row__value[data-tone="bad"] { color: var(--home-bad); }
 
+/* THE LABEL BELONGS TO ITS NUMBER.
+   A row said "Records with delivery issues" in neutral grey beside a red 13,
+   and "Need a report" in the same grey beside a green 0. The colour was doing
+   the ranking and the words were not, so a reader had to pair each label with
+   its own value before the card meant anything. Neutral rows stay neutral —
+   a fact with no state does not get a colour. */
+.self-serve-home .home-row[data-tone="ok"] .home-row__label { color: var(--home-ok); }
+.self-serve-home .home-row[data-tone="warn"] .home-row__label { color: var(--home-warn); }
+.self-serve-home .home-row[data-tone="bad"] .home-row__label { color: var(--home-bad); }
+
 /* The one filled row: the overall verdict. */
 .self-serve-home .home-verdict {
   display: flex;
@@ -943,4 +955,33 @@
 .self-serve-home .home-donut {
   inline-size: min(100%, 260px);
   block-size: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   THE OVERFLOW MENU'S HOVER.
+
+   The "⋯" menu's items were inline-styled, and an inline style cannot express
+   `:hover` — so the pointer moved down a list of identical rows with nothing
+   following it, and there was no way to tell which item a click would land on.
+
+   The tint is the product's selection lavender, `--accent-050` — the same one
+   `.app-secondary-action--accent:hover` and the Cases active tab already use.
+   The label stays dark: a purple SLAB with reversed-out text would be a menu
+   item pretending to be a primary button.
+--------------------------------------------------------------------------- */
+.self-serve-home .home-menu-item {
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+.self-serve-home .home-menu-item:hover:not(:disabled),
+.self-serve-home .home-menu-item:focus-visible {
+  background: var(--accent-050, #f2ecfe);
+  color: var(--ink-primary, #0f172a);
+}
+.self-serve-home .home-menu-item:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent-200, #d9c7fb);
+}
+.self-serve-home .home-menu-item:disabled {
+  background: transparent;
 }

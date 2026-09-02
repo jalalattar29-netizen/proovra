@@ -621,10 +621,10 @@
    real over-limit condition looked exactly like "credits available". It is the
    canonical warning orange, the same token Operations gives a High incident. */
 .bill-facts__row[data-tone="pending"] .bill-facts__value {
-  color: var(--orange-ink, #c2410c);
+  color: var(--orange-500, #ea580c);
 }
 .bill-facts__row[data-tone="pending"] .bill-facts__label {
-  color: var(--orange-ink, #c2410c);
+  color: var(--orange-500, #ea580c);
 }
 
 /* The lead: the used figure is the metric, the total is what it is measured
@@ -1308,4 +1308,25 @@
     inline-size: 100% !important;
     min-inline-size: 0 !important;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   THE CARDS HAD TO BE FOUND BEFORE THEY COULD BE READ.
+
+   Measured on the rendered page: every Billing panel painted
+   rgba(255, 255, 255, 0.92) — the shell frosts `--surface-card` across the
+   whole content area — over an `.app-shell-v2` ground of rgb(247, 248, 252),
+   with a 1px rgba(15, 23, 42, 0.09) edge. Seven levels of luminance and a 9%
+   border is not an edge; on Operations and Notifications the same card reads
+   because the artwork behind it is warmer, and Billing's page is nearly white.
+
+   An earlier pass moved these onto `--shadow-card` / `--radius-card` and the
+   cards still dissolved. So the EDGE takes the step, not the fill: the surface,
+   the radius, the shadow and the spacing are untouched, and the border moves
+   one canonical stop from `--border-default` to `--border-strong` (0.09 -> 0.14
+   alpha). Nothing new is defined, nothing goes grey, and no card gains a slab.
+--------------------------------------------------------------------------- */
+.bill-page .bill-panel,
+.bill-page [data-billing-history] {
+  border-color: var(--border-strong, rgba(15, 23, 42, 0.14));
 }

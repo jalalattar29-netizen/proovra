@@ -45,8 +45,9 @@ import {
   homeOpsRowStyle,
   homeOuterCardStyle,
   homeSecondaryButtonStyle,
-  infoBadgeStyle,
+  infoTextStyle,
   successBadgeStyle,
+  successTextStyle,
   toneColor,
   type HomeTone,
 } from "./home-theme";
@@ -59,6 +60,19 @@ import {
  * RENDER cap — the underlying data/counts are untouched (summary tiles and
  * "view all" footers still reflect the full totals). */
 const HOME_PREVIEW_LIMIT = 3;
+
+/** INTAKE SHOWS FIVE.
+ *
+ * The pipeline card had the same three-row cap as its neighbours, and three is
+ * too few to read the shape of an intake queue: a workspace with seven active
+ * links showed three and a "View intake" footer, so the card answered "are the
+ * links moving?" with a sample too small to tell.
+ *
+ * The projection already supplies five — `home-view-model` slices the links to
+ * five upstream — so nothing is fetched differently and no count changes. This
+ * is only how many of the rows already in hand get rendered. Fewer than five
+ * still renders fewer; nothing is padded. */
+const INTAKE_PREVIEW_LIMIT = 5;
 
 /** MIDDLE-truncate a long identifier / UUID so BOTH the start and end stay
  * legible (e.g. `dd440009-5606-4a44-…-1792a3780fe0`). The full id is always
@@ -586,9 +600,9 @@ export function IntakePipelineCard({
       </div>
       {pipeline.links.length > 0 ? (
         <ul style={{ ...listStyle, marginTop: "auto" }}>
-          {/* Phase HOME-DENSITY — cap to 3 rows; the stage counts above
-              reflect the full pipeline. */}
-          {pipeline.links.slice(0, HOME_PREVIEW_LIMIT).map((r) => {
+          {/* Five rows — see INTAKE_PREVIEW_LIMIT. The stage counts above
+              still reflect the full pipeline. */}
+          {pipeline.links.slice(0, INTAKE_PREVIEW_LIMIT).map((r) => {
             const failed = r.delivery?.failed === true;
             return (
               <li key={r.id} data-collection-id={r.id} style={{ ...listItemStyle, ...listItemLinkStyle, ...homeOpsRowStyle }}>
@@ -640,7 +654,7 @@ export function IntakePipelineCard({
               </li>
             );
           })}
-          {pipeline.links.length > HOME_PREVIEW_LIMIT ? (
+          {pipeline.links.length > INTAKE_PREVIEW_LIMIT ? (
             <li style={listItemStyle}>
               <OpsActionLink
                 href="/intake-links"
@@ -761,9 +775,9 @@ export function ReportProductionCard({
                     {displayLabel}
                   </Link>
                   <span style={listItemMetaStyle}>
-                    <span style={infoBadgeStyle}>Report{r.version != null ? ` v${r.version}` : ""}</span>
+                    <span style={infoTextStyle}>Report{r.version != null ? ` v${r.version}` : ""}</span>
                     {r.packageReady ? (
-                      <span style={successBadgeStyle}>Package ready</span>
+                      <span style={successTextStyle}>Package ready</span>
                     ) : (
                       <span style={{ ...homeChipStyle, background: HOME_SEMANTIC.neutral.softBg, color: HOME_SEMANTIC.neutral.secondary, border: `1px solid ${HOME_SEMANTIC.neutral.border}` }}>
                         No package
@@ -848,12 +862,14 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
   // secondary download/verify actions collapse into a compact "⋯" overflow
   // menu so the row is no longer four side-by-side buttons. Every href,
   // onClick and data-testid is preserved, just relocated.
+  /* The hover lives in `home.css` as `.home-menu-item`: an inline style
+     cannot express `:hover`, so these items had no hover state at all — the
+     pointer moved down a list of identical rows with nothing following it. */
   const overflowItemStyle: React.CSSProperties = {
     display: "block",
     width: "100%",
     textAlign: "left",
     padding: "8px 12px",
-    background: "transparent",
     border: "none",
     color: HOME_COLORS.ink,
     fontSize: 12.5,
@@ -866,7 +882,13 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
   return (
     <>
       <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }} data-report-actions>
-        <Link href={row.actions.open} style={secondaryButtonStyle} data-report-action="open-evidence">
+        {/* The row action reads as an action. It wore the neutral secondary
+            label while every other "Open …" on this page is the product blue. */}
+        <Link
+          href={row.actions.open}
+          style={{ ...secondaryButtonStyle, color: HOME_COLORS.action }}
+          data-report-action="open-evidence"
+        >
           Open
         </Link>
         {hasOverflow ? (
@@ -917,6 +939,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
                       void trigger("pdf", pdfPath);
                     }}
                     disabled={busy !== null}
+                    className="home-menu-item"
                     style={{ ...overflowItemStyle, cursor: busy ? "wait" : "pointer" }}
                     data-report-action="download-pdf"
                   >
@@ -933,6 +956,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
                       void trigger("package", pkgPath);
                     }}
                     disabled={busy !== null}
+                    className="home-menu-item"
                     style={{ ...overflowItemStyle, cursor: busy ? "wait" : "pointer" }}
                     data-report-action="download-package"
                   >
@@ -945,7 +969,7 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
                     role="menuitem"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setMenuOpen(false)}
-                    style={overflowItemStyle}
+                    className="home-menu-item" style={overflowItemStyle}
                     data-report-action="open-verify"
                   >
                     Verify page
@@ -1086,7 +1110,7 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
                     >
                       {displayLabel}
                     </span>
-                    <span style={{ ...successBadgeStyle, flexShrink: 0 }}>Live</span>
+                    <span style={{ ...successTextStyle, flexShrink: 0 }}>Live</span>
                   </span>
                   <OpsActionLink href={v.verifyHref} external extraProps={{ "data-verify-open": true }} style={{ flexShrink: 0 }}>
                     Open verify →
@@ -1168,6 +1192,12 @@ export function WorkspaceHealthCard({
             className="home-row"
             data-health-metric={m.key}
             data-health-tone={m.tone}
+            /* THE ROW carries the normalised tone too, so the LABEL can wear
+               it. The value alone was coloured, which left "Records with
+               delivery issues" in neutral grey beside a red 13 — the number
+               looked alarming and the thing it was about did not, so the eye
+               had to pair them up itself. */
+            data-tone={HEALTH_ROW_TONE[m.tone] ?? "neutral"}
           >
             <span className="home-row__label">{m.label}</span>
             <span
@@ -1206,10 +1236,23 @@ const HEALTH_ROW_TONE: Record<string, "ok" | "warn" | "bad" | "neutral"> = {
 // 7. TRUST STATE — live integrity counts + zero scaffold.
 // ============================================================================
 
+type TrustTone = "ok" | "warn" | "danger" | "neutral";
+
+/** One integrity signal. `segments` is the value said in parts, each with the
+ *  tone that part actually means; `value` remains the same plain sentence for
+ *  anything reading the row as text. */
+type TrustRow = {
+  key: string;
+  label: string;
+  value: string;
+  segments?: Array<{ text: string; tone: TrustTone }>;
+  tone: TrustTone;
+};
+
 function trustRows(
   trust: TrustState,
-): Array<{ key: string; label: string; value: string; tone: "ok" | "warn" | "danger" | "neutral" }> {
-  const rows: Array<{ key: string; label: string; value: string; tone: "ok" | "warn" | "danger" | "neutral" }> = [
+): TrustRow[] {
+  const rows: TrustRow[] = [
     {
       key: "tsa",
       // Phase HOME-COPY — "Trusted timestamps" implied a legal trust
@@ -1220,12 +1263,42 @@ function trustRows(
       // Ticket 3B — "not stamped" is a NEUTRAL bucket (no attempt yet),
       // appended only when > 0; it never changes the row tone.
       value: `${trust.tsaStamped} stamped${trust.tsaPending ? ` · ${trust.tsaPending} pending` : ""}${trust.tsaFailed ? ` · ${trust.tsaFailed} failed` : ""}${trust.tsaNone ? ` · ${trust.tsaNone} not stamped` : ""}`,
+      /*
+        EACH COUNT WEARS ITS OWN MEANING.
+
+        The whole sentence took the row's worst tone, so "138 stamped · 34
+        failed" rendered entirely red — the 138 successes were painted as
+        failures, and the one number an operator needed to find was the same
+        colour as the good news beside it.
+      */
+      segments: [
+        { text: `${trust.tsaStamped} stamped`, tone: "ok" as const },
+        ...(trust.tsaPending ? [{ text: `${trust.tsaPending} pending`, tone: "warn" as const }] : []),
+        ...(trust.tsaFailed ? [{ text: `${trust.tsaFailed} failed`, tone: "danger" as const }] : []),
+        ...(trust.tsaNone ? [{ text: `${trust.tsaNone} not stamped`, tone: "danger" as const }] : []),
+      ],
       tone: trust.tsaFailed > 0 ? "danger" : trust.tsaPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
     {
       key: "ots",
       label: "OpenTimestamps (OTS)",
       value: `${trust.otsAnchored} anchored${trust.otsPending ? ` · ${trust.otsPending} pending` : ""}${trust.otsFailed ? ` · ${trust.otsFailed} failed` : ""}${trust.otsNone ? ` · ${trust.otsNone} not anchored yet` : ""}`,
+      /*
+        ANCHORED IS NOT "DONE" THE WAY STAMPED IS.
+
+        An OpenTimestamps attestation is submitted to a calendar and becomes
+        provable only once Bitcoin confirms it, so "anchored" is work in
+        flight rather than a finished guarantee — it reads as attention, not
+        as success. "not anchored yet" is the one that has run out of road.
+      */
+      segments: [
+        { text: `${trust.otsAnchored} anchored`, tone: "warn" as const },
+        ...(trust.otsPending ? [{ text: `${trust.otsPending} pending`, tone: "warn" as const }] : []),
+        ...(trust.otsFailed ? [{ text: `${trust.otsFailed} failed`, tone: "danger" as const }] : []),
+        ...(trust.otsNone
+          ? [{ text: `${trust.otsNone} not anchored yet`, tone: "danger" as const }]
+          : []),
+      ],
       tone: trust.otsFailed > 0 ? "danger" : trust.otsPending > 0 ? "warn" : trust.empty ? "neutral" : "ok",
     },
     { key: "signed", label: "Signed records", value: `${trust.signed} of ${trust.totalEvidence}`, tone: "neutral" },
@@ -1275,7 +1348,21 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
             <li key={r.key} className="home-row" data-trust-key={r.key} style={listItemStyle}>
               <span className="home-row__label">{r.label}</span>
               <span className="home-row__value" style={{ color: ts.value }}>
-                {r.value}
+                {r.segments
+                  ? r.segments.map((seg, i) => (
+                      <span key={seg.text}>
+                        {i > 0 ? (
+                          <span style={{ color: HOME_SEMANTIC.neutral.secondary }}> · </span>
+                        ) : null}
+                        <span
+                          data-trust-segment={seg.tone}
+                          style={{ color: trustToneStyle(seg.tone).value }}
+                        >
+                          {seg.text}
+                        </span>
+                      </span>
+                    ))
+                  : r.value}
               </span>
             </li>
           );
@@ -1602,7 +1689,10 @@ const cardBodyStyle: React.CSSProperties = { margin: 0 };
 const listStyle: React.CSSProperties = { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 };
 const listItemStyle: React.CSSProperties = { padding: 0 };
 const listItemLinkStyle: React.CSSProperties = { display: "block", padding: "8px 10px", borderRadius: 8, background: "rgba(15, 23, 42, 0.02)", textDecoration: "none", color: "inherit" };
-const listItemTitleStyle: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+/* The primary ink, read from the token rather than repeated as a literal.
+   This is the name of a matter or an intake link — a record title, which is
+   the one thing on the row that must not take a status colour. */
+const listItemTitleStyle: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: HOME_COLORS.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const listItemMetaStyle: React.CSSProperties = { display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" };
 const listItemTimeStyle: React.CSSProperties = { fontSize: 11, color: "#94a3b8" };
 const chipStyle: React.CSSProperties = { display: "inline-block", padding: "2px 8px", borderRadius: 999, background: "rgba(124, 58, 237, 0.08)", color: "#4338ca", fontSize: 11, fontWeight: 600 };

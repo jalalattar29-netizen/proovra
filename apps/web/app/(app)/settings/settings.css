@@ -49,11 +49,11 @@
   /* The PRODUCT tokens. These were four hand-written hexes — #067647,
      #b54708, #b42318 — so "Not configured" in Settings was a brown-amber
      while the same attention state on Operations is the orange
-     `AppStatusText` resolves for tone `orange` (--orange-ink). One product,
+     `AppStatusText` resolves for tone `orange` (--orange-500). One product,
      one warning colour. */
   --set-ok: var(--success-standard, #15803D);
   --set-ok-soft: rgba(21, 128, 61, 0.08);
-  --set-warn: var(--orange-ink, #C2410C);
+  --set-warn: var(--orange-500, #EA580C);
   --set-warn-soft: rgba(194, 65, 12, 0.09);
   --set-danger: var(--error, #DC2626);
   --set-danger-soft: rgba(220, 38, 38, 0.07);

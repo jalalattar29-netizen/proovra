@@ -1607,7 +1607,7 @@ const warnBox: React.CSSProperties = {
   border: "1px solid var(--status-pending-border, #fde68a)",
   borderRadius: 10,
   fontSize: 13,
-  color: "var(--status-pending-fg, #78350f)",
+  color: "var(--status-pending-fg, #EA580C)",
   background: "var(--status-pending-bg, #fef3c7)",
 };
 

@@ -327,6 +327,19 @@ export type InstallApiOptions = {
    * position a reader could not escape from.
    */
   metricScenario?: boolean;
+  /**
+   * Serve POPULATED Home collections: intake links, reports and evidence.
+   *
+   * Home's Operations tab — Public verification links, Report production and
+   * Intake status — reads four collection endpoints, and this project served
+   * `{ items: [], data: null }` for every one of them. Every row-level
+   * property of those cards was therefore invisible to the browser suite: the
+   * status treatments, the action colours, and how many intake rows render.
+   *
+   * Seven ACTIVE intake links, deliberately more than the five the card shows,
+   * so the cap and its "View intake" footer are both observable.
+   */
+  homeCollections?: boolean;
 };
 
 /** 26 High + 2 Info, none unread. See `metricScenario`. */
@@ -639,6 +652,115 @@ export function resetPlatformCalls(): void {
 export function observedPlatformCalls(): readonly string[] {
   return [...platformCalls];
 }
+
+/**
+ * Home's collection endpoints, shaped as the routes project them.
+ *
+ * Nothing here is invented beyond what the view-model reads: an intake link
+ * needs id/status/recipientLabel/usedCount/maxUses, a report needs
+ * evidenceId/title/report.available/package.available, and a record needs
+ * id/title/status plus its verification state.
+ */
+const HOME_INTAKE_LINKS = {
+  links: Array.from({ length: 7 }, (_, i) => ({
+    id: `link-${i + 1}`,
+    status: "ACTIVE",
+    recipientLabel: `Witness ${i + 1}`,
+    recipientPhone: null,
+    workflowTemplateSlug: "witness-statement",
+    usedCount: i % 3,
+    maxUses: 3,
+    expiresAtUtc: new Date(Date.now() + 86_400_000 * (i + 2)).toISOString(),
+    createdAtUtc: new Date(Date.now() - 3_600_000 * (i + 1)).toISOString(),
+  })),
+};
+
+const HOME_REPORTS = {
+  items: Array.from({ length: 6 }, (_, i) => ({
+    evidenceId: `ev-${i + 1}`,
+    title: `Joint Scene Examination by Fire Investigators ${i + 1}.jpg`,
+    status: "SIGNED",
+    createdAt: new Date(Date.now() - 3_600_000 * (i + 1)).toISOString(),
+    report: {
+      available: true,
+      version: i + 1,
+      generatedAtUtc: new Date(Date.now() - 3_600_000 * (i + 1)).toISOString(),
+    },
+    package: { available: i % 2 === 0 },
+  })),
+};
+
+const HOME_EVIDENCE = {
+  items: Array.from({ length: 6 }, (_, i) => ({
+    id: `ev-${i + 1}`,
+    title: `Joint Scene Examination by Fire Investigators ${i + 1}.jpg`,
+    type: "PHOTO",
+    status: "SIGNED",
+    verificationStatus: "VERIFIED",
+    tsaStatus: "SUCCESS",
+    latestReportVersion: 1,
+    createdAt: new Date(Date.now() - 3_600_000 * (i + 1)).toISOString(),
+    caseId: i === 0 ? "case-1" : null,
+    publicVerificationEnabled: true,
+    verificationToken: `tok-${i + 1}`,
+  })),
+};
+
+/**
+ * The command centre, as `/v1/dashboard/command-center` projects it.
+ *
+ * Two things on Home could not be observed without it: the Active matters card
+ * (a case NAME is a record title and must stay navy, whatever the matter's
+ * health says) and the Report production tiles for PENDING and FAILED, which
+ * are neutral at zero and therefore proved nothing about their tones.
+ *
+ * The counts are deliberately non-zero on both sides — 5 ready, 3 packages,
+ * 4 pending, 2 failed — so "ready is green, pending is attention, failed is an
+ * error" is a statement the browser can actually check.
+ */
+const HOME_COMMAND_CENTER = {
+  sections: {
+    caseOperations: {
+      status: "ok",
+      data: {
+        activeCasesCount: 1,
+        casesWithEvidenceGapsCount: 0,
+        unreviewedEvidenceCount: 0,
+        unlinkedEvidenceCount: 0,
+        topCases: [
+          {
+            caseId: "case-1",
+            caseName: "Bilal",
+            evidenceCount: 6,
+            unreviewedCount: 0,
+            overdueReviewCount: 0,
+            openEscalationsCount: 0,
+            hasActiveLegalHold: false,
+            lastActivityAtUtc: new Date(Date.now() - 3_600_000).toISOString(),
+            reportsReadyCount: 5,
+            packagesReadyCount: 3,
+            verifyLiveCount: 3,
+          },
+        ],
+      },
+    },
+    pipelineDetail: {
+      status: "ok",
+      data: {
+        evidence: {
+          created: 0,
+          uploading: 0,
+          uploaded: 0,
+          signed: 6,
+          reported: 5,
+          stuckUploading: 0,
+        },
+        reports: { ready: 5, queued: 4, failed: 2, missingFromSigned: 1 },
+        packages: { ready: 3, queued: 0, failed: 2 },
+      },
+    },
+  },
+};
 
 export async function installApi(
   page: Page,
@@ -1026,6 +1148,21 @@ export async function installApi(
         }),
       );
     }
+    if (options.homeCollections) {
+      if (path.endsWith("/v1/workflow/intake-links")) {
+        return route.fulfill(json(HOME_INTAKE_LINKS));
+      }
+      if (path.endsWith("/v1/reports")) {
+        return route.fulfill(json(HOME_REPORTS));
+      }
+      if (path.endsWith("/v1/evidence")) {
+        return route.fulfill(json(HOME_EVIDENCE));
+      }
+      if (path.endsWith("/v1/dashboard/command-center")) {
+        return route.fulfill(json(HOME_COMMAND_CENTER));
+      }
+    }
+
     // Everything else Home fans out to: an empty-but-valid envelope keeps the
     // page in its ready state instead of its error state.
     return route.fulfill(json({ items: [], data: null }));

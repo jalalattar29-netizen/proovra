@@ -254,7 +254,7 @@ function RollupBody({ data }: { data: BillingRollup }) {
         <span
           style={{
             fontVariantNumeric: "tabular-nums",
-            color: w.overSeat ? "var(--status-pending-fg, #b45309)" : undefined,
+            color: w.overSeat ? "var(--status-pending-fg, #EA580C)" : undefined,
             fontWeight: w.overSeat ? 600 : 400,
           }}
         >
@@ -355,7 +355,7 @@ function Stat({
           fontSize: 22,
           fontWeight: 700,
           color:
-            tone === "warn" ? "var(--status-pending-fg, #b45309)" : undefined,
+            tone === "warn" ? "var(--status-pending-fg, #EA580C)" : undefined,
         }}
       >
         {value}

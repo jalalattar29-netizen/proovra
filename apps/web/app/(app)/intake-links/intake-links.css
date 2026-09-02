@@ -560,7 +560,7 @@
 .ilk-state-text[data-ilk-tone="green"] { --ilk-tone: var(--ilk-tone-green); }
 .ilk-state-text[data-ilk-tone="amber"] { --ilk-tone: var(--ilk-tone-amber); }
 .ilk-state-text[data-ilk-tone="red"] { --ilk-tone: var(--ilk-tone-red); }
-.ilk-state-text[data-ilk-tone="orange"] { --ilk-tone: var(--orange-ink); }
+.ilk-state-text[data-ilk-tone="orange"] { --ilk-tone: var(--orange-500); }
 
 /* The VALUE treatment moved to `.app-fact-value` in app-primitives.css.
    Both renderers now put that one class on the element that carries the wire

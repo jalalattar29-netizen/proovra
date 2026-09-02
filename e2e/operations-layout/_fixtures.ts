@@ -719,6 +719,91 @@ export async function installApi(
     if (path.includes("/v1/ops/")) {
       opsCalls.push({ method, path, query: url.search });
     }
+    /*
+      THE GROUPED SURFACE — the view the page OPENS in.
+
+      Built from the SAME scenario rows the flat list uses, collapsed by
+      source, so the two renderings of one dataset cannot drift apart in this
+      project the way they did in the product. Not stubbing it meant
+      `/operations` rendered its empty state in every spec here while a real
+      operator saw six rows.
+    */
+    if (path.includes("/v1/ops/incident-groups") && method === "GET") {
+      if (path.includes("/affected")) {
+        return route.fulfill(
+          json({
+            records: rows.slice(0, 3).map((r) => ({
+              conditionId: r.id,
+              evidenceId: r.relatedEvidenceId ?? null,
+              title: r.title,
+              severity: r.severity,
+              status: r.status,
+              lastSeenAtUtc: r.lastSeenAtUtc,
+            })),
+            pagination: { nextCursor: null, returned: Math.min(3, rows.length) },
+            completeness: { complete: true },
+          }),
+        );
+      }
+      const bySource = new Map();
+      for (const r of rows) {
+        // These rows all carry the same `tsa_failure:` fingerprint prefix, so
+        // the CATEGORY is the dimension that actually separates them here —
+        // REPORT, EVIDENCE_INTEGRITY, PACKAGE. Grouping on the prefix collapsed
+        // the whole fixture to one row, which is a fixture that cannot show
+        // whether two rows agree on where their status sits.
+        const key = String(r.category ?? "unknown");
+        const g = bySource.get(key);
+        if (!g) {
+          bySource.set(key, { rows: [r] });
+        } else {
+          g.rows.push(r);
+        }
+      }
+      const RANK = { CRITICAL: 4, HIGH: 3, WARNING: 2, INFO: 1 };
+      const groups = [...bySource.entries()].map(([key, g]) => {
+        const worst = g.rows.reduce(
+          (a, r) => ((RANK[r.severity] ?? 0) > (RANK[a.severity] ?? 0) ? r : a),
+          g.rows[0],
+        );
+        // OPEN if any member is open — the posture the type documents.
+        const posture = g.rows.some((r) => r.status === "OPEN")
+          ? "OPEN"
+          : g.rows[0].status;
+        return {
+          groupKey: key,
+          sourceId: key,
+          category: worst.category,
+          title: worst.title,
+          conditionCount: g.rows.length,
+          affectedRecordCount: g.rows.length,
+          affectedUnit: "records",
+          observations: g.rows.length,
+          durationSeconds: null,
+          lastObservedAtUtc: worst.lastSeenAtUtc,
+          severity: worst.severity,
+          statusPosture: posture,
+          firstSeenAtUtc: worst.firstSeenAtUtc,
+          lastSeenAtUtc: worst.lastSeenAtUtc,
+          latestActivityAtUtc: worst.lastSeenAtUtc,
+          assignedCount: g.rows.filter((r) => r.assignedOperatorUserId).length,
+          failureGroups: [],
+          affectedSample: [],
+          hasMoreAffected: false,
+          availableActions: [],
+          metric: null,
+        };
+      });
+      return route.fulfill(
+        json({
+          groups,
+          totals: { groups: groups.length, conditions: rows.length },
+          conservation: { conditions: rows.length, grouped: rows.length },
+          completeness: { complete: true, mayAssertAllClear: true },
+        }),
+      );
+    }
+
     if (path.endsWith("/v1/ops/incidents") && method === "GET") {
       // The shell polls this with `status=OPEN&limit=50`; the workbench never
       // sends that exact pair. Distinguishing them is what lets one assertion

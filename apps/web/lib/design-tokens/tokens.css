@@ -165,7 +165,27 @@
    * attention"; the two must not be swapped for looking similar.
    * ------------------------------------------------------------------ */
   --tone-red: var(--error);
-  --tone-orange: var(--orange-ink);
+  /* THE ATTENTION ORANGE — repointed to `--orange-500` (2026-09-02).
+     ------------------------------------------------------------------
+     This alias resolved to `--orange-ink` (#C2410C), and #C2410C is what
+     Operations "High", the Home warning states, the Settings warning confirm
+     and the Billing over-limit row all painted. On screen it read burnt —
+     closer to brown than to caution — and it did not match the one place the
+     product already got this right: the Notifications severity card
+     "High / Important, not urgent.", which paints
+     `--app-metric-tone: var(--orange-500)` and renders rgb(234, 88, 12).
+
+     That card is the declared visual authority, so the tone follows it rather
+     than the other way round. One orange for HIGH / WARNING / PENDING /
+     ATTENTION, reached through this alias.
+
+     THE TRADE, STATED: #EA580C measures 3.6:1 on #FFFFFF against #C2410C's
+     5.18:1, so this is below WCAG AA for normal-size body text. It is an
+     approved visual-reference decision, recorded here rather than discovered
+     later. Every surface it paints also carries the same meaning in WORDS —
+     "High", "Warning", "Pending", "Above the included allowance" — so no
+     status is conveyed by hue alone. */
+  --tone-orange: var(--orange-500);
   --tone-amber: var(--warning-ink);
   --tone-green: var(--success-ink);
   --tone-blue: var(--info);

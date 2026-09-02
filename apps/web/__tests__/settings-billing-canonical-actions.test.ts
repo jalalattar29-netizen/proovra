@@ -388,13 +388,14 @@ test("destructive and tertiary controls were NOT swept in", () => {
 
 test("the warning confirm is the canonical ORANGE, not umber or amber", () => {
   // It went umber (#B86B16) -> amber (--warning-ink #B45309) -> orange.
-  // `--orange-ink` is what `AppStatusText` resolves for tone `orange`, which
+  // `--orange-500` is what `AppStatusText` resolves for tone `orange` now -
+  // the value the Notifications High card paints - which
   // is what Operations paints a High incident, so the confirmation before
   // "Sign out other sessions" now speaks the product's one warning colour.
   assert.match(
     CONFIRM,
-    /case "warning":[\s\S]{0,1100}bg: "var\(--orange-ink, #C2410C\)"/,
-    "warning must use the canonical --orange-ink token",
+    /case "warning":[\s\S]{0,1100}bg: "var\(--orange-500, #EA580C\)"/,
+    "warning must use the canonical --orange-500 token",
   );
   const liveConfirm = CONFIRM.split("\n")
     .filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"))

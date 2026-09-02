@@ -60,7 +60,7 @@ const TONE_VARS: Record<
   },
   pending: {
     bg: "var(--status-pending-bg, #fef3c7)",
-    fg: "var(--status-pending-fg, #78350f)",
+    fg: "var(--status-pending-fg, #EA580C)",
     border: "var(--status-pending-border, #fde68a)",
     solid: "var(--status-pending-solid, #f59e0b)",
   },

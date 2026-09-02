@@ -1218,7 +1218,7 @@ function QcDiscoveryCard({
           state.pendingCount > 0 ? (
             <span
               data-reviewer-queue-qc-count={state.pendingCount}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--status-pending-fg, #78350f)", fontWeight: 600 }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--status-pending-fg, #EA580C)", fontWeight: 600 }}
             >
               <span
                 aria-hidden="true"

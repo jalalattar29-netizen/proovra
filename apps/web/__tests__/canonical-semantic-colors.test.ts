@@ -10,7 +10,15 @@
  *
  * The tone vocabulary is the authority. `AppStatusText` maps it:
  *
- *   orange -> --orange-ink       red   -> --error
+ *   orange -> --orange-500      red   -> --error
+ * REPOINTED 2026-09-02. The tone vocabulary is unchanged; the VALUE behind
+ * `orange` moved from `--orange-ink` (#C2410C) to `--orange-500` (#EA580C).
+ * #C2410C read burnt on screen and did not match the one place the product
+ * already had this right: the Notifications severity card "High / Important,
+ * not urgent.", which paints `--orange-500`. That card is the declared
+ * authority and is pinned in
+ * `e2e/attention-layout/notifications-reference-orange.spec.ts`.
+ *
  *   blue   -> --info             green -> --success-standard
  *   ink    -> --ink-primary
  *
@@ -50,11 +58,15 @@ const stripTs = (s: string) =>
 
 test("the tone vocabulary resolves to the canonical tokens", () => {
   const css = stripCss(PRIMITIVES);
-  assert.match(css, /\.app-status-text\[data-tone="orange"\][^}]*var\(--orange-ink\)/);
+  assert.match(css, /\.app-status-text\[data-tone="orange"\][^}]*var\(--orange-500\)/);
   assert.match(css, /\.app-status-text\[data-tone="red"\][^}]*var\(--error\)/);
   assert.match(css, /\.app-status-text\[data-tone="blue"\][^}]*var\(--info\)/);
   // …and those tokens have exactly one definition each.
+  // Both still exist. `--orange-ink` keeps its own job (the outline action's
+  // readable ink); it is simply no longer what "warning" resolves to.
   assert.match(TOKENS, /--orange-ink: #C2410C;/);
+  assert.match(TOKENS, /--orange-500: #EA580C;/);
+  assert.match(TOKENS, /--tone-orange: var\(--orange-500\);/);
   assert.match(TOKENS, /--error: #DC2626;/);
   assert.match(TOKENS, /--info: #2563EB;/);
   assert.match(TOKENS, /--success-standard: #15803D;/);
@@ -62,7 +74,7 @@ test("the tone vocabulary resolves to the canonical tokens", () => {
 });
 
 test("Operations High is the orange reference, and Overdue is informational", () => {
-  // The reference the brief names: High -> tone orange -> --orange-ink.
+  // The reference the brief names: High -> tone orange -> --orange-500.
   assert.match(OPS_VOCAB, /HIGH: "orange"/);
   assert.match(OPS_VOCAB, /CRITICAL: "red"/);
   // Overdue is a timing fact, not a failure — changed in the ONE table so the
@@ -102,17 +114,17 @@ test("no surface mixes its own hue for a state the vocabulary names", () => {
 
 test("Home reads the tokens, not its own palette", () => {
   const t = stripTs(HOME_THEME);
-  assert.match(t, /warn: "var\(--orange-ink, #C2410C\)"/);
+  assert.match(t, /warn: "var\(--orange-500, #EA580C\)"/);
   assert.match(t, /danger: "var\(--error, #DC2626\)"/);
   assert.match(t, /ok: "var\(--success-standard, #15803D\)"/);
   assert.match(t, /action: "var\(--info, #2563EB\)"/);
   // The Operations-tab semantic table too.
-  assert.match(t, /amber: \{\s*strong: "var\(--orange-ink, #C2410C\)"/);
+  assert.match(t, /amber: \{\s*strong: "var\(--orange-500, #EA580C\)"/);
   assert.match(t, /critical: \{\s*strong: "var\(--error, #DC2626\)"/);
   assert.match(t, /info: \{[\s\S]{0,120}strong: "var\(--info, #2563EB\)"/);
 
   const css = stripCss(HOME_CSS);
-  assert.match(css, /--home-warn: var\(--orange-ink/);
+  assert.match(css, /--home-warn: var\(--orange-500/);
   assert.match(css, /--home-bad: var\(--error/);
   assert.match(css, /--home-action: var\(--info/);
   assert.match(css, /--home-ok: var\(--success-standard/);
@@ -217,17 +229,17 @@ test("the Home switcher is the Cases strip, value for value", () => {
 
 test("Settings semantics resolve to the same tokens", () => {
   const css = stripCss(SETTINGS_CSS);
-  assert.match(css, /--set-warn: var\(--orange-ink/);
+  assert.match(css, /--set-warn: var\(--orange-500/);
   assert.match(css, /--set-danger: var\(--error/);
   assert.match(css, /--set-ok: var\(--success-standard/);
 });
 
 test("the sign-out confirmation uses the canonical orange", () => {
-  assert.match(CONFIRM, /bg: "var\(--orange-ink, #C2410C\)"/);
+  assert.match(CONFIRM, /bg: "var\(--orange-500, #EA580C\)"/);
   assert.doesNotMatch(stripTs(CONFIRM), /#B45309|#B86B16/);
   assert.match(
     stripCss(PRIMITIVES),
-    /\[data-confirm-action-tone="warning"\]:hover:not\(:disabled\) \{[\s\S]{0,140}var\(--orange-ink/,
+    /\[data-confirm-action-tone="warning"\]:hover:not\(:disabled\) \{[\s\S]{0,140}var\(--orange-500/,
   );
 });
 
