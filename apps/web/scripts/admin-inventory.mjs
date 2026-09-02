@@ -109,19 +109,67 @@ function readApiRoutes() {
       const path = m[2];
 
       // ---- The authority the handler actually runs --------------------
+      //
+      // The FULL set, not just the two preHandler helpers.
+      //
+      // An earlier version knew about requirePlatformAdmin,
+      // requirePlatformOpsActor, authorizeOrFail and evaluateMemberAccess,
+      // and classified everything else with a `requireAuth` preHandler as
+      // AUTH_ONLY. That reported 21 admin MUTATIONS as authenticated-only —
+      // including POST /v1/admin/identity/emergency-revoke, described in its
+      // own comment as "the single hardest action in the platform".
+      //
+      // It is not authenticated-only. Its preHandler is requireAuth, and then
+      // the BODY calls requireIdentityAdmin(...) with an explicit capability
+      // and requireStepUpForSensitiveAction(...). The authorization is real;
+      // the reader was short-sighted, and it was about to publish twenty-one
+      // phantom security findings.
+      //
+      // These names are taken from the routes themselves, by frequency, so
+      // the list describes the codebase rather than one author's memory.
       const authority = [];
-      if (/requirePlatformAdmin/.test(body)) authority.push("PLATFORM_ADMIN");
-      if (/requirePlatformOpsActor/.test(body)) authority.push("PLATFORM_OPS_ACTOR");
+      const CAPABILITY_CALLS = [
+        ["requirePlatformAdmin", "PLATFORM_ADMIN"],
+        ["requirePlatformOpsActor", "PLATFORM_OPS_ACTOR"],
+        ["requireIdentityAdmin", "IDENTITY_ADMIN"],
+        ["requireIdentityActor", "IDENTITY_ACTOR"],
+        ["requireReviewerActor", "REVIEWER_ACTOR"],
+        ["requireReviewerCapable", "REVIEWER_CAPABLE"],
+        ["requireReviewerMember", "REVIEWER_MEMBER"],
+        ["requireWorkflowActor", "WORKFLOW_ACTOR"],
+        ["requireDelegatedTierAny", "DELEGATED_TIER"],
+        ["requireDelegatedTier", "DELEGATED_TIER"],
+        ["requireOpsCapability", "OPS_CAPABILITY"],
+        ["requireOpsActor", "OPS_ACTOR"],
+        ["requireTeamCapability", "TEAM_CAPABILITY"],
+        ["requireWorkspaceMembership", "WORKSPACE_MEMBER"],
+        ["requireCaseAccess", "CASE_ACCESS"],
+        ["requireApiScope", "API_SCOPE"],
+        ["requireApiKey", "API_KEY"],
+        ["requireCap", "CAPABILITY"],
+        ["requireMember", "MEMBER"],
+      ];
+      for (const [fn, label] of CAPABILITY_CALLS) {
+        if (body.includes(fn + "(") || body.includes(fn + " (")) {
+          authority.push(label);
+        }
+      }
       if (/authorizeOrFail/.test(body)) {
-        const p = /permission:\s*["']([^"']+)["']/.exec(body);
+        const p = /permission:s*["']([^"']+)["']/.exec(body);
         authority.push(`AUTHORIZE(${p ? p[1] : "?"})`);
       }
       if (/evaluateMemberAccess/.test(body)) {
-        const p = /permission:\s*["']([^"']+)["']/.exec(body);
+        const p = /permission:s*["']([^"']+)["']/.exec(body);
         authority.push(`MEMBER(${p ? p[1] : "?"})`);
       }
-      if (authority.length === 0 && /requireAuth/.test(body)) authority.push("AUTH_ONLY");
+      // Step-up is not an authority on its own — it re-proves WHO, not WHAT
+      // they may do — but a mutation that demands it is worth marking.
+      const stepUp = /requireStepUpForSensitiveAction/.test(body);
+      if (authority.length === 0 && /requireAuth/.test(body)) {
+        authority.push("AUTH_ONLY");
+      }
       if (authority.length === 0) authority.push("NONE_FOUND");
+      if (stepUp) authority.push("+STEP_UP");
 
       // ---- What teamId DOES in this handler ---------------------------
       //
@@ -189,7 +237,60 @@ function readApiRoutes() {
  * quote — so one cannot look the other up without a shared normalisation.
  * Eight methods stayed unresolved for exactly that reason.
  */
-function normalisePath(literal) {
+/**
+ * Every /v1 string literal in a chunk of source, read WHOLE.
+ *
+ * Shared by the page scan and the call-site method scan. They previously had
+ * separate extractors that truncated template literals at different
+ * characters — one at "(", one at ")" — so a literal found by one could not
+ * be looked up by the other, and eleven distinct endpoints were collapsing
+ * into a handful of shared prefixes.
+ */
+function v1LiteralsIn(code) {
+  const found = new Set();
+  const OPEN = new Set([
+    String.fromCharCode(34),
+    String.fromCharCode(39),
+    String.fromCharCode(96),
+  ]);
+  for (let i = 0; i < code.length; i += 1) {
+    if (!OPEN.has(code[i])) continue;
+    const quote = code[i];
+    let j = i + 1;
+    let depth = 0;
+    while (j < code.length) {
+      const ch = code[j];
+      if (ch === String.fromCharCode(92)) { j += 2; continue; }
+      if (quote === String.fromCharCode(96)) {
+        if (ch === String.fromCharCode(36) && code[j + 1] === '{') { depth += 1; j += 2; continue; }
+        if (ch === '}' && depth > 0) { depth -= 1; j += 1; continue; }
+      }
+      if (ch === quote && depth === 0) break;
+      if (ch === String.fromCharCode(10) && quote !== String.fromCharCode(96)) break;
+      j += 1;
+    }
+    const body = code.slice(i + 1, j);
+    const at = body.indexOf('/v1/');
+    if (at === 0) found.add(body);
+    i = j;
+  }
+  return [...found].filter((p) => p.length > 4);
+}
+
+function normalisePath(rawLiteral) {
+  let literal = rawLiteral;
+  // A trailing interpolation that builds a QUERY STRING is not a path
+  // segment.
+  //
+  //     `/v1/support-access/grants${qs ? `?${qs}` : ""}`
+  //
+  // collapsed to "/v1/support-access/grants:x", which matches no
+  // registration — so four endpoints were reported with an unresolved
+  // authority when they are ordinary registered GETs. Anything from the
+  // first query-building interpolation onwards is dropped.
+  const qs = literal.search(/\$\{[^{}]*\?/);
+  if (qs > -1) literal = literal.slice(0, qs);
+
   return literal
     .replace(/\$\{[^}]*\}/g, ":x")
     .replace(/\$\{.*$/, ":x")
@@ -297,11 +398,25 @@ function inspectPage(file, apiRoutes) {
   const raw = readFileSync(file, "utf8");
   const code = codeOf(file);
 
-  const apiLiterals = [
-    ...new Set(
-      [...code.matchAll(/["'`](\/v1\/[A-Za-z0-9/_:${}.[\]?&=-]*)/g)].map((m) => m[1]),
-    ),
-  ].filter((p) => p.length > 4);
+  /**
+   * Read the WHOLE string, not a character class.
+   *
+   * The previous pattern was `[\"'`](/v1/[A-Za-z0-9/_:${}.[]?&=-]*)`, whose
+   * class excludes "(" — so
+   *
+   *     `/v1/admin/orgs/${encodeURIComponent(org.id)}/suspend`
+   *
+   * came out as "/v1/admin/orgs/${encodeURIComponent": truncated BEFORE the
+   * segment that identifies the endpoint. Seven mutations then matched no
+   * registration and were reported with an unresolved authority — including a
+   * suspend and a plan change, which are exactly the ones a contract matrix
+   * exists to account for.
+   *
+   * Scanning to the closing delimiter keeps the trailing segments. What is
+   * inside an interpolation still does not matter — normalisePath collapses
+   * it to a wildcard — but what comes AFTER one always did.
+   */
+  const apiLiterals = v1LiteralsIn(code);
 
   /**
    * The METHOD the page actually asks for, read from the call site.
@@ -316,26 +431,17 @@ function inspectPage(file, apiRoutes) {
    * the platform, not a guess, so it is recorded as GET rather than blank.
    */
   const methodAt = new Map();
-  const STOP = new Set([
-    String.fromCharCode(34),
-    String.fromCharCode(39),
-    String.fromCharCode(96),
-    String.fromCharCode(32),
-    String.fromCharCode(44),
-    String.fromCharCode(41),
-    String.fromCharCode(10),
-  ]);
   let from = 0;
   for (;;) {
     const call = code.indexOf("apiFetch(", from);
     if (call < 0) break;
     from = call + 9;
-    const body = code.slice(call, call + 600);
-    const at = body.indexOf("/v1/");
-    if (at < 0) continue;
-    let end = at;
-    while (end < body.length && !STOP.has(body[end])) end += 1;
-    const url = body.slice(at, end);
+    const body = code.slice(call, call + 800);
+    // The SAME extractor the page scan uses. Two scanners with two different
+    // stop conditions produced two spellings of one URL, so the lookup below
+    // missed and the method came back unknown.
+    const urls = v1LiteralsIn(body);
+    if (urls.length === 0) continue;
     const verbAt = body.indexOf("method:");
     let verb = "GET";
     if (verbAt > -1) {
@@ -343,18 +449,7 @@ function inspectPage(file, apiRoutes) {
       const word = tail.replace(/[^A-Za-z]+/g, " ").trim().split(" ")[0];
       if (word) verb = word.toUpperCase();
     }
-    // Keyed by the same normalisation matchRoute uses.
-    //
-    // The scanner stops at a quote or bracket and so captures
-    // "/v1/admin/orgs/${encodeURIComponent(org.id)}/suspend", while the
-    // literal extractor's character class stops at the "(" and captures
-    // "/v1/admin/orgs/${encodeURIComponent". Two different strings for one
-    // call, so the lookup missed and eight methods stayed unresolved.
-    //
-    // A SET, because one page legitimately calls one path with several
-    // verbs — a GET to read an organization and a POST to suspend it. The
-    // last-write-wins map was quietly discarding one of them.
-    const key = normalisePath(url);
+    const key = normalisePath(urls[0]);
     if (!methodAt.has(key)) methodAt.set(key, new Set());
     methodAt.get(key).add(verb);
   }

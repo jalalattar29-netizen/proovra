@@ -121,10 +121,22 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
   },
   {
     route: "/admin/support-access",
-    observed: "WORKSPACE_CANDIDATE",
+    // WORKSPACE_FILTERED, upgraded from WORKSPACE_CANDIDATE.
+    //
+    // The conclusion did not change; the EVIDENCE did. The tracer used to lose
+    // two of this page's endpoints — their URLs are built as
+    // `/v1/support-access/grants${qs ? `?${qs}` : ""}`, and the extractor
+    // truncated the template — so it could only report teamId as a filter
+    // CANDIDATE. With the query-building interpolation handled it resolves
+    // them, sees the narrowing, and reports a proven filter.
+    //
+    // The guard flagged the difference rather than letting a recorded
+    // judgement drift silently away from what the tree says, which is what it
+    // is for.
+    observed: "WORKSPACE_FILTERED",
     decision: "WORKSPACE_SURFACE_LABELLED",
     why:
-      "CORRECTED. /v1/support-access/enter authorizes on `permission: identity.org_policy.manage` for the supplied body.teamId — a workspace permission, not a platform one. The grant is scoped to the workspace named in the request.",
+      "CORRECTED. /v1/support-access/enter authorizes on `permission: identity.org_policy.manage` for the supplied body.teamId — a workspace permission, not a platform one. The grant is scoped to the workspace named in the request, and the grant listings narrow by the same teamId.",
   },
   {
     route: "/admin/provisioning",
@@ -163,10 +175,19 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
   },
   {
     route: "/admin/identity/access-reviews",
-    observed: "WORKSPACE_CANDIDATE",
+    // WORKSPACE_FILTERED, upgraded from WORKSPACE_CANDIDATE.
+    //
+    // The old note said the inventory could only report a CANDIDATE "because
+    // the narrowing happens inside the service". That was half right: the
+    // narrowing does happen there, but the reason the tracer could not see it
+    // was that this page's list URL is built as
+    // `/v1/identity/access-reviews${qs.toString() ? `?${qs}` : ""}` and the
+    // extractor truncated the template, so the endpoint matched no
+    // registration at all. With that fixed the filter is proven.
+    observed: "WORKSPACE_FILTERED",
     decision: "WORKSPACE_SURFACE_LABELLED",
     why:
-      "Access-review campaigns belong to a workspace. The inventory reports a CANDIDATE rather than a proven filter because the narrowing happens inside the service; the family's shared guard, requireIdentityAdmin, settles it by demanding membership of the supplied workspace.",
+      "Access-review campaigns belong to a workspace, and the listing now resolves to a registration whose handler narrows by the supplied teamId. The family's shared guard, requireIdentityAdmin, demands ACTIVE membership of that same workspace, so the label and the authority agree.",
   },
   {
     route: "/admin/identity/permission-matrix",

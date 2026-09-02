@@ -433,7 +433,13 @@ const btnLayout: CSSProperties = {
 // Contained buttons — compact.
 const btnBase: CSSProperties = {
   ...btnLayout,
-  height: 42,
+  // 44, not 42.
+  //
+  // Measured on every one of 282 checks in the anonymous role pass: this is
+  // the recovery button on the access-denied and not-found states, and for a
+  // reader who has just been refused it is frequently the ONLY control on the
+  // page. Two pixels under the floor on the one thing left to press.
+  height: 44,
   padding: "0 18px",
   fontSize: "0.875rem",
 };

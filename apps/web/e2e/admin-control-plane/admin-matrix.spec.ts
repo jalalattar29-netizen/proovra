@@ -86,7 +86,27 @@ export const VIEWPORTS = [
   { id: "zoom200", width: 720, height: 450, scale: 2 },
 ] as const;
 
+/**
+ * Read ONCE, at module load, and cached.
+ *
+ * This shelled out to admin-inventory.mjs inside the per-route loop, so every
+ * one of 71 tests re-read it — and a run died halfway through because the
+ * inventory was being edited while the matrix was reading it. A verification
+ * pass that depends on a live re-read of a tool under active development will
+ * fail for reasons that have nothing to do with the pages it is verifying.
+ *
+ * Cached, the run uses one consistent route list from start to finish, which
+ * is also the only way its results are comparable across tests.
+ */
+let ROUTE_CACHE: string[] | null = null;
+
 function routes(): string[] {
+  if (ROUTE_CACHE) return ROUTE_CACHE;
+  ROUTE_CACHE = readRoutes();
+  return ROUTE_CACHE;
+}
+
+function readRoutes(): string[] {
   const override = process.env.PROOVRA_MATRIX_ROUTES;
   if (override) return override.split(",").map((s) => s.trim()).filter(Boolean);
 
