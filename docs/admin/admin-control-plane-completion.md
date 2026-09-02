@@ -319,7 +319,7 @@
 | `/admin/identity/access-reviews` | 498 | 4c/1t/1s | HARDCODED_STATUS_HEX |
 | `/admin/identity/permission-matrix` | 733 | 6c/1t/5s | HARDCODED_STATUS_HEX |
 | `/admin/identity/providers` | 949 | 9c/1t/3s | HARDCODED_STATUS_HEX |
-| `/admin/identity/runtime` | 562 | 1c/2t/3s | HARDCODED_STATUS_HEX |
+| `/admin/identity/runtime` | 638 | 1c/2t/3s | HARDCODED_STATUS_HEX |
 | `/admin/identity/scim` | 1247 | 7c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 259 | 0c/1t/1s |  |

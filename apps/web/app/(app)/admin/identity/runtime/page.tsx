@@ -24,6 +24,7 @@ import {
   formatDateTime,
   mutedStyle,
 } from "../ui-tokens";
+import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
@@ -85,10 +86,54 @@ type ReconcileResult = {
   ranAt: string;
 };
 
+/**
+ * The session query, built in one place.
+ *
+ * A uuid is the only thing the API accepts for userId, so a partial string is
+ * NOT sent — sending it would return everything and look like the filter had
+ * simply found nothing, which is the most misleading possible outcome for a
+ * search box.
+ */
+function sessionQuery(
+  teamId: string,
+  userId: string,
+  includeRevoked: boolean,
+  includeExpired: boolean,
+): string {
+  const p = new URLSearchParams();
+  p.set("teamId", teamId);
+  p.set("limit", "500");
+  p.set("includeRevoked", String(includeRevoked));
+  p.set("includeExpired", String(includeExpired));
+  const trimmed = userId.trim();
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)
+  ) {
+    p.set("userId", trimmed);
+  }
+  return p.toString();
+}
+
 export default function IdentityRuntimePage() {
   const teamId = useTeamId();
   const { stamp, isStale } = useTenantGuard();
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  /**
+   * Filters the API has always accepted and this page never offered.
+   *
+   * GET /v1/admin/identity/sessions takes userId, includeRevoked and
+   * includeExpired. The page hard-coded includeRevoked=true and limit=500 and
+   * exposed nothing, so a workspace with more than 500 sessions showed an
+   * arbitrary 500 and an operator looking for one person's sessions had to
+   * read the whole table.
+   *
+   * These are server-side: they go into the request, so narrowing changes what
+   * the API returns rather than what the browser draws. A filter that only
+   * hides rows already fetched would still be capped at the same 500.
+   */
+  const [userFilter, setUserFilter] = useState("");
+  const [includeRevoked, setIncludeRevoked] = useState(true);
+  const [includeExpired, setIncludeExpired] = useState(false);
   const [quarantined, setQuarantined] = useState<QuarantineRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -101,7 +146,7 @@ const load = useCallback(() => {
     if (!teamId) return;
     Promise.all([
       apiFetch(
-        `/v1/admin/identity/sessions?teamId=${encodeURIComponent(teamId)}&includeRevoked=true&limit=500`,
+        `/v1/admin/identity/sessions?${sessionQuery(teamId, userFilter, includeRevoked, includeExpired)}`,
         { method: "GET" },
       ).catch(() => ({ sessions: [] })),
       apiFetch(
@@ -115,7 +160,7 @@ const load = useCallback(() => {
         setError(null);
       },
     );
-  }, [teamId]);
+  }, [teamId, userFilter, includeRevoked, includeExpired]);
 
   useEffect(() => {
     load();
@@ -520,6 +565,35 @@ const load = useCallback(() => {
       </PageSection>
 
       <PageSection title="Active sessions">
+        {/* Server-side. Every control here goes into the request, so the
+            500-row cap applies to the NARROWED set rather than to an
+            arbitrary first page that is then filtered in the browser. */}
+        <FilterBar style={{ marginBottom: 12 }}>
+          <FilterBar.Search
+            label="User ID"
+            placeholder="Full user UUID"
+            value={userFilter}
+            onChange={setUserFilter}
+          />
+          <FilterBar.Select
+            label="Revoked"
+            value={includeRevoked ? "include" : "exclude"}
+            onChange={(v) => setIncludeRevoked(v === "include")}
+            options={[
+              { value: "include", label: "Include revoked" },
+              { value: "exclude", label: "Active only" },
+            ]}
+          />
+          <FilterBar.Select
+            label="Expired"
+            value={includeExpired ? "include" : "exclude"}
+            onChange={(v) => setIncludeExpired(v === "include")}
+            options={[
+              { value: "exclude", label: "Hide expired" },
+              { value: "include", label: "Include expired" },
+            ]}
+          />
+        </FilterBar>
         <DataTable
           columns={sessionColumns}
           rows={sessions === null ? [] : activeSessions.slice(0, 200)}
@@ -528,8 +602,10 @@ const load = useCallback(() => {
           ariaLabel="Active sessions"
           emptyState={
             <EmptyState
-              title="No active sessions"
-              purpose="Live sessions across this workspace appear here for re-scoring and quarantine."
+              title={userFilter.trim() !== "" || !includeRevoked || includeExpired ? "No sessions match these filters" : "No active sessions"}
+              purpose={userFilter.trim() !== "" || !includeRevoked || includeExpired
+                ? "No session matches the current user, revoked or expired filters. Clearing them shows every live session in this workspace."
+                : "Live sessions across this workspace appear here for re-scoring and quarantine."}
             />
           }
           rowActions={(s) => (
