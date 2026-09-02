@@ -84,7 +84,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 308,
+    "AuditFilesInventoried": 311,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -168,7 +168,7 @@
     "HISTORICAL_REPORT": 22,
     "HISTORICAL_PROOF": 17,
     "DOMAIN_REPORT_TEMPLATE": 1,
-    "DOMAIN_AUTHORITY": 42,
+    "DOMAIN_AUTHORITY": 45,
     "CANONICAL_ENGINE_COMPONENT": 11,
     "CANONICAL_ORCHESTRATOR": 1,
     "DEPRECATED_DELEGATE": 1,
@@ -1531,6 +1531,58 @@
       ],
       "importedBy": [],
       "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/evidence.json",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Curated architecture artifact for a single domain, consumed rather than re-derived.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/generate.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [
+        "apps/web/scripts/admin-inventory.mjs",
+        "apps/web/scripts/admin-composition-audit.mjs"
+      ],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/local-fixture-env/verify-no-external-network.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [
+        "scripts/local-fixture-env/index.mjs"
+      ],
+      "importedBy": [],
+      "spawns": [
+        "services/api/scripts/dev-admin-fixture-api.mjs"
+      ],
       "readsArtifacts": [],
       "writesArtifacts": [],
       "declaresArtifacts": [],

@@ -22,7 +22,7 @@
  * a function that returns 1 proves nothing about what the process does with it.
  */
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -577,15 +577,55 @@ describe("Phase 0 §6 — the one current report is generated, not written", () 
 });
 
 describe("Phase 0 §5 — engine integrity and product closure are separate exit codes", () => {
-  const run = (...args: string[]) =>
-    spawnSync(process.execPath, [ORCHESTRATOR, ...args], {
-      encoding: "utf8",
+  /**
+   * ASYNC, and that is the point.
+   *
+   * This helper used to be `spawnSync`. The orchestrator walks the whole
+   * repository and takes ~36s, and `spawnSync` blocks the vitest WORKER
+   * thread for all of it. The worker cannot then answer the main process's
+   * `onTaskUpdate` RPC, birpc's timeout is a FIXED 60s and not configurable,
+   * and vitest reports
+   *
+   *     [vitest-worker]: Timeout calling "onTaskUpdate"
+   *
+   * as an unhandled error. The run then exits 1 with every single test
+   * passing — 23,867 passed, 0 failed, exit 1 — which is the worst signal a
+   * suite can produce, because the obvious reading ("something failed") is
+   * false and the true reading ("the harness starved") is invisible.
+   *
+   * vitest.config.ts already caps workers for this reason. The cap reduces the
+   * contention; it cannot remove it, because one blocked worker is enough. An
+   * awaited child keeps the event loop free, so the heartbeat gets through no
+   * matter how long the child takes.
+   *
+   * The shape of the result is kept identical to spawnSync's so the assertions
+   * below — including "assert the child RAN before asserting what it said" —
+   * did not have to change.
+   */
+  const run = async (...args: string[]) => {
+    const child = spawn(process.execPath, [ORCHESTRATOR, ...args], {
       cwd: REPO,
       timeout: 600_000,
     });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (d) => (stdout += String(d)));
+    child.stderr?.on("data", (d) => (stderr += String(d)));
+    return await new Promise<{
+      status: number | null;
+      stdout: string;
+      stderr: string;
+      error?: Error;
+    }>((resolve) => {
+      child.on("error", (error) =>
+        resolve({ status: null, stdout, stderr, error }),
+      );
+      child.on("close", (status) => resolve({ status, stdout, stderr }));
+    });
+  };
 
-  it("--engine-check exits 0 while product work is open", () => {
-    const r = run("--engine-check");
+  it("--engine-check exits 0 while product work is open", async () => {
+    const r = await run("--engine-check");
     // Assert the child RAN before asserting what it said: a spawn that never
     // started also produces a non-zero status, and reading that as "the gate
     // failed" is a different fact entirely.
@@ -610,8 +650,8 @@ describe("Phase 0 §5 — engine integrity and product closure are separate exit
    * The exit code now follows RELEASE-BLOCKING problems only. The backlog is
    * still printed, still counted, and still earns no credit.
    */
-  it("--closure-check reports all three dimensions separately", () => {
-    const r = run("--closure-check");
+  it("--closure-check reports all three dimensions separately", async () => {
+    const r = await run("--closure-check");
     expect(r.error, `orchestrator did not run: ${r.error?.message}`).toBeUndefined();
     const out = `${r.stdout}${r.stderr}`;
     for (const dimension of [
@@ -625,8 +665,8 @@ describe("Phase 0 §5 — engine integrity and product closure are separate exit
     expect(out).toContain("ExternalClosure = NOT RUN");
   }, 600_000);
 
-  it("--closure-check exit code follows RELEASE-BLOCKING findings, not the backlog", () => {
-    const r = run("--closure-check");
+  it("--closure-check exit code follows RELEASE-BLOCKING findings, not the backlog", async () => {
+    const r = await run("--closure-check");
     expect(r.error, `orchestrator did not run: ${r.error?.message}`).toBeUndefined();
     const facts = readJson(registry.CANONICAL.currentFacts.path);
     const open = facts.findingsLedgerRef.openIds as string[];

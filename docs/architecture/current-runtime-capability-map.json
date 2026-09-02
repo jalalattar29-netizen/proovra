@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "5003d35a2b7aa26e8ee866f1ba6307e7fbd62b6490076602eebb80dede0fb23a",
-  "consumerInventoryHash": "ae2b60e28d60c4f6e9ef7d25a4e314159e1c05cf3c9dce0fdb938098ada368d5",
+  "consumerInventoryHash": "935e9a7b0223cad00fb0b8ae40d4ef4267d7cc874bf859e1c0e14b1399372a23",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1123,
@@ -4467,7 +4467,7 @@
       "method": "GET",
       "route": "/v1/operations/custody-attestations",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:234",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:235",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4575,7 +4575,7 @@
       "method": "GET",
       "route": "/v1/operations/readiness",
       "registeringFile": "services/api/src/routes/operations-readiness.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/readiness/page.tsx:166",
+      "productConsumer": "apps/web/app/(app)/admin/platform/readiness/page.tsx:175",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4623,7 +4623,7 @@
       "method": "GET",
       "route": "/v1/operations/signers",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:231",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:232",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4635,7 +4635,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:540",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:577",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4647,7 +4647,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id/audit",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:550",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:587",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4659,7 +4659,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id/health",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:563",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:600",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5451,7 +5451,7 @@
       "method": "GET",
       "route": "/v1/reports/artifacts",
       "registeringFile": "services/api/src/routes/case-workspace.routes.ts",
-      "productConsumer": "apps/web/components/reports-experience/ReportsIndex.tsx:253",
+      "productConsumer": "apps/web/components/reports-experience/ReportsIndex.tsx:254",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11343,7 +11343,7 @@
       "method": "POST",
       "route": "/v1/operations/custody-attestations/:id/verify",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:262",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:263",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11355,7 +11355,7 @@
       "method": "POST",
       "route": "/v1/operations/custody-attestations/backfill",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:291",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:292",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11439,7 +11439,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/preview",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:580",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:617",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11451,7 +11451,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/promote",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:605",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:642",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11463,7 +11463,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/retire",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:605",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:642",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11475,7 +11475,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/revoke",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:605",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:642",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -18585,8 +18585,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4102",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4102",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4118",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4118",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18618,8 +18618,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4250",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4250",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4266",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4266",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -18658,8 +18658,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@4107",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4107",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@4123",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4123",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18691,8 +18691,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@4120",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4120",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@4136",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4136",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18724,8 +18724,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@4255",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4255",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@4271",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4271",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -18764,8 +18764,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1279",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1279",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1295",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1295",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18799,8 +18799,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1312",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1312",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1328",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1328",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18834,8 +18834,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1335",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1335",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1351",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1351",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -18869,8 +18869,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4125",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4125",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4141",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4141",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -18902,8 +18902,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4276",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4276",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4292",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4292",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -19140,8 +19140,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organization-domains.routes.ts#organizationDomain.create@124",
-      "terminalLocation": "services/api/src/routes/organization-domains.routes.ts:124",
+      "writerId": "services/api/src/routes/organization-domains.routes.ts#organizationDomain.create@128",
+      "terminalLocation": "services/api/src/routes/organization-domains.routes.ts:128",
       "file": "services/api/src/routes/organization-domains.routes.ts",
       "enclosingDeclaration": "organizationDomainsRoutes",
       "kind": "DATABASE",
@@ -19173,8 +19173,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organization-domains.routes.ts#organizationDomain.delete@370",
-      "terminalLocation": "services/api/src/routes/organization-domains.routes.ts:370",
+      "writerId": "services/api/src/routes/organization-domains.routes.ts#organizationDomain.delete@374",
+      "terminalLocation": "services/api/src/routes/organization-domains.routes.ts:374",
       "file": "services/api/src/routes/organization-domains.routes.ts",
       "enclosingDeclaration": "organizationDomainsRoutes",
       "kind": "DATABASE",
@@ -19206,8 +19206,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organization-domains.routes.ts#organizationDomain.update@238",
-      "terminalLocation": "services/api/src/routes/organization-domains.routes.ts:238",
+      "writerId": "services/api/src/routes/organization-domains.routes.ts#organizationDomain.update@242",
+      "terminalLocation": "services/api/src/routes/organization-domains.routes.ts:242",
       "file": "services/api/src/routes/organization-domains.routes.ts",
       "enclosingDeclaration": "organizationDomainsRoutes",
       "kind": "DATABASE",
@@ -79168,7 +79168,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:orgId/domains/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organization-domains.routes.ts:322",
+      "registrationEvidence": "services/api/src/routes/organization-domains.routes.ts:326",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -90047,7 +90047,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 829,
+          "line": 830,
           "caller": "triggerReport",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90424,7 +90424,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 865,
+          "line": 866,
           "caller": "triggerPackage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -99116,7 +99116,7 @@
       "method": "GET",
       "path": "/v1/me/inbox",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3245",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3261",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -99237,7 +99237,7 @@
       "method": "GET",
       "path": "/v1/me/inbox/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3917",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3933",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -99696,7 +99696,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 234,
+          "line": 235,
           "caller": "OperationsSignersContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -99706,7 +99706,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:234 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:235 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100232,7 +100232,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/readiness/page.tsx",
-          "line": 166,
+          "line": 175,
           "caller": "OperationsReadinessContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100242,7 +100242,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/readiness/page.tsx:166 (OperationsReadinessContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/readiness/page.tsx:175 (OperationsReadinessContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100460,7 +100460,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 231,
+          "line": 232,
           "caller": "OperationsSignersContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100470,7 +100470,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:231 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:232 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100519,7 +100519,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 540,
+          "line": 577,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100529,7 +100529,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:540 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:577 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100578,7 +100578,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 550,
+          "line": 587,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100588,7 +100588,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:550 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:587 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100637,7 +100637,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 563,
+          "line": 600,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100647,7 +100647,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:563 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:600 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -102716,7 +102716,7 @@
       "method": "GET",
       "path": "/v1/orgs/:orgId/domains",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organization-domains.routes.ts:266",
+      "registrationEvidence": "services/api/src/routes/organization-domains.routes.ts:270",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -104833,7 +104833,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 152,
+          "line": 153,
           "caller": "tryUserScopedReports",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -104843,7 +104843,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:139 (useHomeData, WEB); apps/web/components/reports-experience/ReportsIndex.tsx:152 (tryUserScopedReports, WEB)",
+      "dispositionEvidence": "apps/web/components/home-experience/useHomeData.ts:139 (useHomeData, WEB); apps/web/components/reports-experience/ReportsIndex.tsx:153 (tryUserScopedReports, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -104896,7 +104896,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 253,
+          "line": 254,
           "caller": "ReportsIndex",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -104904,7 +104904,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 304,
+          "line": 305,
           "caller": "ReportsIndex",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -104914,7 +104914,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/reports-experience/ReportsIndex.tsx:253 (ReportsIndex, WEB); apps/web/components/reports-experience/ReportsIndex.tsx:304 (ReportsIndex, WEB)",
+      "dispositionEvidence": "apps/web/components/reports-experience/ReportsIndex.tsx:254 (ReportsIndex, WEB); apps/web/components/reports-experience/ReportsIndex.tsx:305 (ReportsIndex, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -122604,7 +122604,7 @@
         },
         {
           "file": "apps/web/components/home-experience/HomeSections.tsx",
-          "line": 312,
+          "line": 318,
           "caller": "retry",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -122614,7 +122614,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/communications/page.tsx:173 (retryNow, WEB); apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:70 (retry, WEB); apps/web/components/home-experience/HomeSections.tsx:312 (retry, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/communications/page.tsx:173 (retryNow, WEB); apps/web/app/(app)/intake-links/_components/DeliveryHistoryDrawer.tsx:70 (retry, WEB); apps/web/components/home-experience/HomeSections.tsx:318 (retry, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -125181,7 +125181,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 907,
+          "line": 908,
           "caller": "triggerRegenerate",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125191,7 +125191,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:80 (executeRegenerateReport, WEB); apps/web/components/reports-experience/ReportsIndex.tsx:907 (triggerRegenerate, WEB)",
+      "dispositionEvidence": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:80 (executeRegenerateReport, WEB); apps/web/components/reports-experience/ReportsIndex.tsx:908 (triggerRegenerate, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -136718,7 +136718,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4432",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4448",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136772,7 +136772,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4449",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4465",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136826,7 +136826,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4336",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4352",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136888,7 +136888,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/remind",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4434",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4450",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136942,7 +136942,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/snooze",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4451",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4467",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -136987,7 +136987,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4433",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4449",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -137041,7 +137041,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/undismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4450",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4466",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -137086,7 +137086,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unread",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4348",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4364",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -137140,7 +137140,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/mark-all-read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4047",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4063",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -137709,7 +137709,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 262,
+          "line": 263,
           "caller": "OperationsSignersContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137719,7 +137719,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:262 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:263 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -137769,7 +137769,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 291,
+          "line": 292,
           "caller": "OperationsSignersContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137779,7 +137779,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:291 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:292 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138201,7 +138201,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 580,
+          "line": 617,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138211,7 +138211,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:580 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:617 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138260,7 +138260,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 605,
+          "line": 642,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138270,7 +138270,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:605 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:642 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138324,7 +138324,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 605,
+          "line": 642,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138334,7 +138334,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:605 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:642 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138387,7 +138387,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 605,
+          "line": 642,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138397,7 +138397,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:605 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:642 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -141142,7 +141142,7 @@
       "method": "POST",
       "path": "/v1/orgs/:orgId/domains",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organization-domains.routes.ts:86",
+      "registrationEvidence": "services/api/src/routes/organization-domains.routes.ts:90",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -141223,7 +141223,7 @@
       "method": "POST",
       "path": "/v1/orgs/:orgId/domains/:id/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organization-domains.routes.ts:172",
+      "registrationEvidence": "services/api/src/routes/organization-domains.routes.ts:176",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
