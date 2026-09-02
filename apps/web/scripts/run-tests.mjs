@@ -23,7 +23,17 @@ function walk(dir) {
       files.push(...walk(fullPath));
       continue;
     }
-    if (extname(entry.name) === ".ts" && entry.name.endsWith(".test.ts")) {
+    // .test.mjs COUNTS TOO.
+    //
+    // This collected only .test.ts, so four .test.mjs files sat in __tests__
+    // passing when run by hand and never once running as a gate — including
+    // one added two sessions earlier that everybody, including its author,
+    // believed was protecting the KMS redaction.
+    //
+    // A test that is not collected is not a test. Widening the filter is the
+    // fix; renaming the files would have worked once and left the next .mjs
+    // test in exactly the same silent hole.
+    if (/\.test\.(ts|mjs)$/.test(entry.name)) {
       files.push(fullPath);
     }
   }

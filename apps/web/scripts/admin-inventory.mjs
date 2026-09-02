@@ -181,8 +181,32 @@ function readApiRoutes() {
 }
 
 /** Match a page's literal path (which may carry `${…}`) to a registration. */
+/**
+ * The path shape the literal extractor and the call-site scanner both agree on.
+ *
+ * They truncate template interpolations at different characters — one stops at
+ * the "(" inside `${encodeURIComponent(id)}`, the other runs to the closing
+ * quote — so one cannot look the other up without a shared normalisation.
+ * Eight methods stayed unresolved for exactly that reason.
+ */
+function normalisePath(literal) {
+  return literal
+    .replace(/\$\{[^}]*\}/g, ":x")
+    .replace(/\$\{.*$/, ":x")
+    .replace(/\?.*$/, "")
+    .replace(/\/+$/, "");
+}
+
 function matchRoute(apiRoutes, literal) {
-  const clean = literal.replace(/\$\{[^}]*\}/g, ":x").replace(/\?.*$/, "");
+  // Both COMPLETE and TRUNCATED interpolations become a wildcard.
+  //
+  // The literal extractor's character class stops at the "(" inside
+  // `${encodeURIComponent(id)}`, so what arrives here is often
+  // "/v1/admin/orgs/${encodeURIComponent" — with no closing brace. The
+  // original pattern required one, so fifteen dynamically-constructed URLs
+  // matched nothing and were reported with no method and no authority. They
+  // were never untraceable; they were mis-parsed.
+  const clean = normalisePath(literal);
   // Exact first.
   for (const [, r] of apiRoutes) if (r.path === clean) return r;
   // Then by pattern, treating `:param` as a wildcard on both sides.
@@ -279,9 +303,74 @@ function inspectPage(file, apiRoutes) {
     ),
   ].filter((p) => p.length > 4);
 
+  /**
+   * The METHOD the page actually asks for, read from the call site.
+   *
+   * A path can be registered for several verbs, so taking the method from
+   * the registration answers "what does the server accept" when the question
+   * is "what does this page send". Fifteen calls came back with an undefined
+   * method for that reason, and a contract matrix cannot classify an action
+   * whose verb it does not know.
+   *
+   * Absent an explicit method, fetch defaults to GET. That is a fact about
+   * the platform, not a guess, so it is recorded as GET rather than blank.
+   */
+  const methodAt = new Map();
+  const STOP = new Set([
+    String.fromCharCode(34),
+    String.fromCharCode(39),
+    String.fromCharCode(96),
+    String.fromCharCode(32),
+    String.fromCharCode(44),
+    String.fromCharCode(41),
+    String.fromCharCode(10),
+  ]);
+  let from = 0;
+  for (;;) {
+    const call = code.indexOf("apiFetch(", from);
+    if (call < 0) break;
+    from = call + 9;
+    const body = code.slice(call, call + 600);
+    const at = body.indexOf("/v1/");
+    if (at < 0) continue;
+    let end = at;
+    while (end < body.length && !STOP.has(body[end])) end += 1;
+    const url = body.slice(at, end);
+    const verbAt = body.indexOf("method:");
+    let verb = "GET";
+    if (verbAt > -1) {
+      const tail = body.slice(verbAt + 7, verbAt + 40);
+      const word = tail.replace(/[^A-Za-z]+/g, " ").trim().split(" ")[0];
+      if (word) verb = word.toUpperCase();
+    }
+    // Keyed by the same normalisation matchRoute uses.
+    //
+    // The scanner stops at a quote or bracket and so captures
+    // "/v1/admin/orgs/${encodeURIComponent(org.id)}/suspend", while the
+    // literal extractor's character class stops at the "(" and captures
+    // "/v1/admin/orgs/${encodeURIComponent". Two different strings for one
+    // call, so the lookup missed and eight methods stayed unresolved.
+    //
+    // A SET, because one page legitimately calls one path with several
+    // verbs — a GET to read an organization and a POST to suspend it. The
+    // last-write-wins map was quietly discarding one of them.
+    const key = normalisePath(url);
+    if (!methodAt.has(key)) methodAt.set(key, new Set());
+    methodAt.get(key).add(verb);
+  }
+
   const resolved = apiLiterals.map((lit) => {
     const r = matchRoute(apiRoutes, lit);
-    return { literal: lit, ...(r ?? { authority: ["UNRESOLVED"], teamRole: "?", file: null }) };
+    const verbs = methodAt.get(normalisePath(lit));
+    // Deterministic order so the generated matrix does not churn.
+    const callSite = verbs ? [...verbs].sort().join("+") : null;
+    return {
+      literal: lit,
+      ...(r ?? { authority: ["UNRESOLVED"], teamRole: "?", file: null }),
+      // The call site wins: it is what this page sends.
+      method: callSite ?? r?.method ?? null,
+      methodSource: callSite ? "call-site" : r?.method ? "registration" : "unresolved",
+    };
   });
 
   // The page's own purpose, from its PageHeader subtitle where it has one.
