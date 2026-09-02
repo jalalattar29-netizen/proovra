@@ -132,8 +132,10 @@ test("the seven KPI cards carry the mandated tones, in order", () => {
   assert.deepEqual(
     KPI_ORDER.map((k) => [k, KPI_VOCABULARY[k].label, KPI_VOCABULARY[k].tone]),
     [
-      ["total", "Total links", "slate"],
-      ["active", "Active", "indigo"],
+      // The headline count leads in the brand accent; ACTIVE is the one that
+      // can still take work and reads as attention, not as brand.
+      ["total", "Total links", "indigo"],
+      ["active", "Active", "orange"],
       ["submitted", "Submitted", "blue"],
       ["opened", "Opened", "green"],
       ["failedDelivery", "Failed delivery", "red"],

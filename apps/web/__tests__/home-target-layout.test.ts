@@ -230,15 +230,30 @@ test("the verification summary colours values, not whole rows", () => {
 // -------------------------------------------------------------- ANALYTICS
 
 test("the donut is a chart, not a thumbnail", () => {
-  // It was pinned to 128x128 — a 96px ring carrying five categories.
-  assert.match(CARDS, /className="home-donut"\n?\s*width="260"/);
+  /*
+   * It was pinned to 128x128 — a 96px ring carrying five categories — and then
+   * to a fixed 260px. It is neither now: the chart is `AnnotatedDonut`, whose
+   * viewBox is landscape (the labels are OUTSIDE the ring and are part of the
+   * picture) and whose rendered width follows the card.
+   *
+   * The property this case has always been about is that the ring is a real
+   * visualisation rather than an icon, so that is what is asserted — a
+   * responsive box with room for its annotations, not a magic pixel count.
+   */
+  const donut = read("components/home-experience/AnnotatedDonut.tsx");
+  assert.match(donut, /viewBox=\{`0 0 \$\{VIEW_W\} \$\{VIEW_H\}`\}/);
+  assert.match(donut, /width: "100%"/, "it follows the card, not a constant");
   assert.match(
-    live(HOME_CSS),
-    /\.home-donut \{[\s\S]{0,140}inline-size: min\(100%, 260px\)/,
-    "it must scale down rather than overflow a phone",
+    donut,
+    /const VIEW_W = (\d{3});/,
+    "a stated drawing box, so the label columns can be reserved inside it",
   );
-  // The geometry it draws is untouched.
-  assert.match(CARDS, /viewBox="0 0 128 128"/);
+  // Wider than tall: the reserved label columns are what make it landscape.
+  const w = Number(/const VIEW_W = (\d+);/.exec(donut)![1]);
+  const h = Number(/const VIEW_H = (\d+);/.exec(donut)![1]);
+  assert.ok(w > h, "the annotations need horizontal room the ring does not");
+  // And the card still uses it.
+  assert.match(CARDS, /<AnnotatedDonut/);
 });
 
 test("the type switch is a light selected state, never a dark one", () => {

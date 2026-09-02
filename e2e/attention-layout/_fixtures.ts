@@ -720,6 +720,32 @@ const HOME_EVIDENCE = {
  */
 const HOME_COMMAND_CENTER = {
   sections: {
+    /* THE ACTIVITY FEED reads the timeline. A spread of kinds, because the
+       whole point of the row treatment is that a report, a package and a hold
+       are distinguishable before the label is read. */
+    timeline: {
+      status: "ok",
+      items: [
+        { kind: "evidence_finalized", title: "Joint Scene Examination by Fire Investigators.jpg", occurredAt: new Date(Date.now() - 12 * 60_000).toISOString(), href: "/evidence/ev-1" },
+        { kind: "report_generated", title: "Joint Scene Examination by Fire Investigators.jpg", occurredAt: new Date(Date.now() - 3 * 3_600_000).toISOString(), href: "/evidence/ev-1" },
+        { kind: "package_generated", title: "Joint Scene Examination by Fire Investigators.jpg", occurredAt: new Date(Date.now() - 26 * 3_600_000).toISOString(), href: "/evidence/ev-2" },
+        { kind: "verification_published", title: "landing-network-bg.png", occurredAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), href: "/evidence/ev-3" },
+        { kind: "hold_placed", title: "20260704_014724.mp4", occurredAt: new Date(Date.now() - 3 * 86_400_000).toISOString(), href: "/evidence/ev-4" },
+        { kind: "lifecycle_transition", title: "Scene overview.jpg", occurredAt: new Date(Date.now() - 5 * 86_400_000).toISOString(), href: "/evidence/ev-5" },
+        { kind: "destruction_review", title: "Archived interview.zip", occurredAt: new Date(Date.now() - 8 * 86_400_000).toISOString(), href: "/evidence/ev-6" },
+      ],
+    },
+    recentEvidence: {
+      status: "ok",
+      items: Array.from({ length: 6 }, (_, i) => ({
+        id: `ev-${i + 1}`,
+        title: `Joint Scene Examination by Fire Investigators ${i + 1}.jpg`,
+        status: "SIGNED",
+        verificationStatus: "VERIFIED",
+        createdAt: new Date(Date.now() - 3_600_000 * (i + 1)).toISOString(),
+        caseId: i === 0 ? "case-1" : null,
+      })),
+    },
     caseOperations: {
       status: "ok",
       data: {
@@ -1157,6 +1183,40 @@ export async function installApi(
       }
       if (path.endsWith("/v1/evidence")) {
         return route.fulfill(json(HOME_EVIDENCE));
+      }
+      /*
+        A DISTRIBUTION WITH MORE THAN ONE CATEGORY IN IT.
+        The evidence fixture is six PHOTO records, which draws a single 100%
+        arc - a donut that cannot show whether segments separate, whether five
+        colours stay distinct, or whether a 1% slice is still findable. These
+        are the shapes the chart exists to render.
+      */
+      if (path.endsWith("/v1/dashboard/records-by-type")) {
+        return route.fulfill(
+          json({
+            records: {
+              total: 181,
+              // The canonical category LABELS the projection reads.
+              byCategory: {
+                Images: 123,
+                Documents: 30,
+                Videos: 16,
+                Audio: 2,
+                Archives: 1,
+              },
+            },
+            files: {
+              total: 212,
+              byCategory: {
+                Images: 140,
+                Documents: 41,
+                Videos: 22,
+                Audio: 6,
+                Archives: 3,
+              },
+            },
+          }),
+        );
       }
       if (path.endsWith("/v1/dashboard/command-center")) {
         return route.fulfill(json(HOME_COMMAND_CENTER));

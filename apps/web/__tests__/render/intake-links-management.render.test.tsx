@@ -406,8 +406,10 @@ describe("KPI metrics", () => {
   it("carries the mandated tone on each card without relying on colour alone", async () => {
     await mount();
     const expected: Array<[string, string, string]> = [
-      ["total", "slate", "Total links"],
-      ["active", "indigo", "Active"],
+      // The headline count leads in the brand accent; ACTIVE is the one that
+      // can still take work and reads as attention rather than as brand.
+      ["total", "indigo", "Total links"],
+      ["active", "orange", "Active"],
       ["submitted", "blue", "Submitted"],
       ["opened", "green", "Opened"],
       ["failedDelivery", "red", "Failed delivery"],

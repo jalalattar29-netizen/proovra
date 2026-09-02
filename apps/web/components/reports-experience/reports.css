@@ -28,6 +28,12 @@
 [data-rpt-tone="amber"] {
   --rpt-tone: var(--tone-amber);
 }
+/* PENDING is an attention state, and the product has ONE colour for that — the
+   orange the Notifications High card paints. `amber` above stays what it is,
+   the separate caution tone, rather than being redefined under its own users. */
+[data-rpt-tone="orange"] {
+  --rpt-tone: var(--tone-orange);
+}
 [data-rpt-tone="red"] {
   --rpt-tone: var(--tone-red);
 }

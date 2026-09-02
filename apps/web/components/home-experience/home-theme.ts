@@ -309,16 +309,31 @@ export const homeInnerCellStyle: React.CSSProperties = {
  * status system (HOME_SEMANTIC) — analytics colours never leak into health
  * status rows and vice-versa. */
 export const ANALYTICS_PALETTE = {
-  // Two clean series for the Evidence Activity chart.
-  evidenceSeries: "#6D4AFF",
-  reportsSeries: "#2F6FE4",
-  // Records-by-type donut — Indigo & Rose enterprise palette. These are the
-  // LEGEND-dot base colours (each matches its donut segment gradient).
-images: "#A92F54",
-documents: "#6654E8",
-videos: "#3974DC",
-audio: "#746FE8",
-archives: "#293A58",
+  /*
+   * THE ANALYTICS SERIES, KEYED BY WHAT THEY MEAN.
+   *
+   * The previous set was an "Indigo & Rose" progression — wine, indigo, blue,
+   * periwinkle, navy — chosen to flow as a gradient around the ring. It read as
+   * one colour in five shades: neighbouring categories were a few degrees of
+   * hue apart, so the ring looked handsome and told you nothing, and the legend
+   * did all the actual work.
+   *
+   * These five are separated by HUE, so a segment is identifiable at a glance
+   * and its annotation is findable without counting round the ring. Three of
+   * them are canonical product tokens outright (purple, blue, and the shared
+   * attention orange); the green and cyan are chart values, which is what this
+   * palette is for.
+   *
+   * Keyed by category, never by position: a workspace with no audio must not
+   * shift documents onto the videos colour. See `donutColourForKey`.
+   */
+  evidenceSeries: "#7C3AED",
+  reportsSeries: "#0891B2",
+  images: "#7C3AED",
+  documents: "#2563EB",
+  videos: "#0E7C66",
+  audio: "#0891B2",
+  archives: "#EA580C",
 //   // Storage progress value.
   storageBar: "#7C3AED",
   storageTrack: "rgba(226, 232, 240, 0.88)",

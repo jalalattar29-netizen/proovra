@@ -245,7 +245,7 @@ export function SelfServeHomeDashboard() {
                 distribution={vm.typeDistribution}
                 preservedFiles={vm.preservedFilesByType}
               />
-              <EvidenceActivityChart series={vm.activitySeries} />
+              <EvidenceActivityChart seriesByRange={vm.activitySeriesByRange} />
             </div>
             <div style={{ marginTop: 16 }}>
               <ActivityFeed groups={vm.activity} />

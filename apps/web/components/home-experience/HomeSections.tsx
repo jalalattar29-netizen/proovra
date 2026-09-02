@@ -158,12 +158,15 @@ const innerRowSurfaceStyle: React.CSSProperties = {
 
 function SectionCard({
   title,
+  subtitle,
   cta,
   children,
   testId,
   fill,
 }: {
   title: string;
+  /** One line under the title. Says what the card covers, not what it is. */
+  subtitle?: string;
   cta?: { label: string; href: string } | null;
   children: ReactNode;
   testId?: string;
@@ -178,7 +181,10 @@ function SectionCard({
       style={fill ? { ...outerCardStyle, ...opsCardFillStyle } : outerCardStyle}
     >
       <header style={cardHeaderStyle}>
-        <h2 style={cardTitleStyle}>{title}</h2>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={cardTitleStyle}>{title}</h2>
+          {subtitle ? <p style={cardSubtitleStyle}>{subtitle}</p> : null}
+        </div>
         {cta ? (
           <Link href={cta.href} style={cardCtaStyle}>
             {cta.label} →
@@ -1390,6 +1396,55 @@ export function TrustStateCard({ trust }: { trust: TrustState }) {
 // 8. RECENT ACTIVITY — grouped by Today / Yesterday / Earlier.
 // ============================================================================
 
+/**
+ * A GLYPH PER EVENT KIND.
+ *
+ * Every row wore the same 9px dot, so "a report was generated", "a record was
+ * captured" and "a legal hold was placed" were the same mark in six colours —
+ * and colour alone is not a thing to say a lifecycle event with.
+ *
+ * Same idiom as the rest of Home: inline stroke paths on a 24-grid, not an icon
+ * package. Keyed by KIND, so an event type always draws the same glyph, and an
+ * unrecognised kind falls back to the neutral dot rather than borrowing a
+ * meaning it has not earned.
+ */
+const ACTIVITY_GLYPH: Record<string, string> = {
+  // A record — a document with a corner fold.
+  evidence_finalized: "M7 3h7l5 5v13H7zM14 3v5h5",
+  // A report — a document with a tick.
+  report_generated: "M6 3h9l4 4v14H6zM14 3v5h5M9.5 13.5l2 2 3.5-3.5",
+  // A package — a closed box.
+  package_generated: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9",
+  // A published verification page — a globe.
+  verification_published:
+    "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18",
+  // A request back to a contributor — an outbound arrow.
+  request_more_sent: "M4 12h13M13 7l5 5-5 5M20 4v16",
+  // A lifecycle move — arrows in a cycle.
+  lifecycle_transition: "M4 9a8 8 0 0 1 13.6-4M20 15a8 8 0 0 1-13.6 4M4 5v4h4M20 19v-4h-4",
+  // A destruction review — a bin.
+  destruction_review: "M3 6h18M8 6V4h8v2M6 6v14h12V6M10 11v6M14 11v6",
+  // A hold — a padlock, closed and then open.
+  hold_placed: "M6 11h12v9H6zM9 11V7.5a3 3 0 0 1 6 0V11",
+  hold_released: "M6 11h12v9H6zM9 11V7.5a3 3 0 0 1 5.6-1.5",
+  // An escalation — a chevron up.
+  escalation_opened: "M12 20V5M6 11l6-6 6 6",
+  // An incident — a warning triangle.
+  incident_opened: "M10.3 3.9 1.8 18a1 1 0 0 0 .9 1.5h18.6a1 1 0 0 0 .9-1.5L13.7 3.9a1 1 0 0 0-1.7 0ZM12 9v4M12 17h.01",
+  // An intake link — a chain.
+  intake_link_created: "M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1",
+  // A delivery that arrived — an envelope with a tick.
+  intake_delivered: "M4 6h16v12H4zM4 7l8 6 8-6M14.5 16.5l2 2 4-4",
+  // A delivery that did not — an envelope with a cross.
+  intake_failed: "M4 6h16v12H4zM4 7l8 6 8-6M15 15l5 5M20 15l-5 5",
+  // A submission — an inbound tray.
+  submission_received: "M4 13h5l1.5 2.5h3L15 13h5v6H4zM12 3v8M8.5 7.5 12 11l3.5-3.5",
+};
+
+function activityGlyph(kind: string): string | null {
+  return ACTIVITY_GLYPH[kind] ?? null;
+}
+
 function activityDot(kind: string): string {
   const map: Record<string, string> = {
     evidence_finalized: "#6D28D9",
@@ -1420,16 +1475,23 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
     );
   }
   return (
-    <SectionCard title="Recent activity" testId="activity">
+    <SectionCard
+      title="Recent activity"
+      subtitle="Complete history of workspace updates and evidence reports"
+      testId="activity"
+    >
       {/*
         EVERY ROW SAID THE SAME THING IN THE SAME COLOUR.
 
         The feed was a 2px rail with an identical 9px dot on each row, so a
         report generated, an evidence capture and an intake submission were
-        visually indistinguishable and the label was clipped to one line with
-        an ellipsis. The marker now carries the event's TYPE — its own colour,
-        drawn from the same `activityDot` table the dot already used, so no
-        new vocabulary is invented — and the label is allowed to wrap.
+        visually indistinguishable, and the label was clipped to one line with
+        an ellipsis.
+
+        The marker is now the event's own GLYPH in the event's own colour —
+        both keyed by kind, so the mapping is deterministic and a row cannot
+        change meaning between renders. The circle is an outline, not a filled
+        badge: fifteen filled discs down a card is a column of buttons.
       */}
       {groups.map((g) => (
         <div key={g.key} className="home-act__group" data-activity-group={g.key}>
@@ -1437,24 +1499,60 @@ export function ActivityFeed({ groups }: { groups: ActivityGroup[] }) {
           <ul style={{ ...listStyle, gap: 0 }}>
             {g.events.map((e) => {
               const tone = activityDot(e.kind);
+              const glyph = activityGlyph(e.kind);
+              // The projection already writes "<event> — <record>"; splitting on
+              // that separator is reading its own format, not parsing prose.
+              const split = e.label.split(" — ");
+              const prefix = split.length > 1 ? `${split[0]} — ` : null;
+              const name = split.length > 1 ? split.slice(1).join(" — ") : e.label;
               return (
                 <li key={e.id} className="home-act__row" data-activity-kind={e.kind} style={listItemStyle}>
                   <Link
                     href={e.href}
                     style={{ display: "contents", textDecoration: "none", color: "inherit" }}
                   >
-                    <span className="home-act__icon" aria-hidden style={{ color: tone }}>
-                      <span
-                        style={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: 999,
-                          background: "currentColor",
-                        }}
-                      />
+                    <span
+                      className="home-act__icon"
+                      aria-hidden
+                      style={{ color: tone }}
+                      data-activity-glyph={glyph ? e.kind : "dot"}
+                    >
+                      {glyph ? (
+                        <svg
+                          width="15"
+                          height="15"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d={glyph} />
+                        </svg>
+                      ) : (
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: 999,
+                            background: "currentColor",
+                          }}
+                        />
+                      )}
                     </span>
                     <span className="home-act__text">
-                      {e.label}
+                      {/* "Evidence reported — <file>". The prefix is the event
+                          type and stays quiet; the record's name is the thing
+                          the reader is scanning for, so it takes the ink. */}
+                      {prefix ? (
+                        <>
+                          <span className="home-act__kind">{prefix}</span>
+                          <span className="home-act__name">{name}</span>
+                        </>
+                      ) : (
+                        e.label
+                      )}
                       {/* Phase HOME-INTELLIGENCE — collapsed repeats. */}
                       {e.repeatCount && e.repeatCount > 1 ? (
                         <span className="home-act__count" data-activity-repeat={e.repeatCount}>
@@ -1683,6 +1781,13 @@ export function HomeSkeleton() {
 const outerCardStyle: React.CSSProperties = homeOuterCardStyle;
 const cardHeaderStyle: React.CSSProperties = homeCardHeaderStyle;
 const cardTitleStyle: React.CSSProperties = homeCardTitleStyle;
+/* One quiet line under a card title — what the card covers, not what it is. */
+const cardSubtitleStyle: React.CSSProperties = {
+  margin: "3px 0 0",
+  fontSize: 12.5,
+  color: HOME_COLORS.slate,
+  lineHeight: 1.45,
+};
 const cardCtaStyle: React.CSSProperties = homeCardCtaStyle;
 const cardBodyStyle: React.CSSProperties = { margin: 0 };
 

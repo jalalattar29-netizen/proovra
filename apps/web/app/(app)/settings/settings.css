@@ -794,10 +794,27 @@
   cursor: not-allowed;
 }
 
-/* WHITE/RED — destructive. */
+/* WHITE/RED — destructive.
+
+   THE BUTTON OWNS ITS BACKGROUND; ITS CHILDREN DO NOT.
+
+   This rule set `background: var(--set-panel-solid)` — solid #ffffff — on the
+   button AND on `*`, every descendant. At rest the two agree and nothing shows.
+   On hover only the BUTTON repaints, so the inner label span kept its own
+   opaque white and sat on top of the hover tint: a white rectangle behind the
+   text, exactly the width of the label.
+
+   The children still take the ink (a `<span>` inside a button does not inherit
+   `-webkit-text-fill-color` reliably), but their background is transparent, so
+   every state the button paints is the state the reader sees. */
+.settings-page-shell .set-main [data-cc-revoke-others] {
+  background: var(--set-panel-solid) !important;
+}
+.settings-page-shell .set-main [data-cc-revoke-others] * {
+  background: transparent !important;
+}
 .settings-page-shell .set-main [data-cc-revoke-others],
 .settings-page-shell .set-main [data-cc-revoke-others] * {
-  background: var(--set-panel-solid) !important;
   border-color: rgba(240, 68, 56, 0.34) !important;
   color: var(--set-danger) !important;
   -webkit-text-fill-color: var(--set-danger) !important;

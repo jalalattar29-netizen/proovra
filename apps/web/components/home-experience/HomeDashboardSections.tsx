@@ -20,6 +20,7 @@ import { formatUserDate } from "../../lib/date";
 import { usePlatformContext } from "../../lib/platform-context";
 
 import type {
+  EvidenceActivityRangeId,
   EvidenceActivitySeries,
   EvidenceTypeDistribution,
   ExecutiveSummary,
@@ -29,11 +30,12 @@ import type {
   RichRecentEvidenceRow,
   WorkspacePriority,
 } from "./home-view-model";
+import { ACTIVITY_RANGES } from "./home-view-model";
+import { AnnotatedDonut, DonutReadout } from "./AnnotatedDonut";
 import {
   ANALYTICS_PALETTE,
   HOME_ACCENT,
   HOME_COLORS,
-  HOME_SEMANTIC,
   HOME_TINTS,
   homeCardCtaStyle,
   homeCardHeaderStyle,
@@ -568,10 +570,14 @@ export function WorkspacePrioritiesCard({
 // ============================================================================
 
 export function EvidenceActivityChart({
-  series,
+  seriesByRange,
 }: {
-  series: EvidenceActivitySeries;
+  /** Every range, built from the records already loaded. */
+  seriesByRange: Record<EvidenceActivityRangeId, EvidenceActivitySeries>;
 }) {
+  const [rangeId, setRangeId] = useState<EvidenceActivityRangeId>("14d");
+  const range = ACTIVITY_RANGES.find((r) => r.id === rangeId) ?? ACTIVITY_RANGES[0];
+  const series = seriesByRange[rangeId] ?? seriesByRange["14d"];
   const hasData = series.totalEvidence > 0 || series.totalReports > 0;
 
   return (
@@ -585,9 +591,36 @@ export function EvidenceActivityChart({
         <div style={{ minWidth: 0 }}>
           <h2 style={activityTitleStyle}>Evidence activity</h2>
           <span style={activitySubtitleStyle}>
-            Last 14 days{series.sampled ? " · latest 100 records" : ""}
+            {range.label}
+            {series.bucketDays > 1
+              ? ` · ${series.bucketDays === 7 ? "weekly" : "fortnightly"} totals`
+              : ""}
+            {series.sampled ? " · latest 100 records" : ""}
           </span>
         </div>
+        {/*
+          THE RANGE IS THE READER'S CHOICE, and it is a secondary one.
+
+          A row of four buttons would take the top of the card and compete with
+          the chart for attention; a select states the same four options in the
+          space of one control. Every range reads the records already loaded, so
+          switching costs no request and has no loading state.
+        */}
+        <label style={rangeSelectWrapStyle}>
+          <span className="app-visually-hidden">Activity period</span>
+          <select
+            value={rangeId}
+            onChange={(e) => setRangeId(e.target.value as EvidenceActivityRangeId)}
+            data-activity-range
+            style={rangeSelectStyle}
+          >
+            {ACTIVITY_RANGES.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </label>
         {hasData ? (
           <div style={legendStyle}>
             <span style={legendItemStyle}>
@@ -800,8 +833,16 @@ const DONUT_COLOR_BY_KEY: Record<string, string> = {
   archive: ANALYTICS_PALETTE.archives,
 };
 
+/**
+ * A category's colour, by NAME.
+ *
+ * Never by index: a workspace with no audio must not slide documents onto the
+ * videos colour, or the same chart means two different things on two accounts.
+ * An unrecognised key takes a neutral slate rather than borrowing the archives
+ * orange, which would put two different categories in one colour.
+ */
 function donutColorForKey(key: string): string {
-  return DONUT_COLOR_BY_KEY[key.toLowerCase()] ?? ANALYTICS_PALETTE.archives;
+  return DONUT_COLOR_BY_KEY[key.toLowerCase()] ?? "#94A3B8";
 }
 
 // Per-segment premium linear-gradient stops for the donut ring — a subtle
@@ -811,39 +852,6 @@ function donutColorForKey(key: string): string {
 // progression. No glow/neon — just a restrained light→dark within-hue
 // gradient. The LEGEND dots stay on the flat ANALYTICS_PALETTE base
 // colours so each dot maps exactly to its segment.
-const DONUT_GRADIENT_BY_KEY: Record<string, readonly [string, string]> = {
-  // Images — elegant wine rose, less bright and less alert-like
-  images: ["#D56A84", "#A83A5B"],
-  image: ["#D56A84", "#A83A5B"],
-  photo: ["#D56A84", "#A83A5B"],
-  photos: ["#D56A84", "#A83A5B"],
-
-  // Documents — premium indigo
-  documents: ["#9582FF", "#6654E8"],
-  document: ["#9582FF", "#6654E8"],
-  docs: ["#9582FF", "#6654E8"],
-
-  // Videos — enterprise blue
-  videos: ["#6FA1F7", "#3974DC"],
-  video: ["#6FA1F7", "#3974DC"],
-
-  // Audio — soft periwinkle blue, no green or cyan
-  audio: ["#A9A7FF", "#746FE8"],
-
-  // Archives — deep slate navy
-  archives: ["#536581", "#293A58"],
-  archive: ["#536581", "#293A58"],
-};
-
-const DONUT_ARCHIVES_GRADIENT: readonly [string, string] = [
-  "#536581",
-  "#293A58",
-];
-
-function donutGradientForKey(key: string): readonly [string, string] {
-  return DONUT_GRADIENT_BY_KEY[key.toLowerCase()] ?? DONUT_ARCHIVES_GRADIENT;
-}
-
 export function EvidenceTypeDonutCard({
   distribution,
   preservedFiles,
@@ -882,23 +890,8 @@ export function EvidenceTypeDonutCard({
     : "Counts primary evidence records, not files inside packages.";
   return (
     <section
-      className="home-card"
-      style={{
-        ...homeOuterCardStyle,
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        // Indigo & Rose enterprise palette — glass card surface (this card
-        // only) so it blends with the dashboard rather than reading as a
-        // solid white rectangle.
-        background: "rgba(255, 255, 255, 0.34)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        border: "1px solid rgba(255, 255, 255, 0.52)",
-        boxShadow: "0 10px 28px rgba(15, 23, 42, 0.035)",
-        borderRadius: 20,
-        padding: 20,
-      }}
+      className="home-card home-analytics-card"
+      style={{ ...homeOuterCardStyle, height: "100%" }}
       data-self-serve-section="evidence-types"
     >
       <header style={donutHeaderStyle}>
@@ -934,7 +927,7 @@ export function EvidenceTypeDonutCard({
               onClick={() => setMode("records")}
               onMouseEnter={(e) => {
                 if (mode !== "records")
-                  e.currentTarget.style.background = "#F8FAFC";
+                  e.currentTarget.style.background = "rgba(124, 58, 237, 0.06)";
               }}
               onMouseLeave={(e) => {
                 if (mode !== "records")
@@ -942,10 +935,9 @@ export function EvidenceTypeDonutCard({
               }}
               style={{
                 ...segmentedButtonStyle,
-                background: mode === "records" ? "#111827" : "transparent",
-                color: mode === "records" ? "#fff" : HOME_COLORS.slate,
-                border:
-                  mode === "records" ? "1px solid transparent" : "1px solid #E5E7EB",
+                background: mode === "records" ? "var(--accent-050, #F2ECFE)" : "transparent",
+                color: mode === "records" ? "var(--accent-600, #6D28D9)" : HOME_COLORS.slate,
+                border: "1px solid transparent",
               }}
             >
               Records
@@ -958,7 +950,7 @@ export function EvidenceTypeDonutCard({
               onClick={() => setMode("files")}
               onMouseEnter={(e) => {
                 if (mode !== "files")
-                  e.currentTarget.style.background = "#F8FAFC";
+                  e.currentTarget.style.background = "rgba(124, 58, 237, 0.06)";
               }}
               onMouseLeave={(e) => {
                 if (mode !== "files")
@@ -966,10 +958,9 @@ export function EvidenceTypeDonutCard({
               }}
               style={{
                 ...segmentedButtonStyle,
-                background: mode === "files" ? "#111827" : "transparent",
-                color: mode === "files" ? "#fff" : HOME_COLORS.slate,
-                border:
-                  mode === "files" ? "1px solid transparent" : "1px solid #E5E7EB",
+                background: mode === "files" ? "var(--accent-050, #F2ECFE)" : "transparent",
+                color: mode === "files" ? "var(--accent-600, #6D28D9)" : HOME_COLORS.slate,
+                border: "1px solid transparent",
               }}
             >
               Preserved files
@@ -984,141 +975,58 @@ export function EvidenceTypeDonutCard({
             : "The distribution of your evidence types appears after the first capture."}
         </p>
       ) : (
-        <div style={donutWrapStyle}>
-          <div style={donutChartColStyle}>
-            <Donut slices={slices} total={sampleSize} files={isFilesMode} />
+        <div style={donutWrapStyle} className="home-donut-wrap">
+          <div style={donutChartColStyle} className="home-donut-col">
+            <AnnotatedDonut
+              slices={slices}
+              total={sampleSize}
+              colourFor={donutColorForKey}
+              centreLabel={isFilesMode ? "Files" : "Records"}
+              ariaLabel={
+                isFilesMode
+                  ? `Preserved files by type across ${sampleSize} files.`
+                  : `Evidence type distribution across ${sampleSize} records.`
+              }
+              idPrefix={isFilesMode ? "files" : "records"}
+            />
+            {/* The same numbers as words. Hidden from sight on a wide screen —
+                the annotations already say them — and shown on a phone, where
+                labels around a ring cannot be read at a usable size. */}
+            <DonutReadout
+              slices={slices}
+              colourFor={donutColorForKey}
+              unit={isFilesMode ? "files" : "records"}
+            />
           </div>
-          <ul style={donutLegendStyle}>
-            {slices.map((s) => (
-              <li key={s.key} style={donutLegendItemStyle}>
-                <span
-                  style={{ ...legendSwatchStyle, borderRadius: 999, background: donutColorForKey(s.key) }}
-                />
-                <span style={donutLegendLabelStyle}>{s.label}</span>
-                <span style={donutLegendCountStyle}>{s.count}</span>
-                <span style={donutLegendPercentStyle}>
-                  {s.percent}%
-                </span>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </section>
   );
 }
 
-function Donut({
-  slices,
-  total,
-  files,
-}: {
-  slices: EvidenceTypeDistribution["slices"];
-  total: number;
-  files?: boolean;
-}) {
-  // ~9% larger ring, lighter stroke + a hairline gap between slices for a
-  // premium, continuous enterprise donut (still pure stroke-dasharray SVG).
-  const R = 48;
-  const C = 2 * Math.PI * R;
-  const GAP = 1.6;
-  let offset = 0;
-  // Stable, collision-free gradient id per segment key so multiple donuts
-  // (Records / Preserved files) on the page keep distinct <defs>.
-  const gradId = (key: string) =>
-    `donut-grad-${files ? "files" : "records"}-${key.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
-  return (
-    // A REAL chart, not a thumbnail. The ring was locked to 128x128 — a
-    // 96px circle carrying five categories, a total and a caption, which is
-    // an icon rather than a visualisation. The geometry is unchanged
-    // (viewBox 0 0 128 128); only the rendered size grows, and it grows
-    // fluidly so it still fits a phone.
-    <svg
-      className="home-donut"
-      width="260"
-      height="260"
-      viewBox="0 0 128 128"
-      shapeRendering="geometricPrecision"
-      role="img"
-      aria-label={
-        files
-          ? `Preserved files by type across ${total} files.`
-          : `Evidence type distribution across ${total} records.`
-      }
-    >
-      <defs>
-        {slices.map((s) => {
-          const [from, to] = donutGradientForKey(s.key);
-          return (
-            <linearGradient
-              key={s.key}
-              id={gradId(s.key)}
-              x1="0"
-              y1="0"
-              x2="1"
-              y2="1"
-            >
-              <stop offset="0%" stopColor={from} />
-              <stop offset="100%" stopColor={to} />
-            </linearGradient>
-          );
-        })}
-      </defs>
-      <circle cx="64" cy="64" r={R} fill="none" stroke="#E1E6EF" strokeWidth="11.5" />
-      {slices.map((s) => {
-        const frac = total > 0 ? s.count / total : 0;
-        const seg = frac * C;
-        // Hairline gap after each slice so the ring reads as separated but
-        // still continuous; clamped so tiny slices never vanish.
-        const dash = slices.length > 1 ? Math.max(seg - GAP, 0.5) : seg;
-        const el = (
-          <circle
-            key={s.key}
-            cx="64"
-            cy="64"
-            r={R}
-            fill="none"
-            stroke={`url(#${gradId(s.key)})`}
-            strokeWidth="11.5"
-            strokeLinecap={slices.length > 1 ? "butt" : "round"}
-            strokeDasharray={`${dash} ${C - dash}`}
-            strokeDashoffset={-offset}
-            transform="rotate(-90 64 64)"
-          >
-            <title>{`${s.label}: ${s.count} (${s.percent}%)`}</title>
-          </circle>
-        );
-        offset += seg;
-        return el;
-      })}
-      <text
-        x="64"
-        y="59"
-        textAnchor="middle"
-        fontSize="20"
-        fontWeight="750"
-        fill={HOME_COLORS.ink}
-        style={{ fontVariantNumeric: "tabular-nums" }}
-      >
-        {total}
-      </text>
-      <text
-        x="64"
-        y="78"
-        textAnchor="middle"
-        fontSize="9"
-        fill="#7A8699"
-        letterSpacing="0.35"
-      >
-        {files ? "files" : "records"}
-      </text>
-    </svg>
-  );
-}
-
 // ============================================================================
 // Styles
 // ============================================================================
+
+/* The period control: secondary by construction. It sits in the header beside
+   the legend and is sized to its longest option, not to the card. */
+const rangeSelectWrapStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  flexShrink: 0,
+};
+const rangeSelectStyle: React.CSSProperties = {
+  appearance: "auto",
+  font: "inherit",
+  fontSize: 12,
+  color: HOME_COLORS.slate,
+  background: "#fff",
+  border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
+  borderRadius: 8,
+  padding: "4px 8px",
+  cursor: "pointer",
+  maxWidth: 150,
+};
 
 const headerWrapStyle: React.CSSProperties = {
   display: "flex",
@@ -1363,57 +1271,26 @@ const segmentedButtonStyle: React.CSSProperties = {
   transition: "background 120ms ease, color 120ms ease",
 };
 // Balanced two-column body: donut left (with breathing room), legend right.
+/* ONE COLUMN, ALL OF IT.
+
+   This was `160px minmax(0, 1fr)` — a fixed-width chart column beside the
+   legend. The legend is gone (each segment carries its own annotation now), so
+   the second track held nothing and the donut was pinned to 160px inside a
+   600px card: a thumbnail with five categories in it.
+
+   The chart takes the card. */
 const donutWrapStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "160px minmax(0, 1fr)",
-  alignItems: "center",
-  gap: 22,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
   flex: 1,
-  minHeight: 220,
+  minHeight: 300,
 };
 const donutChartColStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   padding: 0,
-};
-const donutLegendStyle: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-  flex: 1,
-  minWidth: 200,
-};
-const donutLegendItemStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  fontSize: 12,
-};
-const donutLegendLabelStyle: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  color: HOME_SEMANTIC.neutral.secondary,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
-const donutLegendCountStyle: React.CSSProperties = {
-  color: HOME_SEMANTIC.neutral.numberInk,
-  fontWeight: 650,
-  fontVariantNumeric: "tabular-nums",
-  minWidth: 38,
-  textAlign: "right",
-};
-const donutLegendPercentStyle: React.CSSProperties = {
-  color: "#8A94A6",
-  fontVariantNumeric: "tabular-nums",
-  fontWeight: 600,
-  width: 40,
-  textAlign: "right",
 };
 
 const priorityListStyle: React.CSSProperties = {

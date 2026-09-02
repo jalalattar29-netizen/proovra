@@ -35,6 +35,10 @@
   --ilk-tone-blue: #2563eb;
   --ilk-tone-green: #167a5b;
   --ilk-tone-amber: #a86612;
+  /* The semantic HIGH/ATTENTION orange, by reference: the same value the
+     Notifications High card paints. `amber` above is the separate, documented
+     caution tone and is deliberately NOT the same colour. */
+  --ilk-tone-orange: var(--orange-500);
   --ilk-tone-red: #c9363e;
 
   /* PageShell owns the column layout and the section rhythm; this class adds
@@ -58,6 +62,9 @@
 }
 [data-ilk-tone="amber"] {
   --ilk-tone: var(--ilk-tone-amber);
+}
+[data-ilk-tone="orange"] {
+  --ilk-tone: var(--ilk-tone-orange);
 }
 [data-ilk-tone="red"] {
   --ilk-tone: var(--ilk-tone-red);

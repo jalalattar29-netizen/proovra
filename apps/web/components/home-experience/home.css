@@ -418,7 +418,18 @@
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1fr);
   gap: 20px;
-  align-items: start;
+  /* THE ROW SHARES A BASELINE AND A FOOTLINE.
+
+     This was `align-items: start`, so each column sized to its own content and
+     the row ended at three different heights — Workspace Health ran to eight
+     rows while What needs attention stopped well above it, and the pair read as
+     unfinished rather than as two answers to one question.
+
+     Stretch is the grid saying so, rather than a height typed into a card. The
+     cards themselves still lay their content out from the top (nothing here
+     centres anything), so a stretched card gains room at the BOTTOM and the
+     first line of every card stays on the same line as its neighbours. */
+  align-items: stretch;
 }
 
 .self-serve-home .home-overview-col {
@@ -464,6 +475,9 @@
 @media (max-width: 860px) {
   .self-serve-home .home-overview-grid {
     grid-template-columns: minmax(0, 1fr);
+    /* ONE column: there is no neighbour to harmonise with, and stretching a
+       stack only pads every card to the height of the tallest. */
+    align-items: start;
   }
 }
 
@@ -984,4 +998,125 @@
 }
 .self-serve-home .home-menu-item:disabled {
   background: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   10. ANALYTICS — the charts carry the colour, the panel does not.
+
+   The Records-by-type card was a glass surface: 34% white with an 8px backdrop
+   blur and a white border, so a chart whose whole job is to separate five
+   categories sat on a background that was itself doing something. The panel is
+   the ordinary light card now; every colour on this tab belongs to the data.
+--------------------------------------------------------------------------- */
+.self-serve-home .home-analytics-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card, 14px);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* The donut needs room around it: the annotations live OUTSIDE the ring, and a
+   card that clips them turns a label into a fragment. */
+.self-serve-home .home-donut-wrap {
+  display: block;
+}
+.self-serve-home .home-donut-col {
+  display: flex;
+  flex-direction: column;
+  /* STRETCH, not center: a centred flex item shrinks to its content, and an
+     SVG asked for 100% of a shrink-wrapped column renders at whatever it
+     happened to measure rather than at the card width. */
+  align-items: stretch;
+  gap: 12px;
+  min-width: 0;
+}
+.self-serve-home .home-donut {
+  display: block;
+  margin-inline: auto;
+}
+
+/* THE READOUT. Hidden while the annotations are readable, shown when they are
+   not — the same numbers either way, never both at once. */
+.self-serve-home .home-donut-readout {
+  display: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: 8px;
+  flex-direction: column;
+}
+.self-serve-home .home-donut-readout li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.875rem;
+}
+.self-serve-home .home-donut-readout__dot {
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 999px;
+  flex: none;
+}
+.self-serve-home .home-donut-readout__label {
+  color: var(--home-ink);
+  min-inline-size: 0;
+}
+.self-serve-home .home-donut-readout__value {
+  margin-inline-start: auto;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Below this width the annotations cannot hold a readable type size around the
+   ring without colliding, so the ring keeps the shape and the list carries the
+   numbers. */
+@media (max-width: 560px) {
+  .self-serve-home .home-donut [data-donut-annotation] {
+    display: none;
+  }
+  .self-serve-home .home-donut-readout {
+    display: flex;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   11. ACTIVITY ROWS — the event says what it is before you read it.
+--------------------------------------------------------------------------- */
+
+/* The ring is the event's colour at a fraction of its strength: enough to
+   identify, not enough to make fifteen rows of circles the loudest thing on
+   the page. `currentColor` is the event tone, set inline per row. */
+.self-serve-home .home-act__icon {
+  border-color: color-mix(in srgb, currentColor 34%, transparent);
+  background: transparent;
+}
+@supports not (color: color-mix(in srgb, red 50%, transparent)) {
+  .self-serve-home .home-act__icon {
+    border-color: currentColor;
+    opacity: 0.85;
+  }
+}
+
+/* "Evidence reported — " then the record's name. The prefix is the same on
+   every row of a kind and is not what anyone is scanning for. */
+.self-serve-home .home-act__kind {
+  color: var(--home-muted);
+}
+.self-serve-home .home-act__name {
+  color: var(--home-ink);
+  font-weight: 620;
+}
+
+/* A repeat marker, not a badge: it qualifies the row it sits in. */
+.self-serve-home .home-act__count {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: inherit;
+}
+.self-serve-home .home-act__row:hover .home-act__name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

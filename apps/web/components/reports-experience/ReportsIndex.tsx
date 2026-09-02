@@ -77,7 +77,8 @@ import type {
  */
 const SUMMARY_METRICS = [
   { key: "reports_ready", field: "reportsReady", label: "Reports generated", tone: "blue" },
-  { key: "reports_pending", field: "reportsPending", label: "Reports pending", tone: "amber" },
+  // PENDING takes the shared attention orange, not the caution amber.
+  { key: "reports_pending", field: "reportsPending", label: "Reports pending", tone: "orange" },
   { key: "packages_ready", field: "packagesReady", label: "Packages ready", tone: "green" },
   { key: "packages_pending", field: "packagesPending", label: "Packages pending", tone: "indigo" },
   { key: "packages_blocked", field: "packagesBlocked", label: "Packages blocked", tone: "red" },

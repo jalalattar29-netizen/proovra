@@ -316,14 +316,29 @@ export const KPI_VOCABULARY: Record<
 > = {
   total: {
     label: "Total links",
-    // Neutral primary ink — the total is a scope statement, not a status.
-    tone: "slate",
+    /*
+     * THE PRODUCT ACCENT, not a neutral.
+     *
+     * It was `slate` on the reasoning that a total is a scope statement rather
+     * than a status. True — but the card still leads the row, and grey made the
+     * one figure that frames every other figure the quietest thing on the
+     * strip. `indigo` is the canonical brand purple (`--accent-600`), which is
+     * what the product already uses to say "this is the headline number"
+     * without claiming a state.
+     */
+    tone: "indigo",
     explanation: "Every intake link in this workspace, including archived ones.",
     tab: "all",
   },
   active: {
     label: "Active",
-    tone: "indigo",
+    /*
+     * ACTIVE IS THE ONE THAT CAN STILL TAKE WORK, and it reads as attention
+     * rather than as brand. `orange` resolves to `--orange-500`, the same value
+     * the Notifications "High" card paints — one authority for every
+     * high/attention surface in the product.
+     */
+    tone: "orange",
     explanation: "Links that can still accept a submission right now.",
     tab: "active",
   },

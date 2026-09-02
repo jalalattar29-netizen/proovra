@@ -704,13 +704,33 @@ export type ActivityPoint = {
   reports: number;
 };
 
+/**
+ * THE RANGES A READER CAN ASK FOR.
+ *
+ * Named by what they mean, not by a number of days, because the BUCKET is not
+ * the range: six months of daily columns is 180 unreadable ticks, so the wider
+ * ranges group. Each entry carries both, so the chart never has to guess.
+ */
+export const ACTIVITY_RANGES = [
+  { id: "14d", label: "Last 14 days", days: 14, bucketDays: 1 },
+  { id: "1m", label: "Last month", days: 30, bucketDays: 1 },
+  { id: "3m", label: "Last 3 months", days: 91, bucketDays: 7 },
+  { id: "6m", label: "Last 6 months", days: 182, bucketDays: 14 },
+] as const;
+
+export type EvidenceActivityRangeId = (typeof ACTIVITY_RANGES)[number]["id"];
+
 export type EvidenceActivitySeries = {
-  /** Oldest → newest, fixed 14 days. */
+  /** Oldest → newest. One point per BUCKET, not per day. */
   points: ActivityPoint[];
   totalEvidence: number;
   totalReports: number;
   /** True when the 100-record list cap may truncate the series. */
   sampled: boolean;
+  /** Which range produced these points. */
+  rangeId: EvidenceActivityRangeId;
+  /** How many days each column covers — 1 for the daily ranges. */
+  bucketDays: number;
 };
 
 export type EvidenceTypeSlice = {
@@ -765,6 +785,8 @@ export type HomeViewModel = {
   workspaceName: string | null;
   kpis: HomeKpi[];
   activitySeries: EvidenceActivitySeries;
+  /** The same activity, bucketed for each range the reader can choose. */
+  activitySeriesByRange: Record<EvidenceActivityRangeId, EvidenceActivitySeries>;
   typeDistribution: EvidenceTypeDistribution;
   /**
    * Phase HOME-RECORDS-BY-TYPE — "Preserved files by type" view.
@@ -3033,25 +3055,48 @@ function buildTypeDistributionFromAggregate(aggregate: {
 }
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_NAMES = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
 
-function buildActivitySeries(args: {
+/**
+ * ONE SERIES FOR ONE RANGE.
+ *
+ * Generalised from a hard-coded fourteen daily columns. The window and the
+ * bucket width both come from the range, so "last 6 months" is thirteen
+ * fortnightly columns rather than 182 ticks nobody can read.
+ *
+ * The SOURCE is unchanged: the same scoped evidence list and the same report
+ * timestamps this projection already had. Nothing is fetched differently and no
+ * count is invented — a longer window simply reaches further back through the
+ * records already in hand, which is also why `sampled` matters more the wider
+ * the range goes.
+ */
+function buildActivitySeriesForRange(args: {
   scoped: WorkspaceEvidenceItem[];
   reports: HomeReportsInput | null;
   listHasMore: boolean;
   nowMs: number;
+  range: (typeof ACTIVITY_RANGES)[number];
 }): EvidenceActivitySeries {
-  const DAYS = 14;
   const dayMs = 86_400_000;
+  const { days, bucketDays } = args.range;
+  const buckets = Math.ceil(days / bucketDays);
   const startOfToday = Math.floor(args.nowMs / dayMs) * dayMs;
-  const evidence = new Array<number>(DAYS).fill(0);
-  const reports = new Array<number>(DAYS).fill(0);
+  /** The instant after the newest bucket ends. */
+  const horizon = startOfToday + dayMs;
+  const evidence = new Array<number>(buckets).fill(0);
+  const reports = new Array<number>(buckets).fill(0);
 
+  // Index 0 is the NEWEST bucket, counting backwards — the same orientation
+  // the daily version used, so the reversal below is unchanged.
   const bucket = (iso: string | null | undefined): number | null => {
     if (!iso) return null;
     const t = Date.parse(iso);
     if (!Number.isFinite(t)) return null;
-    const idx = Math.floor((startOfToday + dayMs - 1 - t) / dayMs);
-    return idx >= 0 && idx < DAYS ? idx : null;
+    const idx = Math.floor((horizon - 1 - t) / (dayMs * bucketDays));
+    return idx >= 0 && idx < buckets ? idx : null;
   };
 
   for (const it of args.scoped) {
@@ -3064,13 +3109,18 @@ function buildActivitySeries(args: {
   }
 
   const points: ActivityPoint[] = [];
-  for (let i = DAYS - 1; i >= 0; i -= 1) {
-    const dayStart = startOfToday - i * dayMs;
-    const d = new Date(dayStart);
+  for (let i = buckets - 1; i >= 0; i -= 1) {
+    // The label names where the bucket STARTS, which for a week or a fortnight
+    // is the only honest thing to call it.
+    const bucketStart = horizon - (i + 1) * dayMs * bucketDays;
+    const d = new Date(bucketStart);
     points.push({
-      dayLabel: `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()}`,
-      evidence: evidence[i],
-      reports: reports[i],
+      dayLabel:
+        bucketDays === 1
+          ? `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()}`
+          : `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]}`,
+      evidence: evidence[i]!,
+      reports: reports[i]!,
     });
   }
   return {
@@ -3078,8 +3128,31 @@ function buildActivitySeries(args: {
     totalEvidence: evidence.reduce((a, b) => a + b, 0),
     totalReports: reports.reduce((a, b) => a + b, 0),
     sampled: args.listHasMore,
+    rangeId: args.range.id,
+    bucketDays,
   };
 }
+
+/**
+ * Every range, built once.
+ *
+ * The reader switches between them with no round trip, because all four read
+ * the same records that are already loaded. Building them eagerly costs four
+ * passes over a bounded list and removes an entire loading state.
+ */
+function buildActivitySeriesByRange(args: {
+  scoped: WorkspaceEvidenceItem[];
+  reports: HomeReportsInput | null;
+  listHasMore: boolean;
+  nowMs: number;
+}): Record<EvidenceActivityRangeId, EvidenceActivitySeries> {
+  const out = {} as Record<EvidenceActivityRangeId, EvidenceActivitySeries>;
+  for (const range of ACTIVITY_RANGES) {
+    out[range.id] = buildActivitySeriesForRange({ ...args, range });
+  }
+  return out;
+}
+
 
 function formatKpiNumber(n: number): string {
   if (n >= 10_000) return `${Math.round(n / 1000)}k`;
@@ -3543,12 +3616,14 @@ export function normalizeHomeViewModel(
     submissionsCount: submissions.length,
     nowMs,
   });
-  const activitySeries = buildActivitySeries({
+  const activitySeriesByRange = buildActivitySeriesByRange({
     scoped: scopedEvidence,
     reports: inputs.reports,
     listHasMore,
     nowMs,
   });
+  // The 14-day view is one of the four, never a second computation of it.
+  const activitySeries = activitySeriesByRange["14d"];
   // Phase HOME-RECORDS-BY-TYPE — prefer the workspace-aggregate
   // endpoint (counts every active non-deleted row). Use the latest-100
   // sample classifier ONLY if that request failed; the widget surfaces
@@ -3611,6 +3686,7 @@ export function normalizeHomeViewModel(
     workspaceName: inputs.workspaceName ?? null,
     kpis,
     activitySeries,
+    activitySeriesByRange,
     typeDistribution,
     preservedFilesByType,
     richRecentEvidence,
