@@ -130,7 +130,10 @@ export interface EvidenceHealthSnapshot {
 }
 
 /** Open + acknowledged are the two "still needs attention" states. */
-const OPEN_INCIDENT_STATUSES = ["OPEN", "ACKNOWLEDGED"] as const;
+// ADM-013 — one authority. See incident-open-statuses.ts.
+import { UNRESOLVED_INCIDENT_STATUSES } from "./incident-open-statuses.js";
+
+const OPEN_INCIDENT_STATUSES = UNRESOLVED_INCIDENT_STATUSES;
 
 /**
  * Run a count; return `null` (honest "not measured") on any failure

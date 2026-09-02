@@ -214,15 +214,15 @@
         "UnclassifiedUnreachableProductionModules": 0,
         "ConnectedButUnreachable": 0,
         "RemovedButPresent": 0,
-        "ProductionModules": 841,
-        "ReachableProductionModules": 840,
+        "ProductionModules": 842,
+        "ReachableProductionModules": 841,
         "UnreachableProductionModules": 1,
         "UnfollowableModuleSpecifiers": 0
       },
       "problemCount": 0
     },
     "auditGovernance": {
-      "AuditFilesInventoried": 307,
+      "AuditFilesInventoried": 308,
       "AuditFilesUnclassified": 0,
       "AuditArtifactProducersUnknown": 0,
       "AuditArtifactConsumersUnknown": 0,
@@ -275,7 +275,7 @@
       "ProductionRuntimeFilesModifiedByPhase0": 0,
       "ProductBehaviorTestsRemoved": 0,
       "HistoricalMigrationsModifiedByPhase0": 0,
-      "ProductBehaviorTestsInventoried": 186
+      "ProductBehaviorTestsInventoried": 187
     },
     "proofFreshness": {
       "domainProofsRead": 10,

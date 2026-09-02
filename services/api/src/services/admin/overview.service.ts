@@ -9,6 +9,7 @@ import {
   buildPlatformHealthSnapshot,
   type PlatformHealthSnapshot,
 } from "../operations/platform-health-snapshot.service.js";
+import { unresolvedIncidentWhere } from "../operations/incident-open-statuses.js";
 import { buildEvidenceHealthSnapshot } from "../operations/evidence-health.service.js";
 import {
   measure,
@@ -317,8 +318,19 @@ export async function buildPlatformOverview(
     ),
 
     // ---- Security ---------------------------------------------------------
-    m("Open incidents", () =>
-      prisma.operationalIncident.count({ where: { status: "OPEN" } }),
+    //
+    // ADM-013 — was `status: "OPEN"`, while System Health's headline counted
+    // OPEN + ACKNOWLEDGED. Two consoles, one platform, different numbers, and
+    // neither wrong about its own predicate — which is worse than one of them
+    // being broken, because an operator reconciling them cannot tell a real
+    // change from a definitional one.
+    //
+    // Both now read `unresolvedIncidentWhere()`. An acknowledged incident is
+    // one a human has LOOKED at and not fixed; excluding it would make
+    // acknowledging an incident remove it from the headline, which is the
+    // wrong incentive to build into an operations surface.
+    m("Unresolved incidents", () =>
+      prisma.operationalIncident.count({ where: unresolvedIncidentWhere() }),
     ),
     m("High security events", () =>
       prisma.securityEvent.count({

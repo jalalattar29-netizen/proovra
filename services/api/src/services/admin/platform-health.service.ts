@@ -109,7 +109,12 @@ export type PlatformHealth = {
 
 const ACTIVE_SESSION_WINDOW_MS = 5 * 60_000;
 const RECENT_EVENT_WINDOW_MS = 15 * 60_000;
-const OPEN_INCIDENT_STATUSES = ["OPEN", "ACKNOWLEDGED"] as const;
+// ADM-013 — one authority. This was a local copy, and a second copy lived in
+// evidence-health.service.ts while overview.service.ts used a THIRD, narrower
+// predicate. See incident-open-statuses.ts.
+import { UNRESOLVED_INCIDENT_STATUSES } from "../operations/incident-open-statuses.js";
+
+const OPEN_INCIDENT_STATUSES = UNRESOLVED_INCIDENT_STATUSES;
 const IN_PROGRESS_UPLOAD_STATUSES = ["CREATED", "UPLOADING", "PARTIAL"] as const;
 
 /** Map a runtime-readiness ReadinessStatus onto our ServiceStatus vocabulary. */
