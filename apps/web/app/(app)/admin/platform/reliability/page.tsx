@@ -28,6 +28,11 @@ import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../../components/ui/PageShell";
+import "../admin-platform.css";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 
 type Counts = Record<string, number>;
@@ -213,29 +218,28 @@ useEffect(() => {
   }, [summary]);
 
   return (
-    <main style={pageStyle}>
-      <header>
-        <h1 style={titleStyle}>Reliability operations</h1>
-        <p style={mutedStyle}>
-          Internal-only view of upload session health for this workspace.
-          Stalled, failed, and review-required uploads are NEVER auto-deleted.
-          Operator actions move the session through the canonical state
-          machine without mutating the underlying evidence row, custody chain,
-          or stored bytes.
-        </p>
-      </header>
+    <PageShell
+      width="full"
+      header={
+        <PageHeader
+          eyebrow="Platform operations"
+          title="Reliability operations"
+          subtitle={"Internal-only view of upload session health for this workspace. Stalled, failed, and review-required uploads are NEVER auto-deleted. Operator actions move the session through the canonical state machine without mutating the underlying evidence row, custody chain, or stored bytes."}
+        />
+      }
+    >
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
 
       {!teamId ? (
-        <p style={mutedStyle}>Switch to a workspace to view reliability data.</p>
+        <p className="apf-muted">Switch to a workspace to view reliability data.</p>
       ) : summary === null || headlineCounts === null ? (
-        <p style={mutedStyle}>Loading…</p>
+        <p className="apf-muted">Loading…</p>
       ) : (
         <>
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Headlines</h2>
-            <div style={summaryGridStyle}>
+          <section className="apf-section">
+            <h2 className="apf-section-title">Headlines</h2>
+            <div className="apf-grid">
               <Stat label="Active" value={String(headlineCounts.active)} />
               <Stat
                 label="Stalled"
@@ -260,13 +264,13 @@ useEffect(() => {
             </p>
           </section>
 
-          <section style={cardStyle}>
-            <div style={cardHeaderStyle}>
-              <h2 style={sectionTitleStyle}>Upload sessions</h2>
+          <section className="apf-section">
+            <div className="apf-section-head">
+              <h2 className="apf-section-title">Upload sessions</h2>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                style={selectStyle}
+                className="apf-control"
               >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -276,13 +280,13 @@ useEffect(() => {
               </select>
             </div>
             {sessions === null ? (
-              <p style={mutedStyle}>Loading…</p>
+              <p className="apf-muted">Loading…</p>
             ) : sessions.length === 0 ? (
-              <p style={mutedStyle}>No sessions in this state.</p>
+              <p className="apf-muted">No sessions in this state.</p>
             ) : (
               <ul style={listStyle}>
                 {sessions.map((s) => (
-                  <li key={s.id} style={rowStyle}>
+                  <li key={s.id} className="apf-row">
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>
                         Evidence {s.evidenceId.slice(0, 8)}…
@@ -291,7 +295,7 @@ useEffect(() => {
                           : ""}
                         {s.retryCount > 0 ? ` · retries ${s.retryCount}` : ""}
                       </div>
-                      <div style={mutedStyle}>
+                      <div className="apf-muted">
                         last activity{" "}
                         {formatUserDateTime(s.lastActivityAtUtc)}
                         {s.failureReason ? ` · ${s.failureReason}` : ""}
@@ -301,7 +305,7 @@ useEffect(() => {
                     {!s.isTerminal && s.status !== "REVIEW_REQUIRED" ? (
                       <button
                         type="button"
-                        style={secondaryButtonStyle}
+                        className="apf-control"
                         disabled={busyEvidenceId === s.evidenceId}
                         onClick={() => requestReview(s.evidenceId)}
                       >
@@ -311,7 +315,7 @@ useEffect(() => {
                     {!s.isTerminal ? (
                       <button
                         type="button"
-                        style={secondaryButtonStyle}
+                        className="apf-control"
                         disabled={busyEvidenceId === s.evidenceId}
                         onClick={() => markAbandoned(s.evidenceId)}
                       >
@@ -324,20 +328,20 @@ useEffect(() => {
             )}
           </section>
 
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Queue policies</h2>
-            <p style={mutedStyle}>
+          <section className="apf-section">
+            <h2 className="apf-section-title">Queue policies</h2>
+            <p className="apf-muted">
               Background workers retry with bounded exponential backoff. Failed
               jobs are retained for operator inspection.
             </p>
             <ul style={listStyle}>
               {summary.queuePolicies.map((q) => (
-                <li key={q.queueName} style={rowStyle}>
+                <li key={q.queueName} className="apf-row">
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600 }}>{q.queueName}</div>
-                    <div style={mutedStyle}>{q.notes}</div>
+                    <div className="apf-muted">{q.notes}</div>
                   </div>
-                  <div style={mutedStyle}>
+                  <div className="apf-muted">
                     {q.attempts} attempts · {q.backoffType} backoff from{" "}
                     {Math.round(q.backoffInitialMs / 1000)}s
                     {q.deadLetterQueue
@@ -350,7 +354,7 @@ useEffect(() => {
           </section>
         </>
       )}
-    </main>
+    </PageShell>
   );
 }
 
@@ -364,7 +368,7 @@ function Stat({
   tone?: "neutral" | "warn";
 }) {
   return (
-    <div style={statStyle}>
+    <div className="apf-stat">
       <div
         style={{
           fontSize: 22,
@@ -375,7 +379,7 @@ function Stat({
       >
         {value}
       </div>
-      <div style={mutedStyle}>{label}</div>
+      <div className="apf-muted">{label}</div>
     </div>
   );
 }
@@ -394,84 +398,8 @@ function formatBytes(n: number): string {
 // Styles
 // -----------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  maxWidth: 960,
-  margin: "0 auto",
-  padding: "32px 24px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
-const titleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
-  marginBottom: 4,
-};
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  marginBottom: 12,
-};
 const mutedStyle: React.CSSProperties = { fontSize: 13, color: "#64748b" };
-const cardStyle: React.CSSProperties = {
-  marginTop: 24,
-  padding: 20,
-  border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  background: "#fff",
-};
-const cardHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 12,
-};
-const summaryGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-  gap: 12,
-};
-const statStyle: React.CSSProperties = {
-  padding: 12,
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-};
 const listStyle: React.CSSProperties = { listStyle: "none", padding: 0, margin: 0 };
-const rowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "10px 0",
-  borderBottom: "1px solid #e2e8f0",
-};
-const errorBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 12,
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderRadius: 8,
-  fontSize: 14,
-};
-const selectStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 13,
-  background: "#fff",
-  color: "#0f172a",
-};
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "6px 14px",
-  fontWeight: 500,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 8,
-  cursor: "pointer",
-  fontSize: 13,
-};
 
 function statusBadgeStyle(status: string): React.CSSProperties {
   const base: React.CSSProperties = {

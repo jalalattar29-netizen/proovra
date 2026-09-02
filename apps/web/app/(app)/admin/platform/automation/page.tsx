@@ -38,6 +38,11 @@ import {
   usePlatformContext,
 } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../../components/ui/PageShell";
+import "../admin-platform.css";
 import { AutomationRuleForm } from "../../../../../components/automation/AutomationRuleForm";
 import { AutomationRuleToggle } from "../../../../../components/automation/AutomationRuleToggle";
 import type { AutomationRule } from "../../../../../components/automation/types";
@@ -139,52 +144,53 @@ function AutomationPageInner(): JSX.Element {
 
   if (state.status === "loading") {
     return (
-      <main className="cc-page" data-automation-loading>
-        <header className="cc-page-header">
-          <div>
-            <div className="cc-kicker">Operations Center · Automation</div>
-            <h1 className="cc-title">Automation rules</h1>
-          </div>
-        </header>
-        <section className="cc-section">
+      <PageShell
+      width="full" data-automation-loading
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Automation"}
+          title={"Automation rules"}
+        />
+      }
+    >
+        <section className="apf-section">
           <div className="cc-skeleton" />
         </section>
-      </main>
+      </PageShell>
     );
   }
 
   if (state.status === "auth_error") {
     return (
-      <main className="cc-page" data-automation-auth-error={state.code}>
-        <header className="cc-page-header">
-          <div>
-            <div className="cc-kicker">Operations Center · Automation</div>
-            <h1 className="cc-title">
-              {state.code === "auth_required"
+      <PageShell
+      width="full" data-automation-auth-error={state.code}
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Automation"}
+          title={state.code === "auth_required"
                 ? "Sign in required"
                 : "Permission required"}
-            </h1>
-            <p className="cc-subtitle">
-              Automation visibility requires the AUTOMATION_VIEW capability
-              (team writer or admin).
-            </p>
-          </div>
-        </header>
-      </main>
+          subtitle={"Automation visibility requires the AUTOMATION_VIEW capability (team writer or admin)."}
+        />
+      }
+    >
+      </PageShell>
     );
   }
 
   if (state.status === "unavailable") {
     return (
-      <main className="cc-page" data-automation-unavailable>
-        <header className="cc-page-header">
-          <div>
-            <div className="cc-kicker">Operations Center · Automation</div>
-            <h1 className="cc-title">Automation temporarily unavailable</h1>
-            <p className="cc-subtitle">{state.message}</p>
-          </div>
-        </header>
-      </main>
+      <PageShell
+      width="full" data-automation-unavailable
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Automation"}
+          title={"Automation temporarily unavailable"}
+          subtitle={state.message}
+        />
+      }
+    >
+      </PageShell>
     );
   }
 
@@ -203,32 +209,34 @@ function AutomationPageInner(): JSX.Element {
   };
 
   return (
-    <main className="cc-page" data-automation-ready>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Operations Center · Automation</div>
-          <h1 className="cc-title">Automation rules</h1>
-          <p className="cc-subtitle">
-            Bounded operational automation. Each rule has a strictly-typed
-            trigger and a strictly-typed action — no scripts, no visual
-            builder, no marketplace. Rules are team-scoped and audited.
-          </p>
-        </div>
-        <div className="cc-meta">
-          <span data-automation-counts>
-            {envelope.rules.length} rule
-            {envelope.rules.length === 1 ? "" : "s"} ·{" "}
-            {enabledCount} enabled
-          </span>
-        </div>
-      </header>
+    <PageShell
+      width="full" data-automation-ready
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Automation"}
+          title={"Automation rules"}
+          subtitle={"Bounded operational automation. Each rule has a strictly-typed trigger and a strictly-typed action — no scripts, no visual builder, no marketplace. Rules are team-scoped and audited."}
+          secondaryActions={
+            <>
+              <div className="cc-meta">
+              <span data-automation-counts>
+              {envelope.rules.length} rule
+              {envelope.rules.length === 1 ? "" : "s"} ·{" "}
+              {enabledCount} enabled
+              </span>
+              </div>
+            </>
+          }
+        />
+      }
+    >
 
       {/* Phase E3.1 — execution runtime active. The dispatcher accepts
           trigger events from internal services, matches enabled rules,
           and synchronously executes the bounded action handlers. Each
           lifecycle transition emits an `automation_*` security event. */}
       <section
-        className="cc-section"
+        className="apf-section"
         data-automation-execution-notice
         style={{
           borderLeft: "4px solid #10b981",
@@ -246,9 +254,9 @@ function AutomationPageInner(): JSX.Element {
       </section>
 
       {/* Rules list */}
-      <section className="cc-section" data-automation-rules-list>
+      <section className="apf-section" data-automation-rules-list>
         <header className="cc-section-header">
-          <h2 className="cc-section-title">Rules</h2>
+          <h2 className="apf-section-title">Rules</h2>
           <span
             className="cc-section-subtitle"
             data-automation-manage-hint
@@ -357,7 +365,7 @@ function AutomationPageInner(): JSX.Element {
           </div>
         ) : (
           <table
-            className="cc-table"
+            className="apf-table"
             data-automation-rules-table
             style={{ width: "100%", fontSize: 13 }}
           >
@@ -455,9 +463,9 @@ function AutomationPageInner(): JSX.Element {
       </section>
 
       {/* Run history */}
-      <section className="cc-section" data-automation-runs-list>
+      <section className="apf-section" data-automation-runs-list>
         <header className="cc-section-header">
-          <h2 className="cc-section-title">Recent runs</h2>
+          <h2 className="apf-section-title">Recent runs</h2>
           <span className="cc-section-subtitle">
             Latest {runs.length} run
             {runs.length === 1 ? "" : "s"}
@@ -472,7 +480,7 @@ function AutomationPageInner(): JSX.Element {
           </div>
         ) : (
           <table
-            className="cc-table"
+            className="apf-table"
             data-automation-runs-table
             style={{ width: "100%", fontSize: 13 }}
           >
@@ -511,9 +519,9 @@ function AutomationPageInner(): JSX.Element {
       </section>
 
       {/* Allowlist reference */}
-      <section className="cc-section" data-automation-allowlists>
+      <section className="apf-section" data-automation-allowlists>
         <header className="cc-section-header">
-          <h2 className="cc-section-title">Bounded allowlists</h2>
+          <h2 className="apf-section-title">Bounded allowlists</h2>
           <span className="cc-section-subtitle">
             Read-only. Adding a value requires a coordinated DB migration.
           </span>
@@ -541,7 +549,7 @@ function AutomationPageInner(): JSX.Element {
           </div>
         </div>
       </section>
-    </main>
+    </PageShell>
   );
 }
 

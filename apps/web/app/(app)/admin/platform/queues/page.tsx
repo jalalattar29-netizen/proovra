@@ -33,6 +33,11 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../../components/ui/PageShell";
+import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
 import {
   StepUpModal,
@@ -41,21 +46,14 @@ import {
 import {
   badgeStyle,
   cardStyle,
-  errorBoxStyle,
   formatDateTime,
-  ghostButtonStyle,
-  headerRowStyle,
   inputStyle,
   mutedStyle,
-  pageStyle,
   primaryButtonStyle,
-  sectionTitleStyle,
-  subtitleStyle,
   successBoxStyle,
   tableStyle,
   tdStyle,
   thStyle,
-  titleStyle,
   TOKENS,
 } from "../../identity/ui-tokens";
 
@@ -275,9 +273,24 @@ function OperationsQueuesContent() {
     [teamId, selectedQueue, replayTarget, replayReason, stepUp, loadFailed, loadAll],
   );
 
+  const pageHeader = (
+    <PageHeader
+      eyebrow="Platform operations"
+      title="Queue Operations"
+      subtitle={"Inspect queues, triage failed jobs, replay safe jobs, and detect worker degradation. The replay-safety matrix below enforces what kinds of jobs may be replayed; destructive job kinds are hard-refused."}
+      secondaryActions={
+        <>
+          <button type="button" className="apf-control" onClick={loadAll}>
+          Refresh
+          </button>
+        </>
+      }
+    />
+  );
+
   if (!teamId) {
     return (
-      <main style={pageStyle}>
+      <PageShell width="full" header={pageHeader}>
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Queue Operations"
@@ -288,28 +301,14 @@ function OperationsQueuesContent() {
           ]}
           testid="queue-ops-no-workspace"
         />
-      </main>
+      </PageShell>
     );
   }
 
   return (
-    <main style={pageStyle} data-testid="operations-queues-root">
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Queue Operations</h1>
-          <p style={subtitleStyle}>
-            Inspect queues, triage failed jobs, replay safe jobs, and detect
-            worker degradation. The replay-safety matrix below enforces what
-            kinds of jobs may be replayed; destructive job kinds are
-            hard-refused.
-          </p>
-        </div>
-        <button type="button" style={ghostButtonStyle} onClick={loadAll}>
-          Refresh
-        </button>
-      </header>
+    <PageShell width="full" header={pageHeader} data-testid="operations-queues-root">
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
       {success ? <div style={successBoxStyle}>{success}</div> : null}
 
       <QueueOverviewCards
@@ -353,7 +352,7 @@ function OperationsQueuesContent() {
       ) : null}
 
       <StepUpModal control={stepUp} />
-    </main>
+    </PageShell>
   );
 }
 
@@ -381,7 +380,7 @@ function QueueOverviewCards({
   if (queues === null) {
     return (
       <section style={{ ...cardStyle, marginTop: 16 }}>
-        <p style={mutedStyle}>Loading queues…</p>
+        <p className="apf-muted">Loading queues…</p>
       </section>
     );
   }
@@ -486,7 +485,7 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
       style={{ ...cardStyle, marginTop: 12 }}
       data-testid="worker-health"
     >
-      <h3 style={sectionTitleStyle}>Worker health</h3>
+      <h3 className="apf-section-title">Worker health</h3>
       <table style={tableStyle}>
         <thead>
           <tr>
@@ -604,7 +603,7 @@ function FailedJobsPanel({
                     <span style={categoryBadge(cat)}>{cat}</span>
                   </td>
                   <td style={tdStyle}>
-                    <span style={mutedStyle}>
+                    <span className="apf-muted">
                       {formatDateTime(j.failedAtUtc)}
                     </span>
                   </td>
@@ -633,7 +632,7 @@ function FailedJobsPanel({
                     ) : (
                       <button
                         type="button"
-                        style={ghostButtonStyle}
+                        className="apf-control"
                         disabled={busyJobId !== null}
                         onClick={() => onPickReplay(j, cat)}
                       >
@@ -694,7 +693,7 @@ function ReplayDialog({
         }}
       >
         <strong style={{ fontSize: 14 }}>Replay job</strong>
-        <button type="button" style={ghostButtonStyle} onClick={onCancel}>
+        <button type="button" className="apf-control" onClick={onCancel}>
           Close
         </button>
       </header>
@@ -719,7 +718,7 @@ function ReplayDialog({
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button
           type="button"
-          style={ghostButtonStyle}
+          className="apf-control"
           onClick={onRetry}
           disabled={busy || reason.trim().length === 0}
         >

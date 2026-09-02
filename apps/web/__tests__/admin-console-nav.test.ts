@@ -28,6 +28,7 @@ import {
   ADMIN_NAV_SECTIONS,
   adminNavigationHrefs,
   isWorkspaceScopedAdminPath,
+  isPlatformAuditScopedAdminPath,
   resolveAdminLocation,
 } from "../components/admin/adminNavigation";
 import { ROUTE_REGISTRY } from "../lib/navigation/routeRegistry";
@@ -87,7 +88,13 @@ test("every entry declares a purpose and a scope", () => {
     for (const child of section.children) {
       assert.ok(child.purpose.length > 0, `${child.href} must state its purpose`);
       assert.ok(
-        child.scope === "PLATFORM" || child.scope === "WORKSPACE",
+        // Three scopes since ADM-013. `PLATFORM_AUDIT` is platform-wide data
+        // with the operator's workspace recorded as the audit envelope —
+        // previously mislabelled WORKSPACE on five surfaces, which told an
+        // operator triaging a global failed job that it was their tenant's.
+        child.scope === "PLATFORM" ||
+          child.scope === "PLATFORM_AUDIT" ||
+          child.scope === "WORKSPACE",
         `${child.href} must declare what it administers`,
       );
     }
@@ -203,10 +210,18 @@ test("scope comes from the registry, not from a second list of paths", () => {
   // Two lists of paths drift: a page could be promoted in the nav and left in
   // the tenant-scope list, or the reverse, and nothing would notice.
   assert.equal(isWorkspaceScopedAdminPath("/admin/identity"), true);
-  assert.equal(isWorkspaceScopedAdminPath("/admin/platform/signers"), true);
+  // CORRECTED in ADM-013. Signers was WORKSPACE, and the banner therefore
+  // said "This page administers your own active workspace — not the platform."
+  // `listAllSigners` starts from `getCurrentActiveSigners()`, which takes no
+  // teamId: the page shows the PLATFORM's signing identities. It is
+  // PLATFORM_AUDIT now — platform data, workspace-shaped audit envelope — and
+  // that is not workspace-scoped.
+  assert.equal(isWorkspaceScopedAdminPath("/admin/platform/signers"), false);
+  assert.equal(isPlatformAuditScopedAdminPath("/admin/platform/signers"), true);
   // Promoted in ADM-013 Phase 1: it no longer resolves a workspace at all.
   assert.equal(isWorkspaceScopedAdminPath("/admin/platform/observability"), false);
   assert.equal(isWorkspaceScopedAdminPath("/admin/customers"), false);
+  assert.equal(isPlatformAuditScopedAdminPath("/admin/customers"), false);
 });
 
 test("a contextual detail inherits the scope of the list it came from", () => {

@@ -46,9 +46,6 @@ import { apiFetch } from "../../../../../lib/api";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { formatUserTime } from "../../../../../lib/date";
 import {
-  OPS_INK,
-  OPS_SURFACE,
-  OPS_TONES,
   Sparkline,
   type SparklineSeverity,
 } from "../../../../../components/operational";
@@ -1286,47 +1283,6 @@ type SummaryTone =
   | "critical"
   | "unknown";
 
-const SUMMARY_TILE_PALETTE: Record<
-  SummaryTone,
-  { bg: string; border: string; ink: string; kicker: string }
-> = {
-  neutral: {
-    bg: OPS_SURFACE.card,
-    border: OPS_SURFACE.border,
-    ink: OPS_INK.default,
-    kicker: OPS_INK.subtle,
-  },
-  healthy: {
-    bg: OPS_TONES.healthy.bg,
-    border: OPS_TONES.healthy.border,
-    ink: OPS_TONES.healthy.ink,
-    kicker: OPS_TONES.healthy.kicker,
-  },
-  warning: {
-    bg: OPS_TONES.warning.bg,
-    border: OPS_TONES.warning.border,
-    ink: OPS_TONES.warning.ink,
-    kicker: OPS_TONES.warning.kicker,
-  },
-  high: {
-    bg: OPS_TONES.high.bg,
-    border: OPS_TONES.high.border,
-    ink: OPS_TONES.high.ink,
-    kicker: OPS_TONES.high.kicker,
-  },
-  critical: {
-    bg: OPS_TONES.critical.bg,
-    border: OPS_TONES.critical.border,
-    ink: OPS_TONES.critical.ink,
-    kicker: OPS_TONES.critical.kicker,
-  },
-  unknown: {
-    bg: OPS_TONES.unknown.bg,
-    border: OPS_TONES.unknown.border,
-    ink: OPS_TONES.unknown.ink,
-    kicker: OPS_TONES.unknown.kicker,
-  },
-};
 
 function SummaryTile({
   label,
@@ -1339,53 +1295,22 @@ function SummaryTile({
   hint: string;
   tone: SummaryTone;
 }) {
-  const palette = SUMMARY_TILE_PALETTE[tone];
+  // The tone is an ATTRIBUTE, not a palette lookup. It used to resolve through
+  // `SUMMARY_TILE_PALETTE` into inline styles built from the OPS_* token
+  // exports, which meant no dark mode and no media query — and it made
+  // "unknown" indistinguishable from "neutral" for anyone who could not rely
+  // on the colour. See `.apf-tile` in admin-platform.css for what each tone
+  // means and why unknown is grey and dashed rather than red.
   return (
     <div
-      data-summary-tile={label.toLowerCase().replace(/\s+/g, "_")}
+      className="apf-tile"
+      data-tone={tone}
+      data-summary-tile={label.toLowerCase().replace(/s+/g, "_")}
       data-summary-tone={tone}
-      style={{
-        background: palette.bg,
-        border: `1px solid ${palette.border}`,
-        borderRadius: 10,
-        padding: "14px 16px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
     >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
-          color: palette.kicker,
-          fontWeight: 700,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 26,
-          fontWeight: 700,
-          color: palette.ink,
-          lineHeight: 1.1,
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {value}
-      </div>
-      <div
-        style={{
-          fontSize: 12,
-          color: palette.ink,
-          opacity: 0.85,
-          lineHeight: 1.4,
-        }}
-      >
-        {hint}
-      </div>
+      <div className="apf-tile-label">{label}</div>
+      <div className="apf-tile-value">{value}</div>
+      <div className="apf-tile-hint">{hint}</div>
     </div>
   );
 }
@@ -1400,24 +1325,8 @@ function SignalList({
   emptyHint: string;
 }) {
   return (
-    <div
-      style={{
-        border: `1px solid ${OPS_SURFACE.border}`,
-        borderRadius: 8,
-        background: OPS_SURFACE.cardMuted,
-        padding: 12,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-          fontWeight: 700,
-          color: OPS_INK.subtle,
-          marginBottom: 8,
-        }}
-      >
+    <div className="apf-stat">
+      <div className="apf-tile-label" style={{ marginBottom: 8 }}>
         {caption}
       </div>
       {rows.length === 0 ? (
@@ -1427,14 +1336,7 @@ function SignalList({
           {rows.map(([name, value]) => (
             <li
               key={name}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "4px 0",
-                fontSize: 12,
-                color: OPS_INK.default,
-                borderTop: `1px solid ${OPS_SURFACE.border}`,
-              }}
+              className="apf-signal-row"
             >
               <code style={tdMonoStyle}>{name}</code>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
@@ -1492,26 +1394,15 @@ const sparklineGridStyle: React.CSSProperties = {
   gap: 14,
   marginTop: 8,
 };
-const heatCellPalette = {
-  warning: {
-    bg: OPS_TONES.warning.bg,
-    border: OPS_TONES.warning.border,
-    ink: OPS_TONES.warning.ink,
-    kicker: OPS_TONES.warning.kicker,
-  },
-  high: {
-    bg: OPS_TONES.high.bg,
-    border: OPS_TONES.high.border,
-    ink: OPS_TONES.high.ink,
-    kicker: OPS_TONES.high.kicker,
-  },
-  critical: {
-    bg: OPS_TONES.critical.bg,
-    border: OPS_TONES.critical.border,
-    ink: OPS_TONES.critical.ink,
-    kicker: OPS_TONES.critical.kicker,
-  },
-} as const;
+/**
+ * The heat-cell severities.
+ *
+ * A type, not a palette. The colours moved to `.apf-tile[data-tone]` in
+ * admin-platform.css alongside the summary tiles', so both use ONE vocabulary.
+ * The previous arrangement had two JavaScript palettes that happened to agree
+ * and nothing keeping them in agreement.
+ */
+type HeatSeverity = "warning" | "high" | "critical";
 function HeatCell({
   kicker,
   metric,
@@ -1521,56 +1412,18 @@ function HeatCell({
   kicker: string;
   metric: string;
   value: number;
-  severity: keyof typeof heatCellPalette;
+  severity: HeatSeverity;
 }) {
-  const palette = heatCellPalette[severity];
   return (
     <div
+      className="apf-tile"
+      data-tone={severity}
       data-heat-cell={kicker.toLowerCase().replace(/\s+/g, "_")}
       data-heat-severity={severity}
-      style={{
-        background: palette.bg,
-        border: `1px solid ${palette.border}`,
-        borderRadius: 10,
-        padding: "12px 14px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
     >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-          color: palette.kicker,
-          fontWeight: 700,
-        }}
-      >
-        {kicker}
-      </div>
-      <div
-        style={{
-          fontSize: 22,
-          fontWeight: 700,
-          color: palette.ink,
-          fontVariantNumeric: "tabular-nums",
-          lineHeight: 1.1,
-        }}
-      >
-        {value.toLocaleString()}
-      </div>
-      <code
-        style={{
-          fontSize: 11,
-          color: palette.ink,
-          opacity: 0.85,
-          fontFamily:
-            "ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
-        }}
-      >
-        {metric}
-      </code>
+      <div className="apf-tile-label">{kicker}</div>
+      <div className="apf-tile-value">{value.toLocaleString()}</div>
+      <code className="apf-tile-hint apf-mono">{metric}</code>
     </div>
   );
 }

@@ -30,6 +30,11 @@ import {
   useActiveSpaceId,
 } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../../components/ui/PageShell";
+import "../admin-platform.css";
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
 
 // ---------------------------------------------------------------------------
@@ -171,7 +176,7 @@ function MetricCard(props: {
   const degraded = metricIsDegraded(props.envelope, props.metric);
   return (
     <div
-      className="cc-card"
+      className="apf-section"
       data-analytics-metric={props.metric}
       data-analytics-degraded={degraded ? "true" : "false"}
       style={{
@@ -336,127 +341,130 @@ function AnalyticsPageInner(): JSX.Element {
 
   if (state.status === "loading") {
     return (
-      <main className="cc-page" data-analytics-loading>
-        <header className="cc-page-header">
-          <div>
-            <div className="cc-kicker">Operations Center · Analytics</div>
-            <h1 className="cc-title">Operational analytics</h1>
-          </div>
-        </header>
-        <section className="cc-section">
+      <PageShell
+      width="full" data-analytics-loading
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Analytics"}
+          title={"Operational analytics"}
+        />
+      }
+    >
+        <section className="apf-section">
           <div className="cc-skeleton" />
         </section>
-      </main>
+      </PageShell>
     );
   }
 
   if (state.status === "auth_error") {
     return (
-      <main className="cc-page" data-analytics-auth-error={state.code}>
-        <header className="cc-page-header">
-          <div>
-            <div className="cc-kicker">Operations Center · Analytics</div>
-            <h1 className="cc-title">
-              {state.code === "auth_required"
+      <PageShell
+      width="full" data-analytics-auth-error={state.code}
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Analytics"}
+          title={state.code === "auth_required"
                 ? "Sign in required"
                 : "Permission required"}
-            </h1>
-            <p className="cc-subtitle">
-              Operational analytics require the ANALYTICS_VIEW capability
-              (team writer or admin).
-            </p>
-          </div>
-        </header>
-      </main>
+          subtitle={"Operational analytics require the ANALYTICS_VIEW capability (team writer or admin)."}
+        />
+      }
+    >
+      </PageShell>
     );
   }
 
   if (state.status === "unavailable") {
     return (
-      <main className="cc-page" data-analytics-unavailable>
-        <header className="cc-page-header">
-          <div>
-            <div className="cc-kicker">Operations Center · Analytics</div>
-            <h1 className="cc-title">Analytics temporarily unavailable</h1>
-            <p className="cc-subtitle">{state.message}</p>
-          </div>
-        </header>
-      </main>
+      <PageShell
+      width="full" data-analytics-unavailable
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Analytics"}
+          title={"Analytics temporarily unavailable"}
+          subtitle={state.message}
+        />
+      }
+    >
+      </PageShell>
     );
   }
 
   const { operations, reviewer, governance, automation, artifacts } = state.data;
 
   return (
-    <main className="cc-page" data-analytics-ready>
-      <header className="cc-page-header">
-        <div>
-          <div className="cc-kicker">Operations Center · Analytics</div>
-          <h1 className="cc-title">Operational analytics</h1>
-          <p className="cc-subtitle">
-            Real counts from real tables. Every value traces to a Prisma
-            model + filter. No fake KPIs, no AI predictions, no
-            legal/admissibility scores — operational signal only.
-          </p>
-        </div>
-        <div
-          className="cc-meta"
-          style={{ display: "flex", gap: 12, alignItems: "center" }}
-        >
-          <label
-            htmlFor="analytics-window-select"
-            style={{ fontSize: 12, color: "#64748b" }}
-          >
-            Window
-          </label>
-          <select
-            id="analytics-window-select"
-            data-analytics-window-select
-            value={windowDays}
-            onChange={(e) => {
+    <PageShell
+      width="full" data-analytics-ready
+      header={
+        <PageHeader
+          eyebrow={"Operations Center · Analytics"}
+          title={"Operational analytics"}
+          subtitle={"Real counts from real tables. Every value traces to a Prisma model + filter. No fake KPIs, no AI predictions, no legal/admissibility scores — operational signal only."}
+          secondaryActions={
+            <>
+              <div
+              className="cc-meta"
+              style={{ display: "flex", gap: 12, alignItems: "center" }}
+              >
+              <label
+              htmlFor="analytics-window-select"
+              style={{ fontSize: 12, color: "#64748b" }}
+              >
+              Window
+              </label>
+              <select
+              id="analytics-window-select"
+              data-analytics-window-select
+              value={windowDays}
+              onChange={(e) => {
               const next = Number(e.target.value) as AnalyticsWindowOption;
               if (allowedWindowOptions.includes(next)) {
-                setWindowDays(next);
+              setWindowDays(next);
               }
-            }}
-            style={{
+              }}
+              style={{
               fontSize: 13,
               padding: "4px 8px",
               border: "1px solid #cbd5e1",
               borderRadius: 6,
-            }}
-          >
-            {allowedWindowOptions.map((d) => (
+              }}
+              >
+              {allowedWindowOptions.map((d) => (
               <option key={d} value={d}>
-                Last {d} days
+              Last {d} days
               </option>
-            ))}
-          </select>
-          {headerWindow ? (
-            <span
+              ))}
+              </select>
+              {headerWindow ? (
+              <span
               data-analytics-window-active
               style={{ fontSize: 11, color: "#94a3b8" }}
-            >
+              >
               {formatUserDate(headerWindow.start)} →{" "}
               {formatUserDate(headerWindow.end)}
-            </span>
-          ) : null}
-          {windowContract ? (
-            <span
+              </span>
+              ) : null}
+              {windowContract ? (
+              <span
               data-analytics-window-contract
               data-analytics-window-min={windowContract.minDays}
               data-analytics-window-max={windowContract.maxDays}
               style={{ fontSize: 11, color: "#94a3b8" }}
               title={`The API clamps any window to ${windowContract.minDays}–${windowContract.maxDays} days.`}
-            >
+              >
               {windowContract.minDays}–{windowContract.maxDays} day range
-            </span>
-          ) : null}
-        </div>
-      </header>
+              </span>
+              ) : null}
+              </div>
+            </>
+          }
+        />
+      }
+    >
 
       <section
-        className="cc-section"
+        className="apf-section"
         data-analytics-honesty-notice
         style={{
           borderLeft: "4px solid #2563eb",
@@ -474,11 +482,11 @@ function AnalyticsPageInner(): JSX.Element {
 
       {/* -------------------- Operations overview -------------------- */}
       <section
-        className="cc-section"
+        className="apf-section"
         data-analytics-section="operations"
       >
         <header className="cc-section-header">
-          <h2 className="cc-section-title">Operations overview</h2>
+          <h2 className="apf-section-title">Operations overview</h2>
           <span className="cc-section-subtitle">
             Workspace pulse: evidence flow, open cases, reviewer headcount.
           </span>
@@ -536,9 +544,9 @@ function AnalyticsPageInner(): JSX.Element {
       </section>
 
       {/* -------------------- Reviewer analytics -------------------- */}
-      <section className="cc-section" data-analytics-section="reviewer">
+      <section className="apf-section" data-analytics-section="reviewer">
         <header className="cc-section-header">
-          <h2 className="cc-section-title">Reviewer activity</h2>
+          <h2 className="apf-section-title">Reviewer activity</h2>
           <span className="cc-section-subtitle">
             Review queue depth, assignment fill rate, escalation rhythm.
           </span>
@@ -589,9 +597,9 @@ function AnalyticsPageInner(): JSX.Element {
       </section>
 
       {/* -------------------- Governance analytics -------------------- */}
-      <section className="cc-section" data-analytics-section="governance">
+      <section className="apf-section" data-analytics-section="governance">
         <header className="cc-section-header">
-          <h2 className="cc-section-title">Governance posture</h2>
+          <h2 className="apf-section-title">Governance posture</h2>
           <span className="cc-section-subtitle">
             Legal-hold state and lifecycle. No legal conclusions — just counts.
           </span>
@@ -635,9 +643,9 @@ function AnalyticsPageInner(): JSX.Element {
       </section>
 
       {/* -------------------- Automation analytics -------------------- */}
-      <section className="cc-section" data-analytics-section="automation">
+      <section className="apf-section" data-analytics-section="automation">
         <header className="cc-section-header">
-          <h2 className="cc-section-title">Automation health</h2>
+          <h2 className="apf-section-title">Automation health</h2>
           <span className="cc-section-subtitle">
             Bounded rules + run + webhook delivery counts. Detailed
             webhook destinations and delivery logs are exposed via the
@@ -743,9 +751,9 @@ function AnalyticsPageInner(): JSX.Element {
       </section>
 
       {/* -------------------- Artifact readiness -------------------- */}
-      <section className="cc-section" data-analytics-section="artifacts">
+      <section className="apf-section" data-analytics-section="artifacts">
         <header className="cc-section-header">
-          <h2 className="cc-section-title">Artifact readiness</h2>
+          <h2 className="apf-section-title">Artifact readiness</h2>
           <span className="cc-section-subtitle">
             Reports + verification packages generated in window.
           </span>
@@ -775,7 +783,7 @@ function AnalyticsPageInner(): JSX.Element {
       </section>
 
       <footer
-        className="cc-section"
+        className="apf-section"
         data-analytics-footer
         style={{ fontSize: 11, color: "#94a3b8" }}
       >
@@ -785,7 +793,7 @@ function AnalyticsPageInner(): JSX.Element {
           : "unknown"}{" "}
         · Hover any "source: …" badge to see the table + filter used.
       </footer>
-    </main>
+    </PageShell>
   );
 }
 

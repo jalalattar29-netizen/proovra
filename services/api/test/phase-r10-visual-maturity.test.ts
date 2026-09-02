@@ -659,8 +659,23 @@ describe("R10 Group 14 — CSS hygiene", () => {
 
   it("CSS surface count is bounded (regression catch on accidental per-file CSS explosion)", () => {
     // R10 baseline: ~9 stylesheets across apps/web (excluding .next).
-    // Pin against accidental explosion past 25.
-    expect(CSS_FILES.length).toBeLessThanOrEqual(25);
+    // Pin against accidental explosion.
+    //
+    // 25 → 27 (ADM-013). Two additions, and both REDUCE the number of styling
+    // systems rather than adding one:
+    //
+    //   admin/platform/admin-platform.css   replaces the per-page style
+    //     objects on nine `/admin/platform/*` pages — six with their own
+    //     `pageStyle`/`titleStyle`/`cardStyle` literals, two on the `cc-*`
+    //     classes, one on the `OPS_*` token exports. 41 dead declarations
+    //     were deleted with it.
+    //   admin/platform/runbooks/runbooks.css  the runbook reader's prose
+    //     typography, which has no equivalent anywhere else.
+    //
+    // The guard is against per-FILE CSS, and this is the opposite: nine files'
+    // worth of inline styling collapsed into one stylesheet that can carry a
+    // media query and a dark-mode token swap, which inline styles cannot.
+    expect(CSS_FILES.length).toBeLessThanOrEqual(27);
   });
 });
 

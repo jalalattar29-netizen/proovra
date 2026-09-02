@@ -206,11 +206,42 @@ export function AdminTenantScopeNotice({
   workspaceLabel?: string | null;
 }) {
   return (
-    <div role="note" className="adminnav__scope-notice">
+    <div role="note" className="adminnav__scope-notice" data-scope="WORKSPACE">
       <strong>Workspace-scoped surface.</strong> This page administers{" "}
       {workspaceLabel ? <strong>{workspaceLabel}</strong> : "your own active workspace"}{" "}
       — not the platform. Cross-tenant views live under Customers, Workspaces
       and Platform operations.
+    </div>
+  );
+}
+
+/**
+ * The OTHER thing `?teamId=` can mean.
+ *
+ * A surface showing platform-wide data that records the operator's actions
+ * against their active workspace. It used to share the workspace notice, which
+ * told an operator triaging a failed job that the failure belonged to their own
+ * tenant — and the queue route's own header says failed jobs "may originate
+ * from a different workspace than the one the operator is currently active in".
+ *
+ * This says the true thing instead: everything, and here is where your actions
+ * are recorded.
+ */
+export function AdminPlatformAuditScopeNotice({
+  workspaceLabel,
+}: {
+  workspaceLabel?: string | null;
+}) {
+  return (
+    <div
+      role="note"
+      className="adminnav__scope-notice"
+      data-scope="PLATFORM_AUDIT"
+    >
+      <strong>Platform-wide surface.</strong> This page reads across every
+      tenant. Actions you take here are recorded against{" "}
+      {workspaceLabel ? <strong>{workspaceLabel}</strong> : "your active workspace"}{" "}
+      as the audit scope — that workspace is not a filter on what you see.
     </div>
   );
 }

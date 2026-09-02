@@ -44,8 +44,22 @@ export type AdminSurfaceScope =
   /** Reads across every tenant. The platform gate IS the boundary. */
   | "PLATFORM"
   /**
+   * Platform-wide DATA, with the operator's active workspace recorded as the
+   * AUDIT scope for anything they do here.
+   *
+   * The distinction from WORKSPACE is not pedantic and it is not cosmetic. Both
+   * send `?teamId=` and the two are indistinguishable in a network tab, but
+   * they are opposite facts about what is on screen. Queues is the clearest
+   * case: its route header states that the queues are global and that failed
+   * jobs "may originate from a different workspace than the one the operator is
+   * currently active in". Labelling it WORKSPACE told an operator triaging a
+   * failure that it belonged to their own tenant. It might belong to any.
+   */
+  | "PLATFORM_AUDIT"
+  /**
    * Resolves a workspace from the operator's own active workspace and calls a
-   * tenant API. Cross-tenant it is NOT, whatever the page title says.
+   * tenant API that FILTERS by it. Cross-tenant it is NOT, whatever the page
+   * title says.
    */
   | "WORKSPACE";
 
@@ -107,7 +121,8 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         href: "/admin/provisioning",
         label: "Provisioning",
         purpose: "Activate an enterprise customer.",
-        scope: "PLATFORM",
+        // Platform action; the active workspace is the audit envelope.
+        scope: "PLATFORM_AUDIT",
       },
       {
         routeId: "platform.demo_requests",
@@ -143,7 +158,8 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         href: "/admin/support-access",
         label: "Support access",
         purpose: "Support-access and break-glass grants.",
-        scope: "PLATFORM",
+        // Platform action; the active workspace is the audit envelope.
+        scope: "WORKSPACE",
       },
       {
         routeId: "admin.identity",
@@ -151,6 +167,69 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         label: "Identity operations",
         purpose:
           "Providers, SCIM, sessions and the permission matrix — for ONE workspace.",
+        scope: "WORKSPACE",
+      },
+      // ---------------------------------------------------------------------
+      // The seven identity children.
+      //
+      // They rendered, they were gated, and they appeared in no navigation
+      // surface — reachable only by typing the URL, or by finding the one link
+      // on the hub. A page nobody can find is a page nobody maintains.
+      //
+      // Every one of them is WORKSPACE scope, and that is not a formality: the
+      // handler behind each is `requireIdentityAdmin`, which demands ACTIVE
+      // membership of the supplied workspace and narrows the query to it. A
+      // platform admin opening "Providers" sees their OWN workspace's SSO
+      // configuration. The scope field is what makes the console say so.
+      // ---------------------------------------------------------------------
+      {
+        routeId: "admin.identity_providers",
+        href: "/admin/identity/providers",
+        label: "Identity providers",
+        purpose: "SAML and OIDC configuration and health, for ONE workspace.",
+        scope: "WORKSPACE",
+      },
+      {
+        routeId: "admin.identity_scim",
+        href: "/admin/identity/scim",
+        label: "SCIM operations",
+        purpose: "Provisioning drift and reconciliation runs, for ONE workspace.",
+        scope: "WORKSPACE",
+      },
+      {
+        routeId: "admin.identity_sessions",
+        href: "/admin/identity/sessions",
+        label: "Sessions & devices",
+        purpose: "Active sessions and devices for ONE workspace's members.",
+        scope: "WORKSPACE",
+      },
+      {
+        routeId: "admin.identity_permission_matrix",
+        href: "/admin/identity/permission-matrix",
+        label: "Permission matrix",
+        purpose:
+          "Role-to-permission resolution as the runtime computes it, for ONE workspace.",
+        scope: "WORKSPACE",
+      },
+      {
+        routeId: "admin.identity_access_reviews",
+        href: "/admin/identity/access-reviews",
+        label: "Access reviews",
+        purpose: "Periodic access-review campaigns and outcomes, for ONE workspace.",
+        scope: "WORKSPACE",
+      },
+      {
+        routeId: "admin.identity_runtime",
+        href: "/admin/identity/runtime",
+        label: "Identity runtime",
+        purpose: "Live session, factor and risk signals for ONE workspace.",
+        scope: "WORKSPACE",
+      },
+      {
+        routeId: "admin.identity_timeline",
+        href: "/admin/identity/timeline",
+        label: "Identity audit",
+        purpose: "The bounded identity audit trail for ONE workspace.",
         scope: "WORKSPACE",
       },
     ],
@@ -281,7 +360,7 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         href: "/admin/platform/queues",
         label: "Queues",
         purpose: "Queue depth, failed jobs and replay.",
-        scope: "WORKSPACE",
+        scope: "PLATFORM_AUDIT",
       },
       {
         routeId: "platform.reliability",
@@ -302,7 +381,7 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         href: "/admin/platform/signers",
         label: "Signers",
         purpose: "Evidence-signing key custody and signer health.",
-        scope: "WORKSPACE",
+        scope: "PLATFORM_AUDIT",
       },
       {
         routeId: "operations.exports",
@@ -330,7 +409,7 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         href: "/admin/platform/media-graph",
         label: "Media intelligence ops",
         purpose: "Media intelligence and investigation graph metrics.",
-        scope: "PLATFORM",
+        scope: "PLATFORM_AUDIT",
       },
     ],
   },
@@ -344,8 +423,11 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         routeId: "platform.security",
         href: "/admin/security",
         label: "Security",
-        purpose: "Security events across every tenant.",
-        scope: "PLATFORM",
+        // Corrected. The page's own header calls it "Workspace security
+        // posture" and it reads /v1/security/* and /v1/identity/mfa-admin/*
+        // for ONE teamId. "Across every tenant" was the claim, not the code.
+        purpose: "Security posture and MFA lifecycle, for ONE workspace.",
+        scope: "WORKSPACE",
       },
       {
         routeId: "platform.alerts",
@@ -572,5 +654,21 @@ export function adminNavigationHrefs(): string[] {
 export function isWorkspaceScopedAdminPath(
   pathname: string | null | undefined,
 ): boolean {
+  // PLATFORM_AUDIT is deliberately NOT workspace-scoped. It is platform data
+  // with a workspace-shaped audit envelope, and it gets its own notice.
   return resolveAdminLocation(pathname)?.scope === "WORKSPACE";
+}
+
+/**
+ * True when a surface shows PLATFORM data but records the operator's action
+ * against their active workspace.
+ *
+ * Separate from `isWorkspaceScopedAdminPath` because the two need different
+ * sentences: one warns that the page is NOT cross-tenant, the other explains
+ * that it IS and says where the audit lands.
+ */
+export function isPlatformAuditScopedAdminPath(
+  pathname: string | null | undefined,
+): boolean {
+  return resolveAdminLocation(pathname)?.scope === "PLATFORM_AUDIT";
 }

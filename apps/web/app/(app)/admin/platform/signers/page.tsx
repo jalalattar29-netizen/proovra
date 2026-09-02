@@ -42,6 +42,11 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../../components/ui/PageShell";
+import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
 import {
   StepUpModal,
@@ -50,21 +55,15 @@ import {
 import {
   badgeStyle,
   cardStyle,
-  errorBoxStyle,
   formatDateTime,
   ghostButtonStyle,
-  headerRowStyle,
   inputStyle,
   mutedStyle,
-  pageStyle,
   primaryButtonStyle,
-  sectionTitleStyle,
-  subtitleStyle,
   successBoxStyle,
   tableStyle,
   tdStyle,
   thStyle,
-  titleStyle,
   TOKENS,
 } from "../../identity/ui-tokens";
 
@@ -320,9 +319,24 @@ function OperationsSignersContent() {
     }
   }, [teamId, stepUp, load]);
 
+  const pageHeader = (
+    <PageHeader
+      eyebrow="Platform operations"
+      title="Signer Governance"
+      subtitle={"Inspect the active signer per artifact kind, run KMS health probes, stage and promote rotations, and verify detached custody attestations. Historical artifacts retain their original signer metadata — promoting a new signer only affects future signatures."}
+      secondaryActions={
+        <>
+          <button type="button" className="apf-control" onClick={load}>
+          Refresh
+          </button>
+        </>
+      }
+    />
+  );
+
   if (!teamId) {
     return (
-      <main style={pageStyle}>
+      <PageShell width="full" header={pageHeader}>
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Signer Governance"
@@ -333,29 +347,14 @@ function OperationsSignersContent() {
           ]}
           testid="signer-governance-no-workspace"
         />
-      </main>
+      </PageShell>
     );
   }
 
   return (
-    <main style={pageStyle} data-testid="operations-signers-root">
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Signer Governance</h1>
-          <p style={subtitleStyle}>
-            Inspect the active signer per artifact kind, run KMS health
-            probes, stage and promote rotations, and verify detached
-            custody attestations. Historical artifacts retain their
-            original signer metadata — promoting a new signer only
-            affects future signatures.
-          </p>
-        </div>
-        <button type="button" style={ghostButtonStyle} onClick={load}>
-          Refresh
-        </button>
-      </header>
+    <PageShell width="full" header={pageHeader} data-testid="operations-signers-root">
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
       {success ? <div style={successBoxStyle}>{success}</div> : null}
 
       <PurposeOverview
@@ -387,7 +386,7 @@ function OperationsSignersContent() {
       />
 
       <StepUpModal control={stepUp} />
-    </main>
+    </PageShell>
   );
 }
 
@@ -421,7 +420,7 @@ function PurposeOverview({
   if (signers === null) {
     return (
       <section style={{ ...cardStyle, marginTop: 16 }}>
-        <p style={mutedStyle}>Loading signer registry…</p>
+        <p className="apf-muted">Loading signer registry…</p>
       </section>
     );
   }
@@ -634,7 +633,7 @@ function SignerDetailDrawer({
   if (!signer) {
     return (
       <section style={{ ...cardStyle, marginTop: 12 }}>
-        <p style={mutedStyle}>Loading signer detail…</p>
+        <p className="apf-muted">Loading signer detail…</p>
       </section>
     );
   }
@@ -651,7 +650,7 @@ function SignerDetailDrawer({
           alignItems: "center",
         }}
       >
-        <h3 style={sectionTitleStyle}>
+        <h3 className="apf-section-title">
           {PURPOSE_LABELS[signer.signerPurpose]}{" "}
           <span
             style={{
@@ -664,7 +663,7 @@ function SignerDetailDrawer({
             {signer.signerId.length > 48 ? "…" : ""}
           </span>
         </h3>
-        <button type="button" style={ghostButtonStyle} onClick={onClose}>
+        <button type="button" className="apf-control" onClick={onClose}>
           Close
         </button>
       </div>
@@ -727,10 +726,10 @@ function SignerDetailDrawer({
       </table>
 
       <section style={{ marginTop: 16 }}>
-        <h4 style={sectionTitleStyle}>Health</h4>
+        <h4 className="apf-section-title">Health</h4>
         <button
           type="button"
-          style={ghostButtonStyle}
+          className="apf-control"
           onClick={runHealth}
           disabled={busy !== null}
           data-testid="run-health"
@@ -765,10 +764,10 @@ function SignerDetailDrawer({
       </section>
 
       <section style={{ marginTop: 16 }}>
-        <h4 style={sectionTitleStyle}>Rotation workflow</h4>
+        <h4 className="apf-section-title">Rotation workflow</h4>
         <button
           type="button"
-          style={ghostButtonStyle}
+          className="apf-control"
           onClick={runPreview}
           disabled={busy !== null || signer.status !== "staged"}
         >
@@ -822,7 +821,7 @@ function SignerDetailDrawer({
             </button>
             <button
               type="button"
-              style={ghostButtonStyle}
+              className="apf-control"
               disabled={busy !== null}
               onClick={() => runStepUpAction("retire")}
               data-testid="signer-retire"
@@ -848,7 +847,7 @@ function SignerDetailDrawer({
 
       {audit && audit.length > 0 ? (
         <section style={{ marginTop: 16 }}>
-          <h4 style={sectionTitleStyle}>Audit timeline</h4>
+          <h4 className="apf-section-title">Audit timeline</h4>
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -862,7 +861,7 @@ function SignerDetailDrawer({
               {audit.map((e) => (
                 <tr key={e.id}>
                   <td style={tdStyle}>
-                    <span style={mutedStyle}>
+                    <span className="apf-muted">
                       {formatDateTime(e.occurredAtUtc)}
                     </span>
                   </td>
@@ -973,14 +972,14 @@ function CustodyAttestationsPanel({
                   </code>
                 </td>
                 <td style={tdStyle}>
-                  <span style={mutedStyle}>
+                  <span className="apf-muted">
                     {formatDateTime(a.signedAtUtc)}
                   </span>
                 </td>
                 <td style={tdStyle}>
                   <button
                     type="button"
-                    style={ghostButtonStyle}
+                    className="apf-control"
                     disabled={busy === a.attestationId}
                     onClick={() => onVerify(a.attestationId)}
                     data-testid={`verify-${a.attestationId}`}

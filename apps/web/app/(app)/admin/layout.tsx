@@ -54,12 +54,20 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import AdminConsoleNav, {
   AdminBreadcrumb,
   AdminTenantScopeNotice,
+  AdminPlatformAuditScopeNotice,
 } from "../../../components/admin/AdminConsoleNav";
-import { isWorkspaceScopedAdminPath } from "../../../components/admin/adminNavigation";
+import {
+  isWorkspaceScopedAdminPath,
+  isPlatformAuditScopedAdminPath,
+} from "../../../components/admin/adminNavigation";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const workspaceScoped = isWorkspaceScopedAdminPath(pathname);
+  // Mutually exclusive by construction — a surface has ONE scope — but read
+  // separately so a future third state cannot silently fall through to the
+  // workspace wording.
+  const platformAuditScoped = isPlatformAuditScopedAdminPath(pathname);
 
   return (
     <PageRouteGate routeId="platform.admin">
@@ -67,6 +75,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <AdminConsoleNav />
         <AdminBreadcrumb />
         {workspaceScoped ? <AdminTenantScopeNotice /> : null}
+        {platformAuditScoped ? <AdminPlatformAuditScopeNotice /> : null}
         {children}
       </div>
     </PageRouteGate>

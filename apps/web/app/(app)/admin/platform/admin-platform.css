@@ -1,0 +1,428 @@
+/**
+ * THE PLATFORM OPERATIONS SURFACE.
+ *
+ * ===========================================================================
+ * WHAT THIS REPLACES
+ * ===========================================================================
+ * Nine pages under `/admin/platform/*` were outside the shared enterprise
+ * shell, and not in one way — in three:
+ *
+ *   - six declared their own `pageStyle` / `titleStyle` / `cardStyle` objects
+ *     with literal hex colours (#0f172a, #64748b, #e2e8f0, #fff). No dark
+ *     mode, no tokens, and a `maxWidth: 960` that made them narrower than
+ *     every other admin page for no reason a reader could see;
+ *   - two used the `cc-*` command-centre classes, which belong to a different
+ *     surface;
+ *   - one used the `OPS_*` inline token objects.
+ *
+ * So an operator moving between Queues, Reliability and Evidence Operations
+ * crossed three visual systems inside one console.
+ *
+ * ===========================================================================
+ * WHY CLASSES AND NOT A SHARED STYLE OBJECT
+ * ===========================================================================
+ * A shared `React.CSSProperties` export would fix the duplication and keep
+ * every one of the real problems: inline styles cannot carry a media query, so
+ * they cannot be responsive, and they cannot participate in the dark-mode
+ * token swap. The literal hexes are the reason these pages have no dark mode
+ * at all.
+ *
+ * Every colour here is a token with a light fallback. Every dark override
+ * redefines only tokens, guarded so an explicit light choice still wins.
+ */
+
+/* ---------------------------------------------------------------------------
+   Section — the grouping primitive
+   --------------------------------------------------------------------------- */
+
+.apf-section {
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 12px;
+  background: var(--surface-card, #ffffff);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.apf-section + .apf-section {
+  margin-top: 0;
+}
+
+.apf-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.apf-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink-primary, #0f172a);
+  margin: 0;
+}
+
+.apf-section-note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-secondary, #475569);
+  margin: 0 0 12px;
+}
+
+.apf-muted {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-muted, #94a3b8);
+}
+
+/* ---------------------------------------------------------------------------
+   Metric grid — compact, and deliberately not a wall of one-number cards
+   --------------------------------------------------------------------------- */
+
+.apf-grid {
+  display: grid;
+  /* 180px, not 220px. The wider floor produced three tiles on a 1440 screen
+     with a third of each one empty. */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.apf-stat {
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 10px;
+  background: var(--surface-muted, #f8fafc);
+  padding: 12px 14px;
+  min-width: 0;
+}
+
+.apf-stat-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #94a3b8);
+  display: block;
+}
+
+.apf-stat-value {
+  font-size: 22px;
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary, #0f172a);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A value that is not a number — "Not measured", "Unavailable". It must not
+   look like a large zero, so it is smaller and takes the muted ink. */
+.apf-stat-value[data-unmeasured="true"] {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-muted, #94a3b8);
+}
+
+.apf-stat-hint {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-secondary, #475569);
+  margin-top: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+   Tables — dense, and scrollable inside their own box
+   --------------------------------------------------------------------------- */
+
+.apf-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 10px;
+}
+
+.apf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.apf-table th,
+.apf-table td {
+  text-align: start;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  vertical-align: top;
+}
+
+.apf-table th {
+  font-weight: 650;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #94a3b8);
+  background: var(--surface-muted, #f8fafc);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+
+.apf-table td {
+  color: var(--ink-secondary, #475569);
+}
+
+.apf-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Monospaced identifiers stay LTR even inside an RTL page. */
+.apf-mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--ink-muted, #94a3b8);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---------------------------------------------------------------------------
+   Rows of controls
+   --------------------------------------------------------------------------- */
+
+.apf-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.apf-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  flex-wrap: wrap;
+}
+
+.apf-row:last-child {
+  border-bottom: 0;
+}
+
+/* Every interactive target reaches 44px. Anything smaller is a target a
+   thumb misses, and the console is used on phones during incidents. */
+.apf-control {
+  min-height: 44px;
+  min-width: 44px;
+  border: 1px solid var(--border-standard, #cbd5e1);
+  border-radius: 8px;
+  background: var(--surface-card, #ffffff);
+  color: var(--ink-primary, #0f172a);
+  font-size: 13px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.apf-control:hover:not(:disabled) {
+  background: var(--surface-muted, #f1f5f9);
+}
+
+.apf-control:disabled {
+  /* Disabled must not read as "active but styled oddly". */
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.apf-control:focus-visible {
+  outline: 2px solid var(--accent-standard, #2563eb);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Status — one vocabulary, and red only for a proven current failure
+   --------------------------------------------------------------------------- */
+
+.apf-note {
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  border-inline-start: 3px solid var(--border-standard, #cbd5e1);
+  background: var(--surface-muted, #f1f5f9);
+  color: var(--ink-secondary, #475569);
+  margin-bottom: 14px;
+}
+
+/* A real, current, actionable failure. Nothing else. */
+.apf-note[data-tone="critical"] {
+  border-inline-start-color: var(--danger-standard, #b91c1c);
+  background: var(--danger-subtle-bg, #fef2f2);
+  color: var(--danger-strong, #991b1b);
+}
+
+.apf-note[data-tone="warning"] {
+  border-inline-start-color: var(--warning-standard, #b45309);
+  background: var(--warning-subtle-bg, #fffbeb);
+  color: var(--warning-strong, #92400e);
+}
+
+/* Unknown and stale are NOT red. They are the absence of a measurement, and
+   painting them as failures is how a console teaches its operators to ignore
+   red. */
+.apf-note[data-tone="unknown"],
+.apf-note[data-tone="stale"] {
+  border-inline-start-color: var(--ink-muted, #94a3b8);
+  background: var(--surface-muted, #f1f5f9);
+  color: var(--ink-secondary, #475569);
+}
+
+.apf-note[data-tone="healthy"] {
+  border-inline-start-color: var(--success-standard, #15803d);
+  background: var(--success-subtle-bg, #f0fdf4);
+  color: var(--success-strong, #166534);
+}
+
+/* ---------------------------------------------------------------------------
+   Responsive
+   --------------------------------------------------------------------------- */
+
+@media (max-width: 700px) {
+  .apf-section {
+    padding: 14px;
+  }
+
+  .apf-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .apf-row {
+    /* Below this width a two-column row wraps into unreadable slivers. */
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Dark
+   --------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .apf-stat,
+  :root:not([data-theme="light"]) .apf-table th {
+    background: var(--surface-inset, #0f172a);
+  }
+}
+
+:root[data-theme="dark"] .apf-stat,
+:root[data-theme="dark"] .apf-table th {
+  background: var(--surface-inset, #0f172a);
+}
+
+/* ---------------------------------------------------------------------------
+   Summary tiles — the observability status vocabulary
+   ---------------------------------------------------------------------------
+   These were a JavaScript palette object (`SUMMARY_TILE_PALETTE`) reading the
+   `OPS_*` token exports and applying them as inline styles. That is the last
+   inline-colour system in the admin console, and it carried the same two
+   costs as the others: no dark mode, and no media query.
+
+   The tone is now a `data-tone` attribute and the colours are here. The
+   vocabulary is deliberate and each value means one thing:
+
+     healthy   measured, and within its threshold
+     warning   measured, and outside its threshold
+     high      measured, and materially outside it
+     critical  a current, actionable failure
+     unknown   NOT MEASURED. The collector did not report.
+     neutral   an informational count with no threshold
+
+   `unknown` is the one worth stating. It is grey, not red, and it is not
+   green: an unread collector is neither a failure nor health, and painting it
+   as either is how a console starts lying. It carries a dashed border so it is
+   distinguishable from `neutral` without relying on colour alone.
+   --------------------------------------------------------------------------- */
+
+.apf-tile {
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  background: var(--surface-card, #ffffff);
+  color: var(--ink-primary, #0f172a);
+  min-width: 0;
+}
+
+.apf-tile-label {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--ink-muted, #94a3b8);
+}
+
+.apf-tile-value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.apf-tile-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+.apf-tile[data-tone="healthy"] {
+  background: var(--success-subtle-bg, #f0fdf4);
+  border-color: var(--success-border, #bbf7d0);
+  color: var(--success-strong, #166534);
+}
+
+.apf-tile[data-tone="warning"] {
+  background: var(--warning-subtle-bg, #fffbeb);
+  border-color: var(--warning-border, #fde68a);
+  color: var(--warning-strong, #92400e);
+}
+
+.apf-tile[data-tone="high"] {
+  background: var(--warning-subtle-bg, #fff7ed);
+  border-color: var(--warning-border, #fed7aa);
+  color: var(--warning-strong, #9a3412);
+}
+
+/* Red, and only here. A current failure somebody can act on. */
+.apf-tile[data-tone="critical"] {
+  background: var(--danger-subtle-bg, #fef2f2);
+  border-color: var(--danger-border, #fecaca);
+  color: var(--danger-strong, #991b1b);
+}
+
+/* Not measured. Grey, dashed, and distinguishable without colour. */
+.apf-tile[data-tone="unknown"] {
+  background: var(--surface-muted, #f8fafc);
+  border-style: dashed;
+  border-color: var(--border-standard, #cbd5e1);
+  color: var(--ink-secondary, #475569);
+}
+
+.apf-tile[data-tone="unknown"] .apf-tile-value {
+  /* An unmeasured value is not a big number. Rendering "—" at 26px reads as
+     a measurement of nothing rather than the absence of one. */
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* A signal row inside a compact list. Separated by a rule, not by spacing —
+   these lists get long, and spacing alone stops reading as separation. */
+.apf-signal-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--ink-primary, #0f172a);
+  border-top: 1px solid var(--border-subtle, #e2e8f0);
+}

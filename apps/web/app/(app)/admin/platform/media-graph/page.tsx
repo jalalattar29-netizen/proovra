@@ -36,6 +36,11 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../../components/ui/PageShell";
+import "../admin-platform.css";
 type MetricsSnapshot = {
   uptimeSeconds: number;
   counters: Record<string, number>;
@@ -387,54 +392,57 @@ useEffect(() => {
     return Math.floor((Date.now() - lastFetchAt) / 1000);
   }, [lastFetchAt]);
 
-  return (
-    <div style={pageStyle}>
-      <header style={headerStyle}>
-        <div>
-          <h1 style={titleStyle}>Media intelligence &amp; graph operations</h1>
-          <p style={subtitleStyle}>
-            Live counters and gauges for the media-intelligence async queue
-            and the investigation graph query surfaces.
-          </p>
-        </div>
-        <span style={freshnessPillStyle(error, ageSeconds)}>
+  const pageHeader = (
+    <PageHeader
+      eyebrow="Platform operations"
+      title="Media intelligence & graph operations"
+      subtitle={"Live counters and gauges for the media-intelligence async queue and the investigation graph query surfaces."}
+      secondaryActions={
+        <>
+          <span style={freshnessPillStyle(error, ageSeconds)}>
           {error
-            ? "metrics unavailable"
-            : ageSeconds == null
-              ? "loading…"
-              : `updated ${ageSeconds}s ago`}
-        </span>
-      </header>
+          ? "metrics unavailable"
+          : ageSeconds == null
+          ? "loading…"
+          : `updated ${ageSeconds}s ago`}
+          </span>
+        </>
+      }
+    />
+  );
+
+  return (
+    <PageShell width="full" header={pageHeader}>
 
       {error ? (
-        <p style={errorBannerStyle}>
+        <p className="apf-note" data-tone="critical">
           Metrics endpoint did not respond. Tiles below show the most
           recent successful snapshot if one was captured this session.
         </p>
       ) : null}
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Run lifecycle</h2>
+      <section className="apf-section">
+        <h2 className="apf-section-title">Run lifecycle</h2>
         <TileGrid tiles={MEDIA_INTELLIGENCE_TILES} snapshot={snapshot} />
       </section>
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Queue + processor counters</h2>
+      <section className="apf-section">
+        <h2 className="apf-section-title">Queue + processor counters</h2>
         <TileGrid tiles={MEDIA_INTELLIGENCE_COUNTERS} snapshot={snapshot} />
       </section>
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Investigation graph</h2>
+      <section className="apf-section">
+        <h2 className="apf-section-title">Investigation graph</h2>
         <TileGrid tiles={GRAPH_TILES} snapshot={snapshot} />
       </section>
 
-      <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>Operator actions</h2>
-        <div style={actionsCardStyle}>
-          <div style={actionRowStyle}>
-            <div style={actionLabelStyle}>
-              <div style={actionTitleStyle}>Retry one job</div>
-              <div style={actionHintStyle}>
+      <section className="apf-section">
+        <h2 className="apf-section-title">Operator actions</h2>
+        <div className="apf-section">
+          <div className="apf-row">
+            <div className="apf-stat-label">
+              <div className="apf-section-title">Retry one job</div>
+              <div className="apf-stat-hint">
                 Requeues a specific failed BullMQ job. The id is the
                 deterministic <code>mi-&lt;kind&gt;-&lt;evidenceId&gt;</code>
                 form emitted by the producer.
@@ -446,7 +454,7 @@ useEffect(() => {
                 value={retryRunId}
                 placeholder="mi-extract_exif-<uuid>"
                 onChange={(e) => setRetryRunId(e.target.value)}
-                style={inputStyle}
+                className="apf-control"
               />
               <button
                 type="button"
@@ -465,12 +473,12 @@ useEffect(() => {
             </div>
           </div>
 
-          <div style={actionRowDividerStyle} />
+          <div className="apf-row" />
 
-          <div style={actionRowStyle}>
-            <div style={actionLabelStyle}>
-              <div style={actionTitleStyle}>Replay DLQ</div>
-              <div style={actionHintStyle}>
+          <div className="apf-row">
+            <div className="apf-stat-label">
+              <div className="apf-section-title">Replay DLQ</div>
+              <div className="apf-stat-hint">
                 Walks up to 50 failed jobs and requeues each. Bounded by
                 the server. Operator audit is recorded.
               </div>
@@ -517,13 +525,13 @@ useEffect(() => {
         </div>
       </section>
 
-      <p style={footerNoteStyle}>
+      <p className="apf-muted">
         Numbers are advisory operational telemetry. They do not classify
         the recorded material and they do not establish legal weight; the
         canonical custody record remains the authoritative integrity
         artifact.
       </p>
-    </div>
+    </PageShell>
   );
 }
 
@@ -535,7 +543,7 @@ function TileGrid({
   snapshot: MetricsSnapshot | null;
 }) {
   return (
-    <ul style={gridStyle}>
+    <ul className="apf-grid">
       {tiles.map((t) => {
         const present =
           snapshot != null &&
@@ -547,15 +555,15 @@ function TileGrid({
           : null;
         return (
           <li key={t.metric} style={tileStyle(t.tone)}>
-            <div style={tileLabelStyle}>{t.label}</div>
-            <div style={tileValueStyle}>
+            <div className="apf-stat-label">{t.label}</div>
+            <div className="apf-stat-value">
               {value == null ? "—" : formatNumber(value)}
             </div>
-            <div style={tileMetricNameStyle} title={t.hint}>
+            <div className="apf-stat-label" title={t.hint}>
               {t.metric}
               {t.kind === "gauge" ? " (gauge)" : ""}
             </div>
-            {t.hint ? <div style={tileHintStyle}>{t.hint}</div> : null}
+            {t.hint ? <div className="apf-stat-hint">{t.hint}</div> : null}
           </li>
         );
       })}
@@ -575,34 +583,9 @@ function formatNumber(n: number): string {
 // (apps/web/app/(app)/ops/page.tsx) visual register.
 // ---------------------------------------------------------------------------
 
-const pageStyle: React.CSSProperties = {
-  padding: 24,
-  maxWidth: 1280,
-  margin: "0 auto",
-  fontFamily:
-    "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  color: "#0f172a",
-};
 
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 16,
-  marginBottom: 20,
-};
 
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-  fontWeight: 700,
-};
 
-const subtitleStyle: React.CSSProperties = {
-  margin: "4px 0 0 0",
-  fontSize: 13,
-  color: "#64748b",
-};
 
 function freshnessPillStyle(
   err: string | null,
@@ -632,37 +615,9 @@ function freshnessPillStyle(
   };
 }
 
-const errorBannerStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  fontSize: 12,
-  color: "#991b1b",
-  background: "#fef2f2",
-  border: "1px solid #fca5a5",
-  borderRadius: 6,
-  margin: "0 0 16px 0",
-};
 
-const sectionStyle: React.CSSProperties = {
-  marginBottom: 24,
-};
 
-const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 10px 0",
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#334155",
-  textTransform: "uppercase",
-  letterSpacing: 0.6,
-};
 
-const gridStyle: React.CSSProperties = {
-  listStyle: "none",
-  margin: 0,
-  padding: 0,
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-  gap: 10,
-};
 
 function tileStyle(
   tone: Tile["tone"] | undefined,
@@ -682,86 +637,20 @@ function tileStyle(
   };
 }
 
-const tileLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#64748b",
-  fontWeight: 600,
-  textTransform: "uppercase",
-  letterSpacing: 0.4,
-};
 
-const tileValueStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 700,
-  margin: "4px 0",
-  color: "#0f172a",
-};
 
-const tileMetricNameStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: "#94a3b8",
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-};
 
-const tileHintStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#475569",
-  marginTop: 6,
-  lineHeight: 1.4,
-};
 
-const footerNoteStyle: React.CSSProperties = {
-  marginTop: 12,
-  fontSize: 11,
-  color: "#64748b",
-  textAlign: "center",
-};
 
 // ---------------------------------------------------------------------------
 // Phase 31.9 — operator action panel styles
 // ---------------------------------------------------------------------------
 
-const actionsCardStyle: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  borderRadius: 8,
-  padding: 16,
-  background: "#ffffff",
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-};
 
-const actionRowStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "row",
-  alignItems: "flex-start",
-  gap: 16,
-  flexWrap: "wrap",
-};
 
-const actionRowDividerStyle: React.CSSProperties = {
-  height: 1,
-  background: "#e5e7eb",
-  margin: "4px 0",
-};
 
-const actionLabelStyle: React.CSSProperties = {
-  flex: "1 1 320px",
-  minWidth: 240,
-};
 
-const actionTitleStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  color: "#0f172a",
-  marginBottom: 4,
-};
 
-const actionHintStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#475569",
-  lineHeight: 1.4,
-};
 
 const actionControlStyle: React.CSSProperties = {
   display: "flex",
@@ -772,14 +661,6 @@ const actionControlStyle: React.CSSProperties = {
   minWidth: 240,
 };
 
-const inputStyle: React.CSSProperties = {
-  flex: 1,
-  padding: "6px 10px",
-  fontSize: 12,
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-};
 
 function primaryButtonStyle(disabled: boolean): React.CSSProperties {
   return {

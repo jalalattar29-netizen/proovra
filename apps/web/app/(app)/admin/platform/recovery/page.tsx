@@ -33,6 +33,11 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../../components/ui/PageShell";
+import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
 import {
   StepUpModal,
@@ -41,20 +46,13 @@ import {
 import {
   badgeStyle,
   cardStyle,
-  errorBoxStyle,
   formatDateTime,
-  ghostButtonStyle,
-  headerRowStyle,
   mutedStyle,
-  pageStyle,
   primaryButtonStyle,
-  sectionTitleStyle,
-  subtitleStyle,
   successBoxStyle,
   tableStyle,
   tdStyle,
   thStyle,
-  titleStyle,
   TOKENS,
 } from "../../identity/ui-tokens";
 
@@ -221,9 +219,24 @@ function OperationsRecoveryContent() {
     [teamId],
   );
 
+  const pageHeader = (
+    <PageHeader
+      eyebrow="Platform operations"
+      title="Recovery Validation"
+      subtitle={"What the PROOVRA application can validate at the application layer. Infrastructure-layer database backups, full disaster-recovery rehearsals, and cross-region failover live outside this surface and are listed below as unsupported domains. There are no fake blanket guarantees here."}
+      secondaryActions={
+        <>
+          <button type="button" className="apf-control" onClick={load}>
+          Refresh
+          </button>
+        </>
+      }
+    />
+  );
+
   if (!teamId) {
     return (
-      <main style={pageStyle}>
+      <PageShell width="full" header={pageHeader}>
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Recovery"
@@ -234,29 +247,14 @@ function OperationsRecoveryContent() {
           ]}
           testid="recovery-no-workspace"
         />
-      </main>
+      </PageShell>
     );
   }
 
   return (
-    <main style={pageStyle} data-testid="operations-recovery-root">
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Recovery Validation</h1>
-          <p style={subtitleStyle}>
-            What the PROOVRA application can validate at the application layer.
-            Infrastructure-layer database backups, full disaster-recovery
-            rehearsals, and cross-region failover live outside this surface
-            and are listed below as unsupported domains. There are no fake
-            blanket guarantees here.
-          </p>
-        </div>
-        <button type="button" style={ghostButtonStyle} onClick={load}>
-          Refresh
-        </button>
-      </header>
+    <PageShell width="full" header={pageHeader} data-testid="operations-recovery-root">
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
       {success ? <div style={successBoxStyle}>{success}</div> : null}
 
       {!overview ? (
@@ -291,7 +289,7 @@ function OperationsRecoveryContent() {
       ) : null}
 
       <StepUpModal control={stepUp} />
-    </main>
+    </PageShell>
   );
 }
 
@@ -323,7 +321,7 @@ function ReadinessSummary({
   const last = overview.readiness;
   return (
     <section style={{ ...cardStyle, marginTop: 16 }} data-testid="readiness">
-      <h3 style={sectionTitleStyle}>Readiness</h3>
+      <h3 className="apf-section-title">Readiness</h3>
       <div
         style={{
           display: "grid",
@@ -332,7 +330,7 @@ function ReadinessSummary({
         }}
       >
         <div>
-          <div style={mutedStyle}>S3 Object Lock platform mode</div>
+          <div className="apf-muted">S3 Object Lock platform mode</div>
           <div style={{ marginTop: 4 }}>
             <span
               style={badgeStyle(
@@ -346,7 +344,7 @@ function ReadinessSummary({
           </div>
         </div>
         <div>
-          <div style={mutedStyle}>Last backup validation</div>
+          <div className="apf-muted">Last backup validation</div>
           <div style={{ marginTop: 4 }}>
             {last.lastBackupReport ? (
               <>
@@ -358,12 +356,12 @@ function ReadinessSummary({
                 </div>
               </>
             ) : (
-              <span style={mutedStyle}>Never run.</span>
+              <span className="apf-muted">Never run.</span>
             )}
           </div>
         </div>
         <div>
-          <div style={mutedStyle}>Last restore validation</div>
+          <div className="apf-muted">Last restore validation</div>
           <div style={{ marginTop: 4 }}>
             {last.lastRestoreReport ? (
               <>
@@ -375,7 +373,7 @@ function ReadinessSummary({
                 </div>
               </>
             ) : (
-              <span style={mutedStyle}>Never run.</span>
+              <span className="apf-muted">Never run.</span>
             )}
           </div>
         </div>
@@ -418,8 +416,8 @@ function UnsupportedDomainsPanel({
       }}
       data-testid="unsupported-domains"
     >
-      <h3 style={sectionTitleStyle}>Unsupported domains (honest disclosure)</h3>
-      <p style={mutedStyle}>
+      <h3 className="apf-section-title">Unsupported domains (honest disclosure)</h3>
+      <p className="apf-muted">
         These categories are explicitly NOT validated by the PROOVRA
         application layer. They must be exercised through the infrastructure
         provider's tooling and confirmed out-of-band.
@@ -475,7 +473,7 @@ function RecentReportsTable({
               <tr key={r.reportId}>
                 <td style={tdStyle}>{r.kind}</td>
                 <td style={tdStyle}>
-                  <span style={mutedStyle}>
+                  <span className="apf-muted">
                     {formatDateTime(r.generatedAtUtc)}
                   </span>
                 </td>
@@ -493,7 +491,7 @@ function RecentReportsTable({
                 <td style={tdStyle}>
                   <button
                     type="button"
-                    style={ghostButtonStyle}
+                    className="apf-control"
                     onClick={() => onOpen(r.reportId)}
                   >
                     Open
@@ -542,7 +540,7 @@ function ReportDrawer({
         }}
       >
         <h2 style={{ fontSize: 16, margin: 0 }}>{report.kind}</h2>
-        <button type="button" style={ghostButtonStyle} onClick={onClose}>
+        <button type="button" className="apf-control" onClick={onClose}>
           Close
         </button>
       </header>
@@ -563,7 +561,7 @@ function ReportDrawer({
         ) : null}
       </div>
       <section style={{ marginTop: 16 }}>
-        <h3 style={sectionTitleStyle}>Checks</h3>
+        <h3 className="apf-section-title">Checks</h3>
         <table style={tableStyle}>
           <thead>
             <tr>
@@ -592,7 +590,7 @@ function ReportDrawer({
       </section>
       {report.unsupportedDomains.length > 0 ? (
         <section style={{ marginTop: 16 }}>
-          <h3 style={sectionTitleStyle}>Unsupported domains</h3>
+          <h3 className="apf-section-title">Unsupported domains</h3>
           <ul style={{ paddingLeft: 18, fontSize: 12 }}>
             {report.unsupportedDomains.map((d) => (
               <li key={d}>

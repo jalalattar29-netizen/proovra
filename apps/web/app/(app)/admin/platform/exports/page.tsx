@@ -34,23 +34,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import {
+  PageShell,
+  PageHeader,
+} from "../../../../../components/ui/PageShell";
+import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
 import {
   badgeStyle,
   cardStyle,
-  errorBoxStyle,
   formatDateTime,
   ghostButtonStyle,
-  headerRowStyle,
   mutedStyle,
-  pageStyle,
   primaryButtonStyle,
-  sectionTitleStyle,
-  subtitleStyle,
   tableStyle,
   tdStyle,
   thStyle,
-  titleStyle,
   TOKENS,
 } from "../../identity/ui-tokens";
 
@@ -212,9 +211,29 @@ function OperationsExportsContent() {
     load();
   }, [load]);
 
+  const pageHeader = (
+    <PageHeader
+      eyebrow="Platform operations"
+      title="Immutable Export Operations"
+      subtitle={"Inspect Report PDF + Verification Package exports. Verify reproducibility against current S3 state. Confirm Object Lock status honestly (no badge unless the platform probe verified the bucket)."}
+      secondaryActions={
+        <>
+          <button
+          type="button"
+          className="apf-control"
+          onClick={load}
+          disabled={loading}
+          >
+          {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </>
+      }
+    />
+  );
+
   if (!teamId) {
     return (
-      <main style={pageStyle}>
+      <PageShell width="full" header={pageHeader}>
         <AccessGate
           kind="WORKSPACE_REQUIRED"
           surface="Operations Exports"
@@ -225,33 +244,14 @@ function OperationsExportsContent() {
           ]}
           testid="operations-exports-no-workspace"
         />
-      </main>
+      </PageShell>
     );
   }
 
   return (
-    <main style={pageStyle} data-testid="operations-exports-root">
-      <header style={headerRowStyle}>
-        <div>
-          <h1 style={titleStyle}>Immutable Export Operations</h1>
-          <p style={subtitleStyle}>
-            Inspect Report PDF + Verification Package exports. Verify
-            reproducibility against current S3 state. Confirm Object Lock
-            status honestly (no badge unless the platform probe verified
-            the bucket).
-          </p>
-        </div>
-        <button
-          type="button"
-          style={ghostButtonStyle}
-          onClick={load}
-          disabled={loading}
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </header>
+    <PageShell width="full" header={pageHeader} data-testid="operations-exports-root">
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
 
       <ObjectLockPanel status={objectLock} />
 
@@ -269,7 +269,7 @@ function OperationsExportsContent() {
           onClose={() => setSelectedId(null)}
         />
       ) : null}
-    </main>
+    </PageShell>
   );
 }
 
@@ -281,7 +281,7 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
   if (!status) {
     return (
       <section style={{ ...cardStyle, marginTop: 16 }}>
-        <p style={mutedStyle}>Loading Object Lock status…</p>
+        <p className="apf-muted">Loading Object Lock status…</p>
       </section>
     );
   }
@@ -298,13 +298,13 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
       style={{ ...cardStyle, marginTop: 16 }}
       data-testid="object-lock-panel"
     >
-      <h3 style={sectionTitleStyle}>S3 Object Lock platform status</h3>
+      <h3 className="apf-section-title">S3 Object Lock platform status</h3>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <span style={badgeStyle(palette)} data-testid="object-lock-badge">
           {status.mode}
         </span>
         {status.mode === "verified" ? (
-          <span style={mutedStyle}>
+          <span className="apf-muted">
             Bucket {status.bucket}
             {status.defaultMode ? ` · default ${status.defaultMode}` : ""}
             {status.defaultRetainDays
@@ -312,13 +312,13 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
               : ""}
           </span>
         ) : status.mode === "claimed-but-unsupported" ? (
-          <span style={mutedStyle}>
+          <span className="apf-muted">
             {status.bucket} · {status.reason}
           </span>
         ) : status.mode === "skipped" ? (
-          <span style={mutedStyle}>{status.reason}</span>
+          <span className="apf-muted">{status.reason}</span>
         ) : (
-          <span style={mutedStyle}>
+          <span className="apf-muted">
             Object Lock is intentionally disabled. Exports persist but cannot
             be claimed as WORM.
           </span>
@@ -345,7 +345,7 @@ function ExportListTable({
   if (items === null) {
     return (
       <section style={{ ...cardStyle, marginTop: 12 }}>
-        <p style={mutedStyle}>Loading exports…</p>
+        <p className="apf-muted">Loading exports…</p>
       </section>
     );
   }
@@ -354,7 +354,7 @@ function ExportListTable({
       <section
         style={{ ...cardStyle, marginTop: 12, padding: 24, textAlign: "center" }}
       >
-        <p style={mutedStyle}>No exports recorded for this workspace yet.</p>
+        <p className="apf-muted">No exports recorded for this workspace yet.</p>
       </section>
     );
   }
@@ -394,12 +394,12 @@ function ExportListTable({
                 </td>
                 <td style={tdStyle}>v{it.exportVersion}</td>
                 <td style={tdStyle}>
-                  <span style={mutedStyle}>
+                  <span className="apf-muted">
                     {formatDateTime(it.generatedAtUtc)}
                   </span>
                 </td>
                 <td style={tdStyle}>
-                  <span style={mutedStyle}>
+                  <span className="apf-muted">
                     {it.sizeBytes
                       ? `${Math.round(Number(it.sizeBytes) / 1024)} KB`
                       : "—"}
@@ -486,7 +486,7 @@ function ExportListTable({
                 <td style={tdStyle}>
                   <button
                     type="button"
-                    style={ghostButtonStyle}
+                    className="apf-control"
                     onClick={() => onSelect(it.exportId)}
                   >
                     Inspect
@@ -587,19 +587,19 @@ function ExportDrawer({
         }}
       >
         <h2 style={{ fontSize: 16, margin: 0 }}>Export detail</h2>
-        <button type="button" style={ghostButtonStyle} onClick={onClose}>
+        <button type="button" className="apf-control" onClick={onClose}>
           Close
         </button>
       </header>
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
 
       {!envelope ? (
-        <p style={mutedStyle}>Loading manifest…</p>
+        <p className="apf-muted">Loading manifest…</p>
       ) : (
         <>
           <section>
-            <h3 style={sectionTitleStyle}>Identity</h3>
+            <h3 className="apf-section-title">Identity</h3>
             <table style={tableStyle}>
               <tbody>
                 <tr>
@@ -650,7 +650,7 @@ function ExportDrawer({
           </section>
 
           <section style={{ marginTop: 16 }}>
-            <h3 style={sectionTitleStyle}>Signature status</h3>
+            <h3 className="apf-section-title">Signature status</h3>
             <table style={tableStyle}>
               <tbody>
                 <tr>
@@ -696,7 +696,7 @@ function ExportDrawer({
           </section>
 
           <section style={{ marginTop: 16 }}>
-            <h3 style={sectionTitleStyle}>Reproducibility verification</h3>
+            <h3 className="apf-section-title">Reproducibility verification</h3>
             <button
               type="button"
               style={primaryButtonStyle}
@@ -720,7 +720,7 @@ function ExportDrawer({
           </section>
 
           <section style={{ marginTop: 16 }}>
-            <h3 style={sectionTitleStyle}>Canonical manifest JSON</h3>
+            <h3 className="apf-section-title">Canonical manifest JSON</h3>
             <pre
               style={{
                 background: TOKENS.surfaceMuted,
@@ -737,7 +737,7 @@ function ExportDrawer({
             </pre>
             <button
               type="button"
-              style={ghostButtonStyle}
+              className="apf-control"
               onClick={() => copy(manifestJson)}
             >
               Copy manifest JSON
@@ -789,7 +789,7 @@ function ReproducibilityResultPanel({
                   </code>
                 </td>
                 <td style={tdStyle}>
-                  <span style={mutedStyle}>
+                  <span className="apf-muted">
                     {c.expected
                       ? c.expected.length > 24
                         ? c.expected.slice(0, 24) + "…"
@@ -798,7 +798,7 @@ function ReproducibilityResultPanel({
                   </span>
                 </td>
                 <td style={tdStyle}>
-                  <span style={mutedStyle}>
+                  <span className="apf-muted">
                     {c.actual
                       ? c.actual.length > 24
                         ? c.actual.slice(0, 24) + "…"
