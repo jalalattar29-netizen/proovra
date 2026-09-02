@@ -241,8 +241,26 @@ describe("the runbook matches what was proven", () => {
   });
 
   it("asks for the summary only, never the raw document", () => {
-    expect(md).toMatch(/Share only the output of that last command/i);
+    // Names exactly three things to send back, and names what must not be.
+    expect(md).toMatch(/What to send back/i);
+    expect(md).toMatch(/diagnostic exit code/i);
+    expect(md).toMatch(/summary exit code/i);
+    expect(md).toMatch(/Do \*\*not\*\* send `diag\.json`/);
     expect(md).toMatch(/only output that should leave the host/i);
+  });
+
+  it("names the account under investigation in the runnable trace", () => {
+    // A generic `--trace-account=<email>` cannot answer the question this run
+    // exists to answer, and an operator handed a placeholder will omit it.
+    expect(RUNNABLE).toMatch(/--trace-account=rodrigoduarte44@gmail\.com/);
+  });
+
+  it("discovers the container instead of telling the operator to guess", () => {
+    expect(RUNNABLE).toMatch(/find-api-container\.sh/);
+    // The refusal path is the point: two candidates must not be resolved
+    // automatically, because a blue/green pair looks exactly like that.
+    expect(md).toMatch(/More than one\. It lists them and chooses nothing/);
+    expect(md).toMatch(/image revision/i);
   });
 
   it("states the shred limit rather than implying more than it delivers", () => {

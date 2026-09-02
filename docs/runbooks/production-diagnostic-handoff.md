@@ -10,7 +10,7 @@ are, how many are the same condition wearing different rows, which alert signals
 are backed by an incident, which evidence is stuck and in which overlapping
 cohorts.
 
-**Pinned commit:** `438a797ef7f558c63ef72d5ed019d5c56e06d38c`
+**Pinned commit:** `438f75649ed3ee7b9ab43e3dca4cf36279799f1e`
 
 ## What was wrong with the previous version of this document
 
@@ -53,39 +53,41 @@ covers it — but you will be relying on a fallback instead of the real answer.
 
 ---
 
-## 1 — Find the API container
+## 1 — Find the API container, or refuse
 
-Compose is not used here. `docker compose ps -q api` reads the compose file and
-interpolates variables from `.env`, which is exactly the dependency this
-procedure avoids; it also fails outright when run from the wrong directory.
-Query the daemon directly.
+The previous version said "`docker ps` to find it", which is an instruction to
+guess. On a host running more than one stack — a blue/green pair mid-deploy, a
+leftover from a rollback — guessing selects a container that is not serving
+traffic, and every number the diagnostic then produces describes the wrong
+process.
 
-```bash
-docker ps --filter "label=com.docker.compose.service=api" --format '{{.ID}}  {{.Image}}  {{.Names}}'
-```
-
-If that returns nothing, the containers carry no compose labels. Match on the
-image name instead and read the output before choosing:
-
-```bash
-docker ps --format '{{.ID}}  {{.Image}}  {{.Names}}  {{.Status}}'
-```
-
-Set `API` to the **container ID** — an ID, not a name, so a rename or a second
-stack cannot redirect the following commands:
+`find-api-container.sh` refuses instead. It tries the compose service label
+`api`, then `proovra-api`, then a container name containing both "proovra" and
+"api"; the first strategy that yields any candidate wins, and its result must be
+unique. A later strategy is never used to break a tie, because a tie means you
+have to look.
 
 ```bash
-API=<container-id-from-above>
+cd /opt/proovra/app && git fetch origin && git show 438f75649ed3ee7b9ab43e3dca4cf36279799f1e:services/api/scripts/find-api-container.sh > /tmp/find-api-container.sh
 ```
-
-Confirm you picked the right one:
 
 ```bash
-docker inspect --format '{{.Name}}  {{.Config.Image}}  workdir={{.Config.WorkingDir}}' "$API" && docker exec "$API" node --version
+sh /tmp/find-api-container.sh
 ```
 
-`workdir` should be `/app/services/api`. If it is something else, note it — you
-will pass it as `--require-base` in step 5.
+| Exit | Meaning |
+| --- | --- |
+| `0` | Exactly one. It prints the id, image, name, workdir, start time and image revision. |
+| `1` | None running. Do not continue. |
+| `2` | More than one. It lists them and chooses nothing — pick by hand. |
+
+```bash
+API=$(sh /tmp/find-api-container.sh | awk '{print $1}') && echo "API=$API"
+```
+
+Record the whole line it printed. The image revision and start time are what let
+you say afterwards *which build* the numbers came from, and `workdir` should be
+`/app/services/api` — if it is not, pass it as `--require-base` in step 5.
 
 ## 2 — Ask it which database it is connected to
 
@@ -120,11 +122,11 @@ git fetch origin
 ```
 
 ```bash
-git show 438a797ef7f558c63ef72d5ed019d5c56e06d38c:services/api/scripts/proovra-diagnostic.cjs > /tmp/proovra-diagnostic.cjs
+git show 438f75649ed3ee7b9ab43e3dca4cf36279799f1e:services/api/scripts/proovra-diagnostic.cjs > /tmp/proovra-diagnostic.cjs
 ```
 
 ```bash
-git show 438a797ef7f558c63ef72d5ed019d5c56e06d38c:services/api/scripts/proovra-diagnostic-summary.cjs > /tmp/proovra-diagnostic-summary.cjs
+git show 438f75649ed3ee7b9ab43e3dca4cf36279799f1e:services/api/scripts/proovra-diagnostic-summary.cjs > /tmp/proovra-diagnostic-summary.cjs
 ```
 
 > **Do not** `git checkout`, `git reset`, `git pull`, or switch branches to get
@@ -140,11 +142,12 @@ scp services/api/scripts/proovra-diagnostic.cjs services/api/scripts/proovra-dia
 **Verify the bytes before running them against production:**
 
 ```bash
-sha256sum /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs
+sha256sum /tmp/find-api-container.sh /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs
 ```
 
 | File | SHA-256 |
 | --- | --- |
+| `find-api-container.sh` | `7474bd560c13994089cfab0ecbf285ec6229465619642f4a3955e2ad260828a0` |
 | `proovra-diagnostic.cjs` | `21c9092727d2e0448ad4fb941c040d465f7e4de47c0336aa97bfa8364d92bd3a` |
 | `proovra-diagnostic-summary.cjs` | `436760f19440fd69ca6ce5033fec384a3ef15e57f865ff370eb409adbd51a8a8` |
 
@@ -194,10 +197,24 @@ names a conventional root rather than the real one, re-run with it explicit:
 docker exec "$API" node /tmp/proovra-diagnostic.cjs --require-base=/app/services/api --expect-database="$DB" > diag.json
 ```
 
-To trace one account, append `--trace-account=<email-or-user-id>`. Omit it
-entirely if no individual account is under investigation. Only an exact email or
-an exact user id resolves — a display name never does, because matching on a
-name is how a trace ends up describing the wrong person.
+### The account under investigation
+
+This run has a specific question behind it, so the trace argument is not
+optional:
+
+```bash
+docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" --trace-account=rodrigoduarte44@gmail.com > diag.json
+```
+
+Only an exact email or an exact user id resolves — a display name never does,
+because matching on a name is how a trace ends up describing the wrong person.
+If the address does not resolve, the section says so with a match count rather
+than guessing at a near miss.
+
+The traced section is redacted at the source: the email reduces to its domain,
+ids become per-run pseudonyms, IPs become a /24 or /48 network. It still
+describes one real person's activity, so it is the part of `diag.json` that
+must not go on a shared screen — see step 8.
 
 If the script refuses because `current_database()` does not equal `$DB`, that
 refusal is the point of the check — re-run step 2 rather than editing the
@@ -314,14 +331,20 @@ Also clear it from anywhere it was copied: terminal scrollback, tmux buffers,
 ## One block, start to finish
 
 Adapted to `/opt/proovra/app`. Read the output of each step before running the
-next; the two `<placeholders>` are filled from steps 1 and 2.
+next; `<container-id>` and `<name-printed>` come from steps 1 and 2.
 
 ```bash
-docker ps --filter "label=com.docker.compose.service=api" --format '{{.ID}}  {{.Image}}  {{.Names}}'
+cd /opt/proovra/app && git fetch origin && for f in find-api-container.sh proovra-diagnostic.cjs proovra-diagnostic-summary.cjs; do git show 438f75649ed3ee7b9ab43e3dca4cf36279799f1e:services/api/scripts/$f > /tmp/$f; done && sha256sum /tmp/find-api-container.sh /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs
+```
+
+Compare all three against the table in step 3. **If any differs, stop.**
+
+```bash
+sh /tmp/find-api-container.sh
 ```
 
 ```bash
-API=<container-id> && docker inspect --format 'workdir={{.Config.WorkingDir}}' "$API"
+API=<container-id>
 ```
 
 ```bash
@@ -329,15 +352,7 @@ docker exec "$API" node -e 'const{Pool}=require("pg");const p=new Pool({connecti
 ```
 
 ```bash
-DB=<name-printed-above>
-```
-
-```bash
-cd /opt/proovra/app && git fetch origin && git show 438a797ef7f558c63ef72d5ed019d5c56e06d38c:services/api/scripts/proovra-diagnostic.cjs > /tmp/proovra-diagnostic.cjs && git show 438a797ef7f558c63ef72d5ed019d5c56e06d38c:services/api/scripts/proovra-diagnostic-summary.cjs > /tmp/proovra-diagnostic-summary.cjs
-```
-
-```bash
-sha256sum /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs
+DB=<name-printed>
 ```
 
 ```bash
@@ -345,7 +360,7 @@ docker cp /tmp/proovra-diagnostic.cjs "$API":/tmp/proovra-diagnostic.cjs && dock
 ```
 
 ```bash
-umask 077 && docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" > diag.json ; echo "diagnostic exit: $?"
+umask 077 && docker exec "$API" node /tmp/proovra-diagnostic.cjs --expect-database="$DB" --trace-account=rodrigoduarte44@gmail.com > diag.json ; echo "diagnostic exit: $?"
 ```
 
 ```bash
@@ -356,9 +371,23 @@ docker exec -i "$API" node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end
 docker exec -i "$API" node /tmp/proovra-diagnostic-summary.cjs < diag.json ; echo "summary exit: $?"
 ```
 
-**Share only the output of that last command.** Then, once it has been
-interpreted:
+### What to send back
+
+Three things, and nothing else:
+
+1. the full text the **summary** printed;
+2. the **diagnostic exit code**;
+3. the **summary exit code**.
+
+Do **not** send `diag.json`, any secret or token, a provider payload, a full IP
+address, or any other customer data. The summary is built to be safe to paste;
+the raw document is not.
+
+### Then destroy it
 
 ```bash
-docker exec "$API" rm -f /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs && shred -u -z /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs diag.json && ls -l diag.json 2>&1 | head -1
+docker exec "$API" rm -f /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs && shred -u -z /tmp/find-api-container.sh /tmp/proovra-diagnostic.cjs /tmp/proovra-diagnostic-summary.cjs diag.json && ls -l diag.json 2>&1 | head -1
 ```
+
+Keep `diag.json` only until the summary has been read and any follow-up
+question answered from it. Do not archive it and do not move it off the host.
