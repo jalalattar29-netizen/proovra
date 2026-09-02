@@ -47,6 +47,11 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  buildLocalFixtureEnv,
+  LOCAL_FIXTURE_DEFAULTS,
+} from "../../../scripts/local-fixture-env/index.mjs";
+
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 function arg(name, fallback) {
@@ -54,8 +59,9 @@ function arg(name, fallback) {
   return hit ? hit.slice(name.length + 3) : fallback;
 }
 
-const API_BASE = arg("api", "http://localhost:8081");
-const PORT = arg("port", "3200");
+const API_PORT = arg("api-port", LOCAL_FIXTURE_DEFAULTS.apiPort);
+const API_BASE = arg("api", `http://localhost:${API_PORT}`);
+const PORT = arg("port", LOCAL_FIXTURE_DEFAULTS.webPort);
 // Inside node_modules ON PURPOSE.
 //
 // The first attempt used ".next-admin-fixture" at the app root. It worked, and
@@ -156,24 +162,25 @@ const child = spawn("npx", ["next", "dev", "-p", PORT], {
   cwd: WEB_ROOT,
   shell: true,
   stdio: "inherit",
+  /**
+   * The environment comes from the ONE canonical builder, not from this file.
+   *
+   * An earlier version assembled it here: spread `process.env`, then override
+   * a handful of NEXT_PUBLIC_* values. That inherits every credential in the
+   * developer's shell and in any .env dotenv has already loaded, which is the
+   * hole `scripts/local-fixture-env` exists to close. The web server is not
+   * exempt from it just because it is "only" a dev server: it is the process
+   * that renders pages holding real tokens.
+   */
   env: {
-      ...process.env,
-      NODE_ENV: "development",
-      // Both spellings: the web reads NEXT_PUBLIC_API_BASE, and some server
-      // paths read API_BASE_URL. Setting one and not the other produces a page
-      // whose server half and client half disagree about where the API is.
-      NEXT_PUBLIC_API_BASE: API_BASE,
-      API_BASE_URL: API_BASE,
-      NEXT_PUBLIC_WEB_BASE: `http://localhost:${PORT}`,
-      NEXT_PUBLIC_APP_BASE: `http://localhost:${PORT}`,
-      // Its OWN build directory.
-      //
-      // A `next build` in the same checkout writes `.next` too. When one ran
-      // beside this server it replaced routes-manifest.json mid-flight and
-      // every page started answering 500 — an ENOENT naming a file nobody had
-      // touched, which reads as a broken app rather than as two processes
-      // sharing a directory. next.config.js honours NEXT_DIST_DIR.
-      NEXT_DIST_DIR: DIST_DIR,
+    ...buildLocalFixtureEnv({
+      apiPort: new URL(API_BASE).port || API_PORT,
+      webPort: PORT,
+      databaseUrl: arg("database-url", LOCAL_FIXTURE_DEFAULTS.databaseUrl),
+      redisUrl: arg("redis-url", LOCAL_FIXTURE_DEFAULTS.redisUrl),
+    }),
+    // next.config.js honours this; see the DIST_DIR note above.
+    NEXT_DIST_DIR: DIST_DIR,
   },
 });
 

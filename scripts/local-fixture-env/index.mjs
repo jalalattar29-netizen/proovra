@@ -73,7 +73,10 @@
 const DEFAULTS = Object.freeze({
   webPort: "3311",
   apiPort: "8191",
-  databaseUrl: "postgresql://pv:pv@localhost:55533/proovra_admin_cp",
+  // The name must read as disposable. seed-admin-fixture.ts refuses to write
+  // to a database whose name does not contain test/fixture/local/dev, which is
+  // a guard worth satisfying rather than arguing with: the seeder truncates.
+  databaseUrl: "postgresql://pv:pv@localhost:55533/proovra_admin_cp_fixture",
   redisUrl: "redis://localhost:56479/0",
 });
 

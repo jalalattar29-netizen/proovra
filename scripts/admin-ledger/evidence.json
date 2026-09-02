@@ -1,0 +1,50 @@
+{
+  "_comment": [
+    "THE ONE HAND-MAINTAINED INPUT TO THE ADMIN COMPLETION LEDGER.",
+    "",
+    "Everything else in docs/admin/admin-control-plane-completion.md is derived:",
+    "the route list from the file tree, navigation and scope from the registry,",
+    "endpoints from a live trace of every API route, composition from a source",
+    "scan. What cannot be derived is whether somebody actually opened the page",
+    "in a browser and saw something correct. That is what this file records.",
+    "",
+    "Every proof value names an ARTEFACT — a test file, a screenshot, a run —",
+    "not an adjective. `\"desktop\": \"verified\"` is not evidence; a filename is.",
+    "The generator rejects a completed status that is missing any required",
+    "proof, so a row cannot claim more than it can show.",
+    "",
+    "Status starts at PENDING and stays there until the proofs exist. That is",
+    "the honest default and the reason the ledger is worth reading."
+  ],
+
+  "/admin/customers/:id": {
+    "family": "Customers",
+    "breadcrumb": "Platform admin / Customers / Customer directory / Customer",
+    "returnPath": "← Back to roster → /admin/customers"
+  },
+  "/admin/workspaces/:id": {
+    "family": "Workspaces",
+    "breadcrumb": "Platform admin / Workspaces / Workspace inventory / Workspace",
+    "returnPath": "← All workspaces → /admin/workspaces"
+  },
+  "/admin/users/:id": {
+    "family": "People",
+    "breadcrumb": "Platform admin / Accounts & access / People / Account",
+    "returnPath": "← All people → /admin/users"
+  },
+  "/admin/demo-requests/:id": {
+    "family": "Commercial",
+    "breadcrumb": "Platform admin / Customers / Demo requests / Demo request",
+    "returnPath": "← Back to list → /admin/demo-requests"
+  },
+  "/admin/contact-sales/:id": {
+    "family": "Commercial",
+    "breadcrumb": "Platform admin / Customers / Contact sales / Sales inquiry",
+    "returnPath": "← Back to list → /admin/contact-sales"
+  },
+  "/admin/platform/runbooks/:slug": {
+    "family": "Runbooks",
+    "breadcrumb": "Platform admin / Platform operations / Runbooks",
+    "returnPath": "← All runbooks → /admin/platform/runbooks"
+  }
+}
