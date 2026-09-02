@@ -3,6 +3,16 @@ import { fileURLToPath } from "node:url";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Let a dev server and a build coexist in one checkout.
+  //
+  // Both write to `.next`. A `next build` running beside `next dev` replaces
+  // routes-manifest.json underneath the dev server, which then answers 500 to
+  // every request with an ENOENT that names a file the developer never touched
+  // — an error that reads as a broken app rather than as two processes sharing
+  // one directory.
+  //
+  // Unset, this is exactly the previous behaviour.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: true,
   output: process.env.NEXT_STANDALONE === "false" ? undefined : "standalone",
   transpilePackages: ["@proovra/shared", "@proovra/ui"],
