@@ -53,6 +53,10 @@ async function requireAuthAndLegal(
   reply: Parameters<typeof requireAuth>[1],
 ) {
   await requireAuth(req, reply);
+  // See me-inbox.routes.ts for the full account: `requireAuth` REPLIES rather
+  // than throwing, so without this the next guard sends a second 401 and
+  // Fastify logs FST_ERR_REP_ALREADY_SENT at error level.
+  if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
 }
 

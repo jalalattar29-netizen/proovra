@@ -369,6 +369,22 @@ async function requireAuthAndLegal(
   reply: Parameters<typeof requireAuth>[1],
 ) {
   await requireAuth(req, reply);
+  // `requireAuth` REPLIES on failure rather than throwing, so without this the
+  // next guard runs on a request that already has a response, sees no
+  // `req.user`, and sends a second 401. Fastify raises FST_ERR_REP_ALREADY_SENT
+  // and logs it at error level — so a client holding a stale token turned every
+  // poll of this route into an internal-error entry, which is exactly the noise
+  // that makes a log stop being read.
+  //
+  // Observed live: a token invalidated by an API restart produced
+  //   'Reply was already sent, did you forget to "return reply" in
+  //    "/v1/me/inbox/summary" (GET)?'
+  // on every inbox poll.
+  //
+  // `if (reply.sent) return;` is the established idiom here — require-platform-admin,
+  // ai, billing, cases, enterprise, evidence and organizations all use it. These
+  // two call sites simply missed it.
+  if (reply.sent) return;
   await requireLegalAcceptance(req, reply);
 }
 
