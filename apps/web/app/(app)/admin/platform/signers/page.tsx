@@ -48,6 +48,7 @@ import {
 } from "../../../../../components/ui/PageShell";
 import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
+import { redactKmsKeyReference } from "../../../../../lib/privacy/kms-reference";
 import {
   StepUpModal,
   useStepUpAction,
@@ -514,6 +515,42 @@ function PurposeOverview({
   );
 }
 
+/**
+ * The signing key, reduced.
+ *
+ * This row used to print `signer.kmsKeyArn` verbatim — partition, region,
+ * AWS ACCOUNT ID and full key uuid — under the label "KMS alias / ARN
+ * reference". Nothing a signer-page reader does needs the account id, and
+ * being allowed to see the signer registry is not authorization to publish
+ * the account it runs in into a browser tab and every screenshot of it.
+ *
+ * The reduction keeps what the page is FOR: which key, and whether two
+ * signers share one. Region stays, because a signer in the wrong region is a
+ * real incident finding.
+ */
+function KmsKeyRow({ arn }: { arn: string | null }) {
+  const ref = redactKmsKeyReference(arn);
+  if (!ref) return null;
+  return (
+    <tr>
+      <td style={tdStyle}>KMS key</td>
+      <td style={tdStyle}>
+        <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+          {ref.display}
+        </code>
+        {ref.redacted ? (
+          <span
+            style={{ marginLeft: 8, fontSize: 11, color: "var(--ink-muted, #94a3b8)" }}
+            title="Shortened for display. The full key reference is not shown in the console."
+          >
+            shortened
+          </span>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
 function SignerDetailDrawer({
   teamId,
   signerId,
@@ -697,16 +734,7 @@ function SignerDetailDrawer({
               <td style={tdStyle}>keyVersion</td>
               <td style={tdStyle}>{signer.keyVersion ?? "—"}</td>
             </tr>
-            {signer.kmsKeyArn ? (
-              <tr>
-                <td style={tdStyle}>KMS alias / ARN reference</td>
-                <td style={tdStyle}>
-                  <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                    {signer.kmsKeyArn}
-                  </code>
-                </td>
-              </tr>
-            ) : null}
+            <KmsKeyRow arn={signer.kmsKeyArn} />
             {signer.verificationMaterialRef ? (
               <tr>
                 <td style={tdStyle}>verification material</td>
