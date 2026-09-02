@@ -49,6 +49,7 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { hasRunbook } from "../../../../lib/runbooks/slugs.generated";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 
 type IncidentRow = {
   id: string;
@@ -471,6 +472,17 @@ export default function AdminOperationsPage() {
               purpose="No operational condition matches the current filters. With the Status filter on Open, an empty table means nothing is currently open — not that nothing was measured."
             />
           }
+        />
+        {/* The request caps at 200. Without saying so, "200 incidents" reads
+            as the total, and somebody counting open conditions during a
+            review gets a confident wrong answer. */}
+        <ResultCount
+          shown={data?.items?.length ?? 0}
+          cap={200}
+          noun="condition"
+          filtered={status !== "" || severity !== ""}
+          loading={loading}
+          data-testid="admin-operations-count"
         />
       </Card>
 

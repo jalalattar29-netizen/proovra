@@ -47,6 +47,7 @@ import { AutomationRuleForm } from "../../../../../components/automation/Automat
 import { AutomationRuleToggle } from "../../../../../components/automation/AutomationRuleToggle";
 import type { AutomationRule } from "../../../../../components/automation/types";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 
 type AutomationRun = {
   id: string;
@@ -518,6 +519,13 @@ function AutomationPageInner(): JSX.Element {
                 ))}
               </tbody>
             </table>
+            {/* Automation runs are capped at 50; a bare count would read as the total number of runs ever. */}
+            <ResultCount
+              shown={runs.length}
+              cap={50}
+              noun="run"
+              data-testid="admin-automation-runs-count"
+            />
           </div>
         )}
       </section>

@@ -22,6 +22,7 @@ import type { BadgeTone } from "../../../../components/ui/Badge";
 import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 
 type Status =
   | "NEW"
@@ -474,6 +475,15 @@ export default function AdminContactSalesPage() {
                     ))}
             </tbody>
           </table>
+          {/* No server cap on this list, so a plain total is the honest statement. */}
+          <ResultCount
+            shown={items.length}
+            noun="inquiry"
+            pluralNoun="inquiries"
+            filtered={statusFilter !== ""}
+            loading={loading}
+            data-testid="admin-contact-sales-count"
+          />
         </div>
       </Card>
 

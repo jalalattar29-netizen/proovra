@@ -52,6 +52,7 @@ import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 
 // ---------------------------------------------------------------------------
 // Server projections (secret-free by construction — see the route file).
@@ -763,6 +764,14 @@ function Shell() {
                 )
               }
             />
+              {/* Standing access is the thing this page exists to make countable. A grant list with no number is a list nobody audits. */}
+              <ResultCount
+                shown={supportGrants?.length ?? 0}
+                noun="support grant"
+                filtered={supportStatus !== ""}
+                loading={supportGrants === null}
+                data-testid="admin-support-grants-count"
+              />
           </div>
         )}
       </PageSection>

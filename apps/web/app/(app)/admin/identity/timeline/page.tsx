@@ -28,6 +28,7 @@ import { Button } from "../../../../../components/ui/Button";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 
 type TimelineEvent = {
   id: string;
@@ -240,6 +241,15 @@ const load = useCallback(() => {
                 purpose="No events match the selected category and severity. Adjust the filters or refresh."
               />
             }
+          />
+          {/* The identity audit asks for 250 events. A bare count on a capped feed reads as the total. */}
+          <ResultCount
+            shown={events?.length ?? 0}
+            cap={250}
+            noun="event"
+            filtered={filterIdx !== 0 || severityFilter !== ""}
+            loading={events === null}
+            data-testid="admin-identity-timeline-count"
           />
         </div>
       </PageSection>

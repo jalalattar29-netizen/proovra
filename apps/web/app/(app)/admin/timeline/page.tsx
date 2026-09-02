@@ -110,6 +110,17 @@ export default function AdminTimelinePage() {
   const { addToast } = useToast();
   const [items, setItems] = useState<TimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * The cursor the API already returns and this page has been ignoring.
+   *
+   * `TimelineResponse` has declared `nextCursor` since it was written, and
+   * nothing read it. The endpoint caps at 50 events, so the feed showed the
+   * newest 50 of an unbounded stream with no count, no cursor and no
+   * indication that anything older existed — a page that looks complete and is
+   * not, which is worse than one that looks empty.
+   */
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [orgFilter, setOrgFilter] = useState("");
@@ -127,6 +138,7 @@ export default function AdminTimelinePage() {
         `/v1/admin/timeline?${params.toString()}`,
       );
       setItems(Array.isArray(data?.items) ? data.items : []);
+      setNextCursor(data?.nextCursor ?? null);
     } catch (err) {
       const message = toSafeUserError(err, {
         message: "We couldn't load the platform timeline.",
@@ -136,6 +148,38 @@ export default function AdminTimelinePage() {
       setLoading(false);
     }
   }, [addToast, sourceFilter, severityFilter, orgFilter]);
+
+  /**
+   * Append the next page. Deliberately APPEND rather than replace: this is a
+   * chronological feed, and swapping the visible window under a reader who is
+   * mid-scroll loses their place in an incident.
+   */
+  const loadMore = useCallback(async () => {
+    if (!nextCursor) return;
+    try {
+      setLoadingMore(true);
+      const params = new URLSearchParams();
+      params.set("limit", "50");
+      params.set("cursor", nextCursor);
+      if (sourceFilter !== "all") params.set("source", sourceFilter);
+      if (severityFilter !== "all") params.set("severity", severityFilter);
+      if (orgFilter.trim()) params.set("organizationId", orgFilter.trim());
+      const data: TimelineResponse = await apiFetch(
+        `/v1/admin/timeline?${params.toString()}`,
+      );
+      setItems((prev) => [...prev, ...(Array.isArray(data?.items) ? data.items : [])]);
+      setNextCursor(data?.nextCursor ?? null);
+    } catch (err) {
+      addToast(
+        toSafeUserError(err, {
+          message: "We couldn't load more timeline events.",
+        }).message,
+        "error",
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [addToast, nextCursor, sourceFilter, severityFilter, orgFilter]);
 
   useEffect(() => {
     void load();
@@ -255,6 +299,47 @@ export default function AdminTimelinePage() {
               />
             }
           />
+
+          {/* HOW MANY, and whether that is all of them.
+
+              A bare count on a cursor-paged feed is a half-truth: "50 events"
+              reads as the total when it is the first window of an unbounded
+              stream. The two states are worded differently on purpose, and
+              the continuation is offered rather than described so the feed
+              is not a dead end. */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 12,
+              fontSize: 13,
+              color: "var(--ink-secondary, #475569)",
+            }}
+            data-testid="admin-timeline-count"
+          >
+            <span>
+              {loading
+                ? "Loading events…"
+                : items.length === 0
+                  ? "No events match these filters"
+                  : nextCursor
+                    ? `${items.length} most recent event${items.length === 1 ? "" : "s"} — more are available`
+                    : `${items.length} event${items.length === 1 ? "" : "s"} — this is the complete match`}
+            </span>
+            {nextCursor ? (
+              <Button
+                variant="secondary"
+                onClick={() => void loadMore()}
+                loading={loadingMore}
+                data-testid="admin-timeline-load-more"
+              >
+                Load older events
+              </Button>
+            ) : null}
+          </div>
         </PageSection>
       </PageShell>
     </PageRouteGate>

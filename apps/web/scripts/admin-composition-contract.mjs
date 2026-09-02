@@ -102,7 +102,16 @@ const strip = (s) =>
  * fetched array is a list whatever its route is called. `/admin/timeline` and
  * `/admin/audit` are lists; `/admin/dashboard` is not, despite having tables.
  */
-function isList(code) {
+function isList(code, route) {
+  // A DETAIL page is never a list page, whatever it renders.
+  //
+  // /admin/users/:id has three related-record tables and so matched the shape,
+  // and was then failed for having no total count. Contract 3.3 is about LIST
+  // PAGES; contract 3.4 governs detail pages and asks for related records,
+  // history and timestamps — not a count. Applying the wrong clause would have
+  // put "3 organizations" above a three-row table on a person's profile.
+  if (route && isDetail(route)) return false;
+
   // TABLE ROWS over FETCHED data. Both halves matter.
   //
   // A looser version matched any `.map((r) => …)`, which classified
@@ -122,8 +131,29 @@ function isList(code) {
  * `limit`/`offset`/`cursor` in the REQUEST, not the word "page" anywhere in
  * the file — every React page module contains "page".
  */
+/**
+ * Does this page FILTER a list, as opposed to merely containing a <select>?
+ *
+ * /admin/identity/providers has two selects and no filters: they are the
+ * provider type and the JIT default role in the CREATE form. Counting them as
+ * filters demanded a "no results match" state for a list nobody can filter,
+ * which is a sentence that could never appear.
+ *
+ * A FilterBar is unambiguous. Failing that, a state setter named *Filter is
+ * the convention this codebase actually uses.
+ */
+function hasFilters(code) {
+  return /<FilterBar/.test(code) || /set[A-Z][A-Za-z0-9_]*Filter\b/.test(code);
+}
+
 function isPaginated(code) {
-  return /(limit|offset|cursor|pageSize|per_page)s*[=:,)]/.test(code);
+  // `nextCursor`/`hasMore`, never a bare `cursor`.
+  //
+  // Matching `cursor` caught `cursor: "pointer"` — a CSS property — and
+  // classified the analytics dashboard and the observability page as paged
+  // lists needing filters. A pagination cursor always arrives as nextCursor
+  // or is sent as a query parameter; the CSS one never is.
+  return /\b(limit|offset|pageSize|per_page)\b\s*[=:,)]|\bnextCursor\b|\bhasMore\b/.test(code);
 }
 
 const isDetail = (route) => /\/:(id|slug)$/.test(route);
@@ -133,7 +163,7 @@ const CHECKS = [
   {
     id: "LIST_NO_TOTAL_COUNT",
     clause: "3.3 a list must state its total",
-    when: (c) => isList(c),
+    when: (c, route) => isList(c, route),
     // "12 organizations", "Showing 1-20 of 340", "total" bound into copy.
     fail: (c) =>
       !/\btotal\b|\bcount\b|\{\s*rows\.length\s*\}|of\s*\{|\bresults?\b/i.test(c),
@@ -151,28 +181,42 @@ const CHECKS = [
     //
     // Pagination is the honest proxy for "can be long": a list the server
     // pages is a list nobody can read in one screen.
-    when: (c) => isList(c) && isPaginated(c),
+    when: (c, route) => isList(c, route) && isPaginated(c),
     fail: (c) => !/<FilterBar|<select|role="combobox"|aria-label=".*filter/i.test(c),
   },
   {
     id: "LIST_FILTER_NOT_SERVER_SIDE",
-    clause: "3.3 filters must be applied by the server, not the browser",
-    when: (c) => isList(c) && /<FilterBar|<select/.test(c),
-    // A filter that never reaches the query string is a filter that lies at
-    // scale: it narrows the page you can see and nothing else.
+    clause: "3.3 a filter over a PAGED list must be applied by the server",
+    // Only when the server paged the list.
+    //
+    // The original premise was "a client-side filter lies at scale: it narrows
+    // the page you can see and nothing else". That is true of a PAGED list and
+    // false of a complete one. /admin/identity fetches /v1/identity/members,
+    // whose service is findMany({ where: { teamId } }) with no take — the
+    // browser holds every member, so filtering locally narrows all of them and
+    // is both correct and instant.
+    //
+    // Worth recording rather than fixing here: that unbounded query is a real
+    // scale risk on its own. A workspace with five thousand members ships five
+    // thousand rows to render twenty. That is an API change with blast radius
+    // well beyond the admin console, and pretending otherwise by bolting a
+    // query parameter onto the page would leave the payload exactly as large.
+    when: (c, route) => isList(c, route) && isPaginated(c) && hasFilters(c),
     fail: (c) =>
       !/URLSearchParams|searchParams|\?\$\{|qs\.set|params\.set|\bquery\b\s*[,:]/.test(c),
   },
   {
     id: "LIST_NO_PAGINATION",
     clause: "3.3 a list must paginate",
-    when: (c) => isList(c),
+    when: (c, route) => isList(c, route),
     fail: (c) => !/page|cursor|limit|offset|nextPage|hasMore/i.test(c),
   },
   {
     id: "LIST_NO_FILTERED_EMPTY",
     clause: "3.3 an empty RESULT and an empty TABLE read differently",
-    when: (c) => isList(c) && /<FilterBar|<select/.test(c),
+    when: (c, route) => isList(c, route) && hasFilters(c),
+    // Applies to any filtered list, paged or not: the two sentences differ
+    // whether or not the server did the narrowing.
     // "No records yet" and "No records match these filters" are different
     // sentences, and showing the first when a filter is active tells the
     // reader their data is gone.
@@ -197,7 +241,11 @@ const CHECKS = [
     id: "DETAIL_NO_TIMESTAMPS",
     clause: "3.4 a detail page must say when",
     when: (_c, route) => isDetail(route),
-    fail: (c) => !/formatDateTime|toLocaleString|createdAt|updatedAt|AtUtc/.test(c),
+    // <time> is the canonical markup for a timestamp and was missing from
+    // this list, so a page that used it correctly still failed. `Utc` rather
+    // than `AtUtc`: lastChangedUtc is a timestamp too.
+    fail: (c) =>
+      !/formatDateTime|toLocaleString|createdAt|updatedAt|Utc|<time/.test(c),
   },
   {
     id: "DETAIL_NO_STATE",
@@ -234,7 +282,7 @@ const rows = walk(ADMIN_DIR)
     ).map((chk) => chk.id);
     return {
       route,
-      kind: isDetail(route) ? "detail" : isList(code) ? "list" : "surface",
+      kind: isDetail(route) ? "detail" : isList(code, route) ? "list" : "surface",
       failures,
     };
   })

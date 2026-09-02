@@ -56,6 +56,7 @@ import {
   thStyle,
   TOKENS,
 } from "../../identity/ui-tokens";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 
 type QueueInventoryItem = {
   queueName: string;
@@ -648,6 +649,14 @@ function FailedJobsPanel({
               })}
             </tbody>
           </table>
+          {/* The failed-job list asks for 50. An operator draining a queue needs to know whether 50 is the backlog or the first page of it. */}
+          <ResultCount
+            shown={jobs?.length ?? 0}
+            cap={50}
+            noun="failed job"
+            loading={jobs === null}
+            data-testid="admin-queues-failed-count"
+          />
         </div>
       )}
     </section>

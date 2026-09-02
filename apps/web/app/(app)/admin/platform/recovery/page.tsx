@@ -55,6 +55,7 @@ import {
   thStyle,
   TOKENS,
 } from "../../identity/ui-tokens";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 
 type ValidationOutcome = "passed" | "warning" | "failed" | "unsupported";
 
@@ -502,6 +503,12 @@ function RecentReportsTable({
               ))}
             </tbody>
           </table>
+          {/* No server cap on recovery reports, so a plain total is the honest statement. */}
+          <ResultCount
+            shown={reports.length}
+            noun="validation report"
+            data-testid="admin-recovery-reports-count"
+          />
         </div>
       )}
     </section>

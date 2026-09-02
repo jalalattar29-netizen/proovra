@@ -34,6 +34,7 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 
 type SessionRow = {
   id: string;
@@ -507,6 +508,14 @@ const load = useCallback(() => {
               Release
             </Button>
           )}
+        />
+        {/* 500-session cap. In a session-governance review the difference between 'all of them' and 'the first 500' decides whether a revoke is complete. */}
+        <ResultCount
+          shown={sessions?.length ?? 0}
+          cap={500}
+          noun="session"
+          loading={sessions === null}
+          data-testid="admin-identity-runtime-count"
         />
       </PageSection>
 

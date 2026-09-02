@@ -967,6 +967,10 @@ function DriftTab({ teamId }: { teamId: string }) {
                 purpose="Workspace state matches IdP expectations. Re-scan after IdP changes to surface new drift."
               />
             ) : (
+              <div style={{ overflowX: "auto" }}>
+              {/* A wide table scrolls ITSELF. Measured at 320px, an unwrapped table
+              drags the whole page sideways and the reader loses the column
+              headers and the navigation at the same moment. */}
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -1036,6 +1040,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </section>
         </>

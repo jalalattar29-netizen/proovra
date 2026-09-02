@@ -304,7 +304,7 @@ export function analyzeHandlerTenancy(handlerNode, handlerFile, cg, maxDepth = 8
    *
    * Kept apart from `scopedRowBindings` because the two are referenced
    * differently: a confirmed row is used through a field (`target.id`), which
-   * is why that map matches `<name>.`, while a scope is used BARE
+   * is why that map matches `\b<name>.`, while a scope is used BARE
    * (`where: { AND: [scope] }`). Loosening the row rule to match a bare name
    * would let a variable called `id` satisfy it.
    */

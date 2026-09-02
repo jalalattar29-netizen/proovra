@@ -168,6 +168,19 @@ export default async function RunbookDetailPage({
           >
             Source: <code className="rb-code-inline">docs/runbooks/{rb.slug}.md</code>{" "}
             · content sha256 <code className="rb-code-inline">{rb.sha256.slice(0, 16)}…</code>
+            {rb.lastChangedUtc ? (
+              <>
+                {" "}· last changed{" "}
+                <time dateTime={rb.lastChangedUtc}>
+                  {new Date(rb.lastChangedUtc).toISOString().slice(0, 10)}
+                </time>
+              </>
+            ) : (
+              /* Git could not answer — a shallow clone, or a procedure not yet
+                 committed. Saying so beats inventing a date on a document
+                 somebody follows during an incident. */
+              <> · last changed unknown</>
+            )}
             {/* The hash is here so an operator comparing this page against a
                 repository checkout can tell whether they are the same text,
                 rather than assuming. */}

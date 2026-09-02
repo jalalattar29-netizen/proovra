@@ -40,6 +40,7 @@
  *   node apps/web/scripts/generate-runbook-catalog.mjs --check   # verify only
  */
 
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -226,6 +227,33 @@ export const CATEGORY_ORDER = [
 ];
 
 /** The title is the first `# ` heading, or the slug if the file has none. */
+/**
+ * When this procedure last CHANGED, from git.
+ *
+ * The runbook reader carried a content hash and no date. During an incident
+ * the question an operator has is not "when was this page built" but "is this
+ * procedure older than the subsystem it describes", and the honest answer is
+ * the last commit that touched the markdown.
+ *
+ * Deliberately NOT the file mtime: in a fresh clone every file is stamped
+ * with the checkout time, so mtime would confidently report every runbook as
+ * written today. A wrong freshness signal on an incident procedure is worse
+ * than no signal at all.
+ *
+ * Returns null where git cannot answer — a shallow clone, a source export, a
+ * file not yet committed — and the reader says so rather than inventing one.
+ */
+function lastChangedUtcOf(slug) {
+  const r = spawnSync(
+    "git",
+    ["log", "-1", "--format=%cI", "--", "docs/runbooks/" + slug + ".md"],
+    { cwd: REPO_ROOT, encoding: "utf8" },
+  );
+  if (r.status !== 0) return null;
+  const iso = (r.stdout ?? "").trim();
+  return iso.length > 0 ? new Date(iso).toISOString() : null;
+}
+
 function titleOf(body, slug) {
   const m = /^#\s+(.+)$/m.exec(body);
   return m ? m[1].replace(/^Runbook\s+—\s+/, "").trim() : slug;
@@ -309,6 +337,7 @@ export function buildCatalog() {
       summary: summaryOf(body),
       body,
       sha256: createHash("sha256").update(body, "utf8").digest("hex"),
+      lastChangedUtc: lastChangedUtcOf(slug),
     };
   });
 
@@ -467,6 +496,8 @@ export function renderModule(entries) {
   lines.push("  body: string;");
   lines.push("  /** sha256 of `body`. The freshness gate compares this. */");
   lines.push("  sha256: string;");
+  lines.push("  /** Last commit that touched the markdown; null if git cannot say. */");
+  lines.push("  lastChangedUtc: string | null;");
   lines.push("};");
   lines.push("");
   lines.push("export const RUNBOOK_CATEGORY_ORDER: readonly RunbookCategory[] = [");
@@ -483,6 +514,7 @@ export function renderModule(entries) {
     lines.push(`    summary: ${JSON.stringify(e.summary)},`);
     lines.push(`    body: ${JSON.stringify(e.body)},`);
     lines.push(`    sha256: ${JSON.stringify(e.sha256)},`);
+    lines.push(`    lastChangedUtc: ${JSON.stringify(e.lastChangedUtc)},`);
     lines.push("  },");
   }
   lines.push("];");
