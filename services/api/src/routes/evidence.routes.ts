@@ -4040,8 +4040,6 @@ function buildPublicCustodyLifecycle(params: {
   };
 }
 
-type BillingOverviewSnapshot = Awaited<ReturnType<typeof readBillingOverview>>;
-
 // Phase DISCUSSION-CAPABILITY-FIX — capability inputs for the
 // Discussion tab. The handler loads these alongside `overview` so the
 // snapshot can return a fully-resolved `discussionEnabled` /

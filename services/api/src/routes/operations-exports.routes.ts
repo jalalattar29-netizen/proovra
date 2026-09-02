@@ -25,10 +25,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { prisma } from "../db.js";
-import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
-import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
