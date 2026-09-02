@@ -71,177 +71,177 @@
 
 | Route | Scope | Scope source | Capability | Backend authority | Nav | Parent |
 | --- | --- | --- | --- | --- | --- | --- |
-| `/admin` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | overview | /admin |
-| `/admin/adoption` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | commercial | /admin |
-| `/admin/alerts` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | security | /admin |
-| `/admin/audit` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | audit | /admin |
-| `/admin/billing` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | commercial | /admin |
-| `/admin/contact-sales` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | customers | /admin |
-| `/admin/contact-sales/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | NONE_FOUND | contextual | /admin/contact-sales |
-| `/admin/costs` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | commercial | /admin |
-| `/admin/customers` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | customers | /admin |
-| `/admin/customers/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | NONE_FOUND, +STEP_UP | contextual | /admin/customers |
-| `/admin/dashboard` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | commercial | /admin |
-| `/admin/demo-requests` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | customers | /admin |
-| `/admin/demo-requests/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | NONE_FOUND | contextual | /admin/demo-requests |
-| `/admin/evidence-ops` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | evidence | /admin |
-| `/admin/evidence-ops/records` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | evidence | /admin/evidence-ops |
-| `/admin/executive` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | commercial | /admin |
+| `/admin` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | overview | /admin |
+| `/admin/adoption` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
+| `/admin/alerts` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
+| `/admin/audit` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | audit | /admin |
+| `/admin/billing` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
+| `/admin/contact-sales` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
+| `/admin/contact-sales/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/contact-sales |
+| `/admin/costs` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
+| `/admin/customers` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
+| `/admin/customers/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | contextual | /admin/customers |
+| `/admin/dashboard` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
+| `/admin/demo-requests` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin, requirePlatformAdminOrInternalKey | customers | /admin |
+| `/admin/demo-requests/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/demo-requests |
+| `/admin/evidence-ops` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | evidence | /admin |
+| `/admin/evidence-ops/records` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | evidence | /admin/evidence-ops |
+| `/admin/executive` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
 | `/admin/identity` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | accounts | /admin |
-| `/admin/identity/access-reviews` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | AUTH_ONLY, +STEP_UP | accounts | /admin/identity |
-| `/admin/identity/permission-matrix` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | AUTH_ONLY, IDENTITY_ADMIN, +STEP_UP | accounts | /admin/identity |
-| `/admin/identity/providers` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | IDENTITY_ADMIN, +STEP_UP | accounts | /admin/identity |
-| `/admin/identity/runtime` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | IDENTITY_ADMIN, +STEP_UP, AUTHORIZE(?) | accounts | /admin/identity |
-| `/admin/identity/scim` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | IDENTITY_ADMIN, AUTH_ONLY, +STEP_UP | accounts | /admin/identity |
+| `/admin/identity/access-reviews` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin/identity |
+| `/admin/identity/permission-matrix` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | resolveAdminWorkspace, requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin/identity |
+| `/admin/identity/providers` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin/identity |
+| `/admin/identity/runtime` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, requireIntegrationCronSecret, authorizeOrFail, AUTHORIZE(?) | accounts | /admin/identity |
+| `/admin/identity/scim` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireScimAdmin, requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin/identity |
 | `/admin/identity/sessions` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN |  | accounts | /admin/identity |
-| `/admin/identity/timeline` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | IDENTITY_ADMIN | accounts | /admin/identity |
-| `/admin/operations` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | operations | /admin |
-| `/admin/platform-health` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | operations | /admin |
-| `/admin/platform/analytics` | WORKSPACE_FILTERED | adminNavigation registry | ANALYTICS_VIEW | AUTH_ONLY, TEAM_CAPABILITY | operations | /admin/platform |
-| `/admin/platform/automation` | WORKSPACE_FILTERED | adminNavigation registry | AUTOMATION_VIEW | TEAM_CAPABILITY | operations | /admin/platform |
-| `/admin/platform/exports` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | PLATFORM_OPS_ACTOR | operations | /admin/platform |
-| `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | NONE_FOUND, AUTH_ONLY | operations | /admin/platform |
-| `/admin/platform/observability` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | NONE_FOUND | operations | /admin/platform |
-| `/admin/platform/queues` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | PLATFORM_OPS_ACTOR, +STEP_UP | operations | /admin/platform |
-| `/admin/platform/readiness` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | NONE_FOUND | operations | /admin/platform |
-| `/admin/platform/recovery` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | PLATFORM_OPS_ACTOR, +STEP_UP | operations | /admin/platform |
-| `/admin/platform/reliability` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | AUTH_ONLY | operations | /admin/platform |
+| `/admin/identity/timeline` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin | accounts | /admin/identity |
+| `/admin/operations` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | operations | /admin |
+| `/admin/platform-health` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | operations | /admin |
+| `/admin/platform/analytics` | WORKSPACE_FILTERED | adminNavigation registry | ANALYTICS_VIEW | AUTH_ONLY, gateAnalyticsRead, requireTeamCapability | operations | /admin/platform |
+| `/admin/platform/automation` | WORKSPACE_FILTERED | adminNavigation registry | AUTOMATION_VIEW | requireTeamCapability | operations | /admin/platform |
+| `/admin/platform/exports` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor | operations | /admin/platform |
+| `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin, requireDomainActionOnOpsSurface | operations | /admin/platform |
+| `/admin/platform/observability` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | operations | /admin/platform |
+| `/admin/platform/queues` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | operations | /admin/platform |
+| `/admin/platform/readiness` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | operations | /admin/platform |
+| `/admin/platform/recovery` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | operations | /admin/platform |
+| `/admin/platform/reliability` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requireAdminMember | operations | /admin/platform |
 | `/admin/platform/runbooks` | PLATFORM | adminNavigation registry | RUNBOOKS_VIEW |  | operations | /admin/platform |
 | `/admin/platform/runbooks/:slug` | PLATFORM | handler trace | RUNBOOKS_VIEW |  | contextual | /admin/platform/runbooks |
-| `/admin/platform/signers` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | PLATFORM_OPS_ACTOR, +STEP_UP | operations | /admin/platform |
-| `/admin/provisioning` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | NONE_FOUND, +STEP_UP | customers | /admin |
-| `/admin/search` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | audit | /admin |
+| `/admin/platform/signers` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | operations | /admin/platform |
+| `/admin/provisioning` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | customers | /admin |
+| `/admin/search` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | audit | /admin |
 | `/admin/security` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | security | /admin |
-| `/admin/support-access` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | AUTH_ONLY, AUTHORIZE(?), +STEP_UP | accounts | /admin |
-| `/admin/timeline` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | security | /admin |
-| `/admin/users` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | accounts | /admin |
-| `/admin/users/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | NONE_FOUND | contextual | /admin/users |
-| `/admin/workspaces` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | NONE_FOUND | workspaces | /admin |
-| `/admin/workspaces/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | NONE_FOUND | contextual | /admin/workspaces |
+| `/admin/support-access` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?), requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin |
+| `/admin/timeline` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
+| `/admin/users` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | accounts | /admin |
+| `/admin/users/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/users |
+| `/admin/workspaces` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | workspaces | /admin |
+| `/admin/workspaces/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/workspaces |
 
 ## Backend contract
 
 | Route | Method | Endpoint | Authority | teamId role |
 | --- | --- | --- | --- | --- |
-| `/admin` | GET | `/v1/admin/overview` | NONE_FOUND | NONE |
-| `/admin/adoption` | GET | `/v1/admin/adoption` | NONE_FOUND | NONE |
-| `/admin/alerts` | GET | `/v1/admin/alerts` | NONE_FOUND | NONE |
-| `/admin/audit` | GET | `/v1/admin/audit-log` | NONE_FOUND | NONE |
-| `/admin/audit` | GET | `/v1/admin/audit-log/export` | NONE_FOUND | NONE |
-| `/admin/audit` | GET | `/v1/admin/audit-log/verify` | NONE_FOUND | NONE |
-| `/admin/billing` | GET | `/v1/admin/billing/detail` | NONE_FOUND | NONE |
-| `/admin/contact-sales` | GET | `/v1/admin/contact-sales` | NONE_FOUND | NONE |
-| `/admin/contact-sales` | PATCH | `/v1/admin/contact-sales/:id` | NONE_FOUND | NONE |
-| `/admin/contact-sales/:id` | GET+PATCH | `/v1/admin/contact-sales/:id` | NONE_FOUND | NONE |
-| `/admin/costs` | GET | `/v1/admin/costs` | NONE_FOUND | NONE |
-| `/admin/customers` | GET | `/v1/admin/customers` | NONE_FOUND | NONE |
-| `/admin/customers/:id` | POST | `/v1/admin/orgs/:id/plan` | NONE_FOUND, +STEP_UP | AUDIT |
-| `/admin/customers/:id` | GET | `/v1/admin/customers/:id` | NONE_FOUND | NONE |
-| `/admin/dashboard` | GET | `/v1/admin/analytics/dashboard` | NONE_FOUND | NONE |
-| `/admin/demo-requests` | GET | `/v1/admin/demo-requests` | NONE_FOUND | NONE |
-| `/admin/demo-requests` | GET+PATCH | `/v1/admin/demo-requests/:id` | NONE_FOUND | NONE |
-| `/admin/demo-requests` | GET+PATCH | `/v1/admin/demo-requests/:id` | NONE_FOUND | NONE |
-| `/admin/demo-requests` | POST | `/v1/admin/demo-requests/:id/route` | NONE_FOUND | NONE |
-| `/admin/demo-requests` | POST | `/v1/admin/demo-requests/:id/follow-up/send` | NONE_FOUND | NONE |
-| `/admin/demo-requests` | POST | `/v1/admin/demo-requests/follow-up/run` | NONE_FOUND | NONE |
-| `/admin/demo-requests/:id` | GET | `/v1/admin/demo-requests/:id` | NONE_FOUND | NONE |
-| `/admin/evidence-ops` | GET | `/v1/admin/evidence-health` | NONE_FOUND | AUDIT |
-| `/admin/evidence-ops/records` | GET | `/v1/admin/evidence-health/records` | NONE_FOUND | AUDIT |
-| `/admin/executive` | GET | `/v1/admin/executive` | NONE_FOUND | NONE |
+| `/admin` | GET | `/v1/admin/overview` | requirePlatformAdmin | NONE |
+| `/admin/adoption` | GET | `/v1/admin/adoption` | requirePlatformAdmin | NONE |
+| `/admin/alerts` | GET | `/v1/admin/alerts` | requirePlatformAdmin | NONE |
+| `/admin/audit` | GET | `/v1/admin/audit-log` | requirePlatformAdmin | NONE |
+| `/admin/audit` | GET | `/v1/admin/audit-log/export` | requirePlatformAdmin | NONE |
+| `/admin/audit` | GET | `/v1/admin/audit-log/verify` | requirePlatformAdmin | NONE |
+| `/admin/billing` | GET | `/v1/admin/billing/detail` | requirePlatformAdmin | NONE |
+| `/admin/contact-sales` | GET | `/v1/admin/contact-sales` | requirePlatformAdmin | NONE |
+| `/admin/contact-sales` | PATCH | `/v1/admin/contact-sales/:id` | requirePlatformAdmin | NONE |
+| `/admin/contact-sales/:id` | GET+PATCH | `/v1/admin/contact-sales/:id` | requirePlatformAdmin | NONE |
+| `/admin/costs` | GET | `/v1/admin/costs` | requirePlatformAdmin | NONE |
+| `/admin/customers` | GET | `/v1/admin/customers` | requirePlatformAdmin | NONE |
+| `/admin/customers/:id` | POST | `/v1/admin/orgs/:id/plan` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
+| `/admin/customers/:id` | GET | `/v1/admin/customers/:id` | requirePlatformAdmin | NONE |
+| `/admin/dashboard` | GET | `/v1/admin/analytics/dashboard` | requirePlatformAdmin | NONE |
+| `/admin/demo-requests` | GET | `/v1/admin/demo-requests` | requirePlatformAdmin | NONE |
+| `/admin/demo-requests` | GET+PATCH | `/v1/admin/demo-requests/:id` | requirePlatformAdmin | NONE |
+| `/admin/demo-requests` | GET+PATCH | `/v1/admin/demo-requests/:id` | requirePlatformAdmin | NONE |
+| `/admin/demo-requests` | POST | `/v1/admin/demo-requests/:id/route` | requirePlatformAdmin | NONE |
+| `/admin/demo-requests` | POST | `/v1/admin/demo-requests/:id/follow-up/send` | requirePlatformAdmin | NONE |
+| `/admin/demo-requests` | POST | `/v1/admin/demo-requests/follow-up/run` | requirePlatformAdminOrInternalKey | NONE |
+| `/admin/demo-requests/:id` | GET | `/v1/admin/demo-requests/:id` | requirePlatformAdmin | NONE |
+| `/admin/evidence-ops` | GET | `/v1/admin/evidence-health` | requirePlatformAdmin | AUDIT |
+| `/admin/evidence-ops/records` | GET | `/v1/admin/evidence-health/records` | requirePlatformAdmin | AUDIT |
+| `/admin/executive` | GET | `/v1/admin/executive` | requirePlatformAdmin | NONE |
 | `/admin/identity` | — | (no API call) | — | — |
-| `/admin/identity/access-reviews` | GET | `/v1/identity/access-reviews` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/identity/access-reviews` | POST | `/v1/identity/access-reviews/regenerate` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/identity/access-reviews` | POST | `/v1/identity/access-reviews/:id/decision` | AUTH_ONLY, +STEP_UP | FILTER |
-| `/admin/identity/permission-matrix` | GET | `/v1/admin/identity/role-matrix` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/identity/permission-matrix` | GET | `/v1/admin/identity/permission-matrix` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/permission-matrix` | POST | `/v1/admin/identity/elevations` | AUTH_ONLY, +STEP_UP | AUDIT |
-| `/admin/identity/providers` | GET+POST | `/v1/admin/identity/providers` | IDENTITY_ADMIN | FILTER |
-| `/admin/identity/providers` | GET+POST | `/v1/admin/identity/providers` | IDENTITY_ADMIN | FILTER |
-| `/admin/identity/providers` | POST | `/v1/admin/identity/providers/:id/transition` | IDENTITY_ADMIN, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/providers` | POST | `/v1/admin/identity/providers/:id/policy` | IDENTITY_ADMIN, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | GET | `/v1/admin/identity/sessions` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | GET | `/v1/admin/identity/quarantined-sessions` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/quarantine` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/release` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/score` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/admin/identity/emergency-revoke` | IDENTITY_ADMIN, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/runtime` | POST | `/v1/identity-security/reconcile` | AUTHORIZE(?), +STEP_UP | FILTER |
-| `/admin/identity/scim` | GET+POST | `/v1/admin/identity/scim/tokens` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/scim` | GET+POST | `/v1/admin/identity/scim/tokens` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/scim` | POST | `/v1/admin/identity/scim/tokens/:id/rotate` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/identity/scim` | POST | `/v1/admin/identity/scim/tokens/:id/revoke` | IDENTITY_ADMIN, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/scim` | GET | `/v1/scim/reconciliation/preview` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/scim` | POST | `/v1/scim/reconciliation/execute` | IDENTITY_ADMIN, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/identity/scim` | GET | `/v1/scim/sync-failures` | IDENTITY_ADMIN | FILTER_CANDIDATE |
-| `/admin/identity/scim` | POST | `/v1/scim/sync-failures/:id/replay` | IDENTITY_ADMIN | FILTER_CANDIDATE |
+| `/admin/identity/access-reviews` | GET | `/v1/identity/access-reviews` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
+| `/admin/identity/access-reviews` | POST | `/v1/identity/access-reviews/regenerate` | resolveAuthorizedWorkspaceSubject | FILTER_CANDIDATE |
+| `/admin/identity/access-reviews` | POST | `/v1/identity/access-reviews/:id/decision` | resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, +STEP_UP | FILTER |
+| `/admin/identity/permission-matrix` | GET | `/v1/admin/identity/role-matrix` | resolveAdminWorkspace | FILTER_CANDIDATE |
+| `/admin/identity/permission-matrix` | GET | `/v1/admin/identity/permission-matrix` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/permission-matrix` | POST | `/v1/admin/identity/elevations` | resolveAdminWorkspace, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
+| `/admin/identity/providers` | GET+POST | `/v1/admin/identity/providers` | requireIdentityAdmin | FILTER |
+| `/admin/identity/providers` | GET+POST | `/v1/admin/identity/providers` | requireIdentityAdmin | FILTER |
+| `/admin/identity/providers` | POST | `/v1/admin/identity/providers/:id/transition` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity/providers` | POST | `/v1/admin/identity/providers/:id/policy` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity/runtime` | GET | `/v1/admin/identity/sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/runtime` | GET | `/v1/admin/identity/quarantined-sessions` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/quarantine` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/release` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/runtime` | POST | `/v1/admin/identity/sessions/:id/score` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/runtime` | POST | `/v1/admin/identity/emergency-revoke` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity/runtime` | POST | `/v1/identity-security/reconcile` | requireIntegrationCronSecret, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | FILTER |
+| `/admin/identity/scim` | GET+POST | `/v1/admin/identity/scim/tokens` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/scim` | GET+POST | `/v1/admin/identity/scim/tokens` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/scim` | POST | `/v1/admin/identity/scim/tokens/:id/rotate` | requireScimAdmin | FILTER_CANDIDATE |
+| `/admin/identity/scim` | POST | `/v1/admin/identity/scim/tokens/:id/revoke` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity/scim` | GET | `/v1/scim/reconciliation/preview` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/scim` | POST | `/v1/scim/reconciliation/execute` | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/identity/scim` | GET | `/v1/scim/sync-failures` | requireIdentityAdmin | FILTER_CANDIDATE |
+| `/admin/identity/scim` | POST | `/v1/scim/sync-failures/:id/replay` | requireIdentityAdmin | FILTER_CANDIDATE |
 | `/admin/identity/sessions` | — | (no API call) | — | — |
-| `/admin/identity/timeline` | GET | `/v1/admin/identity/timeline` | IDENTITY_ADMIN | FILTER |
-| `/admin/operations` | GET | `/v1/admin/incidents` | NONE_FOUND | FILTER |
-| `/admin/operations` | POST | `/v1/admin/incidents/:id/${action}` | NONE_FOUND | NONE |
-| `/admin/platform-health` | GET | `/v1/admin/platform-health` | NONE_FOUND | NONE |
+| `/admin/identity/timeline` | GET | `/v1/admin/identity/timeline` | requireIdentityAdmin | FILTER |
+| `/admin/operations` | GET | `/v1/admin/incidents` | requirePlatformAdmin | FILTER |
+| `/admin/operations` | POST | `/v1/admin/incidents/:id/${action}` | requirePlatformAdmin | NONE |
+| `/admin/platform-health` | GET | `/v1/admin/platform-health` | requirePlatformAdmin | NONE |
 | `/admin/platform/analytics` | GET | `/v1/analytics/_window` | AUTH_ONLY | NONE |
-| `/admin/platform/analytics` | GET | `/v1/analytics/operations` | AUTH_ONLY | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/analytics/reviewer` | AUTH_ONLY | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/analytics/governance` | AUTH_ONLY | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/analytics/automation` | AUTH_ONLY | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/analytics/artifacts` | AUTH_ONLY | AUDIT |
-| `/admin/platform/analytics` | GET | `/v1/automation/webhooks` | TEAM_CAPABILITY | FILTER |
-| `/admin/platform/analytics` | GET | `/v1/automation/webhook-deliveries` | TEAM_CAPABILITY | FILTER |
-| `/admin/platform/automation` | GET | `/v1/automation/rules` | TEAM_CAPABILITY | FILTER |
-| `/admin/platform/automation` | GET | `/v1/automation/runs` | TEAM_CAPABILITY | FILTER |
-| `/admin/platform/exports` | GET | `/v1/operations/exports` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/exports` | GET | `/v1/operations/exports/object-lock` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/exports` | GET | `/v1/operations/exports/:id` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/exports` | POST | `/v1/operations/exports/:id/verify` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/media-graph` | GET | `/v1/admin/platform/metrics` | NONE_FOUND | NONE |
-| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/runs/:runId/retry` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/dlq/replay` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/platform/observability` | GET | `/v1/admin/platform/metrics` | NONE_FOUND | NONE |
-| `/admin/platform/observability` | GET | `/v1/admin/platform/alerts` | NONE_FOUND | NONE |
-| `/admin/platform/observability` | GET | `/v1/admin/platform/readiness` | NONE_FOUND | NONE |
-| `/admin/platform/observability` | GET | `/v1/admin/platform/health-snapshot` | NONE_FOUND | NONE |
-| `/admin/platform/queues` | GET | `/v1/operations/queues` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/queues` | GET | `/v1/operations/queues/workers` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/queues` | GET | `/v1/operations/queues/replay-safety` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/queues` | GET | `/v1/operations/queues/:queueName/failed` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | PLATFORM_OPS_ACTOR, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/retry` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/readiness` | GET | `/v1/operations/readiness` | NONE_FOUND | NONE |
-| `/admin/platform/recovery` | GET | `/v1/operations/recovery` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/recovery` | POST | `/v1/operations/recovery/validate-backup` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/recovery` | POST | `/v1/operations/recovery/validate-restore` | PLATFORM_OPS_ACTOR, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/platform/recovery` | GET | `/v1/operations/recovery/reports/:id` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/reliability` | GET | `/v1/reliability/summary` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/platform/reliability` | GET | `/v1/reliability/upload-sessions` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/platform/reliability` | POST | `/v1/reliability/upload-sessions/:evidenceId/mark-abandoned` | AUTH_ONLY | FILTER_CANDIDATE |
-| `/admin/platform/reliability` | POST | `/v1/reliability/upload-sessions/:evidenceId/request-review` | AUTH_ONLY | FILTER_CANDIDATE |
+| `/admin/platform/analytics` | GET | `/v1/analytics/operations` | gateAnalyticsRead | AUDIT |
+| `/admin/platform/analytics` | GET | `/v1/analytics/reviewer` | gateAnalyticsRead | AUDIT |
+| `/admin/platform/analytics` | GET | `/v1/analytics/governance` | gateAnalyticsRead | AUDIT |
+| `/admin/platform/analytics` | GET | `/v1/analytics/automation` | gateAnalyticsRead | AUDIT |
+| `/admin/platform/analytics` | GET | `/v1/analytics/artifacts` | gateAnalyticsRead | AUDIT |
+| `/admin/platform/analytics` | GET | `/v1/automation/webhooks` | requireTeamCapability | FILTER |
+| `/admin/platform/analytics` | GET | `/v1/automation/webhook-deliveries` | requireTeamCapability | FILTER |
+| `/admin/platform/automation` | GET | `/v1/automation/rules` | requireTeamCapability | FILTER |
+| `/admin/platform/automation` | GET | `/v1/automation/runs` | requireTeamCapability | FILTER |
+| `/admin/platform/exports` | GET | `/v1/operations/exports` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/exports` | GET | `/v1/operations/exports/object-lock` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/exports` | GET | `/v1/operations/exports/:id` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/exports` | POST | `/v1/operations/exports/:id/verify` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/media-graph` | GET | `/v1/admin/platform/metrics` | requirePlatformAdmin | NONE |
+| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/runs/:runId/retry` | requireDomainActionOnOpsSurface | FILTER_CANDIDATE |
+| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/dlq/replay` | requireDomainActionOnOpsSurface | FILTER_CANDIDATE |
+| `/admin/platform/observability` | GET | `/v1/admin/platform/metrics` | requirePlatformAdmin | NONE |
+| `/admin/platform/observability` | GET | `/v1/admin/platform/alerts` | requirePlatformAdmin | NONE |
+| `/admin/platform/observability` | GET | `/v1/admin/platform/readiness` | requirePlatformAdmin | NONE |
+| `/admin/platform/observability` | GET | `/v1/admin/platform/health-snapshot` | requirePlatformAdmin | NONE |
+| `/admin/platform/queues` | GET | `/v1/operations/queues` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/queues` | GET | `/v1/operations/queues/workers` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/queues` | GET | `/v1/operations/queues/replay-safety` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/queues` | GET | `/v1/operations/queues/:queueName/failed` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/retry` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/readiness` | GET | `/v1/operations/readiness` | requirePlatformAdmin | NONE |
+| `/admin/platform/recovery` | GET | `/v1/operations/recovery` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/recovery` | POST | `/v1/operations/recovery/validate-backup` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/recovery` | POST | `/v1/operations/recovery/validate-restore` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/platform/recovery` | GET | `/v1/operations/recovery/reports/:id` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/reliability` | GET | `/v1/reliability/summary` | requireAdminMember | FILTER_CANDIDATE |
+| `/admin/platform/reliability` | GET | `/v1/reliability/upload-sessions` | requireAdminMember | FILTER_CANDIDATE |
+| `/admin/platform/reliability` | POST | `/v1/reliability/upload-sessions/:evidenceId/mark-abandoned` | requireAdminMember | FILTER_CANDIDATE |
+| `/admin/platform/reliability` | POST | `/v1/reliability/upload-sessions/:evidenceId/request-review` | requireAdminMember | FILTER_CANDIDATE |
 | `/admin/platform/runbooks` | — | (no API call) | — | — |
 | `/admin/platform/runbooks/:slug` | — | (no API call) | — | — |
-| `/admin/platform/signers` | GET | `/v1/operations/signers` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/signers` | GET | `/v1/operations/custody-attestations` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/signers` | POST | `/v1/operations/custody-attestations/:id/verify` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/signers` | POST | `/v1/operations/custody-attestations/backfill` | PLATFORM_OPS_ACTOR, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/platform/signers` | GET | `/v1/operations/signers/:id` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/signers` | GET | `/v1/operations/signers/:id/audit` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/signers` | GET | `/v1/operations/signers/:id/health` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/signers` | POST | `/v1/operations/signers/:id/preview` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/platform/signers` | POST | `/v1/operations/signers/:id/health` | PLATFORM_OPS_ACTOR | FILTER_CANDIDATE |
-| `/admin/provisioning` | POST | `/v1/admin/enterprise/provision` | NONE_FOUND, +STEP_UP | AUDIT |
-| `/admin/provisioning` | PATCH | `/v1/admin/orgs/:id/plan` | NONE_FOUND, +STEP_UP | AUDIT |
-| `/admin/search` | GET | `/v1/admin/search` | NONE_FOUND | NONE |
+| `/admin/platform/signers` | GET | `/v1/operations/signers` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/signers` | GET | `/v1/operations/custody-attestations` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/signers` | POST | `/v1/operations/custody-attestations/:id/verify` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/signers` | POST | `/v1/operations/custody-attestations/backfill` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/platform/signers` | GET | `/v1/operations/signers/:id` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/signers` | GET | `/v1/operations/signers/:id/audit` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/signers` | GET | `/v1/operations/signers/:id/health` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/signers` | POST | `/v1/operations/signers/:id/preview` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/signers` | POST | `/v1/operations/signers/:id/health` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/provisioning` | POST | `/v1/admin/enterprise/provision` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
+| `/admin/provisioning` | PATCH | `/v1/admin/orgs/:id/plan` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
+| `/admin/search` | GET | `/v1/admin/search` | requirePlatformAdmin | NONE |
 | `/admin/security` | — | (no API call) | — | — |
-| `/admin/support-access` | GET | `/v1/support-access/grants` | AUTH_ONLY | FILTER |
-| `/admin/support-access` | GET | `/v1/break-glass/grants` | AUTH_ONLY | FILTER |
-| `/admin/support-access` | POST | `/v1/support-access/enter` | AUTHORIZE(?) | AUDIT |
-| `/admin/support-access` | POST | `/v1/support-access/revoke` | AUTHORIZE(?) | FILTER_CANDIDATE |
-| `/admin/support-access` | POST | `/v1/support-access/start` | AUTHORIZE(?) | AUDIT |
-| `/admin/support-access` | POST | `/v1/break-glass/activate` | AUTHORIZE(?), +STEP_UP | AUDIT |
-| `/admin/support-access` | POST | `/v1/break-glass/revoke` | AUTHORIZE(?) | FILTER_CANDIDATE |
-| `/admin/timeline` | GET | `/v1/admin/timeline` | NONE_FOUND | NONE |
-| `/admin/users` | GET | `/v1/admin/users` | NONE_FOUND | AUDIT |
-| `/admin/users/:id` | GET | `/v1/admin/users/:id` | NONE_FOUND | NONE |
-| `/admin/workspaces` | GET | `/v1/admin/workspaces` | NONE_FOUND | NONE |
-| `/admin/workspaces/:id` | GET | `/v1/admin/workspaces/:id` | NONE_FOUND | AUDIT |
+| `/admin/support-access` | GET | `/v1/support-access/grants` | requirePlatformStaff | FILTER |
+| `/admin/support-access` | GET | `/v1/break-glass/grants` | requirePlatformStaff | FILTER |
+| `/admin/support-access` | POST | `/v1/support-access/enter` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | AUDIT |
+| `/admin/support-access` | POST | `/v1/support-access/revoke` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | FILTER_CANDIDATE |
+| `/admin/support-access` | POST | `/v1/support-access/start` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | AUDIT |
+| `/admin/support-access` | POST | `/v1/break-glass/activate` | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | AUDIT |
+| `/admin/support-access` | POST | `/v1/break-glass/revoke` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | FILTER_CANDIDATE |
+| `/admin/timeline` | GET | `/v1/admin/timeline` | requirePlatformAdmin | NONE |
+| `/admin/users` | GET | `/v1/admin/users` | requirePlatformAdmin | AUDIT |
+| `/admin/users/:id` | GET | `/v1/admin/users/:id` | requirePlatformAdmin | NONE |
+| `/admin/workspaces` | GET | `/v1/admin/workspaces` | requirePlatformAdmin | NONE |
+| `/admin/workspaces/:id` | GET | `/v1/admin/workspaces/:id` | requirePlatformAdmin | AUDIT |
 
 ## Verification evidence
 

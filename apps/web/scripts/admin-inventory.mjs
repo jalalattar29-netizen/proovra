@@ -101,10 +101,34 @@ function readApiRoutes() {
       ),
     ];
 
+    /**
+     * Guards hoisted into a named constant.
+     *
+     *     const ADMIN_PRE = { preHandler: requirePlatformAdmin };
+     *     app.get("/v1/admin/analytics/dashboard", ADMIN_PRE, handler);
+     *
+     * The handler slice then contains ADMIN_PRE and no guard name at all, so
+     * a platform-admin-only endpoint read as having NO authority. Resolving
+     * the alias is the difference between a matrix that can be trusted and
+     * one that reports a false hole every time somebody factors out a
+     * repeated option object.
+     */
+    const preHandlerAliases = new Map();
+    for (const m of code.matchAll(
+      /const\s+([A-Z][A-Z0-9_]*)\s*=\s*\{[^}]*preHandler:\s*([^,}]+)/g,
+    )) {
+      preHandlerAliases.set(m[1], m[2].trim());
+    }
+
     for (let i = 0; i < regs.length; i += 1) {
       const m = regs[i];
       const next = regs[i + 1];
-      const body = code.slice(m.index, next ? next.index : code.length);
+      const rawBody = code.slice(m.index, next ? next.index : code.length);
+      // Expand any hoisted guard alias so the scan below sees the real name.
+      let body = rawBody;
+      for (const [alias, real] of preHandlerAliases) {
+        if (body.includes(alias)) body = body.split(alias).join(real);
+      }
       const method = m[1].toUpperCase();
       const path = m[2];
 
@@ -127,32 +151,42 @@ function readApiRoutes() {
       //
       // These names are taken from the routes themselves, by frequency, so
       // the list describes the codebase rather than one author's memory.
+      // DERIVED, not listed.
+      //
+      // A curated list of guard names was wrong three times in a row, and each
+      // time the failure mode was the same: an unlisted guard made a real
+      // authorization look absent. requireIdentityAdmin was missing, so 21
+      // mutations read as authenticated-only. Then requirePlatformAdmin was
+      // being matched only as a CALL, so `{ preHandler: requirePlatformAdmin }`
+      // — passed by reference, as Fastify guards are — read as no authority at
+      // all. Then requirePlatformAdminOrInternalKey turned up, unlisted again.
+      //
+      // Every one of those was the list being behind the codebase. So the
+      // guards are now READ FROM THE HANDLER: any require*/assert* identifier
+      // in the registration is reported by its own name. A guard added
+      // tomorrow is picked up tomorrow, and a name that means nothing to this
+      // script still appears in the matrix for a human to judge.
       const authority = [];
-      const CAPABILITY_CALLS = [
-        ["requirePlatformAdmin", "PLATFORM_ADMIN"],
-        ["requirePlatformOpsActor", "PLATFORM_OPS_ACTOR"],
-        ["requireIdentityAdmin", "IDENTITY_ADMIN"],
-        ["requireIdentityActor", "IDENTITY_ACTOR"],
-        ["requireReviewerActor", "REVIEWER_ACTOR"],
-        ["requireReviewerCapable", "REVIEWER_CAPABLE"],
-        ["requireReviewerMember", "REVIEWER_MEMBER"],
-        ["requireWorkflowActor", "WORKFLOW_ACTOR"],
-        ["requireDelegatedTierAny", "DELEGATED_TIER"],
-        ["requireDelegatedTier", "DELEGATED_TIER"],
-        ["requireOpsCapability", "OPS_CAPABILITY"],
-        ["requireOpsActor", "OPS_ACTOR"],
-        ["requireTeamCapability", "TEAM_CAPABILITY"],
-        ["requireWorkspaceMembership", "WORKSPACE_MEMBER"],
-        ["requireCaseAccess", "CASE_ACCESS"],
-        ["requireApiScope", "API_SCOPE"],
-        ["requireApiKey", "API_KEY"],
-        ["requireCap", "CAPABILITY"],
-        ["requireMember", "MEMBER"],
-      ];
-      for (const [fn, label] of CAPABILITY_CALLS) {
-        if (body.includes(fn + "(") || body.includes(fn + " (")) {
-          authority.push(label);
-        }
+      const IGNORE = new Set([
+        "requireAuth",
+        "require",
+      ]);
+      // require* / assert* / authorize* / resolveAuthorized* .
+      //
+      // The last family was found by hand-checking the ONE mutation still
+      // reported as authenticated-only:
+      // POST /v1/identity/access-reviews/regenerate calls
+      // resolveAuthorizedWorkspaceSubject(req, reply, "identity.access_review
+      // .action", teamId) — the canonical AuthorizedWorkspaceContext
+      // primitive, which simply does not begin with "require".
+      //
+      // resolve* in general is NOT included: resolveWorkspace and
+      // resolveTeamId are lookups, not gates, and counting them would report
+      // authorization wherever a handler merely read an id.
+      for (const g of body.matchAll(
+        /(?:^|[^A-Za-z0-9_$])((?:require|assert|authorize|gate)[A-Z][A-Za-z0-9_]*|resolve(?:Authorized|Admin)[A-Za-z0-9_]*)/g,
+      )) {
+        if (!IGNORE.has(g[1])) authority.push(g[1]);
       }
       if (/authorizeOrFail/.test(body)) {
         const p = /permission:s*["']([^"']+)["']/.exec(body);
