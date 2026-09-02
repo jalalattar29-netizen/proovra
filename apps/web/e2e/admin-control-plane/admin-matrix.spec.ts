@@ -347,7 +347,27 @@ async function inspect(page: Page) {
       h1: h1s[0]?.textContent?.trim() ?? null,
       chars: text.replace(/\s+/g, " ").length,
       deniedText: /elevation is required|Platform administrator only|not authorized|Access denied/i.test(text),
-      signInOffered: /\bSign in\b/i.test(text),
+      /**
+       * An ACTION, not the words.
+       *
+       * A first version tested the page TEXT and reported /admin/provisioning
+       * four times. That page says "the enterprise workspace is created and
+       * they can sign in immediately" — prose about the CUSTOMER, on a page
+       * only a platform admin can open. A check that cannot tell a sentence
+       * from a button sends somebody to reword correct copy.
+       *
+       * What matters is whether a signed-in reader is offered a sign-in
+       * CONTROL: a link to /login, or a control labelled "Sign in".
+       */
+      signInOffered: [
+        ...document.querySelectorAll<HTMLElement>("a[href], button"),
+      ].some((el) => {
+        if (el.offsetParent === null) return false;
+        if (el.closest("#cc-main")) return false;
+        if (/^\/login(\?|$)/.test(el.getAttribute("href") ?? "")) return true;
+        const label = (el.textContent ?? "").trim();
+        return /^sign in\b/i.test(label) && label.length < 24;
+      }),
     };
   });
 }

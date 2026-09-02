@@ -339,8 +339,14 @@
    padding-left is 14px, icon column is 40px → icon center at x=34.
    Label span sits after icon with padding-left 8px and clips when collapsed. */
 .app-sidebar-v2-link {
-  height: 42px;
-  min-height: 42px;
+  /* 44px, not 42.
+     Measured by the admin verification matrix at every viewport: these were
+     116x42 and 124x42, two pixels under the touch floor, on every page in the
+     console. Two pixels is not a rounding difference on a control somebody
+     hits with a thumb during an incident — it is the difference between the
+     documented minimum and not meeting it. */
+  height: 44px;
+  min-height: 44px;
   width: 100%;
   display: flex;
   align-items: center;
