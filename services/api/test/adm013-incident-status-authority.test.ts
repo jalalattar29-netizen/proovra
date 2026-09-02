@@ -97,14 +97,22 @@ describe("nobody redefines it locally", () => {
     }
   });
 
-  it("the Overview headline no longer uses the narrow predicate", () => {
+  it("the Overview security figure uses the NAMED untriaged predicate", () => {
     const src = code("services/admin/overview.service.ts");
-    // This exact expression is the defect: it made Overview disagree with
-    // System Health for every acknowledged incident on the platform.
+
+    // The INLINED literal is the defect. The narrow predicate itself is
+    // correct here, and getting that wrong cost a round trip: changing this
+    // figure to the unresolved predicate put 12 beside the headline's 11 on
+    // one page — a third number, which is worse than the inconsistency it was
+    // meant to remove.
+    //
+    // The field is named `openIncidents` and drills into
+    // `/admin/operations?status=OPEN`. Snapshot rule 5 requires a summary count
+    // to use the same predicate as the list behind it, so it counts OPEN.
     expect(src).not.toMatch(
       /operationalIncident\.count\(\{\s*where:\s*\{\s*status:\s*"OPEN"\s*\}\s*\}\)/,
     );
-    expect(src).toMatch(/unresolvedIncidentWhere\(\)/);
+    expect(src).toMatch(/untriagedIncidentWhere\(\)/);
   });
 });
 

@@ -9,7 +9,7 @@ import {
   buildPlatformHealthSnapshot,
   type PlatformHealthSnapshot,
 } from "../operations/platform-health-snapshot.service.js";
-import { unresolvedIncidentWhere } from "../operations/incident-open-statuses.js";
+import { untriagedIncidentWhere } from "../operations/incident-open-statuses.js";
 import { buildEvidenceHealthSnapshot } from "../operations/evidence-health.service.js";
 import {
   measure,
@@ -319,18 +319,29 @@ export async function buildPlatformOverview(
 
     // ---- Security ---------------------------------------------------------
     //
-    // ADM-013 — was `status: "OPEN"`, while System Health's headline counted
-    // OPEN + ACKNOWLEDGED. Two consoles, one platform, different numbers, and
-    // neither wrong about its own predicate — which is worse than one of them
-    // being broken, because an operator reconciling them cannot tell a real
-    // change from a definitional one.
+    // ADM-013 — UNTRIAGED, deliberately, and this took two attempts to get
+    // right.
     //
-    // Both now read `unresolvedIncidentWhere()`. An acknowledged incident is
-    // one a human has LOOKED at and not fixed; excluding it would make
-    // acknowledging an incident remove it from the headline, which is the
-    // wrong incentive to build into an operations surface.
-    m("Unresolved incidents", () =>
-      prisma.operationalIncident.count({ where: unresolvedIncidentWhere() }),
+    // It was an inlined `status: "OPEN"`, and I first "fixed" it to the
+    // unresolved predicate on the grounds that System Health counts
+    // OPEN + ACKNOWLEDGED. That produced 12 here beside 11 in this same page's
+    // headline — a third number, on one screen, which is worse than the
+    // inconsistency I set out to remove.
+    //
+    // The headline (`status.activeIncidents`) reads `openDurable` from the
+    // snapshot and drills into `/admin/operations?status=OPEN`. Snapshot rule 5
+    // is that a summary count uses the SAME predicate as the list behind it, so
+    // a figure whose drill-down filters to OPEN must count OPEN. This field is
+    // named `openIncidents`, links to `?status=OPEN`, and therefore counts the
+    // untriaged population — which is a real question, not a rounding of the
+    // other one.
+    //
+    // What was actually wrong was the inlining: four services each carried
+    // their own literal and two of them disagreed. The predicate is now named
+    // and imported, so the next reader has to choose between two documented
+    // answers rather than typing a third.
+    m("Untriaged incidents", () =>
+      prisma.operationalIncident.count({ where: untriagedIncidentWhere() }),
     ),
     m("High security events", () =>
       prisma.securityEvent.count({
