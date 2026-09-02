@@ -84,11 +84,44 @@ describe("Pin 4 — limitations + runbooks", () => {
     assert.match(src, /Known limitations/);
   });
 
-  it("links the four runbook docs", () => {
-    assert.match(src, /disaster-recovery\.md/);
-    assert.match(src, /sre-runbooks\.md/);
-    assert.match(src, /pentest-readiness\.md/);
-    assert.match(src, /security-review\.md/);
+  it("links the four runbooks to the in-app reader, by slug", () => {
+    // This used to assert the page contained "sre-runbooks.md" — a REPOSITORY
+    // PATH. The page did print those, under links that all went to the runbook
+    // INDEX, so during an incident an operator got a filename they cannot open
+    // beside a link that made them search a list for it.
+    //
+    // The four are real slugs in the generated catalog and the reader at
+    // /admin/platform/runbooks/:slug renders them. The test now pins the thing
+    // worth pinning: that each is reachable, and that the path is gone.
+    for (const slug of [
+      "disaster-recovery",
+      "sre-runbooks",
+      "pentest-readiness",
+      "security-review",
+    ]) {
+      assert.match(src, new RegExp('slug: "' + slug + '"'));
+    }
+    assert.ok(
+      src.includes("/admin/platform/runbooks/${r.slug}"),
+      "each runbook must link its own reader, not the index",
+    );
+  });
+
+  it("prints no repository path", () => {
+    // Comments stripped: this file and the page both DISCUSS the paths they
+    // must not render, and a check that cannot tell prose from output teaches
+    // people to stop explaining themselves.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    assert.doesNotMatch(code, /docs\/runbooks\//);
+  });
+
+  it("says so when the backend flags no limitations", () => {
+    // An empty list previously rendered the sentence "These are real, flagged
+    // caveats" above nothing, which reads as a section that failed to load —
+    // on the one surface whose entire purpose is being believed.
+    assert.match(src, /limitations\.length === 0/);
   });
 });
 

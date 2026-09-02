@@ -430,8 +430,13 @@ export default function AdminOrganizationsPage() {
         }}
       >
         <div>
-          {total} organization{total === 1 ? "" : "s"} · page {page} of{" "}
-          {totalPages}
+          {/* "page 1 of 0" is what an unguarded totalPages prints on an
+              empty result, and it reads as a broken pager rather than an
+              empty list. With no rows there is no pagination to describe, so
+              the count stands alone. */}
+          {total === 0
+            ? "No organizations match these filters"
+            : `${total} organization${total === 1 ? "" : "s"} · page ${page} of ${Math.max(1, totalPages)}`}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Button

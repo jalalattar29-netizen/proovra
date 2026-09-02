@@ -113,31 +113,40 @@ type ReadinessPosture = {
 };
 
 // ---------------------------------------------------------------------------
-// Runbook links (honest docs under docs/runbooks/).
+// Runbook links.
+//
+// These used to print a REPOSITORY PATH — "docs/runbooks/disaster-recovery.md"
+// — under a link that went to the runbook INDEX rather than the runbook. So an
+// operator reading this page during an incident got a filename they cannot
+// open and a link that made them search a list for it.
+//
+// Every one of these four is a real slug in the generated catalog, and the
+// in-app reader at /admin/platform/runbooks/:slug renders the text. The link
+// now goes there and the path is gone from the page.
 // ---------------------------------------------------------------------------
 
-const RUNBOOK_LINKS: ReadonlyArray<{ label: string; path: string; summary: string }> = [
+const RUNBOOK_LINKS: ReadonlyArray<{ label: string; slug: string; summary: string }> = [
   {
     label: "Disaster recovery",
-    path: "docs/runbooks/disaster-recovery.md",
+    slug: "disaster-recovery",
     summary:
       "RPO/RTO stated as targets/assumptions (not guarantees), Object Lock + managed-DB-backup posture, artifact regeneration, restore steps.",
   },
   {
     label: "SRE runbooks",
-    path: "docs/runbooks/sre-runbooks.md",
+    slug: "sre-runbooks",
     summary:
       "Operator procedures: report/OTS queue backlog, immutable-storage drift, webhook auto-disable, worker heartbeat missing.",
   },
   {
     label: "Pen-test readiness",
-    path: "docs/runbooks/pentest-readiness.md",
+    slug: "pentest-readiness",
     summary:
       "Allowed scope, seeded fixtures, environment separation, rate-limit notes, destructive-action exclusions, security contact.",
   },
   {
     label: "Security review",
-    path: "docs/runbooks/security-review.md",
+    slug: "security-review",
     summary:
       "Procurement / security-review checklist linking the honest legal docs; no certification claimed unless separately verified.",
   },
@@ -530,17 +539,34 @@ function KnownLimitationsSection({
   return (
     <PageSection title="Known limitations (honest disclosure)">
       <Card variant="admin" data-testid="known-limitations">
-        <p style={mutedStyle}>
-          These are real, flagged caveats — not marketing copy. They are stated
-          plainly so operators and reviewers can make informed decisions.
-        </p>
-        <ul style={{ marginTop: 8, paddingLeft: 18, fontSize: 13 }}>
-          {limitations.map((l) => (
-            <li key={l} style={{ marginBottom: 6 }}>
-              {l}
-            </li>
-          ))}
-        </ul>
+        {/* An empty list needs its own sentence, and on THIS section more than
+            any other.
+            The list came back empty and the page still printed "These are
+            real, flagged caveats" above nothing — which reads as a section
+            that failed to load, on the one surface whose whole purpose is
+            being believed. "None currently flagged" is a different statement
+            from silence, and it is the true one. */}
+        {limitations.length === 0 ? (
+          <p style={{ fontSize: 13 }}>
+            No limitations are currently flagged. This is the backend reporting
+            an empty list, not a section that failed to load.
+          </p>
+        ) : (
+          <>
+            <p style={mutedStyle}>
+              These are real, flagged caveats — not marketing copy. They are
+              stated plainly so operators and reviewers can make informed
+              decisions.
+            </p>
+            <ul style={{ marginTop: 8, paddingLeft: 18, fontSize: 13 }}>
+              {limitations.map((l) => (
+                <li key={l} style={{ marginBottom: 6 }}>
+                  {l}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </Card>
     </PageSection>
   );
@@ -551,20 +577,18 @@ function RunbooksSection() {
     <PageSection title="Runbooks & checklists">
       <Card data-testid="runbooks-section">
         <p style={mutedStyle}>
-          Operator and reviewer documentation. The authoritative text lives in
-          the repository under <code style={monoStyle}>docs/runbooks/</code>.
+          Operator and reviewer documentation. Each opens in the console.
         </p>
         <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
           {RUNBOOK_LINKS.map((r) => (
-            <li key={r.path} style={{ marginBottom: 10 }}>
+            <li key={r.slug} style={{ marginBottom: 10 }}>
               <Link
-                href={`/admin/platform/runbooks`}
+                href={`/admin/platform/runbooks/${r.slug}`}
                 style={{ color: TOKENS.link ?? "#2563eb", fontWeight: 600 }}
               >
                 {r.label}
               </Link>
               <div style={{ ...mutedStyle, fontSize: 12 }}>{r.summary}</div>
-              <code style={{ ...monoStyle, fontSize: 11 }}>{r.path}</code>
             </li>
           ))}
         </ul>
