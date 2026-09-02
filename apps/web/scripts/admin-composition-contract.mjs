@@ -1,0 +1,270 @@
+#!/usr/bin/env node
+/**
+ * DOES EACH ADMIN PAGE MEET THE COMPOSITION CONTRACT?
+ *
+ * =============================================================================
+ * WHY A SECOND AUDIT
+ * =============================================================================
+ * `admin-composition-audit.mjs` looks for DEFECTS — a raw KMS ARN, a "Page 1 of
+ * 0", a missing empty state. It reports 18 pages with findings and all 18 are
+ * the same hard-coded status hex, which is a consistency observation rather
+ * than a fault. On its evidence the console is finished.
+ *
+ * It is not finished, and the gap is the difference between "nothing is broken"
+ * and "this page is composed". A list with no total count is not broken. A
+ * detail page with no timestamps is not broken. A page whose filters are
+ * advertised in the UI and applied in the browser rather than by the server is
+ * not broken either — it is wrong at 10,000 rows, silently.
+ *
+ * So this asks the positive question, against the contract:
+ *
+ *   LISTS       title, scope, total count, filters, server-side filtering,
+ *               sorting where advertised, pagination, empty result,
+ *               filtered-empty result, responsive table
+ *
+ *   DETAILS     breadcrumb, return path, identity summary, scope, state,
+ *               timestamps, related records, history, grouped actions
+ *
+ *   ANY PAGE    no lone-value card walls, no pill walls, no duplicated
+ *               primary actions, red only on proven failure
+ *
+ * =============================================================================
+ * WHAT IT CANNOT DO
+ * =============================================================================
+ * It reads source. It can see that a page renders a `<FilterBar>` and passes
+ * the filter into the request; it cannot see whether the server honours it.
+ * That is what the browser matrix and the contract matrix are for, and this
+ * says PRESENT/ABSENT rather than CORRECT.
+ *
+ * Every check names the contract clause it enforces, so a failure is
+ * actionable without reading this file.
+ *
+ * Usage:
+ *   node apps/web/scripts/admin-composition-contract.mjs
+ *   node apps/web/scripts/admin-composition-contract.mjs --json
+ *   node apps/web/scripts/admin-composition-contract.mjs --route /admin/costs
+ */
+
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const ADMIN_DIR = join(WEB_ROOT, "app", "(app)", "admin");
+
+function walk(dir, out = []) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) walk(p, out);
+    else if (e.name === "page.tsx") out.push(p);
+  }
+  return out;
+}
+
+function routeOf(file) {
+  const rel = relative(join(WEB_ROOT, "app", "(app)"), dirname(file));
+  return (
+    "/" +
+    rel
+      .split(sep)
+      .filter((s) => !(s.startsWith("(") && s.endsWith(")")))
+      .map((s) => (s.startsWith("[") ? ":" + s.replace(/[[\].]/g, "") : s))
+      .join("/")
+  );
+}
+
+/** The page plus the local components it renders from. */
+function sourceFor(file) {
+  const parts = [readFileSync(file, "utf8")];
+  const dir = dirname(file);
+  for (const sub of ["_sections", "_tabs", "_components"]) {
+    const d = join(dir, sub);
+    try {
+      if (!statSync(d).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    for (const n of readdirSync(d)) {
+      if (/\.tsx?$/.test(n)) parts.push(readFileSync(join(d, n), "utf8"));
+    }
+  }
+  return parts.join("\n");
+}
+
+/** Comments stripped — a page that DISCUSSES pagination must not pass on that. */
+const strip = (s) =>
+  s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+/**
+ * Is this page a LIST?
+ *
+ * Decided by shape rather than by name: a page that renders rows from a
+ * fetched array is a list whatever its route is called. `/admin/timeline` and
+ * `/admin/audit` are lists; `/admin/dashboard` is not, despite having tables.
+ */
+function isList(code) {
+  // TABLE ROWS over FETCHED data. Both halves matter.
+  //
+  // A looser version matched any `.map((r) => …)`, which classified
+  // /admin/platform/readiness as a list because it maps RUNBOOK_LINKS with a
+  // parameter named `r`. It then failed that page for having no filters and no
+  // total count, neither of which a posture page should have. A contract
+  // applied to the wrong kind of page is worse than no contract: it generates
+  // work that makes the product worse.
+  const rendersRows = /<tbody|<DataTable/.test(code);
+  const fetchesCollection = /apiFetch/.test(code);
+  return rendersRows && fetchesCollection;
+}
+
+/**
+ * Does the server page this list?
+ *
+ * `limit`/`offset`/`cursor` in the REQUEST, not the word "page" anywhere in
+ * the file — every React page module contains "page".
+ */
+function isPaginated(code) {
+  return /(limit|offset|cursor|pageSize|per_page)s*[=:,)]/.test(code);
+}
+
+const isDetail = (route) => /\/:(id|slug)$/.test(route);
+
+const CHECKS = [
+  // ---- Lists (contract 3.3) ------------------------------------------------
+  {
+    id: "LIST_NO_TOTAL_COUNT",
+    clause: "3.3 a list must state its total",
+    when: (c) => isList(c),
+    // "12 organizations", "Showing 1-20 of 340", "total" bound into copy.
+    fail: (c) =>
+      !/\btotal\b|\bcount\b|\{\s*rows\.length\s*\}|of\s*\{|\bresults?\b/i.test(c),
+  },
+  {
+    id: "LIST_NO_FILTERS",
+    clause: "3.3 an UNBOUNDED list must offer real filters",
+    // Only where the list can actually grow.
+    //
+    // A blanket rule reported 17 pages, and acting on it would have added a
+    // filter row above the four signer purposes and the handful of recovery
+    // checks — controls with nothing to narrow, occupying the space the data
+    // should have. That makes the console worse while satisfying an audit,
+    // which is the failure mode this whole exercise exists to avoid.
+    //
+    // Pagination is the honest proxy for "can be long": a list the server
+    // pages is a list nobody can read in one screen.
+    when: (c) => isList(c) && isPaginated(c),
+    fail: (c) => !/<FilterBar|<select|role="combobox"|aria-label=".*filter/i.test(c),
+  },
+  {
+    id: "LIST_FILTER_NOT_SERVER_SIDE",
+    clause: "3.3 filters must be applied by the server, not the browser",
+    when: (c) => isList(c) && /<FilterBar|<select/.test(c),
+    // A filter that never reaches the query string is a filter that lies at
+    // scale: it narrows the page you can see and nothing else.
+    fail: (c) =>
+      !/URLSearchParams|searchParams|\?\$\{|qs\.set|params\.set|\bquery\b\s*[,:]/.test(c),
+  },
+  {
+    id: "LIST_NO_PAGINATION",
+    clause: "3.3 a list must paginate",
+    when: (c) => isList(c),
+    fail: (c) => !/page|cursor|limit|offset|nextPage|hasMore/i.test(c),
+  },
+  {
+    id: "LIST_NO_FILTERED_EMPTY",
+    clause: "3.3 an empty RESULT and an empty TABLE read differently",
+    when: (c) => isList(c) && /<FilterBar|<select/.test(c),
+    // "No records yet" and "No records match these filters" are different
+    // sentences, and showing the first when a filter is active tells the
+    // reader their data is gone.
+    fail: (c) => !/match|matching|filter[^.]{0,40}(empty|none|no )/i.test(c),
+  },
+  {
+    id: "LIST_TABLE_NOT_SCROLLABLE",
+    clause: "3.3 a wide table scrolls itself, not the page",
+    when: (c) => /<table/.test(c),
+    fail: (c) =>
+      !/overflow-x|overflowX|apf-table-wrap|table-wrap|overflow:\s*auto/.test(c),
+  },
+
+  // ---- Details (contract 3.4) ---------------------------------------------
+  {
+    id: "DETAIL_NO_RETURN_PATH",
+    clause: "3.4 a detail page must have a deterministic way back",
+    when: (_c, route) => isDetail(route),
+    fail: (c) => !/←|&larr;|Back to|All \w/.test(c),
+  },
+  {
+    id: "DETAIL_NO_TIMESTAMPS",
+    clause: "3.4 a detail page must say when",
+    when: (_c, route) => isDetail(route),
+    fail: (c) => !/formatDateTime|toLocaleString|createdAt|updatedAt|AtUtc/.test(c),
+  },
+  {
+    id: "DETAIL_NO_STATE",
+    clause: "3.4 a detail page must show current state",
+    when: (_c, route) => isDetail(route),
+    fail: (c) => !/status|state|lifecycle|Badge/i.test(c),
+  },
+
+  // ---- Any page (contract 3.1) --------------------------------------------
+  {
+    id: "LONE_VALUE_CARD_WALL",
+    clause: "3.1 no wall of cards each holding one number",
+    when: () => true,
+    // Four or more. Three stat cards is a summary; six is a table someone drew
+    // with boxes, at six times the vertical cost.
+    fail: (c) =>
+      (c.match(/<Card[^>]*>\s*(?:<[^>]+>\s*){0,2}\{[a-zA-Z0-9_.?\s]{0,30}\}\s*(?:<\/[^>]+>\s*){0,2}<\/Card>/g) ?? [])
+        .length >= 4,
+  },
+  {
+    id: "DUPLICATE_PRIMARY_ACTION",
+    clause: "3.1 one primary action per surface",
+    when: () => true,
+    fail: (c) => (c.match(/variant="primary"/g) ?? []).length >= 4,
+  },
+];
+
+const rows = walk(ADMIN_DIR)
+  .map((file) => {
+    const route = routeOf(file);
+    const code = strip(sourceFor(file));
+    const failures = CHECKS.filter(
+      (chk) => chk.when(code, route) && chk.fail(code, route),
+    ).map((chk) => chk.id);
+    return {
+      route,
+      kind: isDetail(route) ? "detail" : isList(code) ? "list" : "surface",
+      failures,
+    };
+  })
+  .sort(
+    (a, b) => b.failures.length - a.failures.length || a.route.localeCompare(b.route),
+  );
+
+if (process.argv.includes("--json")) {
+  console.log(JSON.stringify({ total: rows.length, rows, checks: CHECKS.map((c) => ({ id: c.id, clause: c.clause })) }, null, 2));
+} else {
+  const only = process.argv.includes("--route")
+    ? process.argv[process.argv.indexOf("--route") + 1]
+    : null;
+  const pad = (s, n) => String(s ?? "").padEnd(n).slice(0, n);
+  for (const r of rows) {
+    if (only && r.route !== only) continue;
+    if (r.failures.length === 0 && !only) continue;
+    console.log(pad(r.route, 36) + pad(r.kind, 9) + r.failures.join(", "));
+  }
+  const counts = {};
+  for (const r of rows) for (const fl of r.failures) counts[fl] = (counts[fl] ?? 0) + 1;
+  const clean = rows.filter((r) => r.failures.length === 0).length;
+  console.log(
+    `\n${rows.length} pages · ${clean} meet the contract · ${rows.length - clean} do not\n` +
+      Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => {
+          const clause = CHECKS.find((c) => c.id === k)?.clause ?? "";
+          return `  ${String(v).padStart(3)}  ${k}\n       ${clause}`;
+        })
+        .join("\n"),
+  );
+}
