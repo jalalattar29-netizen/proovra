@@ -298,7 +298,7 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
       style={{ ...cardStyle, marginTop: 16 }}
       data-testid="object-lock-panel"
     >
-      <h3 className="apf-section-title">S3 Object Lock platform status</h3>
+      <h2 className="apf-section-title">S3 Object Lock platform status</h2>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <span style={badgeStyle(palette)} data-testid="object-lock-badge">
           {status.mode}
@@ -601,7 +601,7 @@ function ExportDrawer({
       ) : (
         <>
           <section>
-            <h3 className="apf-section-title">Identity</h3>
+            <h2 className="apf-section-title">Identity</h2>
             <div className="apf-table-wrap">
               <table style={tableStyle}>
                 <tbody>
@@ -654,7 +654,7 @@ function ExportDrawer({
           </section>
 
           <section style={{ marginTop: 16 }}>
-            <h3 className="apf-section-title">Signature status</h3>
+            <h2 className="apf-section-title">Signature status</h2>
             <div className="apf-table-wrap">
               <table style={tableStyle}>
                 <tbody>
@@ -702,7 +702,7 @@ function ExportDrawer({
           </section>
 
           <section style={{ marginTop: 16 }}>
-            <h3 className="apf-section-title">Reproducibility verification</h3>
+            <h2 className="apf-section-title">Reproducibility verification</h2>
             <button
               type="button"
               style={primaryButtonStyle}
@@ -726,7 +726,7 @@ function ExportDrawer({
           </section>
 
           <section style={{ marginTop: 16 }}>
-            <h3 className="apf-section-title">Canonical manifest JSON</h3>
+            <h2 className="apf-section-title">Canonical manifest JSON</h2>
             <pre
               style={{
                 background: TOKENS.surfaceMuted,

@@ -650,7 +650,7 @@ function SignerDetailDrawer({
           alignItems: "center",
         }}
       >
-        <h3 className="apf-section-title">
+        <h2 className="apf-section-title">
           {PURPOSE_LABELS[signer.signerPurpose]}{" "}
           <span
             style={{
@@ -662,7 +662,7 @@ function SignerDetailDrawer({
             · {signer.signerId.slice(0, 48)}
             {signer.signerId.length > 48 ? "…" : ""}
           </span>
-        </h3>
+        </h2>
         <button type="button" className="apf-control" onClick={onClose}>
           Close
         </button>

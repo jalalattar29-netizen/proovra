@@ -485,7 +485,7 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
       style={{ ...cardStyle, marginTop: 12 }}
       data-testid="worker-health"
     >
-      <h3 className="apf-section-title">Worker health</h3>
+      <h2 className="apf-section-title">Worker health</h2>
       <div className="apf-table-wrap">
         <table style={tableStyle}>
           <thead>

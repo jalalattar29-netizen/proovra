@@ -321,7 +321,7 @@ function ReadinessSummary({
   const last = overview.readiness;
   return (
     <section style={{ ...cardStyle, marginTop: 16 }} data-testid="readiness">
-      <h3 className="apf-section-title">Readiness</h3>
+      <h2 className="apf-section-title">Readiness</h2>
       <div
         style={{
           display: "grid",
@@ -416,7 +416,7 @@ function UnsupportedDomainsPanel({
       }}
       data-testid="unsupported-domains"
     >
-      <h3 className="apf-section-title">Unsupported domains (honest disclosure)</h3>
+      <h2 className="apf-section-title">Unsupported domains (honest disclosure)</h2>
       <p className="apf-muted">
         These categories are explicitly NOT validated by the PROOVRA
         application layer. They must be exercised through the infrastructure
@@ -563,7 +563,7 @@ function ReportDrawer({
         ) : null}
       </div>
       <section style={{ marginTop: 16 }}>
-        <h3 className="apf-section-title">Checks</h3>
+        <h2 className="apf-section-title">Checks</h2>
         <div className="apf-table-wrap">
           <table style={tableStyle}>
             <thead>
@@ -594,7 +594,7 @@ function ReportDrawer({
       </section>
       {report.unsupportedDomains.length > 0 ? (
         <section style={{ marginTop: 16 }}>
-          <h3 className="apf-section-title">Unsupported domains</h3>
+          <h2 className="apf-section-title">Unsupported domains</h2>
           <ul style={{ paddingLeft: 18, fontSize: 12 }}>
             {report.unsupportedDomains.map((d) => (
               <li key={d}>

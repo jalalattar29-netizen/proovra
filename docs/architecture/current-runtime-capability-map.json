@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "5003d35a2b7aa26e8ee866f1ba6307e7fbd62b6490076602eebb80dede0fb23a",
-  "consumerInventoryHash": "6175c977858f714b03e254fac1e614d332cd60202a4637bfde0e5b06d9e7ddbb",
+  "consumerInventoryHash": "ae2b60e28d60c4f6e9ef7d25a4e314159e1c05cf3c9dce0fdb938098ada368d5",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1123,
@@ -11367,7 +11367,7 @@
       "method": "POST",
       "route": "/v1/operations/exports/:id/verify",
       "registeringFile": "services/api/src/routes/operations-exports.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:535",
+      "productConsumer": "apps/web/app/(app)/admin/platform/exports/page.tsx:537",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -99825,7 +99825,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
-          "line": 519,
+          "line": 521,
           "caller": "ExportDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -99835,7 +99835,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/exports/page.tsx:195 (OperationsExportsContent, WEB); apps/web/app/(app)/admin/platform/exports/page.tsx:519 (ExportDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/exports/page.tsx:195 (OperationsExportsContent, WEB); apps/web/app/(app)/admin/platform/exports/page.tsx:521 (ExportDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -137834,7 +137834,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/exports/page.tsx",
-          "line": 535,
+          "line": 537,
           "caller": "ExportDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137844,7 +137844,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/exports/page.tsx:535 (ExportDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/exports/page.tsx:537 (ExportDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
