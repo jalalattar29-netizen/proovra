@@ -190,6 +190,23 @@ const ACTORS: readonly Actor[] = [
   },
 ];
 
+
+/**
+ * The records the DYNAMIC admin routes need.
+ *
+ * Six routes carry a path parameter — customers/:id, workspaces/:id, users/:id,
+ * demo-requests/:id, contact-sales/:id and runbooks/:slug — and none of them
+ * can be opened without a real record behind the id. A previous verification
+ * pass reported "37 of 47 pages returned 200" and the ten it could not open
+ * were these six plus four identity children; the six were unopenable because
+ * the fixture had nothing to point them at.
+ *
+ * The ids are FIXED so a browser check can be scripted and repeated, and so a
+ * failure names a record somebody can go and look at.
+ */
+const DEMO_REQUEST_ID = ID("e1");
+const CONTACT_SALES_ID = ID("e2");
+
 /** Three workspaces: populated org, EMPTY org, and a personal space. */
 const ORG_POPULATED = ID("a1");
 const ORG_EMPTY = ID("a2");
@@ -205,6 +222,8 @@ async function wipeFixture(): Promise<void> {
   const teamIds = [WS_POPULATED, WS_EMPTY, WS_PERSONAL];
   const userIds = ACTORS.map((a) => a.userId);
 
+  await prisma.demoRequest.deleteMany({ where: { id: DEMO_REQUEST_ID } });
+  await prisma.contactSalesRequest.deleteMany({ where: { id: CONTACT_SALES_ID } });
   await prisma.operationalIncident.deleteMany({ where: { teamId: { in: teamIds } } });
   await prisma.evidence.deleteMany({ where: { teamId: { in: teamIds } } });
   await prisma.teamMember.deleteMany({ where: { teamId: { in: teamIds } } });
@@ -389,6 +408,50 @@ async function seedEvidenceCohorts(): Promise<void> {
  * fixture without one renders those surfaces empty and proves nothing about
  * them.
  */
+
+/**
+ * Inbound commercial requests, so the two detail routes have something to open.
+ *
+ * One of each, in a NON-terminal status: a detail page's interesting states are
+ * its actions, and a closed request shows none of them.
+ */
+async function seedInboundRequests(): Promise<void> {
+  await prisma.demoRequest.create({
+    data: {
+      id: DEMO_REQUEST_ID,
+      fullName: "Dana Fixture",
+      workEmail: "dana@fixture-demo.local",
+      organization: "Fixture Demo Co",
+      jobTitle: "Head of Legal Operations",
+      country: "PT",
+      teamSize: "11-50",
+      useCase:
+        "Evaluating chain-of-custody evidence capture for insurance disputes.",
+      message: "Interested in the verification package format.",
+      source: "admin-fixture-seed",
+    },
+  });
+
+  await prisma.contactSalesRequest.create({
+    data: {
+      id: CONTACT_SALES_ID,
+      fullName: "Sam Fixture",
+      workEmail: "sam@fixture-sales.local",
+      organization: "Fixture Sales GmbH",
+      jobTitle: "CTO",
+      country: "DE",
+      teamSize: "51-200",
+      discussionTopic: "ENTERPRISE_PRICING",
+      stage: "EVALUATING",
+      currentChallenge:
+        "Our current evidence store cannot prove when a photograph was taken.",
+      deploymentTimeline: "THIS_QUARTER",
+      estimatedUsers: "50-100",
+      source: "admin-fixture-seed",
+    },
+  });
+}
+
 async function seedIncidents(): Promise<void> {
   const now = Date.now();
   const at = (daysAgo: number) => new Date(now - daysAgo * 86_400_000);
@@ -501,6 +564,7 @@ async function main(): Promise<void> {
   await seedWorkspaces();
   await seedEvidenceCohorts();
   await seedIncidents();
+  await seedInboundRequests();
 
   const counts = {
     users: await prisma.user.count({ where: { id: { in: ACTORS.map((a) => a.userId) } } }),
@@ -523,6 +587,16 @@ async function main(): Promise<void> {
       "",
       `  sign in as (password: ${FIXTURE_PASSWORD}):`,
       ...ACTORS.map((a) => `    ${a.email.padEnd(36)} ${a.plan}${a.platformRole === "admin" ? "  PLATFORM ADMIN" : ""}`),
+      "",
+      "  dynamic routes (open these; a parent list working proves nothing):",
+      `    /admin/customers/${ORG_POPULATED}`,
+      `    /admin/workspaces/${WS_POPULATED}`,
+      `    /admin/users/${ID("2")}`,
+      `    /admin/demo-requests/${DEMO_REQUEST_ID}`,
+      `    /admin/contact-sales/${CONTACT_SALES_ID}`,
+      "    /admin/platform/runbooks/tsa-timestamp-failure",
+      "",
+
       "",
     ].join("\n"),
   );
