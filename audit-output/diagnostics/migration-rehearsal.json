@@ -1,0 +1,170 @@
+{
+  "generatedBy": "services/api/scripts/migration-rehearsal.mjs",
+  "scenarios": "all",
+  "checks": 27,
+  "failures": 0,
+  "results": [
+    {
+      "scenario": "A",
+      "check": "full chain applies",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "A",
+      "check": "second deploy reports no pending migrations",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "A",
+      "check": "external_review_grants.token_version exists",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "A",
+      "check": "the duplicate lifecycle columns are absent",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "A",
+      "check": "teams.workspace_kind is NOT NULL",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B",
+      "check": "pre-change chain applies",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B",
+      "check": "production-shaped history seeds",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B",
+      "check": "expand + backfill + contract apply over history",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B",
+      "check": "row conservation — no delivery row deleted",
+      "ok": true,
+      "detail": "4 → 4"
+    },
+    {
+      "scenario": "B",
+      "check": "row conservation — no workspace deleted",
+      "ok": true,
+      "detail": "5 → 5"
+    },
+    {
+      "scenario": "B",
+      "check": "no delivery outcome invented",
+      "ok": true,
+      "detail": "PENDING 1 → 1"
+    },
+    {
+      "scenario": "B",
+      "check": "historical `attempt` values are not renumbered",
+      "ok": true,
+      "detail": "all still 1, as seeded"
+    },
+    {
+      "scenario": "B",
+      "check": "every historical row has a distinct durable intent",
+      "ok": true,
+      "detail": "4 intents over 4 rows"
+    },
+    {
+      "scenario": "B",
+      "check": "no workspace is left without a kind",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B",
+      "check": "personal spaces classify as PERSONAL",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B",
+      "check": "no workspace kind is inferred from a commercial plan alone",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B",
+      "check": "re-running the chain is idempotent",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "the migration refuses: a populated duplicate lifecycle column",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "a populated duplicate lifecycle column: nothing was destroyed",
+      "ok": true,
+      "detail": "invitation columns 5/5, teams.workspace_kind nullable=YES"
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "the migration refuses: a plaintext token left in the sidecar",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "a plaintext token left in the sidecar: nothing was destroyed",
+      "ok": true,
+      "detail": "invitation columns 5/5, teams.workspace_kind nullable=YES"
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "the migration refuses: an orphan role assignment",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "an orphan role assignment: nothing was destroyed",
+      "ok": true,
+      "detail": "invitation columns 5/5, teams.workspace_kind nullable=YES"
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "the migration refuses: a Personal Space under a CUSTOMER Organization",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "a Personal Space under a CUSTOMER Organization: nothing was destroyed",
+      "ok": true,
+      "detail": "invitation columns 0/5, teams.workspace_kind nullable=YES"
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "the migration refuses: two Personal Spaces for one identity",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "scenario": "B-REFUSE",
+      "check": "two Personal Spaces for one identity: nothing was destroyed",
+      "ok": true,
+      "detail": "invitation columns 0/5, teams.workspace_kind nullable=YES"
+    }
+  ]
+}
