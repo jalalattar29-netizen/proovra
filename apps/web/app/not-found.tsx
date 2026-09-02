@@ -60,7 +60,7 @@ export default function NotFound() {
         actions={[
           { label: "Admin overview", href: "/admin", variant: "primary" },
           {
-            label: "All runbooks",
+            label: "Back to Runbooks",
             href: "/admin/platform/runbooks",
             variant: "secondary",
           },

@@ -50,6 +50,35 @@ import { renderRunbookMarkdown } from "../../../../../../lib/runbooks/render";
 import { RunbookLayout } from "../_RunbookLayout";
 import "../runbooks.css";
 
+// dynamicParams = false, and this time it is MEASURED rather than assumed.
+//
+// The trade-off is real and only one side can be had:
+//
+//   false  an unknown slug is a ROUTING-level 404. Correct HTTP status. It
+//          resolves against the ROOT boundary and skips every not-found.tsx
+//          beneath it, so the console shell is not mounted.
+//
+//   true   the slug reaches this file, notFound() raises inside the segment,
+//          and a boundary under admin/layout.tsx renders WITH the shell.
+//
+// true was implemented, served, and measured:
+//
+//   GET /admin/platform/runbooks/no-such-runbook   ->  200
+//
+// The (app) layout has already committed the response by the time the slug is
+// known, so the status degrades. A not-found served as 200 is not a cosmetic
+// loss: uptime checks, link checkers and monitoring all read it as success,
+// and shipping that from an operations console while fixing operational
+// honesty would be its own joke.
+//
+// So the status wins, and the BODY is fixed at the root boundary instead —
+// app/not-found.tsx branches on pathname and gives an /admin reader
+// "Back to Runbooks" and "Admin overview" and never the word "Sign in".
+// apps/web/__tests__/admin-not-found-routing.test.mjs asserts BOTH halves
+// against a running server, so neither can regress alone.
+//
+// A not-found.tsx placed in this segment does nothing while this is false.
+// One was written and deleted; do not add it back without changing this line.
 export const dynamicParams = false;
 
 export function generateStaticParams() {
