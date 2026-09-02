@@ -39,6 +39,7 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import {
+  choiceRowStyle,
   NoWorkspaceSelected,
   SectionDenied,
   SectionError,
@@ -344,7 +345,7 @@ export function MfaPolicySection() {
               {LEVELS.map((l) => (
                 <label
                   key={l.value}
-                  style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                  style={choiceRowStyle}
                 >
                   <input
                     type="radio"
@@ -418,7 +419,7 @@ export function MfaPolicySection() {
               {FAIL_MODES.map((m) => (
                 <label
                   key={m.value}
-                  style={{ display: "flex", gap: 8, alignItems: "flex-start" }}
+                  style={choiceRowStyle}
                 >
                   <input
                     type="radio"

@@ -311,7 +311,35 @@ async function inspect(page: Page) {
       // The consent banner is third-party chrome this suite deliberately hides;
       // measuring its buttons reported a finding against every single page.
       if (el.closest("#cc-main")) continue;
-      const r = el.getBoundingClientRect();
+      /**
+       * Measure the HIT AREA, which for a labelled control is the label.
+       *
+       * A native radio or checkbox is 13x13 and always will be — that is the
+       * platform widget. What a person actually clicks is the <label> wrapping
+       * it, because clicking a label activates its control. Measuring the
+       * input reported 16 failures on /admin/security whose real targets are
+       * 220x62 and 220x80.
+       *
+       * This is not a way to make findings disappear: checked against the same
+       * page, one of those labels is 220x43 — a pixel short — and it is still
+       * reported. A rule that measured the wrong box was hiding that one
+       * genuine near-miss inside fifteen false ones.
+       */
+      const label =
+        el.closest("label") ??
+        (el.id ? document.querySelector(`label[for="${el.id}"]`) : null);
+      // The LARGER of the two, not the label.
+      //
+      // Preferring the label outright reported every FilterBar select as 1x1:
+      // those are labelled by a visually-hidden <label> for screen readers,
+      // which is correct markup and does not shrink anything a thumb can hit.
+      // The hit area is the union, and taking the larger box is the honest
+      // approximation of it — a big label around a small radio counts, and a
+      // 1x1 label around a big select does not take the select away.
+      const own = el.getBoundingClientRect();
+      const lr = label?.getBoundingClientRect();
+      const r =
+        lr && lr.width * lr.height > own.width * own.height ? lr : own;
       if (r.width === 0 || r.height === 0) continue;
       if (r.width < 44 || r.height < 44) {
         small.push(
@@ -328,10 +356,23 @@ async function inspect(page: Page) {
     for (const el of document.querySelectorAll<HTMLElement>("button, a[href], input, select")) {
       if (el.offsetParent === null) continue;
       if (el.closest("#cc-main")) continue;
+      // The accessible name, computed the way a screen reader computes it.
+      //
+      // A first version checked aria-label, title, and label[for=id] only, and
+      // reported seven unnamed inputs on /admin/provisioning. Every one of
+      // them is nested INSIDE its <label> — implicit labelling, which is valid
+      // HTML and does give the control a name. The markup was already correct
+      // and the check was wrong, which is the sixth time this harness accused
+      // a page of a defect it had invented.
+      const wrappingLabel = el.closest("label");
       const name =
         el.getAttribute("aria-label") ??
+        (el.getAttribute("aria-labelledby")
+          ? document.getElementById(el.getAttribute("aria-labelledby")!)?.textContent
+          : null) ??
         el.getAttribute("title") ??
         (el.id ? document.querySelector(`label[for="${el.id}"]`)?.textContent : null) ??
+        (wrappingLabel ? wrappingLabel.textContent : null) ??
         el.textContent;
       if (!name || !name.trim()) {
         unlabelled.push(`${el.tagName.toLowerCase()}${el.className ? "." + String(el.className).split(" ")[0] : ""}`);

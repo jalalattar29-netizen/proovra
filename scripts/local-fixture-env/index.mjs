@@ -182,6 +182,23 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
     // Stable across restarts ON PURPOSE. A per-process JWT secret invalidated
     // the fixture session on every API restart and turned a verification run
     // into a debugging run.
+    /**
+     * Neutralise dotenv outright.
+     *
+     * Borrowed from services/api/test/setup/safe-environment.ts, which solved
+     * the SAME incident for test processes after a Point-7 run booted the API
+     * in-process, initialised Sentry with the production DSN, and read the
+     * production evidence bucket. Its note is worth repeating: an allowlist is
+     * sufficient only if it is COMPLETE, and this makes completeness
+     * unnecessary.
+     *
+     * `import "dotenv/config"` honours DOTENV_CONFIG_PATH. Pointed at a file
+     * that does not exist, it loads nothing — so services/api/.env cannot fill
+     * a variable this allowlist happens not to set. Belt and braces, and the
+     * braces are the ones that were already proven here.
+     */
+    DOTENV_CONFIG_PATH: "scripts/local-fixture-env/no-such-env-file",
+
     AUTH_JWT_SECRET: "fixture-local-only-jwt-secret-not-a-real-secret",
     API_KEY_SECRET: "fixture-local-only-api-key-secret",
     IDENTITY_SECURITY_HASH_SECRET: "fixture-local-only-identity-hash-secret",

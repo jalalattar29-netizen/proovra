@@ -28,7 +28,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -196,3 +196,125 @@ function parseEnv(text) {
   }
   return out;
 }
+
+/**
+ * ===========================================================================
+ * EVERY LAUNCHER IS GUARDED — BY ONE OF EXACTLY TWO MECHANISMS
+ * ===========================================================================
+ * There are two, and that is deliberate rather than an oversight:
+ *
+ *   scripts/local-fixture-env  builds the environment for a SPAWNED SERVER
+ *                              (the API and the web dev server).
+ *
+ *   services/api/test/setup/   scrubs the environment of a TEST PROCESS via a
+ *   test-bootstrap.mjs         --import preload, and guards its sockets.
+ *
+ * They cannot be merged: a vitest setupFile cannot configure a `next dev` that
+ * a launcher spawns, and a preload cannot run in a process it does not start.
+ * What matters is that no launcher is guarded by NEITHER — which is what this
+ * asserts, by enumerating them from the tree rather than from a list.
+ */
+test("no process-spawning script is unguarded", () => {
+  const roots = [
+    "apps/web/scripts",
+    "services/api/scripts",
+    "services/worker/scripts",
+    "scripts",
+  ];
+
+  const spawners = [];
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) {
+        walk(p);
+        continue;
+      }
+      if (!/\.(mjs|js|ts)$/.test(e.name)) continue;
+      const src = readFileSync(p, "utf8");
+      // A script that spawns a long-lived child with an environment.
+      if (!/\bspawn\s*\(|\bspawnSync\s*\(/.test(src)) continue;
+      if (!/\benv\s*:/.test(src)) continue;
+      spawners.push({ path: p, src });
+    }
+  };
+  for (const r of roots) walk(r);
+
+  assert.ok(spawners.length > 0, "found no spawning scripts at all — the walk is broken");
+
+  /**
+   * Tooling that is SUPPOSED to reach the database it is handed.
+   *
+   * The rule above is about fixture launchers — scripts that start an
+   * application server which must never touch Production. Deployment and
+   * migration tooling is the opposite case: talking to a real database IS the
+   * job, and forcing a fixture environment on them would make them useless.
+   *
+   * The exemption is EARNED, not granted. Each entry names the guard that
+   * makes it safe and the guard is asserted, because an exemption that
+   * outlives its guard is a hole with a comment next to it.
+   *
+   * Both were found by this test, not by the manual audit that preceded it —
+   * that audit grepped for `spawn(` and these use `spawnSync`.
+   */
+  const EARNED_EXEMPTIONS = {
+    "services/api/scripts/deploy-safe.mjs": {
+      why: "the deployment orchestrator; refusing a real host would defeat it",
+      guard: /refuses non-local hosts/,
+    },
+    "services/api/scripts/migration-rehearsal.mjs": {
+      why: "rehearses migrations against a disposable database it is pointed at",
+      guard: /function assertLoopback/,
+    },
+  };
+
+  for (const [p, { guard, why }] of Object.entries(EARNED_EXEMPTIONS)) {
+    const hit = spawners.find((s) => s.path === p);
+    if (!hit) continue;
+    assert.match(
+      hit.src,
+      guard,
+      `${p} is exempt because ${why} — but the guard that earns it is gone`,
+    );
+  }
+
+  const unguarded = spawners
+    .filter(({ path, src }) => {
+      if (path in EARNED_EXEMPTIONS) return false;
+      if (/local-fixture-env/.test(src)) return false;
+      // The Point-7 --import bootstrap is the other sanctioned mechanism.
+      if (/test-bootstrap|NODE_OPTIONS/.test(src)) return false;
+      // A script that never spreads the ambient environment is not a leak
+      // path: it hands the child exactly what it names.
+      if (!/...process.env/.test(src)) return false;
+      return true;
+    })
+    .map(({ path }) => path);
+
+  assert.deepEqual(
+    unguarded,
+    [],
+    "each of these spreads process.env into a child without using either " +
+      "scripts/local-fixture-env or the Point-7 --import bootstrap",
+  );
+});
+
+test("dotenv cannot fill a gap the allowlist leaves", () => {
+  // The technique is borrowed from services/api/test/setup/safe-environment.ts,
+  // which fixed the same incident for test processes. An allowlist is
+  // sufficient only if COMPLETE; pointing DOTENV_CONFIG_PATH at a file that
+  // does not exist makes completeness unnecessary.
+  const env = buildLocalFixtureEnv();
+  assert.match(env.DOTENV_CONFIG_PATH, /no-such-env-file$/);
+  assert.equal(
+    existsSync(resolve(process.cwd(), env.DOTENV_CONFIG_PATH)),
+    false,
+    "the path must NOT exist — that is the entire mechanism",
+  );
+});

@@ -33,7 +33,13 @@ import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { PageSection } from "../../../../../components/ui/PageShell";
-import { safeMessage, sectionInputStyle, sectionLabelStyle, sectionMuted } from "./section-state";
+import {
+  choiceRowStyle,
+  safeMessage,
+  sectionInputStyle,
+  sectionLabelStyle,
+  sectionMuted,
+} from "./section-state";
 
 type Mode = "totp" | "recovery";
 
@@ -86,7 +92,7 @@ export function MfaSelfCheckSection() {
     >
       <Card padding="comfortable">
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
-          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          <label style={{ ...choiceRowStyle, alignItems: "center", gap: 6, fontSize: 13 }}>
             <input
               type="radio"
               name="mfa-self-check-mode"
@@ -99,7 +105,7 @@ export function MfaSelfCheckSection() {
             />
             Authenticator code
           </label>
-          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          <label style={{ ...choiceRowStyle, alignItems: "center", gap: 6, fontSize: 13 }}>
             <input
               type="radio"
               name="mfa-self-check-mode"

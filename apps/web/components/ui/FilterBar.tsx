@@ -38,7 +38,11 @@ export interface FilterBarProps
 }
 
 const CONTROL_STYLE: React.CSSProperties = {
-  minHeight: 40,
+  // 44, not 40: the filter row is the most-used control on every list page in
+  // the console, and the matrix measured all of them four pixels under the
+  // touch floor. One value here covers every list, which is why it was worth
+  // finding rather than patching per page.
+  minHeight: 44,
   fontSize: 13.5,
   color: "var(--ink-primary, #0f172a)",
   background: "var(--surface-card, #ffffff)",

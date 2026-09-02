@@ -121,7 +121,20 @@ export const ghostButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+/**
+ * 44px floor.
+ *
+ * The verification matrix measured every text field built from this token at 40px
+ * tall across the console — the filter rows on /admin/customers and
+ * /admin/security among them. `padding` alone does not guarantee a height,
+ * and 6px of it plus a 12-13px font lands at 40.
+ *
+ * Set as a MINIMUM rather than a fixed height so a multi-line control still
+ * grows, and here rather than at each call site because these tokens are the
+ * shared definition — thirty call sites is thirty chances to miss one.
+ */
 export const inputStyle: CSSProperties = {
+  minHeight: 44,
   padding: "6px 10px",
   border: `1px solid ${TOKENS.borderStrong}`,
   borderRadius: 6,
@@ -131,7 +144,20 @@ export const inputStyle: CSSProperties = {
   width: "100%",
 };
 
+/**
+ * 44px floor.
+ *
+ * The verification matrix measured every dropdown built from this token at 40px
+ * tall across the console — the filter rows on /admin/customers and
+ * /admin/security among them. `padding` alone does not guarantee a height,
+ * and 6px of it plus a 12-13px font lands at 40.
+ *
+ * Set as a MINIMUM rather than a fixed height so a multi-line control still
+ * grows, and here rather than at each call site because these tokens are the
+ * shared definition — thirty call sites is thirty chances to miss one.
+ */
 export const selectStyle: CSSProperties = {
+  minHeight: 44,
   padding: "6px 10px",
   border: `1px solid ${TOKENS.borderStrong}`,
   borderRadius: 6,
@@ -214,3 +240,23 @@ export function formatDateTime(iso: string | null | undefined): string {
     return iso ?? "—";
   }
 }
+
+/**
+ * A radio or checkbox row, sized to be hit.
+ *
+ * A native radio is 13x13 and always will be — that is the platform widget —
+ * so the <label> wrapping it is the target a person actually clicks. Three
+ * separate choice rows in the security console measured 43px, 39px and 39px
+ * tall: near-misses that only a measurement finds, and that would have been
+ * patched three times and missed a fourth.
+ *
+ * `alignItems: flex-start` is deliberate. These rows carry a bold label above
+ * a description, and centring makes the radio float beside the second line.
+ */
+export const choiceRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "flex-start",
+  minHeight: 44,
+  paddingBlock: 2,
+};

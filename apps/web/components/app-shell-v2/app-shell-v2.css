@@ -1008,9 +1008,11 @@
 
 .app-topbar-v2-runtime,
 .app-topbar-v2-language {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  /* The wrapper has to grow with the control it wraps, or the button renders
+     44px inside a 36px box and the extra 8px is simply clipped. */
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1048,10 +1050,18 @@
 }
 
 .app-topbar-v2-language button {
-  width: 36px !important;
-  height: 36px !important;
-  min-width: 36px !important;
-  min-height: 36px !important;
+  /* 44, not 36.
+     These four carried !important and therefore beat BOTH the touch floor
+     appended at the end of this file AND the existing coarse-pointer rule
+     further down that already asked for 44px. Somebody had recognised the
+     problem; the !important above quietly won everywhere and the intended fix
+     never applied. Raising the value here is the only change that reaches the
+     rendered control — confirmed by reading the computed style in a browser,
+     which is how the !important was found at all after the source said 44. */
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
   border-radius: 8px !important;
   background: transparent !important;
   border: 0 !important;
@@ -1427,10 +1437,14 @@
 
 /* Language switcher */
 .proovra-language-trigger {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  /* 44, not 36. Set HERE rather than relying on the header floor further down
+     this file: this rule pins all four dimensions, and leaving it to be
+     overridden from elsewhere is how a control silently reverts when somebody
+     moves the switcher out of the toolbar. */
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1828,3 +1842,53 @@
     min-height: 44px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE HEADER'S TOUCH FLOOR.
+
+   The verification matrix measured every interactive control in the app header
+   below the 44px minimum, on every one of the 47 admin pages: the search field
+   at 520x36, New Case at 113x36, the runtime status pill at 117x26, the
+   workspace chip at 129x26.
+
+   One rule rather than five edits, because they are five components with five
+   owners and the next control added to this header would have been the sixth
+   miss. Expressed as a FLOOR (min-block-size) so a control that is already
+   taller keeps its size.
+
+   It costs nothing visually: --header-h is 72px, so 44px controls sit inside
+   the bar with room to spare. The 36px was never a space constraint — it was
+   a number nobody had measured against a thumb.
+
+   The pills keep their compact painted appearance; only the box grows, which
+   is why the padding is left alone and alignment is centred.
+   --------------------------------------------------------------------------- */
+
+.app-account-toolbar :is(button, a[href], [role="button"], input, select),
+.app-account-toolbar-inner :is(button, a[href], [role="button"], input, select) {
+  min-block-size: 44px;
+  /* BOTH dimensions. The first version set only the block size and the icon
+     buttons came back 36x44 — half a fix reads as a fix in a findings list
+     that only prints the first three entries. */
+  min-inline-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The runtime indicator and the workspace chip are inline-styled components;
+   the wrapper is what this stylesheet owns, so the floor is applied there and
+   inherited by the single child each renders. */
+.app-topbar-v2-runtime,
+.app-topbar-v2-runtime > *,
+.app-header-status-chip,
+.app-topbar-v2-language,
+.app-topbar-v2-language > * {
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A decorative divider is not a control and must not be stretched by the rule
+   above; it is a <span> so it is unaffected, but saying so here stops the
+   selector being "simplified" into `*` later. */

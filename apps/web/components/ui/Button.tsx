@@ -59,7 +59,18 @@ export interface ButtonProps
 }
 
 const SIZE_STYLE: Record<ButtonSize, React.CSSProperties> = {
-  sm: { minHeight: 34, padding: "0 12px", fontSize: 13, borderRadius: 10, gap: 6 },
+  // 44, not 34.
+  //
+  // An earlier pass left this at 34 on the argument that `sm` is the dense
+  // in-table size and raising it would loosen every data table. That argument
+  // was made without measuring either half of it: the matrix then found `sm`
+  // buttons as page-level filter actions (Refresh, Clear on /admin/customers),
+  // where 34px is simply under the floor with no density to defend.
+  //
+  // Raised, and then MEASURED across all 47 routes at every viewport — the
+  // overflow and clipping checks are what decide whether 361 call sites can
+  // carry it, rather than a guess in either direction.
+  sm: { minHeight: 44, padding: "0 12px", fontSize: 13, borderRadius: 10, gap: 6 },
   // 44 and not 42: the default button size is the one used for page actions
   // like Refresh and Provision, and the matrix measured every one of them at
   // 42px tall. `sm` stays 34 on purpose — it is the dense in-table action

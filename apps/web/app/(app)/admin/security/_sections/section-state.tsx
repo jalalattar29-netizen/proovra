@@ -137,3 +137,24 @@ export const sectionLabelStyle = {
   color: MUTED,
   marginBottom: 4,
 } as const;
+
+/**
+ * A radio or checkbox row, sized to be hit.
+ *
+ * A native radio is 13x13 and always will be — that is the platform widget —
+ * so the <label> wrapping it is the target a person actually clicks. Three
+ * choice rows in this console measured 43px, 39px and 39px tall: near-misses
+ * that only a measurement finds, and that would otherwise have been patched
+ * one at a time until somebody missed the fourth.
+ *
+ * `alignItems: "flex-start"` is the default because these rows usually carry a
+ * bold label above a description, and centring floats the radio beside the
+ * second line. Rows with a single line of text override it.
+ */
+export const choiceRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "flex-start",
+  minHeight: 44,
+  paddingBlock: 2,
+};
