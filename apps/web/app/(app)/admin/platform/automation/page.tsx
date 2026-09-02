@@ -364,101 +364,103 @@ function AutomationPageInner(): JSX.Element {
             </button>
           </div>
         ) : (
-          <table
-            className="apf-table"
-            data-automation-rules-table
-            style={{ width: "100%", fontSize: 13 }}
-          >
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Trigger</th>
-                <th>Action</th>
-                <th>Enabled</th>
-                <th>Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {envelope.rules.map((r) => (
-                // PHASE 13 (NEW-065) — the ROW reports its own armed state.
-                //
-                // `data-automation-rule-enabled` existed only on the "Enabled"
-                // cell below. The row is the element carrying the rule's
-                // IDENTITY (`data-automation-rule-id`), so it was the one place
-                // a consumer could ask "what is rule X's state now?" and get
-                // nothing back — you had to already know which cell held the
-                // answer. Every other lifecycle row in this product states its
-                // state on the entity element itself (`member-status-{id}`,
-                // `data-org-workspace-lifecycle`, `data-cross-org-state`).
-                //
-                // Additive: the cell keeps both its copy and its attribute, so
-                // nothing that read the old position changes.
-                <tr
-                  key={r.id}
-                  data-automation-rule-id={r.id}
-                  data-automation-rule-enabled={String(r.enabled)}
-                >
-                  <td>
-                    <strong>{r.name}</strong>
-                    {r.description ? (
-                      <div style={{ fontSize: 12, color: "#64748b" }}>
-                        {r.description}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td>
-                    <code style={{ fontSize: 12 }}>{r.triggerType}</code>
-                  </td>
-                  <td>
-                    <code style={{ fontSize: 12 }}>{r.actionType}</code>
-                  </td>
-                  <td data-automation-rule-enabled={String(r.enabled)}>
-                    {r.enabled ? "Yes" : "No"}
-                  </td>
-                  <td style={{ color: "#64748b", fontSize: 12 }}>
-                    {formatUserDateTime(r.updatedAt)}
-                  </td>
-                  <td>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 6,
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      <AutomationRuleToggle
-                        rule={r}
-                        canManage={canManage}
-                        onChanged={() => {
-                          setLastAction(null);
-                          reload();
-                        }}
-                      />
-                      <button
-                        type="button"
-                        data-automation-rule-edit={r.id}
-                        onClick={() => {
-                          setLastAction(null);
-                          setFormMode({ kind: "edit", ruleId: r.id });
-                        }}
-                        disabled={!canManage || !teamId}
-                        aria-label={`Edit automation rule ${r.name}`}
-                        title={
-                          canManage
-                            ? undefined
-                            : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
-                        }
-                        style={newRuleButtonStyle(!canManage || !teamId)}
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </td>
+          <div className="apf-table-wrap">
+            <table
+              className="apf-table"
+              data-automation-rules-table
+              style={{ width: "100%", fontSize: 13 }}
+            >
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Trigger</th>
+                  <th>Action</th>
+                  <th>Enabled</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {envelope.rules.map((r) => (
+                  // PHASE 13 (NEW-065) — the ROW reports its own armed state.
+                  //
+                  // `data-automation-rule-enabled` existed only on the "Enabled"
+                  // cell below. The row is the element carrying the rule's
+                  // IDENTITY (`data-automation-rule-id`), so it was the one place
+                  // a consumer could ask "what is rule X's state now?" and get
+                  // nothing back — you had to already know which cell held the
+                  // answer. Every other lifecycle row in this product states its
+                  // state on the entity element itself (`member-status-{id}`,
+                  // `data-org-workspace-lifecycle`, `data-cross-org-state`).
+                  //
+                  // Additive: the cell keeps both its copy and its attribute, so
+                  // nothing that read the old position changes.
+                  <tr
+                    key={r.id}
+                    data-automation-rule-id={r.id}
+                    data-automation-rule-enabled={String(r.enabled)}
+                  >
+                    <td>
+                      <strong>{r.name}</strong>
+                      {r.description ? (
+                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                          {r.description}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td>
+                      <code style={{ fontSize: 12 }}>{r.triggerType}</code>
+                    </td>
+                    <td>
+                      <code style={{ fontSize: 12 }}>{r.actionType}</code>
+                    </td>
+                    <td data-automation-rule-enabled={String(r.enabled)}>
+                      {r.enabled ? "Yes" : "No"}
+                    </td>
+                    <td style={{ color: "#64748b", fontSize: 12 }}>
+                      {formatUserDateTime(r.updatedAt)}
+                    </td>
+                    <td>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <AutomationRuleToggle
+                          rule={r}
+                          canManage={canManage}
+                          onChanged={() => {
+                            setLastAction(null);
+                            reload();
+                          }}
+                        />
+                        <button
+                          type="button"
+                          data-automation-rule-edit={r.id}
+                          onClick={() => {
+                            setLastAction(null);
+                            setFormMode({ kind: "edit", ruleId: r.id });
+                          }}
+                          disabled={!canManage || !teamId}
+                          aria-label={`Edit automation rule ${r.name}`}
+                          title={
+                            canManage
+                              ? undefined
+                              : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
+                          }
+                          style={newRuleButtonStyle(!canManage || !teamId)}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
@@ -479,42 +481,44 @@ function AutomationPageInner(): JSX.Element {
             </p>
           </div>
         ) : (
-          <table
-            className="apf-table"
-            data-automation-runs-table
-            style={{ width: "100%", fontSize: 13 }}
-          >
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>Trigger</th>
-                <th>Target</th>
-                <th>Status</th>
-                <th>Reason</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((r) => (
-                <tr key={r.id} data-automation-run-id={r.id}>
-                  <td style={{ color: "#64748b", fontSize: 12 }}>
-                    {formatUserDateTime(r.createdAt)}
-                  </td>
-                  <td>
-                    <code style={{ fontSize: 12 }}>{r.triggerType}</code>
-                  </td>
-                  <td>
-                    <code style={{ fontSize: 12 }}>
-                      {r.targetType}:{r.targetId.slice(0, 8)}…
-                    </code>
-                  </td>
-                  <td data-automation-run-status={r.status}>{r.status}</td>
-                  <td style={{ color: "#64748b", fontSize: 12 }}>
-                    {r.reason ?? ""}
-                  </td>
+          <div className="apf-table-wrap">
+            <table
+              className="apf-table"
+              data-automation-runs-table
+              style={{ width: "100%", fontSize: 13 }}
+            >
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Trigger</th>
+                  <th>Target</th>
+                  <th>Status</th>
+                  <th>Reason</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <tr key={r.id} data-automation-run-id={r.id}>
+                    <td style={{ color: "#64748b", fontSize: 12 }}>
+                      {formatUserDateTime(r.createdAt)}
+                    </td>
+                    <td>
+                      <code style={{ fontSize: 12 }}>{r.triggerType}</code>
+                    </td>
+                    <td>
+                      <code style={{ fontSize: 12 }}>
+                        {r.targetType}:{r.targetId.slice(0, 8)}…
+                      </code>
+                    </td>
+                    <td data-automation-run-status={r.status}>{r.status}</td>
+                    <td style={{ color: "#64748b", fontSize: 12 }}>
+                      {r.reason ?? ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

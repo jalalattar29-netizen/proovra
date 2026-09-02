@@ -363,140 +363,142 @@ function ExportListTable({
       style={{ ...cardStyle, marginTop: 12, padding: 0 }}
       data-testid="export-list"
     >
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>Kind</th>
-            <th style={thStyle}>Version</th>
-            <th style={thStyle}>Generated</th>
-            <th style={thStyle}>Size</th>
-            <th style={thStyle}>Object Lock</th>
-            <th style={thStyle}>Artifact signed</th>
-            <th style={thStyle}>{" "}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it) => {
-            const immutable =
-              objectLockMode === "verified" && it.objectLockStoredMode !== null;
-            const isSelected = it.exportId === selectedId;
-            return (
-              <tr
-                key={it.exportId}
-                style={
-                  isSelected
-                    ? { background: TOKENS.surfaceMuted }
-                    : undefined
-                }
-              >
-                <td style={tdStyle}>
-                  <strong>{it.kindLabel}</strong>
-                </td>
-                <td style={tdStyle}>v{it.exportVersion}</td>
-                <td style={tdStyle}>
-                  <span className="apf-muted">
-                    {formatDateTime(it.generatedAtUtc)}
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  <span className="apf-muted">
-                    {it.sizeBytes
-                      ? `${Math.round(Number(it.sizeBytes) / 1024)} KB`
-                      : "—"}
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  {immutable ? (
-                    <span
-                      style={badgeStyle({
-                        bg: "#ecfdf5",
-                        fg: "#065f46",
-                        border: "#a7f3d0",
-                      })}
-                    >
-                      IMMUTABLE · {it.objectLockStoredMode}
+      <div className="apf-table-wrap">
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Kind</th>
+              <th style={thStyle}>Version</th>
+              <th style={thStyle}>Generated</th>
+              <th style={thStyle}>Size</th>
+              <th style={thStyle}>Object Lock</th>
+              <th style={thStyle}>Artifact signed</th>
+              <th style={thStyle}>{" "}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it) => {
+              const immutable =
+                objectLockMode === "verified" && it.objectLockStoredMode !== null;
+              const isSelected = it.exportId === selectedId;
+              return (
+                <tr
+                  key={it.exportId}
+                  style={
+                    isSelected
+                      ? { background: TOKENS.surfaceMuted }
+                      : undefined
+                  }
+                >
+                  <td style={tdStyle}>
+                    <strong>{it.kindLabel}</strong>
+                  </td>
+                  <td style={tdStyle}>v{it.exportVersion}</td>
+                  <td style={tdStyle}>
+                    <span className="apf-muted">
+                      {formatDateTime(it.generatedAtUtc)}
                     </span>
-                  ) : it.objectLockStoredMode ? (
-                    <span
-                      style={badgeStyle({
-                        bg: "#fef3c7",
-                        fg: "#78350f",
-                        border: "#fde68a",
-                      })}
-                    >
-                      STORED {it.objectLockStoredMode} (platform unverified)
+                  </td>
+                  <td style={tdStyle}>
+                    <span className="apf-muted">
+                      {it.sizeBytes
+                        ? `${Math.round(Number(it.sizeBytes) / 1024)} KB`
+                        : "—"}
                     </span>
-                  ) : (
-                    <span
-                      style={badgeStyle({
-                        bg: "#f1f5f9",
-                        fg: "#475569",
-                        border: "#cbd5e1",
-                      })}
+                  </td>
+                  <td style={tdStyle}>
+                    {immutable ? (
+                      <span
+                        style={badgeStyle({
+                          bg: "#ecfdf5",
+                          fg: "#065f46",
+                          border: "#a7f3d0",
+                        })}
+                      >
+                        IMMUTABLE · {it.objectLockStoredMode}
+                      </span>
+                    ) : it.objectLockStoredMode ? (
+                      <span
+                        style={badgeStyle({
+                          bg: "#fef3c7",
+                          fg: "#78350f",
+                          border: "#fde68a",
+                        })}
+                      >
+                        STORED {it.objectLockStoredMode} (platform unverified)
+                      </span>
+                    ) : (
+                      <span
+                        style={badgeStyle({
+                          bg: "#f1f5f9",
+                          fg: "#475569",
+                          border: "#cbd5e1",
+                        })}
+                      >
+                        no lock
+                      </span>
+                    )}
+                  </td>
+                  <td style={tdStyle}>
+                    {it.artifactSigned ? (
+                      <span
+                        style={badgeStyle({
+                          bg: "#eef2ff",
+                          fg: "#3730a3",
+                          border: "#c7d2fe",
+                        })}
+                      >
+                        SIGNED
+                      </span>
+                    ) : it.artifactUnsignedOptOut ? (
+                      <span
+                        style={badgeStyle({
+                          bg: "#fef2f2",
+                          fg: "#991b1b",
+                          border: "#fecaca",
+                        })}
+                      >
+                        UNSIGNED OPT-OUT
+                      </span>
+                    ) : it.kind === "verification_package_zip" ? (
+                      <span
+                        style={badgeStyle({
+                          bg: "#f1f5f9",
+                          fg: "#475569",
+                          border: "#cbd5e1",
+                        })}
+                      >
+                        {it.verificationPackageSignatureStatus === "UNSIGNED"
+                          ? "unsigned package"
+                          : "unsigned"}
+                      </span>
+                    ) : (
+                      <span
+                        style={badgeStyle({
+                          bg: "#f1f5f9",
+                          fg: "#475569",
+                          border: "#cbd5e1",
+                        })}
+                      >
+                        unsigned
+                      </span>
+                    )}
+                  </td>
+                  <td style={tdStyle}>
+                    <button
+                      type="button"
+                      className="apf-control"
+                      onClick={() => onSelect(it.exportId)}
                     >
-                      no lock
-                    </span>
-                  )}
-                </td>
-                <td style={tdStyle}>
-                  {it.artifactSigned ? (
-                    <span
-                      style={badgeStyle({
-                        bg: "#eef2ff",
-                        fg: "#3730a3",
-                        border: "#c7d2fe",
-                      })}
-                    >
-                      SIGNED
-                    </span>
-                  ) : it.artifactUnsignedOptOut ? (
-                    <span
-                      style={badgeStyle({
-                        bg: "#fef2f2",
-                        fg: "#991b1b",
-                        border: "#fecaca",
-                      })}
-                    >
-                      UNSIGNED OPT-OUT
-                    </span>
-                  ) : it.kind === "verification_package_zip" ? (
-                    <span
-                      style={badgeStyle({
-                        bg: "#f1f5f9",
-                        fg: "#475569",
-                        border: "#cbd5e1",
-                      })}
-                    >
-                      {it.verificationPackageSignatureStatus === "UNSIGNED"
-                        ? "unsigned package"
-                        : "unsigned"}
-                    </span>
-                  ) : (
-                    <span
-                      style={badgeStyle({
-                        bg: "#f1f5f9",
-                        fg: "#475569",
-                        border: "#cbd5e1",
-                      })}
-                    >
-                      unsigned
-                    </span>
-                  )}
-                </td>
-                <td style={tdStyle}>
-                  <button
-                    type="button"
-                    className="apf-control"
-                    onClick={() => onSelect(it.exportId)}
-                  >
-                    Inspect
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                      Inspect
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -600,99 +602,103 @@ function ExportDrawer({
         <>
           <section>
             <h3 className="apf-section-title">Identity</h3>
-            <table style={tableStyle}>
-              <tbody>
-                <tr>
-                  <td style={tdStyle}>kind</td>
-                  <td style={tdStyle}>{envelope.manifest.kindLabel}</td>
-                </tr>
-                <tr>
-                  <td style={tdStyle}>exportId</td>
-                  <td style={tdStyle}>
-                    <code
-                      style={{ fontFamily: "monospace", fontSize: 12 }}
-                      data-testid="manifest-export-id"
-                    >
-                      {envelope.manifest.exportId}
-                    </code>
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdStyle}>version</td>
-                  <td style={tdStyle}>v{envelope.manifest.exportVersion}</td>
-                </tr>
-                <tr>
-                  <td style={tdStyle}>generatedAtUtc</td>
-                  <td style={tdStyle}>
-                    {formatDateTime(envelope.manifest.generatedAtUtc)}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdStyle}>manifestHash</td>
-                  <td style={tdStyle}>
-                    <code
-                      style={{ fontFamily: "monospace", fontSize: 11 }}
-                      data-testid="manifest-hash"
-                    >
-                      {envelope.manifestHash.slice(0, 24)}…
-                    </code>
-                    <button
-                      type="button"
-                      style={{ ...ghostButtonStyle, marginLeft: 6 }}
-                      onClick={() => copy(envelope.manifestHash)}
-                    >
-                      Copy
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="apf-table-wrap">
+              <table style={tableStyle}>
+                <tbody>
+                  <tr>
+                    <td style={tdStyle}>kind</td>
+                    <td style={tdStyle}>{envelope.manifest.kindLabel}</td>
+                  </tr>
+                  <tr>
+                    <td style={tdStyle}>exportId</td>
+                    <td style={tdStyle}>
+                      <code
+                        style={{ fontFamily: "monospace", fontSize: 12 }}
+                        data-testid="manifest-export-id"
+                      >
+                        {envelope.manifest.exportId}
+                      </code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={tdStyle}>version</td>
+                    <td style={tdStyle}>v{envelope.manifest.exportVersion}</td>
+                  </tr>
+                  <tr>
+                    <td style={tdStyle}>generatedAtUtc</td>
+                    <td style={tdStyle}>
+                      {formatDateTime(envelope.manifest.generatedAtUtc)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={tdStyle}>manifestHash</td>
+                    <td style={tdStyle}>
+                      <code
+                        style={{ fontFamily: "monospace", fontSize: 11 }}
+                        data-testid="manifest-hash"
+                      >
+                        {envelope.manifestHash.slice(0, 24)}…
+                      </code>
+                      <button
+                        type="button"
+                        style={{ ...ghostButtonStyle, marginLeft: 6 }}
+                        onClick={() => copy(envelope.manifestHash)}
+                      >
+                        Copy
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section style={{ marginTop: 16 }}>
             <h3 className="apf-section-title">Signature status</h3>
-            <table style={tableStyle}>
-              <tbody>
-                <tr>
-                  <td style={tdStyle}>signed</td>
-                  <td style={tdStyle}>
-                    {envelope.manifest.signing.artifactSigned ? "YES" : "NO"}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdStyle}>signing key id</td>
-                  <td style={tdStyle}>
-                    <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                      {envelope.manifest.signing.artifactSigningKeyId ?? "—"}
-                    </code>
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdStyle}>signed at</td>
-                  <td style={tdStyle}>
-                    {formatDateTime(
-                      envelope.manifest.signing.artifactSignedAtUtc,
-                    )}
-                  </td>
-                </tr>
-                {envelope.manifest.signing.artifactUnsignedOptOut ? (
+            <div className="apf-table-wrap">
+              <table style={tableStyle}>
+                <tbody>
                   <tr>
-                    <td style={tdStyle}>opt-out</td>
+                    <td style={tdStyle}>signed</td>
                     <td style={tdStyle}>
-                      <span
-                        style={badgeStyle({
-                          bg: "#fef3c7",
-                          fg: "#78350f",
-                          border: "#fde68a",
-                        })}
-                      >
-                        UNSIGNED OPT-OUT
-                      </span>
+                      {envelope.manifest.signing.artifactSigned ? "YES" : "NO"}
                     </td>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
+                  <tr>
+                    <td style={tdStyle}>signing key id</td>
+                    <td style={tdStyle}>
+                      <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                        {envelope.manifest.signing.artifactSigningKeyId ?? "—"}
+                      </code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={tdStyle}>signed at</td>
+                    <td style={tdStyle}>
+                      {formatDateTime(
+                        envelope.manifest.signing.artifactSignedAtUtc,
+                      )}
+                    </td>
+                  </tr>
+                  {envelope.manifest.signing.artifactUnsignedOptOut ? (
+                    <tr>
+                      <td style={tdStyle}>opt-out</td>
+                      <td style={tdStyle}>
+                        <span
+                          style={badgeStyle({
+                            bg: "#fef3c7",
+                            fg: "#78350f",
+                            border: "#fde68a",
+                          })}
+                        >
+                          UNSIGNED OPT-OUT
+                        </span>
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section style={{ marginTop: 16 }}>
@@ -771,46 +777,48 @@ function ReproducibilityResultPanel({
       </span>
       <p style={{ marginTop: 8, fontSize: 13 }}>{report.summary}</p>
       {report.checks.length > 0 ? (
-        <table style={{ ...tableStyle, marginTop: 8 }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Check</th>
-              <th style={thStyle}>Expected</th>
-              <th style={thStyle}>Actual</th>
-              <th style={thStyle}>OK</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.checks.map((c) => (
-              <tr key={c.field}>
-                <td style={tdStyle}>
-                  <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                    {c.field}
-                  </code>
-                </td>
-                <td style={tdStyle}>
-                  <span className="apf-muted">
-                    {c.expected
-                      ? c.expected.length > 24
-                        ? c.expected.slice(0, 24) + "…"
-                        : c.expected
-                      : "—"}
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  <span className="apf-muted">
-                    {c.actual
-                      ? c.actual.length > 24
-                        ? c.actual.slice(0, 24) + "…"
-                        : c.actual
-                      : "—"}
-                  </span>
-                </td>
-                <td style={tdStyle}>{c.ok ? "✓" : "✗"}</td>
+        <div className="apf-table-wrap">
+          <table style={{ ...tableStyle, marginTop: 8 }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Check</th>
+                <th style={thStyle}>Expected</th>
+                <th style={thStyle}>Actual</th>
+                <th style={thStyle}>OK</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.checks.map((c) => (
+                <tr key={c.field}>
+                  <td style={tdStyle}>
+                    <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                      {c.field}
+                    </code>
+                  </td>
+                  <td style={tdStyle}>
+                    <span className="apf-muted">
+                      {c.expected
+                        ? c.expected.length > 24
+                          ? c.expected.slice(0, 24) + "…"
+                          : c.expected
+                        : "—"}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <span className="apf-muted">
+                      {c.actual
+                        ? c.actual.length > 24
+                          ? c.actual.slice(0, 24) + "…"
+                          : c.actual
+                        : "—"}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>{c.ok ? "✓" : "✗"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
       <p style={{ ...mutedStyle, marginTop: 6 }}>
         Verified {formatDateTime(report.verifiedAtUtc)}.

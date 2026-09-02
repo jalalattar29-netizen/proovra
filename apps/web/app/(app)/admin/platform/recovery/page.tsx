@@ -458,49 +458,51 @@ function RecentReportsTable({
           No reports yet. Run a backup or restore validation above.
         </p>
       ) : (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Kind</th>
-              <th style={thStyle}>Generated</th>
-              <th style={thStyle}>Outcome</th>
-              <th style={thStyle}>Report id</th>
-              <th style={thStyle}>{" "}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reports.map((r) => (
-              <tr key={r.reportId}>
-                <td style={tdStyle}>{r.kind}</td>
-                <td style={tdStyle}>
-                  <span className="apf-muted">
-                    {formatDateTime(r.generatedAtUtc)}
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  <span style={outcomeBadge(r.outcome)}>
-                    {r.outcome ?? "unknown"}
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                    {r.reportId.slice(0, 28)}
-                    {r.reportId.length > 28 ? "…" : ""}
-                  </code>
-                </td>
-                <td style={tdStyle}>
-                  <button
-                    type="button"
-                    className="apf-control"
-                    onClick={() => onOpen(r.reportId)}
-                  >
-                    Open
-                  </button>
-                </td>
+        <div className="apf-table-wrap">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Kind</th>
+                <th style={thStyle}>Generated</th>
+                <th style={thStyle}>Outcome</th>
+                <th style={thStyle}>Report id</th>
+                <th style={thStyle}>{" "}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {reports.map((r) => (
+                <tr key={r.reportId}>
+                  <td style={tdStyle}>{r.kind}</td>
+                  <td style={tdStyle}>
+                    <span className="apf-muted">
+                      {formatDateTime(r.generatedAtUtc)}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={outcomeBadge(r.outcome)}>
+                      {r.outcome ?? "unknown"}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                      {r.reportId.slice(0, 28)}
+                      {r.reportId.length > 28 ? "…" : ""}
+                    </code>
+                  </td>
+                  <td style={tdStyle}>
+                    <button
+                      type="button"
+                      className="apf-control"
+                      onClick={() => onOpen(r.reportId)}
+                    >
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -562,31 +564,33 @@ function ReportDrawer({
       </div>
       <section style={{ marginTop: 16 }}>
         <h3 className="apf-section-title">Checks</h3>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Check</th>
-              <th style={thStyle}>Outcome</th>
-              <th style={thStyle}>Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.checks.map((c) => (
-              <tr key={c.id}>
-                <td style={tdStyle}>
-                  <strong style={{ fontSize: 13 }}>{c.label}</strong>
-                  <div style={{ ...mutedStyle, fontSize: 11 }}>{c.id}</div>
-                </td>
-                <td style={tdStyle}>
-                  <span style={outcomeBadge(c.outcome)}>{c.outcome}</span>
-                </td>
-                <td style={tdStyle}>
-                  <span style={{ fontSize: 12 }}>{c.detail}</span>
-                </td>
+        <div className="apf-table-wrap">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Check</th>
+                <th style={thStyle}>Outcome</th>
+                <th style={thStyle}>Detail</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.checks.map((c) => (
+                <tr key={c.id}>
+                  <td style={tdStyle}>
+                    <strong style={{ fontSize: 13 }}>{c.label}</strong>
+                    <div style={{ ...mutedStyle, fontSize: 11 }}>{c.id}</div>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={outcomeBadge(c.outcome)}>{c.outcome}</span>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ fontSize: 12 }}>{c.detail}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
       {report.unsupportedDomains.length > 0 ? (
         <section style={{ marginTop: 16 }}>

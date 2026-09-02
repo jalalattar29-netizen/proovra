@@ -668,62 +668,64 @@ function SignerDetailDrawer({
         </button>
       </div>
 
-      <table style={tableStyle}>
-        <tbody>
-          <tr>
-            <td style={tdStyle}>status</td>
-            <td style={tdStyle}>
-              <span style={statusBadge(signer.status)}>{signer.status}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style={tdStyle}>provider</td>
-            <td style={tdStyle}>{signer.provider}</td>
-          </tr>
-          <tr>
-            <td style={tdStyle}>algorithm</td>
-            <td style={tdStyle}>{signer.algorithm ?? "—"}</td>
-          </tr>
-          <tr>
-            <td style={tdStyle}>keyId</td>
-            <td style={tdStyle}>
-              <code style={{ fontFamily: "monospace" }}>
-                {signer.keyId ?? "—"}
-              </code>
-            </td>
-          </tr>
-          <tr>
-            <td style={tdStyle}>keyVersion</td>
-            <td style={tdStyle}>{signer.keyVersion ?? "—"}</td>
-          </tr>
-          {signer.kmsKeyArn ? (
+      <div className="apf-table-wrap">
+        <table style={tableStyle}>
+          <tbody>
             <tr>
-              <td style={tdStyle}>KMS alias / ARN reference</td>
+              <td style={tdStyle}>status</td>
               <td style={tdStyle}>
-                <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                  {signer.kmsKeyArn}
+                <span style={statusBadge(signer.status)}>{signer.status}</span>
+              </td>
+            </tr>
+            <tr>
+              <td style={tdStyle}>provider</td>
+              <td style={tdStyle}>{signer.provider}</td>
+            </tr>
+            <tr>
+              <td style={tdStyle}>algorithm</td>
+              <td style={tdStyle}>{signer.algorithm ?? "—"}</td>
+            </tr>
+            <tr>
+              <td style={tdStyle}>keyId</td>
+              <td style={tdStyle}>
+                <code style={{ fontFamily: "monospace" }}>
+                  {signer.keyId ?? "—"}
                 </code>
               </td>
             </tr>
-          ) : null}
-          {signer.verificationMaterialRef ? (
             <tr>
-              <td style={tdStyle}>verification material</td>
-              <td style={tdStyle}>
-                <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                  {signer.verificationMaterialRef}
-                </code>
-              </td>
+              <td style={tdStyle}>keyVersion</td>
+              <td style={tdStyle}>{signer.keyVersion ?? "—"}</td>
             </tr>
-          ) : null}
-          {signer.activatedAtUtc ? (
-            <tr>
-              <td style={tdStyle}>activatedAtUtc</td>
-              <td style={tdStyle}>{formatDateTime(signer.activatedAtUtc)}</td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
+            {signer.kmsKeyArn ? (
+              <tr>
+                <td style={tdStyle}>KMS alias / ARN reference</td>
+                <td style={tdStyle}>
+                  <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                    {signer.kmsKeyArn}
+                  </code>
+                </td>
+              </tr>
+            ) : null}
+            {signer.verificationMaterialRef ? (
+              <tr>
+                <td style={tdStyle}>verification material</td>
+                <td style={tdStyle}>
+                  <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                    {signer.verificationMaterialRef}
+                  </code>
+                </td>
+              </tr>
+            ) : null}
+            {signer.activatedAtUtc ? (
+              <tr>
+                <td style={tdStyle}>activatedAtUtc</td>
+                <td style={tdStyle}>{formatDateTime(signer.activatedAtUtc)}</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
 
       <section style={{ marginTop: 16 }}>
         <h4 className="apf-section-title">Health</h4>
@@ -848,45 +850,47 @@ function SignerDetailDrawer({
       {audit && audit.length > 0 ? (
         <section style={{ marginTop: 16 }}>
           <h4 className="apf-section-title">Audit timeline</h4>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Occurred</th>
-                <th style={thStyle}>Event</th>
-                <th style={thStyle}>Severity</th>
-                <th style={thStyle}>Actor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {audit.map((e) => (
-                <tr key={e.id}>
-                  <td style={tdStyle}>
-                    <span className="apf-muted">
-                      {formatDateTime(e.occurredAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    <div style={{ fontSize: 12 }}>{e.summary}</div>
-                    <div
-                      style={{
-                        ...mutedStyle,
-                        fontFamily: "monospace",
-                        fontSize: 10,
-                      }}
-                    >
-                      {e.eventType}
-                    </div>
-                  </td>
-                  <td style={tdStyle}>{e.severity}</td>
-                  <td style={tdStyle}>
-                    <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                      {e.actorUserId ? e.actorUserId.slice(0, 12) + "…" : "—"}
-                    </code>
-                  </td>
+          <div className="apf-table-wrap">
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Occurred</th>
+                  <th style={thStyle}>Event</th>
+                  <th style={thStyle}>Severity</th>
+                  <th style={thStyle}>Actor</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {audit.map((e) => (
+                  <tr key={e.id}>
+                    <td style={tdStyle}>
+                      <span className="apf-muted">
+                        {formatDateTime(e.occurredAtUtc)}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ fontSize: 12 }}>{e.summary}</div>
+                      <div
+                        style={{
+                          ...mutedStyle,
+                          fontFamily: "monospace",
+                          fontSize: 10,
+                        }}
+                      >
+                        {e.eventType}
+                      </div>
+                    </td>
+                    <td style={tdStyle}>{e.severity}</td>
+                    <td style={tdStyle}>
+                      <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                        {e.actorUserId ? e.actorUserId.slice(0, 12) + "…" : "—"}
+                      </code>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
     </section>
@@ -941,56 +945,58 @@ function CustodyAttestationsPanel({
           custody events.
         </p>
       ) : (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Attestation id</th>
-              <th style={thStyle}>Evidence</th>
-              <th style={thStyle}>Signer</th>
-              <th style={thStyle}>Signed</th>
-              <th style={thStyle}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {attestations.map((a) => (
-              <tr key={a.attestationId}>
-                <td style={tdStyle}>
-                  <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                    {a.attestationId.slice(0, 28)}
-                    {a.attestationId.length > 28 ? "…" : ""}
-                  </code>
-                </td>
-                <td style={tdStyle}>
-                  <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                    {a.evidenceId.slice(0, 12)}…
-                  </code>
-                </td>
-                <td style={tdStyle}>
-                  <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                    {a.signerId.slice(0, 28)}
-                    {a.signerId.length > 28 ? "…" : ""}
-                  </code>
-                </td>
-                <td style={tdStyle}>
-                  <span className="apf-muted">
-                    {formatDateTime(a.signedAtUtc)}
-                  </span>
-                </td>
-                <td style={tdStyle}>
-                  <button
-                    type="button"
-                    className="apf-control"
-                    disabled={busy === a.attestationId}
-                    onClick={() => onVerify(a.attestationId)}
-                    data-testid={`verify-${a.attestationId}`}
-                  >
-                    {busy === a.attestationId ? "Verifying…" : "Verify"}
-                  </button>
-                </td>
+        <div className="apf-table-wrap">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Attestation id</th>
+                <th style={thStyle}>Evidence</th>
+                <th style={thStyle}>Signer</th>
+                <th style={thStyle}>Signed</th>
+                <th style={thStyle}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {attestations.map((a) => (
+                <tr key={a.attestationId}>
+                  <td style={tdStyle}>
+                    <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                      {a.attestationId.slice(0, 28)}
+                      {a.attestationId.length > 28 ? "…" : ""}
+                    </code>
+                  </td>
+                  <td style={tdStyle}>
+                    <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                      {a.evidenceId.slice(0, 12)}…
+                    </code>
+                  </td>
+                  <td style={tdStyle}>
+                    <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                      {a.signerId.slice(0, 28)}
+                      {a.signerId.length > 28 ? "…" : ""}
+                    </code>
+                  </td>
+                  <td style={tdStyle}>
+                    <span className="apf-muted">
+                      {formatDateTime(a.signedAtUtc)}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <button
+                      type="button"
+                      className="apf-control"
+                      disabled={busy === a.attestationId}
+                      onClick={() => onVerify(a.attestationId)}
+                      data-testid={`verify-${a.attestationId}`}
+                    >
+                      {busy === a.attestationId ? "Verifying…" : "Verify"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {verifyResult ? (
         <div

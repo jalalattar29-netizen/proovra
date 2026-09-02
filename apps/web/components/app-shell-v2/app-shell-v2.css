@@ -1779,3 +1779,46 @@
     z-index: 2;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   ADM-013 — 44px touch targets on pointer-coarse and narrow viewports.
+   ---------------------------------------------------------------------------
+   Measured on the admin console at 320px: 24 controls under 44×44. The header
+   icon buttons and the notification bell were 36×36, the account and workspace
+   chips 36 tall, the sidebar links 42.
+
+   36px is not a rounding error away from the guideline — it is a target a
+   thumb misses, and this console is opened on a phone during an incident,
+   which is precisely when a mis-tap costs the most.
+
+   Scoped to coarse pointers and narrow viewports rather than applied
+   everywhere: a 44px floor on a dense desktop toolbar would loosen a layout
+   that a mouse has no trouble with, and the guideline is about touch.
+
+   Height only where a control is already wide enough. Forcing `min-width:44px`
+   on the workspace chip would not help — it is 132px wide and 36 tall, so the
+   height is the whole problem.
+   --------------------------------------------------------------------------- */
+@media (pointer: coarse), (max-width: 900px) {
+  .app-account-toolbar-mobile-menu,
+  .app-header-search,
+  .ops-bell,
+  .app-topbar-v2-user,
+  .app-topbar-v2-workspace-button,
+  .app-topbar-v2-runtime,
+  .app-topbar-v2-language button {
+    min-height: 44px;
+  }
+
+  /* Square icon buttons need the width too. */
+  .app-account-toolbar-mobile-menu,
+  .app-header-search,
+  .ops-bell {
+    min-width: 44px;
+  }
+
+  .app-sidebar-v2-link {
+    height: 44px;
+    min-height: 44px;
+  }
+}

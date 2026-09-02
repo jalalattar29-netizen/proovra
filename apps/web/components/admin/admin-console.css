@@ -224,3 +224,25 @@
     min-block-size: 2.75rem;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   ADM-013 — breadcrumb links reach a 44px target on touch.
+   ---------------------------------------------------------------------------
+   They measured 15px tall at 320px. WCAG 2.5.8 exempts a link inline in a
+   sentence, and a breadcrumb is arguably that — but a breadcrumb is also the
+   RETURN PATH, which is the one control an operator reaches for when they are
+   lost. Making the thing you press when you are lost hard to press is the
+   wrong trade.
+
+   Vertical padding with a negative margin: the target grows, the line box does
+   not, so the trail keeps its density.
+   --------------------------------------------------------------------------- */
+@media (pointer: coarse), (max-width: 900px) {
+  .adminnav__crumbs a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}

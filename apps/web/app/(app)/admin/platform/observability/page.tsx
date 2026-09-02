@@ -1187,16 +1187,18 @@ function ObservabilityDashboardPageInner() {
                   <summary style={groupSummaryStyle}>
                     {title} <span style={groupCountStyle}>({rows.length})</span>
                   </summary>
-                  <table style={tableStyle}>
-                    <tbody>
-                      {rows.map(([name, value]) => (
-                        <tr key={name}>
-                          <td style={tdMonoStyle}>{name}</td>
-                          <td style={tdNumStyle(value)}>{value.toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="apf-table-wrap">
+                    <table style={tableStyle}>
+                      <tbody>
+                        {rows.map(([name, value]) => (
+                          <tr key={name}>
+                            <td style={tdMonoStyle}>{name}</td>
+                            <td style={tdNumStyle(value)}>{value.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </details>
               ))}
           </section>
@@ -1214,16 +1216,18 @@ function ObservabilityDashboardPageInner() {
                   <summary style={groupSummaryStyle}>
                     {title} <span style={groupCountStyle}>({rows.length})</span>
                   </summary>
-                  <table style={tableStyle}>
-                    <tbody>
-                      {rows.map(([name, value]) => (
-                        <tr key={name}>
-                          <td style={tdMonoStyle}>{name}</td>
-                          <td style={tdNumStyle(value)}>{value.toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="apf-table-wrap">
+                    <table style={tableStyle}>
+                      <tbody>
+                        {rows.map(([name, value]) => (
+                          <tr key={name}>
+                            <td style={tdMonoStyle}>{name}</td>
+                            <td style={tdNumStyle(value)}>{value.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </details>
               ))}
           </section>

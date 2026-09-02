@@ -486,44 +486,46 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
       data-testid="worker-health"
     >
       <h3 className="apf-section-title">Worker health</h3>
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={thStyle}>Queue</th>
-            <th style={thStyle}>Status</th>
-            <th style={thStyle}>Stalled</th>
-            <th style={thStyle}>Recommended action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {degradedOrMissing.map((w) => (
-            <tr key={w.queueName}>
-              <td style={tdStyle}>
-                <code style={{ fontFamily: "monospace", fontSize: 12 }}>
-                  {w.queueName}
-                </code>
-              </td>
-              <td style={tdStyle}>
-                <span
-                  style={badgeStyle(
-                    w.status === "missing"
-                      ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
-                      : { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-                  )}
-                >
-                  {w.status}
-                </span>
-              </td>
-              <td style={tdStyle}>{w.stalledCount}</td>
-              <td style={tdStyle}>
-                <span style={{ fontSize: 12 }}>
-                  {w.recommendedAction ?? "—"}
-                </span>
-              </td>
+      <div className="apf-table-wrap">
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Queue</th>
+              <th style={thStyle}>Status</th>
+              <th style={thStyle}>Stalled</th>
+              <th style={thStyle}>Recommended action</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {degradedOrMissing.map((w) => (
+              <tr key={w.queueName}>
+                <td style={tdStyle}>
+                  <code style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    {w.queueName}
+                  </code>
+                </td>
+                <td style={tdStyle}>
+                  <span
+                    style={badgeStyle(
+                      w.status === "missing"
+                        ? { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" }
+                        : { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
+                    )}
+                  >
+                    {w.status}
+                  </span>
+                </td>
+                <td style={tdStyle}>{w.stalledCount}</td>
+                <td style={tdStyle}>
+                  <span style={{ fontSize: 12 }}>
+                    {w.recommendedAction ?? "—"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -574,77 +576,79 @@ function FailedJobsPanel({
           No failed jobs in this queue.
         </p>
       ) : (
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Job id</th>
-              <th style={thStyle}>Job name</th>
-              <th style={thStyle}>Replay safety</th>
-              <th style={thStyle}>Failed</th>
-              <th style={thStyle}>Attempts</th>
-              <th style={thStyle}>Reason</th>
-              <th style={thStyle}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map((j) => {
-              const cat = categoryFor(queueName, j.jobName);
-              const disabled = cat === "forbidden" || cat === "unknown";
-              return (
-                <tr key={j.jobId}>
-                  <td style={tdStyle}>
-                    <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-                      {j.jobId.slice(0, 18)}
-                      {j.jobId.length > 18 ? "…" : ""}
-                    </code>
-                  </td>
-                  <td style={tdStyle}>{j.jobName}</td>
-                  <td style={tdStyle}>
-                    <span style={categoryBadge(cat)}>{cat}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <span className="apf-muted">
-                      {formatDateTime(j.failedAtUtc)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    {j.attemptsMade}
-                    {j.maxAttempts ? ` / ${j.maxAttempts}` : ""}
-                  </td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontFamily: "monospace",
-                        color: TOKENS.inkMuted,
-                      }}
-                    >
-                      {j.failureReason}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    {disabled ? (
-                      <span style={{ ...mutedStyle, fontSize: 11 }}>
-                        {cat === "forbidden"
-                          ? "Forbidden — diagnose via audit center"
-                          : "Unknown kind — refused"}
+        <div className="apf-table-wrap">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Job id</th>
+                <th style={thStyle}>Job name</th>
+                <th style={thStyle}>Replay safety</th>
+                <th style={thStyle}>Failed</th>
+                <th style={thStyle}>Attempts</th>
+                <th style={thStyle}>Reason</th>
+                <th style={thStyle}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((j) => {
+                const cat = categoryFor(queueName, j.jobName);
+                const disabled = cat === "forbidden" || cat === "unknown";
+                return (
+                  <tr key={j.jobId}>
+                    <td style={tdStyle}>
+                      <code style={{ fontFamily: "monospace", fontSize: 11 }}>
+                        {j.jobId.slice(0, 18)}
+                        {j.jobId.length > 18 ? "…" : ""}
+                      </code>
+                    </td>
+                    <td style={tdStyle}>{j.jobName}</td>
+                    <td style={tdStyle}>
+                      <span style={categoryBadge(cat)}>{cat}</span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span className="apf-muted">
+                        {formatDateTime(j.failedAtUtc)}
                       </span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="apf-control"
-                        disabled={busyJobId !== null}
-                        onClick={() => onPickReplay(j, cat)}
+                    </td>
+                    <td style={tdStyle}>
+                      {j.attemptsMade}
+                      {j.maxAttempts ? ` / ${j.maxAttempts}` : ""}
+                    </td>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontFamily: "monospace",
+                          color: TOKENS.inkMuted,
+                        }}
                       >
-                        Replay…
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                        {j.failureReason}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      {disabled ? (
+                        <span style={{ ...mutedStyle, fontSize: 11 }}>
+                          {cat === "forbidden"
+                            ? "Forbidden — diagnose via audit center"
+                            : "Unknown kind — refused"}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="apf-control"
+                          disabled={busyJobId !== null}
+                          onClick={() => onPickReplay(j, cat)}
+                        >
+                          Replay…
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
