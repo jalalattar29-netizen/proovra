@@ -133,6 +133,15 @@ function OperationsQueuesContent() {
   const [matrix, setMatrix] = useState<MatrixEntry[] | null>(null);
   const [selectedQueue, setSelectedQueue] = useState<string | null>(null);
   const [failedJobs, setFailedJobs] = useState<FailedJobItem[] | null>(null);
+  /**
+   * The queue's ACTUAL failed depth, from Redis.
+   *
+   * The request caps at 50, so a dead-letter queue with 900 jobs and one with
+   * exactly 50 both rendered as "50 failed jobs". Deciding whether a subsystem
+   * is degraded or destroyed depends on telling those apart.
+   */
+  const [failedTotal, setFailedTotal] = useState<number | null>(null);
+  const [failedLimit, setFailedLimit] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
@@ -179,7 +188,11 @@ function OperationsQueuesContent() {
         )}/failed?teamId=${encodeURIComponent(teamId)}&limit=50`,
         { method: "GET" },
       )
-        .then((r: { jobs: FailedJobItem[] }) => setFailedJobs(r.jobs ?? []))
+        .then((r: { jobs?: FailedJobItem[]; total?: number; limit?: number }) => {
+          setFailedJobs(r.jobs ?? []);
+          setFailedTotal(typeof r.total === "number" ? r.total : null);
+          setFailedLimit(typeof r.limit === "number" ? r.limit : null);
+        })
         .catch((err: { message?: string }) =>
           setError(toSafeUserError(err, { message: "Could not load failed jobs." }).message),
         );
@@ -324,6 +337,8 @@ function OperationsQueuesContent() {
         <FailedJobsPanel
           queueName={selectedQueue}
           jobs={failedJobs}
+          total={failedTotal}
+          limit={failedLimit}
           categoryFor={categoryFor}
           onPickReplay={(j, category) => {
             setReplayTarget({
@@ -544,12 +559,18 @@ function categoryBadge(c: ReplayCategory) {
 function FailedJobsPanel({
   queueName,
   jobs,
+  total,
+  limit,
   categoryFor,
   onPickReplay,
   busyJobId,
 }: {
   queueName: string;
   jobs: FailedJobItem[] | null;
+  /** The queue's exact failed depth from Redis; null when unavailable. */
+  total: number | null;
+  /** The cap the request applied, echoed back. */
+  limit: number | null;
   categoryFor: (queueName: string, jobName: string) => ReplayCategory;
   onPickReplay: (j: FailedJobItem, category: ReplayCategory) => void;
   busyJobId: string | null;
@@ -574,7 +595,12 @@ function FailedJobsPanel({
         <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
       ) : jobs.length === 0 ? (
         <p style={{ ...mutedStyle, padding: 24 }}>
-          No failed jobs in this queue.
+          {/* The queue name is the filter on this page, so the empty message
+              has to name it. "No failed jobs" alone reads as "the platform has
+              no failed jobs", which during an incident is the difference
+              between all clear and looking in the wrong place. */}
+          No failed jobs in <strong>{queueName}</strong>. Other queues may still
+          have failures — pick another above to check.
         </p>
       ) : (
         <div className="apf-table-wrap">
@@ -652,7 +678,8 @@ function FailedJobsPanel({
           {/* The failed-job list asks for 50. An operator draining a queue needs to know whether 50 is the backlog or the first page of it. */}
           <ResultCount
             shown={jobs?.length ?? 0}
-            cap={50}
+            total={total ?? undefined}
+            cap={limit ?? undefined}
             noun="failed job"
             loading={jobs === null}
             data-testid="admin-queues-failed-count"

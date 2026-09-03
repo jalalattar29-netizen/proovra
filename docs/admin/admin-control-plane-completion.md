@@ -330,7 +330,7 @@
 | `/admin/platform/exports` | 829 | 0c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/media-graph` | 696 | 0c/0t/5s | HARDCODED_STATUS_HEX |
 | `/admin/platform/observability` | 1552 | 0c/2t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/queues` | 762 | 0c/2t/0s | HARDCODED_STATUS_HEX |
+| `/admin/platform/queues` | 789 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/readiness` | 604 | 8c/0t/6s | HARDCODED_STATUS_HEX |
 | `/admin/platform/recovery` | 617 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/reliability` | 447 | 0c/0t/3s | HARDCODED_STATUS_HEX |

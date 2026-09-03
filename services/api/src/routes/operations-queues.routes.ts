@@ -155,9 +155,11 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
-      const jobs = await listFailedJobs(params.queueName, q.limit);
-      if (jobs.length > 0) bump("dlq_job_total");
-      return reply.code(200).send({ jobs });
+      const result = await listFailedJobs(params.queueName, q.limit);
+      if (result.jobs.length > 0) bump("dlq_job_total");
+      // total and limit travel with the rows: the page must never infer the
+      // queue's depth from how many jobs one request happened to return.
+      return reply.code(200).send(result);
     },
   );
 

@@ -350,15 +350,35 @@ export type FailedJobItem = {
   };
 };
 
+export type ListFailedJobsResult = {
+  jobs: ReadonlyArray<FailedJobItem>;
+  /**
+   * The queue's ACTUAL failed depth, from Redis.
+   *
+   * The page could only report how many rows it received, and the request caps
+   * at 50 — so a dead-letter queue with 900 jobs and one with exactly 50 both
+   * read as "50 failed jobs". For somebody deciding whether a subsystem is
+   * degraded or destroyed, those are not the same page.
+   *
+   * `getFailedCount()` is an O(1) Redis ZCARD, not a scan.
+   */
+  total: number;
+  /** The cap applied, echoed so the caller discloses rather than infers it. */
+  limit: number;
+};
+
 export async function listFailedJobs(
   queueName: string,
   limit = 50,
-): Promise<ReadonlyArray<FailedJobItem>> {
-  const q = getQueueHandle(queueName);
-  if (!q) return [];
+): Promise<ListFailedJobsResult> {
   const capped = Math.min(Math.max(limit, 1), 50);
-  const failed = await q.getFailed(0, capped - 1);
-  return failed.map((job) => {
+  const q = getQueueHandle(queueName);
+  if (!q) return { jobs: [], total: 0, limit: capped };
+  const [failed, total] = await Promise.all([
+    q.getFailed(0, capped - 1),
+    q.getFailedCount(),
+  ]);
+  const jobs = failed.map((job) => {
     const data = (job.data ?? {}) as Record<string, unknown>;
     const safeRefs = {
       teamId: typeof data.teamId === "string" ? data.teamId : null,
@@ -379,6 +399,7 @@ export async function listFailedJobs(
       safeRefs,
     };
   });
+  return { jobs, total, limit: capped };
 }
 
 function sanitiseReason(raw: string | null | undefined): string {

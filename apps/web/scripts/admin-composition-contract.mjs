@@ -142,9 +142,106 @@ function isList(code, route) {
  * A FilterBar is unambiguous. Failing that, a state setter named *Filter is
  * the convention this codebase actually uses.
  */
-function hasFilters(code) {
-  return /<FilterBar/.test(code) || /set[A-Z][A-Za-z0-9_]*Filter\b/.test(code);
+/**
+ * How this page filters, if it does.
+ *
+ *   "none"      no filter control at all
+ *   "declared"  a FilterBar or a *Filter state — present, but whether it
+ *               reaches the server still has to be checked separately
+ *   "request"   PROVEN server-side: a control whose state sits in the
+ *               dependency array of a block that fetches, so changing it
+ *               re-queries rather than re-rendering
+ *
+ * The distinction matters because the two failures below ask different
+ * questions. A page in "request" cannot be filtering client-side — that is
+ * what the classification means — so asking it to prove server-side filtering
+ * a second time, by looking for URLSearchParams, only finds pages that build
+ * their URL with a template literal instead.
+ */
+/**
+ * How this page filters, if it does.
+ *
+ *   "none"      no filter control at all
+ *   "declared"  a FilterBar or a *Filter state — present, but whether it
+ *               reaches the server still has to be checked separately
+ *   "request"   PROVEN server-side: a control whose state sits in the
+ *               dependency array of a block that fetches, so changing it
+ *               re-queries rather than re-renders
+ *
+ * The two failures below ask different questions, and a page in "request"
+ * cannot be filtering client-side — that is what the classification means.
+ *
+ * Three calibrations, each of which had produced a wrong answer:
+ *
+ *   * Requiring a <FilterBar> missed the queues page, where the operator
+ *     picks a queue from the overview cards and the page reloads that
+ *     queue's failures from a different endpoint path. Demanding a dropdown
+ *     there would have meant duplicating a card grid that already shows
+ *     every queue's depth — worse UX in service of a passing script.
+ *
+ *   * Scanning useEffect alone missed /admin/identity/sessions. Its loader
+ *     is a useCallback holding includeRevoked and includeExpired, which go
+ *     straight into the query string; the effect only sees `[load]`.
+ *
+ *   * Scanning every useCallback was too wide: a submit handler also
+ *     fetches and also lists its form fields, which classified the seats
+ *     input on /admin/provisioning as a filter. A loader is named in an
+ *     effect's dependency array; a submit handler is not.
+ */
+function filterKind(code) {
+  const declared =
+    /<FilterBar/.test(code) || /set[A-Z][A-Za-z0-9_]*Filter\b/.test(code);
+
+  const stateNames = [...code.matchAll(/const \[(\w+), set\w+\] = useState/g)].map((m) => m[1]);
+  if (stateNames.length === 0) return declared ? "declared" : "none";
+
+  // The callbacks that fetch, collected FIRST so effects can be judged by
+  // whether they call one.
+  const fetchingCallbacks = new Map();
+  for (const m of code.matchAll(/const (\w+) = useCallback\(([\s\S]{0,4000}?)\}, \[([^\]]*)\]\)/g)) {
+    const [, name, cbBody, deps] = m;
+    if (/apiFetch/.test(cbBody)) fetchingCallbacks.set(name, deps);
+  }
+
+  const effectDeps = [];
+  const fetchingDeps = [];
+  for (const m of code.matchAll(/useEffect\(([\s\S]{0,4000}?)\}, \[([^\]]*)\]\)/g)) {
+    const [, effectBody, deps] = m;
+    effectDeps.push(deps);
+    // An effect fetches if it calls apiFetch, OR if it calls a loader that
+    // does. /admin/platform/queues is the second shape:
+    //
+    //     useEffect(() => { if (selectedQueue) loadFailed(selectedQueue); },
+    //               [selectedQueue, loadFailed]);
+    //
+    // The queue selector is unmistakably server-side — it reloads a different
+    // endpoint path — and one indirection was enough to hide it.
+    const callsALoader = [...fetchingCallbacks.keys()].some((name) =>
+      new RegExp("\\b" + name + "\\s*\\(").test(effectBody),
+    );
+    if (/apiFetch/.test(effectBody) || callsALoader) fetchingDeps.push(deps);
+  }
+  for (const [name, deps] of fetchingCallbacks) {
+    const runByAnEffect = effectDeps.some((d) =>
+      new RegExp("(^|[\\s,])" + name + "([\\s,]|$)").test(d),
+    );
+    if (runByAnEffect) fetchingDeps.push(deps);
+  }
+  if (fetchingDeps.length === 0) return declared ? "declared" : "none";
+
+  const requestDriving = stateNames.some((name) => {
+    const bound = new RegExp("=\\{" + name + "\\}").test(code);
+    const drives = fetchingDeps.some((d) =>
+      new RegExp("(^|[\\s,])" + name + "([\\s,]|$)").test(d),
+    );
+    return bound && drives;
+  });
+
+  if (requestDriving) return "request";
+  return declared ? "declared" : "none";
 }
+
+const hasFilters = (code) => filterKind(code) !== "none";
 
 function isPaginated(code) {
   // `nextCursor`/`hasMore`, never a bare `cursor`.
@@ -194,7 +291,10 @@ const CHECKS = [
     // Pagination is the honest proxy for "can be long": a list the server
     // pages is a list nobody can read in one screen.
     when: (c, route) => isList(c, route) && isPaginated(c),
-    fail: (c) => !/<FilterBar|<select|role="combobox"|aria-label=".*filter/i.test(c),
+    // One definition of "has a filter", shared with the server-side check.
+    // The inline regex here was a second, narrower copy that could not see the
+    // queues page’s card-based queue selector.
+    fail: (c) => !hasFilters(c),
   },
   {
     id: "LIST_FILTER_NOT_SERVER_SIDE",
@@ -213,7 +313,8 @@ const CHECKS = [
     // thousand rows to render twenty. That is an API change with blast radius
     // well beyond the admin console, and pretending otherwise by bolting a
     // query parameter onto the page would leave the payload exactly as large.
-    when: (c, route) => isList(c, route) && isPaginated(c) && hasFilters(c),
+    when: (c, route) =>
+      isList(c, route) && isPaginated(c) && filterKind(c) === "declared",
     fail: (c) =>
       !/URLSearchParams|searchParams|\?\$\{|qs\.set|params\.set|\bquery\b\s*[,:]/.test(c),
   },
@@ -232,7 +333,13 @@ const CHECKS = [
     // "No records yet" and "No records match these filters" are different
     // sentences, and showing the first when a filter is active tells the
     // reader their data is gone.
-    fail: (c) => !/match|matching|filter[^.]{0,40}(empty|none|no )/i.test(c),
+    // Several phrasings say the same thing. The queues page words it as
+    // "No failed jobs in <queue>. Other queues may still have failures",
+    // which distinguishes empty-because-of-your-selection from empty-overall
+    // more usefully than "no results match" would on a page whose filter is
+    // the queue you are looking at.
+    fail: (c) =>
+      !/match|matching|still have|other \w+ may|clearing (them|the filter)/i.test(c),
   },
   {
     id: "LIST_TABLE_NOT_SCROLLABLE",
@@ -273,9 +380,21 @@ const CHECKS = [
     when: () => true,
     // Four or more. Three stat cards is a summary; six is a table someone drew
     // with boxes, at six times the vertical cost.
+    // A STATUS BANNER is not a stat card.
+    //
+    // This counted any Card whose body is a single interpolation, which
+    // includes `<Card variant="status" tone="risk">{errorMessage}</Card>` —
+    // a conditional error banner. /admin/support-access has five of those,
+    // one per independent failure surface, of which at most one or two are
+    // ever on screen. It was reported as a wall of one-value cards and it is
+    // not one; the page has a single content Card.
+    //
+    // The clause is about a column of boxes each holding one NUMBER, so the
+    // count now skips variant="status".
     fail: (c) =>
-      (c.match(/<Card[^>]*>\s*(?:<[^>]+>\s*){0,2}\{[a-zA-Z0-9_.?\s]{0,30}\}\s*(?:<\/[^>]+>\s*){0,2}<\/Card>/g) ?? [])
-        .length >= 4,
+      (c.match(
+        /<Card(?![^>]*variant="status")[^>]*>\s*(?:<[^>]+>\s*){0,2}\{[a-zA-Z0-9_.?\s]{0,30}\}\s*(?:<\/[^>]+>\s*){0,2}<\/Card>/g,
+      ) ?? []).length >= 4,
   },
   {
     id: "DUPLICATE_PRIMARY_ACTION",

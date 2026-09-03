@@ -32,6 +32,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { FilterBar } from "../../../../../../components/ui/FilterBar";
 import { apiFetch } from "../../../../../../lib/api";
 import { notifyApiError } from "../../../../../../lib/feedback/notify";
 import { useTeamId, useTenantGuard } from "../../../../../../lib/platform-context";
@@ -358,26 +359,39 @@ export function ActiveSessionsSection() {
         </Button>
       }
     >
+      {/* WHAT YOU SEE, separated from WHAT AN ACTION WILL DO.
+          These three controls shared one box: two of them filter the list and
+          the third sets the reason recorded when you quarantine a session.
+          Side by side they read as one group, so it was not apparent that
+          changing the third alters an audit record rather than the view.
+
+          The two filters are server-side — both go into the request, so the
+          200-row cap applies to the narrowed set. */}
+      <FilterBar style={{ marginBottom: 12 }}>
+        <FilterBar.Select
+          label="Revoked sessions"
+          value={includeRevoked ? "include" : "exclude"}
+          onChange={(v) => setIncludeRevoked(v === "include")}
+          options={[
+            { value: "exclude", label: "Hide revoked" },
+            { value: "include", label: "Show revoked" },
+          ]}
+        />
+        <FilterBar.Select
+          label="Expired sessions"
+          value={includeExpired ? "include" : "exclude"}
+          onChange={(v) => setIncludeExpired(v === "include")}
+          options={[
+            { value: "exclude", label: "Hide expired" },
+            { value: "include", label: "Show expired" },
+          ]}
+        />
+      </FilterBar>
+
       <Card padding="compact" style={{ marginBottom: 12 }}>
         <div
           style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}
         >
-          <label style={{ fontSize: 12.5 }}>
-            <input
-              type="checkbox"
-              checked={includeRevoked}
-              onChange={(e) => setIncludeRevoked(e.target.checked)}
-            />{" "}
-            Show revoked
-          </label>
-          <label style={{ fontSize: 12.5 }}>
-            <input
-              type="checkbox"
-              checked={includeExpired}
-              onChange={(e) => setIncludeExpired(e.target.checked)}
-            />{" "}
-            Show expired
-          </label>
           <label style={{ minWidth: 220 }}>
             <span style={sectionLabelStyle}>Reason used when you quarantine</span>
             <select

@@ -1,0 +1,286 @@
+{
+  "total": 47,
+  "rows": [
+    {
+      "route": "/admin",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/adoption",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/alerts",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/audit",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/billing",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/contact-sales",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/contact-sales/:id",
+      "kind": "detail",
+      "failures": []
+    },
+    {
+      "route": "/admin/costs",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/customers",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/customers/:id",
+      "kind": "detail",
+      "failures": []
+    },
+    {
+      "route": "/admin/dashboard",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/demo-requests",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/demo-requests/:id",
+      "kind": "detail",
+      "failures": []
+    },
+    {
+      "route": "/admin/evidence-ops",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/evidence-ops/records",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/executive",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/identity",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/identity/access-reviews",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/identity/permission-matrix",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/identity/providers",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/identity/runtime",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/identity/scim",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/identity/sessions",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/identity/timeline",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/operations",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform-health",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/analytics",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/automation",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/exports",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/media-graph",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/observability",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/queues",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/readiness",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/recovery",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/reliability",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/runbooks",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/runbooks/:slug",
+      "kind": "detail",
+      "failures": []
+    },
+    {
+      "route": "/admin/platform/signers",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/provisioning",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/search",
+      "kind": "surface",
+      "failures": []
+    },
+    {
+      "route": "/admin/security",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/support-access",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/timeline",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/users",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/users/:id",
+      "kind": "detail",
+      "failures": []
+    },
+    {
+      "route": "/admin/workspaces",
+      "kind": "list",
+      "failures": []
+    },
+    {
+      "route": "/admin/workspaces/:id",
+      "kind": "detail",
+      "failures": []
+    }
+  ],
+  "checks": [
+    {
+      "id": "LIST_NO_TOTAL_COUNT",
+      "clause": "3.3 a list must state its total"
+    },
+    {
+      "id": "LIST_NO_FILTERS",
+      "clause": "3.3 an UNBOUNDED list must offer real filters"
+    },
+    {
+      "id": "LIST_FILTER_NOT_SERVER_SIDE",
+      "clause": "3.3 a filter over a PAGED list must be applied by the server"
+    },
+    {
+      "id": "LIST_NO_PAGINATION",
+      "clause": "3.3 a list must paginate"
+    },
+    {
+      "id": "LIST_NO_FILTERED_EMPTY",
+      "clause": "3.3 an empty RESULT and an empty TABLE read differently"
+    },
+    {
+      "id": "LIST_TABLE_NOT_SCROLLABLE",
+      "clause": "3.3 a wide table scrolls itself, not the page"
+    },
+    {
+      "id": "DETAIL_NO_RETURN_PATH",
+      "clause": "3.4 a detail page must have a deterministic way back"
+    },
+    {
+      "id": "DETAIL_NO_TIMESTAMPS",
+      "clause": "3.4 a detail page must say when"
+    },
+    {
+      "id": "DETAIL_NO_STATE",
+      "clause": "3.4 a detail page must show current state"
+    },
+    {
+      "id": "LONE_VALUE_CARD_WALL",
+      "clause": "3.1 no wall of cards each holding one number"
+    },
+    {
+      "id": "DUPLICATE_PRIMARY_ACTION",
+      "clause": "3.1 one primary action per surface"
+    }
+  ]
+}

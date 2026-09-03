@@ -659,7 +659,10 @@ async function buildQueueDiagnostics(
       let lastRunAt: string | null = null;
       try {
         const failed = await listFailedJobs(row.queueName, 1);
-        const top = failed[0];
+        // listFailedJobs returns an envelope now, carrying the queue's
+        // exact failed depth alongside the page. Only the newest job is
+        // wanted here.
+        const top = failed.jobs[0];
         if (top) {
           lastError = top.failureReason;
           lastRunAt = top.failedAtUtc;
