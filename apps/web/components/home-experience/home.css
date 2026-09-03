@@ -1120,3 +1120,81 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   ONBOARDING CARD — two first steps, as controls.
+
+   It was a four-row checklist with empty tick-boxes: state-shaped, so nothing
+   on it looked clickable, and half of it could not be done yet on the empty
+   workspace it exists for. What remains is a sentence and the product's own
+   two buttons.
+--------------------------------------------------------------------------- */
+.self-serve-home .home-onboard__lead {
+  margin: 0 0 14px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--home-muted);
+}
+
+.self-serve-home .home-onboard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+/* The shared action primitives are sized by their own rules; this only stops a
+   flex parent stretching them to the card's full height. */
+.self-serve-home .home-onboard__actions > * {
+  align-self: flex-start;
+  text-decoration: none;
+}
+
+/* On a phone the pair stacks and each takes the width, so neither is a
+   half-width target beside the other. */
+@media (max-width: 480px) {
+  .self-serve-home .home-onboard__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .self-serve-home .home-onboard__actions > * {
+    align-self: stretch;
+    justify-content: center;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THE ACTIVITY PERIOD CONTROL.
+
+   `AppListbox` is the product's selector and brings the whole interaction with
+   it — the trigger, the purple focus ring, the lavender option hover, the
+   selected state. Two things are local to this use, and only two:
+
+     1. it is a header CHIP, not a form field, so it takes its content's width
+        instead of the primitive's full-width default;
+     2. the trigger gains the same lavender wash on hover that its own options
+        already have, so pointing at it and pointing at an option feel like the
+        same control.
+--------------------------------------------------------------------------- */
+.self-serve-home .home-range-listbox {
+  inline-size: auto;
+  flex: 0 0 auto;
+}
+.self-serve-home .home-range-listbox .app-listbox__trigger {
+  inline-size: auto;
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: background-color 140ms ease, border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+.self-serve-home .home-range-listbox .app-listbox__trigger:hover:not(:disabled) {
+  background: var(--accent-050, #f2ecfe);
+  border-color: var(--accent-200, #d9c7fb);
+}
+/* The popup follows the TRIGGER width, and the trigger is a chip — so "Last 3
+   months" arrived as "Last 3 mont…". An option a reader has to guess at is not
+   an option; the menu takes the width its own longest label needs. */
+.self-serve-home .home-range-listbox .app-listbox__popup {
+  min-inline-size: max-content;
+}

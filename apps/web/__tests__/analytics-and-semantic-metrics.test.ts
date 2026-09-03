@@ -20,6 +20,16 @@ import { ANALYTICS_PALETTE } from "../components/home-experience/home-theme";
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(resolve(APP, rel), "utf8");
 
+/**
+ * Source with its comments removed.
+ *
+ * These files EXPLAIN the things they no longer do — a comment naming a retired
+ * `<select>` is prose about an element, not the element, and an assertion that
+ * cannot tell the two apart fails on the explanation it asked for.
+ */
+const stripComments = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
 const SETTINGS_CSS = read("app/(app)/settings/settings.css");
 const INTAKE_CSS = read("app/(app)/intake-links/intake-links.css");
 const REPORTS_CSS = read("components/reports-experience/reports.css");
@@ -234,4 +244,69 @@ test("an activity row carries a glyph for its kind, and the same one every time"
   assert.match(SECTIONS, /function activityDot\(kind: string\): string/);
   // The count marker stays a marker.
   assert.match(HOME_CSS, /\.home-act__count \{[^}]*color-mix\(in srgb, currentColor 10%/);
+});
+
+// ===========================================================================
+// 6. THE ONBOARDING CARD, THE PERIOD CONTROL, AND UNREAD
+// ===========================================================================
+
+test("the empty-state card offers two first steps as real buttons", () => {
+  const card = SECTIONS.slice(SECTIONS.indexOf("export function GettingStartedChecklist("));
+  const body = card.slice(0, card.indexOf("\n// ====="));
+
+  // The checklist is gone: no tick-boxes, no line-through, no done-state paint.
+  assert.doesNotMatch(body, /✓/, "a tick-box makes the card read as state");
+  assert.doesNotMatch(body, /lineThrough|line-through/);
+  assert.doesNotMatch(body, /visible\.map\(/, "four rows is what this replaced");
+
+  // Two actions, and only the two a new workspace can actually do. "Generate
+  // report" needs a record; "Share verification" pointed at the empty list the
+  // reader just came from.
+  assert.match(body, /capture_first/);
+  assert.match(body, /create_first_case/);
+  assert.doesNotMatch(body, /first_report|share_verification/);
+
+  // The product's own primitives, not a local button.
+  assert.match(body, /className="app-primary-action"/);
+  assert.match(body, /className="app-secondary-action"/);
+  // Hrefs still come from the projection, so the card cannot drift from it.
+  assert.match(body, /href=\{capture\.href\}/);
+  assert.match(body, /href=\{createCase\.href\}/);
+});
+
+test("the period control is the shared listbox, not a native select", () => {
+  assert.match(DASH, /<AppListbox/, "the canonical selector");
+  // Comments stripped first: this file EXPLAINS why a native select was wrong,
+  // and prose about a retired element is not the element.
+  const chartCode = stripComments(
+    DASH.slice(DASH.indexOf("export function EvidenceActivityChart(")),
+  );
+  assert.doesNotMatch(
+    chartCode,
+    /<select/,
+    "a native select paints the host OS's control and its own blue highlight",
+  );
+  // Its options come from the same table the aggregation reads.
+  assert.match(DASH, /const RANGE_OPTIONS = ACTIVITY_RANGES\.map\(/);
+  // The accessible name survives the loss of the visible <label>.
+  assert.match(DASH, /ariaLabel="Activity period"/);
+  // And the subtitle no longer repeats what the trigger already says.
+  const header = DASH.slice(DASH.indexOf("<h2 style={activityTitleStyle}>"));
+  assert.doesNotMatch(
+    header.slice(0, 700),
+    /\{range\.label\}/,
+    "the selected range must not be printed twice",
+  );
+});
+
+test("Unread is the informational blue, not the brand purple", () => {
+  const NOTIF = read("components/notifications/notifications.css");
+  assert.match(
+    NOTIF,
+    /\[data-ops-metric-tone="unread"\]\s*\{ --app-metric-tone: var\(--info\); \}/,
+  );
+  // The other tones on that strip are untouched by this pass.
+  assert.match(NOTIF, /\[data-ops-metric-tone="high"\]\s*\{ --app-metric-tone: var\(--orange-500\); \}/);
+  assert.match(NOTIF, /\[data-ops-metric-tone="critical"\]\s*\{ --app-metric-tone: var\(--error\); \}/);
+  assert.match(NOTIF, /\[data-ops-metric-tone="warning"\]\s*\{ --app-metric-tone: var\(--accent-600\); \}/);
 });

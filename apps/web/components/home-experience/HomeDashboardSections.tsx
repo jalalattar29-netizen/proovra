@@ -30,6 +30,7 @@ import type {
   RichRecentEvidenceRow,
   WorkspacePriority,
 } from "./home-view-model";
+import { AppListbox } from "../app-primitives/AppListbox";
 import { ACTIVITY_RANGES } from "./home-view-model";
 import { AnnotatedDonut, DonutReadout } from "./AnnotatedDonut";
 import {
@@ -569,6 +570,14 @@ export function WorkspacePrioritiesCard({
 // titles, legend. Pure SVG.
 // ============================================================================
 
+/**
+ * The listbox's options, built from the SAME table the aggregation reads.
+ *
+ * Typed out separately they would be a second list to keep in step, and the
+ * one that drifts is always the one nobody runs.
+ */
+const RANGE_OPTIONS = ACTIVITY_RANGES.map((r) => ({ value: r.id, label: r.label }));
+
 export function EvidenceActivityChart({
   seriesByRange,
 }: {
@@ -576,7 +585,6 @@ export function EvidenceActivityChart({
   seriesByRange: Record<EvidenceActivityRangeId, EvidenceActivitySeries>;
 }) {
   const [rangeId, setRangeId] = useState<EvidenceActivityRangeId>("14d");
-  const range = ACTIVITY_RANGES.find((r) => r.id === rangeId) ?? ACTIVITY_RANGES[0];
   const series = seriesByRange[rangeId] ?? seriesByRange["14d"];
   const hasData = series.totalEvidence > 0 || series.totalReports > 0;
 
@@ -590,11 +598,14 @@ export function EvidenceActivityChart({
         {/* Header is title + subtitle stacked left, no decorative icon. */}
         <div style={{ minWidth: 0 }}>
           <h2 style={activityTitleStyle}>Evidence activity</h2>
+          {/* The trigger beside this already says which range is selected;
+              repeating it here said it twice. What the subtitle can add is what
+              the reader cannot see from the label — how the columns are grouped,
+              and whether the series is capped. */}
           <span style={activitySubtitleStyle}>
-            {range.label}
             {series.bucketDays > 1
-              ? ` · ${series.bucketDays === 7 ? "weekly" : "fortnightly"} totals`
-              : ""}
+              ? `${series.bucketDays === 7 ? "Weekly" : "Fortnightly"} totals`
+              : "Daily totals"}
             {series.sampled ? " · latest 100 records" : ""}
           </span>
         </div>
@@ -602,25 +613,23 @@ export function EvidenceActivityChart({
           THE RANGE IS THE READER'S CHOICE, and it is a secondary one.
 
           A row of four buttons would take the top of the card and compete with
-          the chart for attention; a select states the same four options in the
-          space of one control. Every range reads the records already loaded, so
-          switching costs no request and has no loading state.
+          the chart; one control states the same four options in the space of a
+          chip. Every range reads the records already loaded, so switching costs
+          no request and has no loading state.
+
+          `AppListbox` rather than a bare <select>: a native select paints the
+          host OS's own control and its own blue selection highlight, which is
+          the one surface on the page that does not look like this product. The
+          shared primitive is what every other internal filter uses — same
+          trigger, same lavender option hover, same purple focus ring.
         */}
-        <label style={rangeSelectWrapStyle}>
-          <span className="app-visually-hidden">Activity period</span>
-          <select
-            value={rangeId}
-            onChange={(e) => setRangeId(e.target.value as EvidenceActivityRangeId)}
-            data-activity-range
-            style={rangeSelectStyle}
-          >
-            {ACTIVITY_RANGES.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <AppListbox
+          value={rangeId}
+          options={RANGE_OPTIONS}
+          onChange={setRangeId}
+          ariaLabel="Activity period"
+          className="home-range-listbox"
+        />
         {hasData ? (
           <div style={legendStyle}>
             <span style={legendItemStyle}>
@@ -1008,25 +1017,6 @@ export function EvidenceTypeDonutCard({
 // Styles
 // ============================================================================
 
-/* The period control: secondary by construction. It sits in the header beside
-   the legend and is sized to its longest option, not to the card. */
-const rangeSelectWrapStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  flexShrink: 0,
-};
-const rangeSelectStyle: React.CSSProperties = {
-  appearance: "auto",
-  font: "inherit",
-  fontSize: 12,
-  color: HOME_COLORS.slate,
-  background: "#fff",
-  border: "1px solid var(--border-default, rgba(15, 23, 42, 0.09))",
-  borderRadius: 8,
-  padding: "4px 8px",
-  cursor: "pointer",
-  maxWidth: 150,
-};
 
 const headerWrapStyle: React.CSSProperties = {
   display: "flex",

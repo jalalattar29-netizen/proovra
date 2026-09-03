@@ -1711,37 +1711,56 @@ export function GettingStartedChecklist({
   const visible = steps.filter((s) => s.visible);
   if (visible.length === 0) return null;
   if (complete) return null;
+
+  /*
+   * TWO FIRST STEPS, NOT FOUR TICK-BOXES.
+   *
+   * The card listed all four milestones — capture, case, report, share — each
+   * behind an empty checkbox. On an empty workspace that is three problems at
+   * once. It read as a passive progress tracker rather than as somewhere to
+   * start; the rows looked like state, not like controls, so nothing on it
+   * invited a click; and two of the four could not be done yet. "Generate
+   * report" needs a record to report on, and "Share verification" pointed at
+   * `/evidence`, which on an empty account is the empty list the reader just
+   * came from.
+   *
+   * What is left is the two things a new workspace can actually do, as the
+   * product's own buttons. The hrefs still come from the projection rather than
+   * being typed here, so the card cannot drift from the checklist it is built
+   * from. The other two steps stay in the projection — they still describe the
+   * onboarding arc, and `showGettingStarted` retires this card the moment any
+   * of them happens.
+   */
+  const capture = visible.find((s) => s.key === "capture_first");
+  const createCase = visible.find((s) => s.key === "create_first_case");
+
   return (
     <SectionCard title="Start your first evidence workflow" testId="getting-started">
-      <ul style={{ ...listStyle, gap: 4 }}>
-        {visible.map((s) => (
-          <li key={s.key} data-checklist-step={s.key} data-checklist-done={String(s.done)} style={{ ...listItemStyle, padding: "8px 10px" }}>
-            <Link href={s.href} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
-              <span
-                aria-hidden
-                style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 4,
-                  background: s.done ? "#16a34a" : "transparent",
-                  border: s.done ? "1px solid #16a34a" : "1px solid #cbd5e1",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "white",
-                  fontSize: 12,
-                  flex: "0 0 auto",
-                }}
-              >
-                {s.done ? "✓" : ""}
-              </span>
-              <span style={{ fontSize: 13, color: s.done ? "#5d6d71" : "#0f172a", textDecoration: s.done ? "line-through" : "none" }}>
-                {s.label}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <p className="home-onboard__lead">
+        Capture your first record or create a case to get started.
+      </p>
+      <div className="home-onboard__actions">
+        {capture ? (
+          <Link
+            href={capture.href}
+            className="app-primary-action"
+            data-checklist-step={capture.key}
+            data-onboard-action="capture"
+          >
+            {capture.label}
+          </Link>
+        ) : null}
+        {createCase ? (
+          <Link
+            href={createCase.href}
+            className="app-secondary-action"
+            data-checklist-step={createCase.key}
+            data-onboard-action="case"
+          >
+            {createCase.label}
+          </Link>
+        ) : null}
+      </div>
     </SectionCard>
   );
 }

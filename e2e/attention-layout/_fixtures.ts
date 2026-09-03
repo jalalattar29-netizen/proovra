@@ -179,6 +179,20 @@ export function envelopeFor(context: AttentionContext): Record<string, unknown> 
  * gets — the point of the matrix is that the same data renders differently by
  * capability, not that some contexts get an empty workspace.
  */
+/** Every integrity counter at zero — a workspace before its first capture. */
+export const EMPTY_TRUST_SUMMARY = {
+  totalEvidence: 0,
+  tsa: { stamped: 0, pending: 0, failed: 0, none: 0 },
+  ots: { anchored: 0, pending: 0, failed: 0, none: 0 },
+  signed: 0,
+  endToEndReady: 0,
+  signedWithoutReport: 0,
+  reportedWithoutPackage: 0,
+  publicVerify: { published: 0, unpublished: 0, suspended: 0 },
+  needingAttention: 0,
+  intake: { submissionsAwaitingReview: 0, submissionsNeedingMoreInfo: 0 },
+};
+
 export const TRUST_SUMMARY = {
   totalEvidence: 120,
   tsa: { stamped: 80, pending: 6, failed: 34, none: 0 },
@@ -340,6 +354,15 @@ export type InstallApiOptions = {
    * so the cap and its "View intake" footer are both observable.
    */
   homeCollections?: boolean;
+  /**
+   * A workspace with NOTHING in it.
+   *
+   * `showGettingStarted` is true only when evidence, reports, matters and live
+   * verification pages are ALL zero, and the default trust summary here is a
+   * busy account — so the onboarding card, the one surface a brand-new user
+   * actually lands on, could not be rendered by this project at all.
+   */
+  emptyWorkspace?: boolean;
 };
 
 /** 26 High + 2 Info, none unread. See `metricScenario`. */
@@ -807,7 +830,9 @@ export async function installApi(
       return route.fulfill(json(envelopeFor(context)));
     }
     if (path.endsWith("/v1/dashboard/trust-summary")) {
-      return route.fulfill(json(TRUST_SUMMARY));
+      return route.fulfill(
+        json(options.emptyWorkspace ? EMPTY_TRUST_SUMMARY : TRUST_SUMMARY),
+      );
     }
     if (path.endsWith("/v1/ops/summary")) {
       // EVERY context reads this, including Personal Free: the endpoint is

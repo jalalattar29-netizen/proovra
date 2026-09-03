@@ -824,8 +824,13 @@
                                         and it had been `--border-strong`, a
                                         14%-alpha hairline, which is why the
                                         leading number read as disabled silver.
-     unread    --accent-600    #6D28D9  the approved brand purple. The page's
-                                        own question wears the product accent.
+     unread    --info          #2563EB  the canonical informational blue. It
+                                        was the brand purple, which the WARNING
+                                        card below also resolves to - two cards
+                                        in one colour saying different things.
+                                        Unread is a state to look at, not a
+                                        severity, and blue is what the product
+                                        already uses to say so.
      critical  --error         #DC2626  the canonical danger red, the one
                                         `.app-status-badge[data-fill="solid"]
                                         [data-tone="red"]` fills with.
@@ -844,7 +849,7 @@
                                         badges and `--ilk-tone-slate` use.
    =========================================================================== */
 .ops-metric[data-ops-metric-tone="all"]      { --app-metric-tone: var(--ink-primary); }
-.ops-metric[data-ops-metric-tone="unread"]   { --app-metric-tone: var(--accent-600); }
+.ops-metric[data-ops-metric-tone="unread"]   { --app-metric-tone: var(--info); }
 .ops-metric[data-ops-metric-tone="critical"] { --app-metric-tone: var(--error); }
 .ops-metric[data-ops-metric-tone="high"]     { --app-metric-tone: var(--orange-500); }
 .ops-metric[data-ops-metric-tone="warning"]  { --app-metric-tone: var(--accent-600); }
