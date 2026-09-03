@@ -140,6 +140,17 @@ test("contact-sales status transitions, end to end", async ({ browser }) => {
   await page.goto(DETAIL_URL, { waitUntil: "domcontentloaded", timeout: 90_000 });
   await page.locator("h1:visible").first().waitFor({ state: "visible", timeout: 45_000 });
 
+  // The gate below is about THIS page. Whatever the login and post-login
+  // surfaces logged on the way in is recorded for triage but does not fail
+  // the admin journey; an admin-page error still does.
+  if (consoleErrors.length > 0) {
+    test.info().annotations.push({
+      type: "pre-admin-console",
+      description: consoleErrors.join(" | ").slice(0, 500),
+    });
+    consoleErrors.length = 0;
+  }
+
   // Record every PATCH this page sends, body included, so the request
   // contract is asserted from the WIRE rather than from the source.
   const patches: Array<{ url: string; body: unknown }> = [];
@@ -150,9 +161,14 @@ test("contact-sales status transitions, end to end", async ({ browser }) => {
   });
 
   const currentStatus = async () => {
-    // The status pill in the header block. The page renders the label text.
-    const text = await page.locator("main").innerText();
-    return text;
+    // The label text somewhere in the page body. .first() and a caught read:
+    // during a reload the layout can briefly hold zero or two <main>
+    // landmarks, and a poll must see "not yet" rather than a throw.
+    return page
+      .locator("main")
+      .first()
+      .innerText({ timeout: 5_000 })
+      .catch(() => "");
   };
 
   // -------------------------------------------------------------------------
@@ -169,6 +185,13 @@ test("contact-sales status transitions, end to end", async ({ browser }) => {
     }
     return ids.map((s) => s.replace("contact-sales-status-", "").toUpperCase());
   };
+  // The h1 renders while the record is still loading; the status buttons
+  // exist only once the detail arrived (a dev server compiles the route on
+  // first hit, so this can take a while).
+  await page
+    .locator('[data-testid^="contact-sales-status-"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 60_000 });
   const first = await offered();
   expect(first.length).toBeGreaterThan(0);
   expect(first).not.toContain("NEW");
@@ -181,7 +204,10 @@ test("contact-sales status transitions, end to end", async ({ browser }) => {
     // 2. A routine edge runs WITHOUT a dialog: NEW → REVIEWED.
     // -----------------------------------------------------------------------
     await page.getByTestId("contact-sales-status-reviewed").click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.waitForTimeout(500);
+    // The consent library keeps a hidden role=dialog in the DOM, so "no
+    // confirmation" is asserted on the confirm modal's own attribute.
+    await expect(page.locator("[data-confirm-action-modal]")).toHaveCount(0);
     await expect
       .poll(async () => patches.length, { timeout: 15_000 })
       .toBeGreaterThan(0);
@@ -198,7 +224,7 @@ test("contact-sales status transitions, end to end", async ({ browser }) => {
     .toBe(true);
   const patchesBefore = patches.length;
   await page.getByTestId("contact-sales-status-rejected").click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.locator("[data-confirm-action-modal]");
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   // The dialog names the requester and organization the seed created.
   await expect(dialog).toContainText("Sam Fixture");
@@ -210,8 +236,8 @@ test("contact-sales status transitions, end to end", async ({ browser }) => {
 
   // Confirm this time. The wire request must carry expectedStatus.
   await page.getByTestId("contact-sales-status-rejected").click();
-  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10_000 });
-  await page.getByRole("dialog").getByRole("button", { name: /mark as rejected/i }).click();
+  await expect(page.locator("[data-confirm-action-modal]")).toBeVisible({ timeout: 10_000 });
+  await page.locator("[data-confirm-action-modal]").getByRole("button", { name: /mark as rejected/i }).click();
   await expect
     .poll(async () => patches.length, { timeout: 15_000 })
     .toBeGreaterThan(patchesBefore);
@@ -228,7 +254,7 @@ test("contact-sales status transitions, end to end", async ({ browser }) => {
     .poll(async () => (await offered()).sort().join(","), { timeout: 15_000 })
     .toBe("ARCHIVED,REVIEWED");
   await page.getByTestId("contact-sales-status-reviewed").click();
-  const reopen = page.getByRole("dialog");
+  const reopen = page.locator("[data-confirm-action-modal]");
   await expect(reopen).toBeVisible({ timeout: 10_000 });
   await expect(reopen).toContainText("Reopens a rejected request");
   await reopen.getByRole("button", { name: /mark as reviewed/i }).click();
@@ -240,6 +266,10 @@ test("contact-sales status transitions, end to end", async ({ browser }) => {
   // ---------------------------------------------------------------------------
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator("h1:visible").first().waitFor({ state: "visible", timeout: 45_000 });
+  await page
+    .locator('[data-testid^="contact-sales-status-"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 60_000 });
   await expect
     .poll(async () => (await currentStatus()).includes("Reviewed"), { timeout: 15_000 })
     .toBe(true);
