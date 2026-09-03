@@ -22,6 +22,11 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
+import {
+  COMMERCIAL_TRANSITION_REFUSALS,
+  commercialTransitionRule,
+  type CommercialRequestStatus,
+} from "@proovra/shared";
 import { prisma } from "../db.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
@@ -40,12 +45,22 @@ const listQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
 });
 
+const STATUS = z.enum(["NEW", "REVIEWED", "CONTACTED", "QUALIFIED", "REJECTED", "ARCHIVED"]);
+
 const updateBodySchema = z.object({
-  status: z
-    .enum(["NEW", "REVIEWED", "CONTACTED", "QUALIFIED", "REJECTED", "ARCHIVED"])
-    .optional(),
+  status: STATUS.optional(),
   priority: z.enum(["LOW", "NORMAL", "HIGH"]).optional(),
   notes: z.string().max(5000).nullable().optional(),
+  /**
+   * The status the operator was LOOKING AT when they clicked.
+   *
+   * Two operators triaging the same queue is normal, and the second click
+   * used to win silently: the page showed NEW, the row had become REJECTED
+   * under it, and "mark contacted" reopened a rejected request without
+   * anyone knowing. When this is sent and no longer matches the row, the
+   * change is refused with `stale_status` and the page reloads.
+   */
+  expectedStatus: STATUS.optional(),
 });
 
 function readUserAgent(req: FastifyRequest): string | undefined {
@@ -191,21 +206,92 @@ export async function adminContactSalesRoutes(app: FastifyInstance) {
           .send(createErrorResponse(ErrorCode.NOT_FOUND, "Not found"));
       }
 
-      const userId = (req as FastifyRequest & { userId?: string }).userId;
+      // `req.user.sub` is what requireAuth populates. This used to read
+      // `req.userId`, which nothing ever sets — so every reviewedByUserId was
+      // null and every audit row on this route named no actor. Found by the
+      // transition proof, not by the code that had been reading it for a year.
+      const userId = req.user?.sub ?? null;
+      const from = existing.status as CommercialRequestStatus;
+
+      /**
+       * A status change is a TRANSITION, and only the edges in the shared
+       * table are transitions. The API is the authority here — the page
+       * offers only allowed moves, but a page is not a guard.
+       *
+       * A refusal is audited too: an operator who keeps hitting 409 is either
+       * racing a colleague or working from a stale tab, and both are worth
+       * seeing in the log.
+       */
+      const refuse = async (
+        code: string,
+        message: string,
+        extra: Record<string, unknown>,
+      ) => {
+        await emitPlatformAudit({
+          action: "ADMIN_CONTACT_SALES_UPDATE",
+          outcome: "denied",
+          sourceApp: "API",
+          actorUserId: userId ?? null,
+          resourceType: "contact_sales_request",
+          resourceId: existing.id,
+          correlationId: req.id,
+          metadata: { reason: code, ...extra },
+        });
+        return reply.code(409).send({
+          error: { code, message, requestId: req.id, details: extra },
+        });
+      };
+
+      if (body.data.expectedStatus !== undefined && body.data.expectedStatus !== from) {
+        return refuse(
+          COMMERCIAL_TRANSITION_REFUSALS.STALE,
+          "This inquiry changed since you loaded it. Reload to see its current status.",
+          { expected: body.data.expectedStatus, actual: from },
+        );
+      }
+
+      const to =
+        body.data.status !== undefined && body.data.status !== from
+          ? (body.data.status as CommercialRequestStatus)
+          : null;
+      if (to !== null && commercialTransitionRule(from, to) === null) {
+        return refuse(
+          COMMERCIAL_TRANSITION_REFUSALS.NOT_ALLOWED,
+          `An inquiry cannot move from ${from} to ${to}.`,
+          { from, to },
+        );
+      }
 
       const reviewed =
-        body.data.status && body.data.status !== "NEW"
+        to !== null
           ? { reviewedAt: new Date(), reviewedByUserId: userId ?? null }
           : {};
 
-      const updated = await prisma.contactSalesRequest.update({
-        where: { id: params.data.id },
+      /**
+       * Compare-and-set on the status the transition was validated against.
+       * A plain `update` lets two concurrent PATCHes both succeed, the second
+       * silently overwriting the first; matching on the status read above
+       * means exactly one of them changes the row and the other is told it
+       * is stale.
+       */
+      const changed = await prisma.contactSalesRequest.updateMany({
+        where: { id: params.data.id, status: existing.status },
         data: {
-          status: body.data.status,
+          ...(to !== null ? { status: to } : {}),
           priority: body.data.priority,
           notes: body.data.notes ?? undefined,
           ...reviewed,
         },
+      });
+      if (changed.count === 0) {
+        return refuse(
+          COMMERCIAL_TRANSITION_REFUSALS.STALE,
+          "Another operator changed this inquiry at the same time. Reload to see its current status.",
+          { expected: from },
+        );
+      }
+      const updated = await prisma.contactSalesRequest.findUniqueOrThrow({
+        where: { id: params.data.id },
       });
 
       await emitPlatformAudit({
@@ -227,6 +313,7 @@ export async function adminContactSalesRoutes(app: FastifyInstance) {
             status: updated.status,
             priority: updated.priority,
           },
+          ...(to !== null ? { transition: { from, to } } : {}),
         },
       });
 

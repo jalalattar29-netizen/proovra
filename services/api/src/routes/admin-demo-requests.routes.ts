@@ -1,5 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import {
+  COMMERCIAL_TRANSITION_REFUSALS,
+  commercialTransitionRule,
+  type CommercialRequestStatus,
+} from "@proovra/shared";
 import { prisma } from "../db.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
@@ -46,6 +51,14 @@ const updateBodySchema = z.object({
     .enum(["ACTIVE", "PAUSED", "COMPLETED", "REPLIED", "STOPPED"])
     .optional(),
   nextFollowUpAt: z.string().datetime().nullable().optional(),
+  /**
+   * The status the operator was looking at when they saved. Refused with
+   * `stale_status` when it no longer matches the row — see the shared
+   * transition table for why a second operator's click must not win silently.
+   */
+  expectedStatus: z
+    .enum(["NEW", "REVIEWED", "CONTACTED", "QUALIFIED", "REJECTED", "ARCHIVED"])
+    .optional(),
 });
 
 const routeBodySchema = z.object({
@@ -449,6 +462,51 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         );
       }
 
+      /**
+       * Status changes are transitions from the shared table; anything else
+       * is refused, and a save made against a status the row no longer holds
+       * is refused as stale. Both refusals are audited: a stream of 409s is a
+       * racing colleague or a stale tab, and either is worth seeing.
+       */
+      const from = existing.status as CommercialRequestStatus;
+      const refuse = async (
+        code: string,
+        message: string,
+        extra: Record<string, unknown>,
+      ) => {
+        await emitPlatformAudit({
+          action: "admin.demo_requests.update",
+          outcome: "denied",
+          sourceApp: "API",
+          actorUserId: req.user?.sub ?? null,
+          resourceType: "demo_request",
+          resourceId: existing.id,
+          correlationId: req.id,
+          metadata: { demoRequestId: existing.id, reason: code, ...extra },
+        }).catch(() => null);
+        return reply.code(409).send({
+          error: { code, message, requestId: req.id, details: extra },
+        });
+      };
+      if (parsed.data.expectedStatus !== undefined && parsed.data.expectedStatus !== from) {
+        return refuse(
+          COMMERCIAL_TRANSITION_REFUSALS.STALE,
+          "This demo request changed since you loaded it. Reload to see its current status.",
+          { expected: parsed.data.expectedStatus, actual: from },
+        );
+      }
+      if (
+        parsed.data.status !== undefined &&
+        parsed.data.status !== from &&
+        commercialTransitionRule(from, parsed.data.status as CommercialRequestStatus) === null
+      ) {
+        return refuse(
+          COMMERCIAL_TRANSITION_REFUSALS.NOT_ALLOWED,
+          `A demo request cannot move from ${from} to ${parsed.data.status}.`,
+          { from, to: parsed.data.status },
+        );
+      }
+
       const nextStatus = parsed.data.status ?? existing.status;
       const nextPriority = parsed.data.priority ?? existing.priority;
       const nextNotes =
@@ -513,9 +571,24 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         }
       }
 
-      const updated = await prisma.demoRequest.update({
-        where: { id },
+      /**
+       * Compare-and-set on the status the transition was validated against,
+       * so two concurrent saves cannot both succeed with the second silently
+       * overwriting the first.
+       */
+      const changed = await prisma.demoRequest.updateMany({
+        where: { id, status: existing.status },
         data,
+      });
+      if (changed.count === 0) {
+        return refuse(
+          COMMERCIAL_TRANSITION_REFUSALS.STALE,
+          "Another operator changed this demo request at the same time. Reload to see its current status.",
+          { expected: from },
+        );
+      }
+      const updated = await prisma.demoRequest.findUniqueOrThrow({
+        where: { id },
         select: {
           id: true,
           status: true,

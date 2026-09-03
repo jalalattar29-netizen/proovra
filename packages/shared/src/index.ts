@@ -2277,3 +2277,9 @@ export * from "./queue-integrity/index.js";
 // id bound the client must respect, and the builder that omits an absent
 // optional instead of serialising a null the API's schema has no word for.
 export * from "./evidence-bulk-actions.js";
+
+// The ONE status-transition table for the Contact Sales and Demo Request
+// queues: which moves are allowed, which of them are consequential enough to
+// confirm, and the refusal codes the API answers with. The API enforces it;
+// the admin pages read it to decide what to offer.
+export * from "./commercial-request-transitions.js";
