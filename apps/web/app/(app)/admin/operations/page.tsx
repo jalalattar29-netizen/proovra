@@ -312,6 +312,8 @@ export default function AdminOperationsPage() {
                 size="sm"
                 variant="secondary"
                 disabled={busyId === r.id}
+                aria-label={`Acknowledge "${r.title}"`}
+                title="Marks the condition as seen by an operator. It stays open and can still be resolved or reassigned."
                 onClick={() => void runAction(r, "acknowledge")}
               >
                 Acknowledge
@@ -346,6 +348,12 @@ export default function AdminOperationsPage() {
               size="sm"
               variant="ghost"
               disabled={busyId === r.id}
+              aria-label={`${r.assignedOperatorUserId ? "Unassign" : "Assign to me"}: "${r.title}"`}
+              title={
+                r.assignedOperatorUserId
+                  ? "Returns the condition to the unassigned queue. Nothing else changes."
+                  : "Records you as the operator working this condition. Reversible with Unassign."
+              }
               onClick={() =>
                 void runAction(r, "assign", {
                   assigneeUserId: r.assignedOperatorUserId ? null : currentUserId,

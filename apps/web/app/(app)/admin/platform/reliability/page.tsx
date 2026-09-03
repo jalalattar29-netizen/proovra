@@ -146,11 +146,10 @@ useEffect(() => {
   }, [teamId, statusFilter]);
 
   async function markAbandoned(evidenceId: string) {
-    if (!teamId) return;
+    if (!teamId || busyEvidenceId !== null) return;
     const ok = await confirm({
       title: "Mark this upload as ABANDONED?",
-      description:
-        "This is a terminal operator action. The upload session will be closed and no further pieces will be accepted.",
+      description: `Upload session for evidence ${evidenceId.slice(0, 8)}… in the active workspace is closed for good: no further pieces are accepted and it cannot be reopened. The evidence record itself is not deleted.`,
       confirmLabel: "Mark abandoned",
       tone: "warning",
       testId: "reliability-mark-abandoned",
@@ -170,15 +169,26 @@ useEffect(() => {
         prev ? prev.map((s) => (s.evidenceId === evidenceId ? res.session : s)) : prev,
       );
     } catch (err) {
-      const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not mark abandoned." }).message);
+      // Into the page's own error region — an alert() is neither accessible
+      // nor part of the shared feedback system.
+      setError(toSafeUserError(err, { message: "Could not mark abandoned." }).message);
     } finally {
       setBusyEvidenceId(null);
     }
   }
 
   async function requestReview(evidenceId: string) {
-    if (!teamId) return;
+    if (!teamId || busyEvidenceId !== null) return;
+    // Escalates the upload into the review queue and raises a WARNING
+    // security event for it — an operator hand-off, not a refresh.
+    const ok = await confirm({
+      title: "Send this upload for review?",
+      description: `Upload session for evidence ${evidenceId.slice(0, 8)}… is marked REVIEW_REQUIRED in the active workspace and a warning security event is recorded. It stays out of the automatic recovery sweep until an operator resolves it.`,
+      confirmLabel: "Request review",
+      tone: "warning",
+      testId: "reliability-request-review",
+    });
+    if (!ok) return;
     setBusyEvidenceId(evidenceId);
     try {
       const res: { session: Session } = await apiFetch(
@@ -193,8 +203,7 @@ useEffect(() => {
         prev ? prev.map((s) => (s.evidenceId === evidenceId ? res.session : s)) : prev,
       );
     } catch (err) {
-      const e = err as { message?: string };
-      alert(toSafeUserError(e, { message: "Could not request review." }).message);
+      setError(toSafeUserError(err, { message: "Could not request review." }).message);
     } finally {
       setBusyEvidenceId(null);
     }

@@ -140,6 +140,7 @@ export default function IdentityRuntimePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [reconcile, setReconcile] = useState<ReconcileResult | null>(null);
+  const [emergencyReason, setEmergencyReason] = useState("");
   const { confirm } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
 
@@ -258,18 +259,15 @@ const load = useCallback(() => {
   );
 
   const emergencyRevoke = useCallback(async () => {
-    if (!teamId) return;
-    const reason = window.prompt(
-      "Emergency org-wide revoke — describe the incident (will be audited):",
-    );
+    if (!teamId || busy !== null) return;
+    const reason = emergencyReason;
     if (!reason || reason.trim().length < 8) {
       setError("Reason must be at least 8 chars.");
       return;
     }
     const ok = await confirm({
       title: "Emergency org-wide session revoke?",
-      description:
-        "EVERY active session in this workspace will be terminated. All users will be signed out. This action is logged with the incident reason and cannot be undone.",
+      description: `EVERY active session in this workspace will be terminated. All users will be signed out. This action is logged with the incident reason "${reason.trim()}" and cannot be undone.`,
       confirmLabel: "Revoke ALL sessions",
       cancelLabel: "Cancel emergency",
       tone: "danger",
@@ -284,10 +282,12 @@ const load = useCallback(() => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teamId, reason: reason.trim() }),
       });
+      // Re-read the runtime BEFORE announcing: the notice describes the
+      // state the operator is now looking at, not the one they left.
+      await load();
       setNotice(
         `Revoked ${res?.usersRevoked ?? 0} users (${res?.sessionsAffected ?? 0} sessions).`,
       );
-      load();
     } catch (err) {
       setError(
         toSafeUserError(err, { message: "Emergency revoke failed (step-up required?)." }).message,
@@ -298,7 +298,7 @@ const load = useCallback(() => {
     // `confirm` comes from the globally-mounted ConfirmActionProvider and is
     // memoised there with an empty dep array, so listing it is stable — it
     // cannot re-create this callback on every render.
-  }, [teamId, load, confirm]);
+  }, [teamId, load, confirm, busy, emergencyReason]);
 
   /**
    * PHASE 12B — operator-triggered identity-security reconcile.
@@ -333,6 +333,8 @@ const load = useCallback(() => {
         }),
       )) as Omit<ReconcileResult, "ranAt"> | null;
       if (isStale(captured)) return;
+      await load();
+      if (isStale(captured)) return;
       setReconcile({
         scope: res?.scope ?? "workspace",
         expiredStepUps: res?.expiredStepUps ?? 0,
@@ -341,7 +343,6 @@ const load = useCallback(() => {
       });
       setError(null);
       setNotice(null);
-      load();
     } catch (err) {
       if (isStale(captured)) return;
       const code = ((err as { code?: string }).code ?? "").toUpperCase();
@@ -472,13 +473,32 @@ const load = useCallback(() => {
           title="Identity Runtime Monitor"
           subtitle="SOC console for live session governance. Inspect active sessions, quarantine privileged actions, release safe sessions, and (in genuine emergencies) revoke every active session at once. Every action is audited."
           primaryAction={
-            <Button
-              variant="destructive"
-              onClick={emergencyRevoke}
-              disabled={busy === "emergency"}
-            >
-              Emergency org revoke
-            </Button>
+            <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+              {/* The incident reason used to be collected by window.prompt —
+                  unstyled, unlabelled, and invisible to the accessibility
+                  tree. It is a field now, and the dialog repeats it. */}
+              <label style={{ fontSize: 12 }}>
+                <span className="sr-only">Incident reason for emergency revoke</span>
+                <input
+                  className="input"
+                  value={emergencyReason}
+                  onChange={(e) => setEmergencyReason(e.target.value)}
+                  placeholder="Incident reason (audited, 8+ chars)"
+                  maxLength={400}
+                  style={{ minWidth: 220 }}
+                  data-testid="identity-runtime-emergency-reason"
+                />
+              </label>
+              <Button
+                variant="destructive"
+                onClick={emergencyRevoke}
+                disabled={busy !== null}
+                loading={busy === "emergency"}
+                data-testid="identity-runtime-emergency-revoke-button"
+              >
+                Emergency org revoke
+              </Button>
+            </span>
           }
         />
       }

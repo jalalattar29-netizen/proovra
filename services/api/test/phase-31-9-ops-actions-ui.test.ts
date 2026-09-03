@@ -127,10 +127,15 @@ describe("Phase 31.9 — ops actions UI: state machine", () => {
     }
   });
 
-  it("bounded error detail (slice to 160 chars)", () => {
-    // Both handlers slice err.message to 160 chars before display
-    // so a server-side stack trace can't ballast the UI.
-    expect(PAGE_SRC).toMatch(/err\.message\.slice\(0,\s*160\)/);
+  it("bounded error detail (the sanctioned safe-error path)", () => {
+    // Raw `err.message` passthrough is banned app-wide (safe-feedback
+    // migration, 2026-07-06); the page previously sliced the raw message to
+    // 160 chars, which bounds the length but not the CONTENT. Both handlers
+    // now route the failure through toSafeUserError, which is bounded and
+    // sanitised by construction.
+    expect(PAGE_SRC).not.toMatch(/err\.message\.slice\(/);
+    const failures = PAGE_SRC.match(/toSafeUserError\(err,/g) ?? [];
+    expect(failures.length).toBeGreaterThanOrEqual(2);
   });
 });
 

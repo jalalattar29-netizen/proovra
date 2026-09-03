@@ -39,6 +39,7 @@ import {
 } from "../../../../../components/ui/PageShell";
 import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   StepUpModal,
   useStepUpAction,
@@ -127,6 +128,7 @@ function OperationsRecoveryContent() {
   const [busy, setBusy] = useState<string | null>(null);
   const [selectedReport, setSelectedReport] =
     useState<RecoveryValidationReport | null>(null);
+  const { confirm } = useConfirmAction();
 
   const load = useCallback(() => {
     if (!teamId) return;
@@ -146,7 +148,19 @@ function OperationsRecoveryContent() {
   }, [load]);
 
   const runBackup = useCallback(async () => {
-    if (!teamId) return;
+    if (!teamId || busy !== null) return;
+    // A disaster-recovery rehearsal: it reads the backup set and RECORDS a
+    // report that the readiness overview then shows. Named and bounded
+    // before it runs.
+    const ok = await confirm({
+      title: "Run backup validation for this workspace?",
+      description:
+        "Checks the most recent backup set for the active workspace and records a validation report in its recovery history. Nothing is restored and no evidence or configuration is changed; the report becomes the workspace's current backup-readiness verdict.",
+      confirmLabel: "Validate backup",
+      tone: "warning",
+      testId: "recovery-validate-backup",
+    });
+    if (!ok) return;
     setBusy("backup");
     setError(null);
     setSuccess(null);
@@ -168,10 +182,19 @@ function OperationsRecoveryContent() {
     } finally {
       setBusy(null);
     }
-  }, [teamId, load]);
+  }, [teamId, load, busy, confirm]);
 
   const runRestore = useCallback(async () => {
-    if (!teamId) return;
+    if (!teamId || busy !== null) return;
+    const ok = await confirm({
+      title: "Run restore validation for this workspace?",
+      description:
+        "Rehearses a restore of the active workspace's backup into an isolated validation target and records a report in its recovery history. Live data is not modified. Step-up is required before it runs.",
+      confirmLabel: "Validate restore",
+      tone: "warning",
+      testId: "recovery-validate-restore",
+    });
+    if (!ok) return;
     setBusy("restore");
     setError(null);
     setSuccess(null);
@@ -200,7 +223,7 @@ function OperationsRecoveryContent() {
     } finally {
       setBusy(null);
     }
-  }, [teamId, stepUp, load]);
+  }, [teamId, stepUp, load, busy, confirm]);
 
   const openReport = useCallback(
     async (reportId: string) => {

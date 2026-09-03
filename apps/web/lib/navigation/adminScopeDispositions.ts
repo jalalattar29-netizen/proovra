@@ -146,6 +146,13 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
       "VERIFIED: /v1/admin/enterprise/provision is registered with requirePlatformAdmin and acts across tenants. The active workspace is the audit envelope for the operator's action, not a filter on anything shown.",
   },
   {
+    route: "/admin/customers/:id",
+    observed: "PLATFORM_AUDIT_SCOPED",
+    decision: "PLATFORM_AUDIT_CONTEXT",
+    why:
+      "VERIFIED: POST /v1/admin/orgs/:id/suspend and /resume are requirePlatformAdmin + step-up, and the organization they act on is named by the PATH. The teamId the page now sends in the body (it previously sent {} and every click was a 400) exists so requireStepUpForSensitiveAction can bind the challenge and the audit row to the workspace the operator was standing in — it filters nothing and selects nothing. Same shape as /admin/provisioning's plan grant.",
+  },
+  {
     route: "/admin/identity",
     observed: "WORKSPACE_UNCLASSIFIED",
     decision: "WORKSPACE_SURFACE_LABELLED",

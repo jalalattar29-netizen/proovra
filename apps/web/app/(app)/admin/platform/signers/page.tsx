@@ -48,6 +48,7 @@ import {
 } from "../../../../../components/ui/PageShell";
 import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { redactKmsKeyReference } from "../../../../../lib/privacy/kms-reference";
@@ -260,6 +261,7 @@ function OperationsSignersContent() {
   const [busy, setBusy] = useState<string | null>(null);
   const [verifyResult, setVerifyResult] =
     useState<VerifyAttestationResult | null>(null);
+  const { confirm } = useConfirmAction();
 
   const load = useCallback(() => {
     if (!teamId) return;
@@ -325,7 +327,21 @@ function OperationsSignersContent() {
   );
 
   const runBackfill = useCallback(async () => {
-    if (!teamId) return;
+    if (!teamId || busy !== null) return;
+    /**
+     * Writes signed attestations into the custody ledger of the active
+     * workspace — evidence-adjacent, not undoable, and step-up gated. The
+     * operator confirms the scope and the bound before the challenge starts.
+     */
+    const ok = await confirm({
+      title: "Backfill custody attestations for this workspace?",
+      description:
+        "Signs up to 50 custody events in the active workspace that have no attestation yet and records each signature in the attestation ledger. Events that are already attested are skipped, so running it twice does not sign anything twice.",
+      confirmLabel: "Run backfill",
+      tone: "warning",
+      testId: "custody-backfill",
+    });
+    if (!ok) return;
     setBusy("backfill");
     setError(null);
     setSuccess(null);
@@ -360,7 +376,7 @@ function OperationsSignersContent() {
     } finally {
       setBusy(null);
     }
-  }, [teamId, stepUp, load]);
+  }, [teamId, stepUp, load, busy, confirm]);
 
   const pageHeader = (
     <PageHeader
@@ -618,6 +634,7 @@ function SignerDetailDrawer({
   const [preview, setPreview] = useState<RotationPreview | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const { confirm } = useConfirmAction();
 
   useEffect(() => {
     apiFetch(
@@ -678,10 +695,40 @@ function SignerDetailDrawer({
 
   const runStepUpAction = useCallback(
     async (action: "promote" | "retire" | "revoke") => {
+      if (busy !== null) return;
       if (reason.trim().length === 0) {
         onError("Operator reason is required.");
         return;
       }
+      /**
+       * A signer lifecycle change decides which key signs the platform's
+       * material from now on. Each leg is named for what it does to THIS
+       * signer before the step-up challenge starts; revoke, which cannot be
+       * undone, is typed.
+       */
+      const label = signer
+        ? `${signer.signerId} (${signer.signerPurpose.replace(/_/g, " ")})`
+        : signerId;
+      const ok = await confirm({
+        title:
+          action === "promote"
+            ? "Promote this signer to active?"
+            : action === "retire"
+              ? "Retire this signer?"
+              : "Revoke this signer?",
+        description:
+          action === "promote"
+            ? `${label} becomes the active signer for its purpose. New material is signed with it from now on; the signer it replaces stops being used for new material.`
+            : action === "retire"
+              ? `${label} stops being used for new material. Material already signed with it is not changed.`
+              : `${label} is withdrawn immediately and cannot be used again. Material already signed with it is not changed. This cannot be undone.`,
+        confirmLabel:
+          action === "promote" ? "Promote" : action === "retire" ? "Retire" : "Revoke signer",
+        tone: action === "revoke" ? "danger" : "warning",
+        ...(action === "revoke" ? { requireConfirmText: "REVOKE" } : {}),
+        testId: `signer-${action}-confirm`,
+      });
+      if (!ok) return;
       setBusy(action);
       try {
         await stepUp.runStepUpAction(async (headers) => {
@@ -710,7 +757,7 @@ function SignerDetailDrawer({
         setBusy(null);
       }
     },
-    [teamId, signerId, reason, stepUp, onSuccess, onError],
+    [teamId, signerId, signer, reason, stepUp, onSuccess, onError, busy, confirm],
   );
 
   if (!signer) {
@@ -1093,6 +1140,8 @@ function CustodyAttestationsPanel({
                       className="apf-control"
                       disabled={busy === a.attestationId}
                       onClick={() => onVerify(a.attestationId)}
+                      aria-label={`Verify attestation ${a.attestationId} for evidence ${a.evidenceId}`}
+                      title="Re-checks this attestation's signature against its custody event and shows the report. Nothing is written."
                       data-testid={`verify-${a.attestationId}`}
                     >
                       {busy === a.attestationId ? "Verifying…" : "Verify"}

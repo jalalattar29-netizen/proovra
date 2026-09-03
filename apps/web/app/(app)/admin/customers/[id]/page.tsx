@@ -20,6 +20,11 @@ import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import type { BadgeTone } from "../../../../../components/ui/Badge";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
+import { useActiveWorkspaceId } from "../../../../../lib/platform-context";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -317,31 +322,73 @@ export default function AdminOrganizationDetailPage({
   const [lifecycleBusy, setLifecycleBusy] = useState<null | "suspend" | "resume">(
     null,
   );
+  /**
+   * The request the API actually accepts.
+   *
+   * `POST /v1/admin/orgs/:id/suspend` and `/resume` validate
+   * `{ teamId, reason? }` and run a step-up challenge bound to that
+   * workspace. This page sent `{}` with no step-up handling, so every click
+   * answered 400 and the operator saw "The organization was not suspended."
+   * — the one lifecycle action on the customer page did not work. The
+   * operator's own active workspace is the audit scope, exactly as the
+   * provisioning page sends it.
+   */
+  const teamId = useActiveWorkspaceId();
+  const stepUp = useStepUpAction({ teamId });
+  const [lifecycleReason, setLifecycleReason] = useState("");
 
   const runLifecycle = async (leg: "suspend" | "resume") => {
+    if (lifecycleBusy !== null) return;
+    if (!teamId) {
+      addToast(
+        "Your workspace context is still loading. Try again in a moment.",
+        "error",
+      );
+      return;
+    }
+    const name = detail?.overview.name ?? "this organization";
     const ok = await confirm({
-      title: leg === "suspend" ? "Suspend this customer?" : "Resume this customer?",
+      title: leg === "suspend" ? `Suspend ${name}?` : `Resume ${name}?`,
       description:
         leg === "suspend"
-          ? "Suspending the organization takes effect for every member immediately. It does not cancel billing and does not delete anything."
-          : "Resuming restores the organization to ACTIVE. Anything the suspension cascaded to is restored by the same authority that suspended it.",
-      confirmLabel: leg === "suspend" ? "Suspend" : "Resume",
+          ? `Every member of ${name} (${id.slice(0, 8)}…) loses access immediately and their sessions are revoked. Billing is not cancelled and nothing is deleted. The reason${
+              lifecycleReason.trim() ? ` "${lifecycleReason.trim()}"` : ""
+            } is written to the platform audit log. Step-up is required.`
+          : `${name} (${id.slice(0, 8)}…) returns to ACTIVE and its members can sign in again. Anything the suspension cascaded to is restored by the same authority that suspended it. Step-up is required.`,
+      confirmLabel: leg === "suspend" ? "Suspend customer" : "Resume customer",
       tone: leg === "suspend" ? "danger" : "neutral",
+      ...(leg === "suspend" ? { requireConfirmText: "SUSPEND" } : {}),
+      testId: `customer-${leg}`,
     });
     if (!ok) return;
 
     setLifecycleBusy(leg);
     try {
-      await apiFetch(`/v1/admin/orgs/${encodeURIComponent(id)}/${leg}`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch(`/v1/admin/orgs/${encodeURIComponent(id)}/${leg}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            teamId,
+            ...(leg === "suspend" && lifecycleReason.trim()
+              ? { reason: lifecycleReason.trim().slice(0, 400) }
+              : {}),
+          }),
+        }),
+      );
+      // Re-read before announcing: the badge and the button flip from the
+      // server's row, never from a guess.
+      await load();
+      setLifecycleReason("");
       addToast(
         leg === "suspend" ? "Organization suspended." : "Organization resumed.",
         "success",
       );
-      await load();
     } catch (err) {
+      if ((err as { code?: string })?.code === "STEP_UP_CANCEL") {
+        addToast("Step-up cancelled — the organization was not changed.", "error");
+        return;
+      }
       addToast(
         toSafeUserError(err, {
           message:
@@ -445,18 +492,36 @@ export default function AdminOrganizationDetailPage({
                   size="sm"
                   onClick={() => void runLifecycle("resume")}
                   disabled={lifecycleBusy !== null}
+                  aria-label={`Resume customer ${detail.overview.name}`}
+                  data-testid="customer-resume"
                 >
                   {lifecycleBusy === "resume" ? "Resuming…" : "Resume customer"}
                 </Button>
               ) : (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => void runLifecycle("suspend")}
-                  disabled={lifecycleBusy !== null}
-                >
-                  {lifecycleBusy === "suspend" ? "Suspending…" : "Suspend customer"}
-                </Button>
+                <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                  <label style={{ fontSize: 12 }}>
+                    <span className="sr-only">Suspension reason</span>
+                    <input
+                      className="input"
+                      value={lifecycleReason}
+                      onChange={(e) => setLifecycleReason(e.target.value)}
+                      placeholder="Reason (audited)"
+                      maxLength={400}
+                      style={{ minWidth: 180 }}
+                      data-testid="customer-suspend-reason"
+                    />
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => void runLifecycle("suspend")}
+                    disabled={lifecycleBusy !== null}
+                    aria-label={`Suspend customer ${detail.overview.name}`}
+                    data-testid="customer-suspend"
+                  >
+                    {lifecycleBusy === "suspend" ? "Suspending…" : "Suspend customer"}
+                  </Button>
+                </span>
               )
             ) : null
           }
@@ -1099,6 +1164,7 @@ export default function AdminOrganizationDetailPage({
           </Card>
         </>
       )}
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

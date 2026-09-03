@@ -48,6 +48,7 @@ import {
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import {
   PageShell,
   PageHeader,
@@ -333,6 +334,7 @@ function ProvisionPanel({
   onOrganizationProvisioned: (organizationId: string) => void;
 }) {
   const { addToast } = useToast();
+  const { confirm } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
   const { stamp, isStale } = useTenantGuard();
 
@@ -387,6 +389,23 @@ function ProvisionPanel({
     }
     const idempotencyKey = idempotencyRef.current.key;
 
+    /**
+     * Creates a customer: an Organization, its enterprise workspace, an owner
+     * seat and an invitation email. That is a business commitment made in the
+     * customer's name, so the operator confirms exactly what will exist
+     * before the step-up challenge starts.
+     */
+    const ok = await confirm({
+      title: "Provision this enterprise customer?",
+      description: `Creates the organization "${name}" on the ENTERPRISE plan${
+        seatsValue !== undefined ? ` with ${seatsValue} seat${seatsValue === 1 ? "" : "s"}` : ""
+      }${workspace ? `, with a workspace named "${workspace}"` : ""}, and invites ${email} as its owner by email. The invitation is external and cannot be recalled; a duplicate submission with the same details is replayed, not repeated.`,
+      confirmLabel: "Provision customer",
+      tone: "warning",
+      testId: "provisioning-provision",
+    });
+    if (!ok) return;
+
     setBusy(true);
     const captured = stamp();
     try {
@@ -440,6 +459,7 @@ function ProvisionPanel({
     workspaceName,
     stepUp,
     addToast,
+    confirm,
     onOrganizationProvisioned,
     stamp,
     isStale,
@@ -621,6 +641,7 @@ function GrantPlanPanel({
   onOrganizationIdChange: (next: string) => void;
 }) {
   const { addToast } = useToast();
+  const { confirm } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
   const { stamp, isStale } = useTenantGuard();
 
@@ -652,6 +673,19 @@ function GrantPlanPanel({
       }
       seatsValue = parsed;
     }
+
+    // A plan grant changes what the customer is billed for and what every
+    // workspace in the organization may do. Named before the step-up starts.
+    const ok = await confirm({
+      title: "Grant the ENTERPRISE plan to this organization?",
+      description: `Applies the ENTERPRISE plan${
+        seatsValue !== undefined ? ` with ${seatsValue} seat${seatsValue === 1 ? "" : "s"}` : ""
+      } to every workspace in organization ${id}. Entitlements change immediately for all of its members and the grant is written to the platform audit log.`,
+      confirmLabel: "Grant ENTERPRISE",
+      tone: "warning",
+      testId: "provisioning-grant-plan",
+    });
+    if (!ok) return;
 
     setBusy(true);
     const captured = stamp();
@@ -695,7 +729,7 @@ function GrantPlanPanel({
     } finally {
       setBusy(false);
     }
-  }, [teamId, orgId, seats, stepUp, addToast, stamp, isStale]);
+  }, [teamId, orgId, seats, stepUp, addToast, confirm, stamp, isStale]);
 
   return (
     <Card

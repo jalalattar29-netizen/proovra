@@ -1081,6 +1081,7 @@ function DriftTab({ teamId }: { teamId: string }) {
 
 function ReplayTab({ teamId }: { teamId: string }) {
   const { stamp, isStale } = useTenantGuard();
+  const { confirm } = useConfirmAction();
   const [failures, setFailures] = useState<ScimSyncFailure[] | null>(null);
   /**
    * Server-side filters, and the metadata that makes the count honest.
@@ -1136,6 +1137,20 @@ function ReplayTab({ teamId }: { teamId: string }) {
 
   const replay = useCallback(
     async (id: string) => {
+      if (busy !== null) return;
+      const failure = failures?.find((f) => f.id === id);
+      // Clears the entry so the identity provider's next push is accepted
+      // again: the provisioning change it carried takes effect on that push.
+      const ok = await confirm({
+        title: "Replay this SCIM sync failure?",
+        description: `Failure ${id.slice(0, 8)}…${
+          failure ? ` (${failure.eventType}, ${failure.severity})` : ""
+        } is cleared from this workspace's queue and the identity provider's original push is accepted on its next retry. The provisioning change it carries — a user or group create, update or deactivate — is then applied.`,
+        confirmLabel: "Replay",
+        tone: "warning",
+        testId: "scim-replay-failure",
+      });
+      if (!ok) return;
       setBusy(id);
       setError(null);
       setSuccess(null);
@@ -1166,7 +1181,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
         setBusy(null);
       }
     },
-    [teamId, load, stamp, isStale],
+    [teamId, load, stamp, isStale, busy, failures, confirm],
   );
 
   const failureColumns: DataTableColumn<ScimSyncFailure>[] = [

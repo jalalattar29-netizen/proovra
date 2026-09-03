@@ -34,8 +34,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   PageShell,
   PageHeader,
@@ -308,7 +310,10 @@ useEffect(() => {
   //   * surfaces success/error in a bounded ActionResult state;
   //   * NEVER throws to the caller — every failure lands in the
   //     ActionResult.error branch with a stable detail string.
+  const { confirm } = useConfirmAction();
+
   const runRetry = async () => {
+    if (actionResult?.kind === "pending") return;
     if (!teamId) {
       setActionResult({
         kind: "error",
@@ -326,6 +331,15 @@ useEffect(() => {
       });
       return;
     }
+    // A requeue runs the job's side effects again. Named before it runs.
+    const ok = await confirm({
+      title: "Requeue this media-intelligence job?",
+      description: `Job ${trimmed} in the active workspace is placed back on its queue and runs again from the start. If it had already completed elsewhere, its work is repeated.`,
+      confirmLabel: "Requeue job",
+      tone: "warning",
+      testId: "media-graph-retry",
+    });
+    if (!ok) return;
     setActionResult({ kind: "pending", label: "Retry" });
     try {
       const res = (await apiFetch(
@@ -341,18 +355,17 @@ useEffect(() => {
         detail: `Job ${res.runId} requeued.`,
       });
     } catch (err) {
+      // The sanctioned error path: never a raw error message.
       setActionResult({
         kind: "error",
         label: "Retry",
-        detail:
-          err instanceof Error
-            ? `Request failed: ${err.message.slice(0, 160)}`
-            : "Request failed.",
+        detail: toSafeUserError(err, { message: "The job was not requeued." }).message,
       });
     }
   };
 
   const runReplayDlq = async () => {
+    if (actionResult?.kind === "pending") return;
     if (!teamId) {
       setActionResult({
         kind: "error",
@@ -361,6 +374,15 @@ useEffect(() => {
       });
       return;
     }
+    const ok = await confirm({
+      title: "Replay the media-intelligence dead-letter queue?",
+      description:
+        "Up to 50 dead-lettered media-intelligence jobs for the active workspace are placed back on their queues and run again. Jobs the replay-safety matrix refuses are skipped and reported; jobs that run again repeat their side effects.",
+      confirmLabel: "Replay up to 50 jobs",
+      tone: "warning",
+      testId: "media-graph-replay-dlq",
+    });
+    if (!ok) return;
     setActionResult({ kind: "pending", label: "Replay DLQ" });
     try {
       const res = (await apiFetch(
@@ -379,10 +401,8 @@ useEffect(() => {
       setActionResult({
         kind: "error",
         label: "Replay DLQ",
-        detail:
-          err instanceof Error
-            ? `Request failed: ${err.message.slice(0, 160)}`
-            : "Request failed.",
+        detail: toSafeUserError(err, { message: "The dead-letter queue was not replayed." })
+          .message,
       });
     }
   };

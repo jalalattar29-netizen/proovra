@@ -745,6 +745,18 @@ function ReplayDialog({
           <span style={categoryBadge(target.category)}>{target.category}</span>
         </span>
       </p>
+      {/* What each button does to THIS job, before the operator picks one.
+          The dialog is the confirmation for both actions: it names the job,
+          demands a reason, and is the only way either request is sent. */}
+      <p style={{ ...mutedStyle, marginTop: 8 }} data-testid="replay-effect">
+        <strong>Retry attempt</strong> re-runs this one failed job in place and
+        keeps its history. <strong>Replay</strong> enqueues a fresh copy of the
+        job; if the original completed part of its work, that work is repeated.
+        Both are recorded with your reason in the operations audit log.
+        {target.category === "forbidden"
+          ? " This job kind is forbidden to replay and the server will refuse the replay."
+          : null}
+      </p>
       <label style={{ display: "block", marginTop: 8, fontSize: 12 }}>
         Operator reason (required)
         <input

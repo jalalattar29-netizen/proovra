@@ -226,12 +226,16 @@ export default function PermissionMatrixPage() {
         }),
       );
       if (isStale(captured)) return;
-      setElevationNotice(
-        "Elevation granted. Reload the snapshot below to see it as a temporary-elevation source.",
-      );
       setElevationReason("");
-      // Re-read the authoritative snapshot instead of patching it locally.
+      // Re-read the authoritative snapshot instead of patching it locally —
+      // and only THEN announce. loadSnapshot clears the notice as part of
+      // resetting the panel, so announcing first meant the handler's own
+      // re-read erased its success message before anyone could read it.
       await loadSnapshot();
+      if (isStale(captured)) return;
+      setElevationNotice(
+        "Elevation granted. The snapshot below now shows it as a temporary-elevation source.",
+      );
     } catch (err) {
       if (isStale(captured)) return;
       if (isStepUpCancel(err)) return;
