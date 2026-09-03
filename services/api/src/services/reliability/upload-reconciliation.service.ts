@@ -270,11 +270,15 @@ export async function operatorMarkAbandoned(
   input: OperatorActionInput,
   client: PrismaClient = defaultPrisma,
 ) {
+  // `exclusive`: an operator's repeated click, or a colleague's simultaneous
+  // one, must be refused rather than re-stamping the row and emitting the
+  // event twice. See TransitionInput.exclusive.
   const row = await safeTransitionUploadSession(
     {
       evidenceId: input.evidenceId,
       to: "ABANDONED",
       reason: `marked_abandoned_by_user:${input.actorUserId}`,
+      exclusive: true,
     },
     client,
   );
@@ -302,6 +306,7 @@ export async function operatorRequestReview(
       evidenceId: input.evidenceId,
       to: "REVIEW_REQUIRED",
       reason: `manual_review_request:${input.actorUserId}`,
+      exclusive: true,
     },
     client,
   );

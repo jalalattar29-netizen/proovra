@@ -108,6 +108,19 @@ export type TransitionInput = {
   completedPartCount?: number;
   /** When set, increments `retryCount` by 1. */
   bumpRetry?: boolean;
+  /**
+   * The caller must be the ONE writer.
+   *
+   * By default a self-transition is a harmless no-op (heartbeats rely on it)
+   * and a lost race hands back the canonical row (a pipeline step that finds
+   * the work already done is content). An OPERATOR action is neither: a
+   * second click on "mark abandoned" re-stamped `abandonedAtUtc`, emitted a
+   * second security event, and answered 200 — and two operators racing each
+   * other both answered 200. With this set, a self-transition and a lost race
+   * both return null, so the route reports a refusal and nothing is written
+   * or emitted twice.
+   */
+  exclusive?: boolean;
 };
 
 /**
@@ -134,7 +147,7 @@ export async function transitionUploadSession(
 
   const from = current.status as UploadSessionStatus;
   const to = input.to;
-  if (!isAllowedUploadSessionTransition(from, to)) {
+  if (!isAllowedUploadSessionTransition(from, to) || (input.exclusive && from === to)) {
     if (input.strict) throw new UploadSessionTransitionError(from, to);
     return null;
   }
@@ -161,7 +174,9 @@ export async function transitionUploadSession(
       data,
     });
     if (claim.count !== 1) {
-      // Lost the race — return whatever the canonical state is now.
+      // Lost the race. An exclusive caller is told so; anyone else gets
+      // whatever the canonical state is now.
+      if (input.exclusive) return null;
       return await client.uploadSession.findUnique({
         where: { evidenceId: input.evidenceId },
       });
