@@ -361,11 +361,14 @@ test("render and measure every admin route", async ({ browser }) => {
       };
     }
     report.push(row);
+    const last = report.at(-1) as {
+      desktop: { screensTall: number; cards: number; oneValueCards: number };
+    };
     // eslint-disable-next-line no-console
     console.log(
-      `${route.padEnd(38)} ${JSON.stringify((report.at(-1) as any).desktop.screensTall)}` +
-        ` screens · ${(report.at(-1) as any).desktop.cards} cards` +
-        ` · ${(report.at(-1) as any).desktop.oneValueCards} one-value`,
+      `${route.padEnd(38)} ${JSON.stringify(last.desktop.screensTall)}` +
+        ` screens · ${last.desktop.cards} cards` +
+        ` · ${last.desktop.oneValueCards} one-value`,
     );
   }
 

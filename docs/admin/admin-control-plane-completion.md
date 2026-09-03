@@ -13,7 +13,7 @@
   artefact that backs it.
 -->
 
-**47 routes** · 0 completed · 47 pending · 1066 API routes traced
+**47 routes** · 0 completed · 47 pending · 1070 API routes traced
 
 ## Status
 
@@ -80,7 +80,7 @@
 | `/admin/contact-sales/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/contact-sales |
 | `/admin/costs` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
 | `/admin/customers` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
-| `/admin/customers/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | contextual | /admin/customers |
+| `/admin/customers/:id` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | contextual | /admin/customers |
 | `/admin/dashboard` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
 | `/admin/demo-requests` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin, requirePlatformAdminOrInternalKey | customers | /admin |
 | `/admin/demo-requests/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/demo-requests |
@@ -131,11 +131,13 @@
 | `/admin/audit` | GET | `/v1/admin/audit-log/verify` | requirePlatformAdmin | NONE |
 | `/admin/billing` | GET | `/v1/admin/billing/detail` | requirePlatformAdmin | NONE |
 | `/admin/contact-sales` | GET | `/v1/admin/contact-sales` | requirePlatformAdmin | NONE |
-| `/admin/contact-sales` | PATCH | `/v1/admin/contact-sales/:id` | requirePlatformAdmin | NONE |
+| `/admin/contact-sales` | GET+PATCH | `/v1/admin/contact-sales/:id` | requirePlatformAdmin | NONE |
+| `/admin/contact-sales` | GET+PATCH | `/v1/admin/contact-sales/:id` | requirePlatformAdmin | NONE |
 | `/admin/contact-sales/:id` | GET+PATCH | `/v1/admin/contact-sales/:id` | requirePlatformAdmin | NONE |
 | `/admin/costs` | GET | `/v1/admin/costs` | requirePlatformAdmin | NONE |
 | `/admin/customers` | GET | `/v1/admin/customers` | requirePlatformAdmin | NONE |
-| `/admin/customers/:id` | POST | `/v1/admin/orgs/:id/plan` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
+| `/admin/customers/:id` | POST | `/v1/admin/orgs/:id/suspend` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
+| `/admin/customers/:id` | POST | `/v1/admin/orgs/:id/resume` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
 | `/admin/customers/:id` | GET | `/v1/admin/customers/:id` | requirePlatformAdmin | NONE |
 | `/admin/dashboard` | GET | `/v1/admin/analytics/dashboard` | requirePlatformAdmin | NONE |
 | `/admin/demo-requests` | GET | `/v1/admin/demo-requests` | requirePlatformAdmin | NONE |
@@ -177,7 +179,9 @@
 | `/admin/identity/sessions` | — | (no API call) | — | — |
 | `/admin/identity/timeline` | GET | `/v1/admin/identity/timeline` | requireIdentityAdmin | FILTER |
 | `/admin/operations` | GET | `/v1/admin/incidents` | requirePlatformAdmin | FILTER |
-| `/admin/operations` | POST | `/v1/admin/incidents/:id/${action}` | requirePlatformAdmin | NONE |
+| `/admin/operations` | POST | `/v1/admin/incidents/:id/acknowledge` | requirePlatformAdmin | NONE |
+| `/admin/operations` | POST | `/v1/admin/incidents/:id/resolve` | requirePlatformAdmin | NONE |
+| `/admin/operations` | POST | `/v1/admin/incidents/:id/assign` | requirePlatformAdmin | NONE |
 | `/admin/platform-health` | GET | `/v1/admin/platform-health` | requirePlatformAdmin | NONE |
 | `/admin/platform/analytics` | GET | `/v1/analytics/_window` | AUTH_ONLY | NONE |
 | `/admin/platform/analytics` | GET | `/v1/analytics/operations` | gateAnalyticsRead | AUDIT |
@@ -206,6 +210,7 @@
 | `/admin/platform/queues` | GET | `/v1/operations/queues/:queueName/failed` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/retry` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/readiness` | GET | `/v1/operations/readiness` | requirePlatformAdmin | NONE |
 | `/admin/platform/recovery` | GET | `/v1/operations/recovery` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/recovery` | POST | `/v1/operations/recovery/validate-backup` | requirePlatformOpsActor | FILTER_CANDIDATE |
@@ -225,7 +230,9 @@
 | `/admin/platform/signers` | GET | `/v1/operations/signers/:id/audit` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/signers` | GET | `/v1/operations/signers/:id/health` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/signers` | POST | `/v1/operations/signers/:id/preview` | requirePlatformOpsActor | FILTER_CANDIDATE |
-| `/admin/platform/signers` | POST | `/v1/operations/signers/:id/health` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/signers` | POST | `/v1/operations/signers/:id/promote` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/platform/signers` | POST | `/v1/operations/signers/:id/retire` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
+| `/admin/platform/signers` | POST | `/v1/operations/signers/:id/revoke` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/provisioning` | POST | `/v1/admin/enterprise/provision` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
 | `/admin/provisioning` | PATCH | `/v1/admin/orgs/:id/plan` | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | AUDIT |
 | `/admin/search` | GET | `/v1/admin/search` | requirePlatformAdmin | NONE |
@@ -302,15 +309,15 @@
 | `/admin` | 806 | 0c/0t/10s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
-| `/admin/audit` | 734 | 4c/0t/2s |  |
+| `/admin/audit` | 849 | 3c/1t/2s |  |
 | `/admin/billing` | 727 | 7c/5t/9s |  |
-| `/admin/contact-sales` | 727 | 3c/1t/0s |  |
-| `/admin/contact-sales/:id` | 609 | 5c/0t/0s |  |
+| `/admin/contact-sales` | 771 | 3c/1t/0s |  |
+| `/admin/contact-sales/:id` | 650 | 5c/0t/0s |  |
 | `/admin/costs` | 614 | 7c/3t/9s |  |
 | `/admin/customers` | 463 | 0c/1t/0s |  |
-| `/admin/customers/:id` | 1105 | 12c/1t/0s |  |
+| `/admin/customers/:id` | 1171 | 12c/1t/0s |  |
 | `/admin/dashboard` | 882 | 11c/3t/8s |  |
-| `/admin/demo-requests` | 1209 | 3c/0t/2s |  |
+| `/admin/demo-requests` | 1307 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 522 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 736 | 4c/0t/7s | HARDCODED_STATUS_HEX |
 | `/admin/evidence-ops/records` | 547 | 2c/1t/0s |  |
@@ -319,29 +326,29 @@
 | `/admin/identity/access-reviews` | 516 | 4c/1t/1s | HARDCODED_STATUS_HEX |
 | `/admin/identity/permission-matrix` | 745 | 6c/1t/5s | HARDCODED_STATUS_HEX |
 | `/admin/identity/providers` | 967 | 9c/1t/3s | HARDCODED_STATUS_HEX |
-| `/admin/identity/runtime` | 656 | 1c/2t/3s | HARDCODED_STATUS_HEX |
-| `/admin/identity/scim` | 1328 | 7c/4t/0s | HARDCODED_STATUS_HEX |
+| `/admin/identity/runtime` | 676 | 1c/2t/3s | HARDCODED_STATUS_HEX |
+| `/admin/identity/scim` | 1343 | 7c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
-| `/admin/identity/timeline` | 259 | 0c/1t/1s |  |
-| `/admin/operations` | 505 | 2c/2t/2s |  |
+| `/admin/identity/timeline` | 324 | 0c/1t/1s |  |
+| `/admin/operations` | 513 | 2c/2t/2s |  |
 | `/admin/platform-health` | 363 | 3c/0t/2s |  |
 | `/admin/platform/analytics` | 811 | 0c/0t/9s | HARDCODED_STATUS_HEX |
 | `/admin/platform/automation` | 664 | 0c/2t/5s | HARDCODED_STATUS_HEX |
 | `/admin/platform/exports` | 845 | 0c/4t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/media-graph` | 696 | 0c/0t/5s | HARDCODED_STATUS_HEX |
+| `/admin/platform/media-graph` | 716 | 0c/0t/5s | HARDCODED_STATUS_HEX |
 | `/admin/platform/observability` | 1571 | 0c/2t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/queues` | 789 | 0c/2t/0s | HARDCODED_STATUS_HEX |
+| `/admin/platform/queues` | 801 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/readiness` | 604 | 8c/0t/6s | HARDCODED_STATUS_HEX |
-| `/admin/platform/recovery` | 625 | 0c/2t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/reliability` | 447 | 0c/0t/3s | HARDCODED_STATUS_HEX |
+| `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |
+| `/admin/platform/reliability` | 456 | 0c/0t/3s | HARDCODED_STATUS_HEX |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 193 | 0c/0t/0s |  |
-| `/admin/platform/signers` | 1143 | 0c/3t/0s | HARDCODED_STATUS_HEX |
-| `/admin/provisioning` | 773 | 8c/1t/4s | HARDCODED_STATUS_HEX |
+| `/admin/platform/signers` | 1192 | 0c/3t/0s | HARDCODED_STATUS_HEX |
+| `/admin/provisioning` | 806 | 8c/1t/4s | HARDCODED_STATUS_HEX |
 | `/admin/search` | 364 | 1c/0t/0s |  |
-| `/admin/security` | 87 | 15c/6t/25s |  |
+| `/admin/security` | 91 | 13c/6t/25s |  |
 | `/admin/support-access` | 963 | 6c/2t/4s |  |
-| `/admin/timeline` | 348 | 0c/1t/1s |  |
+| `/admin/timeline` | 414 | 0c/1t/1s |  |
 | `/admin/users` | 467 | 2c/2t/1s |  |
 | `/admin/users/:id` | 557 | 7c/2t/6s |  |
 | `/admin/workspaces` | 427 | 1c/1t/0s |  |

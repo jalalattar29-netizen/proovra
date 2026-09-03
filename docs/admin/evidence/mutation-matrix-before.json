@@ -1,0 +1,4149 @@
+{
+  "total": 47,
+  "required": [
+    "discoverable",
+    "unauthorizedRefused",
+    "explainsScope",
+    "confirmation",
+    "request",
+    "backendAuthorization",
+    "persistedEffect",
+    "concurrency",
+    "refreshFromServer",
+    "noOptimisticSuccess",
+    "failureLeavesStateCorrect",
+    "auditOutput",
+    "tenantIsolation"
+  ],
+  "rows": [
+    {
+      "id": "PATCH /v1/admin/contact-sales/:id",
+      "route": "/admin/contact-sales",
+      "method": "PATCH",
+      "path": "/v1/admin/contact-sales/:id",
+      "handler": "services/api/src/routes/admin-contact-sales.routes.ts",
+      "authority": [
+        "requirePlatformAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/contact-sales/page.tsx",
+        "app/(app)/admin/contact-sales/page.tsx",
+        "app/(app)/admin/contact-sales/[id]/page.tsx",
+        "app/(app)/admin/contact-sales/[id]/page.tsx",
+        "app/(app)/admin/contact-sales/[id]/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-contact-sales.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/admin-authorization-matrix.integration.test.ts",
+        "services/api/test/admin-lead-cta.contract.test.ts",
+        "services/api/test/contact-sales-wiring.contract.test.ts",
+        "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
+        "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
+        "services/api/test/phase13-security-families.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "PATCH /v1/admin/contact-sales/:id",
+      "route": "/admin/contact-sales/:id",
+      "method": "PATCH",
+      "path": "/v1/admin/contact-sales/:id",
+      "handler": "services/api/src/routes/admin-contact-sales.routes.ts",
+      "authority": [
+        "requirePlatformAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/contact-sales/page.tsx",
+        "app/(app)/admin/contact-sales/page.tsx",
+        "app/(app)/admin/contact-sales/[id]/page.tsx",
+        "app/(app)/admin/contact-sales/[id]/page.tsx",
+        "app/(app)/admin/contact-sales/[id]/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-contact-sales.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/contact-sales/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/admin-authorization-matrix.integration.test.ts",
+        "services/api/test/admin-lead-cta.contract.test.ts",
+        "services/api/test/contact-sales-wiring.contract.test.ts",
+        "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
+        "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
+        "services/api/test/phase13-security-families.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "PATCH /v1/admin/demo-requests/:id",
+      "route": "/admin/demo-requests",
+      "method": "PATCH",
+      "path": "/v1/admin/demo-requests/:id",
+      "handler": "services/api/src/routes/admin-demo-requests.routes.ts",
+      "authority": [
+        "requirePlatformAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/[id]/page.tsx",
+        "app/(app)/admin/demo-requests/[id]/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/admin-authorization-matrix.integration.test.ts",
+        "services/api/test/admin-lead-cta.contract.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "PATCH /v1/admin/demo-requests/:id",
+      "route": "/admin/demo-requests",
+      "method": "PATCH",
+      "path": "/v1/admin/demo-requests/:id",
+      "handler": "services/api/src/routes/admin-demo-requests.routes.ts",
+      "authority": [
+        "requirePlatformAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/[id]/page.tsx",
+        "app/(app)/admin/demo-requests/[id]/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/admin-authorization-matrix.integration.test.ts",
+        "services/api/test/admin-lead-cta.contract.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "PATCH /v1/admin/orgs/:id/plan",
+      "route": "/admin/provisioning",
+      "method": "PATCH",
+      "path": "/v1/admin/orgs/:id/plan",
+      "handler": "services/api/src/routes/admin-provisioning.routes.ts",
+      "authority": [
+        "requirePlatformAdmin",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/customers/[id]/page.tsx",
+        "app/(app)/admin/provisioning/page.tsx",
+        "app/(app)/admin/provisioning/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-provisioning.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12a-reconciliation-gate.test.ts",
+        "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
+        "services/api/test/phase-4-workspace-lifecycle.test.ts",
+        "services/api/test/phase-8-bulk-invite.test.ts",
+        "services/api/test/phase-admin-organizations.test.ts",
+        "services/api/test/phase-b0-workspace-operating-model.test.ts",
+        "services/api/test/phase-enterprise-tenant-model.test.ts",
+        "services/api/test/phase-ia-home-v2.test.ts",
+        "services/api/test/phase-ia-self-serve-regression-fix.test.ts",
+        "services/api/test/phase2-enterprise-provisioning.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/demo-requests/:id/follow-up/send",
+      "route": "/admin/demo-requests",
+      "method": "POST",
+      "path": "/v1/admin/demo-requests/:id/follow-up/send",
+      "handler": "services/api/src/routes/admin-demo-requests.routes.ts",
+      "authority": [
+        "requirePlatformAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/[id]/page.tsx",
+        "app/(app)/admin/demo-requests/[id]/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/demo-requests/:id/route",
+      "route": "/admin/demo-requests",
+      "method": "POST",
+      "path": "/v1/admin/demo-requests/:id/route",
+      "handler": "services/api/src/routes/admin-demo-requests.routes.ts",
+      "authority": [
+        "requirePlatformAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/page.tsx",
+        "app/(app)/admin/demo-requests/[id]/page.tsx",
+        "app/(app)/admin/demo-requests/[id]/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/admin-authorization-matrix.integration.test.ts",
+        "services/api/test/admin-lead-cta.contract.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/demo-requests/follow-up/run",
+      "route": "/admin/demo-requests",
+      "method": "POST",
+      "path": "/v1/admin/demo-requests/follow-up/run",
+      "handler": "services/api/src/routes/admin-demo-requests.routes.ts",
+      "authority": [
+        "requirePlatformAdminOrInternalKey"
+      ],
+      "callSites": [
+        "app/(app)/admin/demo-requests/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/demo-requests/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/production-phase2-drift-remediation.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/enterprise/provision",
+      "route": "/admin/provisioning",
+      "method": "POST",
+      "path": "/v1/admin/enterprise/provision",
+      "handler": "services/api/src/routes/admin-provisioning.routes.ts",
+      "authority": [
+        "requirePlatformAdmin",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/provisioning/page.tsx",
+        "app/(app)/admin/provisioning/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/provisioning/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-security-routes.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/provisioning/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-provisioning.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-security-routes.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-security-routes.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/provisioning/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/provisioning/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/provisioning/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-security-routes.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-security-routes.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-10-security-routes.test.ts",
+        "services/api/test/phase-12-coverage-manifest.test.ts",
+        "services/api/test/phase-12-point4-managed-identity-binding.test.ts",
+        "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts",
+        "services/api/test/phase-12b-identity-security-matrix.test.ts",
+        "services/api/test/phase-12b-identity-selfservice-matrix.test.ts",
+        "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
+        "services/api/test/phase-8-bulk-invite.test.ts",
+        "services/api/test/phase13-final-002-saml-authorization.integration.test.ts",
+        "services/api/test/phase2-enterprise-provisioning.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/elevations",
+      "route": "/admin/identity/permission-matrix",
+      "method": "POST",
+      "path": "/v1/admin/identity/elevations",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "resolveAdminWorkspace",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/permission-matrix/page.tsx",
+        "app/(app)/admin/identity/permission-matrix/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/permission-matrix/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/permission-matrix/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/permission-matrix/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/permission-matrix/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/permission-matrix/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/permission-matrix/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase26-identity-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/emergency-revoke",
+      "route": "/admin/identity/runtime",
+      "method": "POST",
+      "path": "/v1/admin/identity/emergency-revoke",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/runtime/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": null,
+          "where": null
+        },
+        "noOptimisticSuccess": {
+          "proof": null,
+          "where": null
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": true,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase26_75-identity-runtime.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/providers",
+      "route": "/admin/identity/providers",
+      "method": "POST",
+      "path": "/v1/admin/identity/providers",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/providers/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-3-admin-sso-policy-crud.test.ts",
+        "services/api/test/phase-p1-identity-operations.test.ts",
+        "services/api/test/phase-p3-1-signer-governance.test.ts",
+        "services/api/test/phase26-identity-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/providers",
+      "route": "/admin/identity/providers",
+      "method": "POST",
+      "path": "/v1/admin/identity/providers",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/providers/page.tsx",
+        "app/(app)/admin/identity/providers/page.tsx",
+        "app/(app)/admin/identity/providers/page.tsx",
+        "app/(app)/admin/identity/providers/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-3-admin-sso-policy-crud.test.ts",
+        "services/api/test/phase-p1-identity-operations.test.ts",
+        "services/api/test/phase-p3-1-signer-governance.test.ts",
+        "services/api/test/phase26-identity-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/providers/:id/policy",
+      "route": "/admin/identity/providers",
+      "method": "POST",
+      "path": "/v1/admin/identity/providers/:id/policy",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/providers/page.tsx",
+        "app/(app)/admin/identity/providers/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-3-admin-sso-policy-crud.test.ts",
+        "services/api/test/phase-p1-identity-operations.test.ts",
+        "services/api/test/phase26-identity-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/providers/:id/transition",
+      "route": "/admin/identity/providers",
+      "method": "POST",
+      "path": "/v1/admin/identity/providers/:id/transition",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/providers/page.tsx",
+        "app/(app)/admin/identity/providers/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/providers/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase26-identity-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/scim/tokens",
+      "route": "/admin/identity/scim",
+      "method": "POST",
+      "path": "/v1/admin/identity/scim/tokens",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/scim/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts",
+        "services/api/test/phase-4-org-lifecycle.test.ts",
+        "services/api/test/phase-p1-identity-operations.test.ts",
+        "services/api/test/phase26-identity-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/scim/tokens",
+      "route": "/admin/identity/scim",
+      "method": "POST",
+      "path": "/v1/admin/identity/scim/tokens",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/scim/page.tsx",
+        "app/(app)/admin/identity/scim/page.tsx",
+        "app/(app)/admin/identity/scim/page.tsx",
+        "app/(app)/admin/identity/scim/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts",
+        "services/api/test/phase-4-org-lifecycle.test.ts",
+        "services/api/test/phase-p1-identity-operations.test.ts",
+        "services/api/test/phase26-identity-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/scim/tokens/:id/revoke",
+      "route": "/admin/identity/scim",
+      "method": "POST",
+      "path": "/v1/admin/identity/scim/tokens/:id/revoke",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/scim/page.tsx",
+        "app/(app)/admin/identity/scim/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts",
+        "services/api/test/phase-4-org-lifecycle.test.ts",
+        "services/api/test/phase-p1-identity-operations.test.ts",
+        "services/api/test/phase26-identity-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/scim/tokens/:id/rotate",
+      "route": "/admin/identity/scim",
+      "method": "POST",
+      "path": "/v1/admin/identity/scim/tokens/:id/rotate",
+      "handler": "services/api/src/routes/scim-admin.routes.ts",
+      "authority": [
+        "requireScimAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/scim/page.tsx",
+        "app/(app)/admin/identity/scim/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/scim-admin.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/sessions/:id/quarantine",
+      "route": "/admin/identity/runtime",
+      "method": "POST",
+      "path": "/v1/admin/identity/sessions/:id/quarantine",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/_sections/SessionGovernanceSection.tsx",
+        "app/(app)/admin/identity/_sections/SessionGovernanceSection.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": true,
+      "apiTests": [
+        "services/api/test/identity-security.test.ts",
+        "services/api/test/phase-10-security-routes.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-12b-identity-selfservice-matrix.test.ts",
+        "services/api/test/phase-p1-1-identity-operations-completion.test.ts",
+        "services/api/test/phase26_75-identity-runtime.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/sessions/:id/release",
+      "route": "/admin/identity/runtime",
+      "method": "POST",
+      "path": "/v1/admin/identity/sessions/:id/release",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/_sections/SessionGovernanceSection.tsx",
+        "app/(app)/admin/identity/_sections/SessionGovernanceSection.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": true,
+      "apiTests": [
+        "services/api/test/identity-security.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase26_75-identity-runtime.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/identity/sessions/:id/score",
+      "route": "/admin/identity/runtime",
+      "method": "POST",
+      "path": "/v1/admin/identity/sessions/:id/score",
+      "handler": "services/api/src/routes/admin-identity.routes.ts",
+      "authority": [
+        "requireIdentityAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
+        "app/(app)/admin/identity/_sections/SessionGovernanceSection.tsx",
+        "app/(app)/admin/identity/_sections/SessionGovernanceSection.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": true,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-12b-identity-selfservice-matrix.test.ts",
+        "services/api/test/phase-30-6-integrations-uploads.test.ts",
+        "services/api/test/phase26_5-identity-hardening.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/incidents/:id/${action}",
+      "route": "/admin/operations",
+      "method": "POST",
+      "path": "/v1/admin/incidents/:id/${action}",
+      "handler": "services/api/src/routes/admin-security.routes.ts",
+      "authority": [
+        "requirePlatformAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/operations/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/operations/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/operations/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/operations/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/operations/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-security.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/operations/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/operations/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/operations/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/admin-authorization-matrix.integration.test.ts",
+        "services/api/test/admin-drilldown-and-search.integration.test.ts",
+        "services/api/test/attention-arch-closure-assignment.test.ts",
+        "services/api/test/attention-arch-phase1-notification-semantics.test.ts",
+        "services/api/test/attention-arch-phase4b-workspace-operations.test.ts",
+        "services/api/test/operations-capability-disposition.test.ts",
+        "services/api/test/operations-saved-views-authority.integration.test.ts",
+        "services/api/test/phase-24-b-completion.test.ts",
+        "services/api/test/phase-32-6-4-frontend-runtime-ux-hotfix.test.ts",
+        "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
+        "services/api/test/phase-32-8-c-command-center.test.ts",
+        "services/api/test/phase-32-8-e-teams-governance-reviewer.test.ts",
+        "services/api/test/phase-4a-trust-and-governance.test.ts",
+        "services/api/test/phase-admin-overview.test.ts",
+        "services/api/test/phase-admin-security.test.ts",
+        "services/api/test/phase-y-observability.test.ts",
+        "services/api/test/phase26_5-identity-hardening.test.ts",
+        "services/api/test/platform-telemetry-boundary.integration.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts",
+        "services/api/test/reviewer-ops-e2e-operational.test.ts",
+        "services/api/test/scim-sync-failure-filters.test.ts",
+        "services/api/test/ui-adoption-rollout.test.ts",
+        "services/api/test/ui-operational-wiring.test.ts",
+        "services/api/test/ui-ops-maturity.test.ts",
+        "services/api/test/ui-ops-polish.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/admin/orgs/:id/plan",
+      "route": "/admin/customers/:id",
+      "method": "POST",
+      "path": "/v1/admin/orgs/:id/plan",
+      "handler": "services/api/src/routes/admin-provisioning.routes.ts",
+      "authority": [
+        "requirePlatformAdmin",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/customers/[id]/page.tsx",
+        "app/(app)/admin/provisioning/page.tsx",
+        "app/(app)/admin/provisioning/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/admin-provisioning.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/customers/[id]/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12a-reconciliation-gate.test.ts",
+        "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
+        "services/api/test/phase-4-workspace-lifecycle.test.ts",
+        "services/api/test/phase-8-bulk-invite.test.ts",
+        "services/api/test/phase-admin-organizations.test.ts",
+        "services/api/test/phase-b0-workspace-operating-model.test.ts",
+        "services/api/test/phase-enterprise-tenant-model.test.ts",
+        "services/api/test/phase-ia-home-v2.test.ts",
+        "services/api/test/phase-ia-self-serve-regression-fix.test.ts",
+        "services/api/test/phase2-enterprise-provisioning.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/break-glass/activate",
+      "route": "/admin/support-access",
+      "method": "POST",
+      "path": "/v1/break-glass/activate",
+      "handler": "services/api/src/routes/enterprise-security.routes.ts",
+      "authority": [
+        "requirePlatformStaff",
+        "authorizeOrFail",
+        "requireStepUpForSensitiveAction",
+        "AUTHORIZE(?)",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/support-access/page.tsx",
+        "app/(app)/admin/support-access/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/enterprise-security.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-10-enterprise-identity.test.ts",
+        "services/api/test/phase-10-security-routes.test.ts",
+        "services/api/test/phase-11-closure-matrix.test.ts",
+        "services/api/test/phase-12b-identity-security-matrix.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/break-glass/revoke",
+      "route": "/admin/support-access",
+      "method": "POST",
+      "path": "/v1/break-glass/revoke",
+      "handler": "services/api/src/routes/enterprise-security.routes.ts",
+      "authority": [
+        "requirePlatformStaff",
+        "authorizeOrFail",
+        "AUTHORIZE(?)"
+      ],
+      "callSites": [
+        "app/(app)/admin/support-access/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/enterprise-security.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-10-enterprise-identity.test.ts",
+        "services/api/test/phase-10-security-routes.test.ts",
+        "services/api/test/phase-11-closure-matrix.test.ts",
+        "services/api/test/phase-12b-identity-security-matrix.test.ts",
+        "services/api/test/phase-2b-closure-external-portal.test.ts",
+        "services/api/test/phase-2b-external-reviewer-portal.test.ts",
+        "services/api/test/phase-3-external-review-grant-step-up.test.ts",
+        "services/api/test/phase-rw-rbac-hardening.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/identity-security/reconcile",
+      "route": "/admin/identity/runtime",
+      "method": "POST",
+      "path": "/v1/identity-security/reconcile",
+      "handler": "services/api/src/routes/identity-security.routes.ts",
+      "authority": [
+        "requireIntegrationCronSecret",
+        "authorizeOrFail",
+        "requireStepUpForSensitiveAction",
+        "AUTHORIZE(?)",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/runtime/page.tsx",
+        "app/(app)/admin/identity/runtime/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/identity-security.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": null,
+          "where": null
+        },
+        "noOptimisticSuccess": {
+          "proof": null,
+          "where": null
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/runtime/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/identity-security.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": true,
+      "apiTests": [
+        "services/api/test/identity-security.test.ts",
+        "services/api/test/phase-12-operations-intelligence-matrix.test.ts",
+        "services/api/test/phase-12-trust-administration-residue-matrix.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
+        "services/api/test/phase-12b-identity-security-matrix.test.ts",
+        "services/api/test/phase-12b-identity-selfservice-matrix.test.ts",
+        "services/api/test/phase-12b-redaction-request.test.ts",
+        "services/api/test/phase-r8-1-1-mfa-orchestrator.test.ts",
+        "services/api/test/phase20-hardening.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/identity/access-reviews/:id/decision",
+      "route": "/admin/identity/access-reviews",
+      "method": "POST",
+      "path": "/v1/identity/access-reviews/:id/decision",
+      "handler": "services/api/src/routes/identity.routes.ts",
+      "authority": [
+        "resolveAuthorizedWorkspaceSubject",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/access-reviews/page.tsx",
+        "app/(app)/admin/identity/access-reviews/page.tsx",
+        "app/(app)/admin/identity/access-reviews/page.tsx",
+        "app/(app)/admin/identity/access-reviews/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": null,
+          "where": null
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/identity/access-reviews/regenerate",
+      "route": "/admin/identity/access-reviews",
+      "method": "POST",
+      "path": "/v1/identity/access-reviews/regenerate",
+      "handler": "services/api/src/routes/identity.routes.ts",
+      "authority": [
+        "resolveAuthorizedWorkspaceSubject"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/access-reviews/page.tsx",
+        "app/(app)/admin/identity/access-reviews/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/identity.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/access-reviews/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": null,
+          "where": null
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-residual-matrix.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/custody-attestations/:id/verify",
+      "route": "/admin/platform/signers",
+      "method": "POST",
+      "path": "/v1/operations/custody-attestations/:id/verify",
+      "handler": "services/api/src/routes/operations-signers.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-signers.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-p3-1-signer-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/custody-attestations/backfill",
+      "route": "/admin/platform/signers",
+      "method": "POST",
+      "path": "/v1/operations/custody-attestations/backfill",
+      "handler": "services/api/src/routes/operations-signers.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-signers.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-p3-1-signer-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/exports/:id/verify",
+      "route": "/admin/platform/exports",
+      "method": "POST",
+      "path": "/v1/operations/exports/:id/verify",
+      "handler": "services/api/src/routes/operations-exports.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/exports/page.tsx",
+        "app/(app)/admin/platform/exports/page.tsx",
+        "app/(app)/admin/platform/exports/page.tsx",
+        "app/(app)/admin/platform/exports/page.tsx",
+        "app/(app)/admin/platform/exports/page.tsx",
+        "app/(app)/admin/platform/exports/page.tsx",
+        "app/(app)/admin/platform/exports/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/exports/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-32-8-c-command-center.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/exports/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-exports.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-32-8-c-command-center.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-32-8-c-command-center.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/exports/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/exports/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/exports/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-32-8-c-command-center.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-32-8-c-command-center.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-32-8-c-command-center.test.ts",
+        "services/api/test/phase-32-8-c-workflow-causality.test.ts",
+        "services/api/test/phase-32-8-e-teams-governance-reviewer.test.ts",
+        "services/api/test/phase-3a-elite-closure-policy-and-video.test.ts",
+        "services/api/test/phase-4b-product-packaging-and-lifecycle.test.ts",
+        "services/api/test/phase-p2-final-closure.test.ts",
+        "services/api/test/phase-r3-dashboard-orchestration.test.ts",
+        "services/api/test/production-phase2-drift-remediation.test.ts",
+        "services/api/test/reviewer-ops-e2e-operational.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/queues/:queueName/jobs/:jobId/replay",
+      "route": "/admin/platform/queues",
+      "method": "POST",
+      "path": "/v1/operations/queues/:queueName/jobs/:jobId/replay",
+      "handler": "services/api/src/routes/operations-queues.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/queues/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/queues/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-queues.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/queues/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": null,
+          "where": null
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/queues/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/adm013-operations-platform-authority.integration.test.ts",
+        "services/api/test/operations-capability-disposition.test.ts",
+        "services/api/test/phase-p2-final-closure.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/queues/:queueName/jobs/:jobId/retry",
+      "route": "/admin/platform/queues",
+      "method": "POST",
+      "path": "/v1/operations/queues/:queueName/jobs/:jobId/retry",
+      "handler": "services/api/src/routes/operations-queues.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx",
+        "app/(app)/admin/platform/queues/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/queues/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/queues/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-queues.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/queues/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": null,
+          "where": null
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/queues/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/adm013-operations-platform-authority.integration.test.ts",
+        "services/api/test/operations-capability-disposition.test.ts",
+        "services/api/test/phase-32-8-c-command-center.test.ts",
+        "services/api/test/phase-p2-final-closure.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/recovery/validate-backup",
+      "route": "/admin/platform/recovery",
+      "method": "POST",
+      "path": "/v1/operations/recovery/validate-backup",
+      "handler": "services/api/src/routes/operations-recovery.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/recovery/page.tsx",
+        "app/(app)/admin/platform/recovery/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-recovery.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/adm013-operations-platform-authority.integration.test.ts",
+        "services/api/test/phase-p2-final-closure.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/recovery/validate-restore",
+      "route": "/admin/platform/recovery",
+      "method": "POST",
+      "path": "/v1/operations/recovery/validate-restore",
+      "handler": "services/api/src/routes/operations-recovery.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/recovery/page.tsx",
+        "app/(app)/admin/platform/recovery/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-p2-final-closure.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-recovery.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-p2-final-closure.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-p2-final-closure.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/recovery/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-p2-final-closure.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-p2-final-closure.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-p2-final-closure.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/signers/:id/health",
+      "route": "/admin/platform/signers",
+      "method": "POST",
+      "path": "/v1/operations/signers/:id/health",
+      "handler": "services/api/src/routes/operations-signers.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-signers.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-p3-1-signer-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/operations/signers/:id/preview",
+      "route": "/admin/platform/signers",
+      "method": "POST",
+      "path": "/v1/operations/signers/:id/preview",
+      "handler": "services/api/src/routes/operations-signers.routes.ts",
+      "authority": [
+        "requirePlatformOpsActor"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx",
+        "app/(app)/admin/platform/signers/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/operations-signers.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/signers/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-p3-1-signer-governance.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/ops/media-intelligence/dlq/replay",
+      "route": "/admin/platform/media-graph",
+      "method": "POST",
+      "path": "/v1/ops/media-intelligence/dlq/replay",
+      "handler": "services/api/src/routes/ops.routes.ts",
+      "authority": [
+        "requireDomainActionOnOpsSurface"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/media-graph/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/media-graph/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/media-graph/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/ops.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/media-graph/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/media-graph/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/attention-arch-phase4b-workspace-operations.test.ts",
+        "services/api/test/phase-31-7-32-6-timeline-and-ops.test.ts",
+        "services/api/test/phase-31-8-exif-wiring.test.ts",
+        "services/api/test/phase-31-9-ops-actions-ui.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/ops/media-intelligence/runs/:runId/retry",
+      "route": "/admin/platform/media-graph",
+      "method": "POST",
+      "path": "/v1/ops/media-intelligence/runs/:runId/retry",
+      "handler": "services/api/src/routes/ops.routes.ts",
+      "authority": [
+        "requireDomainActionOnOpsSurface"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/media-graph/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/media-graph/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        },
+        "explainsScope": {
+          "proof": null,
+          "where": null
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/media-graph/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/ops.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/media-graph/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/media-graph/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/attention-arch-phase4b-workspace-operations.test.ts",
+        "services/api/test/operations-capability-disposition.test.ts",
+        "services/api/test/phase-12-operations-intelligence-matrix.test.ts",
+        "services/api/test/phase-31-5-32-graph-and-intelligence.test.ts",
+        "services/api/test/phase-31-8-exif-wiring.test.ts",
+        "services/api/test/phase-31-9-ops-actions-ui.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "route": "/admin/platform/reliability",
+      "method": "POST",
+      "path": "/v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "handler": "services/api/src/routes/reliability.routes.ts",
+      "authority": [
+        "requireAdminMember"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/reliability/page.tsx",
+        "app/(app)/admin/platform/reliability/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": null,
+          "where": null
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/reliability.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": null,
+          "where": null
+        },
+        "concurrency": {
+          "proof": null,
+          "where": null
+        },
+        "refreshFromServer": {
+          "proof": null,
+          "where": null
+        },
+        "noOptimisticSuccess": {
+          "proof": null,
+          "where": null
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "auditOutput": {
+          "proof": null,
+          "where": null
+        },
+        "tenantIsolation": {
+          "proof": null,
+          "where": null
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/request-review",
+      "route": "/admin/platform/reliability",
+      "method": "POST",
+      "path": "/v1/reliability/upload-sessions/:evidenceId/request-review",
+      "handler": "services/api/src/routes/reliability.routes.ts",
+      "authority": [
+        "requireAdminMember"
+      ],
+      "callSites": [
+        "app/(app)/admin/platform/reliability/page.tsx",
+        "app/(app)/admin/platform/reliability/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": null,
+          "where": null
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/reliability.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": null,
+          "where": null
+        },
+        "concurrency": {
+          "proof": null,
+          "where": null
+        },
+        "refreshFromServer": {
+          "proof": null,
+          "where": null
+        },
+        "noOptimisticSuccess": {
+          "proof": null,
+          "where": null
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/platform/reliability/page.tsx"
+        },
+        "auditOutput": {
+          "proof": null,
+          "where": null
+        },
+        "tenantIsolation": {
+          "proof": null,
+          "where": null
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/scim/reconciliation/execute",
+      "route": "/admin/identity/scim",
+      "method": "POST",
+      "path": "/v1/scim/reconciliation/execute",
+      "handler": "services/api/src/routes/identity-operations-completion.routes.ts",
+      "authority": [
+        "requireIdentityAdmin",
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/scim/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/identity-operations-completion.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        }
+      },
+      "stepUp": true,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
+        "services/api/test/phase-p1-1-identity-operations-completion.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/scim/sync-failures/:id/replay",
+      "route": "/admin/identity/scim",
+      "method": "POST",
+      "path": "/v1/scim/sync-failures/:id/replay",
+      "handler": "services/api/src/routes/identity-operations-completion.routes.ts",
+      "authority": [
+        "requireIdentityAdmin"
+      ],
+      "callSites": [
+        "app/(app)/admin/identity/scim/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "confirmation": {
+          "proof": null,
+          "where": null
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/identity-operations-completion.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/identity/scim/page.tsx"
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
+        "services/api/test/phase-p1-1-identity-operations-completion.test.ts",
+        "services/api/test/scim-sync-failure-filters.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/support-access/enter",
+      "route": "/admin/support-access",
+      "method": "POST",
+      "path": "/v1/support-access/enter",
+      "handler": "services/api/src/routes/enterprise-security.routes.ts",
+      "authority": [
+        "requirePlatformStaff",
+        "authorizeOrFail",
+        "AUTHORIZE(?)"
+      ],
+      "callSites": [
+        "app/(app)/admin/support-access/page.tsx",
+        "app/(app)/admin/support-access/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/enterprise-security.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-10-enterprise-identity.test.ts",
+        "services/api/test/phase-10-security-routes.test.ts",
+        "services/api/test/phase-10-support-context-token.test.ts",
+        "services/api/test/phase-10-support-enforcement.test.ts",
+        "services/api/test/phase-12b-identity-security-matrix.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/support-access/revoke",
+      "route": "/admin/support-access",
+      "method": "POST",
+      "path": "/v1/support-access/revoke",
+      "handler": "services/api/src/routes/enterprise-security.routes.ts",
+      "authority": [
+        "requirePlatformStaff",
+        "authorizeOrFail",
+        "AUTHORIZE(?)"
+      ],
+      "callSites": [
+        "app/(app)/admin/support-access/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/enterprise-security.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-10-enterprise-identity.test.ts",
+        "services/api/test/phase-10-security-routes.test.ts",
+        "services/api/test/phase-10-support-enforcement.test.ts",
+        "services/api/test/phase-12b-identity-security-matrix.test.ts",
+        "services/api/test/phase-rw-rbac-hardening.test.ts"
+      ],
+      "e2eTests": []
+    },
+    {
+      "id": "POST /v1/support-access/start",
+      "route": "/admin/support-access",
+      "method": "POST",
+      "path": "/v1/support-access/start",
+      "handler": "services/api/src/routes/enterprise-security.routes.ts",
+      "authority": [
+        "requirePlatformStaff",
+        "authorizeOrFail",
+        "AUTHORIZE(?)"
+      ],
+      "callSites": [
+        "app/(app)/admin/support-access/page.tsx",
+        "app/(app)/admin/support-access/page.tsx"
+      ],
+      "checks": {
+        "discoverable": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "unauthorizedRefused": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "explainsScope": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "confirmation": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "request": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "backendAuthorization": {
+          "proof": "SOURCE",
+          "where": "services/api/src/routes/enterprise-security.routes.ts"
+        },
+        "persistedEffect": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "concurrency": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "refreshFromServer": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "noOptimisticSuccess": {
+          "proof": "SOURCE",
+          "where": "app/(app)/admin/support-access/page.tsx"
+        },
+        "failureLeavesStateCorrect": {
+          "proof": null,
+          "where": null
+        },
+        "auditOutput": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        },
+        "tenantIsolation": {
+          "proof": "API",
+          "where": "services/api/test/phase-10-enterprise-identity.test.ts"
+        }
+      },
+      "stepUp": false,
+      "typedConfirmation": false,
+      "apiTests": [
+        "services/api/test/phase-10-enterprise-identity.test.ts",
+        "services/api/test/phase-10-security-routes.test.ts",
+        "services/api/test/phase-10-support-enforcement.test.ts",
+        "services/api/test/phase-12b-identity-security-matrix.test.ts"
+      ],
+      "e2eTests": []
+    }
+  ],
+  "gaps": [
+    {
+      "id": "PATCH /v1/admin/contact-sales/:id",
+      "route": "/admin/contact-sales",
+      "check": "explainsScope"
+    },
+    {
+      "id": "PATCH /v1/admin/contact-sales/:id",
+      "route": "/admin/contact-sales",
+      "check": "confirmation"
+    },
+    {
+      "id": "PATCH /v1/admin/contact-sales/:id",
+      "route": "/admin/contact-sales/:id",
+      "check": "explainsScope"
+    },
+    {
+      "id": "PATCH /v1/admin/contact-sales/:id",
+      "route": "/admin/contact-sales/:id",
+      "check": "confirmation"
+    },
+    {
+      "id": "PATCH /v1/admin/demo-requests/:id",
+      "route": "/admin/demo-requests",
+      "check": "confirmation"
+    },
+    {
+      "id": "PATCH /v1/admin/demo-requests/:id",
+      "route": "/admin/demo-requests",
+      "check": "confirmation"
+    },
+    {
+      "id": "PATCH /v1/admin/orgs/:id/plan",
+      "route": "/admin/provisioning",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/admin/demo-requests/:id/follow-up/send",
+      "route": "/admin/demo-requests",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/admin/demo-requests/:id/route",
+      "route": "/admin/demo-requests",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/admin/demo-requests/follow-up/run",
+      "route": "/admin/demo-requests",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/admin/enterprise/provision",
+      "route": "/admin/provisioning",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/admin/enterprise/provision",
+      "route": "/admin/provisioning",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/admin/identity/elevations",
+      "route": "/admin/identity/permission-matrix",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/admin/identity/emergency-revoke",
+      "route": "/admin/identity/runtime",
+      "check": "refreshFromServer"
+    },
+    {
+      "id": "POST /v1/admin/identity/emergency-revoke",
+      "route": "/admin/identity/runtime",
+      "check": "noOptimisticSuccess"
+    },
+    {
+      "id": "POST /v1/admin/orgs/:id/plan",
+      "route": "/admin/customers/:id",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/break-glass/activate",
+      "route": "/admin/support-access",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/break-glass/revoke",
+      "route": "/admin/support-access",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/identity-security/reconcile",
+      "route": "/admin/identity/runtime",
+      "check": "refreshFromServer"
+    },
+    {
+      "id": "POST /v1/identity-security/reconcile",
+      "route": "/admin/identity/runtime",
+      "check": "noOptimisticSuccess"
+    },
+    {
+      "id": "POST /v1/identity/access-reviews/:id/decision",
+      "route": "/admin/identity/access-reviews",
+      "check": "noOptimisticSuccess"
+    },
+    {
+      "id": "POST /v1/identity/access-reviews/:id/decision",
+      "route": "/admin/identity/access-reviews",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/identity/access-reviews/regenerate",
+      "route": "/admin/identity/access-reviews",
+      "check": "noOptimisticSuccess"
+    },
+    {
+      "id": "POST /v1/identity/access-reviews/regenerate",
+      "route": "/admin/identity/access-reviews",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/operations/custody-attestations/:id/verify",
+      "route": "/admin/platform/signers",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/custody-attestations/:id/verify",
+      "route": "/admin/platform/signers",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/operations/custody-attestations/backfill",
+      "route": "/admin/platform/signers",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/custody-attestations/backfill",
+      "route": "/admin/platform/signers",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/operations/exports/:id/verify",
+      "route": "/admin/platform/exports",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/exports/:id/verify",
+      "route": "/admin/platform/exports",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/operations/queues/:queueName/jobs/:jobId/replay",
+      "route": "/admin/platform/queues",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/queues/:queueName/jobs/:jobId/replay",
+      "route": "/admin/platform/queues",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/operations/queues/:queueName/jobs/:jobId/replay",
+      "route": "/admin/platform/queues",
+      "check": "noOptimisticSuccess"
+    },
+    {
+      "id": "POST /v1/operations/queues/:queueName/jobs/:jobId/retry",
+      "route": "/admin/platform/queues",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/queues/:queueName/jobs/:jobId/retry",
+      "route": "/admin/platform/queues",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/operations/queues/:queueName/jobs/:jobId/retry",
+      "route": "/admin/platform/queues",
+      "check": "noOptimisticSuccess"
+    },
+    {
+      "id": "POST /v1/operations/recovery/validate-backup",
+      "route": "/admin/platform/recovery",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/recovery/validate-backup",
+      "route": "/admin/platform/recovery",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/operations/recovery/validate-restore",
+      "route": "/admin/platform/recovery",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/recovery/validate-restore",
+      "route": "/admin/platform/recovery",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/operations/signers/:id/health",
+      "route": "/admin/platform/signers",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/signers/:id/health",
+      "route": "/admin/platform/signers",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/operations/signers/:id/preview",
+      "route": "/admin/platform/signers",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/operations/signers/:id/preview",
+      "route": "/admin/platform/signers",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/ops/media-intelligence/dlq/replay",
+      "route": "/admin/platform/media-graph",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/ops/media-intelligence/dlq/replay",
+      "route": "/admin/platform/media-graph",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/ops/media-intelligence/dlq/replay",
+      "route": "/admin/platform/media-graph",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/ops/media-intelligence/runs/:runId/retry",
+      "route": "/admin/platform/media-graph",
+      "check": "explainsScope"
+    },
+    {
+      "id": "POST /v1/ops/media-intelligence/runs/:runId/retry",
+      "route": "/admin/platform/media-graph",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/ops/media-intelligence/runs/:runId/retry",
+      "route": "/admin/platform/media-graph",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "route": "/admin/platform/reliability",
+      "check": "unauthorizedRefused"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "route": "/admin/platform/reliability",
+      "check": "persistedEffect"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "route": "/admin/platform/reliability",
+      "check": "concurrency"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "route": "/admin/platform/reliability",
+      "check": "refreshFromServer"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "route": "/admin/platform/reliability",
+      "check": "noOptimisticSuccess"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "route": "/admin/platform/reliability",
+      "check": "auditOutput"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "route": "/admin/platform/reliability",
+      "check": "tenantIsolation"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/request-review",
+      "route": "/admin/platform/reliability",
+      "check": "unauthorizedRefused"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/request-review",
+      "route": "/admin/platform/reliability",
+      "check": "persistedEffect"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/request-review",
+      "route": "/admin/platform/reliability",
+      "check": "concurrency"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/request-review",
+      "route": "/admin/platform/reliability",
+      "check": "refreshFromServer"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/request-review",
+      "route": "/admin/platform/reliability",
+      "check": "noOptimisticSuccess"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/request-review",
+      "route": "/admin/platform/reliability",
+      "check": "auditOutput"
+    },
+    {
+      "id": "POST /v1/reliability/upload-sessions/:evidenceId/request-review",
+      "route": "/admin/platform/reliability",
+      "check": "tenantIsolation"
+    },
+    {
+      "id": "POST /v1/scim/sync-failures/:id/replay",
+      "route": "/admin/identity/scim",
+      "check": "confirmation"
+    },
+    {
+      "id": "POST /v1/support-access/enter",
+      "route": "/admin/support-access",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/support-access/revoke",
+      "route": "/admin/support-access",
+      "check": "failureLeavesStateCorrect"
+    },
+    {
+      "id": "POST /v1/support-access/start",
+      "route": "/admin/support-access",
+      "check": "failureLeavesStateCorrect"
+    }
+  ]
+}

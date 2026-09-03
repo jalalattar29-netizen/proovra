@@ -130,7 +130,6 @@ function readApiRoutes() {
         if (body.includes(alias)) body = body.split(alias).join(real);
       }
       const method = m[1].toUpperCase();
-      const path = m[2];
 
       // ---- The authority the handler actually runs --------------------
       //
@@ -250,16 +249,100 @@ function readApiRoutes() {
         else if (SUGGESTS_FILTER.test(body)) teamRole = "FILTER_CANDIDATE";
       }
 
-      routes.set(`${method} ${path}`, {
-        method,
-        path,
-        file: rel,
-        authority: [...new Set(authority)],
-        teamRole,
-      });
+      /**
+       * A registration inside a loop is SEVERAL registrations.
+       *
+       *     for (const action of ["acknowledge", "resolve", "assign"] as const) {
+       *       app.post(`/v1/admin/incidents/:id/${action}`, …)
+       *
+       * Read as one path, the literal `${action}` matched nothing a page ever
+       * calls, so three incident mutations were reported under a template
+       * string no request carries. The loop's member list is in the same file,
+       * so each member becomes its own registration with the same guard.
+       */
+      for (const path of expandLoopPath(code, m[2])) {
+        routes.set(`${method} ${path}`, {
+          method,
+          path,
+          file: rel,
+          authority: [...new Set(authority)],
+          teamRole,
+        });
+      }
     }
   }
   return routes;
+}
+
+/**
+ * `${name}` in a registered path, expanded from the `for (const name of […])`
+ * that encloses it. Anything else is returned unchanged.
+ */
+function expandLoopPath(code, path) {
+  const hole = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/.exec(path);
+  if (!hole) return [path];
+  // `for (const leg of [...])` and the destructured `for (const [leg, run] of
+  // [[...], [...]])` — the suspend/resume pair is registered the second way.
+  const loop = new RegExp(
+    `for\\s*\\(\\s*const\\s+(?:${hole[1]}|\\[\\s*${hole[1]}\\b[^\\]]*\\])\\s+of\\s*\\[`,
+  ).exec(code);
+  if (!loop) return [path];
+  // Balance the brackets: the member list can hold arrow functions with
+  // their own brackets, and a first-"]" cut returned one member of two.
+  const open = loop.index + loop[0].length - 1;
+  let depth = 0;
+  let close = open;
+  for (let i = open; i < code.length; i += 1) {
+    if (code[i] === "[") depth += 1;
+    else if (code[i] === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        close = i;
+        break;
+      }
+    }
+  }
+  const list = code.slice(open + 1, close);
+  const destructured = /const\s+\[/.test(loop[0]);
+  // Destructured: the name is the FIRST element of each inner tuple. Flat:
+  // every quoted member.
+  const re = destructured
+    ? /\[\s*["'`]([A-Za-z0-9_-]+)["'`]/g
+    : /["'`]([A-Za-z0-9_-]+)["'`]/g;
+  const members = [...list.matchAll(re)].map((x) => x[1]);
+  if (members.length === 0) return [path];
+  return members.map((member) => path.replace(hole[0], member));
+}
+
+/**
+ * A call whose LAST segment is an interpolated identifier is several calls.
+ *
+ *     `/v1/operations/signers/${signerId}/${action}`   action: "promote" | "retire" | "revoke"
+ *
+ * Read as one literal, the wildcard tail matched the FIRST two-parameter
+ * registration under /signers — which was the GET health probe — so the
+ * matrix listed "POST …/health" as a mutation and never listed promote,
+ * retire or revoke at all: three signer lifecycle changes, each behind a
+ * step-up, invisible to the very inventory that exists to account for them.
+ *
+ * The union is declared in the same file, on the parameter the literal reads,
+ * so each member becomes its own literal. `sourceLiteral` keeps the text that
+ * actually appears in the page, because that is what a call-site scan has to
+ * search for.
+ */
+function expandActionLiteral(code, literal) {
+  const pathPart = literal.split("?")[0];
+  const tail = /\/\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(pathPart);
+  if (!tail) return [{ literal, sourceLiteral: literal }];
+  const union = new RegExp(
+    `\\b${tail[1]}\\s*\\??:\\s*((?:["'][A-Za-z0-9_-]+["']\\s*\\|\\s*)+["'][A-Za-z0-9_-]+["'])`,
+  ).exec(code);
+  if (!union) return [{ literal, sourceLiteral: literal }];
+  const members = [...union[1].matchAll(/["']([A-Za-z0-9_-]+)["']/g)].map((x) => x[1]);
+  return members.map((member) => ({
+    literal: literal.replace(tail[0], `/${member}`),
+    sourceLiteral: literal,
+  }));
 }
 
 /** Match a page's literal path (which may carry `${…}`) to a registration. */
@@ -488,19 +571,30 @@ function inspectPage(file, apiRoutes) {
     methodAt.get(key).add(verb);
   }
 
-  const resolved = apiLiterals.map((lit) => {
-    const r = matchRoute(apiRoutes, lit);
-    const verbs = methodAt.get(normalisePath(lit));
-    // Deterministic order so the generated matrix does not churn.
-    const callSite = verbs ? [...verbs].sort().join("+") : null;
-    return {
-      literal: lit,
-      ...(r ?? { authority: ["UNRESOLVED"], teamRole: "?", file: null }),
-      // The call site wins: it is what this page sends.
-      method: callSite ?? r?.method ?? null,
-      methodSource: callSite ? "call-site" : r?.method ? "registration" : "unresolved",
-    };
-  });
+  const resolved = apiLiterals
+    .flatMap((lit) => expandActionLiteral(code, lit))
+    .map(({ literal: lit, sourceLiteral }) => {
+      const r = matchRoute(apiRoutes, lit);
+      // The method was read at the call site, which carries the SOURCE text.
+      const verbs = methodAt.get(normalisePath(sourceLiteral));
+      // Deterministic order so the generated matrix does not churn.
+      const callSite = verbs ? [...verbs].sort().join("+") : null;
+      return {
+        literal: lit,
+        sourceLiteral,
+        // An unresolved call still names the path it sends, in normalised
+        // form, so a row is never keyed on `undefined`.
+        ...(r ?? {
+          path: normalisePath(lit),
+          authority: ["UNRESOLVED"],
+          teamRole: "?",
+          file: null,
+        }),
+        // The call site wins: it is what this page sends.
+        method: callSite ?? r?.method ?? null,
+        methodSource: callSite ? "call-site" : r?.method ? "registration" : "unresolved",
+      };
+    });
 
   // The page's own purpose, from its PageHeader subtitle where it has one.
   const subtitle = /subtitle=\{?["'`]([^"'`]{20,240})/.exec(raw);

@@ -1,0 +1,540 @@
+{
+  "_comment": [
+    "THE ONE HAND-MAINTAINED INPUT TO THE ADMIN MUTATION MATRIX.",
+    "",
+    "One entry per (mutation @ page). Every entry names a risk class, the",
+    "visible control and the affected scope. Where the source scan cannot see a",
+    "proof, a per-cell disposition names the executed test that carries it; the",
+    "generator rejects a file that does not exist or does not contain the exact",
+    "mutation id, so a proof cannot be borrowed from a neighbouring action.",
+    "",
+    "Risk classes: DESTRUCTIVE, HIGH_IMPACT_OPERATIONAL, SECURITY_SENSITIVE,",
+    "REVERSIBLE_STATE_CHANGE, SAFE_IDEMPOTENT_RETRY, LOW_RISK_PREFERENCE.",
+    "",
+    "NOT_APPLICABLE is accepted only for confirmation (SAFE_IDEMPOTENT_RETRY,",
+    "LOW_RISK_PREFERENCE, REVERSIBLE_STATE_CHANGE) and explainsScope",
+    "(LOW_RISK_PREFERENCE), each with a written risk-based reason. It is never",
+    "accepted for failureLeavesStateCorrect or noOptimisticSuccess.",
+    "",
+    "FIXED_AND_PROVEN marks a cell whose behaviour was CHANGED in this closure",
+    "and is now proven; PROVEN marks a cell whose behaviour already existed and",
+    "the earlier detector could not see."
+  ],
+
+  "_reclassified": {
+    "POST /v1/admin/orgs/:id/plan @ /admin/customers/:id": {
+      "disposition": "NOT_APPLICABLE",
+      "control": "Buttons 'Suspend customer' / 'Resume customer' in the customer page header",
+      "riskClass": "HIGH_IMPACT_OPERATIONAL",
+      "scope": "Organization lifecycle, not plan",
+      "reason": "This row never existed as a behaviour. /admin/customers/:id calls `/v1/admin/orgs/${id}/${leg}` where leg is 'suspend' | 'resume'; the earlier inventory truncated the template at the interpolation and pattern-matched the remainder against POST /v1/admin/orgs/:id/plan — a plan mutation this page has never issued (the real plan grant lives on /admin/provisioning and is PATCH). The inventory now expands the union declared on `leg`, so the phantom plan row is replaced by the two real lifecycle mutations, each carrying a full row of required cells.",
+      "replacedBy": [
+        "POST /v1/admin/orgs/:id/suspend @ /admin/customers/:id",
+        "POST /v1/admin/orgs/:id/resume @ /admin/customers/:id"
+      ],
+      "evidence": ["apps/web/scripts/admin-inventory.mjs"]
+    },
+    "POST /v1/operations/signers/:id/health @ /admin/platform/signers": {
+      "disposition": "NOT_APPLICABLE",
+      "control": "Button 'Probe health' in the signer drawer",
+      "riskClass": "SAFE_IDEMPOTENT_RETRY",
+      "scope": "One signer, read only",
+      "reason": "Not a mutation. The page calls GET /v1/operations/signers/:id/health (registered as app.get, emits an INFO security event and writes nothing). The earlier inventory matched the page's `/${action}` template against the first two-parameter registration under /signers, which was this GET probe, and listed it as a POST — while hiding the three real POSTs (promote, retire, revoke) that the template actually sends. The inventory now expands the union declared on the parameter, so the health probe leaves the matrix and the three lifecycle mutations enter it with every cell required.",
+      "replacedBy": [
+        "POST /v1/operations/signers/:id/promote @ /admin/platform/signers",
+        "POST /v1/operations/signers/:id/retire @ /admin/platform/signers",
+        "POST /v1/operations/signers/:id/revoke @ /admin/platform/signers"
+      ],
+      "evidence": ["apps/web/scripts/admin-inventory.mjs"]
+    }
+  },
+
+  "PATCH /v1/admin/contact-sales/:id @ /admin/contact-sales": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Status buttons under 'Set status' in the quick-view panel (one per allowed transition)",
+    "scope": "One contact-sales inquiry, named by requester, organization and id in the dialog; platform-global queue",
+    "cells": {
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx", "apps/web/e2e/admin-control-plane/admin-mutations.spec.ts"] },
+      "concurrency": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "persistedEffect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "auditOutput": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "refreshFromServer": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] }
+    }
+  },
+  "PATCH /v1/admin/contact-sales/:id @ /admin/contact-sales/:id": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Status buttons under 'Set status' on the inquiry detail page (one per allowed transition)",
+    "scope": "One contact-sales inquiry, named by requester, organization and id in the dialog; platform-global queue",
+    "cells": {
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "concurrency": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "persistedEffect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "auditOutput": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] }
+    }
+  },
+  "PATCH /v1/admin/demo-requests/:id @ /admin/demo-requests": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Save changes' in the demo-request edit form (status, priority, follow-up, notes)",
+    "scope": "One demo request, named by requester and organization in the dialog; platform-global queue",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "concurrency": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "persistedEffect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "auditOutput": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-commercial-request-transitions.integration.test.ts"] },
+      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/demo-requests/:id/follow-up/send @ /admin/demo-requests": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Buttons 'Send next follow-up' / 'Send step 1|2|3' in the demo-request follow-up panel",
+    "scope": "One demo request; an external email to the requester's work address, named in the dialog",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/demo-requests/:id/route @ /admin/demo-requests": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Save routing' in the demo-request routing panel",
+    "scope": "One demo request; the sales track that owns it from now on, named in the dialog",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/demo-requests/follow-up/run @ /admin/demo-requests": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Run due follow-ups' in the demo-requests page header",
+    "scope": "Up to 25 demo requests whose follow-up is due; one external email each, stated in the dialog",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-commercial.render.test.tsx"] }
+    }
+  },
+
+  "POST /v1/admin/enterprise/provision @ /admin/provisioning": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Provision customer' in the 'New enterprise customer' panel",
+    "scope": "Creates one Organization, its enterprise workspace and owner seat, and emails the owner; named in the dialog before step-up",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "PATCH /v1/admin/orgs/:id/plan @ /admin/provisioning": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Grant ENTERPRISE' in the 'Grant plan to an existing organization' panel",
+    "scope": "Every workspace of the named organization id; billing and entitlements; named in the dialog before step-up",
+    "cells": {
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/orgs/:id/suspend @ /admin/customers/:id": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Suspend customer' (with reason field) in the customer page header",
+    "scope": "Every member of the named organization loses access; named with organization name and id in a typed-confirm dialog before step-up",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "request": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "refreshFromServer": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/orgs/:id/resume @ /admin/customers/:id": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Resume customer' in the customer page header (shown while SUSPENDED)",
+    "scope": "The named organization returns to ACTIVE for every member; named in the dialog before step-up",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "request": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+
+  "POST /v1/admin/identity/elevations @ /admin/identity/permission-matrix": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Button 'Grant elevation' in the temporary-elevation form",
+    "scope": "One member of the active workspace gains one permission for a bounded window; named in the dialog before step-up",
+    "cells": {
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/identity/emergency-revoke @ /admin/identity/runtime": {
+    "riskClass": "DESTRUCTIVE",
+    "control": "Button 'Emergency org revoke' (with incident-reason field) in the runtime monitor header",
+    "scope": "Every active session in the active workspace is terminated; typed confirmation 'REVOKE ALL' names the workspace-wide effect",
+    "cells": {
+      "refreshFromServer": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
+    }
+  },
+  "POST /v1/identity-security/reconcile @ /admin/identity/runtime": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Run reconcile' in the 'Runtime reconcile' section",
+    "scope": "Expired step-up challenges and expired device trust in the active workspace only; stated in the dialog before step-up",
+    "cells": {
+      "refreshFromServer": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/identity/sessions/:id/quarantine @ /admin/identity/runtime": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row action 'Quarantine' on an active session",
+    "scope": "One session in the active workspace, held from privileged actions until released; reason from the catalogue"
+  },
+  "POST /v1/admin/identity/sessions/:id/release @ /admin/identity/runtime": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row action 'Release' on a quarantined session",
+    "scope": "One quarantined session in the active workspace regains privileged actions"
+  },
+  "POST /v1/admin/identity/sessions/:id/score @ /admin/identity/runtime": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row action 'Re-score' on an active session",
+    "scope": "One session's risk score in the active workspace is recomputed and recorded"
+  },
+  "POST /v1/identity/access-reviews/:id/decision @ /admin/identity/access-reviews": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row decision buttons (Certify / Revoke member / …) on an access-review item",
+    "scope": "One access-review item in the active workspace; a revoke decision removes that member's access; named in the dialog",
+    "cells": {
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
+    }
+  },
+  "POST /v1/identity/access-reviews/regenerate @ /admin/identity/access-reviews": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Regenerate queue' in the access-reviews header",
+    "scope": "The active workspace's review queue gains newly detected items; existing decisions untouched; stated in the dialog",
+    "cells": {
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/identity/providers @ /admin/identity/providers": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Button 'Create connection' in the SSO provider form",
+    "scope": "A new SSO connection for the active workspace, in DRAFT until transitioned; named in the dialog before step-up"
+  },
+  "POST /v1/admin/identity/providers/:id/policy @ /admin/identity/providers": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Button 'Save policy' on a provider's enforcement policy",
+    "scope": "One SSO connection's enforcement policy for the active workspace; named in the dialog before step-up"
+  },
+  "POST /v1/admin/identity/providers/:id/transition @ /admin/identity/providers": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Provider lifecycle buttons (Enable / Disable / Retire) on a connection",
+    "scope": "One SSO connection's lifecycle state for the active workspace; named in the dialog before step-up"
+  },
+  "POST /v1/admin/identity/scim/tokens @ /admin/identity/scim": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Button 'Issue token' in the SCIM tokens panel",
+    "scope": "A new SCIM bearer token for the active workspace; shown once; named in the dialog before step-up"
+  },
+  "POST /v1/admin/identity/scim/tokens/:id/revoke @ /admin/identity/scim": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row action 'Revoke' on a SCIM token",
+    "scope": "One SCIM token for the active workspace stops authenticating immediately; named in the dialog before step-up"
+  },
+  "POST /v1/admin/identity/scim/tokens/:id/rotate @ /admin/identity/scim": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row action 'Rotate' on a SCIM token",
+    "scope": "One SCIM token for the active workspace is replaced; the old value stops authenticating; named in the dialog before step-up"
+  },
+  "POST /v1/scim/reconciliation/execute @ /admin/identity/scim": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Execute reconciliation' in the managed-membership panel",
+    "scope": "Membership of the active workspace is aligned to the identity provider's view; named in the dialog before step-up"
+  },
+  "POST /v1/scim/sync-failures/:id/replay @ /admin/identity/scim": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Row action 'Replay' on a SCIM sync failure",
+    "scope": "One sync failure of the active workspace is cleared so the provider's provisioning change applies on its next push; named in the dialog",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-identity.render.test.tsx"] }
+    }
+  },
+
+  "POST /v1/admin/incidents/:id/acknowledge @ /admin/operations": {
+    "riskClass": "REVERSIBLE_STATE_CHANGE",
+    "control": "Row action 'Acknowledge' on an OPEN incident (accessible name carries the incident title)",
+    "scope": "One incident row, named in the button's accessible name and tooltip; stays open and reassignable",
+    "cells": {
+      "confirmation": { "disposition": "NOT_APPLICABLE", "reason": "Acknowledging marks an incident as seen by an operator and nothing else: it stays OPEN-equivalent (ACKNOWLEDGED), can still be resolved or reassigned, has no external, billing, evidence, custody or customer effect, and is limited to the row the operator is looking at. A dialog on every acknowledgement would be pure confirmation fatigue on the most frequent triage click." },
+      "explainsScope": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/incidents/:id/assign @ /admin/operations": {
+    "riskClass": "REVERSIBLE_STATE_CHANGE",
+    "control": "Row action 'Assign to me' / 'Unassign' on an incident (accessible name carries the incident title)",
+    "scope": "One incident row's assignee; the operator themself or nobody; named in the button's accessible name",
+    "cells": {
+      "confirmation": { "disposition": "NOT_APPLICABLE", "reason": "Assigning an incident to yourself, or returning it to the unassigned queue, is immediately reversible by the same button, affects only the visible row, and has no external, billing, evidence, custody, security or customer consequence. It is the operator's own work-claim, not a decision about the condition." },
+      "explainsScope": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "POST /v1/admin/incidents/:id/resolve @ /admin/operations": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Row action 'Resolve' on an OPEN or ACKNOWLEDGED incident",
+    "scope": "One incident and the workspace it affects, both named in the dialog; the server refuses if the source still reports the condition",
+    "cells": {
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+
+  "POST /v1/support-access/start @ /admin/support-access": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Button 'Create grant' in the 'Grant support access' form",
+    "scope": "A support grant over the named customer organization, recorded against the operator; named in the dialog",
+    "cells": {
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "POST /v1/support-access/enter @ /admin/support-access": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row action 'Enter support context' on an ACTIVE grant",
+    "scope": "This tab acts under the named grant's scope, attributed to the operator and the customer organization; named in the dialog",
+    "cells": {
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "POST /v1/support-access/revoke @ /admin/support-access": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row action 'Revoke grant' on a support grant",
+    "scope": "One support grant becomes unusable immediately, including any context entered from it; named in the dialog",
+    "cells": {
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "POST /v1/break-glass/activate @ /admin/support-access": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Button 'Activate emergency access' in the break-glass form",
+    "scope": "The named identity bypasses the ordinary permission model in the named organization until revoked; named in the dialog before step-up",
+    "cells": {
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+  "POST /v1/break-glass/revoke @ /admin/support-access": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Row action 'Revoke emergency access' on a break-glass grant",
+    "scope": "One emergency grant is cut immediately; named in the dialog",
+    "cells": {
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-customers.render.test.tsx"] }
+    }
+  },
+
+  "POST /v1/operations/custody-attestations/:id/verify @ /admin/platform/signers": {
+    "riskClass": "SAFE_IDEMPOTENT_RETRY",
+    "control": "Row action 'Verify' on a custody attestation (accessible name carries the attestation and evidence ids)",
+    "scope": "One attestation of the active workspace is re-checked against its custody event; a report is shown; nothing is written",
+    "cells": {
+      "confirmation": { "disposition": "NOT_APPLICABLE", "reason": "Verification recomputes and displays a report for one attestation; the handler writes no row, changes no evidence, custody, TSA or report state, and reaches no external provider. Running it twice returns the same report. It is a read expressed as POST because it carries a workspace-scoped body, and a confirmation dialog would add a step to an action that changes nothing." },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/custody-attestations/backfill @ /admin/platform/signers": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Backfill 50 events (step-up)' in the custody attestations panel",
+    "scope": "Up to 50 unattested custody events of the active workspace are signed into the attestation ledger; stated in the dialog before step-up",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/signers/:id/preview @ /admin/platform/signers": {
+    "riskClass": "SAFE_IDEMPOTENT_RETRY",
+    "control": "Button 'Preview rotation' in the signer drawer",
+    "scope": "One signer (named in the drawer header) — a computed rotation plan for the active workspace; nothing is written",
+    "cells": {
+      "confirmation": { "disposition": "NOT_APPLICABLE", "reason": "The preview computes what a rotation WOULD do for one signer and shows the plan; the handler persists nothing, changes no key state and contacts no provider beyond a read. Repeating it yields the same plan. The mutations it previews (promote, retire, revoke) each carry their own confirmation and step-up." },
+      "explainsScope": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/signers/:id/promote @ /admin/platform/signers": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Button 'Promote (step-up)' in the signer drawer (with operator reason)",
+    "scope": "One signer, named with its purpose in the dialog, becomes the active signer for that purpose across the platform",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/signers/:id/retire @ /admin/platform/signers": {
+    "riskClass": "SECURITY_SENSITIVE",
+    "control": "Button 'Retire (step-up)' in the signer drawer (with operator reason)",
+    "scope": "One signer, named with its purpose in the dialog, stops being used for new material",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/signers/:id/revoke @ /admin/platform/signers": {
+    "riskClass": "DESTRUCTIVE",
+    "control": "Button 'Revoke (step-up)' in the signer drawer (with operator reason; typed 'REVOKE')",
+    "scope": "One signer, named with its purpose in the dialog, is withdrawn for good",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/exports/:id/verify @ /admin/platform/exports": {
+    "riskClass": "SAFE_IDEMPOTENT_RETRY",
+    "control": "Button 'Verify reproducibility' in the export drawer",
+    "scope": "One export of the active workspace, named in the drawer header; a report is computed and shown, an INFO/WARNING security event is recorded, nothing is written to the export",
+    "cells": {
+      "confirmation": { "disposition": "NOT_APPLICABLE", "reason": "Reproducibility verification recomputes the export's manifest hash and compares it; the export, its artifacts and retention are not modified, no provider is called, and repeating it produces the same report (only an informational security event per run). The report is the point of the action and a dialog before a read-only check would add nothing an operator could decide." },
+      "explainsScope": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/queues/:queueName/jobs/:jobId/retry @ /admin/platform/queues": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Retry attempt' in the replay dialog opened from a failed job row",
+    "scope": "One failed job on one queue, named in the dialog with its kind and id; the dialog states what a retry does and demands a reason",
+    "cells": {
+      "confirmation": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/queues/:queueName/jobs/:jobId/replay @ /admin/platform/queues": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Replay' / 'Replay (step-up)' in the replay dialog opened from a failed job row",
+    "scope": "One failed job on one queue, named in the dialog with its kind and id; the dialog states that a replay repeats completed work and demands a reason",
+    "cells": {
+      "confirmation": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/recovery/validate-backup @ /admin/platform/recovery": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Run backup validation' on the recovery readiness page",
+    "scope": "The active workspace's most recent backup set; a report is recorded in its recovery history; stated in the dialog",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/operations/recovery/validate-restore @ /admin/platform/recovery": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Run restore validation (step-up)' on the recovery readiness page",
+    "scope": "A restore rehearsal of the active workspace's backup into an isolated target; a report is recorded; stated in the dialog before step-up",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/ops/media-intelligence/runs/:runId/retry @ /admin/platform/media-graph": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Retry job' (with job-id field) in the media-graph operator actions panel",
+    "scope": "One media-intelligence job id in the active workspace is requeued; the dialog names it and states that completed work may repeat",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/ops/media-intelligence/dlq/replay @ /admin/platform/media-graph": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Button 'Replay DLQ' in the media-graph operator actions panel",
+    "scope": "Up to 50 dead-lettered media-intelligence jobs of the active workspace are requeued; stated in the dialog",
+    "cells": {
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned @ /admin/platform/reliability": {
+    "riskClass": "DESTRUCTIVE",
+    "control": "Row action 'Mark abandoned' on an upload session",
+    "scope": "One upload session of the active workspace, named by evidence id in the dialog, is closed for good",
+    "cells": {
+      "unauthorizedRefused": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "persistedEffect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "concurrency": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "auditOutput": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "tenantIsolation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "refreshFromServer": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  },
+  "POST /v1/reliability/upload-sessions/:evidenceId/request-review @ /admin/platform/reliability": {
+    "riskClass": "HIGH_IMPACT_OPERATIONAL",
+    "control": "Row action 'Request review' on an upload session",
+    "scope": "One upload session of the active workspace, named by evidence id in the dialog, enters the review queue with a WARNING event",
+    "cells": {
+      "unauthorizedRefused": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "persistedEffect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "concurrency": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "auditOutput": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "tenantIsolation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["services/api/test/admin-reliability-operator-actions.integration.test.ts"] },
+      "refreshFromServer": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "noOptimisticSuccess": { "disposition": "PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "failureLeavesStateCorrect": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "confirmation": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] },
+      "explainsScope": { "disposition": "FIXED_AND_PROVEN", "evidence": ["apps/web/__tests__/render/admin-mutations-platform-ops.render.test.tsx"] }
+    }
+  }
+}
