@@ -331,6 +331,48 @@ jobs:
           set -e
           end=$(date +%s)
           echo "proovra-api tests exited $rc after $((end - start))s"
+
+          # ---------------------------------------------------------------
+          # The ONE excused non-zero exit, matched exactly.
+          #
+          # This suite has failed CI three consecutive runs with every test
+          # PASSING: vitest's worker RPC ("onTaskUpdate") has a hardcoded
+          # 60-second window, the run's collection phase saturates the main
+          # process for far longer (measured: collect 347s of a 420s run),
+          # the missed heartbeat surfaces as one "Unhandled Error", and
+          # vitest exits 1 over a run whose summary reads
+          # "756 passed / 23923 passed". The comment on the annotation
+          # blocks below has DOCUMENTED this exact failure mode for months
+          # while the gate went on failing green runs.
+          #
+          # So the gate now encodes what it already knew, narrowly: the
+          # exit is excused ONLY when the summary proves zero failed files
+          # and zero failed tests AND the only unhandled error present is
+          # the known onTaskUpdate timeout. A single failing test, a
+          # different unhandled error, a crash without a summary — anything
+          # else — still fails exactly as before.
+          # ---------------------------------------------------------------
+          if [ "$rc" != "0" ]; then
+            # The summary lines carry ANSI colour codes, so every pattern
+            # anchors on words, never on adjacency, and every ambiguity
+            # fails closed: "failed" anywhere on a summary-shaped line
+            # disqualifies the excusal outright.
+            files_clean=$(grep -acE "Test Files.*passed" /tmp/api-test.log || true)
+            summary_failed=$(grep -aE "Test Files|Tests " /tmp/api-test.log | grep -ac "failed" || true)
+            # Vitest states how many unhandled errors it caught; every one
+            # of them must match the known signature, which appears exactly
+            # once per error block.
+            caught=$(grep -aoE "caught [0-9]+ unhandled" /tmp/api-test.log | grep -oE "[0-9]+" | head -1)
+            caught=${caught:-0}
+            known=$(grep -ac 'Timeout calling "onTaskUpdate"' /tmp/api-test.log || true)
+            if [ "$files_clean" -ge 1 ] && [ "$summary_failed" = "0" ] \
+               && [ "$caught" -ge 1 ] && [ "$known" -ge "$caught" ]; then
+              echo "::warning::proovra-api: every test passed; exit $rc came from the known vitest onTaskUpdate RPC timeout ($caught unhandled error(s), all matching the known signature). Treated as pass; summary below."
+              grep -aE "Test Files|Tests |Errors" /tmp/api-test.log | tail -4
+              rc=0
+            fi
+          fi
+
           if [ "$rc" != "0" ]; then
             echo "=================== last 250 lines, unfiltered ==================="
             tail -n 250 /tmp/api-test.log
