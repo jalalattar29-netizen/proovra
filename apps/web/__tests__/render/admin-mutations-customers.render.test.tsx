@@ -57,7 +57,7 @@ let provisionReply: () => Reply = () => ({});
 let planReply: () => Reply = () => ({});
 let incidentsReply: () => Reply = () => ({});
 let incidentMutationReply: (path: string) => Reply = () => ({ ok: true });
-let securityEventsReply: () => Reply = () => ({
+const securityEventsReply: () => Reply = () => ({
   items: [],
   nextCursor: null,
   hasMore: false,

@@ -46,16 +46,24 @@ const code = (rel: string) =>
  * would answer it only indirectly. Recording the call is the direct answer.
  */
 function recordingClient(rows: unknown[] = [], total = 0) {
-  const calls: { findMany?: unknown; count?: unknown } = {};
+  // The captured Prisma args, shaped as loosely as the assertions read them.
+  // The captured Prisma args, shaped as loosely as the assertions read them.
+  // Non-optional and seeded empty: every test records a call before reading,
+  // and an optional here would put `?.`/`!` noise on thirty assertions.
+  type CapturedArgs = { where: Record<string, unknown> } & Record<string, unknown>;
+  const calls: { findMany: CapturedArgs; count: CapturedArgs } = {
+    findMany: { where: {} },
+    count: { where: {} },
+  };
   return {
     calls,
     client: {
       securityEvent: {
-        findMany: async (args: unknown) => {
+        findMany: async (args: CapturedArgs) => {
           calls.findMany = args;
           return rows;
         },
-        count: async (args: unknown) => {
+        count: async (args: CapturedArgs) => {
           calls.count = args;
           return total;
         },
