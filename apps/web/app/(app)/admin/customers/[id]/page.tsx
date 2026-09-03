@@ -500,7 +500,7 @@ export default function AdminOrganizationDetailPage({
               ) : (
                 <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
                   <label style={{ fontSize: 12 }}>
-                    <span className="sr-only">Suspension reason</span>
+                    <span className="app-visually-hidden">Suspension reason</span>
                     <input
                       className="input"
                       value={lifecycleReason}

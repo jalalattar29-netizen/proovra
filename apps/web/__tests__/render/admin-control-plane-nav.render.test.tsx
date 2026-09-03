@@ -189,12 +189,23 @@ describe("ADM-013 Phase 11 — scope is on the control, not only in a banner", (
   it("a workspace-scoped child carries its scope before the click", () => {
     at("/admin/operations");
     render(<AdminConsoleNav />);
+    // Recovery, not Signers: the registry reclassified signers to
+    // PLATFORM_AUDIT (platform data, workspace-shaped audit envelope) with
+    // its rationale recorded in adminNavigation.ts — this test's job is the
+    // CHIP mechanism, and it must ride a child whose reviewed scope really
+    // is WORKSPACE.
+    const recovery = document.querySelector<HTMLAnchorElement>(
+      'a[href="/admin/platform/recovery"]',
+    );
+    expect(recovery).not.toBeNull();
+    expect(recovery!.getAttribute("data-scope")).toBe("WORKSPACE");
+    expect(recovery!.textContent).toContain("Workspace");
+    // And the reclassified child says what it now is, not what it was.
     const signers = document.querySelector<HTMLAnchorElement>(
       'a[href="/admin/platform/signers"]',
     );
     expect(signers).not.toBeNull();
-    expect(signers!.getAttribute("data-scope")).toBe("WORKSPACE");
-    expect(signers!.textContent).toContain("Workspace");
+    expect(signers!.getAttribute("data-scope")).toBe("PLATFORM_AUDIT");
     cleanup();
   });
 

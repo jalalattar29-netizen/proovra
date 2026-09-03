@@ -503,7 +503,7 @@ const load = useCallback(() => {
                   unstyled, unlabelled, and invisible to the accessibility
                   tree. It is a field now, and the dialog repeats it. */}
               <label style={{ fontSize: 12 }}>
-                <span className="sr-only">Incident reason for emergency revoke</span>
+                <span className="app-visually-hidden">Incident reason for emergency revoke</span>
                 <input
                   className="input"
                   value={emergencyReason}
