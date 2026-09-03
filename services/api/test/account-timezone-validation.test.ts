@@ -38,12 +38,22 @@ describe("IANA validation — the shared authority", () => {
     expect(isValidIanaTimezone("not a zone")).toBe(false);
     expect(isValidIanaTimezone("GMT+3")).toBe(false);
 
-    // OFFSETS ARE ACCEPTED, and that is the runtime, not a gap in this check:
-    // ECMA-402 treats "+03:00" as a valid time zone, so Intl resolves it and
-    // the shared validator agrees. Recorded here rather than asserted away —
-    // an offset is a legal value that simply does not follow DST. The
-    // selector never offers one, so it cannot arrive from this product.
-    expect(isValidIanaTimezone("+03:00")).toBe(true);
+    // OFFSETS FOLLOW THE RUNTIME, and the validator must AGREE with it —
+    // that is the property, not any fixed answer. Newer ICU resolves
+    // "+03:00" per ECMA-402's offset time zones; Node 20's ICU throws on
+    // it. Pinning `true` here encoded one runtime's ICU as a fact and
+    // failed on CI's Node 20 while passing on local Node 24, for code
+    // nobody had touched. The selector never offers an offset, so whichever
+    // way the runtime answers, none can arrive from this product.
+    const runtimeAcceptsOffsets = (() => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: "+03:00" });
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    expect(isValidIanaTimezone("+03:00")).toBe(runtimeAcceptsOffsets);
   });
 });
 
