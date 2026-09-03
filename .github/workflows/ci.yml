@@ -402,6 +402,28 @@ jobs:
       - name: Build Web
         run: pnpm --filter proovra-web build
 
+      # Build split from start, so a build failure is READABLE. `up -d`
+      # swallows its build output: this step failed twice with nothing but
+      # "exit code 1" while the actual error (a registry reset burst, then
+      # whatever this run's cause is) sat in output nobody could see
+      # without a token. The tail lands in annotations exactly the way the
+      # test steps' failures do, and the disk readings bracket the build
+      # because one runner building three monorepo images is the kind of
+      # thing that dies of ENOSPC with a generic exit code.
+      - name: Build full stack images
+        run: |
+          set +e
+          df -h / | tail -1
+          docker compose -f infra/docker/docker-compose.full.yml build 2>&1 | tee /tmp/compose-build.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          df -h / | tail -1
+          if [ "$rc" != "0" ]; then
+            echo "::error::full-stack image build exited $rc — tail follows"
+            tail -n 40 /tmp/compose-build.log | while IFS= read -r line; do echo "::error::compose-build: $line"; done
+          fi
+          exit $rc
+
       - name: Start full stack
         run: docker compose -f infra/docker/docker-compose.full.yml up -d
 
