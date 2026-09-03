@@ -188,7 +188,7 @@
 | `/admin/platform/analytics` | GET | `/v1/automation/webhooks` | requireTeamCapability | FILTER |
 | `/admin/platform/analytics` | GET | `/v1/automation/webhook-deliveries` | requireTeamCapability | FILTER |
 | `/admin/platform/automation` | GET | `/v1/automation/rules` | requireTeamCapability | FILTER |
-| `/admin/platform/automation` | GET | `/v1/automation/runs` | requireTeamCapability | FILTER |
+| `/admin/platform/automation` | GET | `/v1/automation/runs` | requireTeamCapability | AUDIT |
 | `/admin/platform/exports` | GET | `/v1/operations/exports` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/exports` | GET | `/v1/operations/exports/object-lock` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/exports` | GET | `/v1/operations/exports/:id` | requirePlatformOpsActor | FILTER_CANDIDATE |
@@ -326,7 +326,7 @@
 | `/admin/operations` | 495 | 2c/2t/2s |  |
 | `/admin/platform-health` | 363 | 3c/0t/2s |  |
 | `/admin/platform/analytics` | 811 | 0c/0t/9s | HARDCODED_STATUS_HEX |
-| `/admin/platform/automation` | 593 | 0c/2t/5s | HARDCODED_STATUS_HEX |
+| `/admin/platform/automation` | 664 | 0c/2t/5s | HARDCODED_STATUS_HEX |
 | `/admin/platform/exports` | 829 | 0c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/media-graph` | 696 | 0c/0t/5s | HARDCODED_STATUS_HEX |
 | `/admin/platform/observability` | 1552 | 0c/2t/0s | HARDCODED_STATUS_HEX |
@@ -336,7 +336,7 @@
 | `/admin/platform/reliability` | 447 | 0c/0t/3s | HARDCODED_STATUS_HEX |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 193 | 0c/0t/0s |  |
-| `/admin/platform/signers` | 1065 | 0c/3t/0s | HARDCODED_STATUS_HEX |
+| `/admin/platform/signers` | 1143 | 0c/3t/0s | HARDCODED_STATUS_HEX |
 | `/admin/provisioning` | 773 | 8c/1t/4s | HARDCODED_STATUS_HEX |
 | `/admin/search` | 332 | 1c/0t/0s |  |
 | `/admin/security` | 87 | 15c/6t/25s |  |

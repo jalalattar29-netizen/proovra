@@ -48,6 +48,8 @@ import {
 } from "../../../../../components/ui/PageShell";
 import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
+import { FilterBar } from "../../../../../components/ui/FilterBar";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { redactKmsKeyReference } from "../../../../../lib/privacy/kms-reference";
 import {
   StepUpModal,
@@ -204,6 +206,27 @@ const PURPOSE_LABELS: Record<SignerPurpose, string> = {
 // Page shell
 // ============================================================================
 
+/**
+ * The attestation query.
+ *
+ * A partial uuid is NOT sent: the endpoint validates `evidenceId` as a uuid,
+ * so a half-typed value is a 400 — and an operator mid-type would see an error
+ * rather than a narrowing list. Below a complete id the list stays unfiltered
+ * and the input says so.
+ */
+function attestationQuery(teamId: string, evidenceId: string): string {
+  const p = new URLSearchParams();
+  p.set("teamId", teamId);
+  p.set("limit", "50");
+  const trimmed = evidenceId.trim();
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)
+  ) {
+    p.set("evidenceId", trimmed);
+  }
+  return p.toString();
+}
+
 export default function OperationsSignersPage() {
   return (
     <PageRouteGate routeId="operations.signers">
@@ -217,6 +240,19 @@ function OperationsSignersContent() {
   const stepUp = useStepUpAction({ teamId });
   const [signers, setSigners] = useState<SignerRecord[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /**
+   * The evidence filter the endpoint has always accepted.
+   *
+   * GET /v1/operations/custody-attestations takes `evidenceId`; this page
+   * never sent it, so verifying one item's custody meant reading a 50-row
+   * list. Server-side — and until this change the SERVER side of it was
+   * broken too: it fetched a window and filtered in JavaScript, so a match
+   * outside the window returned an empty list, which reads as "this evidence
+   * has no attestation".
+   */
+  const [evidenceFilter, setEvidenceFilter] = useState("");
+  const [attestationTotal, setAttestationTotal] = useState<number | null>(null);
+  const [attestationLimit, setAttestationLimit] = useState<number | null>(null);
   const [attestations, setAttestations] =
     useState<AttestationListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -233,22 +269,28 @@ function OperationsSignersContent() {
         method: "GET",
       }),
       apiFetch(
-        `/v1/operations/custody-attestations?teamId=${encodeURIComponent(
+        `/v1/operations/custody-attestations?${attestationQuery(
           teamId,
-        )}&limit=50`,
+          evidenceFilter,
+        )}`,
         { method: "GET" },
       ),
     ])
       .then(([sRes, aRes]) => {
         setSigners((sRes as { signers: SignerRecord[] }).signers ?? []);
-        setAttestations(
-          (aRes as { attestations: AttestationListItem[] }).attestations ?? [],
-        );
+        const a = aRes as {
+          attestations?: AttestationListItem[];
+          total?: number;
+          limit?: number;
+        };
+        setAttestations(a.attestations ?? []);
+        setAttestationTotal(typeof a.total === "number" ? a.total : null);
+        setAttestationLimit(typeof a.limit === "number" ? a.limit : null);
       })
       .catch((err: { message?: string }) =>
         setError(toSafeUserError(err, { message: "Could not load signer governance." }).message),
       );
-  }, [teamId]);
+  }, [teamId, evidenceFilter]);
 
   useEffect(() => {
     load();
@@ -380,6 +422,10 @@ function OperationsSignersContent() {
 
       <CustodyAttestationsPanel
         attestations={attestations}
+        total={attestationTotal}
+        limit={attestationLimit}
+        evidenceFilter={evidenceFilter}
+        onEvidenceFilterChange={setEvidenceFilter}
         verifyResult={verifyResult}
         busy={busy}
         onVerify={verifyAttestation}
@@ -927,12 +973,22 @@ function SignerDetailDrawer({
 
 function CustodyAttestationsPanel({
   attestations,
+  total,
+  limit,
+  evidenceFilter,
+  onEvidenceFilterChange,
   verifyResult,
   busy,
   onVerify,
   onBackfill,
 }: {
   attestations: AttestationListItem[] | null;
+  /** The server's count for the current filter; null when it sent none. */
+  total: number | null;
+  /** The cap the request asked for, echoed back. */
+  limit: number | null;
+  evidenceFilter: string;
+  onEvidenceFilterChange: (value: string) => void;
   verifyResult: VerifyAttestationResult | null;
   busy: string | null;
   onVerify: (id: string) => void;
@@ -965,12 +1021,34 @@ function CustodyAttestationsPanel({
             : "Backfill 50 events (step-up)"}
         </button>
       </div>
+      {/* Server-side, and only once the value is a complete uuid — the
+          endpoint validates it as one, so sending a half-typed id would be a
+          400 while the operator is still typing. */}
+      <FilterBar style={{ padding: "0 16px 12px" }}>
+        <FilterBar.Search
+          label="Evidence ID"
+          placeholder="Full evidence UUID"
+          value={evidenceFilter}
+          onChange={onEvidenceFilterChange}
+        />
+      </FilterBar>
+      <ResultCount
+        shown={attestations?.length ?? 0}
+        total={total ?? undefined}
+        cap={limit ?? undefined}
+        noun="attestation"
+        filtered={evidenceFilter.trim() !== ""}
+        loading={attestations === null}
+        style={{ padding: "0 16px", marginTop: 0 }}
+        data-testid="admin-signers-attestations-count"
+      />
       {attestations === null ? (
         <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
       ) : attestations.length === 0 ? (
         <p style={{ ...mutedStyle, padding: 24 }}>
-          No custody attestations recorded. Run a backfill to attest historical
-          custody events.
+          {evidenceFilter.trim() !== ""
+            ? "No custody attestation matches that evidence ID. Clearing the filter shows every recorded attestation."
+            : "No custody attestations recorded. Run a backfill to attest historical custody events."}
         </p>
       ) : (
         <div className="apf-table-wrap">

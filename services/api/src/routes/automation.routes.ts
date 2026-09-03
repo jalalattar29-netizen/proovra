@@ -441,16 +441,31 @@ export async function automationRoutes(
         "AUTOMATION_VIEW",
       );
       if (!member) return;
-      const rows = await prisma.automationRun.findMany({
-        where: {
-          teamId: q.data.teamId,
-          ...(q.data.ruleId ? { ruleId: q.data.ruleId } : {}),
-          ...(q.data.status ? { status: q.data.status } : {}),
-        },
-        orderBy: [{ createdAt: "desc" }],
-        take: q.data.limit,
-      });
-      reply.send({ runs: rows.map(projectRun) });
+      /**
+       * ONE where object, used by the page query and the count.
+       *
+       * Building the count from a separately-written predicate is how a
+       * summary and its drill-down come to disagree; sharing the object makes
+       * that impossible.
+       */
+      const where = {
+        teamId: q.data.teamId,
+        ...(q.data.ruleId ? { ruleId: q.data.ruleId } : {}),
+        ...(q.data.status ? { status: q.data.status } : {}),
+      };
+
+      const [rows, total] = await Promise.all([
+        prisma.automationRun.findMany({
+          where,
+          orderBy: [{ createdAt: "desc" }],
+          take: q.data.limit,
+        }),
+        // Scoped to one team on an indexed column, so this is a lookup and not
+        // a scan. Without it the client can only report how many rows it
+        // received, and "50 runs" then means "the newest 50".
+        prisma.automationRun.count({ where }),
+      ]);
+      reply.send({ runs: rows.map(projectRun), total, limit: q.data.limit });
     },
   );
 

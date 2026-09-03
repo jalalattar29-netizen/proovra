@@ -580,26 +580,63 @@ export type AttestationListItem = {
   outcome: "verified" | "pending" | "invalid";
 };
 
+export type ListAttestationsResult = {
+  attestations: ReadonlyArray<AttestationListItem>;
+  /** Count of everything matching the filter, not the page. */
+  total: number;
+  /** The cap applied, echoed so the caller discloses it rather than inferring. */
+  limit: number;
+};
+
 export async function listAttestations(
   input: { teamId: string; evidenceId?: string; limit?: number },
   client: PrismaClient = defaultPrisma,
-): Promise<ReadonlyArray<AttestationListItem>> {
+): Promise<ListAttestationsResult> {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
-  const rows = await client.securityEvent.findMany({
-    where: {
-      teamId: input.teamId,
-      eventType: "custody_attestation_signed",
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit * 2,
-    select: { id: true, createdAt: true, details: true },
-  });
+
+  /**
+   * The evidenceId filter is now part of the QUERY, and that is a bug fix.
+   *
+   * It used to fetch `take: limit * 2` rows and then drop non-matching ones in
+   * a JavaScript loop. For a workspace with more attestations than that window
+   * — 100 rows, by default — an evidenceId whose attestation sat outside it
+   * returned an EMPTY list. Not an error, not a partial result: zero, which
+   * reads as "this evidence has no custody attestation" when it has one.
+   *
+   * `details` is JSONB and Postgres can filter inside it. The same path idiom
+   * is already used for invite metadata and report blocking elsewhere in this
+   * service layer.
+   */
+  const where = {
+    teamId: input.teamId,
+    eventType: "custody_attestation_signed",
+    ...(input.evidenceId
+      ? {
+          details: {
+            path: ["attestation", "evidenceId"],
+            equals: input.evidenceId,
+          },
+        }
+      : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    client.securityEvent.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: { id: true, createdAt: true, details: true },
+    }),
+    client.securityEvent.count({ where }),
+  ]);
   const out: AttestationListItem[] = [];
   for (const r of rows) {
     const d = (r.details ?? {}) as Record<string, unknown>;
     const att = d.attestation as CustodyAttestation | undefined;
     if (!att) continue;
-    if (input.evidenceId && att.evidenceId !== input.evidenceId) continue;
+    // The evidenceId narrowing happens in the query now. A row without a
+    // parsable attestation is still skipped: that is a shape guard, not a
+    // filter, and it cannot silently drop a match the way the old loop did.
     out.push({
       attestationId: att.attestationId,
       custodyEventId: att.custodyEventId,
@@ -610,7 +647,7 @@ export async function listAttestations(
     });
     if (out.length >= limit) break;
   }
-  return out;
+  return { attestations: out, total, limit };
 }
 
 export type BackfillResult = {

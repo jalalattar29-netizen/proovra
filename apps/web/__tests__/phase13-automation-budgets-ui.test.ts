@@ -435,10 +435,20 @@ test("the automation page offers the lifecycle, refetches after it, and no longe
   );
 
   // Success refetches the list from the server (no local patching).
+  //
+  // The dependency LIST is not pinned. It used to be, as the literal
+  // "}, [teamId, reloadToken]);", and that broke the moment a server-side
+  // status filter was added — a change that strengthens the same property,
+  // because the filter also has to reach the server. What matters is that
+  // reloadToken exists and that the load effect depends on it.
   assert.ok(
-    src.includes("const [reloadToken, setReloadToken] = useState(0)") &&
-      src.includes("}, [teamId, reloadToken]);"),
-    "a successful mutation does not re-run the rules/runs load",
+    src.includes("const [reloadToken, setReloadToken] = useState(0)"),
+    "no reloadToken: a mutation cannot ask the list to refetch",
+  );
+  const loadDeps = /\}, \[teamId[^\]]*\]\);/.exec(src)?.[0] ?? "";
+  assert.ok(
+    loadDeps.includes("reloadToken"),
+    `the load effect must depend on reloadToken, saw: ${loadDeps}`,
   );
   assert.ok(
     src.includes("reload();"),

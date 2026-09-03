@@ -374,12 +374,14 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
-      const attestations = await listAttestations({
+      const result = await listAttestations({
         teamId: q.teamId,
         evidenceId: q.evidenceId,
         limit: q.limit,
       });
-      return reply.code(200).send({ attestations });
+      // total and limit travel with the rows so the client never infers
+      // completeness from how many it received.
+      return reply.code(200).send(result);
     },
   );
 
@@ -491,12 +493,15 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
-      const attestations = await listAttestations({
+      const result = await listAttestations({
         teamId: q.teamId,
         evidenceId: params.evidenceId,
         limit: q.limit,
       });
-      return reply.code(200).send({ attestations });
+      // Same envelope as the collection route. Two callers of one service must
+      // not return two shapes: reply.send is untyped, so a change to the
+      // service silently rewrites the response of any caller that spreads it.
+      return reply.code(200).send(result);
     },
   );
 }

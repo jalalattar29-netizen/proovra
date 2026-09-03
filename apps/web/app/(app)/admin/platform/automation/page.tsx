@@ -48,6 +48,7 @@ import { AutomationRuleToggle } from "../../../../../components/automation/Autom
 import type { AutomationRule } from "../../../../../components/automation/types";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
+import { FilterBar } from "../../../../../components/ui/FilterBar";
 
 type AutomationRun = {
   id: string;
@@ -73,7 +74,15 @@ type RulesEnvelope = {
 
 type LoadState =
   | { status: "loading" }
-  | { status: "ready"; envelope: RulesEnvelope; runs: AutomationRun[] }
+  | {
+      status: "ready";
+      envelope: RulesEnvelope;
+      runs: AutomationRun[];
+      /** The server count for the current filter. null when it did not send one. */
+      runsTotal: number | null;
+      /** The cap the request asked for, echoed back. */
+      runsLimit: number | null;
+    }
   | { status: "auth_error"; code: "auth_required" | "permission_denied" }
   | { status: "unavailable"; message: string };
 
@@ -82,6 +91,14 @@ type LoadState =
 // ---------------------------------------------------------------------------
 
 function AutomationPageInner(): JSX.Element {
+  /**
+   * A filter the endpoint has always accepted.
+   *
+   * /v1/automation/runs takes `status`; the page never sent it, so the run
+   * list was the newest 50 of every state mixed together. Server-side: a
+   * browser filter would keep the 50-row cap over an unfiltered window.
+   */
+  const [statusFilter, setStatusFilter] = useState("");
   const ctx = usePlatformContext();
   const teamId = useActiveSpaceId();
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -116,11 +133,17 @@ function AutomationPageInner(): JSX.Element {
             `/v1/automation/rules?teamId=${encodeURIComponent(teamId)}`,
           ) as Promise<RulesEnvelope>,
           apiFetch(
-            `/v1/automation/runs?teamId=${encodeURIComponent(teamId)}&limit=50`,
-          ) as Promise<{ runs: AutomationRun[] }>,
+            `/v1/automation/runs?${runsQuery(teamId, statusFilter)}`,
+          ) as Promise<{ runs: AutomationRun[]; total?: number; limit?: number }>,
         ]);
         if (cancelled) return;
-        setState({ status: "ready", envelope, runs: runsResp.runs });
+        setState({
+          status: "ready",
+          envelope,
+          runs: runsResp.runs,
+          runsTotal: typeof runsResp.total === "number" ? runsResp.total : null,
+          runsLimit: typeof runsResp.limit === "number" ? runsResp.limit : null,
+        });
       } catch (err) {
         if (cancelled) return;
         const e = err as { statusCode?: number; message?: string };
@@ -139,7 +162,7 @@ function AutomationPageInner(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [teamId, reloadToken]);
+  }, [teamId, reloadToken, statusFilter]);
 
   // ----- Render branches -----
 
@@ -195,7 +218,7 @@ function AutomationPageInner(): JSX.Element {
     );
   }
 
-  const { envelope, runs } = state;
+  const { envelope, runs, runsTotal, runsLimit } = state;
   const enabledCount = envelope.rules.filter((r) => r.enabled).length;
   const editingRule =
     formMode.kind === "edit"
@@ -469,13 +492,44 @@ function AutomationPageInner(): JSX.Element {
       <section className="apf-section" data-automation-runs-list>
         <header className="cc-section-header">
           <h2 className="apf-section-title">Recent runs</h2>
-          <span className="cc-section-subtitle">
-            Latest {runs.length} run
-            {runs.length === 1 ? "" : "s"}
-          </span>
+          {/* "Latest 50 runs" was almost honest — it said "latest" — but it
+              could not say latest of HOW MANY, so an operator could not tell a
+              quiet day from a truncated window. The server now returns a count
+              for the current filter. */}
+          <ResultCount
+            shown={runs.length}
+            total={runsTotal ?? undefined}
+            cap={runsLimit ?? undefined}
+            noun="run"
+            filtered={statusFilter !== ""}
+            style={{ marginTop: 0 }}
+            data-testid="admin-automation-runs-count"
+          />
         </header>
+        {/* Server-side: status goes into the request, so the 50-row cap
+            applies to the narrowed set rather than to a mixed window that is
+            then filtered in the browser. */}
+        <FilterBar style={{ marginBottom: 12 }}>
+          <FilterBar.Select
+            label="Run status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "FAILED", label: "Failed" },
+              { value: "DEAD_LETTERED", label: "Dead-lettered" },
+              { value: "RETRY_SCHEDULED", label: "Retry scheduled" },
+              { value: "RUNNING", label: "Running" },
+              { value: "PENDING", label: "Pending" },
+              { value: "SUCCEEDED", label: "Succeeded" },
+              { value: "SKIPPED", label: "Skipped" },
+            ]}
+          />
+        </FilterBar>
         {runs.length === 0 ? (
           <div className="cc-empty">
+            {/* Two different statements. "No runs recorded" while a status
+                filter is applied tells the reader their history is gone. */}
             <p>No automation runs recorded yet.</p>
             <p style={{ fontSize: 12, color: "#64748b" }}>
               Runs appear here once the E3.1 trigger dispatcher is wired.
@@ -582,6 +636,23 @@ function newRuleButtonStyle(disabled: boolean): React.CSSProperties {
 // ---------------------------------------------------------------------------
 // Default export — PageRouteGate wrapper enforces AUTOMATION_VIEW.
 // ---------------------------------------------------------------------------
+
+/**
+ * The run-list query.
+ *
+ * `status` is a filter the endpoint has always accepted — the page simply
+ * never sent it, so the run list was the newest 50 of every state mixed
+ * together and an operator looking for failures had to read past the
+ * successes. Empty means "no filter" and is omitted rather than sent blank:
+ * the route validates with z.enum, so "" would be a 400.
+ */
+function runsQuery(teamId: string, status: string): string {
+  const p = new URLSearchParams();
+  p.set("teamId", teamId);
+  p.set("limit", "50");
+  if (status) p.set("status", status);
+  return p.toString();
+}
 
 export default function AutomationPage(): JSX.Element {
   return (
