@@ -16,35 +16,304 @@
     "Status starts at PENDING and stays there until the proofs exist. That is",
     "the honest default and the reason the ledger is worth reading."
   ],
-
   "/admin/customers/:id": {
     "family": "Customers",
     "breadcrumb": "Platform admin / Customers / Customer directory / Customer",
-    "returnPath": "← Back to roster → /admin/customers"
+    "returnPath": "← Back to roster → /admin/customers",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-customers-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-customers-id--mobile.png"
+    }
   },
   "/admin/workspaces/:id": {
     "family": "Workspaces",
     "breadcrumb": "Platform admin / Workspaces / Workspace inventory / Workspace",
-    "returnPath": "← All workspaces → /admin/workspaces"
+    "returnPath": "← All workspaces → /admin/workspaces",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-workspaces-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-workspaces-id--mobile.png"
+    }
   },
   "/admin/users/:id": {
     "family": "People",
     "breadcrumb": "Platform admin / Accounts & access / People / Account",
-    "returnPath": "← All people → /admin/users"
+    "returnPath": "← All people → /admin/users",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-users-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-users-id--mobile.png"
+    }
   },
   "/admin/demo-requests/:id": {
     "family": "Commercial",
     "breadcrumb": "Platform admin / Customers / Demo requests / Demo request",
-    "returnPath": "← Back to list → /admin/demo-requests"
+    "returnPath": "← Back to list → /admin/demo-requests",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-demo-requests-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-demo-requests-id--mobile.png"
+    }
   },
   "/admin/contact-sales/:id": {
     "family": "Commercial",
     "breadcrumb": "Platform admin / Customers / Contact sales / Sales inquiry",
-    "returnPath": "← Back to list → /admin/contact-sales"
+    "returnPath": "← Back to list → /admin/contact-sales",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-contact-sales-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-contact-sales-id--mobile.png"
+    }
   },
   "/admin/platform/runbooks/:slug": {
     "family": "Runbooks",
     "breadcrumb": "Platform admin / Platform operations / Runbooks",
-    "returnPath": "← All runbooks → /admin/platform/runbooks"
+    "returnPath": "← All runbooks → /admin/platform/runbooks",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--mobile.png"
+    }
+  },
+  "/admin": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin--mobile.png"
+    }
+  },
+  "/admin/adoption": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-adoption--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-adoption--mobile.png"
+    }
+  },
+  "/admin/alerts": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-alerts--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-alerts--mobile.png"
+    }
+  },
+  "/admin/audit": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-audit--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-audit--mobile.png"
+    }
+  },
+  "/admin/billing": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-billing--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-billing--mobile.png"
+    }
+  },
+  "/admin/contact-sales": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-contact-sales--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-contact-sales--mobile.png"
+    }
+  },
+  "/admin/costs": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-costs--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-costs--mobile.png"
+    }
+  },
+  "/admin/customers": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-customers--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-customers--mobile.png"
+    }
+  },
+  "/admin/dashboard": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-dashboard--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-dashboard--mobile.png"
+    }
+  },
+  "/admin/demo-requests": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-demo-requests--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-demo-requests--mobile.png"
+    }
+  },
+  "/admin/evidence-ops": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-evidence-ops--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-evidence-ops--mobile.png"
+    }
+  },
+  "/admin/evidence-ops/records": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--mobile.png"
+    }
+  },
+  "/admin/executive": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-executive--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-executive--mobile.png"
+    }
+  },
+  "/admin/identity": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity--mobile.png"
+    }
+  },
+  "/admin/identity/access-reviews": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--mobile.png"
+    }
+  },
+  "/admin/identity/permission-matrix": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--mobile.png"
+    }
+  },
+  "/admin/identity/providers": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-providers--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-providers--mobile.png"
+    }
+  },
+  "/admin/identity/runtime": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-runtime--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-runtime--mobile.png"
+    }
+  },
+  "/admin/identity/scim": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-scim--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-scim--mobile.png"
+    }
+  },
+  "/admin/identity/sessions": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-sessions--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-sessions--mobile.png"
+    }
+  },
+  "/admin/identity/timeline": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-timeline--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-timeline--mobile.png"
+    }
+  },
+  "/admin/operations": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-operations--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-operations--mobile.png"
+    }
+  },
+  "/admin/platform-health": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-health--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-health--mobile.png"
+    }
+  },
+  "/admin/platform/analytics": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-analytics--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-analytics--mobile.png"
+    }
+  },
+  "/admin/platform/automation": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-automation--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-automation--mobile.png"
+    }
+  },
+  "/admin/platform/exports": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-exports--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-exports--mobile.png"
+    }
+  },
+  "/admin/platform/media-graph": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-media-graph--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-media-graph--mobile.png"
+    }
+  },
+  "/admin/platform/observability": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-observability--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-observability--mobile.png"
+    }
+  },
+  "/admin/platform/queues": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-queues--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-queues--mobile.png"
+    }
+  },
+  "/admin/platform/readiness": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-readiness--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-readiness--mobile.png"
+    }
+  },
+  "/admin/platform/recovery": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-recovery--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-recovery--mobile.png"
+    }
+  },
+  "/admin/platform/reliability": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-reliability--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-reliability--mobile.png"
+    }
+  },
+  "/admin/platform/runbooks": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks--mobile.png"
+    }
+  },
+  "/admin/platform/signers": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-signers--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-signers--mobile.png"
+    }
+  },
+  "/admin/provisioning": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-provisioning--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-provisioning--mobile.png"
+    }
+  },
+  "/admin/search": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-search--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-search--mobile.png"
+    }
+  },
+  "/admin/security": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-security--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-security--mobile.png"
+    }
+  },
+  "/admin/support-access": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-support-access--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-support-access--mobile.png"
+    }
+  },
+  "/admin/timeline": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-timeline--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-timeline--mobile.png"
+    }
+  },
+  "/admin/users": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-users--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-users--mobile.png"
+    }
+  },
+  "/admin/workspaces": {
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-workspaces--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-workspaces--mobile.png"
+    }
   }
 }

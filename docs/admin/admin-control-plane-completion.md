@@ -247,53 +247,53 @@
 
 | Route | Fixture | Desktop | Mobile | RTL | States | Authz | Contract | Breadcrumb | Return |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `/admin` | — | — | — | — | — | — | — | — | — |
-| `/admin/adoption` | — | — | — | — | — | — | — | — | — |
-| `/admin/alerts` | — | — | — | — | — | — | — | — | — |
-| `/admin/audit` | — | — | — | — | — | — | — | — | — |
-| `/admin/billing` | — | — | — | — | — | — | — | — | — |
-| `/admin/contact-sales` | — | — | — | — | — | — | — | — | — |
-| `/admin/contact-sales/:id` | — | — | — | — | — | — | — | `Platform admin / Customers / Contact sales / Sales inquiry` | `← Back to list → /admin/contact-sales` |
-| `/admin/costs` | — | — | — | — | — | — | — | — | — |
-| `/admin/customers` | — | — | — | — | — | — | — | — | — |
-| `/admin/customers/:id` | — | — | — | — | — | — | — | `Platform admin / Customers / Customer directory / Customer` | `← Back to roster → /admin/customers` |
-| `/admin/dashboard` | — | — | — | — | — | — | — | — | — |
-| `/admin/demo-requests` | — | — | — | — | — | — | — | — | — |
-| `/admin/demo-requests/:id` | — | — | — | — | — | — | — | `Platform admin / Customers / Demo requests / Demo request` | `← Back to list → /admin/demo-requests` |
-| `/admin/evidence-ops` | — | — | — | — | — | — | — | — | — |
-| `/admin/evidence-ops/records` | — | — | — | — | — | — | — | — | — |
-| `/admin/executive` | — | — | — | — | — | — | — | — | — |
-| `/admin/identity` | — | — | — | — | — | — | — | — | — |
-| `/admin/identity/access-reviews` | — | — | — | — | — | — | — | — | — |
-| `/admin/identity/permission-matrix` | — | — | — | — | — | — | — | — | — |
-| `/admin/identity/providers` | — | — | — | — | — | — | — | — | — |
-| `/admin/identity/runtime` | — | — | — | — | — | — | — | — | — |
-| `/admin/identity/scim` | — | — | — | — | — | — | — | — | — |
-| `/admin/identity/sessions` | — | — | — | — | — | — | — | — | — |
-| `/admin/identity/timeline` | — | — | — | — | — | — | — | — | — |
-| `/admin/operations` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform-health` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/analytics` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/automation` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/exports` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/media-graph` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/observability` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/queues` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/readiness` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/recovery` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/reliability` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/runbooks` | — | — | — | — | — | — | — | — | — |
-| `/admin/platform/runbooks/:slug` | — | — | — | — | — | — | — | `Platform admin / Platform operations / Runbooks` | `← All runbooks → /admin/platform/runbooks` |
-| `/admin/platform/signers` | — | — | — | — | — | — | — | — | — |
-| `/admin/provisioning` | — | — | — | — | — | — | — | — | — |
-| `/admin/search` | — | — | — | — | — | — | — | — | — |
-| `/admin/security` | — | — | — | — | — | — | — | — | — |
-| `/admin/support-access` | — | — | — | — | — | — | — | — | — |
-| `/admin/timeline` | — | — | — | — | — | — | — | — | — |
-| `/admin/users` | — | — | — | — | — | — | — | — | — |
-| `/admin/users/:id` | — | — | — | — | — | — | — | `Platform admin / Accounts & access / People / Account` | `← All people → /admin/users` |
-| `/admin/workspaces` | — | — | — | — | — | — | — | — | — |
-| `/admin/workspaces/:id` | — | — | — | — | — | — | — | `Platform admin / Workspaces / Workspace inventory / Workspace` | `← All workspaces → /admin/workspaces` |
+| `/admin` | — | `artifacts/admin-visual-review/screenshots/admin--desktop.png` | `artifacts/admin-visual-review/screenshots/admin--mobile.png` | — | — | — | — | — | — |
+| `/admin/adoption` | — | `artifacts/admin-visual-review/screenshots/admin-adoption--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-adoption--mobile.png` | — | — | — | — | — | — |
+| `/admin/alerts` | — | `artifacts/admin-visual-review/screenshots/admin-alerts--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-alerts--mobile.png` | — | — | — | — | — | — |
+| `/admin/audit` | — | `artifacts/admin-visual-review/screenshots/admin-audit--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-audit--mobile.png` | — | — | — | — | — | — |
+| `/admin/billing` | — | `artifacts/admin-visual-review/screenshots/admin-billing--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-billing--mobile.png` | — | — | — | — | — | — |
+| `/admin/contact-sales` | — | `artifacts/admin-visual-review/screenshots/admin-contact-sales--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-contact-sales--mobile.png` | — | — | — | — | — | — |
+| `/admin/contact-sales/:id` | — | `artifacts/admin-visual-review/screenshots/admin-contact-sales-id--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-contact-sales-id--mobile.png` | — | — | — | — | `Platform admin / Customers / Contact sales / Sales inquiry` | `← Back to list → /admin/contact-sales` |
+| `/admin/costs` | — | `artifacts/admin-visual-review/screenshots/admin-costs--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-costs--mobile.png` | — | — | — | — | — | — |
+| `/admin/customers` | — | `artifacts/admin-visual-review/screenshots/admin-customers--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-customers--mobile.png` | — | — | — | — | — | — |
+| `/admin/customers/:id` | — | `artifacts/admin-visual-review/screenshots/admin-customers-id--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-customers-id--mobile.png` | — | — | — | — | `Platform admin / Customers / Customer directory / Customer` | `← Back to roster → /admin/customers` |
+| `/admin/dashboard` | — | `artifacts/admin-visual-review/screenshots/admin-dashboard--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-dashboard--mobile.png` | — | — | — | — | — | — |
+| `/admin/demo-requests` | — | `artifacts/admin-visual-review/screenshots/admin-demo-requests--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-demo-requests--mobile.png` | — | — | — | — | — | — |
+| `/admin/demo-requests/:id` | — | `artifacts/admin-visual-review/screenshots/admin-demo-requests-id--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-demo-requests-id--mobile.png` | — | — | — | — | `Platform admin / Customers / Demo requests / Demo request` | `← Back to list → /admin/demo-requests` |
+| `/admin/evidence-ops` | — | `artifacts/admin-visual-review/screenshots/admin-evidence-ops--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-evidence-ops--mobile.png` | — | — | — | — | — | — |
+| `/admin/evidence-ops/records` | — | `artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--mobile.png` | — | — | — | — | — | — |
+| `/admin/executive` | — | `artifacts/admin-visual-review/screenshots/admin-executive--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-executive--mobile.png` | — | — | — | — | — | — |
+| `/admin/identity` | — | `artifacts/admin-visual-review/screenshots/admin-identity--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity--mobile.png` | — | — | — | — | — | — |
+| `/admin/identity/access-reviews` | — | `artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--mobile.png` | — | — | — | — | — | — |
+| `/admin/identity/permission-matrix` | — | `artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--mobile.png` | — | — | — | — | — | — |
+| `/admin/identity/providers` | — | `artifacts/admin-visual-review/screenshots/admin-identity-providers--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-providers--mobile.png` | — | — | — | — | — | — |
+| `/admin/identity/runtime` | — | `artifacts/admin-visual-review/screenshots/admin-identity-runtime--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-runtime--mobile.png` | — | — | — | — | — | — |
+| `/admin/identity/scim` | — | `artifacts/admin-visual-review/screenshots/admin-identity-scim--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-scim--mobile.png` | — | — | — | — | — | — |
+| `/admin/identity/sessions` | — | `artifacts/admin-visual-review/screenshots/admin-identity-sessions--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-sessions--mobile.png` | — | — | — | — | — | — |
+| `/admin/identity/timeline` | — | `artifacts/admin-visual-review/screenshots/admin-identity-timeline--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-identity-timeline--mobile.png` | — | — | — | — | — | — |
+| `/admin/operations` | — | `artifacts/admin-visual-review/screenshots/admin-operations--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-operations--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform-health` | — | `artifacts/admin-visual-review/screenshots/admin-platform-health--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-health--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/analytics` | — | `artifacts/admin-visual-review/screenshots/admin-platform-analytics--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-analytics--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/automation` | — | `artifacts/admin-visual-review/screenshots/admin-platform-automation--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-automation--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/exports` | — | `artifacts/admin-visual-review/screenshots/admin-platform-exports--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-exports--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/media-graph` | — | `artifacts/admin-visual-review/screenshots/admin-platform-media-graph--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-media-graph--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/observability` | — | `artifacts/admin-visual-review/screenshots/admin-platform-observability--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-observability--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/queues` | — | `artifacts/admin-visual-review/screenshots/admin-platform-queues--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-queues--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/readiness` | — | `artifacts/admin-visual-review/screenshots/admin-platform-readiness--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-readiness--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/recovery` | — | `artifacts/admin-visual-review/screenshots/admin-platform-recovery--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-recovery--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/reliability` | — | `artifacts/admin-visual-review/screenshots/admin-platform-reliability--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-reliability--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/runbooks` | — | `artifacts/admin-visual-review/screenshots/admin-platform-runbooks--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-runbooks--mobile.png` | — | — | — | — | — | — |
+| `/admin/platform/runbooks/:slug` | — | `artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--mobile.png` | — | — | — | — | `Platform admin / Platform operations / Runbooks` | `← All runbooks → /admin/platform/runbooks` |
+| `/admin/platform/signers` | — | `artifacts/admin-visual-review/screenshots/admin-platform-signers--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-platform-signers--mobile.png` | — | — | — | — | — | — |
+| `/admin/provisioning` | — | `artifacts/admin-visual-review/screenshots/admin-provisioning--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-provisioning--mobile.png` | — | — | — | — | — | — |
+| `/admin/search` | — | `artifacts/admin-visual-review/screenshots/admin-search--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-search--mobile.png` | — | — | — | — | — | — |
+| `/admin/security` | — | `artifacts/admin-visual-review/screenshots/admin-security--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-security--mobile.png` | — | — | — | — | — | — |
+| `/admin/support-access` | — | `artifacts/admin-visual-review/screenshots/admin-support-access--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-support-access--mobile.png` | — | — | — | — | — | — |
+| `/admin/timeline` | — | `artifacts/admin-visual-review/screenshots/admin-timeline--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-timeline--mobile.png` | — | — | — | — | — | — |
+| `/admin/users` | — | `artifacts/admin-visual-review/screenshots/admin-users--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-users--mobile.png` | — | — | — | — | — | — |
+| `/admin/users/:id` | — | `artifacts/admin-visual-review/screenshots/admin-users-id--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-users-id--mobile.png` | — | — | — | — | `Platform admin / Accounts & access / People / Account` | `← All people → /admin/users` |
+| `/admin/workspaces` | — | `artifacts/admin-visual-review/screenshots/admin-workspaces--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-workspaces--mobile.png` | — | — | — | — | — | — |
+| `/admin/workspaces/:id` | — | `artifacts/admin-visual-review/screenshots/admin-workspaces-id--desktop.png` | `artifacts/admin-visual-review/screenshots/admin-workspaces-id--mobile.png` | — | — | — | — | `Platform admin / Workspaces / Workspace inventory / Workspace` | `← All workspaces → /admin/workspaces` |
 
 ## Internal composition
 
