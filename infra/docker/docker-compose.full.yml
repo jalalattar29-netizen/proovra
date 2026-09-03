@@ -54,6 +54,15 @@ services:
     build:
       context: ../..
       dockerfile: services/api/Dockerfile
+      # Host network for the BUILD, matching deploy-images' buildx setup
+      # ("Use the host network for BuildKit to reduce transient Docker
+      # registry" errors). Without it, the in-build `pnpm install` dies on
+      # registry ECONNRESETs behind BuildKit's default NAT — reproduced
+      # twice locally, and the cause of CI's "Start full stack" failures
+      # on the first runs ever to reach this step in days. deploy-images
+      # builds the SAME Dockerfiles green with this exact mitigation.
+      # Build-time only; the running container's network is unchanged.
+      network: host
       args:
         DATABASE_URL: ${DATABASE_URL}
     depends_on:
@@ -100,6 +109,8 @@ services:
     build:
       context: ../..
       dockerfile: services/worker/Dockerfile
+      # Same build-network mitigation as the api service above.
+      network: host
       args:
         DATABASE_URL: ${DATABASE_URL}
     depends_on:

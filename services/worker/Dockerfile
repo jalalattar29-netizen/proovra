@@ -43,7 +43,16 @@ COPY packages/shared-billing/package.json packages/shared-billing/package.json
 COPY packages/shared-evidence-presentation/package.json packages/shared-evidence-presentation/package.json
 COPY packages/shared-runtime/package.json packages/shared-runtime/package.json
 
-RUN pnpm install --frozen-lockfile --prod=false --node-linker=hoisted
+# The cold store pulls the whole monorepo's tarballs at once, and pnpm's
+# default two retries do not outlast a burst of registry ECONNRESETs —
+# which is exactly how the full-stack build died on the first CI runs to
+# reach it in days, and twice in local reproduction. Lower concurrency,
+# more retries, longer backoff: the fetch becomes patient instead of
+# lucky. Values are build-time only and change nothing about what is
+# installed.
+RUN pnpm install --frozen-lockfile --prod=false --node-linker=hoisted \
+    --network-concurrency=6 --fetch-retries=5 \
+    --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 
 FROM deps AS build
 ARG DATABASE_URL
