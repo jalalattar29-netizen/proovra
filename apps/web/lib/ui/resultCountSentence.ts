@@ -52,6 +52,16 @@ export type ResultCountFacts = {
    * dangerous direction.
    */
   failed?: boolean;
+  /**
+   * The server returned EVERY row.
+   *
+   * The one case where `shown` may be presented as the population. Not a
+   * judgement the page gets to make on its own: the route must appear in
+   * `apps/web/scripts/admin-complete-lists.mjs`, and an API test asserts the
+   * handler still runs its query with no row cap. Without that, this is just
+   * `rows.length` with a confident label on it.
+   */
+  complete?: boolean;
 };
 
 export function resultCountSentence({
@@ -64,15 +74,18 @@ export function resultCountSentence({
   filtered,
   loading,
   failed,
+  complete,
 }: ResultCountFacts): string {
   const plural = pluralNoun ?? `${noun}s`;
   const word = shown === 1 ? noun : plural;
   const totalWord = total === 1 ? noun : plural;
 
   const truncated =
-    total !== undefined
-      ? shown < total
-      : (hasMore ?? (cap !== undefined && shown >= cap));
+    complete === true
+      ? false
+      : total !== undefined
+        ? shown < total
+        : (hasMore ?? (cap !== undefined && shown >= cap));
 
   // A retry in flight outranks the last failure — the page is no longer
   // reporting a stale error, it is asking again.
@@ -83,6 +96,12 @@ export function resultCountSentence({
 
   if (total === 0 || (total === undefined && shown === 0)) {
     return filtered ? `No ${plural} match these filters` : `No ${plural} yet`;
+  }
+
+  // A declared-complete list states its population without a server total,
+  // because there is nothing the server held back.
+  if (complete === true && total === undefined) {
+    return `${shown} ${word}`;
   }
 
   if (total !== undefined) {

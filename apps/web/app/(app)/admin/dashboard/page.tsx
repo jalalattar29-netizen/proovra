@@ -8,6 +8,7 @@ import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 import { useToast } from "../../../../components/ui";
 import { formatUserDateTime } from "../../../../lib/date";
 
@@ -288,6 +289,14 @@ function NotConnectedCard({ title, signal }: { title: string; signal: string }) 
     </Card>
   );
 }
+
+/**
+ * How many recent events the overview shows.
+ *
+ * It was a bare `.slice(0, 25)` in the JSX with nothing on screen saying so,
+ * which made the newest 25 read as the activity.
+ */
+const RECENT_EVENT_ROWS = 25;
 
 export default function AdminDashboardPage() {
   const { addToast } = useToast();
@@ -852,10 +861,18 @@ export default function AdminDashboardPage() {
                     render: (e: RecentEvent) => formatTimestamp(e.createdAt),
                   },
                 ]}
-                rows={bundle.recent.slice(0, 25)}
+                rows={bundle.recent.slice(0, RECENT_EVENT_ROWS)}
                 getRowId={(e, i) => `${e.eventType}-${e.createdAt}-${i}`}
               />
             )}
+            {/* The slice is the PAGE's, so the page owns the disclosure. It
+                was a bare `.slice(0, 25)` with nothing on screen saying so. */}
+            <ResultCount
+              shown={Math.min(bundle.recent.length, RECENT_EVENT_ROWS)}
+              cap={RECENT_EVENT_ROWS}
+              noun="recent event"
+              data-testid="admin-dashboard-recent-count"
+            />
           </PageSection>
         </>
       )}

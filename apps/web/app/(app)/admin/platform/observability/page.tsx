@@ -43,6 +43,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { formatUserTime } from "../../../../../lib/date";
 import {
@@ -706,6 +707,15 @@ function ObservabilityDashboardPageInner() {
       .slice(0, 5);
   }, [metrics]);
 
+  /** Every non-zero counter and gauge, not just the five on screen. */
+  const nonZeroSignalCount = useMemo(() => {
+    if (!metrics) return 0;
+    return (
+      Object.values(metrics.counters).filter((v) => v > 0).length +
+      Object.values(metrics.gauges).filter((v) => v > 0).length
+    );
+  }, [metrics]);
+
   const topNonZeroGauges = useMemo(() => {
     if (!metrics) return [] as Array<[string, number]>;
     return Object.entries(metrics.gauges)
@@ -1167,6 +1177,15 @@ function ObservabilityDashboardPageInner() {
               emptyHint="All gauges at 0 — no current backlog."
             />
           </div>
+          {/* Both tables are the top five of a set the browser holds whole, so
+              the denominator is a fact rather than a cap. "Top signals" with
+              no denominator reads as "these are the signals". */}
+          <ResultCount
+            shown={topNonZeroCounters.length + topNonZeroGauges.length}
+            total={nonZeroSignalCount}
+            noun="non-zero signal"
+            data-testid="admin-observability-signals-count"
+          />
         </section>
       )}
 

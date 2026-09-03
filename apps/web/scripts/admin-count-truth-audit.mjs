@@ -41,6 +41,14 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// The declaration table is SHARED with the composition contract and proved by
+// the API suite. It lived in this file, where the contract could not see it,
+// so the contract went on reporting the same pages as unpaged.
+import {
+  COMPLETE_LISTS,
+  isDeclaredComplete,
+} from "./admin-complete-lists.mjs";
+
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_DIR = join(WEB_ROOT, "app", "(app)", "admin");
 
@@ -96,28 +104,6 @@ const COUNTED_NOUN =
   /(record|item|row|result|event|job|run|grant|session|failure|incident|organization|user|workspace|alert|attestation|inquiry|request|condition|report|token|rule|member|customer|export|check)/i;
 
 /**
- * Lists the server returns IN FULL.
- *
- * A bare length is the exact population when nothing truncates it, so these
- * are not findings — but "nothing truncates it" is a claim about the SERVER,
- * which this script cannot see. Each entry therefore names the handler, and
- * an API test (admin-count-truth-complete-lists.test.ts) asserts that handler
- * still has no row cap. Delete a cap-free `findMany` guard and the API suite
- * fails; add a `take` to one of these endpoints and it fails too.
- */
-const COMPLETE_LISTS = [
-  {
-    route: "/admin/platform/automation",
-    noun: "rule",
-    endpoint: "GET /v1/automation/rules",
-    reason:
-      "Rules are per-workspace configuration, bounded by what an operator " +
-      "created; the handler runs findMany with no take, so the length IS the " +
-      "population.",
-  },
-];
-
-/**
  * Counts of a field ON ONE RECORD, not of a list.
  *
  * The record arrived whole, so its own array length is exact. Each entry names
@@ -139,11 +125,6 @@ const isPerRecordField = (route, expression) =>
     (d) => d.route === route && d.expression === expression,
   );
 
-const isDeclaredComplete = (route, noun) =>
-  COMPLETE_LISTS.some(
-    (d) => d.route === route && noun.toLowerCase().includes(d.noun),
-  );
-
 /**
  * The noun a count is attached to, cleaned for the record.
  *
@@ -154,10 +135,18 @@ const isDeclaredComplete = (route, noun) =>
 const nounOf = (trailing) =>
   trailing.trim().replace(/[$\s]+$/, "").slice(0, 24);
 
-function classify(block) {
+function classify(block, route) {
   if (/\btotal=\{/.test(block)) return "EXACT_TOTAL";
   if (/\bhasMore=\{/.test(block)) return "SERVER_HAS_MORE";
   if (/\bcap=\{/.test(block)) return "CAP_DISCLOSED";
+  // `complete` says the server held nothing back — the strongest claim on this
+  // list, and the only one the page asserts rather than receives. It counts
+  // ONLY where the route is declared and the API test proves the handler. An
+  // undeclared `complete` is `rows.length` with a confident label, so it stays
+  // a finding.
+  if (/\bcomplete\b/.test(block)) {
+    return isDeclaredComplete(route) ? "COMPLETE_LIST" : "LOADED_ONLY";
+  }
   return "LOADED_ONLY";
 }
 
@@ -173,7 +162,7 @@ const rows = walk(ADMIN_DIR).map((file) => {
     sites.push({
       kind: "ResultCount",
       noun,
-      truth: classify(props),
+      truth: classify(props, route),
       filteredAware: /\bfiltered=\{/.test(props),
       loadingAware: /\bloading=\{/.test(props),
     });

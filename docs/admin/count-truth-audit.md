@@ -13,8 +13,17 @@ confident wrong answer with no way to tell.
 
 | Route | Rendered by | Backed by | Filter-aware | Loading-aware |
 | --- | --- | --- | :-: | :-: |
+| `/admin/adoption` | ResultCount — capability | `COMPLETE_LIST` | — | yes |
 | `/admin/alerts` | ResultCount — alert | `SERVER_HAS_MORE` | — | yes |
+| `/admin/billing` | ResultCount — subscription needing attention | `CAP_DISCLOSED` | — | — |
 | `/admin/contact-sales` | ResultCount — inquiry | `EXACT_TOTAL` | yes | yes |
+| `/admin/costs` | ResultCount — entitlement | `CAP_DISCLOSED` | — | — |
+| `/admin/dashboard` | ResultCount — recent event | `CAP_DISCLOSED` | — | — |
+| `/admin/executive` | ResultCount — at-risk customer | `CAP_DISCLOSED` | — | — |
+| `/admin/identity/access-reviews` | ResultCount — access review | `CAP_DISCLOSED` | yes | yes |
+| `/admin/identity` | ResultCount — member | `COMPLETE_LIST` | yes | yes |
+| `/admin/identity/permission-matrix` | ResultCount — role | `COMPLETE_LIST` | yes | — |
+| `/admin/identity/providers` | ResultCount — connection | `CAP_DISCLOSED` | — | — |
 | `/admin/identity/runtime` | ResultCount — session | `CAP_DISCLOSED` | — | yes |
 | `/admin/identity/scim` | ResultCount — sync failure | `EXACT_TOTAL` | yes | yes |
 | `/admin/identity/timeline` | ResultCount — event | `CAP_DISCLOSED` | yes | yes |
@@ -22,11 +31,15 @@ confident wrong answer with no way to tell.
 | `/admin/platform/automation` | ResultCount — run | `EXACT_TOTAL` | yes | — |
 | `/admin/platform/automation` | ResultCount — run | `CAP_DISCLOSED` | — | — |
 | `/admin/platform/automation` | inline — rule | `COMPLETE_LIST` | — | — |
+| `/admin/platform/exports` | ResultCount — export | `CAP_DISCLOSED` | — | — |
+| `/admin/platform/observability` | ResultCount — non-zero signal | `EXACT_TOTAL` | — | — |
 | `/admin/platform/queues` | ResultCount — failed job | `EXACT_TOTAL` | — | yes |
 | `/admin/platform/recovery` | ResultCount — validation report | `CAP_DISCLOSED` | — | — |
 | `/admin/platform/runbooks` | inline — runbook | `EXACT_TOTAL` | yes | — |
 | `/admin/platform/signers` | ResultCount — attestation | `EXACT_TOTAL` | yes | yes |
+| `/admin/provisioning` | ResultCount — pending invitation | `EXACT_TOTAL` | — | — |
 | `/admin/search` | inline — result | `CAP_DISCLOSED` | — | — |
+| `/admin/security` | ResultCount — MFA event | `CAP_DISCLOSED` | — | — |
 | `/admin/support-access` | ResultCount — support grant | `EXACT_TOTAL` | yes | yes |
 | `/admin/timeline` | inline — most recent event | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/timeline` | inline — event | `SERVER_HAS_MORE` | yes | yes |
@@ -46,6 +59,9 @@ handler in `services/api`, asserted by
 `services/api/test/admin-count-truth-complete-lists.test.ts`.
 
 - **`GET /v1/automation/rules`** — counted on `/admin/platform/automation`. Rules are per-workspace configuration, bounded by what an operator created; the handler runs findMany with no take, so the length IS the population.
+- **`GET /v1/admin/adoption`** — counted on `/admin/adoption`. One row per KNOWN capability, enumerated from a fixed catalogue rather than queried from a growing table. The list cannot exceed the number of capabilities the product has.
+- **`GET /v1/identity/members`** — counted on `/admin/identity`. listTeamMembersWithAccess runs findMany with no take, so the browser holds every member of the workspace. That is also why this page may filter client-side: the filter narrows all of them, not a page of them.
+- **`GET /v1/admin/identity/role-matrix`** — counted on `/admin/identity/permission-matrix`. The matrix is the product's fixed set of roles crossed with its fixed set of capabilities. Both are compiled-in constants, not rows.
 
 ## Counts of a field on one record
 

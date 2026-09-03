@@ -18,6 +18,7 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import {
   StepUpModal,
@@ -159,6 +160,10 @@ export default function ProvidersPage() {
   const { confirm } = useConfirmAction();
   const { stamp, isStale } = useTenantGuard();
   const [providers, setProviders] = useState<SsoConnection[] | null>(null);
+  /** The server's list cap, reported alongside the connections. */
+  const [providersCap, setProvidersCap] = useState<number | undefined>(
+    undefined,
+  );
   const [verifiedDomainCount, setVerifiedDomainCount] = useState<number>(0);
   const [denial, setDenial] = useState<Denial | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -186,9 +191,14 @@ export default function ProvidersPage() {
       const r = (await apiFetch(
         `/v1/admin/identity/providers?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
-      )) as { providers?: SsoConnection[]; verifiedDomainCount?: number };
+      )) as {
+        providers?: SsoConnection[];
+        verifiedDomainCount?: number;
+        providersCap?: number;
+      };
       if (isStale(captured)) return;
       setProviders(r.providers ?? []);
+      setProvidersCap(r.providersCap);
       setVerifiedDomainCount(r.verifiedDomainCount ?? 0);
       setDenial(null);
       setError(null);
@@ -600,6 +610,14 @@ export default function ProvidersPage() {
               ))}
             </tbody>
           </table>
+          {/* The connection list reads under a fixed server cap, which the
+              route now ships rather than keeping to itself. */}
+          <ResultCount
+            shown={providers.length}
+            cap={providersCap}
+            noun="connection"
+            data-testid="admin-providers-count"
+          />
           </div>
         )}
       </PageSection>

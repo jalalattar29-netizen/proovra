@@ -393,6 +393,19 @@ export async function completeAccessReview(
 // Read
 // -----------------------------------------------------------------------------
 
+/** One place the cap is decided, so the route can report the same number. */
+export function resolveAccessReviewLimit(requested?: number): number {
+  return Math.min(
+    Math.max(requested ?? ACCESS_REVIEW_DEFAULT_LIMIT, 1),
+    ACCESS_REVIEW_MAX_LIMIT,
+  );
+}
+
+/** The default row cap when the caller names none. Exported so the route can ship it. */
+export const ACCESS_REVIEW_DEFAULT_LIMIT = 50;
+/** The hard ceiling, whatever the caller asks for. */
+export const ACCESS_REVIEW_MAX_LIMIT = 500;
+
 export async function listAccessReviews(
   input: {
     teamId: string;
@@ -409,6 +422,6 @@ export async function listAccessReviews(
       ...(input.kind ? { kind: input.kind } : {}),
     },
     orderBy: [{ status: "asc" }, { initiatedAtUtc: "desc" }],
-    take: Math.min(Math.max(input.limit ?? 50, 1), 500),
+    take: resolveAccessReviewLimit(input.limit),
   });
 }

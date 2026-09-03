@@ -77,7 +77,13 @@ export async function operationsExportsRoutes(app: FastifyInstance) {
         limit: q.limit,
         kinds,
       });
-      return reply.code(200).send({ exports });
+      // listExports clamps to [1, 200] with a default of 50. The page had no
+      // way to know which of those applied, so it rendered the window as the
+      // archive.
+      return reply.code(200).send({
+        exports,
+        limit: Math.min(Math.max(q.limit ?? 50, 1), 200),
+      });
     },
   );
 

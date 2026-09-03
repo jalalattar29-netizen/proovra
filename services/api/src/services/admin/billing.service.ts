@@ -222,6 +222,15 @@ export type AdminBillingDetail = {
     pastDue: AdminBillingAttentionRow[];
     renewalWindow: AdminBillingAttentionRow[];
     failedPayments: AdminBillingPaymentRow[];
+    /**
+     * The per-bucket row cap.
+     *
+     * All four buckets read with the same `take`, and a full bucket is a
+     * bucket with more behind it. Without this the page showed fifty past-due
+     * subscriptions as if that were all of them — on the one screen whose
+     * purpose is deciding whether anything needs chasing.
+     */
+    limit: number;
   };
   storageAddons: {
     activeCount: number;
@@ -564,6 +573,7 @@ export async function buildAdminBillingDetail(
       (a, b) => b.succeededCents - a.succeededCents,
     ),
     attention: {
+      limit,
       pendingCancellation: pendingCancellationRows.map(toAttention),
       pastDue: pastDueRows.map(toAttention),
       renewalWindow: renewalRows.map(toAttention),

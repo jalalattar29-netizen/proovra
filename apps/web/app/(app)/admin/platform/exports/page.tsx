@@ -32,6 +32,7 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { useTeamId } from "../../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import {
@@ -179,6 +180,7 @@ export default function OperationsExportsPage() {
 function OperationsExportsContent() {
   const teamId = useTeamId();
   const [items, setItems] = useState<ExportListItem[] | null>(null);
+  const [itemsLimit, setItemsLimit] = useState<number | undefined>(undefined);
   const [objectLock, setObjectLock] = useState<ObjectLockStatus | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +201,7 @@ function OperationsExportsContent() {
     ])
       .then(([listRes, lockRes]) => {
         setItems((listRes as { exports: ExportListItem[] }).exports ?? []);
+        setItemsLimit((listRes as { limit?: number }).limit);
         setObjectLock((lockRes as { status: ObjectLockStatus }).status);
       })
       .catch((err: { message?: string }) =>
@@ -257,6 +260,7 @@ function OperationsExportsContent() {
 
       <ExportListTable
         items={items}
+        itemsLimit={itemsLimit}
         objectLockMode={objectLock?.mode ?? null}
         onSelect={setSelectedId}
         selectedId={selectedId}
@@ -333,11 +337,14 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
 
 function ExportListTable({
   items,
+  itemsLimit,
   objectLockMode,
   selectedId,
   onSelect,
 }: {
   items: ExportListItem[] | null;
+  /** The cap the list read under, from the route. */
+  itemsLimit: number | undefined;
   objectLockMode: ObjectLockPlatformMode | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -498,6 +505,15 @@ function ExportListTable({
             })}
           </tbody>
         </table>
+        {/* listExports clamps to [1, 200] and defaults to 50; the route now
+            reports which applied. An export archive read to answer "was this
+            ever produced" must not present a window as the archive. */}
+        <ResultCount
+          shown={items.length}
+          cap={itemsLimit}
+          noun="export"
+          data-testid="admin-exports-count"
+        />
       </div>
     </section>
   );

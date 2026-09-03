@@ -50,6 +50,7 @@ import { Button } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { PageSection } from "../../../../../components/ui/PageShell";
 import { StatusBadge } from "../../../../../components/ui/StatusBadge";
@@ -639,6 +640,19 @@ export function MembersSection({
                 </Button>
               </div>
             )}
+          />
+          {/* listTeamMembersWithAccess runs findMany with no take, so the
+              browser holds EVERY member. That is what makes the filters above
+              honest client-side controls, and it is declared and proved in
+              scripts/admin-complete-lists.mjs. */}
+          <ResultCount
+            shown={visible.length}
+            complete
+            noun="member"
+            filtered={visible.length !== (members ?? []).length}
+            loading={members === null}
+            failed={failure !== null}
+            data-testid="admin-identity-members-count"
           />
         </div>
 

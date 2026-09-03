@@ -532,10 +532,11 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         permission: "identity.org_policy.read",
       });
       if (!scope) return;
+      const RECENT_EVENT_CAP = 50;
       const result = await listRecentMfaEvents({
         teamId: params.teamId,
         actorUserId: scope.actorUserId,
-        limit: 50,
+        limit: RECENT_EVENT_CAP,
       });
       if (!result.ok) {
         reply.code(404);
@@ -553,6 +554,10 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           createdAt: e.createdAt,
           details: projectSecurityEventDetails(e.details),
         })),
+        // The most RECENT 50. Presenting them as the security history of a
+        // workspace is the difference between "nothing happened" and "nothing
+        // happened in the last fifty events".
+        limit: RECENT_EVENT_CAP,
       };
     },
   );

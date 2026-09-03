@@ -84,6 +84,7 @@ import {
   transitionSsoConnection,
   updateSsoConnectionPolicy,
 } from "../services/access-control/sso.service.js";
+import { SSO_CONNECTION_LIST_CAP } from "../services/access-control/sso-list-bounds.js";
 import {
   createScimToken,
   listScimTokens,
@@ -330,9 +331,11 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
             },
           })
         : 0;
+      // The list cap travels with the list. Siblings only — every existing
+      // caller reads `providers` and is unaffected.
       return reply
         .code(200)
-        .send({ providers, verifiedDomainCount });
+        .send({ providers, verifiedDomainCount, providersCap: SSO_CONNECTION_LIST_CAP });
     },
   );
 

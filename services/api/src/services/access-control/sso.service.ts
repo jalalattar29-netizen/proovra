@@ -239,6 +239,13 @@ function projectConnection(row: DbConnection): SsoConnectionProjection {
 
 const PROVIDER_SET = new Set<string>(SSO_PROVIDERS);
 
+// Re-exported from sso-list-bounds so a test that mocks THIS module does not
+// also remove the constant the route needs at load time. The separate IMPORT
+// is required as well: `export … from` re-publishes a name without binding it
+// in this module scope, so the take below would be a ReferenceError without it.
+import { SSO_CONNECTION_LIST_CAP } from "./sso-list-bounds.js";
+export { SSO_CONNECTION_LIST_CAP } from "./sso-list-bounds.js";
+
 export async function listSsoConnections(
   input: { teamId: string },
   client: PrismaClient = defaultPrisma,
@@ -246,7 +253,7 @@ export async function listSsoConnections(
   const rows = await client.ssoConnection.findMany({
     where: { teamId: input.teamId },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: 100,
+    take: SSO_CONNECTION_LIST_CAP,
   });
   return rows.map(projectConnection);
 }

@@ -44,44 +44,85 @@ const COMPLETE_LISTS = [
   {
     endpoint: "GET /v1/automation/rules",
     file: "routes/automation.routes.ts",
+    kind: "query",
     /** The exact query the handler runs to build the list. */
-    query: "prisma.automationRule.findMany({",
-    countedBy: "/admin/platform/automation — `{envelope.rules.length} rule`",
+    at: "prisma.automationRule.findMany({",
+    countedBy: "/admin/platform/automation",
+  },
+  {
+    endpoint: "GET /v1/identity/members",
+    file: "services/identity/rbac.service.ts",
+    kind: "query",
+    at: "client.teamMember.findMany({",
+    countedBy: "/admin/identity",
+  },
+  {
+    endpoint: "GET /v1/admin/adoption",
+    file: "services/admin/adoption.service.ts",
+    kind: "literal",
+    /**
+     * The rows are a LITERAL ARRAY, one entry per capability the product has.
+     * The counts inside each entry come from the database; the number of
+     * entries does not, which is the property the page's count relies on.
+     */
+    at: "const capabilities: CapabilityAdoption[] = [",
+    countedBy: "/admin/adoption",
+  },
+  {
+    endpoint: "GET /v1/admin/identity/role-matrix",
+    file: "services/access-control/rbac-engine.service.ts",
+    kind: "literal",
+    at: "export function computeEffectiveRoleMatrix(): ReadonlyArray<EffectiveRoleMatrixRow> {",
+    countedBy: "/admin/identity/permission-matrix",
   },
 ] as const;
 
 /**
- * The text of the `findMany({ … })` call, brace-balanced from the opening one.
+ * The text of a `{ … }` or `[ … ]` block, balanced from the opening bracket.
  *
- * A fixed-length slice would run past the call into whatever followed and pick
- * up a `take:` belonging to a different query — which is the failure mode that
+ * A fixed-length slice would run past the construct into whatever followed and
+ * pick up a `take:` belonging to a different query — the failure mode that
  * makes a guard like this worse than none.
  */
-function callBody(source: string, needle: string): string {
+function blockAt(source: string, needle: string): string {
   const start = source.indexOf(needle);
-  if (start === -1) throw new Error(`query not found: ${needle}`);
+  if (start === -1) throw new Error(`not found: ${needle}`);
+  const openIdx = Math.max(needle.lastIndexOf("{"), needle.lastIndexOf("["));
+  if (openIdx === -1) throw new Error(`no opening bracket in: ${needle}`);
+  const open = needle[openIdx];
+  const close = open === "{" ? "}" : "]";
   let depth = 0;
-  for (let i = start + needle.length - 1; i < source.length; i += 1) {
+  for (let i = start + openIdx; i < source.length; i += 1) {
     const ch = source[i];
-    if (ch === "{") depth += 1;
-    else if (ch === "}") {
+    if (ch === open) depth += 1;
+    else if (ch === close) {
       depth -= 1;
       if (depth === 0) return source.slice(start, i + 1);
     }
   }
-  throw new Error(`unbalanced braces after: ${needle}`);
+  throw new Error(`unbalanced ${open} after: ${needle}`);
 }
 
 describe("counts a page may take from a list's own length", () => {
   for (const decl of COMPLETE_LISTS) {
-    it(`${decl.endpoint} returns every row — no take, no cursor`, () => {
+    it(`${decl.endpoint} returns every row`, () => {
       const source = readFileSync(resolve(SRC, decl.file), "utf8");
-      const body = callBody(source, decl.query);
+      const body = blockAt(source, decl.at);
+      const why = `${decl.endpoint} is counted by length on ${decl.countedBy}`;
 
-      // A cap under any of its spellings. `skip` counts too: an offset without
-      // a bound is still a window, and a window's length is not a population.
-      expect(body, `${decl.endpoint} is counted by length at ${decl.countedBy}`)
-        .not.toMatch(/\b(take|skip|cursor)\s*:/);
+      if (decl.kind === "query") {
+        // A cap under any of its spellings. `skip` counts too: an offset with
+        // no bound is still a window, and a window's length is not a
+        // population.
+        expect(body, why).not.toMatch(/\b(take|skip|cursor)\s*:/);
+      } else {
+        // A literal list. The claim is that its LENGTH is fixed by the source,
+        // so the block must not itself be built by a query — a `findMany` or a
+        // `.map` over one would make the row count data-dependent again.
+        expect(body, `${why} — the list must be literal`).not.toMatch(
+          /findMany|\bawait\b/,
+        );
+      }
     });
   }
 
@@ -89,9 +130,14 @@ describe("counts a page may take from a list's own length", () => {
     // The web script is ESM and side-effect-free until it walks its own tree,
     // so the declaration table is read as TEXT rather than imported — this
     // service must not start executing a script from apps/web.
+    // The declaration table moved out of the audit script into a shared
+    // module so the composition contract could read it too. This path had to
+    // move with it: pointed at the old file it would have found zero
+    // declarations, passed vacuously, and left three of them unproven — the
+    // exact failure this cross-check exists to prevent.
     const webAudit = resolve(
       dirname(fileURLToPath(import.meta.url)),
-      "../../../apps/web/scripts/admin-count-truth-audit.mjs",
+      "../../../apps/web/scripts/admin-complete-lists.mjs",
     );
     const text = readFileSync(webAudit, "utf8");
     for (const decl of COMPLETE_LISTS) {

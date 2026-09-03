@@ -55,6 +55,7 @@ import { Button } from "../../../../../components/ui/Button";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 
 type Outcome = "ALLOW" | "DENY" | "STEP_UP_REQUIRED" | "NOT_APPLICABLE";
 
@@ -687,6 +688,17 @@ export default function PermissionMatrixPage() {
                     purpose="Adjust the permission-name filter or outcome filter to see entries."
                   />
                 }
+              />
+              {/* The matrix is the product's compiled-in roles crossed with
+                  its compiled-in capabilities — nothing queried, nothing
+                  capped. Declared in scripts/admin-complete-lists.mjs, where
+                  the API test asserts the handler has no take. */}
+              <ResultCount
+                shown={filtered.length}
+                complete
+                noun="role"
+                filtered={filtered.length !== (matrix ?? []).length}
+                data-testid="admin-permission-matrix-count"
               />
             </div>
           </PageSection>

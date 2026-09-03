@@ -121,8 +121,18 @@ export type CostDashboard = {
     connected: boolean;
   };
   entitlements: EntitlementConsumption[];
+  /** The row cap the entitlement rows were read under. */
+  entitlementsCap: number;
   notConnectedCategories: NotConnectedCategory[];
 };
+
+/**
+ * The entitlement-usage row cap.
+ *
+ * Named so it can travel to the surface. As a bare 200 it could not, and the
+ * page showed the newest 200 period rows as the whole consumption picture.
+ */
+const ENTITLEMENT_ROW_CAP = 200;
 
 // Cost categories that no model in this window meters. Returned as honest
 // not-connected entries so the UI states "no usage recorded" rather than a
@@ -239,7 +249,7 @@ export async function getCostDashboard(
     // Entitlement consumption per key (most-recent period rows).
     prisma.entitlementUsage.findMany({
       orderBy: [{ periodStartUtc: "desc" }],
-      take: 200,
+      take: ENTITLEMENT_ROW_CAP,
       select: { key: true, consumed: true, periodStartUtc: true },
     }),
   ]);
@@ -366,6 +376,7 @@ export async function getCostDashboard(
       eventCount: eventTotal._count._all,
       budgetsAtRisk,
     },
+    entitlementsCap: ENTITLEMENT_ROW_CAP,
     perProvider,
     topOperations,
     budgets: budgetPosture,

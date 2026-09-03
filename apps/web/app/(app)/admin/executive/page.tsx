@@ -42,6 +42,7 @@ import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -108,7 +109,12 @@ type ExecutiveDashboard = {
     packages: PeriodCount;
   };
   topCustomers: TopCustomer[];
-  atRisk: { rule: string; items: AtRiskCustomer[] };
+  atRisk: {
+    rule: string;
+    items: AtRiskCustomer[];
+    /** The slice bound on `items` — the worst N by reason count. */
+    limit: number;
+  };
   failedOperations: {
     evidenceHashMismatch: number;
     evidenceVerificationFailed: number;
@@ -605,6 +611,14 @@ function ExecutiveDashboardBody() {
                   data-testid="admin-executive-at-risk-empty"
                 />
               }
+            />
+            {/* The worst N by reason count. "No at-risk customers" and "none
+                in the worst 25" are the same screen otherwise. */}
+            <ResultCount
+              shown={data.atRisk.items.length}
+              cap={data.atRisk.limit}
+              noun="at-risk customer"
+              data-testid="admin-executive-at-risk-count"
             />
           </PageSection>
         </>

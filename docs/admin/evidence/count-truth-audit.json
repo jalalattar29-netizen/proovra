@@ -6,9 +6,35 @@
       "noun": "rule",
       "endpoint": "GET /v1/automation/rules",
       "reason": "Rules are per-workspace configuration, bounded by what an operator created; the handler runs findMany with no take, so the length IS the population."
+    },
+    {
+      "route": "/admin/adoption",
+      "noun": "capability",
+      "endpoint": "GET /v1/admin/adoption",
+      "reason": "One row per KNOWN capability, enumerated from a fixed catalogue rather than queried from a growing table. The list cannot exceed the number of capabilities the product has."
+    },
+    {
+      "route": "/admin/identity",
+      "noun": "member",
+      "endpoint": "GET /v1/identity/members",
+      "reason": "listTeamMembersWithAccess runs findMany with no take, so the browser holds every member of the workspace. That is also why this page may filter client-side: the filter narrows all of them, not a page of them."
+    },
+    {
+      "route": "/admin/identity/permission-matrix",
+      "noun": "role",
+      "endpoint": "GET /v1/admin/identity/role-matrix",
+      "reason": "The matrix is the product's fixed set of roles crossed with its fixed set of capabilities. Both are compiled-in constants, not rows."
     }
   ],
   "sites": [
+    {
+      "route": "/admin/adoption",
+      "kind": "ResultCount",
+      "noun": "capability",
+      "truth": "COMPLETE_LIST",
+      "filteredAware": false,
+      "loadingAware": true
+    },
     {
       "route": "/admin/alerts",
       "kind": "ResultCount",
@@ -18,12 +44,76 @@
       "loadingAware": true
     },
     {
+      "route": "/admin/billing",
+      "kind": "ResultCount",
+      "noun": "subscription needing attention",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
       "route": "/admin/contact-sales",
       "kind": "ResultCount",
       "noun": "inquiry",
       "truth": "EXACT_TOTAL",
       "filteredAware": true,
       "loadingAware": true
+    },
+    {
+      "route": "/admin/costs",
+      "kind": "ResultCount",
+      "noun": "entitlement",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/dashboard",
+      "kind": "ResultCount",
+      "noun": "recent event",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/executive",
+      "kind": "ResultCount",
+      "noun": "at-risk customer",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/identity/access-reviews",
+      "kind": "ResultCount",
+      "noun": "access review",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/identity",
+      "kind": "ResultCount",
+      "noun": "member",
+      "truth": "COMPLETE_LIST",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/identity/permission-matrix",
+      "kind": "ResultCount",
+      "noun": "role",
+      "truth": "COMPLETE_LIST",
+      "filteredAware": true,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/identity/providers",
+      "kind": "ResultCount",
+      "noun": "connection",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
     },
     {
       "route": "/admin/identity/runtime",
@@ -82,6 +172,22 @@
       "loadingAware": false
     },
     {
+      "route": "/admin/platform/exports",
+      "kind": "ResultCount",
+      "noun": "export",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/platform/observability",
+      "kind": "ResultCount",
+      "noun": "non-zero signal",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
       "route": "/admin/platform/queues",
       "kind": "ResultCount",
       "noun": "failed job",
@@ -114,9 +220,25 @@
       "loadingAware": true
     },
     {
+      "route": "/admin/provisioning",
+      "kind": "ResultCount",
+      "noun": "pending invitation",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
       "route": "/admin/search",
       "kind": "inline",
       "noun": "result",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/security",
+      "kind": "ResultCount",
+      "noun": "MFA event",
       "truth": "CAP_DISCLOSED",
       "filteredAware": false,
       "loadingAware": false

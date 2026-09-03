@@ -28,6 +28,7 @@ import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 import { Button } from "../../../../components/ui/Button";
 import { useToast } from "../../../../components/ui";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -105,6 +106,8 @@ type CostDashboard = {
     connected: boolean;
   };
   entitlements: EntitlementConsumption[];
+  /** The row cap the entitlement rows were read under. */
+  entitlementsCap: number;
   notConnectedCategories: NotConnectedCategory[];
 };
 
@@ -555,6 +558,15 @@ function AdminCostsInner() {
                   data-testid="admin-costs-entitlements-empty"
                 />
               }
+            />
+            {/* The newest N period rows, not every one. A cost page read to
+                decide whether spend is under control should not present a
+                window as the whole picture. */}
+            <ResultCount
+              shown={data.entitlements.length}
+              cap={data.entitlementsCap}
+              noun="entitlement"
+              data-testid="admin-costs-entitlements-count"
             />
           </PageSection>
 

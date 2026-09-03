@@ -123,6 +123,7 @@ import {
   AccessReviewError,
   completeAccessReview,
   listAccessReviews,
+  resolveAccessReviewLimit,
   regenerateAccessReviewQueue,
 } from "../services/identity/access-review.service.js";
 import {
@@ -1150,7 +1151,13 @@ export async function identityRoutes(app: FastifyInstance) {
         ...(q.kind ? { kind: q.kind } : {}),
         ...(q.limit ? { limit: q.limit } : {}),
       });
-      return reply.code(200).send({ accessReviews: rows, teamId });
+      // The cap the read actually ran under, so the page can say "50 shown,
+      // capped at 50" instead of presenting a bounded queue as the queue.
+      return reply.code(200).send({
+        accessReviews: rows,
+        teamId,
+        limit: resolveAccessReviewLimit(q.limit),
+      });
     },
   );
 

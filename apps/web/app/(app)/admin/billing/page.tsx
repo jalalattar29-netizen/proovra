@@ -39,6 +39,7 @@ import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { formatMoney } from "../../../../components/admin/AdminMetric";
 import { apiFetch } from "../../../../lib/api";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
@@ -99,6 +100,8 @@ type Detail = {
     pendingCancellation: AttentionRow[];
     pastDue: AttentionRow[];
     renewalWindow: AttentionRow[];
+    /** The per-bucket row cap the server read under. */
+    limit: number;
     failedPayments: PaymentRow[];
   };
   storageAddons: {
@@ -551,6 +554,16 @@ export default function AdminBillingPage() {
                     purpose="No subscription renews in the configured window."
                   />
                 }
+              />
+              {/* All four buckets read under the same per-bucket cap. A full
+                  bucket has more behind it, and this is the screen somebody
+                  uses to decide whether anything needs chasing. */}
+              <ResultCount
+                shown={detail.attention.renewalWindow.length}
+                cap={detail.attention.limit}
+                noun="subscription needing attention"
+                pluralNoun="subscriptions needing attention"
+                data-testid="admin-billing-attention-count"
               />
             </Card>
           </PageSection>

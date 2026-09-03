@@ -30,6 +30,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch } from "../../../../../lib/api";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
@@ -119,6 +120,10 @@ export default function AccessReviewsPage() {
   const [reviews, setReviews] = useState<ReadonlyArray<AccessReview> | null>(
     null,
   );
+  /** The cap the read ran under, as reported by the route. */
+  const [reviewsLimit, setReviewsLimit] = useState<number | undefined>(
+    undefined,
+  );
   const [statusFilter, setStatusFilter] = useState<string>("PENDING");
   const [failure, setFailure] = useState<SurfaceFailure | null>(null);
   const [busyRow, setBusyRow] = useState<string | null>(null);
@@ -140,6 +145,7 @@ export default function AccessReviewsPage() {
       );
       if (isStale(captured)) return;
       setReviews((res?.accessReviews ?? []) as ReadonlyArray<AccessReview>);
+      setReviewsLimit((res as { limit?: number } | null)?.limit);
     } catch (err) {
       if (isStale(captured)) return;
       setReviews([]);
@@ -489,6 +495,18 @@ export default function AccessReviewsPage() {
                 </div>
               ) : null
             }
+          />
+          {/* The queue reads under a server cap the route now reports. A
+              certification queue that shows fifty of eighty pending reviews,
+              with nothing saying so, is a review somebody signs off as done. */}
+          <ResultCount
+            shown={(reviews ?? []).length}
+            cap={reviewsLimit}
+            noun="access review"
+            filtered={statusFilter !== ""}
+            loading={reviews === null}
+            failed={failure !== null}
+            data-testid="admin-access-reviews-count"
           />
         </div>
       </PageSection>

@@ -27,6 +27,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
@@ -545,6 +546,14 @@ export function InvitationGovernanceSection({
                 </Button>
               </div>
             )}
+          />
+          {/* `totalPending` is the server's own count of the pending queue,
+              which the page received all along and never showed. */}
+          <ResultCount
+            shown={phase.invites.length}
+            total={phase.totalPending}
+            noun="pending invitation"
+            data-testid="admin-provisioning-invites-count"
           />
         </>
       )}

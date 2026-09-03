@@ -22,6 +22,7 @@ import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { PageSection } from "../../../../../components/ui/PageShell";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
@@ -54,6 +55,8 @@ type RecoveryEvent = {
 
 type Feeds = {
   events: MfaEvent[];
+  /** The row cap the events read ran under, as reported by the route. */
+  eventsLimit: number | undefined;
   recoveryEvents: RecoveryEvent[];
   recoveryWindowDays: number;
 };
@@ -92,6 +95,7 @@ export function MfaEventsSection() {
         kind: "ready",
         data: {
           events: ((events as { events?: MfaEvent[] })?.events ?? []) as MfaEvent[],
+          eventsLimit: (events as { limit?: number } | null)?.limit,
           recoveryEvents: recoveryEnvelope?.events ?? [],
           recoveryWindowDays: recoveryEnvelope?.windowDays ?? 14,
         },
@@ -228,6 +232,15 @@ export function MfaEventsSection() {
             purpose="Nothing has happened to a second factor in this workspace yet. Enrollments, verification failures, admin revocations and trusted-device changes all appear here."
           />
         }
+      />
+      {/* The most RECENT N. "No MFA events recorded" and "none in the last
+          fifty" are very different answers to "has anything happened to a
+          second factor here", and the page gave the first for both. */}
+      <ResultCount
+        shown={state.data.events.length}
+        cap={state.data.eventsLimit}
+        noun="MFA event"
+        data-testid="admin-security-mfa-events-count"
       />
 
       <h3 style={{ fontSize: 13, fontWeight: 700, margin: "20px 0 8px" }}>

@@ -153,6 +153,13 @@ export type ExecutiveDashboard = {
   atRisk: {
     rule: string;
     items: AtRiskCustomer[];
+    /**
+     * The slice bound on `items`.
+     *
+     * The list is the worst N by reason count, and without the bound on the
+     * wire the page presented those N as every at-risk customer.
+     */
+    limit: number;
   };
 
   failedOperations: {
@@ -525,6 +532,9 @@ export async function buildExecutiveDashboard(
     atRisk: {
       rule: AT_RISK_RULE,
       items: atRiskItems,
+      // The slice bound, so the surface can say "25 shown, capped at 25"
+      // rather than presenting the worst 25 as every at-risk customer.
+      limit: AT_RISK_LIMIT,
     },
 
     failedOperations: {

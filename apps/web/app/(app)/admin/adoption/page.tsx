@@ -25,6 +25,7 @@ import {
 import type { DataTableColumn } from "../../../../components/ui";
 import { Badge } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 import { Button } from "../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
@@ -231,6 +232,17 @@ function AdminAdoptionInner() {
               data-testid="admin-adoption-empty"
             />
           }
+        />
+        {/* One row per KNOWN capability — a compiled-in catalogue, not a
+            growing table. Declared in scripts/admin-complete-lists.mjs and
+            proved API-side, which is what earns the bare length here. */}
+        <ResultCount
+          shown={report?.capabilities.length ?? 0}
+          complete
+          noun="capability"
+          pluralNoun="capabilities"
+          loading={loading}
+          data-testid="admin-adoption-count"
         />
       </PageSection>
     </PageShell>

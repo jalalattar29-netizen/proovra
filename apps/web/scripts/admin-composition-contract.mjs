@@ -49,7 +49,27 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+import { isDeclaredComplete } from "./admin-complete-lists.mjs";
+
+const DEFAULT_WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * `--root <dir>` points the scan at a tree other than this app.
+ *
+ * It exists for the adversarial suite. A detector is only worth its exit code
+ * if it FAILS on the defect it claims to catch, and the only way to establish
+ * that is to feed it a page that has the defect. Mutating the real tree in
+ * place to do so leaves it dirty when an assertion throws; a throwaway root
+ * cannot.
+ *
+ * The directory must still be laid out as `app/(app)/admin/…` so route paths
+ * are derived exactly as they are in production.
+ */
+const rootFlag = process.argv.indexOf("--root");
+const WEB_ROOT =
+  rootFlag !== -1 && process.argv[rootFlag + 1]
+    ? resolve(process.argv[rootFlag + 1])
+    : DEFAULT_WEB_ROOT;
 const ADMIN_DIR = join(WEB_ROOT, "app", "(app)", "admin");
 
 function walk(dir, out = []) {
@@ -273,9 +293,27 @@ const CHECKS = [
     id: "LIST_NO_TOTAL_COUNT",
     clause: "3.3 a list must state its total",
     when: (c, route) => isList(c, route),
-    // "12 organizations", "Showing 1-20 of 340", "total" bound into copy.
+    /**
+     * A RENDERED count, not the word.
+     *
+     * This matched `\bcount\b` and `\bresults?\b` anywhere in the file, so
+     * `data-testid="admin-support-grants-count"` satisfied it — deleting the
+     * page's entire count left the check green, because the test id naming
+     * the deleted thing was still there. The adversarial suite caught it by
+     * removing the real ResultCount from /admin/support-access.
+     *
+     * The shapes that actually put a number on screen: the component, a
+     * `{…total…}` interpolation, an `of {…}` denominator, or a bare
+     * `{x.length}`.
+     */
     fail: (c) =>
-      !/\btotal\b|\bcount\b|\{\s*rows\.length\s*\}|of\s*\{|\bresults?\b/i.test(c),
+      !/<ResultCount/.test(c) &&
+      // A bare INTERPOLATION of a total-named value, not the word appearing
+      // inside a statement: `{ setTotal(r.total); }` is bookkeeping, `{total}`
+      // and `total={data.total}` put a number on screen.
+      !/\{\s*[\w.?]*[Tt]otal[\w.?]*\s*\}/.test(c) &&
+      !/of\s*\{/.test(c) &&
+      !/\{\s*[\w.]*\.length\s*\}/.test(c),
   },
   {
     id: "LIST_NO_FILTERS",
@@ -320,9 +358,28 @@ const CHECKS = [
   },
   {
     id: "LIST_NO_PAGINATION",
-    clause: "3.3 a list must paginate",
+    clause: "3.3 a list must page, or say how much of it you are seeing",
     when: (c, route) => isList(c, route),
-    fail: (c) => !/page|cursor|limit|offset|nextPage|hasMore/i.test(c),
+    /**
+     * THIS CHECK COULD NOT FIRE.
+     *
+     * It was `!/page|cursor|limit|offset|nextPage|hasMore/i`, and every file
+     * in this tree is `export default function SomethingPage()`. All 47 pages
+     * matched `/page/i` on their own component name, so the check reported
+     * clean on a tree it had never actually examined. The adversarial suite
+     * found it by removing pagination from a fixture and watching nothing
+     * happen.
+     *
+     * Retargeted to what the clause is actually protecting. "A list must
+     * paginate" is too strong — a list the server returns whole is fine, and
+     * bolting a cursor onto it would be work for nothing. What must never
+     * happen is a list that silently shows you part of itself. So: page it,
+     * or render a ResultCount, which cannot state completeness it was not
+     * given (see lib/ui/resultCountSentence.ts, and the count-truth audit
+     * that proves every one of them is backed).
+     */
+    fail: (c, route) =>
+      !isPaginated(c) && !/<ResultCount/.test(c) && !isDeclaredComplete(route),
   },
   {
     id: "LIST_NO_FILTERED_EMPTY",
@@ -345,8 +402,18 @@ const CHECKS = [
     id: "LIST_TABLE_NOT_SCROLLABLE",
     clause: "3.3 a wide table scrolls itself, not the page",
     when: (c) => /<table/.test(c),
+    /**
+     * The VALUE, not the property name.
+     *
+     * This matched the bare token `overflowX`, so `overflowX: "visible"` — a
+     * table that does not scroll — satisfied it. Found by the adversarial
+     * suite, which set exactly that and watched the check stay green.
+     */
     fail: (c) =>
-      !/overflow-x|overflowX|apf-table-wrap|table-wrap|overflow:\s*auto/.test(c),
+      !/overflowX:\s*"(auto|scroll)"/.test(c) &&
+      !/overflow-x:\s*(auto|scroll)/.test(c) &&
+      !/overflow:\s*(auto|scroll)/.test(c) &&
+      !/apf-table-wrap|table-wrap/.test(c),
   },
 
   // ---- Details (contract 3.4) ---------------------------------------------
