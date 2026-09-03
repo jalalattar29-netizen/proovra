@@ -49,9 +49,13 @@ export async function operationsRecoveryRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, q.teamId);
       if (!ctx) return;
+      // The overview deliberately shows only the most recent reports. The
+      // number was a bare literal, so the page rendered "6 validation reports"
+      // with no way to say whether a seventh existed.
+      const REPORTS_CAP = 10;
       const reports = await listRecoveryReports({
         teamId: q.teamId,
-        limit: 10,
+        limit: REPORTS_CAP,
       });
       const objectLock = await getObjectLockStatus();
       const lastBackup = reports.find(
@@ -74,6 +78,9 @@ export async function operationsRecoveryRoutes(app: FastifyInstance) {
           ],
         },
         recentReports: reports,
+        // The cap travels WITH the list. The page used to hardcode nothing at
+        // all and present the length as the population.
+        recentReportsCap: REPORTS_CAP,
       });
     },
   );

@@ -83,7 +83,17 @@ export type PlatformAlert = {
 export type AlertsResult = {
   items: PlatformAlert[];
   counts: Record<AlertSeverity, number>;
+  /**
+   * The number of signals RETURNED. When `truncated` is true this is a floor,
+   * not a population — at least one source hit `sourceCap`.
+   */
   total: number;
+  /** True when any contributing source came back full and was cut off. */
+  truncated: boolean;
+  /** Which sources were cut off. */
+  cappedSources: string[];
+  /** The per-source row cap every contributing query ran with. */
+  sourceCap: number;
   /**
    * ADM-013 PHASE 3 — the reconciliation, computed HERE rather than by each
    * surface that renders it.
@@ -124,10 +134,27 @@ function incidentSeverity(raw: string): AlertSeverity {
  * independently and defensively — a source that throws contributes nothing
  * (honest) rather than aborting the whole aggregate.
  */
+/**
+ * The per-source row cap. Every contributing query is bounded so one noisy
+ * table cannot make this endpoint unbounded; the price is that the union is a
+ * floor, which `truncated` now says out loud.
+ */
+const SOURCE_CAP = 100;
+
 export async function buildPlatformAlerts(): Promise<AlertsResult> {
   const now = Date.now();
   const recentSince = new Date(now - RECENT_WINDOW_MS);
   const alerts: PlatformAlert[] = [];
+
+  // Every contributing query runs with `take: SOURCE_CAP`. There is no single
+  // number to disclose, because the result is a UNION of capped reads — but a
+  // source that came back exactly full was cut off, and that is knowable. The
+  // page can then say "more available" instead of presenting the union length
+  // as the number of open alerts.
+  const cappedSources: string[] = [];
+  const noteIfCapped = (source: string, rowCount: number) => {
+    if (rowCount >= SOURCE_CAP) cappedSources.push(source);
+  };
 
   // ---------------------------------------------------------------------------
   // OperationalIncident (status OPEN) — one alert per open incident.
@@ -136,7 +163,7 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
     const openIncidents = await prisma.operationalIncident.findMany({
       where: { status: "OPEN" },
       orderBy: [{ lastSeenAtUtc: "desc" }],
-      take: 100,
+      take: SOURCE_CAP,
       select: {
         id: true,
         severity: true,
@@ -144,6 +171,7 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         createdAt: true,
       },
     });
+    noteIfCapped("incident", openIncidents.length);
     for (const i of openIncidents) {
       alerts.push({
         severity: incidentSeverity(String(i.severity)),
@@ -173,7 +201,7 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         createdAt: { gte: recentSince },
       },
       orderBy: [{ createdAt: "desc" }],
-      take: 100,
+      take: SOURCE_CAP,
       select: {
         id: true,
         eventType: true,
@@ -181,6 +209,7 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
         createdAt: true,
       },
     });
+    noteIfCapped("security", securityRows.length);
     for (const s of securityRows) {
       alerts.push({
         severity: String(s.severity).toUpperCase() === "CRITICAL"
@@ -329,13 +358,14 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
     const outages = await prisma.ssoConnection.findMany({
       where: { outageDetectedAtUtc: { not: null } },
       orderBy: [{ outageDetectedAtUtc: "desc" }],
-      take: 100,
+      take: SOURCE_CAP,
       select: {
         id: true,
         displayName: true,
         outageDetectedAtUtc: true,
       },
     });
+    noteIfCapped("identity", outages.length);
     for (const c of outages) {
       alerts.push({
         severity: "high",
@@ -378,5 +408,8 @@ export async function buildPlatformAlerts(): Promise<AlertsResult> {
       additional: alerts.length - incidentBacked,
     },
     readOnly: true,
+    truncated: cappedSources.length > 0,
+    cappedSources,
+    sourceCap: SOURCE_CAP,
   };
 }

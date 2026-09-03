@@ -30,6 +30,7 @@ import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 import { Button } from "../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
@@ -62,6 +63,14 @@ type AlertsResponse = {
   counts: Record<AlertSeverity, number>;
   total: number;
   readOnly: boolean;
+  /**
+   * The alert list is a UNION of several capped queries. When a contributing
+   * source came back full there are signals this page never received, so a
+   * severity group's length is a floor rather than a count.
+   */
+  truncated?: boolean;
+  cappedSources?: string[];
+  sourceCap?: number;
 };
 
 const INK_MUTED = "var(--ink-muted, #94a3b8)";
@@ -182,7 +191,13 @@ export default function AdminAlertsPage() {
                         {SEVERITY_LABEL[sev]}
                       </Badge>
                       <span style={{ fontSize: 12, color: INK_MUTED }}>
-                        {loading ? "…" : `${rows.length} alert${rows.length === 1 ? "" : "s"}`}
+                        <ResultCount
+                          shown={rows.length}
+                          hasMore={data?.truncated ?? false}
+                          noun="alert"
+                          loading={loading}
+                          data-testid={`admin-alerts-count-${sev}`}
+                        />
                       </span>
                     </div>
 

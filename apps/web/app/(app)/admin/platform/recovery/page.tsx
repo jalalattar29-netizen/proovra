@@ -106,6 +106,8 @@ type ReadinessOverview = {
     generatedAtUtc: string;
     outcome: ValidationOutcome | null;
   }>;
+  /** The server's own cap on `recentReports` — see the GET handler. */
+  recentReportsCap?: number;
 };
 
 export default function OperationsRecoveryPage() {
@@ -277,6 +279,7 @@ function OperationsRecoveryContent() {
 
           <RecentReportsTable
             reports={overview.recentReports}
+            cap={overview.recentReportsCap}
             onOpen={openReport}
           />
         </>
@@ -436,6 +439,7 @@ function UnsupportedDomainsPanel({
 
 function RecentReportsTable({
   reports,
+  cap,
   onOpen,
 }: {
   reports: ReadonlyArray<{
@@ -444,6 +448,7 @@ function RecentReportsTable({
     generatedAtUtc: string;
     outcome: ValidationOutcome | null;
   }>;
+  cap?: number;
   onOpen: (id: string) => void;
 }) {
   return (
@@ -503,9 +508,12 @@ function RecentReportsTable({
               ))}
             </tbody>
           </table>
-          {/* No server cap on recovery reports, so a plain total is the honest statement. */}
+          {/* The overview returns only the most recent reports — the cap is
+              the server's, and it now travels with the list instead of being a
+              literal nobody downstream could see. */}
           <ResultCount
             shown={reports.length}
+            cap={cap}
             noun="validation report"
             data-testid="admin-recovery-reports-count"
           />

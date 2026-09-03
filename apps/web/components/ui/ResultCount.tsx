@@ -69,6 +69,11 @@ export type ResultCountProps = {
   /** Whether any filter is currently narrowing the request. */
   filtered?: boolean;
   loading?: boolean;
+  /**
+   * The request failed. Without it an errored list renders "No records yet",
+   * which states there is nothing at the one moment the page cannot know.
+   */
+  failed?: boolean;
   /** A continuation control, rendered on the right when supplied. */
   action?: ReactNode;
   style?: CSSProperties;
@@ -95,6 +100,7 @@ export function ResultCount({
   pluralNoun,
   filtered,
   loading,
+  failed,
   action,
   style,
   "data-testid": testId,
@@ -111,6 +117,7 @@ export function ResultCount({
     pluralNoun,
     filtered,
     loading,
+    failed,
   });
 
   return (

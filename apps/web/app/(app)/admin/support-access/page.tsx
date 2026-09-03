@@ -140,6 +140,14 @@ function Shell() {
 
   // Support grants
   const [supportGrants, setSupportGrants] = useState<SupportGrant[] | null>(null);
+  // Kept separate from the rows: `total` is a server count over the same
+  // filter, `limit` the cap the request actually sent.
+  const [supportGrantsTotal, setSupportGrantsTotal] = useState<number | null>(
+    null,
+  );
+  const [supportGrantsLimit, setSupportGrantsLimit] = useState<number | null>(
+    null,
+  );
   const [supportFailure, setSupportFailure] = useState<SurfaceFailure | null>(null);
   const [supportStatus, setSupportStatus] = useState<string>("ACTIVE");
   const [showAllActors, setShowAllActors] = useState(false);
@@ -200,12 +208,15 @@ function Shell() {
     if (showAllActors) params.set("mine", "false");
     const qs = params.toString();
     try {
-      const res: { grants: SupportGrant[] } = await apiFetch(
+      const res: { grants: SupportGrant[]; total?: number; limit?: number } =
+        await apiFetch(
         `/v1/support-access/grants${qs ? `?${qs}` : ""}`,
         { method: "GET" },
       );
       if (isStale(captured)) return;
       setSupportGrants(res.grants ?? []);
+      setSupportGrantsTotal(res.total ?? null);
+      setSupportGrantsLimit(res.limit ?? null);
     } catch (err) {
       if (isStale(captured)) return;
       setSupportGrants([]);
@@ -764,9 +775,14 @@ function Shell() {
                 )
               }
             />
-              {/* Standing access is the thing this page exists to make countable. A grant list with no number is a list nobody audits. */}
+              {/* Standing access is the thing this page exists to make
+                  countable, and the request has always capped at 50. The count
+                  now carries the server's own total for the same filter, so a
+                  full page reads "Showing 50 of 137" rather than "50". */}
               <ResultCount
                 shown={supportGrants?.length ?? 0}
+                total={supportGrantsTotal ?? undefined}
+                cap={supportGrantsLimit ?? undefined}
                 noun="support grant"
                 filtered={supportStatus !== ""}
                 loading={supportGrants === null}

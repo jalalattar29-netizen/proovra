@@ -859,7 +859,14 @@ function installSupportTransport(opts: { seedApprovedChallenge: boolean }) {
       ]
     : [];
   DB.client = {
-    supportAccessGrant: { findMany: async () => S.supportGrantRows },
+    supportAccessGrant: {
+      findMany: async () => S.supportGrantRows,
+      // The route now reads a COUNT alongside the rows so the page can say
+      // "Showing 50 of 137" instead of presenting a capped read as the whole
+      // population. A double carrying only findMany turns that into a 500 —
+      // the double has to move with the contract it stands in for.
+      count: async () => S.supportGrantRows.length,
+    },
     emergencyAccessGrant: { findMany: async () => S.emergencyGrantRows },
     stepUpChallenge: {
       findFirst: async (args: { where: { id: string; teamId: string } }) =>

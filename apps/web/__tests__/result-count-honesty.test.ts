@@ -132,3 +132,118 @@ test("no wording ever asserts a total it was not given", () => {
   const capped = s({ shown: 200, cap: 200, noun: "incident" });
   assert.notEqual(capped, "200 incidents");
 });
+
+// ===========================================================================
+// THE BOUNDARIES
+// ===========================================================================
+// Every wording above is chosen by a comparison — `shown < total`,
+// `shown >= cap`, `total === 0`. Each of those has an edge on either side, and
+// an off-by-one in any of them produces a sentence that is confidently wrong
+// rather than visibly broken. These walk the boundaries one row at a time.
+
+test("zero, one, and two agree on singular and plural", () => {
+  assert.equal(s({ shown: 0, total: 0, noun: "record" }), "No records yet");
+  assert.equal(s({ shown: 1, total: 1, noun: "record" }), "1 record");
+  assert.equal(s({ shown: 2, total: 2, noun: "record" }), "2 records");
+});
+
+test("a page below its limit is complete and says so plainly", () => {
+  // 49 of 50 asked for: the server had nothing more to give.
+  assert.equal(s({ shown: 49, cap: 50, noun: "failed job" }), "49 failed jobs");
+});
+
+test("a page exactly at its limit is assumed truncated", () => {
+  // The one deliberate over-report: a collection of exactly 50 reads as
+  // "there may be more". Erring toward more is the safe direction on a page
+  // somebody makes a decision from.
+  assert.equal(
+    s({ shown: 50, cap: 50, noun: "failed job" }),
+    "50 failed jobs shown — the view is capped at 50, so there may be more",
+  );
+});
+
+test("a server total resolves the at-the-limit ambiguity in both directions", () => {
+  // Exactly 50 exist — the cap guess would have said "there may be more".
+  assert.equal(
+    s({ shown: 50, total: 50, cap: 50, noun: "failed job" }),
+    "50 failed jobs",
+  );
+  // 51 exist — one row is hidden, and the wording names both numbers.
+  assert.equal(
+    s({ shown: 50, total: 51, cap: 50, noun: "failed job" }),
+    "Showing 50 of 51 failed jobs",
+  );
+});
+
+test("hasMore outranks a cap that disagrees with it", () => {
+  // Server says another page exists although the view came back short. A
+  // cursor endpoint returning a partial page is normal, and the cap guess
+  // would have called this complete.
+  assert.equal(
+    s({ shown: 12, cap: 50, hasMore: true, noun: "event" }),
+    "12 events loaded — more available",
+  );
+  // And the final page: full, but the server says that is all.
+  assert.equal(
+    s({ shown: 50, cap: 50, hasMore: false, noun: "event" }),
+    "50 events",
+  );
+});
+
+test("a filtered view that matches everything is not an empty view", () => {
+  // `filtered` must only change the EMPTY wording. A filter that happens to
+  // match every row still reports a count.
+  assert.equal(
+    s({ shown: 7, total: 7, noun: "grant", filtered: true }),
+    "7 grants",
+  );
+  assert.equal(
+    s({ shown: 0, total: 0, noun: "grant", filtered: true }),
+    "No grants match these filters",
+  );
+});
+
+test("a filtered total describes the FILTERED population, not the table", () => {
+  // The server counts over the same predicate as the rows. If a page passed
+  // an unfiltered total here it would render "Showing 3 of 900" while three
+  // rows match — the count and the list describing different populations is
+  // the exact failure this component exists to prevent.
+  assert.equal(
+    s({ shown: 3, total: 3, cap: 50, noun: "grant", filtered: true }),
+    "3 grants",
+  );
+});
+
+test("a failed load never reports emptiness", () => {
+  // The rows array is `[]` whether the list is empty or the request threw.
+  // "No records yet" is a statement of fact, and this is the one moment the
+  // page has no basis for it.
+  assert.equal(
+    s({ shown: 0, noun: "record", failed: true }),
+    "Count unavailable",
+  );
+  assert.equal(
+    s({ shown: 0, total: 0, noun: "record", failed: true, filtered: true }),
+    "Count unavailable",
+  );
+});
+
+test("a retry in flight outranks the failure it is retrying", () => {
+  // Otherwise the page shows a stale error while it is already asking again.
+  assert.equal(
+    s({ shown: 0, noun: "record", failed: true, loading: true }),
+    "Loading records…",
+  );
+});
+
+test("a stale total from before a filter change is still reported honestly", () => {
+  // The page is expected to clear `total` when the filter changes. If it does
+  // not, the sentence must still not invent completeness: 3 shown against a
+  // stale 900 reads as a truncation, which is wrong but VISIBLE — the reader
+  // sees two numbers that do not fit. The failure mode being excluded is the
+  // silent one, where it would print "3 grants" and look correct.
+  assert.equal(
+    s({ shown: 3, total: 900, noun: "grant", filtered: true }),
+    "Showing 3 of 900 grants",
+  );
+});

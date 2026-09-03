@@ -1,0 +1,149 @@
+{
+  "generatedFrom": "apps/web/app/(app)/admin",
+  "completeListDeclarations": [
+    {
+      "route": "/admin/platform/automation",
+      "noun": "rule",
+      "endpoint": "GET /v1/automation/rules",
+      "reason": "Rules are per-workspace configuration, bounded by what an operator created; the handler runs findMany with no take, so the length IS the population."
+    }
+  ],
+  "sites": [
+    {
+      "route": "/admin/alerts",
+      "kind": "ResultCount",
+      "noun": "alert",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": false,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/contact-sales",
+      "kind": "ResultCount",
+      "noun": "inquiry",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/identity/runtime",
+      "kind": "ResultCount",
+      "noun": "session",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/identity/scim",
+      "kind": "ResultCount",
+      "noun": "sync failure",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/identity/timeline",
+      "kind": "ResultCount",
+      "noun": "event",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/operations",
+      "kind": "ResultCount",
+      "noun": "condition",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/platform/automation",
+      "kind": "ResultCount",
+      "noun": "run",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": true,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/platform/automation",
+      "kind": "ResultCount",
+      "noun": "run",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/platform/automation",
+      "kind": "inline",
+      "noun": "rule",
+      "truth": "COMPLETE_LIST",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/platform/queues",
+      "kind": "ResultCount",
+      "noun": "failed job",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": false,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/platform/recovery",
+      "kind": "ResultCount",
+      "noun": "validation report",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/platform/runbooks",
+      "kind": "inline",
+      "noun": "runbook",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": true,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/platform/signers",
+      "kind": "ResultCount",
+      "noun": "attestation",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/search",
+      "kind": "inline",
+      "noun": "result",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/support-access",
+      "kind": "ResultCount",
+      "noun": "support grant",
+      "truth": "EXACT_TOTAL",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/timeline",
+      "kind": "inline",
+      "noun": "most recent event",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/timeline",
+      "kind": "inline",
+      "noun": "event",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": true,
+      "loadingAware": true
+    }
+  ]
+}

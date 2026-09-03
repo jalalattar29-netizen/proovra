@@ -411,18 +411,32 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       .parse(req.query ?? {});
     const staff = await requirePlatformStaff(req, reply);
     if (!staff) return;
-    const rows = await prisma.supportAccessGrant.findMany({
-      where: {
-        ...(q.organizationId ? { organizationId: q.organizationId } : {}),
-        ...(q.status ? { status: q.status } : {}),
-        // Default view is the caller's OWN grants — those are the only ones they
-        // can actually enter context with.
-        ...(q.mine === "false" ? {} : { supportUserId: staff.actorUserId }),
-      },
-      orderBy: [{ startedAtUtc: "desc" }, { id: "desc" }],
-      take: Math.min(q.limit ?? 50, 200),
+    // ONE predicate for the rows and the count. Two separately-built filters
+    // is how a list and its total drift apart under a filter change.
+    const where = {
+      ...(q.organizationId ? { organizationId: q.organizationId } : {}),
+      ...(q.status ? { status: q.status } : {}),
+      // Default view is the caller's OWN grants — those are the only ones they
+      // can actually enter context with.
+      ...(q.mine === "false" ? {} : { supportUserId: staff.actorUserId }),
+    };
+    const limit = Math.min(q.limit ?? 50, 200);
+    const [rows, total] = await Promise.all([
+      prisma.supportAccessGrant.findMany({
+        where,
+        orderBy: [{ startedAtUtc: "desc" }, { id: "desc" }],
+        take: limit,
+      }),
+      prisma.supportAccessGrant.count({ where }),
+    ]);
+    // `total` and `limit` are SIBLINGS of `grants`: the page can now say
+    // "Showing 50 of 137" instead of "50 support grants", and no caller that
+    // only reads `grants` sees a different shape.
+    return reply.send({
+      grants: rows.map(projectSupportGrant),
+      total,
+      limit,
     });
-    return reply.send({ grants: rows.map(projectSupportGrant) });
   });
 
   // ── §10.6 Step 4 — break-glass EMERGENCY OPERATE (CONSUMES a grant) ─────

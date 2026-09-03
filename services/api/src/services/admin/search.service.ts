@@ -70,7 +70,14 @@ export type AdminSearchGroup = {
 export type AdminSearchResponse = {
   query: string;
   groups: AdminSearchGroup[];
+  /** Sum of the returned group lengths — a FLOOR when `truncated` is true. */
   total: number;
+  /** The per-type `take` every group ran with. */
+  perTypeLimit: number;
+  /** True when at least one group came back full and was therefore cut off. */
+  truncated: boolean;
+  /** The group types that were cut off. */
+  truncatedGroups: string[];
 };
 
 export type AdminSearchFilters = {
@@ -418,7 +425,22 @@ export async function adminGlobalSearch(
 
   const total = groups.reduce((sum, g) => sum + g.results.length, 0);
 
-  return { query, groups, total };
+  // `total` is the sum of what the GROUPS RETURNED, and each group ran with
+  // its own `take: limit`. A group that came back exactly full was cut off,
+  // which makes the sum a floor, not a count — and the page presented it as
+  // "N matches". Both facts travel with the result so the surface can say so.
+  const truncatedGroups = groups
+    .filter((g) => g.results.length >= limit)
+    .map((g) => g.type);
+
+  return {
+    query,
+    groups,
+    total,
+    perTypeLimit: limit,
+    truncated: truncatedGroups.length > 0,
+    truncatedGroups,
+  };
 }
 
 // A cheap UUID-shape guard so we only add exact id/evidenceId equality

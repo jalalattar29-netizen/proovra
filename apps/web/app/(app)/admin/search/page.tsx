@@ -67,7 +67,15 @@ type SearchGroup = {
 type SearchResponse = {
   query: string;
   groups: SearchGroup[];
+  /**
+   * The SUM of the returned group lengths. Every group ran with its own
+   * `take: perTypeLimit`, so when `truncated` is true this is a floor and
+   * calling it "N matches" overstates what the server actually established.
+   */
   total: number;
+  perTypeLimit?: number;
+  truncated?: boolean;
+  truncatedGroups?: string[];
 };
 
 const TYPE_LABEL: Record<SearchType, string> = {
@@ -103,6 +111,8 @@ export default function AdminSearchPage() {
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState<SearchGroup[]>([]);
   const [total, setTotal] = useState(0);
+  const [perTypeLimit, setPerTypeLimit] = useState<number | null>(null);
+  const [truncatedGroups, setTruncatedGroups] = useState<string[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
 
   const tooShort = appliedSearch.trim().length < MIN_QUERY_LENGTH;
@@ -112,6 +122,8 @@ export default function AdminSearchPage() {
     if (q.length < MIN_QUERY_LENGTH) {
       setGroups([]);
       setTotal(0);
+      setPerTypeLimit(null);
+      setTruncatedGroups([]);
       return;
     }
     try {
@@ -130,6 +142,12 @@ export default function AdminSearchPage() {
         : [];
       setGroups(nextGroups);
       setTotal(typeof data?.total === "number" ? data.total : 0);
+      setPerTypeLimit(
+        typeof data?.perTypeLimit === "number" ? data.perTypeLimit : null,
+      );
+      setTruncatedGroups(
+        Array.isArray(data?.truncatedGroups) ? data.truncatedGroups : [],
+      );
     } catch (err) {
       const message = toSafeUserError(err, {
         message: "We couldn't run that search.",
@@ -137,6 +155,8 @@ export default function AdminSearchPage() {
       addToast(message, "error");
       setGroups([]);
       setTotal(0);
+      setPerTypeLimit(null);
+      setTruncatedGroups([]);
     } finally {
       setLoading(false);
     }
@@ -223,8 +243,19 @@ export default function AdminSearchPage() {
                     color: "var(--ink-secondary, #475569)",
                   }}
                 >
+                  {truncatedGroups.length > 0 ? "At least " : ""}
                   {total} match{total === 1 ? "" : "es"} across {groups.length}{" "}
                   categor{groups.length === 1 ? "y" : "ies"}
+                  {truncatedGroups.length > 0 && perTypeLimit !== null ? (
+                    <>
+                      {" "}
+                      — each category returns at most {perTypeLimit}, and{" "}
+                      {truncatedGroups.length === 1
+                        ? "one category"
+                        : `${truncatedGroups.length} categories`}{" "}
+                      hit that limit. Narrow the term to see the rest.
+                    </>
+                  ) : null}
                 </div>
 
                 {groups.map((group) => (
@@ -250,6 +281,7 @@ export default function AdminSearchPage() {
                       >
                         {group.results.length} result
                         {group.results.length === 1 ? "" : "s"}
+                        {truncatedGroups.includes(group.type) ? " (capped)" : ""}
                       </span>
                     </div>
 

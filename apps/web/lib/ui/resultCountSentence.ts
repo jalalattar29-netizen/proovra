@@ -41,6 +41,17 @@ export type ResultCountFacts = {
   /** Whether a filter is currently narrowing the request. */
   filtered?: boolean;
   loading?: boolean;
+  /**
+   * The request FAILED.
+   *
+   * Without this a failed load is indistinguishable from an empty one: the
+   * rows array is `[]` either way, and the count reads "No records yet" — a
+   * confident statement that there is nothing, made at the moment the page
+   * knows least. On a control plane where an operator checks whether a
+   * workspace has any evidence at all, that is the wrong answer in the
+   * dangerous direction.
+   */
+  failed?: boolean;
 };
 
 export function resultCountSentence({
@@ -52,6 +63,7 @@ export function resultCountSentence({
   pluralNoun,
   filtered,
   loading,
+  failed,
 }: ResultCountFacts): string {
   const plural = pluralNoun ?? `${noun}s`;
   const word = shown === 1 ? noun : plural;
@@ -62,7 +74,12 @@ export function resultCountSentence({
       ? shown < total
       : (hasMore ?? (cap !== undefined && shown >= cap));
 
+  // A retry in flight outranks the last failure — the page is no longer
+  // reporting a stale error, it is asking again.
   if (loading) return `Loading ${plural}…`;
+
+  // Before the empty wording, so a failed load never claims emptiness.
+  if (failed) return `Count unavailable`;
 
   if (total === 0 || (total === undefined && shown === 0)) {
     return filtered ? `No ${plural} match these filters` : `No ${plural} yet`;

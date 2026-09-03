@@ -123,6 +123,7 @@ export default function AdminContactSalesPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ListItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<Status | "">("");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -130,8 +131,13 @@ export default function AdminContactSalesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
 
+  // The cap lives here so the count can name it. It was previously a bare
+  // literal in the query string, which is how the page came to carry a comment
+  // saying there was no server cap while sending one on every request.
+  const PAGE_LIMIT = 50;
+
   const queryString = useMemo(() => {
-    const p = new URLSearchParams({ limit: "50" });
+    const p = new URLSearchParams({ limit: String(PAGE_LIMIT) });
     if (statusFilter) p.set("status", statusFilter);
     if (search.trim()) p.set("search", search.trim());
     return p.toString();
@@ -142,9 +148,16 @@ export default function AdminContactSalesPage() {
     try {
       const res = (await apiFetch(
         `/v1/admin/contact-sales?${queryString}`
-      )) as { ok: boolean; data: { items: ListItem[]; summary: Summary } };
+      )) as {
+        ok: boolean;
+        data: { items: ListItem[]; total: number; summary: Summary };
+      };
       if (res.ok) {
         setItems(res.data.items);
+        // `total` is a server COUNT over the same filter as the rows, not the
+        // length of what came back — so "Showing 50 of 214" is a fact rather
+        // than an inference from a full page.
+        setTotal(res.data.total ?? null);
         setSummary(res.data.summary);
       }
     } catch (err) {
@@ -475,9 +488,10 @@ export default function AdminContactSalesPage() {
                     ))}
             </tbody>
           </table>
-          {/* No server cap on this list, so a plain total is the honest statement. */}
           <ResultCount
             shown={items.length}
+            total={total ?? undefined}
+            cap={PAGE_LIMIT}
             noun="inquiry"
             pluralNoun="inquiries"
             filtered={statusFilter !== ""}
