@@ -14,7 +14,14 @@ import { AiCaptureService } from "../services/ai/ai-capture.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
-import { evaluateWorkspaceAiPolicy } from "../services/ai/workspace-ai-policy.service.js";
+import {
+  answerProductKnowledge,
+  listGroundedTopicIds,
+} from "../services/ai/proovra-product-knowledge.js";
+import {
+  evaluateWorkspaceAiPolicy,
+  isOperatorCapabilityGap,
+} from "../services/ai/workspace-ai-policy.service.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
   buildPrismaLedgerStore,
@@ -263,6 +270,56 @@ async function withAiTimeout<T>(
 }
 
 export async function aiRoutes(app: FastifyInstance) {
+  /*
+   * WHAT THE ASSISTANT CAN DO, ASKED BEFORE ANYTHING IS TYPED.
+   *
+   * Until this existed the panel had exactly one way to discover its own
+   * state: send a question and interpret the failure. A workspace that had
+   * deliberately turned the assistant off looked identical to an outage,
+   * because both arrived as a rejected POST — which is how a policy decision
+   * came to be reported to users as "AI assistant currently unavailable".
+   *
+   * This endpoint answers the question directly. It is a read of state the
+   * caller is already subject to: the same evaluator the chat route runs,
+   * for the same workspace, so the panel cannot describe itself as available
+   * and then be refused, or describe itself as dead while still answering.
+   *
+   * It deliberately returns the DECISION, not the reason string. The decision
+   * is a bounded enum the UI can map to its own copy in the user's language;
+   * the reason is operator prose and belongs in logs.
+   */
+  app.get(
+    "/v1/ai/availability",
+    { preHandler: [requireAuthAndLegal] },
+    async (req) => {
+      const userId = getAuthUserId(req);
+      const aiScope = (await resolveCommercialContext({ type: "PERSONAL_ACCOUNT", userId })).scope;
+      const policy = await evaluateWorkspaceAiPolicy({
+        teamId: aiScope.teamId,
+        feature: "SUPPORT_CHAT",
+        dataClass: "METADATA",
+      });
+
+      /*
+       * Grounded topics survive an operator capability gap but not a workspace
+       * opt-out — the same rule the chat route applies, stated once here so the
+       * panel's promise and the route's behaviour cannot drift apart.
+       */
+
+      return {
+        data: {
+          available: policy.allowed,
+          decision: policy.decision,
+          /** True when questions about the product are still answerable. */
+          groundedAnswersAvailable:
+            policy.allowed || isOperatorCapabilityGap(policy.decision),
+          groundedTopics: listGroundedTopicIds(),
+          policyVersion: policy.policyVersion,
+        },
+      };
+    },
+  );
+
   app.post(
     "/v1/ai/chat",
     { preHandler: [requireAuthAndLegal] },
@@ -362,10 +419,63 @@ export async function aiRoutes(app: FastifyInstance) {
         dataClass: "METADATA",
       });
       if (!chatPolicy.allowed) {
+        /*
+         * A DENIAL IS NOT ONE THING, and the difference matters here.
+         *
+         * Two of these decisions say the OPERATOR has not configured provider
+         * AI: the platform flag is off (GLOBAL_DISABLED) or no key is present
+         * (PROVIDER_NOT_CONFIGURED). The rest say something about THIS
+         * workspace, plan or role — the customer turned the assistant off, or
+         * is not entitled to it, or this data class may not be sent.
+         *
+         * The deterministic answers below are product documentation compiled
+         * into this build. They call no model and send nothing outbound, so an
+         * operator not having configured OpenAI is no reason to withhold them:
+         * refusing to say "Capture stages an item, then Review & Sign finalizes
+         * it" because a provider key is absent tells the user the product has
+         * no documentation, which is false.
+         *
+         * A workspace opt-out is the opposite case and is honoured completely.
+         * If a customer disabled the assistant, or their plan does not include
+         * it, or their role may not use it, they get the denial — never a
+         * consolation answer that makes an opt-out look partially ignored.
+         */
+        const grounded = isOperatorCapabilityGap(chatPolicy.decision)
+          ? answerProductKnowledge(body.messages)
+          : null;
+
+        if (grounded) {
+          auditAiAction(req, {
+            userId,
+            action: "ai.chat_request",
+            outcome: "success",
+            severity: "info",
+            workspaceId: aiScope.teamId ?? null,
+            metadata: {
+              messageCount: body.messages.length,
+              pageContext: body.pageContext ?? null,
+              status: grounded.status,
+              // The distinguishing fact: answered from the compiled bundle
+              // with no provider involved. Without this an operator reading
+              // the log could not tell these apart from model answers.
+              source: "product_knowledge",
+              policyDecision: chatPolicy.decision,
+            },
+          });
+          return { data: grounded };
+        }
+
         return reply.code(403).send({
           code: "AI_WORKSPACE_POLICY_DENIED",
           message: chatPolicy.reason,
           decision: chatPolicy.decision,
+          // Repeated under `details` because that is the only part of a flat
+          // (unnested) error body the web transport preserves. The top-level
+          // field stays for existing consumers; without this copy the UI
+          // receives the denial with no way to tell WHICH denial it was, and
+          // every policy decision collapses into one generic message — which
+          // is precisely how an opt-out came to be shown as an outage.
+          details: { decision: chatPolicy.decision },
         });
       }
 

@@ -1,0 +1,423 @@
+/**
+ * THE AUTHENTICATED ASSISTANT PANEL.
+ *
+ * =============================================================================
+ * WHY THIS FILE EXISTS AT ALL
+ * =============================================================================
+ * The panel was written in Tailwind arbitrary values carrying a palette that
+ * appears nowhere else in the authenticated product: `#3a5d61` and `#243f44`
+ * for the teal chrome, `#8f745c` and `#e6c9ae` for the speaker labels,
+ * `#fbfcfb` / `#f7faf8` / `#eef4f2` for three barely-distinguishable greens.
+ * Every internal surface has since moved onto the shared `app-*` system and
+ * its semantic tokens, so the assistant floated above the product looking like
+ * a different product.
+ *
+ * Those values were also spelled inline at each use, which is why they drifted:
+ * a colour written eleven times is eleven things to change and one to forget.
+ *
+ * =============================================================================
+ * THE PALETTE IS BORROWED, NOT INVENTED
+ * =============================================================================
+ * Every colour here resolves to a canonical token — `--ink-primary` for text,
+ * `--accent-600` for the one action, `--error`/`--orange-500` for the two
+ * states that are genuinely wrong. Nothing defines a new one. The assistant is
+ * not important enough to earn its own colour language, and a floating panel
+ * with a private palette is exactly how a product stops looking like itself.
+ *
+ * =============================================================================
+ * TWO SHAPES, ONE COMPONENT
+ * =============================================================================
+ * On a phone the panel is a bottom sheet: full width, anchored to the bottom
+ * edge, sized so the composer clears the on-screen keyboard. On a wider screen
+ * it is a floating card above the launcher. Both are the same markup — the
+ * difference is a media query, because a second component would be a second
+ * place for the states to diverge.
+ */
+
+/* ---------------------------------------------------------------------------
+   THE DOCK — launcher and panel share one anchored stack.
+--------------------------------------------------------------------------- */
+.assistant-dock {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+/* ---------------------------------------------------------------------------
+   THE LAUNCHER
+   ---------------------------------------------------------------------------
+   A filled accent circle rather than the old white disc with a hand-drawn
+   speech bubble built from five absolutely-positioned spans. The bubble was
+   assembled from borders and rotated squares, so it rendered differently at
+   different zoom levels and carried a teal that no longer exists elsewhere.
+--------------------------------------------------------------------------- */
+.assistant-launcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent-600);
+  background: var(--accent-600);
+  color: #ffffff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.assistant-launcher:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.26);
+}
+
+.assistant-launcher:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 3px;
+}
+
+.assistant-launcher svg {
+  inline-size: 1.375rem;
+  block-size: 1.375rem;
+}
+
+/* The one-time nudge. It is a label, not a tooltip: it never points at
+   anything and it disappears on a timer, so it must not look interactive. */
+.assistant-hint {
+  position: absolute;
+  right: 3.75rem;
+  bottom: 0.75rem;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-primary);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+/* ---------------------------------------------------------------------------
+   THE PANEL
+--------------------------------------------------------------------------- */
+.assistant-panel {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(24rem, calc(100vw - 3rem));
+  max-block-size: min(32rem, calc(100dvh - 8rem));
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.20);
+}
+
+.assistant-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-block-end: 1px solid var(--border-soft, var(--border));
+  background: var(--surface-soft, #f8fafc);
+}
+
+.assistant-panel__title {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink-primary);
+}
+
+/*
+ * THE DISCLOSURE IS PART OF THE HEADER, NOT A FOOTNOTE.
+ *
+ * It read "Advisory support only. Not legal or factual determination." — true,
+ * but written for a compliance reviewer. What a user needs to know is what the
+ * thing will and will not do for them, which is what it now says. The claim is
+ * no weaker: "does not judge whether evidence is authentic" is the same
+ * boundary in words that mean something to the reader.
+ */
+.assistant-panel__disclosure {
+  margin-block-start: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--app-ink-secondary, #667085);
+}
+
+.assistant-panel__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--app-ink-secondary, #667085);
+  cursor: pointer;
+}
+
+.assistant-panel__close:hover {
+  background: var(--accent-050);
+  color: var(--ink-primary);
+}
+
+.assistant-panel__close:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------------------
+   THE TRANSCRIPT
+--------------------------------------------------------------------------- */
+.assistant-log {
+  flex: 1 1 auto;
+  min-block-size: 8rem;
+  overflow-y: auto;
+  padding: 0.875rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--card);
+}
+
+/*
+ * The opening state is a set of REAL QUESTIONS, not a sentence describing the
+ * categories of question that could be asked. "Ask about PROOVRA, upload
+ * steps, reports, verification, billing, or account support" required the
+ * reader to invent a question from a list of nouns; four buttons that ask
+ * themselves do not.
+ */
+.assistant-empty__lead {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--app-ink-secondary, #667085);
+}
+
+.assistant-empty__list {
+  margin-block-start: 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.assistant-suggestion {
+  text-align: start;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ink-primary);
+  cursor: pointer;
+}
+
+.assistant-suggestion:hover {
+  background: var(--accent-050);
+  border-color: var(--accent-600);
+}
+
+.assistant-suggestion:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 1px;
+}
+
+/* A turn is identified by alignment and ground, not by a shouting label.
+   The old panel printed "ASSISTANT" / "YOU" in black uppercase above every
+   single message, which cost a line of vertical space per turn to say what
+   position already says. */
+.assistant-msg {
+  max-inline-size: 88%;
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-msg[data-role="user"] {
+  align-self: flex-end;
+  background: var(--accent-600);
+  color: #ffffff;
+}
+
+.assistant-msg[data-role="assistant"] {
+  align-self: flex-start;
+  background: var(--surface-soft, #f8fafc);
+  border: 1px solid var(--border);
+  color: var(--ink-primary);
+}
+
+/* Suggested next actions belong to the answer above them and read as a list,
+   which is what they are — the old panel flattened them into the message body
+   behind a "Suggested next actions:" line and bullet characters. */
+.assistant-msg__actions {
+  margin: 0.5rem 0 0;
+  padding-inline-start: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78125rem;
+  color: var(--app-ink-secondary, #667085);
+}
+
+.assistant-msg__warnings {
+  margin: 0.5rem 0 0;
+  padding-inline-start: 1.1rem;
+  font-size: 0.78125rem;
+  color: var(--orange-500);
+}
+
+/* The pending turn. A row of dots rather than the word "Sending…" on the
+   button, so the wait is shown where the answer will appear. */
+.assistant-typing {
+  align-self: flex-start;
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+}
+
+.assistant-typing span {
+  inline-size: 0.375rem;
+  block-size: 0.375rem;
+  border-radius: 999px;
+  background: var(--app-ink-placeholder, #98a2b3);
+  animation: assistant-blink 1.2s infinite ease-in-out;
+}
+
+.assistant-typing span:nth-child(2) { animation-delay: 0.15s; }
+.assistant-typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes assistant-blink {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-typing span { animation: none; opacity: 0.6; }
+}
+
+/* ---------------------------------------------------------------------------
+   THE STATE BANNER
+   ---------------------------------------------------------------------------
+   One banner for every non-answer, tone-driven. The panel previously had TWO
+   independent blocks — a red `error` and a beige `unavailable` — which could
+   both be shown at once, stacking two contradictory explanations of the same
+   failure above the composer.
+--------------------------------------------------------------------------- */
+.assistant-state {
+  margin: 0 1rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid;
+  padding: 0.625rem 0.75rem;
+}
+
+/* A working system saying no. Neutral, because nothing is broken. */
+.assistant-state[data-tone="notice"] {
+  border-color: var(--border);
+  background: var(--surface-soft, #f8fafc);
+}
+
+/* Something actually went wrong. */
+.assistant-state[data-tone="problem"] {
+  border-color: var(--error);
+  background: var(--error-050, #fef2f2);
+}
+
+.assistant-state__title {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--ink-primary);
+}
+
+.assistant-state[data-tone="problem"] .assistant-state__title {
+  color: var(--error);
+}
+
+.assistant-state__body {
+  margin-block-start: 0.1875rem;
+  font-size: 0.78125rem;
+  line-height: 1.5;
+  color: var(--app-ink-secondary, #667085);
+}
+
+/* ---------------------------------------------------------------------------
+   THE COMPOSER
+--------------------------------------------------------------------------- */
+.assistant-composer {
+  border-block-start: 1px solid var(--border-soft, var(--border));
+  padding: 0.75rem 1rem 0.875rem;
+  background: var(--card);
+}
+
+.assistant-composer__field {
+  inline-size: 100%;
+  resize: none;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-primary);
+}
+
+.assistant-composer__field::placeholder {
+  color: var(--app-ink-placeholder, #98a2b3);
+}
+
+.assistant-composer__field:focus {
+  outline: none;
+  border-color: var(--accent-600);
+  box-shadow: 0 0 0 3px var(--accent-050);
+}
+
+.assistant-composer__field:disabled {
+  background: var(--surface-muted, #f1f5f9);
+  cursor: not-allowed;
+}
+
+.assistant-composer__row {
+  margin-block-start: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.assistant-composer__hint {
+  font-size: 0.6875rem;
+  color: var(--app-ink-secondary, #667085);
+}
+
+/* ---------------------------------------------------------------------------
+   PHONE — the panel becomes a sheet.
+--------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .assistant-dock {
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    align-items: stretch;
+  }
+
+  .assistant-panel {
+    inline-size: 100%;
+    max-block-size: calc(100dvh - 6rem);
+    border-radius: 16px 16px 12px 12px;
+  }
+
+  .assistant-launcher {
+    align-self: flex-end;
+  }
+}

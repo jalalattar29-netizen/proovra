@@ -1,26 +1,61 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card } from "../ui";
-import { apiFetch, ApiError } from "../../lib/api";
+/**
+ * THE AUTHENTICATED ASSISTANT.
+ *
+ * =============================================================================
+ * WHAT CHANGED AND WHY
+ * =============================================================================
+ * This panel used to report every failure it did not recognise with one line:
+ *
+ *     "AI assistant currently unavailable. Continue without AI."
+ *
+ * The sentence was reached for a workspace that had deliberately switched AI
+ * off, for a plan that never included it, for a rate limit, for a spent
+ * budget, and for an expired session — none of which are unavailability. The
+ * reasoning behind that mapping now lives in `lib/ai/assistant-state.ts`,
+ * where it is a pure function and every branch can be asserted; see that file
+ * for the full account of what the old branch got wrong.
+ *
+ * Three further changes follow from it:
+ *
+ * ONE STATE, NOT TWO. There were two independent pieces of state, `error` and
+ * `unavailable`, rendered as two separate blocks that could appear together —
+ * two contradictory explanations of one failure, stacked. There is now a
+ * single `AssistantState`.
+ *
+ * THE PANEL ASKS BEFORE IT GUESSES. Opening the panel reads
+ * `GET /v1/ai/availability`, so a workspace that turned the assistant off is
+ * told so immediately instead of after typing a question and having it fail.
+ *
+ * A 200 IS NOT AN ANSWER. The provider layer catches its own failures and
+ * reports them in the body as `status: "error"`, so a panel that inspected
+ * only HTTP status rendered an apology in the shape of advice. The result
+ * status is now classified too.
+ */
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { apiFetch } from "../../lib/api";
+import {
+  classifyAssistantError,
+  classifyAssistantResult,
+  READY_STATE,
+  SENSITIVE_ROUTE_STATE,
+  type AssistantState,
+} from "../../lib/ai/assistant-state";
 import { hasPreferencesConsent } from "../../lib/consent";
 import {
   classifyRouteClass,
   getSafePageContext,
   isSensitiveRoute,
 } from "../../lib/privacy/redact";
-
-type ChatMessage = {
-  role: "user" | "assistant";
-  content: string;
-};
+import "./assistant.css";
 
 type AiFlag = {
   severity: "info" | "warning" | "danger";
   title: string;
   detail: string;
-  affectedItemId?: string;
-  affectedStepId?: string;
 };
 
 type AiResult = {
@@ -32,269 +67,392 @@ type AiResult = {
   legalDisclaimer: string;
 };
 
-type ChatResponsePayload = {
-  data?: AiResult;
+/**
+ * A turn as the panel renders it.
+ *
+ * `suggestions` and `warnings` are kept as fields rather than folded into the
+ * text. The old panel joined them into `content` behind "Suggested next
+ * actions:" and bullet characters, which made a list that could not be styled,
+ * could not be a list for a screen reader, and could not be told apart from a
+ * summary that happened to contain a newline.
+ */
+type Turn = {
+  role: "user" | "assistant";
+  content: string;
+  suggestions?: string[];
+  warnings?: string[];
 };
+
+/** What the panel sends to the API — the transcript only, without decoration. */
+type WireMessage = { role: "user" | "assistant"; content: string };
+
+type ChatResponsePayload = { data?: AiResult };
+
+type AvailabilityPayload = {
+  data?: {
+    available: boolean;
+    decision: string;
+    groundedAnswersAvailable: boolean;
+  };
+};
+
+/*
+ * The opening prompts are REAL QUESTIONS the assistant can answer without a
+ * provider — each maps to a grounded topic in the server's product-knowledge
+ * bundle. That matters: an opening prompt that fails when AI is switched off
+ * would be the panel advertising something it cannot do.
+ */
+const OPENING_QUESTIONS = [
+  "How do I capture evidence?",
+  "What is a verification package?",
+  "What does TSA failed mean?",
+  "What can AI do in PROOVRA?",
+];
 
 export function ProovraChatWidget() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
+  const [state, setState] = useState<AssistantState>(READY_STATE);
   const [showHint, setShowHint] = useState(false);
 
-useEffect(() => {
-  if (typeof window === "undefined") return;
+  const logRef = useRef<HTMLDivElement | null>(null);
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null);
+  /** Availability is read once per open, not once per keystroke. */
+  const probedRef = useRef(false);
 
-  const canPersist = hasPreferencesConsent();
-  const seen = canPersist
-    ? window.localStorage.getItem("proovra-chat-hint-seen")
-    : null;
+  // ---- the one-time nudge -------------------------------------------------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
-  if (seen) return;
+    const canPersist = hasPreferencesConsent();
+    const seen = canPersist
+      ? window.localStorage.getItem("proovra-chat-hint-seen")
+      : null;
+    if (seen) return;
 
-  setShowHint(true);
-
-  const timer = window.setTimeout(() => {
-    setShowHint(false);
-    if (canPersist) {
-      try {
-        window.localStorage.setItem("proovra-chat-hint-seen", "1");
-      } catch {
-        // ignore quota / private mode
+    setShowHint(true);
+    const timer = window.setTimeout(() => {
+      setShowHint(false);
+      if (canPersist) {
+        try {
+          window.localStorage.setItem("proovra-chat-hint-seen", "1");
+        } catch {
+          // ignore quota / private mode
+        }
       }
-    }
-  }, 3000);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
-  return () => window.clearTimeout(timer);
-}, []);
-
-  const hasMessages = messages.length > 0;
-  const canSend = Boolean(draft.trim()) && !busy && !unavailable;
-
-  const handleSend = async () => {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-
-    const newMessages: ChatMessage[] = [...messages, { role: "user", content: trimmed }];
-    setMessages(newMessages);
-    setDraft("");
-    setBusy(true);
-    setError(null);
-
+  /*
+   * ASK WHAT IS POSSIBLE BEFORE OFFERING IT.
+   *
+   * Without this the only way to discover a workspace opt-out was to type a
+   * question and have it refused, which is how a deliberate configuration came
+   * to be presented as a malfunction. A failure to probe is not itself an
+   * error worth showing — the send path will classify whatever is really
+   * wrong, with a real request behind it.
+   */
+  const probeAvailability = useCallback(async () => {
+    if (probedRef.current) return;
+    probedRef.current = true;
     try {
+      const res = (await apiFetch(
+        "/v1/ai/availability",
+        { method: "GET" },
+        { auth: true },
+      )) as AvailabilityPayload;
+
+      const info = res?.data;
+      if (!info || info.available) return;
+
+      setState(
+        classifyAssistantError({
+          code: "AI_WORKSPACE_POLICY_DENIED",
+          statusCode: 403,
+          details: { decision: info.decision },
+        }),
+      );
+    } catch {
+      // Stay ready; a real send will produce a real classification.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    void probeAvailability();
+    fieldRef.current?.focus();
+  }, [open, probeAvailability]);
+
+  // Keep the newest turn in view without yanking the whole page.
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [turns, busy]);
+
+  const send = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || busy) return;
+
       const rawPath =
         typeof window !== "undefined" ? window.location.pathname : null;
-      const safe = getSafePageContext(rawPath);
-      // Never send page titles — they routinely contain evidence names,
-      // case numbers, recipient names, or report subjects.
-      const pageContext = {
-        path: safe.safePath,
-        routeClass: safe.routeClass,
-      };
 
-      // Defense-in-depth: refuse to send any AI request from a sensitive
-      // route even if the host page somehow rendered the widget.
+      // Defence in depth: never send from a screen that can show sensitive
+      // material, even if the host page somehow rendered the widget there.
       if (isSensitiveRoute(rawPath) || classifyRouteClass(rawPath) === "auth") {
-        setUnavailable(true);
-        setError("AI assistant disabled on this page.");
-        setBusy(false);
+        setState(SENSITIVE_ROUTE_STATE);
         return;
       }
 
-      const response = (await apiFetch(
-        "/v1/ai/chat",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            messages: newMessages,
-            pageContext,
-          }),
-        },
-        { auth: true }
-      )) as ChatResponsePayload;
+      const nextTurns: Turn[] = [...turns, { role: "user", content: trimmed }];
+      setTurns(nextTurns);
+      setDraft("");
+      setBusy(true);
+      setState(READY_STATE);
 
-const result = response?.data;
+      // The wire carries the transcript only. Suggestions and warnings are
+      // this panel's rendering of an answer, not part of the conversation.
+      const wire: WireMessage[] = nextTurns.map((t) => ({
+        role: t.role,
+        content: t.content,
+      }));
 
-const assistantMessage = result
-  ? [
-      result.summary,
-      result.warnings?.length
-        ? `Warnings:\n${result.warnings.map((item) => `• ${item}`).join("\n")}`
-        : "",
-      result.suggestions?.length
-        ? `Suggested next actions:\n${result.suggestions.map((item) => `• ${item}`).join("\n")}`
-        : "",
-      result.flags?.length
-        ? `Flags:\n${result.flags
-            .map((flag) => `• [${flag.severity}] ${flag.title}: ${flag.detail}`)
-            .join("\n")}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n")
-  : "The assistant returned an advisory response.";
+      try {
+        const safe = getSafePageContext(rawPath);
+        // Never send page titles — they routinely contain evidence names,
+        // case numbers, recipient names, or report subjects.
+        const response = (await apiFetch(
+          "/v1/ai/chat",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              messages: wire,
+              pageContext: { path: safe.safePath, routeClass: safe.routeClass },
+            }),
+          },
+          { auth: true },
+        )) as ChatResponsePayload;
 
-setMessages((prev) => [
-  ...prev,
-  {
-    role: "assistant",
-    content: assistantMessage,
-  },
-]);
-    } catch (err: unknown) {
-      const apiError = err as ApiError;
-      const unavailableReason =
-        apiError?.code === "AI_DISABLED" ||
-        apiError?.statusCode === 404 ||
-        apiError?.statusCode === 503 ||
-        apiError?.statusCode === 502 ||
-        apiError?.statusCode === 504;
+        const result = response?.data;
+        if (!result) {
+          setState(classifyAssistantResult("error"));
+          return;
+        }
 
-      if (unavailableReason) {
-        setUnavailable(true);
-        setError("AI assistant unavailable.");
-      } else {
-        setError("AI assistant currently unavailable. Continue without AI.");
+        const resultState = classifyAssistantResult(result.status);
+        setState(resultState);
+
+        // A refusal or a failure is shown in the banner, which explains it
+        // once and in the panel's own words. Adding it to the transcript as
+        // well would say the same thing twice and leave an apology sitting in
+        // the history as though it were an answer.
+        if (result.status !== "ok") return;
+
+        setTurns((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: result.summary,
+            suggestions: result.suggestions?.length ? result.suggestions : undefined,
+            warnings: result.warnings?.length ? result.warnings : undefined,
+          },
+        ]);
+      } catch (err: unknown) {
+        setState(
+          classifyAssistantError(
+            (err ?? {}) as {
+              code?: string;
+              statusCode?: number;
+              details?: Record<string, unknown>;
+            },
+          ),
+        );
+      } finally {
+        setBusy(false);
       }
-    } finally {
-      setBusy(false);
-    }
-  };
+    },
+    [busy, turns],
+  );
+
+  const canSend = Boolean(draft.trim()) && !busy && state.canSend;
 
   return (
-<div className="fixed inset-x-3 bottom-4 z-50 flex flex-col items-end gap-3 sm:inset-x-auto sm:right-6 sm:bottom-6">
-        {open ? (
-<Card className="w-full max-w-[420px] overflow-hidden rounded-[24px] border border-[rgba(58,93,97,0.18)] bg-[#fbfcfb] p-0 shadow-[0_24px_70px_rgba(15,23,42,0.20)] sm:w-[420px] sm:rounded-[28px]">
-            <div className="border-b border-[rgba(36,55,59,0.10)] bg-[linear-gradient(180deg,#f9fbfa,#eef4f2)] px-4 py-4">
-            <div className="flex items-start justify-between gap-3">
+    <div className="assistant-dock">
+      {open ? (
+        <div
+          className="assistant-panel"
+          role="dialog"
+          aria-label="PROOVRA assistant"
+          data-assistant-panel
+        >
+          <div className="assistant-panel__header">
+            <div>
+              <div className="assistant-panel__title">PROOVRA Assistant</div>
+              {/*
+                The disclosure says the same thing the old one did — "Advisory
+                support only. Not legal or factual determination." — in words
+                that mean something to the person reading it. The boundary is
+                not weakened: "advisory" and "does not determine" both remain,
+                and what it does not determine is now named rather than left as
+                an abstraction.
+              */}
+              <p className="assistant-panel__disclosure">
+                Advisory only. It answers questions about using PROOVRA and does
+                not determine whether evidence is authentic, or give legal advice.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="assistant-panel__close"
+              onClick={() => setOpen(false)}
+              aria-label="Close assistant"
+            >
+              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+                <path
+                  d="M5 5l10 10M15 5L5 15"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div
+            className="assistant-log"
+            ref={logRef}
+            role="log"
+            aria-live="polite"
+            aria-label="Assistant conversation"
+          >
+            {turns.length === 0 ? (
               <div>
-                <div className="text-[0.95rem] font-extrabold tracking-[-0.02em] text-[#12252a]">
-PROOVRA Assistant
-                </div>
-                <div className="mt-1 text-[0.72rem] leading-5 text-[#6a777a]">
-                  Advisory support only. Not legal or factual determination.
+                <p className="assistant-empty__lead">
+                  Ask anything about capturing, organising or verifying evidence.
+                </p>
+                <div className="assistant-empty__list">
+                  {OPENING_QUESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      className="assistant-suggestion"
+                      onClick={() => void send(q)}
+                      disabled={busy || !state.canSend}
+                    >
+                      {q}
+                    </button>
+                  ))}
                 </div>
               </div>
+            ) : (
+              turns.map((turn, index) => (
+                <div
+                  key={`${turn.role}-${index}`}
+                  className="assistant-msg"
+                  data-role={turn.role}
+                >
+                  {turn.content}
+                  {turn.warnings?.length ? (
+                    <ul className="assistant-msg__warnings">
+                      {turn.warnings.map((w) => (
+                        <li key={w}>{w}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {turn.suggestions?.length ? (
+                    <ul className="assistant-msg__actions">
+                      {turn.suggestions.map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ))
+            )}
 
+            {busy ? (
+              <div className="assistant-typing" aria-label="Assistant is answering">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : null}
+          </div>
+
+          {state.kind !== "READY" ? (
+            <div
+              className="assistant-state"
+              data-tone={state.tone}
+              data-assistant-state={state.kind}
+              role={state.tone === "problem" ? "alert" : "status"}
+            >
+              <div className="assistant-state__title">{state.title}</div>
+              <div className="assistant-state__body">{state.body}</div>
+            </div>
+          ) : null}
+
+          <div className="assistant-composer">
+            <textarea
+              ref={fieldRef}
+              className="assistant-composer__field"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter sends, Shift+Enter breaks the line — the convention
+                // every chat surface the reader already uses shares.
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (canSend) void send(draft);
+                }
+              }}
+              rows={2}
+              placeholder="Ask a question…"
+              disabled={busy || !state.canSend}
+              aria-label="Ask the assistant"
+            />
+            <div className="assistant-composer__row">
+              <span className="assistant-composer__hint">
+                Enter to send · Shift + Enter for a new line
+              </span>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-full border border-[rgba(58,93,97,0.14)] bg-white px-3 py-1 text-xs font-bold text-[#3a5d61] shadow-sm"
+                className="app-primary-action"
+                onClick={() => void send(draft)}
+                disabled={!canSend}
               >
-                Close
+                Send
               </button>
             </div>
           </div>
-
-<div className="max-h-[42dvh] overflow-y-auto bg-[#f7faf8] px-4 py-3 sm:max-h-[360px]" role="log" aria-live="polite" aria-label="Support chat conversation">
-              {hasMessages ? (
-              <div className="space-y-3">
-                {messages.map((message, index) => (
-                  <div
-                    key={`${message.role}-${index}`}
-                    className={`rounded-2xl border px-3 py-3 text-sm shadow-sm ${
-                      message.role === "assistant"
-                        ? "border-[rgba(58,93,97,0.14)] bg-white text-[#24373b]"
-                        : "border-[rgba(58,93,97,0.22)] bg-[linear-gradient(180deg,#3a5d61,#243f44)] text-[#f4f7f6]"
-                    }`}
-                  >
-                    <div
-                      className={`text-[0.68rem] font-black uppercase tracking-[0.16em] ${
-                        message.role === "assistant"
-                          ? "text-[#8f745c]"
-                          : "text-[#e6c9ae]"
-                      }`}
-                    >
-                      {message.role === "assistant" ? "Assistant" : "You"}
-                    </div>
-                    <div className="mt-1 whitespace-pre-wrap leading-6">
-                      {message.content}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-[rgba(58,93,97,0.12)] bg-white p-4 text-sm leading-6 text-[#526164] shadow-sm">
-Ask about PROOVRA, upload steps, reports, verification, billing, or account support.
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-[rgba(36,55,59,0.10)] bg-white px-4 py-3">
-            {error ? (
-              <div className="mb-3 rounded-2xl border border-rose-500/20 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-                {error}
-              </div>
-            ) : null}
-
-            {unavailable ? (
-              <div className="mb-3 rounded-2xl border border-[rgba(183,157,132,0.24)] bg-[#faf6f1] px-3 py-2 text-sm text-[#705f50]">
-                AI assistant unavailable. You can continue capture normally.
-              </div>
-            ) : null}
-
-            <div className="grid gap-2">
-              <textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                rows={3}
-                placeholder="Ask a question..."
-                className="w-full rounded-2xl border border-[rgba(58,93,97,0.16)] bg-[#fbfcfb] px-3 py-3 text-sm text-[#12252a] outline-none placeholder:text-[#8b989c] focus:border-[rgba(58,93,97,0.34)] focus:ring-4 focus:ring-[rgba(58,93,97,0.08)]"
-                disabled={busy || unavailable}
-              />
-
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-xs text-[#7a878a]">
-                  Advisory only.
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSend}
-                  disabled={!canSend}
-                  className="rounded-full border border-[rgba(183,157,132,0.28)] bg-[linear-gradient(180deg,#3a5d61,#203a3f)] px-5 py-2.5 text-sm font-extrabold text-[#f4f7f6] shadow-[0_12px_26px_rgba(15,23,42,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {busy ? "Sending…" : "Send"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </Card>
+        </div>
       ) : null}
 
-<div className="relative">
-  {showHint && !open ? (
-    <div className="proovra-chat-hint" role="status">
-      Need help?
-    </div>
-  ) : null}
-
-  <button
-    type="button"
-    onClick={() => setOpen((prev) => !prev)}
-    aria-label={open ? "Close support chat" : "Open support chat"}
-    className={[
-      "flex h-12 w-12 items-center justify-center rounded-full",
-      "border border-[rgba(36,55,59,0.14)] bg-white/95",
-      "shadow-[0_18px_46px_rgba(15,23,42,0.18)] backdrop-blur",
-      "transition hover:-translate-y-0.5 hover:shadow-[0_22px_58px_rgba(15,23,42,0.22)]",
-      "focus:outline-none focus:ring-4 focus:ring-[rgba(58,93,97,0.12)]",
-    ].join(" ")}
-  >
-    <span
-      aria-hidden="true"
-      className="relative h-6 w-7 rounded-[9px] border-2 border-[#3a5d61]"
-    >
-      <span className="absolute -bottom-[5px] left-2 h-2 w-2 rotate-45 border-b-2 border-r-2 border-[#3a5d61] bg-white" />
-      <span className="absolute left-[6px] top-[8px] h-1 w-1 rounded-full bg-[#3a5d61]" />
-      <span className="absolute left-[12px] top-[8px] h-1 w-1 rounded-full bg-[#3a5d61]" />
-      <span className="absolute left-[18px] top-[8px] h-1 w-1 rounded-full bg-[#3a5d61]" />
-    </span>
-  </button>
-</div>
+      <div style={{ position: "relative" }}>
+        {showHint && !open ? (
+          <div className="assistant-hint" role="status">
+            Need help?
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="assistant-launcher"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-label={open ? "Close assistant" : "Open assistant"}
+          aria-expanded={open}
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M21 12a8 8 0 0 1-8 8H7l-4 3v-4.6A8 8 0 0 1 13 4a8 8 0 0 1 8 8Z"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

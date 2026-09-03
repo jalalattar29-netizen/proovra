@@ -72,7 +72,19 @@ const RAIL_ITEMS = [
   Icon: Fingerprint,
   color: "#6D28D9",
   title: "VERIFY",
-  body: ["AI-powered verification &", "real-time integrity checks"],
+  /*
+   * NOT "AI-powered verification".
+   *
+   * Verification in PROOVRA is cryptographic and AI has no part in it: a
+   * SHA-256 file hash, an Ed25519 signature, a hash-linked custody chain, and
+   * optional RFC3161 / OpenTimestamps corroboration. The assistant is advisory
+   * and is explicitly barred from determining authenticity — so a homepage
+   * promising AI-powered verification contradicted the product's own stated
+   * boundary, and promised the one thing it refuses to do.
+   *
+   * What is claimed here is what the code actually performs.
+   */
+  body: ["Cryptographic signatures &", "hash-linked integrity checks"],
 },
 {
   Icon: FileCheck,
@@ -84,7 +96,14 @@ const RAIL_ITEMS = [
   Icon: RailProveIcon,
   color: "#E91E63",
   title: "PROVE",
-  body: ["Share or verify authenticity", "instantly, anywhere"],
+  /*
+   * "Verify authenticity" was the same overclaim in softer words. Public
+   * Verify checks that a package's contents match its manifest, hashes and
+   * signature — that the record is INTACT AND UNALTERED SINCE IT WAS SIGNED.
+   * It says nothing about whether what was captured is authentic, which is a
+   * judgement PROOVRA deliberately does not make.
+   */
+  body: ["Share a package anyone", "can check, instantly"],
 },
 ];
 

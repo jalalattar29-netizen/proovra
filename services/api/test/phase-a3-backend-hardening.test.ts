@@ -213,7 +213,21 @@ describe("Phase A3 — AI chat hardening", () => {
   it("rate-limits per user BEFORE the cost guard runs", () => {
     const chatStart = AI_ROUTES.indexOf('"/v1/ai/chat"');
     expect(chatStart).toBeGreaterThan(0);
-    const handlerSlice = AI_ROUTES.slice(chatStart, chatStart + 5_000);
+    /*
+     * Bounded by the NEXT ROUTE, not by a byte count.
+     *
+     * This used to slice a fixed 5,000 characters and search inside it, so the
+     * assertion measured how far apart two strings sat in the source file.
+     * Adding a comment to the handler moved the second one past the window and
+     * failed the test without changing a line of behaviour — while a genuine
+     * reordering that kept both within 5,000 characters would have passed.
+     *
+     * The invariant is that the rate limit comes first WITHIN THIS HANDLER, so
+     * the handler is what the slice should be.
+     */
+    const nextRoute = AI_ROUTES.indexOf('"/v1/ai/capture/analyze-session"', chatStart);
+    expect(nextRoute).toBeGreaterThan(chatStart);
+    const handlerSlice = AI_ROUTES.slice(chatStart, nextRoute);
 
     const userRateIdx = handlerSlice.indexOf("ratelimit:ai-chat:user:");
     const analyzeIdx = handlerSlice.indexOf("aiChatService.analyzeChat");

@@ -257,6 +257,28 @@ export async function resolveWorkspaceAiPolicy(
 }
 
 /** True when the platform-level OpenAI advisory provider is usable. */
+/**
+ * Does this denial mean the OPERATOR cannot, or that the CUSTOMER will not?
+ *
+ * Two decisions describe the platform's own configuration: AI is switched off
+ * globally, or no provider key is present. Every other decision describes this
+ * workspace — its own opt-out, its plan, its roles, its data-class rule.
+ *
+ * The distinction decides whether a caller may still be served an answer that
+ * needs no provider. Product documentation compiled into the build sends
+ * nothing outbound, so an unconfigured operator is no reason to withhold it;
+ * a workspace that turned the assistant off is every reason, and that opt-out
+ * is honoured with no partial exceptions.
+ *
+ * It is a named predicate rather than a condition inline at each call site so
+ * that the rule can be TESTED. Two call sites — the chat route and the
+ * availability endpoint — must agree about it, and a rule spelled out twice is
+ * a rule that will eventually be spelled out two different ways.
+ */
+export function isOperatorCapabilityGap(decision: WorkspaceAiDecision): boolean {
+  return decision === "GLOBAL_DISABLED" || decision === "PROVIDER_NOT_CONFIGURED";
+}
+
 export function isOpenAiAdvisoryConfigured(): boolean {
   return Boolean(getSecret("OPENAI_API_KEY")?.trim());
 }
