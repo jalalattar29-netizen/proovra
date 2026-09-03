@@ -837,7 +837,12 @@ function ObservabilityDashboardPageInner() {
             </>
           }
           secondaryActions={
-            <Link href="/operations" style={navLinkStyle}>
+            <Link
+              href="/operations"
+              // 44px hit box; the header keeps its height (admin-console.css).
+              className="admin-hit-link"
+              style={navLinkStyle}
+            >
               ← Operations Center
             </Link>
           }

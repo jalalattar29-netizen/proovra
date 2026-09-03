@@ -424,6 +424,8 @@ function AnalyticsPageInner(): JSX.Element {
               }
               }}
               style={{
+              // 44px touch floor (matrix measured 28px).
+              minHeight: 44,
               fontSize: 13,
               padding: "4px 8px",
               border: "1px solid #cbd5e1",

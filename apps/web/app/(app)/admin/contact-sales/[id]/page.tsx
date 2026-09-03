@@ -485,6 +485,8 @@ export default function AdminContactSalesDetailPage({
                   <div style={{ marginTop: 4 }}>
                     <a
                       href={`mailto:${state.details.workEmail}`}
+                      // 44px hit box; the row keeps its height (admin-console.css).
+                      className="admin-hit-link"
                       style={{ color: "var(--accent-500, #7C3AED)" }}
                     >
                       {state.details.workEmail}

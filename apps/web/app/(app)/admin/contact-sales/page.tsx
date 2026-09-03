@@ -215,8 +215,13 @@ export default function AdminContactSalesPage() {
    * Success is announced only after the server's row has replaced the local
    * one.
    */
-  async function patchStatus(current: Details, next: Status) {
-    if (updating) return;
+  async function patchStatus(next: Status) {
+    // Reads the loaded record from state rather than taking it as an
+    // argument: the route-consumer analyzer resolves this call's request
+    // from the literal inside, and an object first-argument made the call
+    // unresolvable — one blind spot in the capability map is one too many.
+    const current = details;
+    if (updating || !current) return;
     const rule = commercialStatusActions(current.status).find((r) => r.to === next);
     if (!rule) return;
     const subject = {
@@ -300,6 +305,9 @@ export default function AdminContactSalesPage() {
                           ? "1px solid var(--accent-500, #7C3AED)"
                           : "1px solid var(--border-default, #e2e8f0)",
                         borderRadius: 999,
+                        // 44px touch floor — these chips ARE the status filter,
+                        // measured at 30px tall by the verification matrix.
+                        minHeight: 44,
                         padding: "5px 12px",
                         display: "inline-flex",
                         alignItems: "center",
@@ -344,6 +352,7 @@ export default function AdminContactSalesPage() {
             value={search}
             onChange={(v) => setSearch(v)}
             placeholder="Search name, email, organization"
+            aria-label="Search contact-sales requests by name, email, or organization"
             className="min-w-[260px]"
           />
           <Select
@@ -720,7 +729,7 @@ export default function AdminContactSalesPage() {
                         })}
                         title={rule.effect}
                         data-testid={`contact-sales-status-${rule.to.toLowerCase()}`}
-                        onClick={() => void patchStatus(details, rule.to)}
+                        onClick={() => void patchStatus(rule.to)}
                       >
                         {COMMERCIAL_STATUS_LABEL[rule.to]}
                       </Button>

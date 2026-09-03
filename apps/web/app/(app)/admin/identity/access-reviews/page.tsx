@@ -355,7 +355,12 @@ export default function AccessReviewsPage() {
           title="Access reviews"
           subtitle="Periodic and triggered certification of the access people and machines still hold. Every decision is recorded in the immutable audit trail with your identity and the subject's."
           contextStrip={
-            <Link href="/admin/identity" style={{ fontSize: 12 }}>
+            <Link
+              href="/admin/identity"
+              // 44px hit box; the header keeps its height (admin-console.css).
+              className="admin-hit-link"
+              style={{ fontSize: 12 }}
+            >
               ← Back to identity administration
             </Link>
           }

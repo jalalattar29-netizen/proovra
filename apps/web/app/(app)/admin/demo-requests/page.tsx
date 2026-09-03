@@ -903,6 +903,13 @@ export default function AdminDemoRequestsPage() {
                           padding: 0,
                           textAlign: "left",
                           cursor: "pointer",
+                          // 44px hit box (matrix measured 23px); the negative
+                          // block margin hands the growth back to the row so
+                          // the list keeps its density.
+                          display: "inline-flex",
+                          alignItems: "center",
+                          minHeight: 44,
+                          marginBlock: -12,
                           fontSize: 15,
                           fontWeight: 650,
                           color: INK_PRIMARY,

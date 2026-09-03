@@ -621,6 +621,12 @@ function AutomationPageInner(): JSX.Element {
 
 function newRuleButtonStyle(disabled: boolean): React.CSSProperties {
   return {
+    // 44px touch floor (matrix measured 28px), centred like every other
+    // raised admin control.
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
     padding: "4px 10px",
     border: "1px solid #cbd5e1",
     background: "#fff",

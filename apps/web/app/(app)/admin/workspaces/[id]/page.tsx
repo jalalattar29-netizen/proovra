@@ -304,7 +304,12 @@ export default function AdminWorkspaceDetailPage() {
                 </Field>
                 <Field label="Owner">
                   {detail.owner?.email ? (
-                    <Link href={`/admin/users/${encodeURIComponent(detail.owner.userId)}`}>
+                    // admin-hit-link: 44px hit box, the fact row keeps its
+                    // height (admin-console.css).
+                    <Link
+                      href={`/admin/users/${encodeURIComponent(detail.owner.userId)}`}
+                      className="admin-hit-link"
+                    >
                       {detail.owner.email}
                     </Link>
                   ) : (
@@ -313,7 +318,10 @@ export default function AdminWorkspaceDetailPage() {
                 </Field>
                 <Field label="Billing owner">
                   {detail.billingOwner?.email ? (
-                    <Link href={`/admin/users/${encodeURIComponent(detail.billingOwner.userId)}`}>
+                    <Link
+                      href={`/admin/users/${encodeURIComponent(detail.billingOwner.userId)}`}
+                      className="admin-hit-link"
+                    >
                       {detail.billingOwner.email}
                     </Link>
                   ) : (

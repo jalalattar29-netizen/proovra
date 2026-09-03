@@ -439,6 +439,8 @@ export const HISTORICAL_DOCUMENTS = Object.freeze({
   "docs/architecture/route-classification/CAPABILITY-AUDIT-RESOLUTION.md": "Resolution narrative for the capability-preservation audit; the resolution itself lives in the manifests and the map.",
   "docs/architecture/search-reality-audit.md": "Point-in-time audit of the search surface.",
   "docs/architecture/workspace-surface-audit.md": "Point-in-time audit of the workspace surface.",
+  "docs/architecture/backlog-capability-manifest-line-pinning.md":
+    "Backlog note recording an observed instrument limitation (manifest sites pinned to line numbers move under unrelated edits). It asserts no count and holds no authority — the manifests and the analyzer remain the authorities; the note only says the work is unscheduled.",
 });
 
 /**

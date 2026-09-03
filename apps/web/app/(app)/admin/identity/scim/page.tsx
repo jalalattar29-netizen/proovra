@@ -294,6 +294,8 @@ export default function ScimPage() {
               aria-selected={active}
               onClick={() => setTab(k)}
               style={{
+                // 44px touch floor — the matrix measured the tab row at 38px.
+                minHeight: 44,
                 padding: "8px 14px",
                 fontSize: 13,
                 fontWeight: 600,

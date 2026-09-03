@@ -618,7 +618,8 @@ function Shell() {
           title="Support access and break-glass"
           subtitle="Restricted internal capabilities. Every action here carries dual identity — you and the customer organization — and is recorded in the immutable support audit trail."
           contextStrip={
-            <a href="/admin" style={{ fontSize: 12 }}>← Back to platform administration</a>
+            // 44px hit box; the header keeps its height (admin-console.css).
+            <a href="/admin" className="admin-hit-link" style={{ fontSize: 12 }}>← Back to platform administration</a>
           }
           primaryAction={
             <Button

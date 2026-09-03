@@ -474,6 +474,10 @@ export default function AdminDashboardPage() {
               cursor: loading ? "not-allowed" : "pointer",
               border: "1px solid transparent",
               borderRadius: 9,
+              // 44px touch floor: the matrix measured these range switches at
+              // 36px, and they are the only way to change what the dashboard
+              // shows.
+              minHeight: 44,
               padding: "7px 14px",
               fontSize: 13,
               fontWeight: 650,

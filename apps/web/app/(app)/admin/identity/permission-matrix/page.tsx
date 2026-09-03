@@ -364,7 +364,12 @@ export default function PermissionMatrixPage() {
           title="Permission matrix"
           subtitle="The authoritative role → permission projection, plus one member's effective access with the source of every outcome. Nothing on this page is computed in the browser."
           contextStrip={
-            <Link href="/admin/identity" style={{ fontSize: 12 }}>
+            <Link
+              href="/admin/identity"
+              // 44px hit box; the header keeps its height (admin-console.css).
+              className="admin-hit-link"
+              style={{ fontSize: 12 }}
+            >
               ← Back to identity administration
             </Link>
           }
@@ -497,6 +502,7 @@ export default function PermissionMatrixPage() {
           >
             <input
               data-permission-matrix-subject
+              aria-label="Member user id (UUID) to inspect"
               style={{ ...inputStyle, maxWidth: 360 }}
               placeholder="Member user id (UUID)"
               value={subjectUserId}

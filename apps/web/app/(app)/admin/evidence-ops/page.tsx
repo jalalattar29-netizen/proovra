@@ -322,13 +322,24 @@ function CohortCard({ c }: { c: CohortCount }) {
           fontSize: 13,
         }}
       >
+        {/* admin-hit-link: 44px hit boxes; the card footer keeps its height
+            (admin-console.css). */}
         {unmeasured ? null : (
-          <Link href={c.drillDown} data-testid={`cohort-drilldown-${c.cohort}`}>
+          <Link
+            href={c.drillDown}
+            data-testid={`cohort-drilldown-${c.cohort}`}
+            className="admin-hit-link"
+          >
             View {c.count} record{c.count === 1 ? "" : "s"}
           </Link>
         )}
         {c.runbookSlug ? (
-          <Link href={`/admin/platform/runbooks/${c.runbookSlug}`}>Runbook</Link>
+          <Link
+            href={`/admin/platform/runbooks/${c.runbookSlug}`}
+            className="admin-hit-link"
+          >
+            Runbook
+          </Link>
         ) : null}
       </div>
     </Card>

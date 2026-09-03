@@ -254,6 +254,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
               data-identity-contributor-session-id
+              aria-label="Contributor session id (UUID) to revoke"
               style={{ ...inputStyle, maxWidth: 320 }}
               value={sessionId}
               placeholder="Contributor session id (UUID)"
@@ -261,6 +262,7 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
             />
             <input
               data-identity-contributor-session-reason
+              aria-label="Optional reason for revoking the contributor session"
               style={{ ...inputStyle, maxWidth: 240 }}
               value={reason}
               maxLength={400}

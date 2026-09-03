@@ -319,6 +319,7 @@ export function ExternalMappingsSection({
           </select>
           <input
             data-identity-mapping-subject
+            aria-label="Provider subject id (NameID or sub claim) to link"
             style={{ ...inputStyle, maxWidth: 280 }}
             value={externalSubjectId}
             maxLength={320}
@@ -327,6 +328,7 @@ export function ExternalMappingsSection({
           />
           <input
             data-identity-mapping-display-name
+            aria-label="Optional label for the new mapping"
             style={{ ...inputStyle, maxWidth: 200 }}
             value={displayName}
             maxLength={180}

@@ -99,7 +99,22 @@ export const tdStyle: CSSProperties = {
   color: TOKENS.ink,
 };
 
+/**
+ * 44px floor, same argument as `inputStyle` below.
+ *
+ * The verification matrix measured every button built from these two tokens at
+ * 32px tall — Inspect / Close / promote on /admin/platform/signers, the backup
+ * and restore validation runs on /admin/platform/recovery, the queue actions —
+ * because 6px of padding plus a 12px font lands at 32. A MINIMUM height (not a
+ * fixed one) with flex centring keeps a wrapped label growing while a one-line
+ * label sits centred in the taller box. Raised here rather than at each call
+ * site because these tokens are the shared definition.
+ */
 export const primaryButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 44,
   padding: "6px 12px",
   fontSize: 12,
   fontWeight: 600,
@@ -111,6 +126,10 @@ export const primaryButtonStyle: CSSProperties = {
 };
 
 export const ghostButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 44,
   padding: "6px 12px",
   fontSize: 12,
   fontWeight: 500,

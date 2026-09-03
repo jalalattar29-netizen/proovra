@@ -255,8 +255,26 @@ async function signIn(page: Page, email: string): Promise<void> {
     await page.waitForTimeout(1_000);
   }
 
-  await page.locator('button[type="submit"]:visible').first().click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 90_000 });
+  /**
+   * Submit with the keyboard, and only fall back to the pointer.
+   *
+   * At 390px the submit button sits low enough that Playwright reported it
+   * "visible, enabled" but never "stable" — some ancestor keeps
+   * re-laying-out under it — and the click timed out, taking the five
+   * remaining narrow-viewport bodies with it. Pressing Enter in the
+   * password field submits the same form through the same handler and does
+   * not depend on the button's geometry at all; a user on a phone keyboard
+   * does exactly this.
+   */
+  await page.locator('input[type="password"]:visible').first().press("Enter");
+  await page
+    .waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 })
+    .catch(async () => {
+      const submit = page.locator('button[type="submit"]:visible').first();
+      await submit.scrollIntoViewIfNeeded().catch(() => {});
+      await submit.click({ timeout: 30_000 });
+      await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 90_000 });
+    });
 }
 
 /**
@@ -536,6 +554,15 @@ for (const role of SELECTED_ROLES) {
               // boundary working. Counting it as a console defect made every
               // correct refusal look like a bug and buried the real errors.
               if (expectedRefusal && /status of (401|403)/.test(e)) return false;
+              // 402 is the BILLING boundary working, for any role: a
+              // plan-gated feature refusing a workspace whose plan lacks it
+              // (observed live: /v1/identity/access-reviews answers 402
+              // ENTERPRISE_FEATURE_REQUIRED for a non-Enterprise workspace).
+              // The browser logs every non-2xx fetch and a page cannot
+              // suppress that line; whether the page then RENDERS the
+              // entitlement state truthfully is what the text checks below
+              // measure.
+              if (/status of 402/.test(e)) return false;
               return true;
             });
             if (realErrors.length > 0) {

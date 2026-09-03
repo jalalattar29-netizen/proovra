@@ -116,6 +116,8 @@ export default async function RunbookDetailPage({
             secondaryActions={
               <Link
                 href="/admin/platform/runbooks"
+                // 44px hit box; the header keeps its height (admin-console.css).
+                className="admin-hit-link"
                 style={{ textDecoration: "none" }}
               >
                 ← All runbooks

@@ -473,6 +473,7 @@ useEffect(() => {
                 type="text"
                 value={retryRunId}
                 placeholder="mi-extract_exif-<uuid>"
+                aria-label="Failed job id to retry"
                 onChange={(e) => setRetryRunId(e.target.value)}
                 className="apf-control"
               />
@@ -684,6 +685,12 @@ const actionControlStyle: React.CSSProperties = {
 
 function primaryButtonStyle(disabled: boolean): React.CSSProperties {
   return {
+    // 44px touch floor (matrix measured 32px), matching the shared
+    // identity/ui-tokens button raise.
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
     fontSize: 12,
     fontWeight: 600,
     padding: "6px 14px",

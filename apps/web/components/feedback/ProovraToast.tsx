@@ -182,25 +182,49 @@ const messageStyle: CSSProperties = {
   wordBreak: "break-word",
 };
 
+/**
+ * Same 44px+ floor as the dismiss button below, same technique: the box
+ * reaches 46px (0.98 entry scale keeps it above 44 mid-animation) and the
+ * negative block margins hand the growth back, so the card keeps its compact
+ * geometry. The block margins replace the old `marginTop: 6` — the top margin
+ * is 6 - 12 and the visual offset survives.
+ */
 const actionStyle: CSSProperties = {
-  display: "inline-block",
-  marginTop: 6,
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 46,
+  minWidth: 46,
+  marginBlock: "-6px -14px",
   fontSize: 12.5,
   fontWeight: 650,
   textDecoration: "none",
 };
 
+/**
+ * A 44px+ hit target on a 26px visual footprint.
+ *
+ * The verification matrix measured this button at 26x26 — under the 44px
+ * touch floor, on the one control that dismisses an overlay. The box grows
+ * and the negative margins hand the growth back to the card's layout, so the
+ * toast keeps its compact geometry while the padding around the icon
+ * genuinely receives the click.
+ *
+ * 46, not 44: the `pf-toast-in` entry animation scales the card to 0.98, and
+ * a 44px box measured mid-entry is 43.1px — a real sub-floor target for the
+ * ~300ms someone is most likely to reach for it. 46 x 0.98 = 45.1 keeps the
+ * target above the floor for the whole lifetime of the toast.
+ */
 const closeStyle: CSSProperties = {
   flexShrink: 0,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  width: 26,
-  height: 26,
+  width: 46,
+  height: 46,
+  margin: "-9px -10px -10px -10px",
   borderRadius: 7,
   border: "1px solid transparent",
   background: "transparent",
   color: FEEDBACK_SURFACE.inkSubtle,
   cursor: "pointer",
-  marginTop: 1,
 };

@@ -498,8 +498,13 @@ export default function AdminAuditPage() {
       }
     >
 
-      <div
+      {/* A <p>, not a <div>: this is one running sentence, and the element
+          says so — a reader in a screen reader hears a paragraph, and the
+          "Global timeline" link is a link IN PROSE (read, not tapped at),
+          which is exactly the WCAG 2.5.8 inline exemption. */}
+      <p
         style={{
+          margin: 0,
           fontSize: 13,
           color: INK_SECONDARY,
           lineHeight: 1.6,
@@ -517,7 +522,7 @@ export default function AdminAuditPage() {
         </Link>
         . The timeline is a broader, non-tamper-evident operational feed; this page is the
         authoritative, verifiable admin audit trail.
-      </div>
+      </p>
 
       <PageSection
         title="Audit summary"

@@ -134,6 +134,18 @@ export function classifyFailure(err: unknown, fallback: string): SurfaceFailure 
   if (status === 403 || status === 404) {
     return { kind: "denied", message: CODE_COPY.permission_denied };
   }
+  if (status === 402) {
+    // The plan boundary, not a fault. The API answers 402
+    // ENTERPRISE_FEATURE_REQUIRED when the active workspace's plan does not
+    // include this surface's feature; presented as a generic error it reads
+    // as breakage, and the honest state is "this workspace's plan does not
+    // include it".
+    return {
+      kind: "blocked",
+      message:
+        "This surface is part of the Enterprise plan, and the workspace you are acting in does not carry it. Switch into an Enterprise workspace to use it here.",
+    };
+  }
   return {
     kind: "error",
     message: toSafeUserError(err, { message: fallback }).message,

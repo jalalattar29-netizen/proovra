@@ -518,9 +518,13 @@ export default function AdminOverviewPage() {
                 problems: the alert builder emits one signal per open incident,
                 so 72 of the 78 ARE the 72. Printing the two totals side by side
                 with nothing between them is what invited the addition. */}
-            <div
+            {/* A <p>: one running sentence, so the "Review the signals" link
+                is a link in prose — the WCAG 2.5.8 inline case, not a control
+                that has to reach the 44px target floor on its own. */}
+            <p
               data-testid="admin-signal-reconciliation"
               style={{
+                margin: 0,
                 marginTop: 14,
                 padding: "12px 14px",
                 border: "1px solid var(--border-default, #cbd5e1)",
@@ -544,7 +548,7 @@ export default function AdminOverviewPage() {
               <Link href="/admin/alerts" style={{ fontWeight: 600 }}>
                 Review the signals
               </Link>
-            </div>
+            </p>
           </PageSection>
 
           {/* ---- A2. Needs attention -------------------------------------- */}
@@ -610,7 +614,14 @@ export default function AdminOverviewPage() {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {ov.people.accountsByTier.map((t) => (
-                    <Link key={t.tier} href={t.drillDown} style={{ textDecoration: "none" }}>
+                    <Link
+                      key={t.tier}
+                      href={t.drillDown}
+                      // 44px hit box around the 27px badge; the negative block
+                      // margin keeps the chip row's visual height unchanged.
+                      className="admin-hit-link"
+                      style={{ textDecoration: "none" }}
+                    >
                       <Badge tone="governance" subtle>
                         {t.tier}: {t.count} →
                       </Badge>
@@ -717,6 +728,8 @@ export default function AdminOverviewPage() {
                     <Link
                       key={s.status}
                       href={`/admin/billing?subscriptionStatus=${encodeURIComponent(s.status)}`}
+                      // Same 44px hit box as the tier chips above.
+                      className="admin-hit-link"
                       style={{ textDecoration: "none" }}
                     >
                       <Badge tone={SUBSCRIPTION_STATUS_TONE[s.status] ?? "neutral"} subtle>

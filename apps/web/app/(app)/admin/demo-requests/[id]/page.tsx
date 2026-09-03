@@ -460,13 +460,13 @@ export default function AdminDemoRequestDetailPage({
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 href={`/admin/demo-requests?id=${encodeURIComponent(state.details.id)}`}
-                className="inline-flex items-center gap-2 rounded-full bg-[#0F172A] px-5 py-2 text-[13px] font-semibold text-white hover:bg-[#1E293B]"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-[#0F172A] px-5 py-2 text-[13px] font-semibold text-white hover:bg-[#1E293B]"
               >
                 Open full controls in list view
               </Link>
               <a
                 href={`mailto:${state.details.workEmail}`}
-                className="inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-5 py-2 text-[13px] font-semibold text-[#0F172A] hover:bg-[#F8FAFC]"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-5 py-2 text-[13px] font-semibold text-[#0F172A] hover:bg-[#F8FAFC]"
               >
                 Reply via email
               </a>

@@ -226,6 +226,46 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Hit-area floor for inline links — every viewport, not only touch.
+   ---------------------------------------------------------------------------
+   The verification matrix measured every data-table link in the console —
+   workspace names, operator emails, runbook links, drill-down counts — between
+   14x16 and 67x37, on every viewport from 320 to 1440. The console is used on
+   phones during incidents, and a workspace link is the primary navigation out
+   of a table row.
+
+   The fix is the breadcrumb technique generalised: the link becomes an atomic
+   inline box with a 44px minimum in both axes, and the negative block margin
+   gives the extra height back to the line box, so the ROW's visual height does
+   not change. The padding genuinely receives clicks — this is a real target
+   increase, not a trick on the measurement.
+
+   Scoped to `td a` (any table system — ui-datatable, apf-table, page-local)
+   plus an opt-in `.admin-hit-link` class for the same treatment on links that
+   sit outside tables (back-links, card drill-downs, mailto rows).
+   --------------------------------------------------------------------------- */
+body.is-admin-console td a,
+body.is-admin-console .admin-hit-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  margin-block: -12px;
+}
+
+/* ---------------------------------------------------------------------------
+   Hit-area floor for the legacy `.input` / `.select` controls.
+   ---------------------------------------------------------------------------
+   The globals.css definitions land at 42px (10px padding + 14px font). Only
+   the admin console is under the matrix's 44px floor, so the raise is scoped
+   here rather than loosening every legacy form in the product.
+   --------------------------------------------------------------------------- */
+body.is-admin-console .input,
+body.is-admin-console .select {
+  min-block-size: 44px;
+}
+
+/* ---------------------------------------------------------------------------
    ADM-013 — breadcrumb links reach a 44px target on touch.
    ---------------------------------------------------------------------------
    They measured 15px tall at 320px. WCAG 2.5.8 exempts a link inline in a
