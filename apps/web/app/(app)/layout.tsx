@@ -2,7 +2,7 @@
 
 import "../globals.css";
 
-import { useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { AppShellV2 } from "../../components/app-shell-v2/AppShellV2";
@@ -97,8 +97,29 @@ export default function AppLayout({
   return (
     <PlatformContextProvider>
       <AppShellV2 onLogout={handleLogout}>
-        {children}
-        {hasSession && !hideAiWidget ? <ProovraChatWidget /> : null}
+        {/* Both slots carry STABLE DOMAIN KEYS, and the route child rides a
+            keyed fragment — deliberately, and not decoration:
+
+            `children` here is the server route subtree, which arrives as a
+            Flight-deserialized lazy element WITHOUT the `validated` mark the
+            jsx runtime stamps on the elements it creates. React 19 validates
+            keys in the reconciler off that mark, so this pair — an array by
+            the time the shell's <main> renders it — logged a missing-key
+            warning on every post-login mount, blamed on whichever component
+            owned the slot (`main`, then `AppLayout`). Traced with a fiber
+            walk and bisection: the child fiber is the lazy route element,
+            and Next's dev segment-explorer was ruled out separately (its
+            wrapper is gone from the warning's fiber chain with the flag off,
+            and the warning survived).
+
+            The route child is opaque, so the key lives on a fragment AROUND
+            it; the fragment holds one child, so nothing under it reconciles
+            as an array. The keys are identity, not order: the two slots are
+            different kinds of thing, and neither ever swaps position. */}
+        <Fragment key="route-content">{children}</Fragment>
+        {hasSession && !hideAiWidget ? (
+          <ProovraChatWidget key="assistant-widget" />
+        ) : null}
       </AppShellV2>
     </PlatformContextProvider>
   );
