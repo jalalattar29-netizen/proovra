@@ -129,6 +129,22 @@ export function DataTable<T>({
         aria-busy={loading || undefined}
         style={{
           width: "100%",
+          /**
+           * A NARROW TABLE MUST SCROLL, NOT SQUEEZE.
+           *
+           * The wrapper has said `overflow-x: auto` all along and it never
+           * fired, because a `width: 100%` table with no floor simply shrinks
+           * to the container and wraps every cell instead. At 390px the
+           * security events table went from 42px per row to 139px — 100 rows,
+           * 13,884px, on a page that was 20,067px tall in total.
+           *
+           * A floor scaled to the column count makes the overflow real, so the
+           * table scrolls sideways and the rows stay one line. 116px per
+           * column is about what a short cell plus padding needs; the 560px
+           * base keeps two- and three-column tables from scrolling
+           * unnecessarily.
+           */
+          minWidth: Math.max(560, totalCols * 116),
           borderCollapse: "collapse",
           fontSize: 13.5,
           color: "var(--ink-primary, #0f172a)",
