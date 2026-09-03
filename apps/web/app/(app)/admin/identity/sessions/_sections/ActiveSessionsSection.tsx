@@ -33,6 +33,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { FilterBar } from "../../../../../../components/ui/FilterBar";
+import { describeClient } from "../../../../../../lib/ui/describeClient";
 import { apiFetch } from "../../../../../../lib/api";
 import { notifyApiError } from "../../../../../../lib/feedback/notify";
 import { useTeamId, useTenantGuard } from "../../../../../../lib/platform-context";
@@ -304,12 +305,30 @@ export function ActiveSessionsSection() {
     {
       key: "device",
       header: "Device",
-      render: (s) => (
-        <div style={{ fontSize: 11 }}>
-          <div>{s.uaPreview ?? "unrecognised client"}</div>
-          <div style={sectionMuted}>{s.ipPreview ?? "no network preview"}</div>
-        </div>
-      ),
+      /**
+       * A DESCRIPTOR, NOT THE USER-AGENT.
+       *
+       * This printed `uaPreview` — the raw UA truncated to 120 characters —
+       * which wrapped to five or six lines in a 207px column and dragged every
+       * other cell in the row with it. Measured: 205px per row over 75 rows, a
+       * 15,409px table, and the four sections below it pushed past 16,000px.
+       *
+       * It also made this section's own description false, which says raw
+       * user-agent strings are never rendered.
+       *
+       * The stored preview stays on `title`: an operator chasing an anomalous
+       * session sometimes needs the exact string, and hiding it entirely would
+       * trade one honesty problem for another.
+       */
+      render: (s) => {
+        const described = describeClient(s.uaPreview);
+        return (
+          <div style={{ fontSize: 11 }} title={s.uaPreview ?? undefined}>
+            <div>{described ?? "Unrecognised client"}</div>
+            <div style={sectionMuted}>{s.ipPreview ?? "no network preview"}</div>
+          </div>
+        );
+      },
     },
   ];
 
@@ -421,11 +440,20 @@ export function ActiveSessionsSection() {
           />
         }
         rowActions={(s) => (
+          /**
+           * One line, not a wrapped stack.
+           *
+           * Four buttons with `flexWrap` in a 193px column became four rows,
+           * so the actions were as tall as the record they act on. `nowrap`
+           * plus the table's own horizontal scroll container keeps them on one
+           * line at every width — the table scrolls, the row does not grow.
+           */
           <div
             style={{
               display: "flex",
               gap: 4,
-              flexWrap: "wrap",
+              flexWrap: "nowrap",
+              whiteSpace: "nowrap",
               justifyContent: "flex-end",
             }}
           >
@@ -491,6 +519,9 @@ export function ActiveSessionsSection() {
                     s.userId,
                   )}/revoke-all`,
                   body: { teamId, reason: "OPERATOR_REVOKED" },
+                  // The button says "Revoke all"; the dialog is where the
+                  // scope is spelled out in full, which is the place a
+                  // destructive action's blast radius belongs.
                   confirmTitle: "Revoke every session for this member?",
                   confirmDescription:
                     "This member is signed out of every device, everywhere. Their account and data are untouched. This action requires step-up verification and is recorded in the audit log.",
@@ -501,7 +532,7 @@ export function ActiveSessionsSection() {
                 })
               }
             >
-              Revoke all for member
+              Revoke all
             </Button>
           </div>
         )}

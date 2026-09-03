@@ -302,7 +302,7 @@
 | `/admin` | 806 | 0c/0t/10s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
-| `/admin/audit` | 718 | 4c/0t/2s |  |
+| `/admin/audit` | 734 | 4c/0t/2s |  |
 | `/admin/billing` | 727 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 727 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 609 | 5c/0t/0s |  |
@@ -310,7 +310,7 @@
 | `/admin/customers` | 463 | 0c/1t/0s |  |
 | `/admin/customers/:id` | 1105 | 12c/1t/0s |  |
 | `/admin/dashboard` | 882 | 11c/3t/8s |  |
-| `/admin/demo-requests` | 1188 | 3c/0t/2s |  |
+| `/admin/demo-requests` | 1209 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 522 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 736 | 4c/0t/7s | HARDCODED_STATUS_HEX |
 | `/admin/evidence-ops/records` | 547 | 2c/1t/0s |  |
@@ -319,11 +319,11 @@
 | `/admin/identity/access-reviews` | 516 | 4c/1t/1s | HARDCODED_STATUS_HEX |
 | `/admin/identity/permission-matrix` | 745 | 6c/1t/5s | HARDCODED_STATUS_HEX |
 | `/admin/identity/providers` | 967 | 9c/1t/3s | HARDCODED_STATUS_HEX |
-| `/admin/identity/runtime` | 638 | 1c/2t/3s | HARDCODED_STATUS_HEX |
+| `/admin/identity/runtime` | 656 | 1c/2t/3s | HARDCODED_STATUS_HEX |
 | `/admin/identity/scim` | 1328 | 7c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 259 | 0c/1t/1s |  |
-| `/admin/operations` | 495 | 2c/2t/2s |  |
+| `/admin/operations` | 505 | 2c/2t/2s |  |
 | `/admin/platform-health` | 363 | 3c/0t/2s |  |
 | `/admin/platform/analytics` | 811 | 0c/0t/9s | HARDCODED_STATUS_HEX |
 | `/admin/platform/automation` | 664 | 0c/2t/5s | HARDCODED_STATUS_HEX |

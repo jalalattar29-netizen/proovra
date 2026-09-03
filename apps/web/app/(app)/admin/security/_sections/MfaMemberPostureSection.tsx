@@ -30,6 +30,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { describeClient } from "../../../../../lib/ui/describeClient";
 import { apiFetch } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
@@ -288,7 +289,9 @@ export function MfaMemberPostureSection() {
       header: "Device",
       render: (d) => (
         <div style={{ fontSize: 12 }}>
-          <div>{d.uaPreview ?? "unrecognised client"}</div>
+          <div title={d.uaPreview ?? undefined}>
+            {describeClient(d.uaPreview) ?? "Unrecognised client"}
+          </div>
           <div style={sectionMuted}>{d.ipPreview ?? "no network preview"}</div>
         </div>
       ),

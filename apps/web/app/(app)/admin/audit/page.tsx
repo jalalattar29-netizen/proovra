@@ -654,21 +654,37 @@ export default function AdminAuditPage() {
 
                     <div
                       style={{
-                        marginTop: 12,
-                        border: `1px solid ${BORDER_DEFAULT}`,
-                        background: "var(--surface-muted, #f8fafc)",
-                        borderRadius: 12,
-                        padding: 14,
+                        marginTop: 10,
                         minWidth: 0,
+                        ...(isExpanded(entry.id)
+                          ? {
+                              border: `1px solid ${BORDER_DEFAULT}`,
+                              background: "var(--surface-muted, #f8fafc)",
+                              borderRadius: 12,
+                              padding: 12,
+                            }
+                          : null),
                       }}
                     >
-                      <div style={{ fontSize: 12.5, color: INK_SECONDARY, lineHeight: 1.6, overflowWrap: "anywhere" }}>
-                        {isExpanded(entry.id)
-                          ? "Full metadata shown below."
-                          : metadataPreview(entry.metadata)}
-                      </div>
+                      {isExpanded(entry.id) ? null : (
+                        <div
+                          style={{
+                            fontSize: 12.5,
+                            color: INK_MUTED,
+                            lineHeight: 1.5,
+                            // ONE line. It wrapped to three or four, inside a
+                            // box, on every collapsed entry.
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                          title={metadataPreview(entry.metadata)}
+                        >
+                          {metadataPreview(entry.metadata)}
+                        </div>
+                      )}
 
-                      <div style={{ marginTop: 10 }}>
+                      <div style={{ marginTop: 8 }}>
                         <Button
                           type="button"
                           variant="secondary"

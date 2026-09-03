@@ -2238,17 +2238,30 @@ html[dir="rtl"] .legal-content a::after {
    four that means something is wrong right now.
    ========================================================= */
 
+/**
+ * THE STAT GRID, AT OPERATIONS DENSITY.
+ *
+ * The Platform Control Center carries thirty-odd of these tiles across six
+ * sections. At 16px padding, a 1.7rem figure and a 16px gap, that is roughly
+ * three thousand pixels of scrolling to read thirty numbers, most of them
+ * zero — the page's own copy says "thirty cards reading zero is not a summary"
+ * and then renders them anyway.
+ *
+ * Tightened rather than redesigned: same tile, less air. `auto-fill` with a
+ * 200px floor also lets a five- or seven-tile section fill the row instead of
+ * leaving a ragged gap after the fourth, which is what a fixed 4-up did.
+ */
 .admin-stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
 }
 
 .admin-stat {
   display: block;
-  padding: 16px 18px;
+  padding: 10px 12px;
   border: 1px solid var(--border-default, #e2e8f0);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--surface-card, #ffffff);
   text-decoration: none;
   color: inherit;
@@ -2278,8 +2291,8 @@ a.admin-stat--link:focus-visible {
 }
 
 .admin-stat-value {
-  margin-top: 8px;
-  font-size: 1.7rem;
+  margin-top: 4px;
+  font-size: 1.35rem;
   line-height: 1.1;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -2313,8 +2326,8 @@ a.admin-stat--link:focus-visible {
 }
 
 .admin-stat-hint {
-  margin-top: 8px;
-  font-size: 0.8rem;
+  margin-top: 4px;
+  font-size: 0.76rem;
   line-height: 1.5;
   color: var(--ink-secondary, #475569);
 }
@@ -2327,7 +2340,7 @@ a.admin-stat--link:focus-visible {
 }
 
 .admin-stat-drill {
-  margin-top: 10px;
+  margin-top: 6px;
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -2392,4 +2405,52 @@ html.show--preferences #cc-main .pm {
 html.show--consent #cc-main .cm {
   visibility: visible;
   opacity: 1;
+}
+
+/* =============================================================================
+   THE ADMIN CONSOLE GROUND
+   =============================================================================
+   `body.is-admin-console` is set by app/(app)/admin/layout.tsx on mount and
+   removed on unmount. It turns off the two decorative layers the authenticated
+   product shell paints — the four-stop gradient on `body.has-app-decor` and the
+   photographic PNG on `.app-shell-v2` — and replaces them with one flat, cool
+   surface.
+
+   Not a taste preference. The console is read for long stretches, the numbers
+   on it are the content, and a warm gradient behind a table of incident counts
+   lowers text contrast and makes an operations surface read as marketing. The
+   product surfaces keep the decor; only this route group loses it.
+   ========================================================================== */
+body.is-admin-console.has-app-decor {
+  background: var(--admin-ground, #f5f6f8);
+  background-attachment: initial;
+}
+
+body.is-admin-console.has-app-decor::before,
+body.is-admin-console.has-app-decor::after {
+  display: none !important;
+}
+
+body.is-admin-console .app-shell-v2 {
+  background-image: none;
+  background-color: var(--admin-ground, #f5f6f8);
+}
+
+/* -----------------------------------------------------------------------------
+   ROW ACTIONS DO NOT WRAP
+   -----------------------------------------------------------------------------
+   The actions cell already sets `white-space: nowrap`, and three admin tables
+   defeated it by wrapping their buttons in a flex container with
+   `flex-wrap: wrap` inline. Four buttons in a narrow column became four rows,
+   and every cell in the row stretched to match: 205px per row on
+   /admin/identity/sessions, 113px on /admin/operations, 109px on
+   /admin/identity/runtime.
+
+   `!important` is load-bearing here — it exists to beat an inline style — and
+   the rule is scoped to the one cell where row height is the table's business.
+   A table too wide for its container scrolls horizontally; that is the
+   trade-off, and it is the right one for an operations list.
+   -------------------------------------------------------------------------- */
+td[data-row-actions] > * {
+  flex-wrap: nowrap !important;
 }

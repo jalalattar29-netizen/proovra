@@ -16,6 +16,7 @@
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
+import { describeClient } from "../../../../../lib/ui/describeClient";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
@@ -448,10 +449,16 @@ const load = useCallback(() => {
     {
       key: "device",
       header: "Device",
+      // The same raw user-agent that made /admin/identity/sessions 205px per
+      // row. Here it was 109px over 78 rows. A descriptor answers the only
+      // question this column is asked — is that plausibly the same person —
+      // and the stored preview stays on hover for the cases that need it.
       render: (s) => (
-        <div style={{ fontSize: 11 }}>
+        <div style={{ fontSize: 11 }} title={s.uaPreview ?? undefined}>
           <div>{s.ipPreview ?? "—"}</div>
-          <div style={mutedStyle}>{s.uaPreview ?? "—"}</div>
+          <div style={mutedStyle}>
+            {describeClient(s.uaPreview) ?? "Unrecognised client"}
+          </div>
         </div>
       ),
     },
@@ -609,7 +616,18 @@ const load = useCallback(() => {
             />
           }
           rowActions={(s) => (
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            /* One line. Two buttons wrapping in a 122px column made every
+               row 109px tall over 79 rows — the actions were taller than the
+               record. The table scrolls horizontally; the row does not grow. */
+            <div
+              style={{
+                display: "flex",
+                gap: 4,
+                flexWrap: "nowrap",
+                whiteSpace: "nowrap",
+                justifyContent: "flex-end",
+              }}
+            >
               <Button
                 variant="secondary"
                 size="sm"

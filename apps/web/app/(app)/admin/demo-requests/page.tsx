@@ -15,7 +15,7 @@ import {
 import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
-import { Button } from "../../../../components/ui/Button";
+import { Button, buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -774,9 +774,7 @@ export default function AdminDemoRequestsPage() {
               {items.map((item) => (
                 <Card
                   key={item.id}
-                  variant="action"
                   padding="comfortable"
-                  onClick={() => void loadDetails(item.id)}
                   style={
                     selectedId === item.id
                       ? { borderColor: "var(--accent-500, #7C3AED)" }
@@ -793,16 +791,39 @@ export default function AdminDemoRequestsPage() {
                     }}
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div
+                      {/* The name IS the control for the inline details, so
+                          the affordance is visible and the row stops being a
+                          button that swallows the link beside it. */}
+                      <button
+                        type="button"
+                        onClick={() => void loadDetails(item.id)}
+                        aria-expanded={selectedId === item.id}
                         style={{
+                          appearance: "none",
+                          background: "none",
+                          border: 0,
+                          padding: 0,
+                          textAlign: "left",
+                          cursor: "pointer",
                           fontSize: 15,
                           fontWeight: 650,
                           color: INK_PRIMARY,
                           letterSpacing: "-0.01em",
+                          textDecoration: "underline",
+                          textDecorationColor: "transparent",
+                          textUnderlineOffset: 3,
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.textDecorationColor =
+                            "currentColor";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.textDecorationColor =
+                            "transparent";
                         }}
                       >
                         {item.fullName}
-                      </div>
+                      </button>
 
                       <div
                         style={{
@@ -881,14 +902,14 @@ export default function AdminDemoRequestsPage() {
                       <div style={{ fontSize: 12, color: INK_MUTED }}>
                         {formatTimestamp(item.createdAt)}
                       </div>
+                      {/* A link styled as a button, not a button inside a
+                          link — the second is invalid markup and was the other
+                          half of the hydration error. */}
                       <Link
                         href={`/admin/demo-requests/${encodeURIComponent(item.id)}`}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ textDecoration: "none" }}
+                        style={buttonSurfaceStyle("secondary", "sm")}
                       >
-                        <Button variant="secondary" size="sm">
-                          Open →
-                        </Button>
+                        Open →
                       </Link>
                     </div>
                   </div>

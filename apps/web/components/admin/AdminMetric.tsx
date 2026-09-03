@@ -83,13 +83,33 @@ export function AdminStat({
   const text = formatMetricNumber(m);
   const href = figure?.drillDown ?? null;
 
+  /**
+   * EMPHASIS IS EARNED BY THE VALUE, NOT BY THE METRIC'S NAME.
+   *
+   * `emphasis` was applied from the call site unconditionally, so a tile
+   * reading `0` for TSA failures, OTS failures, past-due subscriptions, failed
+   * payments, SSO outages and high-severity security events rendered in the
+   * same red or amber as a tile reading `12`. The Platform Control Center had
+   * eleven coloured zeros on it.
+   *
+   * A count of zero problems is the good state. Painting it as an alarm is not
+   * a cosmetic complaint: it is the mechanism by which operators stop reading
+   * the colour at all, and then miss the one tile that is genuinely red.
+   *
+   * ERROR keeps its own treatment regardless — "Unavailable" means the read
+   * failed, which IS wrong right now whatever the metric is called.
+   */
+  const earnsEmphasis =
+    m?.state === "VALUE" && typeof m.value === "number" && m.value > 0;
+  const appliedEmphasis = earnsEmphasis ? emphasis : undefined;
+
   const body = (
     <>
       <div className="admin-stat-label">{label}</div>
       <div
         className="admin-stat-value"
         data-state={m?.state ?? "UNKNOWN"}
-        data-emphasis={emphasis ?? undefined}
+        data-emphasis={appliedEmphasis ?? undefined}
       >
         {text}
       </div>

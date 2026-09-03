@@ -58,6 +58,37 @@ export interface ButtonProps
   trailingIcon?: React.ReactNode;
 }
 
+/**
+ * The button look, without the button element.
+ *
+ * Some controls must be real links — a row that opens a detail page has to
+ * support middle-click and "open in new tab", and a <button> that calls
+ * router.push silently takes both away. Wrapping a <Button> in a <Link>
+ * produces `<a><button>`, which is invalid and was one half of a hydration
+ * error on /admin/demo-requests.
+ *
+ * So the styling is exported and the link wears it. One source of truth for
+ * the look; the element stays whatever the interaction actually is.
+ */
+export function buttonSurfaceStyle(
+  variant: ButtonVariant = "secondary",
+  size: ButtonSize = "md",
+): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 650,
+    letterSpacing: "0.01em",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    userSelect: "none",
+    textDecoration: "none",
+    ...SIZE_STYLE[size],
+    ...variantStyle(variant),
+  };
+}
+
 const SIZE_STYLE: Record<ButtonSize, React.CSSProperties> = {
   // 44, not 34.
   //

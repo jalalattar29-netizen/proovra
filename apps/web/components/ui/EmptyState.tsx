@@ -80,7 +80,18 @@ export function EmptyState({
   style,
   ...rest
 }: EmptyStateProps) {
-  const pad = compact ? "24px 16px" : "48px 24px";
+  /**
+   * 48px of vertical padding and a 56px icon put a default empty state at
+   * roughly 250px. /admin/costs stacks FIVE of them — per-provider, top
+   * operations, budgets, embeddings and entitlements — so an unpopulated cost
+   * page was over a thousand pixels of "nothing here", each box shouting as
+   * loudly as the one above it.
+   *
+   * An empty state that IS the page (no search results) earns presence. One
+   * that is a single section of six does not. Trimmed to the second case,
+   * which is the common one; `compact` stays for dense panels.
+   */
+  const pad = compact ? "20px 16px" : "28px 24px";
   return (
     <div
       {...rest}
@@ -93,7 +104,7 @@ export function EmptyState({
         alignItems: "center",
         justifyContent: "center",
         textAlign: "center",
-        gap: compact ? 8 : 12,
+        gap: compact ? 6 : 8,
         padding: pad,
         borderRadius: "var(--radius-card, 14px)",
         border: framed
@@ -109,9 +120,9 @@ export function EmptyState({
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          width: compact ? 44 : 56,
-          height: compact ? 44 : 56,
-          borderRadius: 14,
+          width: compact ? 36 : 40,
+          height: compact ? 36 : 40,
+          borderRadius: 12,
           background: "var(--surface-muted, #f1f4f9)",
           color: "var(--ink-muted, #94a3b8)",
           marginBottom: 2,
@@ -122,7 +133,7 @@ export function EmptyState({
 
       <div
         style={{
-          fontSize: compact ? 15 : 17,
+          fontSize: compact ? 14 : 15,
           fontWeight: 650,
           color: "var(--ink-primary, #0f172a)",
           lineHeight: 1.3,

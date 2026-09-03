@@ -228,7 +228,7 @@ export function PageSection({
             justifyContent: "space-between",
             gap: 12,
             flexWrap: "wrap",
-            marginBottom: 14,
+            marginBottom: 12,
           }}
         >
           <div style={{ minWidth: 0 }}>
@@ -236,9 +236,13 @@ export function PageSection({
               <h2
                 style={{
                   margin: 0,
+                  // 650 against a 13px description read as one block: two
+                  // pieces of text almost the same size and weight, so a page
+                  // with six sections had no visible structure to scan.
                   fontSize: 15,
-                  fontWeight: 650,
-                  lineHeight: 1.35,
+                  fontWeight: 700,
+                  letterSpacing: "-0.01em",
+                  lineHeight: 1.3,
                   color: "var(--ink-primary, #0f172a)",
                 }}
               >
@@ -248,9 +252,15 @@ export function PageSection({
             {description != null ? (
               <p
                 style={{
-                  margin: "4px 0 0",
-                  fontSize: 13,
+                  margin: "3px 0 0",
+                  fontSize: 12.5,
                   lineHeight: 1.5,
+                  // A section description ran the full content width — around
+                  // 950px, well past the ~75 characters a line can be scanned
+                  // comfortably. Every one of these is methodology prose an
+                  // operator reads once, so it should not be the widest thing
+                  // on the page.
+                  maxWidth: "74ch",
                   color: "var(--ink-secondary, #475569)",
                 }}
               >

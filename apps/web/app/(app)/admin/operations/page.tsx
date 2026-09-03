@@ -295,8 +295,18 @@ export default function AdminOperationsPage() {
       {
         key: "actions",
         header: "Actions",
+        // Declared as an ordinary column rather than via rowActions, so the
+        // table's own no-wrap rule for the actions cell does not reach it.
+        // Four buttons wrapping in a 352px column made every row 113px tall.
         render: (r) => (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "nowrap",
+              whiteSpace: "nowrap",
+            }}
+          >
             {r.status === "OPEN" ? (
               <Button
                 size="sm"

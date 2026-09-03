@@ -257,6 +257,18 @@ export function DataTable<T>({
                   })}
                   {rowActions ? (
                     <td
+                      // The TABLE owns row height, not the caller.
+                      //
+                      // `whiteSpace: nowrap` here was already correct and
+                      // already ignored: three pages wrapped their buttons in
+                      // a div with `flexWrap: "wrap"`, which wraps regardless.
+                      // Four buttons in a narrow actions column became four
+                      // rows, and the row grew to match — 113px on
+                      // /admin/operations, 109px on /admin/identity/runtime,
+                      // 205px on /admin/identity/sessions. The CSS rule keyed
+                      // on this attribute overrides that inline style, so a
+                      // page cannot make a row four lines tall by accident.
+                      data-row-actions
                       style={{
                         padding: pad,
                         textAlign: "right",
