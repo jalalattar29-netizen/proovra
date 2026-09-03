@@ -25,7 +25,8 @@ confident wrong answer with no way to tell.
 | `/admin/identity` | ResultCount — member | `COMPLETE_LIST` | yes | yes |
 | `/admin/identity/permission-matrix` | ResultCount — role | `COMPLETE_LIST` | yes | — |
 | `/admin/identity/providers` | ResultCount — connection | `CAP_DISCLOSED` | — | — |
-| `/admin/identity/runtime` | ResultCount — session | `CAP_DISCLOSED` | — | yes |
+| `/admin/identity/runtime` | ResultCount — quarantined session | `SERVER_HAS_MORE` | — | yes |
+| `/admin/identity/runtime` | ResultCount — session | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/identity/scim` | ResultCount — sync failure | `EXACT_TOTAL` | yes | yes |
 | `/admin/identity/sessions` | ResultCount — session | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/identity/sessions` | ResultCount — held session | `SERVER_HAS_MORE` | — | yes |

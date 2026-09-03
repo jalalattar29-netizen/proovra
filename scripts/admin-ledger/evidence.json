@@ -2,318 +2,640 @@
   "_comment": [
     "THE ONE HAND-MAINTAINED INPUT TO THE ADMIN COMPLETION LEDGER.",
     "",
-    "Everything else in docs/admin/admin-control-plane-completion.md is derived:",
-    "the route list from the file tree, navigation and scope from the registry,",
-    "endpoints from a live trace of every API route, composition from a source",
-    "scan. What cannot be derived is whether somebody actually opened the page",
-    "in a browser and saw something correct. That is what this file records.",
-    "",
-    "Every proof value names an ARTEFACT — a test file, a screenshot, a run —",
-    "not an adjective. `\"desktop\": \"verified\"` is not evidence; a filename is.",
-    "The generator rejects a completed status that is missing any required",
-    "proof, so a row cannot claim more than it can show.",
-    "",
-    "Status starts at PENDING and stays there until the proofs exist. That is",
-    "the honest default and the reason the ledger is worth reading."
+    "Regenerated from executed artifacts by scripts/admin-ledger/build-evidence.mjs",
+    "(visual review, browser matrix, state captures, screenshot manifest,",
+    "mutation matrix, composition contract). Every proof names the artifact",
+    "that backs it; the builder refuses to write a claim its inputs do not",
+    "carry, and generate.mjs validates the result independently. Breadcrumbs,",
+    "return paths and families are carried over as reviewed facts."
   ],
-  "/admin/customers/:id": {
-    "family": "Customers",
-    "breadcrumb": "Platform admin / Customers / Customer directory / Customer",
-    "returnPath": "← Back to roster → /admin/customers",
+  "/admin": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 3.3 screens at 1440, 7.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-customers-id--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-customers-id--mobile.png"
+      "desktop": "artifacts/admin-visual-review/screenshots/admin--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#state-captures",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
-  "/admin/workspaces/:id": {
-    "family": "Workspaces",
-    "breadcrumb": "Platform admin / Workspaces / Workspace inventory / Workspace",
-    "returnPath": "← All workspaces → /admin/workspaces",
+  "/admin/adoption": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 3.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-workspaces-id--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-workspaces-id--mobile.png"
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-adoption--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-adoption--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
-  "/admin/users/:id": {
-    "family": "People",
-    "breadcrumb": "Platform admin / Accounts & access / People / Account",
-    "returnPath": "← All people → /admin/users",
+  "/admin/alerts": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.3 screens at 1440, 4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-users-id--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-users-id--mobile.png"
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-alerts--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-alerts--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
-  "/admin/demo-requests/:id": {
-    "family": "Commercial",
-    "breadcrumb": "Platform admin / Customers / Demo requests / Demo request",
-    "returnPath": "← Back to list → /admin/demo-requests",
+  "/admin/audit": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 3.3 screens at 1440, 6.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-demo-requests-id--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-demo-requests-id--mobile.png"
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-audit--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-audit--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/billing": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 4.3 screens at 1440, 6.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-billing--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-billing--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/contact-sales": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-contact-sales--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-contact-sales--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#state-captures",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/contact-sales/:id": {
     "family": "Commercial",
     "breadcrumb": "Platform admin / Customers / Contact sales / Sales inquiry",
     "returnPath": "← Back to list → /admin/contact-sales",
+    "status": "CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 3.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-contact-sales-id--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-contact-sales-id--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-contact-sales-id--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/costs": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.7 screens at 1440, 4.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-costs--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-costs--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/customers": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-customers--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-customers--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/customers/:id": {
+    "family": "Customers",
+    "breadcrumb": "Platform admin / Customers / Customer directory / Customer",
+    "returnPath": "← Back to roster → /admin/customers",
+    "status": "CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 3 screens at 1440, 5.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-customers-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-customers-id--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/dashboard": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 4 screens at 1440, 8.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-dashboard--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-dashboard--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/demo-requests": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 3.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-demo-requests--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-demo-requests--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/demo-requests/:id": {
+    "family": "Commercial",
+    "breadcrumb": "Platform admin / Customers / Demo requests / Demo request",
+    "returnPath": "← Back to list → /admin/demo-requests",
+    "status": "CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.1 screens at 1440, 3.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-demo-requests-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-demo-requests-id--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/evidence-ops": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 3.7 screens at 1440, 8.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-evidence-ops--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-evidence-ops--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/evidence-ops/records": {
+    "status": "NO_INTERNAL_RECOMPOSITION_REQUIRED",
+    "statusReason": "Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/executive": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 4.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-executive--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-executive--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/identity": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 3.5 screens at 1440, 6.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/identity/access-reviews": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.3 screens at 1440, 1.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/identity/permission-matrix": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.6 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/identity/providers": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.6 screens at 1440, 2.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-providers--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-providers--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/identity/runtime": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 3.1 screens at 1440, 4.2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-runtime--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-runtime--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/identity/scim": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.1 screens at 1440, 1.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-scim--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-scim--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/identity/sessions": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 4.6 screens at 1440, 5.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-sessions--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-sessions--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/identity/timeline": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 2.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-timeline--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-timeline--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/operations": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 4 screens at 1440, 6.5 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-operations--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-operations--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#state-captures",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform-health": {
+    "status": "NO_INTERNAL_RECOMPOSITION_REQUIRED",
+    "statusReason": "Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-health--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-health--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/analytics": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.8 screens at 1440, 7.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-analytics--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-analytics--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/automation": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.7 screens at 1440, 2.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-automation--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-automation--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/exports": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-exports--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-exports--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/media-graph": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.1 screens at 1440, 5.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-media-graph--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-media-graph--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/observability": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 3.2 screens at 1440, 5.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-observability--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-observability--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/queues": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 2.8 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-queues--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-queues--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#state-captures",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/readiness": {
+    "status": "NO_INTERNAL_RECOMPOSITION_REQUIRED",
+    "statusReason": "Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-readiness--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-readiness--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/recovery": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.3 screens at 1440, 1.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-recovery--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-recovery--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/reliability": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.5 screens at 1440, 2.7 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-reliability--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-reliability--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/platform/runbooks": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 4.2 screens at 1440, 10.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/platform/runbooks/:slug": {
     "family": "Runbooks",
     "breadcrumb": "Platform admin / Platform operations / Runbooks",
     "returnPath": "← All runbooks → /admin/platform/runbooks",
+    "status": "CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 3.5 screens at 1440, 8.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--mobile.png"
-    }
-  },
-  "/admin": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin--mobile.png"
-    }
-  },
-  "/admin/adoption": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-adoption--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-adoption--mobile.png"
-    }
-  },
-  "/admin/alerts": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-alerts--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-alerts--mobile.png"
-    }
-  },
-  "/admin/audit": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-audit--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-audit--mobile.png"
-    }
-  },
-  "/admin/billing": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-billing--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-billing--mobile.png"
-    }
-  },
-  "/admin/contact-sales": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-contact-sales--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-contact-sales--mobile.png"
-    }
-  },
-  "/admin/costs": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-costs--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-costs--mobile.png"
-    }
-  },
-  "/admin/customers": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-customers--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-customers--mobile.png"
-    }
-  },
-  "/admin/dashboard": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-dashboard--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-dashboard--mobile.png"
-    }
-  },
-  "/admin/demo-requests": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-demo-requests--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-demo-requests--mobile.png"
-    }
-  },
-  "/admin/evidence-ops": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-evidence-ops--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-evidence-ops--mobile.png"
-    }
-  },
-  "/admin/evidence-ops/records": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-evidence-ops-records--mobile.png"
-    }
-  },
-  "/admin/executive": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-executive--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-executive--mobile.png"
-    }
-  },
-  "/admin/identity": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity--mobile.png"
-    }
-  },
-  "/admin/identity/access-reviews": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-access-reviews--mobile.png"
-    }
-  },
-  "/admin/identity/permission-matrix": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-permission-matrix--mobile.png"
-    }
-  },
-  "/admin/identity/providers": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-providers--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-providers--mobile.png"
-    }
-  },
-  "/admin/identity/runtime": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-runtime--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-runtime--mobile.png"
-    }
-  },
-  "/admin/identity/scim": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-scim--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-scim--mobile.png"
-    }
-  },
-  "/admin/identity/sessions": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-sessions--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-sessions--mobile.png"
-    }
-  },
-  "/admin/identity/timeline": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-identity-timeline--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-identity-timeline--mobile.png"
-    }
-  },
-  "/admin/operations": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-operations--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-operations--mobile.png"
-    }
-  },
-  "/admin/platform-health": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-health--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-health--mobile.png"
-    }
-  },
-  "/admin/platform/analytics": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-analytics--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-analytics--mobile.png"
-    }
-  },
-  "/admin/platform/automation": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-automation--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-automation--mobile.png"
-    }
-  },
-  "/admin/platform/exports": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-exports--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-exports--mobile.png"
-    }
-  },
-  "/admin/platform/media-graph": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-media-graph--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-media-graph--mobile.png"
-    }
-  },
-  "/admin/platform/observability": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-observability--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-observability--mobile.png"
-    }
-  },
-  "/admin/platform/queues": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-queues--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-queues--mobile.png"
-    }
-  },
-  "/admin/platform/readiness": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-readiness--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-readiness--mobile.png"
-    }
-  },
-  "/admin/platform/recovery": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-recovery--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-recovery--mobile.png"
-    }
-  },
-  "/admin/platform/reliability": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-reliability--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-reliability--mobile.png"
-    }
-  },
-  "/admin/platform/runbooks": {
-    "proofs": {
-      "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-runbooks-slug--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/platform/signers": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.2 screens at 1440, 2.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-platform-signers--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-signers--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-platform-signers--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/provisioning": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3.3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-provisioning--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-provisioning--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-provisioning--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#state-captures",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/search": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1 screens at 1440, 1.1 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-search--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-search--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-search--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/security": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 5.3 screens at 1440, 8.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-security--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-security--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-security--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/support-access": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-support-access--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-support-access--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-support-access--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/timeline": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.5 screens at 1440, 4.9 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-timeline--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-timeline--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-timeline--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#state-captures",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/users": {
+    "status": "NO_INTERNAL_RECOMPOSITION_REQUIRED",
+    "statusReason": "Composition met the contract as it stood; the browser matrix ran it clean at every required viewport, in RTL, and refused every non-admin role, with populated fixture data on screen.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-users--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-users--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-users--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/users/:id": {
+    "family": "People",
+    "breadcrumb": "Platform admin / Accounts & access / People / Account",
+    "returnPath": "← All people → /admin/users",
+    "status": "CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 2.2 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-users-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-users-id--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   },
   "/admin/workspaces": {
+    "status": "REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.4 screens at 1440, 2 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
     "proofs": {
       "desktop": "artifacts/admin-visual-review/screenshots/admin-workspaces--desktop.png",
-      "mobile": "artifacts/admin-visual-review/screenshots/admin-workspaces--mobile.png"
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-workspaces--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
+    }
+  },
+  "/admin/workspaces/:id": {
+    "family": "Workspaces",
+    "breadcrumb": "Platform admin / Workspaces / Workspace inventory / Workspace",
+    "returnPath": "← All workspaces → /admin/workspaces",
+    "status": "CONTEXTUAL_DETAIL_REDESIGNED_AND_E2E_VERIFIED",
+    "statusReason": "Recomposed on this branch and verified in the browser: 1.9 screens at 1440, 3.4 at 390, matrix clean across 10 platform-admin runs and 6 refused roles.",
+    "fixture": "services/api/scripts/seed-admin-fixture.ts",
+    "proofs": {
+      "desktop": "artifacts/admin-visual-review/screenshots/admin-workspaces-id--desktop.png",
+      "mobile": "artifacts/admin-visual-review/screenshots/admin-workspaces-id--mobile.png",
+      "rtl": "artifacts/admin-matrix/findings.json#platform-admin-rtl-1440+320",
+      "states": "docs/admin/evidence/screenshot-manifest.json#family-state-captures + apps/web/__tests__/render/admin-mutations-*.render.test.tsx",
+      "authorization": "artifacts/admin-matrix/findings.json#role-refusals + services/api/test/admin-authorization-matrix.integration.test.ts",
+      "contract": "apps/web/scripts/admin-composition-contract.mjs (exit 0) + docs/admin/evidence/mutation-matrix.json"
     }
   }
 }

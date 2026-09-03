@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 239dcec4ee1522116be7505cbebf2156fd55c86969d29a0e0466de57ffc71f3a |
+| engineHash    | d14a08f08bba897673ce9dc84256e9be326db034c0bf9f13e7addc998344fae3 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -75,7 +75,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 313   |
+| AuditFilesInventoried                      | 317   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -109,12 +109,12 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | DeletedDiagnosticCurrentConsumers          | 0     |
 | DeletedDiagnosticDecisionConsumers         | 0     |
 | DeletedArtifactConsumersUnresolved         | 0     |
-| ReportRelatedEntries                       | 25    |
-| ReportDocuments                            | 24    |
+| ReportRelatedEntries                       | 26    |
+| ReportDocuments                            | 25    |
 | HistoryTreeMarkers                         | 1     |
 | NonAuditProductReportTemplates             | 0     |
 | CurrentGeneratedReports                    | 1     |
-| HistoricalReports                          | 22    |
+| HistoricalReports                          | 23    |
 | DomainReportTemplates                      | 1     |
 | MisclassifiedReportDocuments               | 0     |
 | ReportRoleOverlap                          | 0     |
@@ -128,13 +128,13 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 188   |
+| ProductBehaviorTestsInventoried            | 189   |
 
 ### Report roles
 
 ```
-ReportRelatedEntries 25 = ReportDocuments 24 + HistoryTreeMarkers 1 + NonAuditProductReportTemplates 0
-ReportDocuments 24 = CurrentGeneratedReports 1 + HistoricalReports 22 + DomainReportTemplates 1 + MisclassifiedReportDocuments 0
+ReportRelatedEntries 26 = ReportDocuments 25 + HistoryTreeMarkers 1 + NonAuditProductReportTemplates 0
+ReportDocuments 25 = CurrentGeneratedReports 1 + HistoricalReports 23 + DomainReportTemplates 1 + MisclassifiedReportDocuments 0
 ```
 
 A HISTORY_TREE_MARKER is a governance marker, not a report document: it says what a directory IS. Counting it as a report is what produced the earlier miscount.

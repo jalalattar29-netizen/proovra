@@ -204,6 +204,11 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
     IDENTITY_SECURITY_HASH_SECRET: "fixture-local-only-identity-hash-secret",
     COMMUNICATIONS_RECIPIENT_HASH_SECRET: "fixture-local-only-recipient-hash",
     WORKFLOW_INTAKE_TOKEN_SECRET: "fixture-local-only-intake-secret",
+    // The secret alone is not enough: intake-link routes answer 503
+    // FEATURE_DISABLED unless the flag is also "true", and that 503 surfaced
+    // as console noise on every personal-role page load during the browser
+    // matrix. Production has the feature on; the fixture should look like it.
+    WORKFLOW_INTAKE_LINKS_ENABLED: "true",
     MFA_SECRET_KEK_BASE64: Buffer.alloc(32, 7).toString("base64"),
 
     // Storage: a local address with nothing behind it. See the note above.

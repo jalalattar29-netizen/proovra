@@ -16,7 +16,8 @@
     "docs/architecture/point8-external-staging-gates-2026-08-05.md",
     "docs/architecture/route-classification/CAPABILITY-AUDIT-RESOLUTION.md",
     "docs/architecture/search-reality-audit.md",
-    "docs/architecture/workspace-surface-audit.md"
+    "docs/architecture/workspace-surface-audit.md",
+    "docs/architecture/backlog-capability-manifest-line-pinning.md"
   ],
   "domainReportTemplates": [
     "docs/architecture/program-ledger.md"
@@ -84,7 +85,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 313,
+    "AuditFilesInventoried": 317,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -118,12 +119,12 @@
     "DeletedDiagnosticCurrentConsumers": 0,
     "DeletedDiagnosticDecisionConsumers": 0,
     "DeletedArtifactConsumersUnresolved": 0,
-    "ReportRelatedEntries": 25,
-    "ReportDocuments": 24,
+    "ReportRelatedEntries": 26,
+    "ReportDocuments": 25,
     "HistoryTreeMarkers": 1,
     "NonAuditProductReportTemplates": 0,
     "CurrentGeneratedReports": 1,
-    "HistoricalReports": 22,
+    "HistoricalReports": 23,
     "DomainReportTemplates": 1,
     "MisclassifiedReportDocuments": 0,
     "ReportRoleOverlap": 0,
@@ -137,16 +138,16 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 188
+    "ProductBehaviorTestsInventoried": 189
   },
   "reportRoles": {
     "counts": {
-      "ReportRelatedEntries": 25,
-      "ReportDocuments": 24,
+      "ReportRelatedEntries": 26,
+      "ReportDocuments": 25,
       "HistoryTreeMarkers": 1,
       "NonAuditProductReportTemplates": 0,
       "CurrentGeneratedReports": 1,
-      "HistoricalReports": 22,
+      "HistoricalReports": 23,
       "DomainReportTemplates": 1,
       "MisclassifiedReportDocuments": 0
     },
@@ -156,17 +157,17 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 188,
+    "PRODUCT_BEHAVIOR_TEST": 189,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
     "GENERATED_LEDGER_RENDERING": 2,
     "CANONICAL_LEDGER_SOURCE": 1,
     "CURRENT_GENERATED_REPORT": 1,
-    "DOMAIN_AUTHORITY": 46,
+    "DOMAIN_AUTHORITY": 48,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
     "HISTORY_TREE_MARKER": 1,
-    "HISTORICAL_REPORT": 22,
+    "HISTORICAL_REPORT": 23,
     "HISTORICAL_PROOF": 17,
     "DOMAIN_REPORT_TEMPLATE": 1,
     "CANONICAL_ENGINE_COMPONENT": 11,
@@ -447,6 +448,21 @@
     },
     {
       "path": "apps/web/__tests__/public-verify-consistency.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/render/admin-audit-pagination.render.test.tsx",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -1134,6 +1150,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "docs/architecture/backlog-capability-manifest-line-pinning.md",
+      "role": "HISTORICAL_REPORT",
+      "reason": "Backlog note recording an observed instrument limitation (manifest sites pinned to line numbers move under unrelated edits). It asserts no count and holds no authority — the manifests and the analyzer remain the authorities; the note only says the work is unscheduled.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "docs/architecture/current-runtime-capability-map.json",
       "role": "GENERATED_CURRENT_ARTIFACT",
       "reason": "Written only by the canonical engine; every scalar derived.",
@@ -1572,6 +1603,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "scripts/admin-ledger/build-evidence.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "scripts/admin-ledger/evidence.json",
       "role": "DOMAIN_AUTHORITY",
       "reason": "Curated architecture artifact for a single domain, consumed rather than re-derived.",
@@ -1595,6 +1641,23 @@
       "spawns": [
         "apps/web/scripts/admin-inventory.mjs",
         "apps/web/scripts/admin-composition-audit.mjs"
+      ],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "scripts/admin-ledger/screenshot-manifest.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [
+        "apps/web/scripts/admin-inventory.mjs"
       ],
       "readsArtifacts": [],
       "writesArtifacts": [],
@@ -1841,6 +1904,7 @@
         "docs/architecture/route-classification/CAPABILITY-AUDIT-RESOLUTION.md",
         "docs/architecture/search-reality-audit.md",
         "docs/architecture/workspace-surface-audit.md",
+        "docs/architecture/backlog-capability-manifest-line-pinning.md",
         "audit-output/history/README.md",
         "audit-output/current/CONTINUATION-CHECKPOINT.md",
         "docs/architecture/program-ledger.md"
@@ -5318,10 +5382,10 @@
     "auditEngineDuplicateTests": 0,
     "auditFilesUnclassified": 0,
     "untrackedAuditFilesUnclassified": 0,
-    "reportRelatedEntries": 25,
-    "reportDocuments": 24,
+    "reportRelatedEntries": 26,
+    "reportDocuments": 25,
     "currentGeneratedReports": 1,
-    "historicalReports": 22,
+    "historicalReports": 23,
     "domainReportTemplates": 1,
     "misclassifiedReportDocuments": 0,
     "historyTreeMarkers": 1,

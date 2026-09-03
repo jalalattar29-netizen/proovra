@@ -126,9 +126,17 @@
     {
       "route": "/admin/identity/runtime",
       "kind": "ResultCount",
-      "noun": "session",
-      "truth": "CAP_DISCLOSED",
+      "noun": "quarantined session",
+      "truth": "SERVER_HAS_MORE",
       "filteredAware": false,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/identity/runtime",
+      "kind": "ResultCount",
+      "noun": "session",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": true,
       "loadingAware": true
     },
     {

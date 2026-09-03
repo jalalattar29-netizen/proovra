@@ -173,16 +173,26 @@ export default function AdminWorkspaceDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<Detail | null>(null);
+  // "Does not exist" and "could not be read" are different facts: one is
+  // terminal and the other is retryable, and a page that shows one message
+  // for both teaches operators to retry a 404.
+  const [notFound, setNotFound] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
+    setNotFound(false);
     try {
       const data = (await apiFetch(
         `/v1/admin/workspaces/${encodeURIComponent(id)}`,
       )) as Detail;
       setDetail(data ?? null);
     } catch (err) {
+      if ((err as { statusCode?: number })?.statusCode === 404) {
+        setNotFound(true);
+        setDetail(null);
+        return;
+      }
       addToast(
         toSafeUserError(err, { message: "We couldn't load this workspace." }).message,
         "error",
@@ -261,10 +271,15 @@ export default function AdminWorkspaceDetailPage() {
         <Card>
           <Skeleton width="100%" height="220px" />
         </Card>
+      ) : notFound ? (
+        <EmptyState
+          title="Workspace not found"
+          purpose="No workspace exists with this id. It may have been removed, or the link is wrong — the workspace inventory is the place to find the one you meant."
+        />
       ) : !detail ? (
         <EmptyState
           title="Workspace unavailable"
-          purpose="This workspace could not be loaded. It may not exist, or the read failed."
+          purpose="This workspace could not be loaded right now. The record may still exist — reload to try the read again."
         />
       ) : (
         <>

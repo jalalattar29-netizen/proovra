@@ -37,6 +37,10 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
+import {
+  CursorPager,
+  useCursorPager,
+} from "../../../../../components/ui/CursorPager";
 
 type SessionRow = {
   id: string;
@@ -100,10 +104,14 @@ function sessionQuery(
   userId: string,
   includeRevoked: boolean,
   includeExpired: boolean,
+  cursor: string | null,
 ): string {
   const p = new URLSearchParams();
   p.set("teamId", teamId);
-  p.set("limit", "500");
+  // 25 per page over the server cursor. The 500-row read predates the
+  // cursor; on a monitor an operator scans pages, not a quarter-mile table.
+  p.set("limit", "25");
+  if (cursor) p.set("cursor", cursor);
   p.set("includeRevoked", String(includeRevoked));
   p.set("includeExpired", String(includeExpired));
   const trimmed = userId.trim();
@@ -133,9 +141,15 @@ export default function IdentityRuntimePage() {
    * hides rows already fetched would still be capped at the same 500.
    */
   const [userFilter, setUserFilter] = useState("");
-  const [includeRevoked, setIncludeRevoked] = useState(true);
+  // Default OFF. The page used to REQUEST revoked sessions and then hide
+  // them in the browser — over a paged read that would silently shrink
+  // pages. The server filter is the only honest one, and "Include revoked"
+  // now actually shows what it fetched.
+  const [includeRevoked, setIncludeRevoked] = useState(false);
   const [includeExpired, setIncludeExpired] = useState(false);
+  const [sessionsMore, setSessionsMore] = useState<{ nextCursor: string | null; hasMore: boolean }>({ nextCursor: null, hasMore: false });
   const [quarantined, setQuarantined] = useState<QuarantineRow[] | null>(null);
+  const [quarantineMore, setQuarantineMore] = useState<{ nextCursor: string | null; hasMore: boolean }>({ nextCursor: null, hasMore: false });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -143,26 +157,37 @@ export default function IdentityRuntimePage() {
   const [emergencyReason, setEmergencyReason] = useState("");
   const { confirm } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
+  // Scope keys fold every server filter in, so changing one resets the walk
+  // — a cursor from one filter must never ride another.
+  const sessionsPager = useCursorPager(
+    `${teamId ?? ""}|${userFilter}|${includeRevoked}|${includeExpired}`,
+  );
+  const quarantinePager = useCursorPager(teamId ?? "");
 
 const load = useCallback(() => {
     if (!teamId) return;
     Promise.all([
       apiFetch(
-        `/v1/admin/identity/sessions?${sessionQuery(teamId, userFilter, includeRevoked, includeExpired)}`,
+        `/v1/admin/identity/sessions?${sessionQuery(teamId, userFilter, includeRevoked, includeExpired, sessionsPager.cursor)}`,
         { method: "GET" },
       ).catch(() => ({ sessions: [] })),
       apiFetch(
-        `/v1/admin/identity/quarantined-sessions?teamId=${encodeURIComponent(teamId)}&limit=200`,
+        `/v1/admin/identity/quarantined-sessions?teamId=${encodeURIComponent(teamId)}&limit=25${quarantinePager.cursor ? `&cursor=${encodeURIComponent(quarantinePager.cursor)}` : ""}`,
         { method: "GET" },
       ).catch(() => ({ items: [] })),
     ]).then(
-      ([s, q]: [{ sessions?: SessionRow[] }, { items?: QuarantineRow[] }]) => {
+      ([s, q]: [
+        { sessions?: SessionRow[]; nextCursor?: string | null; hasMore?: boolean },
+        { items?: QuarantineRow[]; nextCursor?: string | null; hasMore?: boolean },
+      ]) => {
         setSessions(s.sessions ?? []);
+        setSessionsMore({ nextCursor: s.nextCursor ?? null, hasMore: s.hasMore ?? false });
         setQuarantined(q.items ?? []);
+        setQuarantineMore({ nextCursor: q.nextCursor ?? null, hasMore: q.hasMore ?? false });
         setError(null);
       },
     );
-  }, [teamId, userFilter, includeRevoked, includeExpired]);
+  }, [teamId, userFilter, includeRevoked, includeExpired, sessionsPager.cursor, quarantinePager.cursor]);
 
   useEffect(() => {
     load();
@@ -369,9 +394,9 @@ const load = useCallback(() => {
     );
   }
 
-  // Sessions list omits revoked + expired by default; the runtime
-  // monitor cares about active sessions only.
-  const activeSessions = (sessions ?? []).filter((s) => !s.revoked);
+  // The revoked/expired narrowing is the SERVER's, via the filters above —
+  // a client-side filter over a paged read would silently shrink pages.
+  const activeSessions = sessions ?? [];
 
   const quarantineColumns: DataTableColumn<QuarantineRow>[] = [
     {
@@ -581,14 +606,22 @@ const load = useCallback(() => {
             </Button>
           )}
         />
-        {/* 500-session cap. In a session-governance review the difference between 'all of them' and 'the first 500' decides whether a revoke is complete. */}
-        <ResultCount
-          shown={sessions?.length ?? 0}
-          cap={500}
-          noun="session"
-          loading={sessions === null}
-          data-testid="admin-identity-runtime-count"
-        />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <ResultCount
+            shown={quarantined?.length ?? 0}
+            hasMore={quarantineMore.hasMore}
+            noun="quarantined session"
+            loading={quarantined === null}
+            data-testid="admin-identity-runtime-quarantine-count"
+          />
+          <CursorPager
+            pager={quarantinePager}
+            nextCursor={quarantineMore.nextCursor}
+            hasMore={quarantineMore.hasMore}
+            loading={quarantined === null}
+            data-testid="admin-identity-runtime-quarantine-pager"
+          />
+        </div>
       </PageSection>
 
       <PageSection title="Active sessions">
@@ -623,7 +656,7 @@ const load = useCallback(() => {
         </FilterBar>
         <DataTable
           columns={sessionColumns}
-          rows={sessions === null ? [] : activeSessions.slice(0, 200)}
+          rows={activeSessions}
           getRowId={(s) => s.id}
           loading={sessions === null}
           ariaLabel="Active sessions"
@@ -667,6 +700,31 @@ const load = useCallback(() => {
             </div>
           )}
         />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <ResultCount
+            shown={sessions?.length ?? 0}
+            hasMore={sessionsMore.hasMore}
+            noun="session"
+            filtered={userFilter.trim() !== "" || includeRevoked || includeExpired}
+            loading={sessions === null}
+            data-testid="admin-identity-runtime-count"
+          />
+          <CursorPager
+            pager={sessionsPager}
+            nextCursor={sessionsMore.nextCursor}
+            hasMore={sessionsMore.hasMore}
+            loading={sessions === null}
+            data-testid="admin-identity-runtime-pager"
+          />
+        </div>
       </PageSection>
 
       <StepUpModal control={stepUp} />

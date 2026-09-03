@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "5003d35a2b7aa26e8ee866f1ba6307e7fbd62b6490076602eebb80dede0fb23a",
-  "consumerInventoryHash": "5c978d629cbdeec99072b4131f38ae8fdebfa5a41efbe7e3abdefa4f762bc350",
+  "consumerInventoryHash": "9b668692a841e4c3b1ef9e96762d345f925ee553616e56911067081aa8108970",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1123,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8249,
-      "UNRESOLVED_IDENTIFIER": 1040
+      "METHOD_ON_VALUE": 8259,
+      "UNRESOLVED_IDENTIFIER": 1041
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -939,7 +939,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:157",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:251",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -951,7 +951,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log/export",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:189",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:305",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -963,7 +963,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log/verify",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:222",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:338",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -987,7 +987,7 @@
       "method": "GET",
       "route": "/v1/admin/contact-sales",
       "registeringFile": "services/api/src/routes/admin-contact-sales.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/contact-sales/page.tsx:149",
+      "productConsumer": "apps/web/app/(app)/admin/contact-sales/page.tsx:159",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -999,7 +999,7 @@
       "method": "GET",
       "route": "/v1/admin/contact-sales/:id",
       "registeringFile": "services/api/src/routes/admin-contact-sales.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:176",
+      "productConsumer": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:186",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1035,7 +1035,7 @@
       "method": "GET",
       "route": "/v1/admin/customers/:id",
       "registeringFile": "services/api/src/routes/admin-organizations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:363",
+      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:410",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1047,7 +1047,7 @@
       "method": "GET",
       "route": "/v1/admin/demo-requests",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:363",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:371",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1071,7 +1071,7 @@
       "method": "GET",
       "route": "/v1/admin/evidence-health",
       "registeringFile": "services/api/src/routes/admin-evidence-ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/page.tsx:353",
+      "productConsumer": "apps/web/app/(app)/admin/evidence-ops/page.tsx:364",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1131,7 +1131,7 @@
       "method": "GET",
       "route": "/v1/admin/identity/quarantined-sessions",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:152",
+      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:174",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -1167,7 +1167,7 @@
       "method": "GET",
       "route": "/v1/admin/identity/scim/tokens",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:346",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:348",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -1179,7 +1179,7 @@
       "method": "GET",
       "route": "/v1/admin/identity/sessions",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:148",
+      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:170",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -1191,7 +1191,7 @@
       "method": "GET",
       "route": "/v1/admin/identity/timeline",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/timeline/page.tsx:122",
+      "productConsumer": "apps/web/app/(app)/admin/identity/timeline/page.tsx:141",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -1299,7 +1299,7 @@
       "method": "GET",
       "route": "/v1/admin/platform/metrics",
       "registeringFile": "services/api/src/routes/admin-platform-telemetry.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:274",
+      "productConsumer": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:276",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1335,7 +1335,7 @@
       "method": "GET",
       "route": "/v1/admin/security-events",
       "registeringFile": "services/api/src/routes/admin-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/operations/_sections/PlatformSecurityEvents.tsx:86",
+      "productConsumer": "apps/web/app/(app)/admin/operations/_sections/PlatformSecurityEvents.tsx:104",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1347,7 +1347,7 @@
       "method": "GET",
       "route": "/v1/admin/timeline",
       "registeringFile": "services/api/src/routes/admin-timeline.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/timeline/page.tsx:137",
+      "productConsumer": "apps/web/app/(app)/admin/timeline/page.tsx:153",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1371,7 +1371,7 @@
       "method": "GET",
       "route": "/v1/admin/users/:id",
       "registeringFile": "services/api/src/routes/admin-users.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/users/[id]/page.tsx:164",
+      "productConsumer": "apps/web/app/(app)/admin/users/[id]/page.tsx:169",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1395,7 +1395,7 @@
       "method": "GET",
       "route": "/v1/admin/workspaces/:id",
       "registeringFile": "services/api/src/routes/admin-workspaces.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx:181",
+      "productConsumer": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx:186",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -3471,7 +3471,7 @@
       "method": "GET",
       "route": "/v1/identity-security/devices",
       "registeringFile": "services/api/src/routes/identity-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:89",
+      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:90",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -3639,7 +3639,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/digest-preferences",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:81",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:82",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -3651,7 +3651,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/digest-preferences/preview",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:82",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:83",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -3675,7 +3675,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/events/:teamId",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx:82",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx:113",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -3687,7 +3687,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/policy/:teamId",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx:147",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx:148",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -3699,7 +3699,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/posture/:teamId/:userId",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:137",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:139",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -3711,7 +3711,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/recovery-events",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx:85",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx:151",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -4467,7 +4467,7 @@
       "method": "GET",
       "route": "/v1/operations/custody-attestations",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:271",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:273",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4587,7 +4587,7 @@
       "method": "GET",
       "route": "/v1/operations/recovery",
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:134",
+      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:136",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4611,7 +4611,7 @@
       "method": "GET",
       "route": "/v1/operations/recovery/reports/:id",
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:209",
+      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:232",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4623,7 +4623,7 @@
       "method": "GET",
       "route": "/v1/operations/signers",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:268",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:270",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4635,7 +4635,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:623",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:640",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4647,7 +4647,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id/audit",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:633",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:650",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4659,7 +4659,7 @@
       "method": "GET",
       "route": "/v1/operations/signers/:id/health",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:646",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:663",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5859,7 +5859,7 @@
       "method": "GET",
       "route": "/v1/scim/reconciliation/preview",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:793",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:795",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -5871,7 +5871,7 @@
       "method": "GET",
       "route": "/v1/scim/sync-failures",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:1106",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:1109",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6003,7 +6003,7 @@
       "method": "GET",
       "route": "/v1/security/events",
       "registeringFile": "services/api/src/routes/security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:168",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:243",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6015,7 +6015,7 @@
       "method": "GET",
       "route": "/v1/security/scans",
       "registeringFile": "services/api/src/routes/security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:167",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:209",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6027,7 +6027,7 @@
       "method": "GET",
       "route": "/v1/security/summary",
       "registeringFile": "services/api/src/routes/security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:166",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:208",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6663,7 +6663,7 @@
       "method": "PATCH",
       "route": "/v1/admin/contact-sales/:id",
       "registeringFile": "services/api/src/routes/admin-contact-sales.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:210",
+      "productConsumer": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:241",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6675,7 +6675,7 @@
       "method": "PATCH",
       "route": "/v1/admin/demo-requests/:id",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:417",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:470",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6687,7 +6687,7 @@
       "method": "PATCH",
       "route": "/v1/admin/orgs/:id/plan",
       "registeringFile": "services/api/src/routes/admin-provisioning.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/provisioning/page.tsx:660",
+      "productConsumer": "apps/web/app/(app)/admin/provisioning/page.tsx:694",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6951,7 +6951,7 @@
       "method": "PATCH",
       "route": "/v1/identity/mfa-admin/digest-preferences",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:123",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:124",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6963,7 +6963,7 @@
       "method": "PATCH",
       "route": "/v1/identity/mfa-admin/policy/:teamId",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx:204",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx:205",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7215,7 +7215,7 @@
       "method": "POST",
       "route": "/v1/admin/demo-requests/:id/follow-up/send",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:472",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:557",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7227,7 +7227,7 @@
       "method": "POST",
       "route": "/v1/admin/demo-requests/:id/route",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:447",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:517",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7239,7 +7239,7 @@
       "method": "POST",
       "route": "/v1/admin/demo-requests/follow-up/run",
       "registeringFile": "services/api/src/routes/admin-demo-requests.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:496",
+      "productConsumer": "apps/web/app/(app)/admin/demo-requests/page.tsx:594",
       "machineConsumer": "services/worker/src/index.ts:412",
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7251,7 +7251,7 @@
       "method": "POST",
       "route": "/v1/admin/enterprise/provision",
       "registeringFile": "services/api/src/routes/admin-provisioning.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/provisioning/page.tsx:394",
+      "productConsumer": "apps/web/app/(app)/admin/provisioning/page.tsx:413",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7275,7 +7275,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/emergency-revoke",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:281",
+      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:305",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7335,7 +7335,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/scim/tokens",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:387",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:389",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7347,7 +7347,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/scim/tokens/:id/revoke",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:499",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:501",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7359,7 +7359,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/scim/tokens/:id/rotate",
       "registeringFile": "services/api/src/routes/scim-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:447",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:449",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7371,7 +7371,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/sessions/:id/quarantine",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:182",
+      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:209",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7383,7 +7383,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/sessions/:id/release",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:212",
+      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:239",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7395,7 +7395,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/sessions/:id/revoke",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:466",
+      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:619",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7407,7 +7407,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/sessions/:id/score",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:238",
+      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:265",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7431,7 +7431,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/sessions/user/:userId/revoke-all",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:488",
+      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:641",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7479,7 +7479,7 @@
       "method": "POST",
       "route": "/v1/admin/orgs/:id/resume",
       "registeringFile": "services/api/src/routes/admin-provisioning.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:335",
+      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:368",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7491,7 +7491,7 @@
       "method": "POST",
       "route": "/v1/admin/orgs/:id/suspend",
       "registeringFile": "services/api/src/routes/admin-provisioning.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:335",
+      "productConsumer": "apps/web/app/(app)/admin/customers/[id]/page.tsx:368",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10071,7 +10071,7 @@
       "method": "POST",
       "route": "/v1/identity-security/devices/:id/revoke",
       "registeringFile": "services/api/src/routes/identity-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:160",
+      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:161",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -10083,7 +10083,7 @@
       "method": "POST",
       "route": "/v1/identity-security/devices/trust",
       "registeringFile": "services/api/src/routes/identity-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:123",
+      "productConsumer": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:124",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10131,7 +10131,7 @@
       "method": "POST",
       "route": "/v1/identity-security/reconcile",
       "registeringFile": "services/api/src/routes/identity-security.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:328",
+      "productConsumer": "apps/web/app/(app)/admin/identity/runtime/page.tsx:354",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10383,7 +10383,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa-admin/digest-preferences/preview/send-test",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:153",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:154",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -10395,7 +10395,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:490",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:495",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10407,7 +10407,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:427",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:432",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10455,7 +10455,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:450",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:455",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10467,7 +10467,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa/challenge/verify",
       "registeringFile": "services/api/src/routes/mfa.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaSelfCheckSection.tsx:62",
+      "productConsumer": "apps/web/app/(app)/admin/security/_sections/MfaSelfCheckSection.tsx:63",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11343,7 +11343,7 @@
       "method": "POST",
       "route": "/v1/operations/custody-attestations/:id/verify",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:305",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:307",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11355,7 +11355,7 @@
       "method": "POST",
       "route": "/v1/operations/custody-attestations/backfill",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:334",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:350",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11415,7 +11415,7 @@
       "method": "POST",
       "route": "/v1/operations/recovery/validate-backup",
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:154",
+      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:168",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11427,7 +11427,7 @@
       "method": "POST",
       "route": "/v1/operations/recovery/validate-restore",
       "registeringFile": "services/api/src/routes/operations-recovery.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:180",
+      "productConsumer": "apps/web/app/(app)/admin/platform/recovery/page.tsx:203",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11439,7 +11439,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/preview",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:663",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:680",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11451,7 +11451,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/promote",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:688",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:735",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11463,7 +11463,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/retire",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:688",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:735",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11475,7 +11475,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/revoke",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:688",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:735",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11571,7 +11571,7 @@
       "method": "POST",
       "route": "/v1/ops/media-intelligence/dlq/replay",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:366",
+      "productConsumer": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:388",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11595,7 +11595,7 @@
       "method": "POST",
       "route": "/v1/ops/media-intelligence/runs/:runId/retry",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:331",
+      "productConsumer": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:345",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12387,7 +12387,7 @@
       "method": "POST",
       "route": "/v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
       "registeringFile": "services/api/src/routes/reliability.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/reliability/page.tsx:161",
+      "productConsumer": "apps/web/app/(app)/admin/platform/reliability/page.tsx:160",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12399,7 +12399,7 @@
       "method": "POST",
       "route": "/v1/reliability/upload-sessions/:evidenceId/request-review",
       "registeringFile": "services/api/src/routes/reliability.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/reliability/page.tsx:184",
+      "productConsumer": "apps/web/app/(app)/admin/platform/reliability/page.tsx:194",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12891,7 +12891,7 @@
       "method": "POST",
       "route": "/v1/scim/reconciliation/execute",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:849",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:851",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12903,7 +12903,7 @@
       "method": "POST",
       "route": "/v1/scim/sync-failures/:id/replay",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:1144",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:1161",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -16028,13 +16028,13 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/admin-contact-sales.routes.ts#contactSalesRequest.update@201",
-      "terminalLocation": "services/api/src/routes/admin-contact-sales.routes.ts:201",
+      "writerId": "services/api/src/routes/admin-contact-sales.routes.ts#contactSalesRequest.updateMany@277",
+      "terminalLocation": "services/api/src/routes/admin-contact-sales.routes.ts:277",
       "file": "services/api/src/routes/admin-contact-sales.routes.ts",
       "enclosingDeclaration": "adminContactSalesRoutes",
       "kind": "DATABASE",
       "target": "contactSalesRequest",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
       "insideTransaction": false,
       "entryRoutes": [
@@ -16061,8 +16061,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/admin-demo-requests.routes.ts#demoRequest.update@516",
-      "terminalLocation": "services/api/src/routes/admin-demo-requests.routes.ts:516",
+      "writerId": "services/api/src/routes/admin-demo-requests.routes.ts#demoRequest.update@688",
+      "terminalLocation": "services/api/src/routes/admin-demo-requests.routes.ts:688",
       "file": "services/api/src/routes/admin-demo-requests.routes.ts",
       "enclosingDeclaration": "adminDemoRequestsRoutes",
       "kind": "DATABASE",
@@ -16071,7 +16071,7 @@
       "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
       "insideTransaction": false,
       "entryRoutes": [
-        "PATCH /v1/admin/demo-requests/:id"
+        "POST /v1/admin/demo-requests/:id/route"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -16094,17 +16094,17 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/admin-demo-requests.routes.ts#demoRequest.update@615",
-      "terminalLocation": "services/api/src/routes/admin-demo-requests.routes.ts:615",
+      "writerId": "services/api/src/routes/admin-demo-requests.routes.ts#demoRequest.updateMany@579",
+      "terminalLocation": "services/api/src/routes/admin-demo-requests.routes.ts:579",
       "file": "services/api/src/routes/admin-demo-requests.routes.ts",
       "enclosingDeclaration": "adminDemoRequestsRoutes",
       "kind": "DATABASE",
       "target": "demoRequest",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
       "insideTransaction": false,
       "entryRoutes": [
-        "POST /v1/admin/demo-requests/:id/route"
+        "PATCH /v1/admin/demo-requests/:id"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -22258,8 +22258,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@246",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:246",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@300",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:300",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "revokeActiveSession",
       "kind": "DATABASE",
@@ -22291,8 +22291,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@373",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:373",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@427",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:427",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "recordHeartbeat",
       "kind": "DATABASE",
@@ -22335,8 +22335,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@460",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:460",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.update@514",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:514",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "sweepStaleSessions",
       "kind": "DATABASE",
@@ -22368,8 +22368,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.updateMany@301",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:301",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.updateMany@355",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:355",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "revokeAllSessionsForUserAdmin",
       "kind": "DATABASE",
@@ -22401,8 +22401,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.upsert@109",
-      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:109",
+      "writerId": "services/api/src/services/access-control/session-inventory.service.ts#authenticatedSession.upsert@128",
+      "terminalLocation": "services/api/src/services/access-control/session-inventory.service.ts:128",
       "file": "services/api/src/services/access-control/session-inventory.service.ts",
       "enclosingDeclaration": "recordAuthenticatedSession",
       "kind": "DATABASE",
@@ -22442,8 +22442,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@140",
-      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:140",
+      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@145",
+      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:145",
       "file": "services/api/src/services/access-control/session-quarantine.service.ts",
       "enclosingDeclaration": "releaseQuarantine",
       "kind": "DATABASE",
@@ -22475,8 +22475,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@193",
-      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:193",
+      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@198",
+      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:198",
       "file": "services/api/src/services/access-control/session-quarantine.service.ts",
       "enclosingDeclaration": "sweepQuarantineReleases",
       "kind": "DATABASE",
@@ -22508,8 +22508,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@88",
-      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:88",
+      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@93",
+      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:93",
       "file": "services/api/src/services/access-control/session-quarantine.service.ts",
       "enclosingDeclaration": "quarantineSession",
       "kind": "DATABASE",
@@ -22542,8 +22542,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.updateMany@294",
-      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:294",
+      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.updateMany@327",
+      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:327",
       "file": "services/api/src/services/access-control/session-quarantine.service.ts",
       "enclosingDeclaration": "emergencyOrgRevoke",
       "kind": "DATABASE",
@@ -66311,8 +66311,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reliability/upload-session.service.ts#uploadSession.updateMany@159",
-      "terminalLocation": "services/api/src/services/reliability/upload-session.service.ts:159",
+      "writerId": "services/api/src/services/reliability/upload-session.service.ts#uploadSession.updateMany@172",
+      "terminalLocation": "services/api/src/services/reliability/upload-session.service.ts:172",
       "file": "services/api/src/services/reliability/upload-session.service.ts",
       "enclosingDeclaration": "transitionUploadSession",
       "kind": "DATABASE",
@@ -68600,8 +68600,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.update@197",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:197",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.update@202",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:202",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "revokeUserFactor",
       "kind": "DATABASE",
@@ -68633,8 +68633,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.updateMany@260",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:260",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.updateMany@265",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:265",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "requireUserReenrollment",
       "kind": "DATABASE",
@@ -68666,8 +68666,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#trustedDevice.updateMany@330",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:330",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#trustedDevice.updateMany@335",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:335",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "resetTrustedDevicesForUser",
       "kind": "DATABASE",
@@ -69729,8 +69729,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/security-event.service.ts#securityEvent.create@135",
-      "terminalLocation": "services/api/src/services/security/security-event.service.ts:135",
+      "writerId": "services/api/src/services/security/security-event.service.ts#securityEvent.create@140",
+      "terminalLocation": "services/api/src/services/security/security-event.service.ts:140",
       "file": "services/api/src/services/security/security-event.service.ts",
       "enclosingDeclaration": "emitSecurityEvent",
       "kind": "DATABASE",
@@ -80783,7 +80783,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:164",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:185",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -80796,7 +80796,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 157,
+          "line": 251,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80806,7 +80806,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:157 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:251 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80839,7 +80839,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log/export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:239",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:286",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -80852,7 +80852,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 189,
+          "line": 305,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80862,7 +80862,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:189 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:305 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -80897,7 +80897,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:336",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:383",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -80910,7 +80910,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 222,
+          "line": 338,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -80920,7 +80920,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:222 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:338 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81024,7 +81024,7 @@
       "method": "GET",
       "path": "/v1/admin/contact-sales",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:57",
+      "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:72",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81037,7 +81037,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/contact-sales/page.tsx",
-          "line": 149,
+          "line": 159,
           "caller": "load",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81047,7 +81047,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/page.tsx:149 (load, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/page.tsx:159 (load, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81078,7 +81078,7 @@
       "method": "GET",
       "path": "/v1/admin/contact-sales/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:140",
+      "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:155",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81091,7 +81091,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx",
-          "line": 176,
+          "line": 186,
           "caller": "AdminContactSalesDetailPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81099,7 +81099,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/contact-sales/page.tsx",
-          "line": 182,
+          "line": 192,
           "caller": "openDetails",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81109,7 +81109,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:176 (AdminContactSalesDetailPage, WEB); apps/web/app/(app)/admin/contact-sales/page.tsx:182 (openDetails, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:186 (AdminContactSalesDetailPage, WEB); apps/web/app/(app)/admin/contact-sales/page.tsx:192 (openDetails, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81283,7 +81283,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/customers/[id]/page.tsx",
-          "line": 363,
+          "line": 410,
           "caller": "AdminOrganizationDetailPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81293,7 +81293,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:363 (AdminOrganizationDetailPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:410 (AdminOrganizationDetailPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81352,7 +81352,7 @@
       "method": "GET",
       "path": "/v1/admin/demo-requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:127",
+      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:140",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81365,7 +81365,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 363,
+          "line": 371,
           "caller": "AdminDemoRequestsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81375,7 +81375,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:363 (AdminDemoRequestsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:371 (AdminDemoRequestsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81409,7 +81409,7 @@
       "method": "GET",
       "path": "/v1/admin/demo-requests/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:280",
+      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:293",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81430,7 +81430,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 387,
+          "line": 395,
           "caller": "loadDetails",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81440,7 +81440,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx:190 (AdminDemoRequestDetailPage, WEB); apps/web/app/(app)/admin/demo-requests/page.tsx:387 (loadDetails, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/[id]/page.tsx:190 (AdminDemoRequestDetailPage, WEB); apps/web/app/(app)/admin/demo-requests/page.tsx:395 (loadDetails, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81487,7 +81487,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/evidence-ops/page.tsx",
-          "line": 353,
+          "line": 364,
           "caller": "AdminEvidenceOpsPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81497,7 +81497,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/page.tsx:353 (AdminEvidenceOpsPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/evidence-ops/page.tsx:364 (AdminEvidenceOpsPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81670,7 +81670,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/permission-matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:515",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:520",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81725,7 +81725,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:312",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:317",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81815,7 +81815,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/quarantined-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1040",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1125",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81826,7 +81826,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/runtime/page.tsx",
-          "line": 152,
+          "line": 174,
           "caller": "IdentityRuntimePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81834,7 +81834,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
-          "line": 136,
+          "line": 231,
           "caller": "ActiveSessionsSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81844,7 +81844,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:152 (IdentityRuntimePage, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:136 (ActiveSessionsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:174 (IdentityRuntimePage, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:231 (ActiveSessionsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81866,7 +81866,8 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -81879,7 +81880,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/role-matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:548",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:553",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveAdminWorkspace -> services/api/src/routes/admin-identity.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -82031,7 +82032,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/scim/tokens",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:637",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:642",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82042,7 +82043,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 346,
+          "line": 348,
           "caller": "TokensTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82052,7 +82053,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:346 (TokensTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:348 (TokensTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82087,7 +82088,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:755",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:768",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82098,7 +82099,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/runtime/page.tsx",
-          "line": 148,
+          "line": 170,
           "caller": "IdentityRuntimePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82106,7 +82107,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
-          "line": 135,
+          "line": 195,
           "caller": "ActiveSessionsSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82116,7 +82117,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:148 (IdentityRuntimePage, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:135 (ActiveSessionsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:170 (IdentityRuntimePage, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:195 (ActiveSessionsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82138,7 +82139,8 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-inventory.service.ts: authenticatedSession.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -82151,7 +82153,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/timeline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:884",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:911",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82162,7 +82164,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/timeline/page.tsx",
-          "line": 122,
+          "line": 141,
           "caller": "IdentityTimelinePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82172,7 +82174,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/timeline/page.tsx:122 (IdentityTimelinePage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/timeline/page.tsx:141 (IdentityTimelinePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82207,7 +82209,7 @@
       "method": "GET",
       "path": "/v1/admin/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:264",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:360",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -82734,7 +82736,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/media-graph/page.tsx",
-          "line": 274,
+          "line": 276,
           "caller": "load",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82752,7 +82754,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:274 (load, WEB); apps/web/app/(app)/admin/platform/observability/page.tsx:612 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:276 (load, WEB); apps/web/app/(app)/admin/platform/observability/page.tsx:612 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82907,7 +82909,7 @@
       "method": "GET",
       "path": "/v1/admin/security-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:95",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:146",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -82920,7 +82922,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/operations/_sections/PlatformSecurityEvents.tsx",
-          "line": 86,
+          "line": 104,
           "caller": "PlatformSecurityEvents",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82930,7 +82932,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/operations/_sections/PlatformSecurityEvents.tsx:86 (PlatformSecurityEvents, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/operations/_sections/PlatformSecurityEvents.tsx:104 (PlatformSecurityEvents, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82980,7 +82982,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/timeline/page.tsx",
-          "line": 137,
+          "line": 153,
           "caller": "AdminTimelinePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82988,7 +82990,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/timeline/page.tsx",
-          "line": 167,
+          "line": 183,
           "caller": "AdminTimelinePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82998,7 +83000,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/timeline/page.tsx:137 (AdminTimelinePage, WEB); apps/web/app/(app)/admin/timeline/page.tsx:167 (AdminTimelinePage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/timeline/page.tsx:153 (AdminTimelinePage, WEB); apps/web/app/(app)/admin/timeline/page.tsx:183 (AdminTimelinePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -83107,7 +83109,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/users/[id]/page.tsx",
-          "line": 164,
+          "line": 169,
           "caller": "AdminPersonDetailPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -83117,7 +83119,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/users/[id]/page.tsx:164 (AdminPersonDetailPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/users/[id]/page.tsx:169 (AdminPersonDetailPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -83242,7 +83244,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx",
-          "line": 181,
+          "line": 186,
           "caller": "AdminWorkspaceDetailPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -83252,7 +83254,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx:181 (AdminWorkspaceDetailPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx:186 (AdminWorkspaceDetailPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -94347,7 +94349,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx",
-          "line": 89,
+          "line": 90,
           "caller": "TrustedDevicesSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -94373,7 +94375,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:89 (TrustedDevicesSection, WEB); apps/web/app/(app)/security-center/page.tsx:159 (SecurityCenterPageInner, WEB); apps/web/app/(app)/security-center/page.tsx:274 (revokeDevice, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:90 (TrustedDevicesSection, WEB); apps/web/app/(app)/security-center/page.tsx:159 (SecurityCenterPageInner, WEB); apps/web/app/(app)/security-center/page.tsx:274 (revokeDevice, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95192,7 +95194,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx",
-          "line": 118,
+          "line": 120,
           "caller": "MfaMemberPostureSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95210,7 +95212,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/_sections/MembersSection.tsx:169 (MembersSection, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/UserRiskSection.tsx:82 (UserRiskSection, WEB); apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:118 (MfaMemberPostureSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/_sections/MembersSection.tsx:169 (MembersSection, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/UserRiskSection.tsx:82 (UserRiskSection, WEB); apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:120 (MfaMemberPostureSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95251,7 +95253,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1069",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1090",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -95262,7 +95264,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx",
-          "line": 81,
+          "line": 82,
           "caller": "MfaDigestPreferencesSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95280,7 +95282,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:81 (MfaDigestPreferencesSection, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:160 (reloadPreferences, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:82 (MfaDigestPreferencesSection, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:160 (reloadPreferences, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95311,7 +95313,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1174",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1195",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -95322,7 +95324,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx",
-          "line": 82,
+          "line": 83,
           "caller": "MfaDigestPreferencesSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95340,7 +95342,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:82 (MfaDigestPreferencesSection, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:173 (reloadPreview, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:83 (MfaDigestPreferencesSection, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:173 (reloadPreview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95377,7 +95379,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences/snooze-link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1236",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1257",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -95428,7 +95430,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/events/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:525",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:526",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95441,7 +95443,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx",
-          "line": 82,
+          "line": 113,
           "caller": "MfaEventsSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95451,7 +95453,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx:82 (MfaEventsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx:113 (MfaEventsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95479,7 +95481,8 @@
         "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/security/mfa-admin-lifecycle.service.ts: securityEvent.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -95492,7 +95495,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/policy/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:956",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:977",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95505,7 +95508,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx",
-          "line": 147,
+          "line": 148,
           "caller": "MfaPolicySection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95515,7 +95518,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx:147 (MfaPolicySection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx:148 (MfaPolicySection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95556,7 +95559,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/posture/:teamId/:userId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:345",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:346",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -95569,7 +95572,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx",
-          "line": 137,
+          "line": 139,
           "caller": "MfaMemberPostureSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95579,7 +95582,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:137 (MfaMemberPostureSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:139 (MfaMemberPostureSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95623,7 +95626,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1453",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1474",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -95634,7 +95637,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx",
-          "line": 85,
+          "line": 151,
           "caller": "MfaEventsSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -95644,7 +95647,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx:85 (MfaEventsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaEventsSection.tsx:151 (MfaEventsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -95680,7 +95683,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/approvals",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:923",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:944",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -95736,7 +95739,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-requests/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:568",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:589",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -95799,7 +95802,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-requests/detail/:requestId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:885",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:906",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -99708,7 +99711,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 271,
+          "line": 273,
           "caller": "OperationsSignersContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -99718,7 +99721,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:271 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:273 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100306,7 +100309,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
-          "line": 134,
+          "line": 136,
           "caller": "OperationsRecoveryContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100316,7 +100319,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:134 (OperationsRecoveryContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:136 (OperationsRecoveryContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100415,7 +100418,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
-          "line": 209,
+          "line": 232,
           "caller": "OperationsRecoveryContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100425,7 +100428,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:209 (OperationsRecoveryContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:232 (OperationsRecoveryContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100474,7 +100477,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 268,
+          "line": 270,
           "caller": "OperationsSignersContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100484,7 +100487,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:268 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:270 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100533,7 +100536,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 623,
+          "line": 640,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100543,7 +100546,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:623 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:640 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100592,7 +100595,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 633,
+          "line": 650,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100602,7 +100605,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:633 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:650 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100651,7 +100654,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 646,
+          "line": 663,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -100661,7 +100664,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:646 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:663 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107087,7 +107090,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 793,
+          "line": 795,
           "caller": "DriftTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107097,7 +107100,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:793 (DriftTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:795 (DriftTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107144,7 +107147,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 1106,
+          "line": 1109,
           "caller": "ReplayTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107154,7 +107157,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:1106 (ReplayTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:1109 (ReplayTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107767,7 +107770,7 @@
       "method": "GET",
       "path": "/v1/security/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/security.routes.ts:136",
+      "registrationEvidence": "services/api/src/routes/security.routes.ts:139",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdminMember -> services/api/src/routes/reliability.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -107780,7 +107783,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx",
-          "line": 168,
+          "line": 243,
           "caller": "WorkspaceSecurityPostureSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107790,7 +107793,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:168 (WorkspaceSecurityPostureSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:243 (WorkspaceSecurityPostureSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107831,7 +107834,7 @@
       "method": "GET",
       "path": "/v1/security/scans",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/security.routes.ts:111",
+      "registrationEvidence": "services/api/src/routes/security.routes.ts:114",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdminMember -> services/api/src/routes/reliability.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -107844,7 +107847,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx",
-          "line": 167,
+          "line": 209,
           "caller": "WorkspaceSecurityPostureSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107854,7 +107857,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:167 (WorkspaceSecurityPostureSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:209 (WorkspaceSecurityPostureSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107895,7 +107898,7 @@
       "method": "GET",
       "path": "/v1/security/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/security.routes.ts:79",
+      "registrationEvidence": "services/api/src/routes/security.routes.ts:82",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdminMember -> services/api/src/routes/reliability.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -107908,7 +107911,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx",
-          "line": 166,
+          "line": 208,
           "caller": "WorkspaceSecurityPostureSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107918,7 +107921,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:166 (WorkspaceSecurityPostureSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/WorkspaceSecurityPostureSection.tsx:208 (WorkspaceSecurityPostureSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111136,7 +111139,7 @@
       "method": "PATCH",
       "path": "/v1/admin/contact-sales/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:166",
+      "registrationEvidence": "services/api/src/routes/admin-contact-sales.routes.ts:181",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -111149,7 +111152,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx",
-          "line": 210,
+          "line": 241,
           "caller": "patchStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111157,7 +111160,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/contact-sales/page.tsx",
-          "line": 199,
+          "line": 238,
           "caller": "patchStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111167,7 +111170,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:210 (patchStatus, WEB); apps/web/app/(app)/admin/contact-sales/page.tsx:199 (patchStatus, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/contact-sales/[id]/page.tsx:241 (patchStatus, WEB); apps/web/app/(app)/admin/contact-sales/page.tsx:238 (patchStatus, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111202,7 +111205,7 @@
       "method": "PATCH",
       "path": "/v1/admin/demo-requests/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:393",
+      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:406",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -111215,7 +111218,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 417,
+          "line": 470,
           "caller": "saveCurrent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111225,7 +111228,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:417 (saveCurrent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:470 (saveCurrent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111273,7 +111276,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/provisioning/page.tsx",
-          "line": 660,
+          "line": 694,
           "caller": "GrantPlanPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111283,7 +111286,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/page.tsx:660 (GrantPlanPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/page.tsx:694 (GrantPlanPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112687,7 +112690,7 @@
       "method": "PATCH",
       "path": "/v1/identity/mfa-admin/digest-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1093",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1114",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112698,7 +112701,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx",
-          "line": 123,
+          "line": 124,
           "caller": "MfaDigestPreferencesSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112732,7 +112735,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:123 (MfaDigestPreferencesSection, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:200 (doSnooze, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:227 (doResume, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:124 (MfaDigestPreferencesSection, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:200 (doSnooze, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:227 (doResume, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112772,7 +112775,7 @@
       "method": "PATCH",
       "path": "/v1/identity/mfa-admin/policy/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:971",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:992",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -112785,7 +112788,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx",
-          "line": 204,
+          "line": 205,
           "caller": "MfaPolicySection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112795,7 +112798,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx:204 (MfaPolicySection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaPolicySection.tsx:205 (MfaPolicySection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114117,7 +114120,7 @@
       "method": "POST",
       "path": "/v1/admin/audit-log",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:70",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:91",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -114164,7 +114167,7 @@
       "method": "POST",
       "path": "/v1/admin/demo-requests/:id/follow-up/send",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:659",
+      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:732",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -114177,7 +114180,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 472,
+          "line": 557,
           "caller": "sendFollowUp",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114187,7 +114190,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:472 (sendFollowUp, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:557 (sendFollowUp, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114230,7 +114233,7 @@
       "method": "POST",
       "path": "/v1/admin/demo-requests/:id/route",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:565",
+      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:638",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -114243,7 +114246,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 447,
+          "line": 517,
           "caller": "saveRouting",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114253,7 +114256,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:447 (saveRouting, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:517 (saveRouting, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114288,7 +114291,7 @@
       "method": "POST",
       "path": "/v1/admin/demo-requests/follow-up/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:733",
+      "registrationEvidence": "services/api/src/routes/admin-demo-requests.routes.ts:806",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdminOrInternalKey -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -114301,7 +114304,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/demo-requests/page.tsx",
-          "line": 496,
+          "line": 594,
           "caller": "runDueFollowUps",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114319,7 +114322,7 @@
       ],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:496 (runDueFollowUps, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/demo-requests/page.tsx:594 (runDueFollowUps, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114374,7 +114377,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/provisioning/page.tsx",
-          "line": 394,
+          "line": 413,
           "caller": "ProvisionPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114384,7 +114387,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/page.tsx:394 (ProvisionPanel, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/page.tsx:413 (ProvisionPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114448,7 +114451,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/elevations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:571",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:576",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveAdminWorkspace -> services/api/src/routes/admin-identity.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -114528,7 +114531,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/emergency-revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1141",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1239",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114539,7 +114542,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/runtime/page.tsx",
-          "line": 281,
+          "line": 305,
           "caller": "IdentityRuntimePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114549,7 +114552,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:281 (IdentityRuntimePage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:305 (IdentityRuntimePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114595,7 +114598,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:342",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:347",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114671,7 +114674,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers/:id/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:450",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:455",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114749,7 +114752,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:392",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:397",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114813,7 +114816,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/runtime/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1189",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1287",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -114902,7 +114905,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/scim/tokens",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:654",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:659",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114913,7 +114916,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 387,
+          "line": 389,
           "caller": "TokensTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -114923,7 +114926,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:387 (TokensTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:389 (TokensTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -114979,7 +114982,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/scim/tokens/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:705",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:710",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114990,7 +114993,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 499,
+          "line": 501,
           "caller": "TokensTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115000,7 +115003,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:499 (TokensTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:501 (TokensTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115054,7 +115057,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 447,
+          "line": 449,
           "caller": "TokensTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115064,7 +115067,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:447 (TokensTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:449 (TokensTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115128,7 +115131,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/quarantine",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1063",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1161",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115139,7 +115142,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/runtime/page.tsx",
-          "line": 182,
+          "line": 209,
           "caller": "IdentityRuntimePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115147,7 +115150,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
-          "line": 442,
+          "line": 595,
           "caller": "ActiveSessionsSection",
           "class": "WEB",
           "primitive": "runMutation",
@@ -115157,7 +115160,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:182 (IdentityRuntimePage, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:442 (ActiveSessionsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:209 (IdentityRuntimePage, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:595 (ActiveSessionsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115207,7 +115210,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1107",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1205",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115218,7 +115221,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/runtime/page.tsx",
-          "line": 212,
+          "line": 239,
           "caller": "IdentityRuntimePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115226,7 +115229,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
-          "line": 531,
+          "line": 712,
           "caller": "ActiveSessionsSection",
           "class": "WEB",
           "primitive": "runMutation",
@@ -115236,7 +115239,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:212 (IdentityRuntimePage, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:531 (ActiveSessionsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:239 (IdentityRuntimePage, WEB); apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:712 (ActiveSessionsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115274,7 +115277,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:781",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:808",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115285,7 +115288,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
-          "line": 466,
+          "line": 619,
           "caller": "ActiveSessionsSection",
           "class": "WEB",
           "primitive": "runMutation",
@@ -115295,7 +115298,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:466 (ActiveSessionsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:619 (ActiveSessionsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115337,7 +115340,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/score",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1005",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1090",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115348,7 +115351,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/runtime/page.tsx",
-          "line": 238,
+          "line": 265,
           "caller": "IdentityRuntimePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115358,7 +115361,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:238 (IdentityRuntimePage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:265 (IdentityRuntimePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115395,7 +115398,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/reconcile-stale",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:932",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1017",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -115472,7 +115475,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/user/:userId/revoke-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:831",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:858",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115483,7 +115486,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx",
-          "line": 488,
+          "line": 641,
           "caller": "ActiveSessionsSection",
           "class": "WEB",
           "primitive": "runMutation",
@@ -115493,7 +115496,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:488 (ActiveSessionsSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/ActiveSessionsSection.tsx:641 (ActiveSessionsSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115538,7 +115541,7 @@
       "method": "POST",
       "path": "/v1/admin/incidents/:id/acknowledge",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:532",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:628",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -115594,7 +115597,7 @@
       "method": "POST",
       "path": "/v1/admin/incidents/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:532",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:628",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -115650,7 +115653,7 @@
       "method": "POST",
       "path": "/v1/admin/incidents/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:532",
+      "registrationEvidence": "services/api/src/routes/admin-security.routes.ts:628",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -115719,7 +115722,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/customers/[id]/page.tsx",
-          "line": 335,
+          "line": 368,
           "caller": "runLifecycle",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115729,7 +115732,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:335 (runLifecycle, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:368 (runLifecycle, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115796,7 +115799,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/customers/[id]/page.tsx",
-          "line": 335,
+          "line": 368,
           "caller": "runLifecycle",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115806,7 +115809,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:335 (runLifecycle, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/customers/[id]/page.tsx:368 (runLifecycle, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -130627,7 +130630,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx",
-          "line": 160,
+          "line": 161,
           "caller": "TrustedDevicesSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -130645,7 +130648,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:160 (TrustedDevicesSection, WEB); apps/web/app/(app)/security-center/page.tsx:269 (revokeDevice, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:161 (TrustedDevicesSection, WEB); apps/web/app/(app)/security-center/page.tsx:269 (revokeDevice, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -130696,7 +130699,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx",
-          "line": 123,
+          "line": 124,
           "caller": "TrustedDevicesSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -130706,7 +130709,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:123 (TrustedDevicesSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/sessions/_sections/TrustedDevicesSection.tsx:124 (TrustedDevicesSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -130950,7 +130953,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/runtime/page.tsx",
-          "line": 328,
+          "line": 354,
           "caller": "IdentityRuntimePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -130960,7 +130963,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:328 (IdentityRuntimePage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/runtime/page.tsx:354 (IdentityRuntimePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132398,7 +132401,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/digest-preferences/preview/send-test",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1320",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1341",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -132409,7 +132412,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx",
-          "line": 153,
+          "line": 154,
           "caller": "MfaDigestPreferencesSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -132419,7 +132422,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:153 (MfaDigestPreferencesSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaDigestPreferencesSection.tsx:154 (MfaDigestPreferencesSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132458,7 +132461,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:383",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:384",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132471,7 +132474,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx",
-          "line": 490,
+          "line": 495,
           "caller": "MfaMemberPostureSection",
           "class": "WEB",
           "primitive": "runMutation",
@@ -132481,7 +132484,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:490 (MfaMemberPostureSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:495 (MfaMemberPostureSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132526,7 +132529,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:433",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:434",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132539,7 +132542,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx",
-          "line": 427,
+          "line": 432,
           "caller": "MfaMemberPostureSection",
           "class": "WEB",
           "primitive": "runMutation",
@@ -132549,7 +132552,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:427 (MfaMemberPostureSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:432 (MfaMemberPostureSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132594,7 +132597,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/recovery-requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:597",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:618",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -132655,7 +132658,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:644",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:665",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -132720,7 +132723,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:683",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:704",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -132779,7 +132782,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:479",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:480",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -132792,7 +132795,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx",
-          "line": 450,
+          "line": 455,
           "caller": "MfaMemberPostureSection",
           "class": "WEB",
           "primitive": "runMutation",
@@ -132802,7 +132805,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:450 (MfaMemberPostureSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaMemberPostureSection.tsx:455 (MfaMemberPostureSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -132858,7 +132861,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/security/_sections/MfaSelfCheckSection.tsx",
-          "line": 62,
+          "line": 63,
           "caller": "MfaSelfCheckSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -132868,7 +132871,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaSelfCheckSection.tsx:62 (MfaSelfCheckSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/security/_sections/MfaSelfCheckSection.tsx:63 (MfaSelfCheckSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -133067,7 +133070,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:849",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:870",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -133117,7 +133120,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/resend-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:809",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:830",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -133166,7 +133169,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/verify-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:727",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:748",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/mfa-admin.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133226,7 +133229,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/analytics/page-viewed",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:791",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:812",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/mfa-admin.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -137727,7 +137730,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 305,
+          "line": 307,
           "caller": "OperationsSignersContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137737,7 +137740,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:305 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:307 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -137787,7 +137790,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 334,
+          "line": 350,
           "caller": "OperationsSignersContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -137797,7 +137800,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:334 (OperationsSignersContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:350 (OperationsSignersContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138092,7 +138095,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
-          "line": 154,
+          "line": 168,
           "caller": "OperationsRecoveryContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138102,7 +138105,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:154 (OperationsRecoveryContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:168 (OperationsRecoveryContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138155,7 +138158,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/recovery/page.tsx",
-          "line": 180,
+          "line": 203,
           "caller": "OperationsRecoveryContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138165,7 +138168,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:180 (OperationsRecoveryContent, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/recovery/page.tsx:203 (OperationsRecoveryContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138219,7 +138222,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 663,
+          "line": 680,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138229,7 +138232,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:663 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:680 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138278,7 +138281,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 688,
+          "line": 735,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138288,7 +138291,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:688 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:735 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138342,7 +138345,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 688,
+          "line": 735,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138352,7 +138355,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:688 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:735 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138405,7 +138408,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 688,
+          "line": 735,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138415,7 +138418,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:688 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:735 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138911,7 +138914,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/media-graph/page.tsx",
-          "line": 366,
+          "line": 388,
           "caller": "runReplayDlq",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138921,7 +138924,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:366 (runReplayDlq, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:388 (runReplayDlq, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -139012,7 +139015,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/media-graph/page.tsx",
-          "line": 331,
+          "line": 345,
           "caller": "runRetry",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -139022,7 +139025,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:331 (runRetry, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:345 (runRetry, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -143653,7 +143656,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/reliability/page.tsx",
-          "line": 161,
+          "line": 160,
           "caller": "markAbandoned",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -143663,7 +143666,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/reliability/page.tsx:161 (markAbandoned, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/reliability/page.tsx:160 (markAbandoned, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -143722,7 +143725,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/reliability/page.tsx",
-          "line": 184,
+          "line": 194,
           "caller": "requestReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -143732,7 +143735,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/reliability/page.tsx:184 (requestReview, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/reliability/page.tsx:194 (requestReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -146833,7 +146836,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 849,
+          "line": 851,
           "caller": "DriftTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -146843,7 +146846,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:849 (DriftTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:851 (DriftTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -146897,7 +146900,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 1144,
+          "line": 1161,
           "caller": "ReplayTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -146907,7 +146910,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:1144 (ReplayTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:1161 (ReplayTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
