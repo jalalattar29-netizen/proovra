@@ -679,36 +679,77 @@ export type ScimSyncFailure = {
   terminal: boolean;
 };
 
+/** The failure kinds this catalog emits. Exported so the route validates against the same list. */
+export const SCIM_FAILURE_EVENT_TYPES = [
+  "scim_invalid_token",
+  "scim_user_create_failed",
+  "scim_user_deactivate_failed",
+  "scim_group_membership_reconcile_failed",
+] as const;
+
+export type ScimFailureEventType = (typeof SCIM_FAILURE_EVENT_TYPES)[number];
+
+export type ListScimSyncFailuresResult = {
+  failures: ReadonlyArray<ScimSyncFailure>;
+  /**
+   * The count matching the FILTER, not the page.
+   *
+   * Safe to compute here: it is a count over one team on an indexed column
+   * family, not a scan. Without it the page can only report how many rows it
+   * received, and "100 failures" then means "the newest 100" — which is the
+   * exact half-truth this work exists to remove.
+   */
+  total: number;
+  /** Echoed so the client discloses the cap rather than inferring it. */
+  limit: number;
+};
+
 export async function listScimSyncFailures(
-  input: { teamId: string; limit?: number },
+  input: {
+    teamId: string;
+    limit?: number;
+    eventType?: ScimFailureEventType;
+    severity?: "INFO" | "WARNING" | "HIGH";
+    sinceUtc?: string;
+  },
   client: PrismaClient = defaultPrisma,
-): Promise<ReadonlyArray<ScimSyncFailure>> {
+): Promise<ListScimSyncFailuresResult> {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
   // Read from the SecurityEvent catalog. The `scim_*_failed` family
   // is emitted by the SCIM service on every transient + terminal
   // failure (e.g. `scim_invalid_token`, `scim_user_create_failed`).
-  const rows = await client.securityEvent.findMany({
-    where: {
-      teamId: input.teamId,
-      eventType: {
-        in: [
-          "scim_invalid_token",
-          "scim_user_create_failed",
-          "scim_user_deactivate_failed",
-          "scim_group_membership_reconcile_failed",
-        ],
+  /**
+   * One where clause, used by BOTH the page query and the count.
+   *
+   * Building them separately is how a summary count and its drill-down come to
+   * disagree — the same defect this repository already fixed once for
+   * incidents. Sharing the object makes the two impossible to diverge.
+   */
+  const where = {
+    teamId: input.teamId,
+    eventType: input.eventType
+      ? input.eventType
+      : { in: [...SCIM_FAILURE_EVENT_TYPES] },
+    ...(input.severity ? { severity: input.severity } : {}),
+    ...(input.sinceUtc ? { createdAt: { gte: new Date(input.sinceUtc) } } : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    client.securityEvent.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        eventType: true,
+        severity: true,
+        createdAt: true,
       },
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    select: {
-      id: true,
-      eventType: true,
-      severity: true,
-      createdAt: true,
-    },
-  });
-  return rows.map((r) => ({
+    }),
+    client.securityEvent.count({ where }),
+  ]);
+
+  const failures = rows.map((r) => ({
     id: r.id,
     occurredAtUtc: r.createdAt.toISOString(),
     eventType: r.eventType,
@@ -717,6 +758,8 @@ export async function listScimSyncFailures(
     retryEligible: r.eventType !== "scim_invalid_token", // bad-token failures need new token
     terminal: r.eventType === "scim_invalid_token",
   }));
+
+  return { failures, total, limit };
 }
 
 export type ReplayScimSyncFailureResult =

@@ -42,6 +42,7 @@ import {
   detectScimDrift,
   executeScimReconciliation,
   listScimSyncFailures,
+  SCIM_FAILURE_EVENT_TYPES,
   replayScimSyncFailure,
 } from "../services/access-control/scim-reconciliation.service.js";
 import {
@@ -176,19 +177,47 @@ export async function identityOperationsCompletionRoutes(app: FastifyInstance) {
     "/v1/scim/sync-failures",
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const q = z
+      /**
+       * Filters validated against the SAME list the service queries.
+       *
+       * `SCIM_FAILURE_EVENT_TYPES` is exported by the service, so an event
+       * type added there is accepted here without anybody remembering to
+       * update a second copy — and a value outside it is a 400 rather than a
+       * silently empty result, which is the difference between "no failures of
+       * that kind" and "you asked for something that does not exist".
+       */
+      const parsed = z
         .object({
           teamId: z.string().uuid(),
           limit: z.coerce.number().int().min(1).max(200).optional(),
+          eventType: z.enum(SCIM_FAILURE_EVENT_TYPES).optional(),
+          severity: z.enum(["INFO", "WARNING", "HIGH"]).optional(),
+          sinceUtc: z.string().datetime().optional(),
         })
-        .parse(req.query ?? {});
+        .safeParse(req.query ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid sync-failure filter.",
+            details: parsed.error.flatten().fieldErrors,
+            requestId: req.id,
+          },
+        });
+      }
+      const q = parsed.data;
       const ctx = await requireIdentityAdmin(req, reply, q.teamId);
       if (!ctx) return;
-      const failures = await listScimSyncFailures({
+      const result = await listScimSyncFailures({
         teamId: q.teamId,
         limit: q.limit,
+        eventType: q.eventType,
+        severity: q.severity,
+        sinceUtc: q.sinceUtc,
       });
-      return reply.code(200).send({ failures });
+      // `total` and `limit` travel with the rows so the client never has to
+      // infer completeness from how many it received.
+      return reply.code(200).send(result);
     },
   );
 

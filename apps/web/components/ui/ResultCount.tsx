@@ -2,6 +2,11 @@
 
 import type { CSSProperties, ReactNode } from "react";
 
+import {
+  resultCountSentence,
+  type ResultCountFacts,
+} from "../../lib/ui/resultCountSentence";
+
 /**
  * HOW MANY ROWS, AND WHETHER THAT IS ALL OF THEM.
  *
@@ -35,6 +40,17 @@ import type { CSSProperties, ReactNode } from "react";
 export type ResultCountProps = {
   /** Rows currently rendered. */
   shown: number;
+  /**
+   * The server's count of everything matching the current filter.
+   *
+   * The AUTHORITATIVE number, and it outranks every inference below. With it
+   * the component can say "Showing 100 of 250" instead of guessing from the
+   * row count — which is the difference between a fact and an assumption
+   * dressed as one.
+   *
+   * Omit it when the endpoint does not return a count. Do NOT pass shown.
+   */
+  total?: number;
   /**
    * The limit the request asked for, when there is one.
    *
@@ -72,6 +88,7 @@ const rowStyle: CSSProperties = {
 
 export function ResultCount({
   shown,
+  total,
   cap,
   hasMore,
   noun,
@@ -82,25 +99,19 @@ export function ResultCount({
   style,
   "data-testid": testId,
 }: ResultCountProps) {
-  const plural = pluralNoun ?? `${noun}s`;
-  const word = shown === 1 ? noun : plural;
-
-  // `hasMore` is the server's own answer and always wins. `cap` is the
-  // client's inference from "we asked for N and got exactly N".
-  const truncated = hasMore ?? (cap !== undefined && shown >= cap);
-
-  let text: string;
-  if (loading) {
-    text = `Loading ${plural}…`;
-  } else if (shown === 0) {
-    text = filtered ? `No ${plural} match these filters` : `No ${plural} yet`;
-  } else if (truncated) {
-    text = cap !== undefined && hasMore === undefined
-      ? `${shown} ${word} shown — the view is capped at ${cap}, so there may be more`
-      : `${shown} ${word} shown — more are available`;
-  } else {
-    text = `${shown} ${word}`;
-  }
+  // The sentence lives in lib/ui/resultCountSentence so its test can import
+  // it. It used to be inline, and the test carried a hand-copied duplicate
+  // that kept passing after the logic changed underneath it.
+  const text = resultCountSentence({
+    shown,
+    total,
+    cap,
+    hasMore,
+    noun,
+    pluralNoun,
+    filtered,
+    loading,
+  });
 
   return (
     <div style={{ ...rowStyle, ...style }} data-testid={testId}>

@@ -34,6 +34,8 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
+import { FilterBar } from "../../../../../components/ui/FilterBar";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
   cardStyle,
@@ -217,6 +219,26 @@ type TabKey = keyof typeof TAB_LABELS;
 // ============================================================================
 // Root page (tab dispatcher)
 // ============================================================================
+
+/**
+ * The sync-failure query.
+ *
+ * Empty means "no filter" and is omitted rather than sent as an empty string —
+ * the endpoint validates with z.enum, so "" would be a 400 and the page would
+ * show an error where the operator had simply cleared a dropdown.
+ */
+function syncFailureQuery(
+  teamId: string,
+  eventType: string,
+  severity: string,
+): string {
+  const p = new URLSearchParams();
+  p.set("teamId", teamId);
+  p.set("limit", "100");
+  if (eventType) p.set("eventType", eventType);
+  if (severity) p.set("severity", severity);
+  return p.toString();
+}
 
 export default function ScimPage() {
   const teamId = useTeamId();
@@ -1060,6 +1082,19 @@ function DriftTab({ teamId }: { teamId: string }) {
 function ReplayTab({ teamId }: { teamId: string }) {
   const { stamp, isStale } = useTenantGuard();
   const [failures, setFailures] = useState<ScimSyncFailure[] | null>(null);
+  /**
+   * Server-side filters, and the metadata that makes the count honest.
+   *
+   * The endpoint used to accept only teamId and limit, so this list was the
+   * newest 100 sync errors with no way to reach the rest and no way to say how
+   * many there were. Both filters go into the REQUEST — narrowing in the
+   * browser would leave the 100-row cap over an unfiltered window, which
+   * hides rows rather than finding them.
+   */
+  const [eventTypeFilter, setEventTypeFilter] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("");
+  const [failureTotal, setFailureTotal] = useState<number | null>(null);
+  const [failureLimit, setFailureLimit] = useState<number | null>(null);
   const [denial, setDenial] = useState<ScimDenial | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -1069,11 +1104,13 @@ function ReplayTab({ teamId }: { teamId: string }) {
     const captured = stamp();
     try {
       const r = (await apiFetch(
-        `/v1/scim/sync-failures?teamId=${encodeURIComponent(teamId)}&limit=100`,
+        `/v1/scim/sync-failures?${syncFailureQuery(teamId, eventTypeFilter, severityFilter)}`,
         { method: "GET" },
-      )) as { failures?: ScimSyncFailure[] };
+      )) as { failures?: ScimSyncFailure[]; total?: number; limit?: number };
       if (isStale(captured)) return;
       setFailures(r.failures ?? []);
+      setFailureTotal(typeof r.total === "number" ? r.total : null);
+      setFailureLimit(typeof r.limit === "number" ? r.limit : null);
       setDenial(null);
       setError(null);
     } catch (err) {
@@ -1091,7 +1128,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
           .message,
       );
     }
-  }, [teamId, stamp, isStale]);
+  }, [teamId, stamp, isStale, eventTypeFilter, severityFilter]);
 
   useEffect(() => {
     void load();
@@ -1212,6 +1249,37 @@ function ReplayTab({ teamId }: { teamId: string }) {
       {error ? <div style={errorBoxStyle}>{error}</div> : null}
       {success ? <div style={successBoxStyle}>{success}</div> : null}
 
+      {/* Server-side. Both go into the request, so the 100-row cap applies
+          to the NARROWED set — a browser-side filter would keep the cap over
+          an unfiltered window and hide rows rather than find them. */}
+      <FilterBar style={{ marginTop: 12 }}>
+        <FilterBar.Select
+          label="Failure type"
+          value={eventTypeFilter}
+          onChange={setEventTypeFilter}
+          options={[
+            { value: "", label: "All failure types" },
+            { value: "scim_invalid_token", label: "Invalid token" },
+            { value: "scim_user_create_failed", label: "User create failed" },
+            { value: "scim_user_deactivate_failed", label: "User deactivate failed" },
+            {
+              value: "scim_group_membership_reconcile_failed",
+              label: "Group membership reconcile failed",
+            },
+          ]}
+        />
+        <FilterBar.Select
+          label="Severity"
+          value={severityFilter}
+          onChange={setSeverityFilter}
+          options={[
+            { value: "", label: "All severities" },
+            { value: "HIGH", label: "High" },
+            { value: "WARNING", label: "Warning" },
+            { value: "INFO", label: "Info" },
+          ]}
+        />
+      </FilterBar>
       <div style={{ marginTop: 12, display: denial ? "none" : undefined }}>
         <DataTable
           columns={failureColumns}
@@ -1221,8 +1289,10 @@ function ReplayTab({ teamId }: { teamId: string }) {
           ariaLabel="SCIM sync failures"
           emptyState={
             <EmptyState
-              title="No sync failures"
-              purpose="No SCIM sync failures recorded. Transient failures that can be replayed will appear here."
+              title={eventTypeFilter !== "" || severityFilter !== "" ? "No failures match these filters" : "No sync failures"}
+              purpose={eventTypeFilter !== "" || severityFilter !== ""
+                ? "No SCIM failure matches the selected type and severity. Clearing them shows every recorded failure."
+                : "No SCIM sync failures recorded. Transient failures that can be replayed will appear here."}
             />
           }
           rowActions={(f) =>
@@ -1239,6 +1309,17 @@ function ReplayTab({ teamId }: { teamId: string }) {
               <span style={{ ...mutedStyle, fontSize: 11 }}>Not replayable</span>
             )
           }
+        />
+        {/* total comes from the server and counts the FILTER, not the page.
+            Without it, 100 rows would read as 100 failures. */}
+        <ResultCount
+          shown={failures?.length ?? 0}
+          cap={failureLimit ?? undefined}
+          total={failureTotal ?? undefined}
+          noun="sync failure"
+          filtered={eventTypeFilter !== "" || severityFilter !== ""}
+          loading={failures === null}
+          data-testid="admin-scim-failures-count"
         />
       </div>
     </>

@@ -153,7 +153,19 @@ function isPaginated(code) {
   // classified the analytics dashboard and the observability page as paged
   // lists needing filters. A pagination cursor always arrives as nextCursor
   // or is sent as a query parameter; the CSS one never is.
-  return /\b(limit|offset|pageSize|per_page)\b\s*[=:,)]|\bnextCursor\b|\bhasMore\b/.test(code);
+  // A REQUEST form, not the word.
+  //
+  // `\b(limit)\b\s*[=:,)]` matched "Soft limit: {formatMoney(...)}" in the
+  // cost dashboard’s display copy and classified the page as paged. The three
+  // shapes a request actually takes are `limit=` in a template, `"limit"` in
+  // params.set, and `limit: <number>` in an options object — display copy
+  // never puts a bare numeral after the colon.
+  return (
+    /\b(limit|offset|pageSize|per_page)=/.test(code) ||
+    /["'](limit|offset|pageSize|per_page)["']/.test(code) ||
+    /\b(limit|offset|pageSize|per_page):\s*\d/.test(code) ||
+    /\bnextCursor\b|\bhasMore\b/.test(code)
+  );
 }
 
 const isDetail = (route) => /\/:(id|slug)$/.test(route);
