@@ -34,6 +34,13 @@ jobs:
       WORKER_PORT: "8090"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history, not the default depth-1: the runbook catalog's
+          # freshness gate regenerates per-file last-changed dates from
+          # `git log`, and a shallow clone reports every file as introduced
+          # by the tip commit — so the gate failed on dates that were
+          # correct in the repository and wrong only in the checkout.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

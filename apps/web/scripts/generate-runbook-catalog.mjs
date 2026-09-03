@@ -244,6 +244,22 @@ export const CATEGORY_ORDER = [
  * file not yet committed — and the reader says so rather than inventing one.
  */
 function lastChangedUtcOf(slug) {
+  /**
+   * A shallow clone ANSWERS, wrongly, which is worse than not answering.
+   *
+   * With depth 1 every file appears introduced by the single fetched
+   * commit, so `git log -1 -- <file>` returns the tip's date for all of
+   * them — the same confident lie as mtime, from the tool this function
+   * trusts. The comment above always promised null here; now the code
+   * checks. (CI's freshness gate fetches full history for exactly this
+   * reason — with real history, real dates reproduce.)
+   */
+  const shallow = spawnSync(
+    "git",
+    ["rev-parse", "--is-shallow-repository"],
+    { cwd: REPO_ROOT, encoding: "utf8" },
+  );
+  if (shallow.status !== 0 || (shallow.stdout ?? "").trim() === "true") return null;
   const r = spawnSync(
     "git",
     ["log", "-1", "--format=%cI", "--", "docs/runbooks/" + slug + ".md"],
