@@ -29,6 +29,16 @@ import { Button } from "../../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+import {
+  classifyStatusRefusal,
+  commercialStatusActions,
+  COMMERCIAL_STATUS_LABEL,
+  describeRefusal,
+  statusActionConfirmation,
+  statusActionLabel,
+  statusPatchBody,
+} from "../../../../../lib/admin/commercialStatusActions";
 
 type Status =
   | "NEW"
@@ -203,8 +213,29 @@ export default function AdminContactSalesDetailPage({
     void load();
   }, [load]);
 
+  const { confirm } = useConfirmAction();
+
+  /**
+   * One status move, as the shared transition table defines it — the same
+   * rule the list page and the API apply. A consequential move asks first
+   * and names this inquiry; every move carries the status shown here so a
+   * concurrent change is refused as stale and the record is reloaded, and
+   * success is announced only once the server's row has replaced the local
+   * one.
+   */
   async function patchStatus(next: Status) {
-    if (state.kind !== "ok") return;
+    if (state.kind !== "ok" || updating) return;
+    const current = state.details;
+    const rule = commercialStatusActions(current.status).find((r) => r.to === next);
+    if (!rule) return;
+    const ask = statusActionConfirmation(rule, {
+      id: current.id,
+      fullName: current.fullName,
+      organization: current.organization,
+      noun: "inquiry",
+    });
+    if (ask && !(await confirm(ask))) return;
+
     setUpdating(true);
     try {
       const res = (await apiFetch(
@@ -212,14 +243,20 @@ export default function AdminContactSalesDetailPage({
         {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ status: next }),
+          body: JSON.stringify(statusPatchBody(current.status, next)),
         }
       )) as { ok: boolean; data: Details };
       if (res.ok && res.data) {
         setState({ kind: "ok", details: res.data });
-        addToast(`Status updated to ${next}`, "success");
+        addToast(`Status updated to ${COMMERCIAL_STATUS_LABEL[next]}`, "success");
       }
     } catch (err) {
+      const refusal = classifyStatusRefusal(err);
+      if (refusal) {
+        addToast(describeRefusal(refusal, "inquiry"), "error");
+        await load();
+        return;
+      }
       addToast(
         toSafeUserError(err, { message: "Failed to update" }).message,
         "error"
@@ -577,23 +614,27 @@ export default function AdminContactSalesDetailPage({
                       gap: 8,
                     }}
                   >
-                    {(
-                      [
-                        "REVIEWED",
-                        "CONTACTED",
-                        "QUALIFIED",
-                        "REJECTED",
-                        "ARCHIVED",
-                      ] as Status[]
-                    ).map((s) => (
+                    {commercialStatusActions(state.details.status).map((rule) => (
                       <Button
-                        key={s}
-                        variant="secondary"
+                        key={rule.to}
+                        variant={
+                          rule.to === "REJECTED" || rule.to === "ARCHIVED"
+                            ? "destructive"
+                            : "secondary"
+                        }
                         size="sm"
-                        disabled={updating || state.details.status === s}
-                        onClick={() => void patchStatus(s)}
+                        disabled={updating}
+                        aria-label={statusActionLabel(rule, {
+                          id: state.details.id,
+                          fullName: state.details.fullName,
+                          organization: state.details.organization,
+                          noun: "inquiry",
+                        })}
+                        title={rule.effect}
+                        data-testid={`contact-sales-status-${rule.to.toLowerCase()}`}
+                        onClick={() => void patchStatus(rule.to)}
                       >
-                        {s}
+                        {COMMERCIAL_STATUS_LABEL[rule.to]}
                       </Button>
                     ))}
                   </div>

@@ -19,6 +19,13 @@ import { Button, buttonSurfaceStyle } from "../../../../components/ui/Button";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import {
+  classifyStatusRefusal,
+  commercialStatusActions,
+  describeRefusal,
+  statusActionConfirmation,
+} from "../../../../lib/admin/commercialStatusActions";
 
 type DemoStatus =
   | "NEW"
@@ -293,6 +300,7 @@ function JsonBlock({ value }: { value: unknown }) {
 
 export default function AdminDemoRequestsPage() {
   const { addToast } = useToast();
+  const { confirm } = useConfirmAction();
   // ADM-026 — the detail page's back-link carries `?id=`. The list never read
   // it, so "back to the list" silently dropped the record the operator had
   // been looking at and returned an unselected page. A link whose parameter
@@ -408,8 +416,53 @@ export default function AdminDemoRequestsPage() {
     }
   }
 
+  /**
+   * Save the edit form — and, when the status is moving, treat it as the
+   * transition it is.
+   *
+   * The status select offers every value, so the shared transition table
+   * decides here whether the move is allowed at all (refused locally with a
+   * sentence rather than a 409), whether it is consequential enough to ask
+   * first (closing, rejecting, qualifying, reopening; or stopping follow-up),
+   * and the request carries the status the operator saw so a colleague's
+   * concurrent change is refused as stale and the record reloaded.
+   */
   async function saveCurrent() {
-    if (!selectedId) return;
+    if (!selectedId || !details || saving) return;
+    const from = details.status;
+    const to = editStatus && editStatus !== from ? (editStatus as DemoStatus) : null;
+    const subject = {
+      id: details.id,
+      fullName: details.fullName,
+      organization: details.organization ?? "no organization given",
+      noun: "demo request",
+    };
+    if (to) {
+      const rule = commercialStatusActions(from).find((r) => r.to === to);
+      if (!rule) {
+        addToast(
+          `A demo request cannot move from ${from} to ${to}. Choose one of: ${commercialStatusActions(from)
+            .map((r) => r.to)
+            .join(", ")}.`,
+          "error",
+        );
+        return;
+      }
+      const ask = statusActionConfirmation(rule, subject);
+      if (ask && !(await confirm(ask))) return;
+    } else if (
+      editFollowUpStatus === "STOPPED" &&
+      details.followUpStatus !== "STOPPED"
+    ) {
+      const ok = await confirm({
+        title: "Stop automated follow-up?",
+        description: `No further follow-up emails will be sent to ${details.workEmail} for this demo request. Applies to: ${details.fullName} · ${subject.organization}.`,
+        confirmLabel: "Stop follow-up",
+        tone: "warning",
+        testId: "demo-request-stop-follow-up",
+      });
+      if (!ok) return;
+    }
 
     try {
       setSaving(true);
@@ -417,7 +470,8 @@ export default function AdminDemoRequestsPage() {
       await apiFetch(`/v1/admin/demo-requests/${selectedId}`, {
         method: "PATCH",
         body: JSON.stringify({
-          status: editStatus || undefined,
+          status: to ?? undefined,
+          expectedStatus: from,
           priority: editPriority || undefined,
           followUpStatus: editFollowUpStatus || undefined,
           notes: editNotes,
@@ -427,9 +481,15 @@ export default function AdminDemoRequestsPage() {
         }),
       });
 
-      addToast("Demo request updated.", "success");
       await Promise.all([loadList(), loadDetails(selectedId)]);
+      addToast("Demo request updated.", "success");
     } catch (err) {
+      const refusal = classifyStatusRefusal(err);
+      if (refusal) {
+        addToast(describeRefusal(refusal, "demo request"), "error");
+        await Promise.all([loadList(), loadDetails(selectedId)]);
+        return;
+      }
       const message =
         toSafeUserError(err, { message: "Failed to update demo request" }).message;
       addToast(message, "error");
@@ -439,7 +499,17 @@ export default function AdminDemoRequestsPage() {
   }
 
   async function saveRouting() {
-    if (!selectedId || !routeTarget) return;
+    if (!selectedId || !routeTarget || !details || routing) return;
+    const ok = await confirm({
+      title: "Change where this demo request is routed?",
+      description: `${details.fullName} · ${details.organization ?? "no organization given"} moves to the ${routeTarget.replace(/_/g, " ").toLowerCase()} track${
+        routeReason.trim() ? ` (${routeReason.trim()})` : ""
+      }. The team working that track sees it from now on; the previous routing is kept in the audit record.`,
+      confirmLabel: "Change routing",
+      tone: "warning",
+      testId: "demo-request-route",
+    });
+    if (!ok) return;
 
     try {
       setRouting(true);
@@ -452,8 +522,8 @@ export default function AdminDemoRequestsPage() {
         }),
       });
 
-      addToast("Routing updated.", "success");
       await Promise.all([loadList(), loadDetails(selectedId)]);
+      addToast("Routing updated.", "success");
     } catch (err) {
       const message =
         toSafeUserError(err, { message: "Failed to update routing" }).message;
@@ -463,8 +533,23 @@ export default function AdminDemoRequestsPage() {
     }
   }
 
+  /**
+   * Sends an email to the requester. External, not undoable, and a second
+   * click sends a second email — so it asks first, names the recipient, and
+   * says which step goes out.
+   */
   async function sendFollowUp(step?: 1 | 2 | 3) {
-    if (!selectedId) return;
+    if (!selectedId || !details || sendingFollowUp) return;
+    const ok = await confirm({
+      title: step ? `Send follow-up step ${step} now?` : "Send the next follow-up now?",
+      description: `An email is sent to ${details.workEmail} (${details.fullName} · ${
+        details.organization ?? "no organization given"
+      }). It cannot be recalled, and the follow-up schedule advances from this step.`,
+      confirmLabel: "Send email",
+      tone: "warning",
+      testId: "demo-request-follow-up-send",
+    });
+    if (!ok) return;
 
     try {
       setSendingFollowUp(true);
@@ -474,12 +559,11 @@ export default function AdminDemoRequestsPage() {
         body: JSON.stringify(step ? { step } : {}),
       });
 
+      await Promise.all([loadList(), loadDetails(selectedId)]);
       addToast(
         step ? `Follow-up step ${step} sent.` : "Next follow-up sent.",
         "success"
       );
-
-      await Promise.all([loadList(), loadDetails(selectedId)]);
     } catch (err) {
       const message =
         toSafeUserError(err, { message: "Failed to send follow-up" }).message;
@@ -489,7 +573,21 @@ export default function AdminDemoRequestsPage() {
     }
   }
 
+  /**
+   * A batch of external emails. Asks first and states the bound, because
+   * "run" reads like a refresh and is not one.
+   */
   async function runDueFollowUps() {
+    if (runningDue) return;
+    const ok = await confirm({
+      title: "Send every due follow-up now?",
+      description:
+        "Up to 25 demo requests whose next follow-up is due receive their scheduled email immediately. Each email is external and cannot be recalled; requests that are paused, stopped or replied are skipped.",
+      confirmLabel: "Send due follow-ups",
+      tone: "warning",
+      testId: "demo-request-follow-up-run",
+    });
+    if (!ok) return;
     try {
       setRunningDue(true);
 
