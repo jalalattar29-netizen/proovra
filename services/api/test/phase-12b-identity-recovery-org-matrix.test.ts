@@ -324,17 +324,27 @@ vi.mock("../src/services/access-control/scim-reconciliation.service.js", () => (
   },
   listScimSyncFailures: async (i: unknown) => {
     rec("listScimSyncFailures", i);
-    return [
-      {
-        id: "f1",
-        occurredAtUtc: "2026-07-29T00:00:00.000Z",
-        eventType: "scim_user_create_failed",
-        severity: "WARNING",
-        summary: "SCIM user create failed",
-        retryEligible: true,
-        terminal: false,
-      },
-    ];
+    // The service returns an ENVELOPE now, not a bare array: `total` counts
+    // everything matching the filter and `limit` echoes the cap, so the page
+    // can say "Showing 1 of 3" instead of inferring completeness from the row
+    // count. A double that still returns an array would let the route ship a
+    // response shape no caller expects — the double has to move with the
+    // contract, or it stops standing in for the thing it replaces.
+    return {
+      failures: [
+        {
+          id: "f1",
+          occurredAtUtc: "2026-07-29T00:00:00.000Z",
+          eventType: "scim_user_create_failed",
+          severity: "WARNING",
+          summary: "SCIM user create failed",
+          retryEligible: true,
+          terminal: false,
+        },
+      ],
+      total: 1,
+      limit: 50,
+    };
   },
   replayScimSyncFailure: async (i: unknown) => {
     rec("replayScimSyncFailure", i);

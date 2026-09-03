@@ -679,15 +679,20 @@ export type ScimSyncFailure = {
   terminal: boolean;
 };
 
-/** The failure kinds this catalog emits. Exported so the route validates against the same list. */
-export const SCIM_FAILURE_EVENT_TYPES = [
-  "scim_invalid_token",
-  "scim_user_create_failed",
-  "scim_user_deactivate_failed",
-  "scim_group_membership_reconcile_failed",
-] as const;
+// Imported for use HERE, and re-exported so existing importers keep working.
+// A bare `export { … } from` does not bring the name into this module's own
+// scope, which the query below needs.
+import {
+  SCIM_FAILURE_EVENT_TYPES,
+  type ScimFailureEventType,
+} from "./scim-failure-kinds.js";
 
-export type ScimFailureEventType = (typeof SCIM_FAILURE_EVENT_TYPES)[number];
+// The kinds live in scim-failure-kinds so a test that mocks THIS module
+// does not also remove the enum the route validates against.
+export {
+  SCIM_FAILURE_EVENT_TYPES,
+  type ScimFailureEventType,
+} from "./scim-failure-kinds.js";
 
 export type ListScimSyncFailuresResult = {
   failures: ReadonlyArray<ScimSyncFailure>;

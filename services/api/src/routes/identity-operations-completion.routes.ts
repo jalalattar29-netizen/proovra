@@ -42,9 +42,9 @@ import {
   detectScimDrift,
   executeScimReconciliation,
   listScimSyncFailures,
-  SCIM_FAILURE_EVENT_TYPES,
   replayScimSyncFailure,
 } from "../services/access-control/scim-reconciliation.service.js";
+import { SCIM_FAILURE_EVENT_TYPES } from "../services/access-control/scim-failure-kinds.js";
 import {
   buildSsoHealthSnapshot,
   type SsoHealthSnapshot,
