@@ -32,6 +32,11 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
+import {
+  keysetAfter,
+  keysetPage,
+  type KeysetKey,
+} from "../pagination/keyset-cursor.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
@@ -58,6 +63,16 @@ export type ActiveSessionProjection = {
   revoked: boolean;
   revokedAtUtc: string | null;
   revokedReason: string | null;
+  /**
+   * True while the session is held for review.
+   *
+   * Carried on the session row itself because the inventory is paged: the
+   * console used to derive it by intersecting the sessions list with the
+   * quarantine list, which only works while both lists are complete. Twenty-
+   * five sessions against twenty-five quarantines says nothing about the
+   * twenty-sixth of either.
+   */
+  quarantined: boolean;
 };
 
 function projectSession(row: DbSession): ActiveSessionProjection {
@@ -74,6 +89,10 @@ function projectSession(row: DbSession): ActiveSessionProjection {
     revoked: row.revokedAtUtc != null,
     revokedAtUtc: row.revokedAtUtc?.toISOString() ?? null,
     revokedReason: row.revokedReason,
+    quarantined:
+      row.quarantinedAtUtc != null &&
+      (row.quarantineReleaseAtUtc == null ||
+        row.quarantineReleaseAtUtc.getTime() > Date.now()),
   };
 }
 
@@ -157,23 +176,53 @@ export type ListSessionsInput = {
   includeExpired?: boolean;
   limit?: number;
   userId?: string;
+  /** Decoded keyset cursor — rows strictly after this (lastSeenAtUtc, id). */
+  after?: KeysetKey | null;
 };
 
+export type SessionInventoryPage = {
+  sessions: ActiveSessionProjection[];
+  /** Opaque continuation, `null` on the last page. */
+  nextCursor: string | null;
+  /** The server's own answer — not an inference from the row count. */
+  hasMore: boolean;
+};
+
+export const SESSION_INVENTORY_DEFAULT_LIMIT = 100;
+export const SESSION_INVENTORY_MAX_LIMIT = 500;
+
+/**
+ * One page of the inventory, ordered by last activity.
+ *
+ * KEYSET, NOT OFFSET. The order is `lastSeenAtUtc desc, id desc` — the id is
+ * the tiebreaker that makes the order total, so "after (at, id)" names one
+ * position and a heartbeat landing mid-read cannot re-show or skip a stable
+ * row. A session whose own heartbeat fires between two pages moves to the
+ * top and is simply not on the later page, which is the honest answer: it
+ * was seen more recently than anything the reader has scrolled past.
+ */
 export async function listActiveSessions(
   input: ListSessionsInput,
   client: PrismaClient = defaultPrisma,
-): Promise<ReadonlyArray<ActiveSessionProjection>> {
-  const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
+): Promise<SessionInventoryPage> {
+  const limit = Math.min(
+    Math.max(input.limit ?? SESSION_INVENTORY_DEFAULT_LIMIT, 1),
+    SESSION_INVENTORY_MAX_LIMIT,
+  );
   const now = new Date();
+  const filters = {
+    teamId: input.teamId,
+    ...(input.userId ? { userId: input.userId } : {}),
+    ...(input.includeRevoked ? {} : { revokedAtUtc: null }),
+    ...(input.includeExpired ? {} : { expiresAtUtc: { gt: now } }),
+  };
   const rows = await client.authenticatedSession.findMany({
-    where: {
-      teamId: input.teamId,
-      ...(input.userId ? { userId: input.userId } : {}),
-      ...(input.includeRevoked ? {} : { revokedAtUtc: null }),
-      ...(input.includeExpired ? {} : { expiresAtUtc: { gt: now } }),
-    },
-    orderBy: [{ lastSeenAtUtc: "desc" }],
-    take: limit,
+    where: input.after
+      ? { AND: [filters, keysetAfter("lastSeenAtUtc", input.after)] }
+      : filters,
+    orderBy: [{ lastSeenAtUtc: "desc" }, { id: "desc" }],
+    // One past the page: the extra row is the proof of a next page.
+    take: limit + 1,
   });
   bump("session_inventory_viewed_total");
   setGauge(
@@ -186,7 +235,12 @@ export async function listActiveSessions(
       },
     }),
   );
-  return rows.map(projectSession);
+  const page = keysetPage(rows, limit, (r) => ({ at: r.lastSeenAtUtc, id: r.id }));
+  return {
+    sessions: page.rows.map(projectSession),
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
+  };
 }
 
 // -----------------------------------------------------------------------------

@@ -2,10 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 
-import {
-  resultCountSentence,
-  type ResultCountFacts,
-} from "../../lib/ui/resultCountSentence";
+import { resultCountSentence } from "../../lib/ui/resultCountSentence";
 
 /**
  * HOW MANY ROWS, AND WHETHER THAT IS ALL OF THEM.

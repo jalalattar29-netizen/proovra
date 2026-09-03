@@ -37,6 +37,8 @@ import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { useTeamId } from "../../../../lib/platform-context";
 
+import { SectionDescription } from "./_sections/section-state";
+
 import { MfaDigestPreferencesSection } from "./_sections/MfaDigestPreferencesSection";
 import { MfaEventsSection } from "./_sections/MfaEventsSection";
 import { MfaMemberPostureSection } from "./_sections/MfaMemberPostureSection";
@@ -52,7 +54,9 @@ export default function AdminSecurityPage() {
       <PageHeader
         eyebrow="Workspace security"
         title="Workspace Security Center"
-        subtitle="Multi-factor posture, member factor lifecycle and security events for the workspace you are currently in. No secrets, authenticator seeds, recovery codes, session tokens or device fingerprints are surfaced here — every change is authorized, step-up gated and audited on the server."
+        subtitle={
+          <SectionDescription text="Multi-factor posture, member factor lifecycle and security events for the workspace you are currently in. No secrets, authenticator seeds, recovery codes, session tokens or device fingerprints are surfaced here — every change is authorized, step-up gated and audited on the server." />
+        }
       />
 
       {/*

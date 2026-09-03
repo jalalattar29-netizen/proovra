@@ -37,6 +37,7 @@ import { PageSection } from "../../../../../components/ui/PageShell";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   SectionDenied,
+  SectionDescription,
   SectionError,
   SectionLoading,
   classifyError,
@@ -168,8 +169,9 @@ export function MfaDigestPreferencesSection() {
     }
   }, [confirm, stamp, isStale, addToast, load]);
 
-  const description =
-    "Your own notification settings for the lost-factor recovery digest. Snoozing or turning the digest off suppresses EMAIL only — security events and audit records are never suppressed. Test sends always go to your own account address and never to anyone else.";
+  const description = (
+    <SectionDescription text="Your own notification settings for the lost-factor recovery digest. Snoozing or turning the digest off suppresses EMAIL only — security events and audit records are never suppressed. Test sends always go to your own account address and never to anyone else." />
+  );
 
   if (state.kind === "loading") {
     return (

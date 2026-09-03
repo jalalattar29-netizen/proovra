@@ -5,6 +5,15 @@ import { prisma } from "../db.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+// The ONE keyset-cursor authority. Both sources of the merged feed are read
+// newest-first under the same `(createdAt, id)` predicate, so the page
+// boundary is a position in the merged ORDER rather than an offset into
+// either table.
+import {
+  decodeKeysetCursor,
+  keysetAfter,
+  keysetPage,
+} from "../services/pagination/keyset-cursor.js";
 import { projectIncident } from "../services/observability/incident.service.js";
 
 /**
@@ -45,7 +54,12 @@ function normaliseSeverity(raw: string | null | undefined): SeverityBucket {
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
-  cursor: z.string().uuid().optional(),
+  /**
+   * Opaque keyset cursor from a previous page's `nextCursor`. It used to be
+   * validated as a uuid and then never read — the feed accepted a cursor and
+   * served page one regardless.
+   */
+  cursor: z.string().trim().min(1).max(512).optional(),
   // Free-form (bounded) canonical event-type string filter — applies to
   // SecurityEvent.eventType.
   eventType: z.string().trim().min(1).max(64).optional(),
@@ -53,6 +67,43 @@ const listQuerySchema = z.object({
     .enum(["CRITICAL", "HIGH", "WARNING", "INFO"])
     .optional(),
 });
+
+/**
+ * The AdminAuditLog spellings that normalise into each bucket.
+ *
+ * The audit stream's severity was filtered in-process AFTER the read, so a
+ * `severity=CRITICAL` page fetched `limit` audit rows of any severity and then
+ * threw most of them away — the page came back short, and with a cursor that
+ * would have meant "there are fewer critical audit rows than there are". The
+ * predicate now runs in the database, so a page is `limit` matching rows.
+ */
+const AUDIT_SEVERITY_SPELLINGS: Record<SeverityBucket, string[]> = {
+  CRITICAL: ["critical"],
+  HIGH: ["high"],
+  WARNING: ["warning", "medium", "warn"],
+  INFO: [],
+};
+
+function auditSeverityWhere(bucket: SeverityBucket): Record<string, unknown> {
+  if (bucket === "INFO") {
+    // INFO is the residual bucket: anything that is not one of the named
+    // spellings, including a null severity.
+    const named = [
+      ...AUDIT_SEVERITY_SPELLINGS.CRITICAL,
+      ...AUDIT_SEVERITY_SPELLINGS.HIGH,
+      ...AUDIT_SEVERITY_SPELLINGS.WARNING,
+    ];
+    return {
+      OR: [
+        { severity: null },
+        { NOT: { severity: { in: named, mode: "insensitive" } } },
+      ],
+    };
+  }
+  return {
+    severity: { in: AUDIT_SEVERITY_SPELLINGS[bucket], mode: "insensitive" },
+  };
+}
 
 const incidentsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional().default(100),
@@ -110,10 +161,23 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
 
       const { limit, eventType, severity } = parsed.data;
 
-      // We over-fetch each source by `limit` then merge + sort by createdAt so
-      // the unified page is a true recency merge. Severity filtering on
-      // SecurityEvent is applied at the DB level; AdminAuditLog severity is
-      // normalised in-process (lowercase vocabulary) so it is filtered here.
+      const after = decodeKeysetCursor(parsed.data.cursor);
+      if (after === null) {
+        return reply.code(400).send(
+          createErrorResponse(
+            ErrorCode.VALIDATION_ERROR,
+            req.id,
+            { reason: "cursor does not decode" },
+            "Invalid security-events cursor"
+          )
+        );
+      }
+
+      // Each source is read `limit + 1` deep, from the cursor position, then
+      // merged and sorted by (createdAt, id). The extra row is how the page
+      // KNOWS whether another exists rather than guessing from "we asked for
+      // N and got N". Severity filtering runs in the database on BOTH
+      // sources (see auditSeverityWhere).
       const securityWhere: Record<string, unknown> = {};
       if (eventType) securityWhere.eventType = eventType;
       if (severity) {
@@ -125,13 +189,24 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
           securityWhere.severity = severity;
         }
       }
+      if (after) Object.assign(securityWhere, keysetAfter("createdAt", after));
+
+      const auditWhere: Record<string, unknown> = {
+        ...(eventType ? { action: { contains: eventType } } : {}),
+        ...(severity ? auditSeverityWhere(severity) : {}),
+      };
+      if (after) {
+        // `auditSeverityWhere` may already own the top-level OR, so the
+        // keyset predicate is AND-ed beside it rather than merged over it.
+        auditWhere.AND = [keysetAfter("createdAt", after)];
+      }
 
       const [securityRows, auditRows, securitySeverityGroups] =
         await Promise.all([
           prisma.securityEvent.findMany({
             where: securityWhere,
-            orderBy: [{ createdAt: "desc" }],
-            take: limit,
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: limit + 1,
             select: {
               id: true,
               eventType: true,
@@ -147,11 +222,9 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
           // eventType filter is supplied we match it against `action` so the
           // filter is meaningful across both sources.
           prisma.adminAuditLog.findMany({
-            where: {
-              ...(eventType ? { action: { contains: eventType } } : {}),
-            },
-            orderBy: [{ createdAt: "desc" }],
-            take: limit,
+            where: auditWhere,
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: limit + 1,
             select: {
               id: true,
               action: true,
@@ -192,7 +265,9 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
 
       for (const r of auditRows) {
         const bucket = normaliseSeverity(r.severity);
-        // Apply the requested severity filter to normalised audit rows.
+        // The database predicate already narrowed the audit rows; this is
+        // the same rule applied once more in-process so a spelling the
+        // predicate does not know about can never leak into the wrong bucket.
         if (severity && bucket !== severity) continue;
         unified.push({
           id: r.id,
@@ -209,8 +284,24 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
         });
       }
 
-      unified.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-      const items = unified.slice(0, limit);
+      // (createdAt desc, id desc) — the SAME order the cursor encodes, so the
+      // last row of this page is exactly the row the next page starts after.
+      unified.sort((a, b) =>
+        a.createdAt === b.createdAt
+          ? a.id < b.id
+            ? 1
+            : a.id > b.id
+              ? -1
+              : 0
+          : a.createdAt < b.createdAt
+            ? 1
+            : -1
+      );
+      const {
+        rows: items,
+        hasMore,
+        nextCursor,
+      } = keysetPage(unified, limit, (row) => ({ at: row.createdAt, id: row.id }));
 
       // Severity breakdown across the SecurityEvent table (platform-wide,
       // REAL counts). AdminAuditLog high/critical counts are added on top so
@@ -242,6 +333,11 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
 
       return reply.code(200).send({
         items,
+        // The page's own completeness, stated by the server: `hasMore` is
+        // whether a further row exists past this page under the same filters,
+        // and `nextCursor` is how to ask for it. Null when this is the end.
+        nextCursor,
+        hasMore,
         severityBreakdown,
         totalEvents,
         filters: {

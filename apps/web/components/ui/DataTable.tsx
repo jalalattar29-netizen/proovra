@@ -67,6 +67,17 @@ export interface DataTableProps<T> {
   /** Trailing right-aligned per-row actions cell. */
   rowActions?: (row: T, index: number) => React.ReactNode;
   onRowClick?: (row: T, index: number) => void;
+  /**
+   * PROGRESSIVE DISCLOSURE for a row.
+   *
+   * Return content to render a full-width detail row directly beneath the
+   * row; return null/false/undefined to render nothing. The caller owns the
+   * open/closed state (typically a `rowActions` toggle), so the table stays
+   * presentation-only. This is how a list keeps one scannable line per
+   * record and still makes the long tail — metadata JSON, identifiers —
+   * reachable without a card per entry.
+   */
+  expandedContent?: (row: T, index: number) => React.ReactNode;
   density?: "compact" | "comfortable";
   /** Accessible name for the table. */
   ariaLabel?: string;
@@ -102,6 +113,7 @@ export function DataTable<T>({
   emptyState,
   rowActions,
   onRowClick,
+  expandedContent,
   density = "compact",
   ariaLabel,
   className,
@@ -225,9 +237,10 @@ export function DataTable<T>({
           ) : (
             rows.map((row, index) => {
               const id = getRowId(row, index);
+              const detail = expandedContent ? expandedContent(row, index) : null;
               return (
+                <React.Fragment key={id}>
                 <tr
-                  key={id}
                   data-ui-datatable-row
                   data-clickable={clickable || undefined}
                   className="ui-datatable__row"
@@ -299,6 +312,22 @@ export function DataTable<T>({
                     </td>
                   ) : null}
                 </tr>
+                {detail ? (
+                  <tr data-ui-datatable-detail-row data-row-id={id}>
+                    <td
+                      colSpan={totalCols}
+                      style={{
+                        padding: pad,
+                        background: "var(--surface-muted, #f8fafc)",
+                        borderBottom:
+                          "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+                      }}
+                    >
+                      {detail}
+                    </td>
+                  </tr>
+                ) : null}
+                </React.Fragment>
               );
             })
           )}

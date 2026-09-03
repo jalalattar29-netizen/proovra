@@ -98,11 +98,24 @@ const FILTERS: { label: string; kinds: string }[] = [
     label: "Access reviews",
     kinds: ["access_review_initiated", "access_review_completed", "access_review_decided"].join(","),
   },
-  {
-    label: "High severity only",
-    kinds: "", // server-side severity filter handled below
-  },
 ];
+
+/**
+ * ONE PAGE OF THE FEED, AND THE CURSOR TO THE NEXT.
+ *
+ * The page asked for 250 rows and rendered them all — ten screens on a
+ * desktop — and then filtered severity in the browser, so "HIGH" showed only
+ * the HIGH rows that happened to fall inside the newest 250. Both filters now
+ * go to the server, the page is 25 rows, and the server says whether more
+ * exist. Nothing is hidden: Next walks the whole feed.
+ */
+type TimelinePage = {
+  events: TimelineEvent[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+const PAGE_SIZE = 25;
 
 export default function IdentityTimelinePage() {
   const teamId = useTeamId();
@@ -110,31 +123,55 @@ export default function IdentityTimelinePage() {
   const [error, setError] = useState<string | null>(null);
   const [filterIdx, setFilterIdx] = useState(0);
   const [severityFilter, setSeverityFilter] = useState<"" | "INFO" | "WARNING" | "HIGH">("");
+  /** Cursors that led to the current page, oldest first; page one is []. */
+  const [cursors, setCursors] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
 
-  
-const load = useCallback(() => {
+  const load = useCallback((cursor: string | null) => {
     if (!teamId) return;
     const filter = FILTERS[filterIdx];
     const qs = new URLSearchParams();
     qs.set("teamId", teamId);
     if (filter.kinds) qs.set("kinds", filter.kinds);
-    qs.set("limit", "250");
+    if (severityFilter) qs.set("severity", severityFilter);
+    qs.set("limit", String(PAGE_SIZE));
+    if (cursor) qs.set("cursor", cursor);
+    setEvents(null);
     apiFetch(`/v1/admin/identity/timeline?${qs.toString()}`, { method: "GET" })
-      .then((r: { events: TimelineEvent[] }) => {
-        const all = r.events ?? [];
-        setEvents(
-          severityFilter ? all.filter((e) => e.severity === severityFilter) : all,
-        );
+      .then((r: Partial<TimelinePage> | null) => {
+        setEvents(Array.isArray(r?.events) ? r.events : []);
+        setNextCursor(typeof r?.nextCursor === "string" ? r.nextCursor : null);
+        setHasMore(r?.hasMore === true);
         setError(null);
       })
-      .catch((err: { message?: string }) =>
-        setError(toSafeUserError(err, { message: "Could not load timeline." }).message),
-      );
+      .catch((err: { message?: string }) => {
+        setEvents([]);
+        setError(toSafeUserError(err, { message: "Could not load timeline." }).message);
+      });
   }, [teamId, filterIdx, severityFilter]);
 
+  // A filter change is a new query, so it restarts at page one: a cursor
+  // issued under the old filters names a position in a different list.
   useEffect(() => {
-    load();
+    setCursors([]);
+    load(null);
   }, [load]);
+
+  const currentCursor = cursors.length > 0 ? cursors[cursors.length - 1] : null;
+
+  const goNext = () => {
+    if (!nextCursor) return;
+    setCursors((prev) => [...prev, nextCursor]);
+    load(nextCursor);
+  };
+
+  const goPrevious = () => {
+    if (cursors.length === 0) return;
+    const remaining = cursors.slice(0, -1);
+    setCursors(remaining);
+    load(remaining.length > 0 ? remaining[remaining.length - 1] : null);
+  };
 
   if (!teamId) {
     return (
@@ -147,6 +184,32 @@ const load = useCallback(() => {
       </PageShell>
     );
   }
+
+  // Next/Previous over the SERVER's cursor, disabled truthfully: Previous has
+  // nothing to pop on page one, Next nothing to follow when hasMore is false.
+  const pager = (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <span style={mutedStyle}>{`Page ${cursors.length + 1}`}</span>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={events === null || cursors.length === 0}
+        onClick={goPrevious}
+        data-testid="admin-identity-timeline-previous"
+      >
+        Previous
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={events === null || !hasMore || !nextCursor}
+        onClick={goNext}
+        data-testid="admin-identity-timeline-next"
+      >
+        Next
+      </Button>
+    </div>
+  );
 
   const columns: DataTableColumn<TimelineEvent>[] = [
     {
@@ -194,7 +257,7 @@ const load = useCallback(() => {
           title="Identity Audit"
           subtitle="Workspace-wide identity events: SSO logins, SCIM syncs, session revocations, suspicious sessions, temporary elevations, access reviews, and adaptive auth decisions. Sourced from the Phase 21 SecurityEvent table — operator-safe projections only."
           secondaryActions={
-            <Button variant="secondary" onClick={load}>
+            <Button variant="secondary" onClick={() => load(currentCursor)}>
               Refresh
             </Button>
           }
@@ -242,14 +305,16 @@ const load = useCallback(() => {
               />
             }
           />
-          {/* The identity audit asks for 250 events. A bare count on a capped feed reads as the total. */}
+          {/* The server says whether another page exists; the count never claims a total it was not given. */}
           <ResultCount
             shown={events?.length ?? 0}
-            cap={250}
+            hasMore={hasMore}
             noun="event"
             filtered={filterIdx !== 0 || severityFilter !== ""}
             loading={events === null}
+            failed={error !== null}
             data-testid="admin-identity-timeline-count"
+            action={pager}
           />
         </div>
       </PageSection>

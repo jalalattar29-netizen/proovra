@@ -3,16 +3,35 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { PageShell, PageHeader, PageSection, FilterBar, Skeleton } from "../../../../components/ui";
+import { PageShell, PageHeader, PageSection, FilterBar } from "../../../../components/ui";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
+import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
+import { EmptyState } from "../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { useTenantGuard } from "../../../../lib/platform-context";
 import { formatUtcAuditDateTime } from "../../../../lib/date";
+
+/**
+ * ONE PAGE OF THE LOG, AND THE CURSOR TO THE NEXT.
+ *
+ * The list read has accepted `cursor=` since it was written and this page
+ * never sent one: it showed the newest 25 rows as full cards and offered no
+ * way past them. Every row is still reachable — through Next/Previous over
+ * the server's own cursor, not through a longer first page.
+ */
+type AuditPage = {
+  items: AuditRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+const PAGE_SIZE = 25;
 
 type AuditRow = {
   id: string;
@@ -56,12 +75,6 @@ function prettyMetadataJson(metadata: unknown): string {
   }
 }
 
-function metadataPreview(metadata: unknown): string {
-  const raw = prettyMetadataJson(metadata).replace(/\s+/g, " ").trim();
-  if (raw.length <= 180) return raw;
-  return `${raw.slice(0, 180)}…`;
-}
-
 function severityTone(severity?: string | null): BadgeTone {
   const value = (severity ?? "").toLowerCase();
   if (value === "critical" || value === "high") return "risk";
@@ -74,6 +87,77 @@ function outcomeTone(outcome?: string | null): BadgeTone {
   if (value === "failed" || value === "error" || value === "denied") return "risk";
   if (value === "warning" || value === "partial") return "pending";
   return "verified";
+}
+
+function dash(value: string | null | undefined): string {
+  return value && value.trim() ? value : "—";
+}
+
+/**
+ * THE LONG TAIL OF ONE ROW, shown only when asked for.
+ *
+ * Every entry used to be a card printing all of this — identifiers, flags and
+ * the raw metadata preview — whether or not anyone wanted it, which is how
+ * the log came to be nine screens tall. The row now carries what an operator
+ * scans by; this carries what they investigate with.
+ */
+function AuditEntryDetails({ entry }: { entry: AuditRow }) {
+  const facts: Array<[string, string]> = [
+    ["Request ID", dash(entry.requestId)],
+    ["Resource", `${dash(entry.resourceType)} · ${dash(entry.resourceId)}`],
+    ["Source", dash(entry.source)],
+    ["Category", dash(entry.category)],
+    ["IP address", dash(entry.ipAddress)],
+    ["Public / system", entry.isPublic ? "yes" : "no"],
+    ["Anchored", entry.anchoredAt ? formatTimestamp(entry.anchoredAt) : "not anchored"],
+  ];
+  return (
+    <div data-admin-audit-details={entry.id} style={{ display: "grid", gap: 12, minWidth: 0 }}>
+      <dl
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+          gap: "8px 16px",
+          margin: 0,
+          fontSize: 12.5,
+          color: INK_SECONDARY,
+        }}
+      >
+        {facts.map(([label, value]) => (
+          <div key={label} style={{ minWidth: 0 }}>
+            <dt style={{ fontSize: 11, color: INK_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              {label}
+            </dt>
+            <dd style={{ margin: "2px 0 0", color: INK_PRIMARY, overflowWrap: "anywhere" }}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div>
+        <div style={{ fontSize: 11, color: INK_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Metadata
+        </div>
+        <pre
+          style={{
+            fontSize: 11,
+            color: INK_SECONDARY,
+            lineHeight: 1.5,
+            marginTop: 4,
+            marginBottom: 0,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
+            fontFamily: "ui-monospace, monospace",
+            background: "var(--surface-card, #ffffff)",
+            border: `1px solid ${BORDER_DEFAULT}`,
+            borderRadius: 10,
+            padding: 12,
+          }}
+        >
+          {prettyMetadataJson(entry.metadata)}
+        </pre>
+      </div>
+    </div>
+  );
 }
 
 function SummaryCard({
@@ -136,6 +220,15 @@ export default function AdminAuditPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("");
+  /**
+   * The cursors that led to the current page, oldest first. Page one is the
+   * empty stack; Previous pops it. The server issues the cursors, the page
+   * only remembers the route it took.
+   */
+  const [cursors, setCursors] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const toggleExpanded = (id: string) => {
     setExpandedRows((prev) => ({
@@ -146,22 +239,45 @@ export default function AdminAuditPage() {
 
   const isExpanded = (id: string) => Boolean(expandedRows[id]);
 
-  const loadAudit = useCallback(async () => {
+  const loadAudit = useCallback(async (cursor: string | null) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      params.set("limit", "25");
+      params.set("limit", String(PAGE_SIZE));
+      if (cursor) params.set("cursor", cursor);
       if (categoryFilter.trim()) params.set("category", categoryFilter.trim());
       if (severityFilter !== "all") params.set("severity", severityFilter);
       if (sourceFilter.trim()) params.set("source", sourceFilter.trim());
-      const data = await apiFetch(`/v1/admin/audit-log?${params.toString()}`);
+      const data = (await apiFetch(`/v1/admin/audit-log?${params.toString()}`)) as
+        | Partial<AuditPage>
+        | null;
       setItems(Array.isArray(data?.items) ? data.items : []);
+      setNextCursor(typeof data?.nextCursor === "string" ? data.nextCursor : null);
+      setHasMore(data?.hasMore === true);
+      setExpandedRows({});
+      setLoadFailed(false);
     } catch (err) {
+      setLoadFailed(true);
       notifyApiError(addToast, err, { message: "We couldn't load the admin audit log." });
     } finally {
       setLoading(false);
     }
   }, [addToast, categoryFilter, severityFilter, sourceFilter]);
+
+  const currentCursor = cursors.length > 0 ? cursors[cursors.length - 1] : null;
+
+  const goNext = useCallback(() => {
+    if (!nextCursor) return;
+    setCursors((prev) => [...prev, nextCursor]);
+    void loadAudit(nextCursor);
+  }, [nextCursor, loadAudit]);
+
+  const goPrevious = useCallback(() => {
+    if (cursors.length === 0) return;
+    const remaining = cursors.slice(0, -1);
+    setCursors(remaining);
+    void loadAudit(remaining.length > 0 ? remaining[remaining.length - 1] : null);
+  }, [cursors, loadAudit]);
 
   /**
    * PHASE 12 — Admin audit export.
@@ -229,10 +345,16 @@ export default function AdminAuditPage() {
     }
   }, [addToast]);
 
+  // A filter change is a NEW query, so it starts from page one: a cursor
+  // issued under the old filters describes a position in a different list.
   useEffect(() => {
-    void loadAudit();
+    setCursors([]);
+    void loadAudit(null);
+  }, [loadAudit]);
+
+  useEffect(() => {
     void verifyChain();
-  }, [loadAudit, verifyChain]);
+  }, [verifyChain]);
 
   const summary = useMemo(() => {
     let publicCount = 0;
@@ -265,6 +387,84 @@ export default function AdminAuditPage() {
     };
   }, [items]);
 
+  const filtered =
+    categoryFilter.trim() !== "" || severityFilter !== "all" || sourceFilter.trim() !== "";
+
+  const columns = useMemo<DataTableColumn<AuditRow>[]>(
+    () => [
+      {
+        key: "createdAt",
+        header: "When",
+        nowrap: true,
+        render: (entry) => (
+          <span style={{ fontSize: 12.5, color: INK_MUTED }}>{formatTimestamp(entry.createdAt)}</span>
+        ),
+      },
+      {
+        key: "action",
+        header: "Action",
+        render: (entry) => (
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 620, overflowWrap: "anywhere" }}>{entry.action}</div>
+            <div style={{ fontSize: 12, color: INK_MUTED, overflowWrap: "anywhere" }}>
+              {dash(entry.category)}
+              {entry.source ? ` · ${entry.source}` : ""}
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "severity",
+        header: "Severity",
+        render: (entry) => <Badge tone={severityTone(entry.severity)}>{entry.severity ?? "info"}</Badge>,
+      },
+      {
+        key: "outcome",
+        header: "Outcome",
+        render: (entry) => <Badge tone={outcomeTone(entry.outcome)}>{entry.outcome ?? "success"}</Badge>,
+      },
+      {
+        key: "actor",
+        header: "Actor",
+        render: (entry) => (
+          <span style={{ fontSize: 12.5, color: INK_SECONDARY, overflowWrap: "anywhere" }}>
+            {entry.userId ?? "public/system"}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  // Next/Previous over the SERVER's cursor. Disabled truthfully: Previous has
+  // nothing to pop on page one, Next has nothing to follow when the server
+  // said there is no more.
+  const pager = (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12.5, color: INK_MUTED }}>{`Page ${cursors.length + 1}`}</span>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        disabled={loading || cursors.length === 0}
+        onClick={goPrevious}
+        data-testid="admin-audit-previous"
+      >
+        Previous
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        disabled={loading || !hasMore || !nextCursor}
+        onClick={goNext}
+        data-testid="admin-audit-next"
+      >
+        Next
+      </Button>
+    </div>
+  );
+
   return (
     <PageShell
       width="full"
@@ -274,7 +474,7 @@ export default function AdminAuditPage() {
           title="Audit Integrity"
           subtitle="Tamper-evident, hash-chained record of privileged admin actions with on-demand chain-integrity verification."
           secondaryActions={
-            <Button variant="secondary" onClick={() => void loadAudit()}>
+            <Button variant="secondary" onClick={() => void loadAudit(currentCursor)}>
               Refresh
             </Button>
           }
@@ -569,7 +769,7 @@ export default function AdminAuditPage() {
 
       <PageSection
         title="Recent Admin Actions"
-        description="Latest audit rows with expandable metadata, consistent status badges, and quick visual scanning for important events."
+        description="One line per audit row, newest first, in pages of 25. Open a row's details for its identifiers and raw metadata."
       >
         <FilterBar style={{ marginBottom: 16 }}>
           <FilterBar.Search
@@ -597,136 +797,51 @@ export default function AdminAuditPage() {
           />
         </FilterBar>
 
-        {loading ? (
-          <div style={{ display: "grid", gap: 12 }}>
-            <Skeleton width="100%" height="120px" />
-            <Skeleton width="100%" height="120px" />
-            <Skeleton width="100%" height="120px" />
-          </div>
-        ) : items.length === 0 ? (
-          <div style={{ color: INK_MUTED }}>No audit entries found.</div>
-        ) : (
-          <div style={{ display: "grid", gap: 12 }}>
-            {items.map((entry) => (
-              <Card key={entry.id} padding="comfortable" style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    alignItems: "flex-start",
-                    flexWrap: "wrap",
-                    minWidth: 0,
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: INK_PRIMARY,
-                        letterSpacing: "-0.01em",
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      {entry.action}
-                    </div>
+        <DataTable<AuditRow>
+          ariaLabel="Recent admin actions"
+          density="compact"
+          columns={columns}
+          rows={items}
+          getRowId={(entry) => entry.id}
+          loading={loading}
+          emptyState={
+            <EmptyState
+              title="No audit entries"
+              purpose={
+                filtered
+                  ? "No audit entries match the current filters. Clear them to see the whole log."
+                  : "No privileged admin actions have been recorded yet."
+              }
+            />
+          }
+          rowActions={(entry) => (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              aria-expanded={isExpanded(entry.id)}
+              data-admin-audit-details-toggle={entry.id}
+              onClick={() => toggleExpanded(entry.id)}
+            >
+              {isExpanded(entry.id) ? "Hide details" : "Details"}
+            </Button>
+          )}
+          expandedContent={(entry) =>
+            isExpanded(entry.id) ? <AuditEntryDetails entry={entry} /> : null
+          }
+        />
 
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                      <Badge tone={severityTone(entry.severity)}>{entry.severity ?? "info"}</Badge>
-                      <Badge tone={outcomeTone(entry.outcome)}>{entry.outcome ?? "success"}</Badge>
-                      <Badge tone="neutral">{entry.category ?? "uncategorized"}</Badge>
-                    </div>
-
-                    <div style={{ display: "grid", gap: 6, marginTop: 12 }}>
-                      <div style={{ fontSize: 12.5, color: INK_SECONDARY, lineHeight: 1.6, overflowWrap: "anywhere" }}>
-                        user: {entry.userId ?? "public/system"} · ip: {entry.ipAddress ?? "—"}
-                      </div>
-                      <div style={{ fontSize: 12.5, color: INK_SECONDARY, lineHeight: 1.6, overflowWrap: "anywhere" }}>
-                        request: {entry.requestId ?? "—"} · resource: {entry.resourceType ?? "—"} · id:{" "}
-                        {entry.resourceId ?? "—"}
-                      </div>
-                      <div style={{ fontSize: 12.5, color: INK_SECONDARY, lineHeight: 1.6, overflowWrap: "anywhere" }}>
-                        source: {entry.source ?? "—"} · public: {entry.isPublic ? "yes" : "no"} · anchored:{" "}
-                        {entry.anchoredAt ? formatTimestamp(entry.anchoredAt) : "—"}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: 10,
-                        minWidth: 0,
-                        ...(isExpanded(entry.id)
-                          ? {
-                              border: `1px solid ${BORDER_DEFAULT}`,
-                              background: "var(--surface-muted, #f8fafc)",
-                              borderRadius: 12,
-                              padding: 12,
-                            }
-                          : null),
-                      }}
-                    >
-                      {isExpanded(entry.id) ? null : (
-                        <div
-                          style={{
-                            fontSize: 12.5,
-                            color: INK_MUTED,
-                            lineHeight: 1.5,
-                            // ONE line. It wrapped to three or four, inside a
-                            // box, on every collapsed entry.
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                          title={metadataPreview(entry.metadata)}
-                        >
-                          {metadataPreview(entry.metadata)}
-                        </div>
-                      )}
-
-                      <div style={{ marginTop: 8 }}>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => toggleExpanded(entry.id)}
-                        >
-                          {isExpanded(entry.id) ? "Hide metadata" : "Show metadata"}
-                        </Button>
-                      </div>
-
-                      {isExpanded(entry.id) ? (
-                        <pre
-                          style={{
-                            fontSize: 11,
-                            color: INK_SECONDARY,
-                            lineHeight: 1.5,
-                            marginTop: 10,
-                            marginBottom: 0,
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-word",
-                            overflowWrap: "anywhere",
-                            fontFamily: "ui-monospace, monospace",
-                            background: "var(--surface-card, #ffffff)",
-                            border: `1px solid ${BORDER_DEFAULT}`,
-                            borderRadius: 10,
-                            padding: 12,
-                          }}
-                        >
-                          {prettyMetadataJson(entry.metadata)}
-                        </pre>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize: 12, color: INK_MUTED, whiteSpace: "nowrap", flexShrink: 0 }}>
-                    {formatTimestamp(entry.createdAt)}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
+        <ResultCount
+          shown={items.length}
+          hasMore={hasMore}
+          noun="audit entry"
+          pluralNoun="audit entries"
+          filtered={filtered}
+          loading={loading}
+          failed={loadFailed}
+          data-testid="admin-audit-count"
+          action={pager}
+        />
       </PageSection>
     </PageShell>
   );

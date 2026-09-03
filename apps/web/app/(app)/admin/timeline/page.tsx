@@ -31,6 +31,7 @@ import { Badge } from "../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../components/ui/Badge";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Button } from "../../../../components/ui/Button";
+import { ResultCount } from "../../../../components/ui/ResultCount";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
 import { useToast } from "../../../../components/ui";
@@ -63,6 +64,13 @@ type TimelineResponse = {
 };
 
 const INK_MUTED = "var(--ink-muted, #94a3b8)";
+
+/**
+ * 25, not 50. The feed is an append-on-demand list, so a smaller first page
+ * halves what a phone has to scroll before the operator can decide whether
+ * to load older events — and the server cursor makes the rest reachable.
+ */
+const PAGE_SIZE = 25;
 
 const SOURCE_OPTIONS = [
   { value: "all", label: "All sources" },
@@ -124,12 +132,20 @@ export default function AdminTimelinePage() {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [orgFilter, setOrgFilter] = useState("");
+  /**
+   * Rows whose long tail is open. The row itself is one line — event, source,
+   * severity, actor, time — and the organization id, target and link sit
+   * behind a per-row Details toggle rather than being printed on every row.
+   */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggleExpanded = (key: string) =>
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      params.set("limit", "50");
+      params.set("limit", String(PAGE_SIZE));
       if (sourceFilter !== "all") params.set("source", sourceFilter);
       if (severityFilter !== "all") params.set("severity", severityFilter);
       if (orgFilter.trim()) params.set("organizationId", orgFilter.trim());
@@ -159,7 +175,7 @@ export default function AdminTimelinePage() {
     try {
       setLoadingMore(true);
       const params = new URLSearchParams();
-      params.set("limit", "50");
+      params.set("limit", String(PAGE_SIZE));
       params.set("cursor", nextCursor);
       if (sourceFilter !== "all") params.set("source", sourceFilter);
       if (severityFilter !== "all") params.set("severity", severityFilter);
@@ -186,20 +202,26 @@ export default function AdminTimelinePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceFilter, severityFilter]);
 
+  // One line per event. The source is its own column rather than a second
+  // line under the event name, so a row costs one line of height on every
+  // viewport; what does not fit a scan — organization, target, link — opens
+  // per row on demand.
   const columns: DataTableColumn<TimelineEntry>[] = [
     {
       key: "eventType",
       header: "Event",
       render: (r) => (
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-            {r.eventType}
-          </div>
-          <div style={{ fontSize: 11, color: INK_MUTED, overflowWrap: "anywhere" }}>
-            {SOURCE_LABELS[r.source] ?? r.source}
-            {r.targetLabel ? ` · ${r.targetLabel}` : ""}
-          </div>
-        </div>
+        <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{r.eventType}</span>
+      ),
+    },
+    {
+      key: "source",
+      header: "Source",
+      nowrap: true,
+      render: (r) => (
+        <span style={{ fontSize: 12, color: INK_MUTED }}>
+          {SOURCE_LABELS[r.source] ?? r.source}
+        </span>
       ),
     },
     {
@@ -217,15 +239,6 @@ export default function AdminTimelinePage() {
       ),
     },
     {
-      key: "organizationId",
-      header: "Organization",
-      render: (r) => (
-        <span style={{ fontSize: 12, color: INK_MUTED, overflowWrap: "anywhere" }}>
-          {dash(r.organizationId)}
-        </span>
-      ),
-    },
-    {
       key: "at",
       header: "When",
       nowrap: true,
@@ -236,6 +249,11 @@ export default function AdminTimelinePage() {
       ),
     },
   ];
+
+  const rowKey = (r: TimelineEntry, index: number) => `${r.source}:${r.at}:${index}`;
+
+  const filtered =
+    sourceFilter !== "all" || severityFilter !== "all" || orgFilter.trim() !== "";
 
   return (
     <PageRouteGate routeId="platform.timeline">
@@ -287,7 +305,7 @@ export default function AdminTimelinePage() {
           <DataTable
             columns={columns}
             rows={items}
-            getRowId={(r, index) => `${r.source}:${r.at}:${index}`}
+            getRowId={rowKey}
             loading={loading}
             ariaLabel="Platform operational timeline"
             emptyState={
@@ -298,48 +316,96 @@ export default function AdminTimelinePage() {
                 data-testid="admin-timeline-empty"
               />
             }
-          />
-
-          {/* HOW MANY, and whether that is all of them.
-
-              A bare count on a cursor-paged feed is a half-truth: "50 events"
-              reads as the total when it is the first window of an unbounded
-              stream. The two states are worded differently on purpose, and
-              the continuation is offered rather than described so the feed
-              is not a dead end. */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-              marginTop: 12,
-              fontSize: 13,
-              color: "var(--ink-secondary, #475569)",
-            }}
-            data-testid="admin-timeline-count"
-          >
-            <span>
-              {loading
-                ? "Loading events…"
-                : items.length === 0
-                  ? "No events match these filters"
-                  : nextCursor
-                    ? `${items.length} most recent event${items.length === 1 ? "" : "s"} — more are available`
-                    : `${items.length} event${items.length === 1 ? "" : "s"} — this is the complete match`}
-            </span>
-            {nextCursor ? (
+            rowActions={(r, index) => (
               <Button
                 variant="secondary"
-                onClick={() => void loadMore()}
-                loading={loadingMore}
-                data-testid="admin-timeline-load-more"
+                size="sm"
+                aria-expanded={Boolean(expanded[rowKey(r, index)])}
+                onClick={() => toggleExpanded(rowKey(r, index))}
+                data-testid="admin-timeline-details-toggle"
               >
-                Load older events
+                {expanded[rowKey(r, index)] ? "Hide details" : "Details"}
               </Button>
-            ) : null}
-          </div>
+            )}
+            expandedContent={(r, index) =>
+              expanded[rowKey(r, index)] ? (
+                <dl
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                    gap: "8px 16px",
+                    margin: 0,
+                    fontSize: 12.5,
+                  }}
+                  data-testid="admin-timeline-details"
+                >
+                  {(
+                    [
+                      ["Organization", dash(r.organizationId)],
+                      ["Target", dash(r.targetLabel)],
+                      ["Recorded at", r.at],
+                    ] as Array<[string, string]>
+                  ).map(([label, value]) => (
+                    <div key={label} style={{ minWidth: 0 }}>
+                      <dt
+                        style={{
+                          fontSize: 11,
+                          color: INK_MUTED,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        {label}
+                      </dt>
+                      <dd style={{ margin: "2px 0 0", overflowWrap: "anywhere" }}>{value}</dd>
+                    </div>
+                  ))}
+                  {r.href ? (
+                    <div style={{ minWidth: 0 }}>
+                      <dt
+                        style={{
+                          fontSize: 11,
+                          color: INK_MUTED,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        Open
+                      </dt>
+                      <dd style={{ margin: "2px 0 0" }}>
+                        <a href={r.href}>{r.href}</a>
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : null
+            }
+          />
+
+          {/* HOW MANY, and whether that is all of them — the server's own
+              `nextCursor` decides, so the sentence never claims a total it
+              was not given. The continuation is offered rather than
+              described so the feed is not a dead end. */}
+          <ResultCount
+            shown={items.length}
+            hasMore={nextCursor !== null}
+            noun="event"
+            filtered={filtered}
+            loading={loading}
+            data-testid="admin-timeline-count"
+            action={
+              nextCursor ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => void loadMore()}
+                  loading={loadingMore}
+                  data-testid="admin-timeline-load-more"
+                >
+                  Load older events
+                </Button>
+              ) : null
+            }
+          />
         </PageSection>
       </PageShell>
     </PageRouteGate>

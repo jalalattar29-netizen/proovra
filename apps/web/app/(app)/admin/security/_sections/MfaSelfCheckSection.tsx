@@ -35,6 +35,7 @@ import { Card } from "../../../../../components/ui/Card";
 import { PageSection } from "../../../../../components/ui/PageShell";
 import {
   choiceRowStyle,
+  SectionDescription,
   safeMessage,
   sectionInputStyle,
   sectionLabelStyle,
@@ -87,7 +88,9 @@ export function MfaSelfCheckSection() {
   return (
     <PageSection
       title="Check your own authenticator"
-      description="Verify that your second factor still works before you tighten the policy or reset someone else's factors. This checks your own account only — the server takes the identity from your session and there is no field to point it at anyone else."
+      description={
+        <SectionDescription text="Verify that your second factor still works before you tighten the policy or reset someone else's factors. This checks your own account only — the server takes the identity from your session and there is no field to point it at anyone else." />
+      }
       data-mfa-self-check-section
     >
       <Card padding="comfortable">

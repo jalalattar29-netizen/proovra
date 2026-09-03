@@ -22,6 +22,27 @@ const PostBodySchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
+/**
+ * The list read's query, validated like the writer's body above.
+ *
+ * `limit` was parsed by hand and silently fell back to 20 on garbage; the
+ * filters were read straight off `req.query` with no bound at all. Bounded
+ * here so a pathological value is a 400 rather than an unbounded scan.
+ * `cursor` is the id of the last row shown — the shape the list has always
+ * accepted — and the response now says whether there is anything past it.
+ */
+const ListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  cursor: z.string().trim().max(128).optional(),
+  // An empty filter is "no filter", exactly as it was; only the length is new.
+  action: z.string().trim().max(128).optional(),
+  category: z.string().trim().max(64).optional(),
+  severity: z.string().trim().max(32).optional(),
+  outcome: z.string().trim().max(32).optional(),
+  source: z.string().trim().max(64).optional(),
+  search: z.string().trim().max(128).optional(),
+});
+
 function readUserAgent(req: {
   headers: Record<string, string | string[] | undefined>;
 }): string | undefined {
@@ -182,13 +203,17 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         );
       }
 
-      const query = req.query as Record<string, string | undefined>;
-      const limitRaw = query.limit ? Number.parseInt(query.limit, 10) : 20;
-      const limit = Number.isFinite(limitRaw) ? limitRaw : 20;
-      const cursorId =
-        typeof query.cursor === "string" && query.cursor.length > 0
-          ? query.cursor
-          : null;
+      const parsedQuery = ListQuerySchema.safeParse(req.query ?? {});
+      if (!parsedQuery.success) {
+        return reply.code(400).send(
+          createErrorResponse(ErrorCode.VALIDATION_ERROR, req.id, {
+            reason: parsedQuery.error.message,
+          })
+        );
+      }
+      const query = parsedQuery.data;
+      const limit = query.limit;
+      const cursorId = query.cursor || null;
 
       // Item L (additive) — optional list filters. `action`, `category`, and
       // `severity` are pushed into the tamper-evident query via
@@ -201,20 +226,42 @@ export async function adminAuditRoutes(app: FastifyInstance) {
           ? query.source.trim()
           : null;
 
-      const { items: rawItems } = await listAdminAuditLogs({
-        limit,
-        cursorId,
+      const filters = {
         action: query.action ?? null,
         category: query.category ?? null,
         severity: query.severity ?? null,
         outcome: query.outcome ?? null,
         source: query.source ?? null,
         search: query.search ?? null,
+      };
+
+      const { items: rawItems } = await listAdminAuditLogs({
+        limit,
+        cursorId,
+        ...filters,
       });
 
       const items = sourceFilter
         ? rawItems.filter((item) => item.source === sourceFilter)
         : rawItems;
+
+      // Whether another page exists is ASKED of the chain, not inferred from
+      // a full page: one row past the last one shown, under the same filters.
+      // The cursor is the row id — the SAME cursor the list has always
+      // accepted — so an existing caller that passes `cursor=` keeps working
+      // and now also learns when to stop.
+      const last = rawItems[rawItems.length - 1];
+      const hasMore =
+        rawItems.length >= limit && last
+          ? (
+              await listAdminAuditLogs({
+                limit: 1,
+                cursorId: last.id,
+                ...filters,
+              })
+            ).items.length > 0
+          : false;
+      const nextCursor = hasMore && last ? last.id : null;
 
       auditAdminAuditAccess(req, {
         action: "admin.audit_log_list_view",
@@ -232,7 +279,7 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         },
       });
 
-      return reply.code(200).send({ items });
+      return reply.code(200).send({ items, nextCursor, hasMore });
     }
   );
 

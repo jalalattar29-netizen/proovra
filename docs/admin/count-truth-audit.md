@@ -15,6 +15,7 @@ confident wrong answer with no way to tell.
 | --- | --- | --- | :-: | :-: |
 | `/admin/adoption` | ResultCount — capability | `COMPLETE_LIST` | — | yes |
 | `/admin/alerts` | ResultCount — alert | `SERVER_HAS_MORE` | — | yes |
+| `/admin/audit` | ResultCount — audit entry | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/billing` | ResultCount — subscription needing attention | `CAP_DISCLOSED` | — | — |
 | `/admin/contact-sales` | ResultCount — inquiry | `EXACT_TOTAL` | yes | yes |
 | `/admin/costs` | ResultCount — entitlement | `CAP_DISCLOSED` | — | — |
@@ -26,8 +27,11 @@ confident wrong answer with no way to tell.
 | `/admin/identity/providers` | ResultCount — connection | `CAP_DISCLOSED` | — | — |
 | `/admin/identity/runtime` | ResultCount — session | `CAP_DISCLOSED` | — | yes |
 | `/admin/identity/scim` | ResultCount — sync failure | `EXACT_TOTAL` | yes | yes |
-| `/admin/identity/timeline` | ResultCount — event | `CAP_DISCLOSED` | yes | yes |
+| `/admin/identity/sessions` | ResultCount — session | `SERVER_HAS_MORE` | yes | yes |
+| `/admin/identity/sessions` | ResultCount — held session | `SERVER_HAS_MORE` | — | yes |
+| `/admin/identity/timeline` | ResultCount — event | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/operations` | ResultCount — condition | `CAP_DISCLOSED` | yes | yes |
+| `/admin/operations` | ResultCount — security event | `SERVER_HAS_MORE` | yes | yes |
 | `/admin/platform/automation` | ResultCount — run | `EXACT_TOTAL` | yes | — |
 | `/admin/platform/automation` | ResultCount — run | `CAP_DISCLOSED` | — | — |
 | `/admin/platform/automation` | inline — rule | `COMPLETE_LIST` | — | — |
@@ -39,10 +43,12 @@ confident wrong answer with no way to tell.
 | `/admin/platform/signers` | ResultCount — attestation | `EXACT_TOTAL` | yes | yes |
 | `/admin/provisioning` | ResultCount — pending invitation | `EXACT_TOTAL` | — | — |
 | `/admin/search` | inline — result | `CAP_DISCLOSED` | — | — |
-| `/admin/security` | ResultCount — MFA event | `CAP_DISCLOSED` | — | — |
+| `/admin/security` | ResultCount — MFA event | `SERVER_HAS_MORE` | — | yes |
+| `/admin/security` | ResultCount — recovery event | `SERVER_HAS_MORE` | — | yes |
+| `/admin/security` | ResultCount — security event | `SERVER_HAS_MORE` | yes | yes |
+| `/admin/security` | ResultCount — scan | `CAP_DISCLOSED` | yes | yes |
 | `/admin/support-access` | ResultCount — support grant | `EXACT_TOTAL` | yes | yes |
-| `/admin/timeline` | inline — most recent event | `SERVER_HAS_MORE` | yes | yes |
-| `/admin/timeline` | inline — event | `SERVER_HAS_MORE` | yes | yes |
+| `/admin/timeline` | ResultCount — event | `SERVER_HAS_MORE` | yes | yes |
 
 ## What each classification means
 

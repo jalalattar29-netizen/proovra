@@ -27,6 +27,11 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  keysetAfter,
+  keysetPage,
+  type KeysetKey,
+} from "../pagination/keyset-cursor.js";
 
 const DETAILS_MAX_BYTES = 4 * 1024;
 const STRING_MAX = 1000;
@@ -765,21 +770,44 @@ export type ListSecurityEventsInput = {
   severity?: SecurityEventSeverity;
   eventType?: SecurityEventType;
   limit?: number;
+  /** Decoded keyset cursor — rows strictly after this (createdAt, id). */
+  after?: KeysetKey | null;
 };
 
+export type SecurityEventPage = {
+  rows: DbSecurityEvent[];
+  /** Opaque continuation, `null` on the last page. */
+  nextCursor: string | null;
+  /** The server's own answer — not an inference from the row count. */
+  hasMore: boolean;
+};
+
+/**
+ * One page of a workspace's security events, newest first.
+ *
+ * Keyset over `createdAt desc, id desc`. The filters stay server-side and are
+ * ANDed with the cursor predicate, so a severity filter narrows every page
+ * and not just the one the operator can see.
+ */
 export async function listSecurityEvents(
   input: ListSecurityEventsInput,
   client: PrismaClient = defaultPrisma,
-): Promise<DbSecurityEvent[]> {
-  return client.securityEvent.findMany({
-    where: {
-      teamId: input.teamId,
-      ...(input.severity ? { severity: input.severity } : {}),
-      ...(input.eventType ? { eventType: input.eventType } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: Math.min(Math.max(input.limit ?? 50, 1), 500),
+): Promise<SecurityEventPage> {
+  const limit = Math.min(Math.max(input.limit ?? 50, 1), 500);
+  const filters = {
+    teamId: input.teamId,
+    ...(input.severity ? { severity: input.severity } : {}),
+    ...(input.eventType ? { eventType: input.eventType } : {}),
+  };
+  const rows = await client.securityEvent.findMany({
+    where: input.after
+      ? { AND: [filters, keysetAfter("createdAt", input.after)] }
+      : filters,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
   });
+  const page = keysetPage(rows, limit, (r) => ({ at: r.createdAt, id: r.id }));
+  return { rows: page.rows, nextCursor: page.nextCursor, hasMore: page.hasMore };
 }
 
 export type SecurityEventCounts = {

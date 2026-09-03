@@ -57,6 +57,11 @@ import {
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  decodeKeysetCursor,
+  encodeKeysetCursor,
+  keysetAfter,
+} from "../services/pagination/keyset-cursor.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 // PHASE 12B (2026-07-30) — the canonical authorization primitive. The two
 // routes the identity-administration console consumes (role-matrix +
@@ -752,6 +757,14 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
   // Active sessions
   // ===========================================================================
 
+  /**
+   * PAGED. `cursor` is the `nextCursor` of the previous page — opaque, and
+   * carrying the (lastSeenAtUtc, id) of the last row shown. The response
+   * says whether another page exists rather than leaving the caller to infer
+   * it from a full page. Every filter is applied under the cursor, so a page
+   * and its continuation always describe the same set. Callers that send no
+   * cursor get the first page exactly as before.
+   */
   app.get(
     "/v1/admin/identity/sessions",
     { preHandler: requireAuth },
@@ -763,18 +776,32 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           includeRevoked: z.coerce.boolean().optional(),
           includeExpired: z.coerce.boolean().optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
+          cursor: z.string().trim().min(1).max(512).optional(),
         })
         .parse(req.query ?? {});
       const actor = await requireIdentityAdmin(req, reply, q.teamId);
       if (!actor) return;
-      const sessions = await listActiveSessions({
+      const after = decodeKeysetCursor(q.cursor);
+      if (after === null) {
+        // A cursor that does not decode is a broken client, not "start
+        // over": restarting silently would make Next loop on page one.
+        return reply.code(400).send({
+          error: { code: "validation_error", reason: "cursor does not decode" },
+        });
+      }
+      const page = await listActiveSessions({
         teamId: q.teamId,
         userId: q.userId,
         includeRevoked: q.includeRevoked,
         includeExpired: q.includeExpired,
         limit: q.limit,
+        ...(after ? { after } : {}),
       });
-      return reply.code(200).send({ sessions });
+      return reply.code(200).send({
+        sessions: page.sessions,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     },
   );
 
@@ -891,26 +918,77 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           subjectUserId: z.string().uuid().optional(),
           kinds: z.string().max(2000).optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
+          /**
+           * Server-side severity narrowing. The console used to ask for 250
+           * rows and drop the ones that did not match in the browser, which
+           * made the count a lie in two directions at once: fewer rows than
+           * the cap looked like "this is all of them", and a page of 250 INFO
+           * rows could hide every HIGH one behind the cap.
+           */
+          severity: z.enum(["INFO", "WARNING", "HIGH", "CRITICAL"]).optional(),
+          /** Opaque keyset cursor from a previous page's `nextCursor`. */
+          cursor: z.string().trim().min(1).max(512).optional(),
         })
         .parse(req.query ?? {});
       const actor = await requireIdentityAdmin(req, reply, q.teamId);
       if (!actor) return;
+      const after = decodeKeysetCursor(q.cursor);
+      if (after === null) {
+        // A cursor that does not decode is a broken client, not "start
+        // over": restarting silently would make Next loop on page one.
+        return reply.code(400).send({
+          error: { code: "validation_error", reason: "cursor does not decode" },
+        });
+      }
       const kinds = q.kinds
         ? q.kinds
             .split(",")
             .map((s) => s.trim())
             .filter((s) => s.length > 0)
         : null;
+      const take = Math.min(Math.max(q.limit ?? 100, 1), 500);
       // The timeline is a SecurityEvent projection. We accept a kinds
-      // filter to scope the view.
+      // filter to scope the view. Every filter is part of the keyset
+      // predicate, so a page and its cursor always describe the same set.
+      // (`teamId` stays INLINE in each `where` — the admin inventory proves
+      // workspace narrowing from that shape, and hoisting it into a variable
+      // demotes this route's recorded scope from proof to candidate.)
+      const kindsWhere = kinds ? { eventType: { in: kinds } } : {};
+      const severityWhere = q.severity ? { severity: q.severity } : {};
+      const orderBy = [{ createdAt: "desc" as const }, { id: "desc" as const }];
       const events = await prisma.securityEvent.findMany({
         where: {
           teamId: q.teamId,
-          ...(kinds ? { eventType: { in: kinds } } : {}),
+          ...kindsWhere,
+          ...severityWhere,
+          ...(after ? keysetAfter("createdAt", after) : {}),
         },
-        orderBy: { createdAt: "desc" },
-        take: Math.min(Math.max(q.limit ?? 100, 1), 500),
+        orderBy,
+        take,
       });
+      // Whether another page exists is ASKED, not inferred from a full page:
+      // one more row strictly after the last one shown, under the same
+      // filters. A full page with nothing behind it reports hasMore=false
+      // rather than offering a Next that returns nothing. (A probe read
+      // rather than `take: limit + 1`, so `take` stays exactly what the
+      // caller asked for — the console matrix pins it.)
+      const last = events[events.length - 1];
+      const hasMore =
+        events.length === take && last
+          ? (
+              await prisma.securityEvent.findMany({
+                where: {
+                  teamId: q.teamId,
+                  ...kindsWhere,
+                  ...severityWhere,
+                  ...keysetAfter("createdAt", { at: last.createdAt, id: last.id }),
+                },
+                orderBy,
+                take: 1,
+                select: { id: true },
+              })
+            ).length > 0
+          : false;
       const projected = events.map((e) => ({
         id: e.id,
         kind: e.eventType,
@@ -921,7 +999,14 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         // the eventType + a short summary derived from it.
         summary: humaniseEventType(e.eventType),
       }));
-      return reply.code(200).send({ events: projected });
+      return reply.code(200).send({
+        events: projected,
+        nextCursor:
+          hasMore && last
+            ? encodeKeysetCursor({ at: last.createdAt, id: last.id })
+            : null,
+        hasMore,
+      });
     },
   );
 
@@ -1045,15 +1130,28 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
+          /** Opaque keyset cursor from a previous page's `nextCursor`. */
+          cursor: z.string().trim().min(1).max(512).optional(),
         })
         .parse(req.query ?? {});
       const actor = await requireIdentityAdmin(req, reply, q.teamId);
       if (!actor) return;
-      const items = await listQuarantinedSessions({
+      const after = decodeKeysetCursor(q.cursor);
+      if (after === null) {
+        return reply.code(400).send({
+          error: { code: "validation_error", reason: "cursor does not decode" },
+        });
+      }
+      const page = await listQuarantinedSessions({
         teamId: q.teamId,
         limit: q.limit,
+        ...(after ? { after } : {}),
       });
-      return reply.code(200).send({ items });
+      return reply.code(200).send({
+        items: page.items,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     },
   );
 

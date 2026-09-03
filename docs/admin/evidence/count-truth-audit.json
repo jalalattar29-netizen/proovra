@@ -44,6 +44,14 @@
       "loadingAware": true
     },
     {
+      "route": "/admin/audit",
+      "kind": "ResultCount",
+      "noun": "audit entry",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
       "route": "/admin/billing",
       "kind": "ResultCount",
       "noun": "subscription needing attention",
@@ -132,10 +140,26 @@
       "loadingAware": true
     },
     {
+      "route": "/admin/identity/sessions",
+      "kind": "ResultCount",
+      "noun": "session",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/identity/sessions",
+      "kind": "ResultCount",
+      "noun": "held session",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": false,
+      "loadingAware": true
+    },
+    {
       "route": "/admin/identity/timeline",
       "kind": "ResultCount",
       "noun": "event",
-      "truth": "CAP_DISCLOSED",
+      "truth": "SERVER_HAS_MORE",
       "filteredAware": true,
       "loadingAware": true
     },
@@ -144,6 +168,14 @@
       "kind": "ResultCount",
       "noun": "condition",
       "truth": "CAP_DISCLOSED",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/operations",
+      "kind": "ResultCount",
+      "noun": "security event",
+      "truth": "SERVER_HAS_MORE",
       "filteredAware": true,
       "loadingAware": true
     },
@@ -239,9 +271,33 @@
       "route": "/admin/security",
       "kind": "ResultCount",
       "noun": "MFA event",
-      "truth": "CAP_DISCLOSED",
+      "truth": "SERVER_HAS_MORE",
       "filteredAware": false,
-      "loadingAware": false
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/security",
+      "kind": "ResultCount",
+      "noun": "recovery event",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": false,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/security",
+      "kind": "ResultCount",
+      "noun": "security event",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": true,
+      "loadingAware": true
+    },
+    {
+      "route": "/admin/security",
+      "kind": "ResultCount",
+      "noun": "scan",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": true,
+      "loadingAware": true
     },
     {
       "route": "/admin/support-access",
@@ -253,15 +309,7 @@
     },
     {
       "route": "/admin/timeline",
-      "kind": "inline",
-      "noun": "most recent event",
-      "truth": "SERVER_HAS_MORE",
-      "filteredAware": true,
-      "loadingAware": true
-    },
-    {
-      "route": "/admin/timeline",
-      "kind": "inline",
+      "kind": "ResultCount",
       "noun": "event",
       "truth": "SERVER_HAS_MORE",
       "filteredAware": true,

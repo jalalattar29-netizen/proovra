@@ -30,8 +30,10 @@ import {
   type DataTableColumn,
 } from "../../../../../components/ui";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
+import { Button } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
@@ -54,9 +56,21 @@ type SecurityEventRow = {
 
 type EventsResponse = {
   items: SecurityEventRow[];
+  /**
+   * ONE PAGE, AND WHETHER THERE IS ANOTHER.
+   *
+   * The section asked for 100 rows and rendered them in one table, which was
+   * most of the Operations page's height. It now reads 25 at a time over the
+   * server's keyset cursor: `hasMore` is the server's own answer, so the
+   * count beneath the table is a fact rather than "we got what we asked for".
+   */
+  nextCursor: string | null;
+  hasMore: boolean;
   severityBreakdown: Record<SeverityBucket, number>;
   totalEvents: number;
 };
+
+const PAGE_SIZE = 25;
 
 const SEVERITY_TONE: Record<SeverityBucket, BadgeTone> = {
   CRITICAL: "risk",
@@ -74,19 +88,24 @@ export function PlatformSecurityEvents() {
   const [severity, setSeverity] = useState(params.get("eventSeverity") ?? "");
   const [eventType, setEventType] = useState("");
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [data, setData] = useState<EventsResponse | null>(null);
+  /** Cursors that led to the current page, oldest first; page one is []. */
+  const [cursors, setCursors] = useState<string[]>([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (cursor: string | null) => {
     setLoading(true);
     try {
       const qs = new URLSearchParams();
-      qs.set("limit", "100");
+      qs.set("limit", String(PAGE_SIZE));
+      if (cursor) qs.set("cursor", cursor);
       if (severity) qs.set("severity", severity);
       if (eventType.trim()) qs.set("eventType", eventType.trim());
       const res = (await apiFetch(
         `/v1/admin/security-events?${qs.toString()}`,
       )) as EventsResponse;
       setData(res ?? null);
+      setFailed(false);
     } catch (err) {
       addToast(
         toSafeUserError(err, {
@@ -95,15 +114,40 @@ export function PlatformSecurityEvents() {
         "error",
       );
       setData(null);
+      setFailed(true);
     } finally {
       setLoading(false);
     }
   }, [addToast, severity, eventType]);
 
+  // A filter change is a new query, so it restarts at page one; the event
+  // type box applies on blur/submit through `applyFilters` below.
   useEffect(() => {
-    void load();
+    setCursors([]);
+    void load(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [severity]);
+
+  const applyFilters = () => {
+    setCursors([]);
+    void load(null);
+  };
+
+  const nextCursor = data?.nextCursor ?? null;
+  const hasMore = data?.hasMore === true;
+
+  const goNext = () => {
+    if (!nextCursor) return;
+    setCursors((prev) => [...prev, nextCursor]);
+    void load(nextCursor);
+  };
+
+  const goPrevious = () => {
+    if (cursors.length === 0) return;
+    const remaining = cursors.slice(0, -1);
+    setCursors(remaining);
+    void load(remaining.length > 0 ? remaining[remaining.length - 1] : null);
+  };
 
   const columns = useMemo<DataTableColumn<SecurityEventRow>[]>(
     () => [
@@ -157,6 +201,34 @@ export function PlatformSecurityEvents() {
     [],
   );
 
+  // Next/Previous over the SERVER's cursor, disabled truthfully: Previous has
+  // nothing to pop on page one, Next nothing to follow when hasMore is false.
+  const pager = (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}>
+        {`Page ${cursors.length + 1}`}
+      </span>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={loading || cursors.length === 0}
+        onClick={goPrevious}
+        data-testid="admin-security-events-previous"
+      >
+        Previous
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={loading || !hasMore || !nextCursor}
+        onClick={goNext}
+        data-testid="admin-security-events-next"
+      >
+        Next
+      </Button>
+    </div>
+  );
+
   return (
     <PageSection
       title="Security events"
@@ -178,7 +250,7 @@ export function PlatformSecurityEvents() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void load();
+            applyFilters();
           }}
           style={{ display: "contents" }}
         >
@@ -186,7 +258,7 @@ export function PlatformSecurityEvents() {
             label="Event type"
             value={eventType}
             onChange={setEventType}
-            onBlur={() => void load()}
+            onBlur={applyFilters}
             placeholder="e.g. login_failed…"
           />
         </form>
@@ -205,6 +277,16 @@ export function PlatformSecurityEvents() {
               purpose="No security event matches the current filters. An empty table here is a real zero, not an unmeasured signal."
             />
           }
+        />
+        <ResultCount
+          shown={data?.items.length ?? 0}
+          hasMore={hasMore}
+          noun="security event"
+          filtered={severity !== "" || eventType.trim() !== ""}
+          loading={loading}
+          failed={failed}
+          data-testid="admin-security-events-count"
+          action={pager}
         />
       </Card>
     </PageSection>

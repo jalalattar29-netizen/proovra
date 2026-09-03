@@ -20,7 +20,7 @@
  * passthrough is banned app-wide.
  */
 
-import type { ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { Button } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
@@ -119,6 +119,60 @@ export function NoWorkspaceSelected({ purpose }: { purpose: string }) {
 }
 
 export const sectionMuted = { fontSize: 12.5, color: MUTED } as const;
+
+/**
+ * A section description that is one sentence long until asked.
+ *
+ * The Security Center carried seven paragraphs of methodology — what each
+ * panel reads, what it never shows, which server decides — each printed in
+ * full above its section. That is the right text and the wrong default: an
+ * operator reads it once and scans past it every visit after, and on a phone
+ * the seven of them were most of the first two screens.
+ *
+ * The first sentence stays visible, because it is the one that says what the
+ * section IS. The rest opens in place. Inline elements only — this renders
+ * inside the `<p>` that PageSection and PageHeader already provide, and a
+ * `<details>` there would be invalid HTML.
+ */
+export function SectionDescription({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const restId = useId();
+  const match = /^(.*?[.!?])\s+(\S[\s\S]*)$/.exec(text.trim());
+  if (!match) return <>{text}</>;
+  const [, first, rest] = match;
+  return (
+    <>
+      {first}{" "}
+      {open ? (
+        <span id={restId} data-section-description-rest>
+          {rest}{" "}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={restId}
+        onClick={() => setOpen((o) => !o)}
+        data-section-description-toggle
+        style={{
+          // Inherits the description's size and line-height so the toggle
+          // sits in the sentence rather than beside it.
+          font: "inherit",
+          padding: 0,
+          border: 0,
+          background: "none",
+          color: "var(--ink-primary, #0f172a)",
+          textDecoration: "underline",
+          textUnderlineOffset: 2,
+          cursor: "pointer",
+          minHeight: 0,
+        }}
+      >
+        {open ? "Show less" : "Read more"}
+      </button>
+    </>
+  );
+}
 
 export const sectionInputStyle = {
   width: "100%",

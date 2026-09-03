@@ -22,6 +22,11 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  keysetAfter,
+  keysetPage,
+  type KeysetKey,
+} from "../pagination/keyset-cursor.js";
 
 const DEFAULT_WINDOW_DAYS = 14;
 const MAX_PAGE_SIZE = 200;
@@ -33,6 +38,8 @@ export interface ReadRecoveryEventFeedInput {
   limit?: number;
   /** Lookback window, default 14 days. */
   windowDays?: number;
+  /** Decoded keyset cursor — rows strictly after this (createdAt, id). */
+  after?: KeysetKey | null;
 }
 
 export interface RecoveryFeedRow {
@@ -51,6 +58,10 @@ export interface RecoveryEventFeedResult {
   events: ReadonlyArray<RecoveryFeedRow>;
   windowDays: number;
   pageSize: number;
+  /** Opaque continuation, `null` on the last page. */
+  nextCursor: string | null;
+  /** The server's own answer — not an inference from the row count. */
+  hasMore: boolean;
 }
 
 /**
@@ -81,7 +92,7 @@ export async function readRecoveryEventFeed(
     select: { teamId: true },
   });
   if (memberships.length === 0) {
-    return { events: [], windowDays, pageSize };
+    return { events: [], windowDays, pageSize, nextCursor: null, hasMore: false };
   }
   const teamIds = memberships.map((m) => m.teamId);
 
@@ -91,14 +102,18 @@ export async function readRecoveryEventFeed(
   //    R8.1.7 / R8.1.8 / R8.1.9 vocabulary without us having to
   //    enumerate them — defends against quietly missing a new
   //    event added in a future phase.
-  const rows = await prisma.securityEvent.findMany({
+  const fetched = await prisma.securityEvent.findMany({
     where: {
       teamId: { in: teamIds },
       eventType: { startsWith: "mfa_recovery_" },
       createdAt: { gte: cutoff },
+      // Keyset continuation: rows strictly after (createdAt, id). ANDed with
+      // the scope filters above, so every page is a page of the same set.
+      ...(input.after ? { AND: [keysetAfter("createdAt", input.after)] } : {}),
     },
-    orderBy: { createdAt: "desc" },
-    take: pageSize,
+    // The id tiebreaker makes the order total, which the cursor requires.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: pageSize + 1,
     select: {
       id: true,
       eventType: true,
@@ -108,6 +123,9 @@ export async function readRecoveryEventFeed(
       details: true,
     },
   });
+
+  const page = keysetPage(fetched, pageSize, (r) => ({ at: r.createdAt, id: r.id }));
+  const rows = page.rows;
 
   // 3. Resolve team names in one batched query.
   const distinctTeamIds = [
@@ -136,6 +154,8 @@ export async function readRecoveryEventFeed(
     })),
     windowDays,
     pageSize,
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
   };
 }
 

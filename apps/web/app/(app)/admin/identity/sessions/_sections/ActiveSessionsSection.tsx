@@ -5,7 +5,8 @@
  *
  * Extracted from the former monolithic sessions page and completed:
  *
- *   GET  /v1/admin/identity/sessions?teamId&…            (inventory)
+ *   GET  /v1/admin/identity/sessions?teamId&…&limit&cursor   (inventory, paged)
+ *   GET  /v1/admin/identity/quarantined-sessions?teamId&limit&cursor
  *   POST /v1/admin/identity/sessions/:id/revoke          (revoke ONE)
  *   POST /v1/admin/identity/sessions/user/:id/revoke-all (revoke OTHERS)
  *   POST /v1/admin/identity/sessions/:id/quarantine      (hold for review)
@@ -23,6 +24,16 @@
  *   * A denial rendered as an error string above an empty table, which
  *     reads as "this workspace has no sessions". Denials now have their own
  *     state and their own copy.
+ *
+ * PAGED, NOT CAPPED
+ *   The section asked for `limit=200` and rendered every row it got: 86
+ *   sessions made a page nine screens tall, and a workspace with more than
+ *   200 would have been cut off with nothing on screen to say so. Both
+ *   tables now read 25 rows at a time over a server keyset cursor. The
+ *   filters are still applied by the server — under the cursor, so a page
+ *   and its continuation always describe the same set — and the count row
+ *   states what the server said about a further page rather than guessing
+ *   from a full one.
  *
  * TENANT SAFETY: the workspace comes from `lib/platform-context`; every
  * response is dropped if it lands after a workspace switch. No raw IP, no
@@ -43,11 +54,16 @@ import { Button } from "../../../../../../components/ui/Button";
 import { Card } from "../../../../../../components/ui/Card";
 import { useConfirmAction } from "../../../../../../components/ui/ConfirmActionModal";
 import {
+  CursorPager,
+  useCursorPager,
+} from "../../../../../../components/ui/CursorPager";
+import {
   DataTable,
   type DataTableColumn,
 } from "../../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
 import { PageSection } from "../../../../../../components/ui/PageShell";
+import { ResultCount } from "../../../../../../components/ui/ResultCount";
 import {
   StepUpModal,
   useStepUpAction,
@@ -55,6 +71,7 @@ import {
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionDescription,
   SectionError,
   SectionLoading,
   classifyError,
@@ -79,6 +96,12 @@ type ActiveSession = {
   revoked: boolean;
   revokedAtUtc: string | null;
   revokedReason: string | null;
+  /**
+   * Carried by the server so a paged inventory can still say which of its
+   * rows is on hold. Optional only so an older projection still renders; the
+   * quarantine page is the fallback and can only vouch for its own 25 rows.
+   */
+  quarantined?: boolean;
 };
 
 type QuarantineRow = {
@@ -91,10 +114,23 @@ type QuarantineRow = {
   quarantineReleaseAtUtc: string | null;
 };
 
-type Inventory = {
+type SessionsPage = {
   sessions: ActiveSession[];
-  quarantined: QuarantineRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
 };
+
+type QuarantinePage = {
+  items: QuarantineRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+/**
+ * Twenty-five rows is about one screen of this table on a laptop, and the
+ * whole point of paging it was that one screen is what an operator can scan.
+ */
+const PAGE_SIZE = 25;
 
 const QUARANTINE_REASONS = [
   { value: "MANUAL_OPERATOR", label: "Operator decision" },
@@ -106,6 +142,9 @@ const QUARANTINE_REASONS = [
   { value: "SUSPICIOUS_ADMIN_ACTIVITY", label: "Suspicious admin activity" },
 ] as const;
 
+const DESCRIPTION =
+  "Every live session in the workspace you are currently in. Device and network previews are shown; raw addresses, user-agent strings and session tokens are never stored or rendered. Revocation is enforced by the session-revocation registry — the next request from that session is refused.";
+
 export function ActiveSessionsSection() {
   const teamId = useTeamId();
   const { stamp, isStale } = useTenantGuard();
@@ -113,7 +152,6 @@ export function ActiveSessionsSection() {
   const { confirm } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
 
-  const [state, setState] = useState<SectionState<Inventory>>({ kind: "loading" });
   const [includeRevoked, setIncludeRevoked] = useState(false);
   const [includeExpired, setIncludeExpired] = useState(false);
   const [quarantineReason, setQuarantineReason] =
@@ -121,50 +159,120 @@ export function ActiveSessionsSection() {
   const [busy, setBusy] = useState<string | null>(null);
   const [timelineFor, setTimelineFor] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  // A cursor belongs to one query. Both pagers reset in the same render the
+  // workspace or a filter changes, so the request that follows is page one of
+  // the new set and never the old cursor over the new filter.
+  const sessionsPager = useCursorPager(
+    `${teamId ?? ""}|${includeRevoked}|${includeExpired}`,
+  );
+  const quarantinePager = useCursorPager(teamId ?? "");
+
+  const [sessionsState, setSessionsState] = useState<SectionState<SessionsPage>>({
+    kind: "loading",
+  });
+  const [quarantineState, setQuarantineState] = useState<
+    SectionState<QuarantinePage>
+  >({ kind: "loading" });
+  /** A page turn keeps the table on screen and marks it busy. */
+  const [sessionsBusy, setSessionsBusy] = useState(false);
+  const [quarantineBusy, setQuarantineBusy] = useState(false);
+
+  const loadSessions = useCallback(async () => {
     if (!teamId) return;
-    setState({ kind: "loading" });
+    setSessionsState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
+    setSessionsBusy(true);
     const captured = stamp();
     try {
+      // The two filters are SERVER-side: they go into the request, under the
+      // cursor, so every page is a page of the narrowed set.
       const qs = new URLSearchParams({
         teamId,
         includeRevoked: String(includeRevoked),
         includeExpired: String(includeExpired),
-        limit: "200",
+        limit: String(PAGE_SIZE),
       });
-      const [sessions, quarantined] = await Promise.all([
-        apiFetch(`/v1/admin/identity/sessions?${qs.toString()}`, { method: "GET" }),
-        apiFetch(
-          `/v1/admin/identity/quarantined-sessions?teamId=${encodeURIComponent(
-            teamId,
-          )}&limit=200`,
-          { method: "GET" },
-        ),
-      ]);
+      if (sessionsPager.cursor) qs.set("cursor", sessionsPager.cursor);
+      const res = (await apiFetch(`/v1/admin/identity/sessions?${qs.toString()}`, {
+        method: "GET",
+      })) as {
+        sessions?: ActiveSession[];
+        nextCursor?: string | null;
+        hasMore?: boolean;
+      } | null;
       if (isStale(captured)) return;
-      setState({
+      setSessionsState({
         kind: "ready",
         data: {
-          sessions:
-            ((sessions as { sessions?: ActiveSession[] })?.sessions ??
-              []) as ActiveSession[],
-          quarantined:
-            ((quarantined as { items?: QuarantineRow[] })?.items ??
-              []) as QuarantineRow[],
+          sessions: res?.sessions ?? [],
+          nextCursor: res?.nextCursor ?? null,
+          hasMore: res?.hasMore ?? false,
         },
       });
     } catch (err) {
       if (isStale(captured)) return;
-      setState(
-        classifyError<Inventory>(err, "We couldn't load the session inventory."),
+      setSessionsState(
+        classifyError<SessionsPage>(err, "We couldn't load the session inventory."),
       );
+    } finally {
+      if (!isStale(captured)) setSessionsBusy(false);
     }
-  }, [teamId, includeRevoked, includeExpired, stamp, isStale]);
+  }, [teamId, includeRevoked, includeExpired, sessionsPager.cursor, stamp, isStale]);
+
+  const loadQuarantined = useCallback(async () => {
+    if (!teamId) return;
+    setQuarantineState((prev) =>
+      prev.kind === "ready" ? prev : { kind: "loading" },
+    );
+    setQuarantineBusy(true);
+    const captured = stamp();
+    try {
+      const qs = new URLSearchParams({ teamId, limit: String(PAGE_SIZE) });
+      if (quarantinePager.cursor) qs.set("cursor", quarantinePager.cursor);
+      const res = (await apiFetch(
+        `/v1/admin/identity/quarantined-sessions?${qs.toString()}`,
+        { method: "GET" },
+      )) as {
+        items?: QuarantineRow[];
+        nextCursor?: string | null;
+        hasMore?: boolean;
+      } | null;
+      if (isStale(captured)) return;
+      setQuarantineState({
+        kind: "ready",
+        data: {
+          items: res?.items ?? [],
+          nextCursor: res?.nextCursor ?? null,
+          hasMore: res?.hasMore ?? false,
+        },
+      });
+    } catch (err) {
+      if (isStale(captured)) return;
+      setQuarantineState(
+        classifyError<QuarantinePage>(
+          err,
+          "We couldn't load the sessions held for review.",
+        ),
+      );
+    } finally {
+      if (!isStale(captured)) setQuarantineBusy(false);
+    }
+  }, [teamId, quarantinePager.cursor, stamp, isStale]);
+
+  const reload = useCallback(async () => {
+    await Promise.all([loadSessions(), loadQuarantined()]);
+  }, [loadSessions, loadQuarantined]);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  useEffect(() => {
+    void loadQuarantined();
+  }, [loadQuarantined]);
 
   useEffect(() => {
     setTimelineFor(null);
-    void load();
-  }, [load]);
+  }, [teamId]);
 
   /**
    * One mutation runner for every session action: confirm → step-up-aware
@@ -206,7 +314,9 @@ export function ActiveSessionsSection() {
         );
         if (isStale(captured)) return;
         addToast(opts.successMessage, "success");
-        await load();
+        // A hold or a release changes both tables; a revoke changes one and
+        // the other is cheap. Reload both, on their current pages.
+        await reload();
       } catch (err) {
         if (isStale(captured)) return;
         const code = ((err as { code?: string }).code ?? "").toUpperCase();
@@ -216,11 +326,10 @@ export function ActiveSessionsSection() {
         setBusy(null);
       }
     },
-    [confirm, stepUp, stamp, isStale, addToast, load],
+    [confirm, stepUp, stamp, isStale, addToast, reload],
   );
 
-  const description =
-    "Every live session in the workspace you are currently in. Device and network previews are shown; raw addresses, user-agent strings and session tokens are never stored or rendered. Revocation is enforced by the session-revocation registry — the next request from that session is refused.";
+  const description = <SectionDescription text={DESCRIPTION} />;
 
   if (!teamId) {
     return (
@@ -229,33 +338,41 @@ export function ActiveSessionsSection() {
       </PageSection>
     );
   }
-  if (state.kind === "loading") {
+  if (sessionsState.kind === "loading") {
     return (
       <PageSection title="Active sessions" description={description}>
         <SectionLoading label="Reading the live session inventory…" />
       </PageSection>
     );
   }
-  if (state.kind === "denied") {
+  if (sessionsState.kind === "denied") {
     return (
       <PageSection title="Active sessions" description={description}>
         <SectionDenied
-          message={state.message}
+          message={sessionsState.message}
           hint="Session governance requires owner or admin access on this workspace. This is a refusal — it does not mean the workspace has no sessions."
         />
       </PageSection>
     );
   }
-  if (state.kind === "error") {
+  if (sessionsState.kind === "error") {
     return (
       <PageSection title="Active sessions" description={description}>
-        <SectionError message={state.message} onRetry={() => void load()} />
+        <SectionError message={sessionsState.message} onRetry={() => void reload()} />
       </PageSection>
     );
   }
 
-  const { sessions, quarantined } = state.data;
-  const quarantinedSessionIds = new Set(quarantined.map((q) => q.sessionId));
+  const { sessions, nextCursor, hasMore } = sessionsState.data;
+  const quarantinedOnThisPage = new Set(
+    quarantineState.kind === "ready"
+      ? quarantineState.data.items.map((q) => q.sessionId)
+      : [],
+  );
+  // The server's own flag first; the quarantine page can only vouch for the
+  // rows it holds.
+  const isQuarantined = (s: ActiveSession) =>
+    s.quarantined ?? quarantinedOnThisPage.has(s.id);
 
   const sessionColumns: DataTableColumn<ActiveSession>[] = [
     {
@@ -275,7 +392,7 @@ export function ActiveSessionsSection() {
           <Badge tone="neutral">revoked</Badge>
         ) : new Date(s.expiresAtUtc) < new Date() ? (
           <Badge tone="neutral">expired</Badge>
-        ) : quarantinedSessionIds.has(s.id) ? (
+        ) : isQuarantined(s) ? (
           <Badge tone="pending">quarantined</Badge>
         ) : (
           <Badge tone="verified">active</Badge>
@@ -367,13 +484,23 @@ export function ActiveSessionsSection() {
     },
   ];
 
+  const sessionsPagerControl = (
+    <CursorPager
+      pager={sessionsPager}
+      nextCursor={nextCursor}
+      hasMore={hasMore}
+      loading={sessionsBusy}
+      data-testid="admin-sessions-pager"
+    />
+  );
+
   return (
     <PageSection
       title="Active sessions"
       description={description}
       data-active-sessions-section
       action={
-        <Button variant="secondary" onClick={() => void load()}>
+        <Button variant="secondary" onClick={() => void reload()}>
           Refresh
         </Button>
       }
@@ -382,10 +509,7 @@ export function ActiveSessionsSection() {
           These three controls shared one box: two of them filter the list and
           the third sets the reason recorded when you quarantine a session.
           Side by side they read as one group, so it was not apparent that
-          changing the third alters an audit record rather than the view.
-
-          The two filters are server-side — both go into the request, so the
-          200-row cap applies to the narrowed set. */}
+          changing the third alters an audit record rather than the view. */}
       <FilterBar style={{ marginBottom: 12 }}>
         <FilterBar.Select
           label="Revoked sessions"
@@ -432,6 +556,7 @@ export function ActiveSessionsSection() {
         columns={sessionColumns}
         rows={sessions}
         getRowId={(s) => s.id}
+        loading={sessionsBusy}
         ariaLabel="Active sessions inventory"
         emptyState={
           <EmptyState
@@ -460,7 +585,7 @@ export function ActiveSessionsSection() {
             <Button variant="secondary" size="sm" onClick={() => setTimelineFor(s.id)}>
               Timeline
             </Button>
-            {!s.revoked && !quarantinedSessionIds.has(s.id) ? (
+            {!s.revoked && !isQuarantined(s) ? (
               <Button
                 variant="secondary"
                 size="sm"
@@ -537,48 +662,91 @@ export function ActiveSessionsSection() {
           </div>
         )}
       />
+      {/* The server says whether there is another page; the count never
+          infers it from a full one. The default view hides revoked and
+          expired sessions, which IS a filter — the empty wording has to say
+          "match these filters" rather than claim the workspace has none. */}
+      <ResultCount
+        shown={sessions.length}
+        hasMore={hasMore}
+        noun="session"
+        filtered={!includeRevoked || !includeExpired}
+        loading={sessionsBusy}
+        action={sessionsPagerControl}
+        data-testid="admin-sessions-count"
+      />
 
       <h3 style={{ fontSize: 13, fontWeight: 700, margin: "20px 0 8px" }}>
         Sessions held for review
       </h3>
-      <DataTable
-        columns={quarantineColumns}
-        rows={quarantined}
-        getRowId={(q) => q.sessionId}
-        ariaLabel="Quarantined sessions"
-        emptyState={
-          <EmptyState
-            title="Nothing is on hold"
-            purpose="No session in this workspace is currently quarantined. Held sessions appear here with the reason and the auto-release time."
-          />
-        }
-        rowActions={(q) => (
-          <Button
-            variant="secondary"
-            size="sm"
-            loading={busy === `session-release-${q.sessionId}`}
-            disabled={busy !== null}
-            onClick={() =>
-              void runMutation({
-                key: `session-release-${q.sessionId}`,
-                path: `/v1/admin/identity/sessions/${encodeURIComponent(
-                  q.sessionId,
-                )}/release`,
-                body: { teamId },
-                confirmTitle: "Release this hold?",
-                confirmDescription:
-                  "The session returns to normal and the member can perform privileged actions again.",
-                confirmLabel: "Release hold",
-                tone: "warning",
-                successMessage: "Hold released.",
-                failureMessage: "We couldn't release that hold.",
-              })
+      {quarantineState.kind === "loading" ? (
+        <SectionLoading label="Reading the sessions held for review…" />
+      ) : quarantineState.kind === "denied" ? (
+        <SectionDenied message={quarantineState.message} />
+      ) : quarantineState.kind === "error" ? (
+        <SectionError
+          message={quarantineState.message}
+          onRetry={() => void loadQuarantined()}
+        />
+      ) : (
+        <>
+          <DataTable
+            columns={quarantineColumns}
+            rows={quarantineState.data.items}
+            getRowId={(q) => q.sessionId}
+            loading={quarantineBusy}
+            ariaLabel="Quarantined sessions"
+            emptyState={
+              <EmptyState
+                title="Nothing is on hold"
+                purpose="No session in this workspace is currently quarantined. Held sessions appear here with the reason and the auto-release time."
+              />
             }
-          >
-            Release
-          </Button>
-        )}
-      />
+            rowActions={(q) => (
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={busy === `session-release-${q.sessionId}`}
+                disabled={busy !== null}
+                onClick={() =>
+                  void runMutation({
+                    key: `session-release-${q.sessionId}`,
+                    path: `/v1/admin/identity/sessions/${encodeURIComponent(
+                      q.sessionId,
+                    )}/release`,
+                    body: { teamId },
+                    confirmTitle: "Release this hold?",
+                    confirmDescription:
+                      "The session returns to normal and the member can perform privileged actions again.",
+                    confirmLabel: "Release hold",
+                    tone: "warning",
+                    successMessage: "Hold released.",
+                    failureMessage: "We couldn't release that hold.",
+                  })
+                }
+              >
+                Release
+              </Button>
+            )}
+          />
+          <ResultCount
+            shown={quarantineState.data.items.length}
+            hasMore={quarantineState.data.hasMore}
+            noun="held session"
+            loading={quarantineBusy}
+            action={
+              <CursorPager
+                pager={quarantinePager}
+                nextCursor={quarantineState.data.nextCursor}
+                hasMore={quarantineState.data.hasMore}
+                loading={quarantineBusy}
+                data-testid="admin-quarantine-pager"
+              />
+            }
+            data-testid="admin-quarantine-count"
+          />
+        </>
+      )}
 
       {timelineFor ? (
         <SessionTimelineDrawer

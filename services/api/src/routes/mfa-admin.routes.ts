@@ -57,6 +57,7 @@ import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { decodeKeysetCursor } from "../services/pagination/keyset-cursor.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { assertTeamAllowsEnterpriseFeature } from "../services/billing-enforcement.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
@@ -527,16 +528,33 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req, reply) => {
       const params = TeamParams.parse(req.params);
+      const query = z
+        .object({
+          limit: z.coerce.number().int().min(1).max(100).optional(),
+          /** Opaque keyset cursor from a previous page's `nextCursor`. */
+          cursor: z.string().trim().min(1).max(512).optional(),
+        })
+        .parse(req.query ?? {});
       const scope = await authorizeMfaAdminScope(req, reply, {
         teamId: params.teamId,
         permission: "identity.org_policy.read",
       });
       if (!scope) return;
-      const RECENT_EVENT_CAP = 50;
+      const after = decodeKeysetCursor(query.cursor);
+      if (after === null) {
+        reply.code(400);
+        return {
+          error: { code: "validation_error", reason: "cursor does not decode" },
+        };
+      }
+      // The default page is the most recent fifty, as before; the console
+      // asks for twenty-five and walks the cursor.
+      const RECENT_EVENT_CAP = query.limit ?? 50;
       const result = await listRecentMfaEvents({
         teamId: params.teamId,
         actorUserId: scope.actorUserId,
         limit: RECENT_EVENT_CAP,
+        ...(after ? { after } : {}),
       });
       if (!result.ok) {
         reply.code(404);
@@ -554,10 +572,13 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           createdAt: e.createdAt,
           details: projectSecurityEventDetails(e.details),
         })),
-        // The most RECENT 50. Presenting them as the security history of a
-        // workspace is the difference between "nothing happened" and "nothing
-        // happened in the last fifty events".
+        // The page size the read ran under, and — the fact the console
+        // renders — whether another page exists. "No MFA events recorded"
+        // and "none on this page" are different answers, and only the
+        // server can tell them apart.
         limit: RECENT_EVENT_CAP,
+        nextCursor: result.nextCursor ?? null,
+        hasMore: result.hasMore ?? false,
       };
     },
   );
@@ -1468,10 +1489,21 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         typeof rawQuery.windowDays === "string"
           ? Math.max(1, Math.min(60, Number.parseInt(rawQuery.windowDays, 10) || 14))
           : 14;
+      // Opaque keyset cursor from a previous page's `nextCursor`.
+      const after = decodeKeysetCursor(
+        typeof rawQuery.cursor === "string" ? rawQuery.cursor : undefined,
+      );
+      if (after === null) {
+        reply.code(400);
+        return {
+          error: { code: "validation_error", reason: "cursor does not decode" },
+        };
+      }
       const result = await readRecoveryEventFeed({
         actorUserId,
         limit,
         windowDays,
+        ...(after ? { after } : {}),
       });
       void writeAnalyticsEvent({
         eventType: "mfa_recovery_event_feed_viewed",

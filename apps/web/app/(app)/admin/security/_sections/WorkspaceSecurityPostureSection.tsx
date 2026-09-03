@@ -5,7 +5,7 @@
  *
  *   GET /v1/security/summary?teamId&sinceDays
  *   GET /v1/security/scans?teamId&status&limit
- *   GET /v1/security/events?teamId&severity&eventType&limit
+ *   GET /v1/security/events?teamId&severity&eventType&limit&cursor
  *
  * All three were registered with NO product consumer: the backend counted
  * malware scans and security events per workspace and nothing rendered them.
@@ -16,6 +16,21 @@
  *
  * The client computes NO security decision: `malwareScanningEnabled`, every
  * count, and every status label are read straight from the server envelope.
+ *
+ * ONE STRIP, NOT A WALL
+ *   The summary rendered one card per scan status and one per event
+ *   severity — nine boxes, each holding one number, each a full row on a
+ *   phone, and every zero wearing the colour of the thing it counted, so
+ *   "0 infected" read as an alarm. The same nine values are now one
+ *   definition list, and a value is only toned when it is non-zero and the
+ *   category itself is an alarm.
+ *
+ * PAGED, NOT CAPPED
+ *   The events table asked for 100 rows and rendered them; on a phone that
+ *   was fourteen thousand pixels of table. It reads 25 at a time over a
+ *   server keyset cursor, with the severity filter applied by the server
+ *   under that cursor. Scans keep their single bounded read and the count
+ *   row says so.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -24,15 +39,17 @@ import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
-import { Card } from "../../../../../components/ui/Card";
+import { CursorPager, useCursorPager } from "../../../../../components/ui/CursorPager";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { PageSection } from "../../../../../components/ui/PageShell";
+import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { formatUserDateTime } from "../../../../../lib/date";
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionDescription,
   SectionError,
   SectionLoading,
   classifyError,
@@ -69,10 +86,15 @@ type EventRow = {
   createdAt: string;
 };
 
-type Posture = {
+type Overview = {
   summary: SummaryEnvelope;
   scans: ScanRow[];
+};
+
+type EventsPage = {
   events: EventRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
 };
 
 const SEVERITY_OPTIONS = [
@@ -82,6 +104,11 @@ const SEVERITY_OPTIONS = [
   { value: "WARNING", label: "Warning" },
   { value: "INFO", label: "Info" },
 ];
+
+/** One screen of events; the whole reason the table is paged. */
+const EVENTS_PAGE_SIZE = 25;
+/** The scans read stays a single bounded request; the count row discloses it. */
+const SCANS_CAP = 50;
 
 function severityTone(severity: string): BadgeTone {
   const v = severity.toUpperCase();
@@ -103,96 +130,157 @@ function when(value: string | null): string {
   return formatUserDateTime(value);
 }
 
-function CountTile({
+/**
+ * One term in the posture strip.
+ *
+ * A count is toned only when it is non-zero AND the category is one an
+ * operator should act on. Zero infected scans is the good outcome and must
+ * not wear red; twelve clean scans is not an alarm either. Existing tones
+ * only — no new colours were introduced for this strip.
+ */
+function PostureTerm({
   label,
   value,
   tone,
 }: {
   label: string;
-  value: number;
-  tone: BadgeTone;
+  value: string | number;
+  tone?: BadgeTone;
 }) {
+  const alarm =
+    typeof value === "number" && value > 0 && (tone === "risk" || tone === "pending");
   return (
-    <Card padding="compact" style={{ minWidth: 0 }}>
-      <div
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+      <dt
         style={{
           fontSize: 11,
           fontWeight: 700,
-          letterSpacing: "0.08em",
+          letterSpacing: "0.06em",
           textTransform: "uppercase",
           color: "var(--ink-muted, #64748b)",
+          whiteSpace: "nowrap",
         }}
       >
         {label}
-      </div>
-      <div
-        style={{
-          marginTop: 8,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <span style={{ fontSize: 24, fontWeight: 750 }}>
-          {new Intl.NumberFormat().format(value)}
-        </span>
-        <Badge tone={tone} dot>
-          {label}
-        </Badge>
-      </div>
-    </Card>
+      </dt>
+      <dd style={{ margin: 0, fontSize: 15, fontWeight: 650 }}>
+        {alarm ? (
+          <Badge tone={tone} dot>
+            {new Intl.NumberFormat().format(value as number)}
+          </Badge>
+        ) : typeof value === "number" ? (
+          new Intl.NumberFormat().format(value)
+        ) : (
+          value
+        )}
+      </dd>
+    </div>
   );
 }
 
 export function WorkspaceSecurityPostureSection() {
   const teamId = useTeamId();
   const { stamp, isStale } = useTenantGuard();
-  const [state, setState] = useState<SectionState<Posture>>({ kind: "loading" });
   const [severity, setSeverity] = useState("all");
   const [scanStatus, setScanStatus] = useState("all");
 
-  const load = useCallback(async () => {
+  const [overview, setOverview] = useState<SectionState<Overview>>({ kind: "loading" });
+  const [eventsState, setEventsState] = useState<SectionState<EventsPage>>({
+    kind: "loading",
+  });
+  const [eventsBusy, setEventsBusy] = useState(false);
+  const [scansBusy, setScansBusy] = useState(false);
+
+  // A cursor belongs to one query: the pager resets in the same render the
+  // workspace or the severity filter changes.
+  const eventsPager = useCursorPager(`${teamId ?? ""}|${severity}`);
+
+  const loadOverview = useCallback(async () => {
     if (!teamId) return;
-    setState({ kind: "loading" });
+    setOverview((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
+    setScansBusy(true);
     const captured = stamp();
     try {
       const summaryQs = new URLSearchParams({ teamId, sinceDays: "30" });
-      const scanQs = new URLSearchParams({ teamId, limit: "50" });
+      const scanQs = new URLSearchParams({ teamId, limit: String(SCANS_CAP) });
       if (scanStatus !== "all") scanQs.set("status", scanStatus);
-      const eventQs = new URLSearchParams({ teamId, limit: "100" });
-      if (severity !== "all") eventQs.set("severity", severity);
-
-      const [summary, scans, events] = await Promise.all([
+      const [summary, scans] = await Promise.all([
         apiFetch(`/v1/security/summary?${summaryQs.toString()}`, { method: "GET" }),
         apiFetch(`/v1/security/scans?${scanQs.toString()}`, { method: "GET" }),
-        apiFetch(`/v1/security/events?${eventQs.toString()}`, { method: "GET" }),
       ]);
       if (isStale(captured)) return;
-      setState({
+      setOverview({
         kind: "ready",
         data: {
           summary: summary as SummaryEnvelope,
           scans: ((scans as { scans?: ScanRow[] })?.scans ?? []) as ScanRow[],
-          events: ((events as { events?: EventRow[] })?.events ?? []) as EventRow[],
         },
       });
     } catch (err) {
       if (isStale(captured)) return;
-      setState(
-        classifyError<Posture>(
+      setOverview(
+        classifyError<Overview>(
           err,
           "We couldn't load this workspace's security posture.",
         ),
       );
+    } finally {
+      if (!isStale(captured)) setScansBusy(false);
     }
-  }, [teamId, severity, scanStatus, stamp, isStale]);
+  }, [teamId, scanStatus, stamp, isStale]);
+
+  const loadEvents = useCallback(async () => {
+    if (!teamId) return;
+    setEventsState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
+    setEventsBusy(true);
+    const captured = stamp();
+    try {
+      // The severity filter is SERVER-side and travels under the cursor, so
+      // every page is a page of the narrowed set.
+      const eventQs = new URLSearchParams({ teamId, limit: String(EVENTS_PAGE_SIZE) });
+      if (severity !== "all") eventQs.set("severity", severity);
+      if (eventsPager.cursor) eventQs.set("cursor", eventsPager.cursor);
+      const res = (await apiFetch(`/v1/security/events?${eventQs.toString()}`, {
+        method: "GET",
+      })) as {
+        events?: EventRow[];
+        nextCursor?: string | null;
+        hasMore?: boolean;
+      } | null;
+      if (isStale(captured)) return;
+      setEventsState({
+        kind: "ready",
+        data: {
+          events: res?.events ?? [],
+          nextCursor: res?.nextCursor ?? null,
+          hasMore: res?.hasMore ?? false,
+        },
+      });
+    } catch (err) {
+      if (isStale(captured)) return;
+      setEventsState(
+        classifyError<EventsPage>(err, "We couldn't load the security events."),
+      );
+    } finally {
+      if (!isStale(captured)) setEventsBusy(false);
+    }
+  }, [teamId, severity, eventsPager.cursor, stamp, isStale]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadOverview();
+  }, [loadOverview]);
 
-  const description =
-    "Malware-scan and security-event posture for the workspace you are currently in. Counts, statuses and event details are read live from the backend aggregate; nothing on this panel is estimated and no scanner internals, payloads or raw IP addresses are shown.";
+  useEffect(() => {
+    void loadEvents();
+  }, [loadEvents]);
+
+  const reload = useCallback(async () => {
+    await Promise.all([loadOverview(), loadEvents()]);
+  }, [loadOverview, loadEvents]);
+
+  const description = (
+    <SectionDescription text="Malware-scan and security-event posture for the workspace you are currently in. Counts, statuses and event details are read live from the backend aggregate; nothing on this panel is estimated and no scanner internals, payloads or raw IP addresses are shown." />
+  );
 
   if (!teamId) {
     return (
@@ -202,7 +290,7 @@ export function WorkspaceSecurityPostureSection() {
     );
   }
 
-  if (state.kind === "loading") {
+  if (overview.kind === "loading") {
     return (
       <PageSection title="Workspace security posture" description={description}>
         <SectionLoading label="Reading the workspace security aggregate…" />
@@ -210,23 +298,23 @@ export function WorkspaceSecurityPostureSection() {
     );
   }
 
-  if (state.kind === "denied") {
+  if (overview.kind === "denied") {
     return (
       <PageSection title="Workspace security posture" description={description}>
-        <SectionDenied message={state.message} />
+        <SectionDenied message={overview.message} />
       </PageSection>
     );
   }
 
-  if (state.kind === "error") {
+  if (overview.kind === "error") {
     return (
       <PageSection title="Workspace security posture" description={description}>
-        <SectionError message={state.message} onRetry={() => void load()} />
+        <SectionError message={overview.message} onRetry={() => void reload()} />
       </PageSection>
     );
   }
 
-  const { summary, scans, events } = state.data;
+  const { summary, scans } = overview.data;
 
   const scanColumns: DataTableColumn<ScanRow>[] = [
     {
@@ -297,8 +385,8 @@ export function WorkspaceSecurityPostureSection() {
     },
   ];
 
-  const scanTiles = Object.entries(summary.scanCounts ?? {});
-  const eventTiles = Object.entries(summary.eventCounts ?? {});
+  const scanTerms = Object.entries(summary.scanCounts ?? {});
+  const eventTerms = Object.entries(summary.eventCounts ?? {});
 
   return (
     <PageSection
@@ -306,55 +394,50 @@ export function WorkspaceSecurityPostureSection() {
       description={description}
       data-workspace-security-posture
       action={
-        <Button variant="secondary" onClick={() => void load()}>
+        <Button variant="secondary" onClick={() => void reload()}>
           Refresh
         </Button>
       }
     >
-      <Card padding="compact" style={{ marginBottom: 14 }}>
-        <p style={{ margin: 0, fontSize: 13 }}>
-          Malware scanning is{" "}
-          <strong>{summary.malwareScanningEnabled ? "enabled" : "not enabled"}</strong>{" "}
-          for this deployment. Counts cover the last {summary.sinceDays} days.
-        </p>
-      </Card>
-
-      {scanTiles.length > 0 || eventTiles.length > 0 ? (
-        <div
-          style={{
-            display: "grid",
-            gap: 12,
-            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-            marginBottom: 16,
-          }}
-        >
-          {scanTiles.map(([key, value]) => (
-            <CountTile
-              key={`scan-${key}`}
-              label={`Scans ${key.toLowerCase()}`}
-              value={value}
-              tone={scanTone(key)}
-            />
-          ))}
-          {eventTiles.map(([key, value]) => (
-            <CountTile
-              key={`event-${key}`}
-              label={`Events ${key.toLowerCase()}`}
-              value={value}
-              tone={severityTone(key)}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      <FilterBar
-        actions={
-          <Button variant="secondary" onClick={() => void load()}>
-            Apply
-          </Button>
-        }
-        style={{ marginBottom: 12 }}
+      {/* Every value the nine cards held, in one row that wraps. */}
+      <dl
+        data-security-posture-strip
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "12px 28px",
+          margin: "0 0 16px",
+          padding: "12px 16px",
+          border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
+          borderRadius: "var(--radius-card, 14px)",
+          background: "var(--surface-card, #ffffff)",
+        }}
       >
+        <PostureTerm
+          label="Malware scanning"
+          value={summary.malwareScanningEnabled ? "enabled" : "not enabled"}
+        />
+        <PostureTerm label="Window" value={`last ${summary.sinceDays} days`} />
+        {scanTerms.map(([key, value]) => (
+          <PostureTerm
+            key={`scan-${key}`}
+            label={`Scans ${key.toLowerCase()}`}
+            value={value}
+            tone={scanTone(key)}
+          />
+        ))}
+        {eventTerms.map(([key, value]) => (
+          <PostureTerm
+            key={`event-${key}`}
+            label={`Events ${key.toLowerCase()}`}
+            value={value}
+            tone={severityTone(key)}
+          />
+        ))}
+      </dl>
+
+      {/* Both filters apply as they change — each is part of its request. */}
+      <FilterBar style={{ marginBottom: 12 }}>
         <FilterBar.Select
           label="Event severity"
           value={severity}
@@ -379,18 +462,46 @@ export function WorkspaceSecurityPostureSection() {
       <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
         Security events
       </h3>
-      <DataTable
-        columns={eventColumns}
-        rows={events}
-        getRowId={(r) => r.id}
-        ariaLabel="Workspace security events"
-        emptyState={
-          <EmptyState
-            title="No security events in this window"
-            purpose="No security events were recorded for this workspace under the current filters. This is a real empty result from the server, not a permission problem."
+      {eventsState.kind === "loading" ? (
+        <SectionLoading label="Reading the workspace security events…" />
+      ) : eventsState.kind === "denied" ? (
+        <SectionDenied message={eventsState.message} />
+      ) : eventsState.kind === "error" ? (
+        <SectionError message={eventsState.message} onRetry={() => void loadEvents()} />
+      ) : (
+        <>
+          <DataTable
+            columns={eventColumns}
+            rows={eventsState.data.events}
+            getRowId={(r) => r.id}
+            loading={eventsBusy}
+            ariaLabel="Workspace security events"
+            emptyState={
+              <EmptyState
+                title="No security events in this window"
+                purpose="No security events match the current filters for this workspace. This is a real empty result from the server, not a permission problem."
+              />
+            }
           />
-        }
-      />
+          <ResultCount
+            shown={eventsState.data.events.length}
+            hasMore={eventsState.data.hasMore}
+            noun="security event"
+            filtered={severity !== "all"}
+            loading={eventsBusy}
+            action={
+              <CursorPager
+                pager={eventsPager}
+                nextCursor={eventsState.data.nextCursor}
+                hasMore={eventsState.data.hasMore}
+                loading={eventsBusy}
+                data-testid="admin-security-events-pager"
+              />
+            }
+            data-testid="admin-security-events-count"
+          />
+        </>
+      )}
 
       <h3 style={{ fontSize: 13, fontWeight: 700, margin: "20px 0 8px" }}>
         File security scans
@@ -399,6 +510,7 @@ export function WorkspaceSecurityPostureSection() {
         columns={scanColumns}
         rows={scans}
         getRowId={(r) => r.id}
+        loading={scansBusy}
         ariaLabel="Workspace file security scans"
         emptyState={
           <EmptyState
@@ -406,6 +518,16 @@ export function WorkspaceSecurityPostureSection() {
             purpose="No file security scans match the current filter for this workspace."
           />
         }
+      />
+      {/* A single bounded read: the wording admits the cap rather than
+          presenting fifty rows as the workspace's scan history. */}
+      <ResultCount
+        shown={scans.length}
+        cap={SCANS_CAP}
+        noun="scan"
+        filtered={scanStatus !== "all"}
+        loading={scansBusy}
+        data-testid="admin-security-scans-count"
       />
     </PageSection>
   );

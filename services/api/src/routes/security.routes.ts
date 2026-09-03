@@ -3,7 +3,9 @@
  *
  *   GET  /v1/security/summary?teamId         — counts (scans + events)
  *   GET  /v1/security/scans?teamId&status    — workspace scan list
- *   GET  /v1/security/events?teamId&severity — workspace security event list
+ *   GET  /v1/security/events?teamId&severity&eventType&limit&cursor
+ *        — workspace security event list, one keyset page at a time;
+ *          replies { events, nextCursor, hasMore }
  *
  * All routes:
  *   - require authentication AND workspace membership
@@ -31,6 +33,7 @@ import {
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { decodeKeysetCursor } from "../services/pagination/keyset-cursor.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   countScansByTeam,
@@ -143,20 +146,31 @@ export async function securityRoutes(app: FastifyInstance) {
           severity: z.enum(SECURITY_EVENT_SEVERITIES).optional(),
           eventType: z.enum(SECURITY_EVENT_TYPES).optional(),
           limit: z.coerce.number().int().min(1).max(500).optional(),
+          /** Opaque keyset cursor from a previous page's `nextCursor`. */
+          cursor: z.string().trim().min(1).max(512).optional(),
         })
         .parse(req.query ?? {});
       const ok = await requireAdminMember(req, reply, query.teamId);
       if (!ok) return;
+      const after = decodeKeysetCursor(query.cursor);
+      if (after === null) {
+        return reply.code(400).send({
+          error: { code: "validation_error", reason: "cursor does not decode" },
+        });
+      }
 
-      const rows = await listSecurityEvents({
+      const page = await listSecurityEvents({
         teamId: query.teamId,
         severity: query.severity as SecurityEventSeverity | undefined,
         eventType: query.eventType as SecurityEventType | undefined,
         limit: query.limit,
+        ...(after ? { after } : {}),
       });
-      return reply
-        .code(200)
-        .send({ events: rows.map(projectSecurityEvent) });
+      return reply.code(200).send({
+        events: page.rows.map(projectSecurityEvent),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      });
     },
   );
 }

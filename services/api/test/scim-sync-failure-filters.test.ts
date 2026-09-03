@@ -46,7 +46,7 @@ const code = (rel: string) =>
  * would answer it only indirectly. Recording the call is the direct answer.
  */
 function recordingClient(rows: unknown[] = [], total = 0) {
-  const calls: { findMany?: any; count?: any } = {};
+  const calls: { findMany?: unknown; count?: unknown } = {};
   return {
     calls,
     client: {

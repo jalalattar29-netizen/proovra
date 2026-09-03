@@ -50,6 +50,7 @@ import { formatUserDateTime } from "../../../../../lib/date";
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionDescription,
   SectionError,
   SectionLoading,
   classifyError,
@@ -216,8 +217,9 @@ export function MfaMemberPostureSection() {
     [teamId, selectedUserId, confirm, stepUp, stamp, isStale, addToast, loadPosture],
   );
 
-  const description =
-    "Read and reset a single member's second-factor state. Nothing on this panel exposes a factor secret, an authenticator seed, a recovery code, or a device fingerprint — those never leave the server. Revoking factors only forces the member through enrollment on their next sign-in; it never lets an administrator sign in as them.";
+  const description = (
+    <SectionDescription text="Read and reset a single member's second-factor state. Nothing on this panel exposes a factor secret, an authenticator seed, a recovery code, or a device fingerprint — those never leave the server. Revoking factors only forces the member through enrollment on their next sign-in; it never lets an administrator sign in as them." />
+  );
 
   if (!teamId) {
     return (

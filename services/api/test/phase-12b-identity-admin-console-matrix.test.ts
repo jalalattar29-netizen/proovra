@@ -265,8 +265,16 @@ vi.mock("../src/services/access-control/session-inventory.service.js", () => {
     { id: "88888888-8888-4888-8888-888888888889", teamId: O, revoked: false },
   ];
   return {
+    // PAGED ENVELOPE: the route now returns { sessions, nextCursor, hasMore }
+    // from the service's keyset page rather than a bare array. The security
+    // property under test is unchanged — the rows are still filtered to the
+    // authorized workspace and the recorded args still carry it.
     listActiveSessions: async (i: Record<string, unknown>) =>
-      R("listActiveSessions", i, rows.filter((r) => r.teamId === i["teamId"]).map((r) => ({ id: r.id, teamId: r.teamId }))),
+      R("listActiveSessions", i, {
+        sessions: rows.filter((r) => r.teamId === i["teamId"]).map((r) => ({ id: r.id, teamId: r.teamId })),
+        nextCursor: null,
+        hasMore: false,
+      }),
     revokeAllSessionsForUserAdmin: async (i: Record<string, unknown>) =>
       R("revokeAllSessionsForUserAdmin", i, { revokedCount: 3 }, "revokeAllSessionsForUserAdmin"),
     sweepStaleSessions: async (i: Record<string, unknown>) =>
@@ -306,8 +314,13 @@ vi.mock("../src/services/access-control/session-quarantine.service.js", () => {
   const QUAR = "88888888-8888-4888-8888-888888888883";
   const local = [1, 2, 3].map((n) => `88888888-8888-4888-8888-88888888888${n}`);
   return {
+    // Paged envelope, same reasoning as listActiveSessions above.
     listQuarantinedSessions: async (i: Record<string, unknown>) =>
-      R("listQuarantinedSessions", i, i["teamId"] === T ? [{ sessionId: QUAR, reason: "MANUAL_OPERATOR" }] : []),
+      R("listQuarantinedSessions", i, {
+        items: i["teamId"] === T ? [{ sessionId: QUAR, reason: "MANUAL_OPERATOR" }] : [],
+        nextCursor: null,
+        hasMore: false,
+      }),
     sweepQuarantineReleases: async (i: Record<string, unknown>) =>
       R("sweepQuarantineReleases", i, { released: 1 }, "sweepQuarantineReleases"),
     emergencyOrgRevoke: async (i: Record<string, unknown>) =>

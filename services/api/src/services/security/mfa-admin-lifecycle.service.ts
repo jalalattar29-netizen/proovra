@@ -29,6 +29,11 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  keysetAfter,
+  keysetPage,
+  type KeysetKey,
+} from "../pagination/keyset-cursor.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 
@@ -375,24 +380,35 @@ export interface ListRecentMfaEventsInput {
   teamId: string;
   actorUserId: string;
   limit?: number;
+  /** Decoded keyset cursor — rows strictly after this (createdAt, id). */
+  after?: KeysetKey | null;
 }
 
+export type RecentMfaEventRow = {
+  id: string;
+  eventType: string;
+  severity: string;
+  createdAt: string;
+  details: unknown;
+};
+
 /**
- * Read recent security events for the team that relate to MFA.
- * Bounded to the most recent 100 rows.
+ * One page of the team's MFA-related security events, newest first.
+ *
+ * Bounded to at most 100 rows a page and keyset over `createdAt desc, id
+ * desc`, so the console can walk the whole history 25 rows at a time
+ * instead of rendering the most recent fifty and calling it the history.
  */
 export async function listRecentMfaEvents(
   input: ListRecentMfaEventsInput,
 ): Promise<
   | {
       ok: true;
-      events: ReadonlyArray<{
-        id: string;
-        eventType: string;
-        severity: string;
-        createdAt: string;
-        details: unknown;
-      }>;
+      events: ReadonlyArray<RecentMfaEventRow>;
+      /** Opaque continuation, `null` on the last page. */
+      nextCursor: string | null;
+      /** The server's own answer — not an inference from the row count. */
+      hasMore: boolean;
     }
   | { ok: false; reason: "admin_not_in_team" | "admin_not_admin" }
 > {
@@ -406,13 +422,16 @@ export async function listRecentMfaEvents(
     return { ok: false, reason: guard };
   }
   const limit = Math.max(1, Math.min(input.limit ?? 50, 100));
+  const filters = {
+    teamId: input.teamId,
+    eventType: { startsWith: "mfa_" },
+  };
   const events = await prisma.securityEvent.findMany({
-    where: {
-      teamId: input.teamId,
-      eventType: { startsWith: "mfa_" },
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
+    where: input.after
+      ? { AND: [filters, keysetAfter("createdAt", input.after)] }
+      : filters,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
     select: {
       id: true,
       eventType: true,
@@ -421,14 +440,17 @@ export async function listRecentMfaEvents(
       details: true,
     },
   });
+  const page = keysetPage(events, limit, (e) => ({ at: e.createdAt, id: e.id }));
   return {
     ok: true,
-    events: events.map((e) => ({
+    events: page.rows.map((e) => ({
       id: e.id,
       eventType: e.eventType,
       severity: e.severity,
       createdAt: e.createdAt.toISOString(),
       details: e.details,
     })),
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
   };
 }

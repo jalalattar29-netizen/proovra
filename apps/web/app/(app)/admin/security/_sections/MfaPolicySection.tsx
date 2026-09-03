@@ -42,6 +42,7 @@ import {
   choiceRowStyle,
   NoWorkspaceSelected,
   SectionDenied,
+  SectionDescription,
   SectionError,
   SectionLoading,
   classifyError,
@@ -254,8 +255,9 @@ export function MfaPolicySection() {
     load,
   ]);
 
-  const description =
-    "The enforced multi-factor posture for this organization. Every value here is evaluated on the server for each sign-in and each sensitive action — this panel reads and writes those values, it never decides them.";
+  const description = (
+    <SectionDescription text="The enforced multi-factor posture for this organization. Every value here is evaluated on the server for each sign-in and each sensitive action — this panel reads and writes those values, it never decides them." />
+  );
 
   if (!teamId) {
     return (

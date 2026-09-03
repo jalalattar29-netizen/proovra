@@ -26,6 +26,11 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
+import {
+  keysetAfter,
+  keysetPage,
+  type KeysetKey,
+} from "../pagination/keyset-cursor.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
@@ -244,22 +249,50 @@ export async function isSessionQuarantined(
 // Listing
 // -----------------------------------------------------------------------------
 
+export type QuarantineInventoryPage = {
+  items: QuarantineProjection[];
+  /** Opaque continuation, `null` on the last page. */
+  nextCursor: string | null;
+  /** The server's own answer — not an inference from the row count. */
+  hasMore: boolean;
+};
+
+/**
+ * One page of held sessions, most recently quarantined first.
+ *
+ * Keyset over `quarantinedAtUtc desc, id desc` — see
+ * services/pagination/keyset-cursor.ts for why the id tiebreaker is part of
+ * the order and not an optimisation.
+ */
 export async function listQuarantinedSessions(
-  input: { teamId: string; limit?: number },
+  input: { teamId: string; limit?: number; after?: KeysetKey | null },
   client: PrismaClient = defaultPrisma,
-): Promise<ReadonlyArray<QuarantineProjection>> {
+): Promise<QuarantineInventoryPage> {
   const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
+  const filters = {
+    teamId: input.teamId,
+    quarantinedAtUtc: { not: null },
+  };
   const rows = await client.authenticatedSession.findMany({
-    where: {
-      teamId: input.teamId,
-      quarantinedAtUtc: { not: null },
-    },
-    orderBy: { quarantinedAtUtc: "desc" },
-    take: limit,
+    where: input.after
+      ? { AND: [filters, keysetAfter("quarantinedAtUtc", input.after)] }
+      : filters,
+    orderBy: [{ quarantinedAtUtc: "desc" }, { id: "desc" }],
+    take: limit + 1,
   });
-  return rows
-    .map(projectQuarantine)
-    .filter((x): x is QuarantineProjection => x !== null);
+  const page = keysetPage(rows, limit, (r) => ({
+    // Non-null by the `not: null` predicate above; the fallback only keeps
+    // the type honest.
+    at: r.quarantinedAtUtc ?? new Date(0),
+    id: r.id,
+  }));
+  return {
+    items: page.rows
+      .map(projectQuarantine)
+      .filter((x): x is QuarantineProjection => x !== null),
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
+  };
 }
 
 // -----------------------------------------------------------------------------

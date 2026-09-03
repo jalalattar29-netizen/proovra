@@ -3,8 +3,9 @@
 /**
  * PHASE 12B — MFA event surfaces. Product surface for
  *
- *   GET /v1/identity/mfa-admin/events/:teamId       — workspace MFA events
- *   GET /v1/identity/mfa-admin/recovery-events      — actor-scoped recovery feed
+ *   GET /v1/identity/mfa-admin/events/:teamId?limit&cursor — workspace MFA events
+ *   GET /v1/identity/mfa-admin/recovery-events?limit&windowDays&cursor
+ *                                                    — actor-scoped recovery feed
  *
  * Both were registered with no consumer. The workspace feed is scoped by the
  * SERVER-AUTHORIZED `:teamId` taken from `lib/platform-context`; its event
@@ -12,6 +13,12 @@
  * correlation secret can reach this table. The recovery feed is scoped to the
  * signed-in operator's own owner/admin memberships and carries labelled rows
  * only — never a raw details payload.
+ *
+ * PAGED, NOT CAPPED
+ *   The workspace feed rendered the most recent fifty rows and the recovery
+ *   feed the most recent hundred, each in one table. Both now read 25 rows at
+ *   a time over a server keyset cursor, and the count row states what the
+ *   server said about a further page rather than inferring it from a full one.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -20,6 +27,7 @@ import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
+import { CursorPager, useCursorPager } from "../../../../../components/ui/CursorPager";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
@@ -28,6 +36,7 @@ import { formatUserDateTime } from "../../../../../lib/date";
 import {
   NoWorkspaceSelected,
   SectionDenied,
+  SectionDescription,
   SectionError,
   SectionLoading,
   classifyError,
@@ -53,13 +62,21 @@ type RecoveryEvent = {
   teamName: string | null;
 };
 
-type Feeds = {
+type EventsPage = {
   events: MfaEvent[];
-  /** The row cap the events read ran under, as reported by the route. */
-  eventsLimit: number | undefined;
-  recoveryEvents: RecoveryEvent[];
-  recoveryWindowDays: number;
+  nextCursor: string | null;
+  hasMore: boolean;
 };
+
+type RecoveryPage = {
+  events: RecoveryEvent[];
+  windowDays: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+const PAGE_SIZE = 25;
+const RECOVERY_WINDOW_DAYS = 14;
 
 function severityTone(severity: string): BadgeTone {
   const v = severity.toUpperCase();
@@ -71,47 +88,113 @@ function severityTone(severity: string): BadgeTone {
 export function MfaEventsSection() {
   const teamId = useTeamId();
   const { stamp, isStale } = useTenantGuard();
-  const [state, setState] = useState<SectionState<Feeds>>({ kind: "loading" });
 
-  const load = useCallback(async () => {
+  const [eventsState, setEventsState] = useState<SectionState<EventsPage>>({
+    kind: "loading",
+  });
+  const [recoveryState, setRecoveryState] = useState<SectionState<RecoveryPage>>({
+    kind: "loading",
+  });
+  const [eventsBusy, setEventsBusy] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+
+  // Each table walks its own cursor; both reset when the workspace changes.
+  const eventsPager = useCursorPager(teamId ?? "");
+  const recoveryPager = useCursorPager(teamId ?? "");
+
+  const loadEvents = useCallback(async () => {
     if (!teamId) return;
-    setState({ kind: "loading" });
+    setEventsState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
+    setEventsBusy(true);
     const captured = stamp();
     try {
-      const [events, recovery] = await Promise.all([
-        apiFetch(`/v1/identity/mfa-admin/events/${encodeURIComponent(teamId)}`, {
-          method: "GET",
-        }),
-        apiFetch(`/v1/identity/mfa-admin/recovery-events?limit=100&windowDays=14`, {
-          method: "GET",
-        }),
-      ]);
-      if (isStale(captured)) return;
-      const recoveryEnvelope = recovery as {
-        events?: RecoveryEvent[];
-        windowDays?: number;
+      const qs = new URLSearchParams({ limit: String(PAGE_SIZE) });
+      if (eventsPager.cursor) qs.set("cursor", eventsPager.cursor);
+      const res = (await apiFetch(
+        `/v1/identity/mfa-admin/events/${encodeURIComponent(teamId)}?${qs.toString()}`,
+        { method: "GET" },
+      )) as {
+        events?: MfaEvent[];
+        nextCursor?: string | null;
+        hasMore?: boolean;
       } | null;
-      setState({
+      if (isStale(captured)) return;
+      setEventsState({
         kind: "ready",
         data: {
-          events: ((events as { events?: MfaEvent[] })?.events ?? []) as MfaEvent[],
-          eventsLimit: (events as { limit?: number } | null)?.limit,
-          recoveryEvents: recoveryEnvelope?.events ?? [],
-          recoveryWindowDays: recoveryEnvelope?.windowDays ?? 14,
+          events: res?.events ?? [],
+          nextCursor: res?.nextCursor ?? null,
+          hasMore: res?.hasMore ?? false,
         },
       });
     } catch (err) {
       if (isStale(captured)) return;
-      setState(classifyError<Feeds>(err, "We couldn't load the MFA event feeds."));
+      setEventsState(
+        classifyError<EventsPage>(err, "We couldn't load the MFA event feed."),
+      );
+    } finally {
+      if (!isStale(captured)) setEventsBusy(false);
     }
-  }, [teamId, stamp, isStale]);
+  }, [teamId, eventsPager.cursor, stamp, isStale]);
+
+  const loadRecovery = useCallback(async () => {
+    if (!teamId) return;
+    setRecoveryState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
+    setRecoveryBusy(true);
+    const captured = stamp();
+    try {
+      const qs = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        windowDays: String(RECOVERY_WINDOW_DAYS),
+      });
+      if (recoveryPager.cursor) qs.set("cursor", recoveryPager.cursor);
+      const res = (await apiFetch(
+        `/v1/identity/mfa-admin/recovery-events?${qs.toString()}`,
+        { method: "GET" },
+      )) as {
+        events?: RecoveryEvent[];
+        windowDays?: number;
+        nextCursor?: string | null;
+        hasMore?: boolean;
+      } | null;
+      if (isStale(captured)) return;
+      setRecoveryState({
+        kind: "ready",
+        data: {
+          events: res?.events ?? [],
+          windowDays: res?.windowDays ?? RECOVERY_WINDOW_DAYS,
+          nextCursor: res?.nextCursor ?? null,
+          hasMore: res?.hasMore ?? false,
+        },
+      });
+    } catch (err) {
+      if (isStale(captured)) return;
+      setRecoveryState(
+        classifyError<RecoveryPage>(
+          err,
+          "We couldn't load the recovery activity feed.",
+        ),
+      );
+    } finally {
+      if (!isStale(captured)) setRecoveryBusy(false);
+    }
+  }, [teamId, recoveryPager.cursor, stamp, isStale]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadEvents();
+  }, [loadEvents]);
 
-  const description =
-    "What actually happened to second factors in this workspace, and what has happened across the recovery queues you administer. Event context is allow-list projected on the server: no authenticator seeds, recovery codes, tokens or device fingerprints appear here.";
+  useEffect(() => {
+    void loadRecovery();
+  }, [loadRecovery]);
+
+  const reload = useCallback(async () => {
+    await Promise.all([loadEvents(), loadRecovery()]);
+  }, [loadEvents, loadRecovery]);
+
+  const description = (
+    <SectionDescription text="What actually happened to second factors in this workspace, and what has happened across the recovery queues you administer. Event context is allow-list projected on the server: no authenticator seeds, recovery codes, tokens or device fingerprints appear here." />
+  );
 
   if (!teamId) {
     return (
@@ -120,24 +203,24 @@ export function MfaEventsSection() {
       </PageSection>
     );
   }
-  if (state.kind === "loading") {
+  if (eventsState.kind === "loading") {
     return (
       <PageSection title="MFA activity" description={description}>
         <SectionLoading label="Reading MFA and recovery activity…" />
       </PageSection>
     );
   }
-  if (state.kind === "denied") {
+  if (eventsState.kind === "denied") {
     return (
       <PageSection title="MFA activity" description={description}>
-        <SectionDenied message={state.message} />
+        <SectionDenied message={eventsState.message} />
       </PageSection>
     );
   }
-  if (state.kind === "error") {
+  if (eventsState.kind === "error") {
     return (
       <PageSection title="MFA activity" description={description}>
-        <SectionError message={state.message} onRetry={() => void load()} />
+        <SectionError message={eventsState.message} onRetry={() => void reload()} />
       </PageSection>
     );
   }
@@ -207,13 +290,18 @@ export function MfaEventsSection() {
     },
   ];
 
+  const recoveryWindowDays =
+    recoveryState.kind === "ready"
+      ? recoveryState.data.windowDays
+      : RECOVERY_WINDOW_DAYS;
+
   return (
     <PageSection
       title="MFA activity"
       description={description}
       data-mfa-events-section
       action={
-        <Button variant="secondary" onClick={() => void load()}>
+        <Button variant="secondary" onClick={() => void reload()}>
           Refresh
         </Button>
       }
@@ -223,8 +311,9 @@ export function MfaEventsSection() {
       </h3>
       <DataTable
         columns={eventColumns}
-        rows={state.data.events}
+        rows={eventsState.data.events}
         getRowId={(r) => r.id}
+        loading={eventsBusy}
         ariaLabel="Workspace MFA events"
         emptyState={
           <EmptyState
@@ -233,31 +322,74 @@ export function MfaEventsSection() {
           />
         }
       />
-      {/* The most RECENT N. "No MFA events recorded" and "none in the last
-          fifty" are very different answers to "has anything happened to a
-          second factor here", and the page gave the first for both. */}
+      {/* "No MFA events recorded" and "none on this page" are very different
+          answers to "has anything happened to a second factor here"; the
+          server's hasMore is what tells them apart. */}
       <ResultCount
-        shown={state.data.events.length}
-        cap={state.data.eventsLimit}
+        shown={eventsState.data.events.length}
+        hasMore={eventsState.data.hasMore}
         noun="MFA event"
+        loading={eventsBusy}
+        action={
+          <CursorPager
+            pager={eventsPager}
+            nextCursor={eventsState.data.nextCursor}
+            hasMore={eventsState.data.hasMore}
+            loading={eventsBusy}
+            data-testid="admin-security-mfa-events-pager"
+          />
+        }
         data-testid="admin-security-mfa-events-count"
       />
 
       <h3 style={{ fontSize: 13, fontWeight: 700, margin: "20px 0 8px" }}>
-        Lost-factor recovery activity (last {state.data.recoveryWindowDays} days)
+        Lost-factor recovery activity (last {recoveryWindowDays} days)
       </h3>
-      <DataTable
-        columns={recoveryColumns}
-        rows={state.data.recoveryEvents}
-        getRowId={(r) => r.id}
-        ariaLabel="Lost-factor recovery activity"
-        emptyState={
-          <EmptyState
-            title="No recovery activity"
-            purpose="No lost-factor recovery has been requested, approved, rejected or cancelled across the workspaces you administer in this window."
+      {recoveryState.kind === "loading" ? (
+        <SectionLoading label="Reading recovery activity…" />
+      ) : recoveryState.kind === "denied" ? (
+        <SectionDenied
+          message={recoveryState.message}
+          hint="The recovery feed is only offered to owners and admins of at least one workspace. This is a refusal, not an empty feed."
+        />
+      ) : recoveryState.kind === "error" ? (
+        <SectionError
+          message={recoveryState.message}
+          onRetry={() => void loadRecovery()}
+        />
+      ) : (
+        <>
+          <DataTable
+            columns={recoveryColumns}
+            rows={recoveryState.data.events}
+            getRowId={(r) => r.id}
+            loading={recoveryBusy}
+            ariaLabel="Lost-factor recovery activity"
+            emptyState={
+              <EmptyState
+                title="No recovery activity"
+                purpose="No lost-factor recovery has been requested, approved, rejected or cancelled across the workspaces you administer in this window."
+              />
+            }
           />
-        }
-      />
+          <ResultCount
+            shown={recoveryState.data.events.length}
+            hasMore={recoveryState.data.hasMore}
+            noun="recovery event"
+            loading={recoveryBusy}
+            action={
+              <CursorPager
+                pager={recoveryPager}
+                nextCursor={recoveryState.data.nextCursor}
+                hasMore={recoveryState.data.hasMore}
+                loading={recoveryBusy}
+                data-testid="admin-security-recovery-events-pager"
+              />
+            }
+            data-testid="admin-security-recovery-events-count"
+          />
+        </>
+      )}
     </PageSection>
   );
 }
