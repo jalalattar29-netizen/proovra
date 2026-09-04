@@ -4,18 +4,18 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
-  "routeInventoryHash": "5003d35a2b7aa26e8ee866f1ba6307e7fbd62b6490076602eebb80dede0fb23a",
-  "consumerInventoryHash": "9b668692a841e4c3b1ef9e96762d345f925ee553616e56911067081aa8108970",
+  "routeInventoryHash": "72402cd801880f6d11ca3188370f7bb071af1ec7a2266e082d9a2966171dc4bc",
+  "consumerInventoryHash": "08be373e3d2951316087e23834b0334dd0de4d4b93bcfda38ae604a91a127505",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
-    "RegisteredRoutes": 1123,
-    "ProductionRegisteredRoutes": 1122,
+    "RegisteredRoutes": 1124,
+    "ProductionRegisteredRoutes": 1123,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 894,
+    "ProductConsumedRoutes": 895,
     "NonProductDispositionedRoutes": 228,
     "UndisposedRoutes": 0,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 894,
+    "ProductConsumerRoutes": 895,
     "MachineOnlyConsumerRoutes": 4,
     "NoConsumerRoutes": 225,
     "AuthorizationUnresolved": 0,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8259,
+      "METHOD_ON_VALUE": 8266,
       "UNRESOLVED_IDENTIFIER": 1041
     },
     "MutationFixpointRounds": 9,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 894,
+      "PRODUCT_CONNECTED": 895,
       "EXTERNAL_API": 30,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -146,13 +146,13 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 122
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1121,
+    "TenantBindingResolved": 1122,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 15,
       "GLOBAL_USER_SELF": 57,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 703,
+      "WORKSPACE_SCOPED": 704,
       "ORGANIZATION_SCOPED": 105,
       "MULTI_TENANT_PLATFORM_ADMIN": 114,
       "TOKEN_SCOPED": 45,
@@ -161,11 +161,11 @@
       "NO_DATA_ACCESS": 11
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 199,
+    "OrganizationRoutesMeasured": 200,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1121,
+    "ClassifiedSecurityRoutes": 1122,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -179,8 +179,8 @@
         "tagged": 10
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 401,
-        "tagged": 401
+        "primary": 402,
+        "tagged": 402
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 367,
@@ -240,24 +240,24 @@
       }
     }
   },
-  "totalRoutes": 1123,
+  "totalRoutes": 1124,
   "classificationCounts": {
     "COMPATIBILITY_TEMPORARY": 3,
     "INTERNAL_REQUIRED": 226,
-    "TARGET_COMPLETE": 894
+    "TARGET_COMPLETE": 895
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 191
+    "UNPROVEN": 192
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 397,
+    "PLATFORM_CORE": 398,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -1398,6 +1398,18 @@
       "productConsumer": "apps/web/app/(app)/admin/workspaces/[id]/page.tsx:186",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/ai/availability",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/ai/availability",
+      "registeringFile": "services/api/src/routes/ai.routes.ts",
+      "productConsumer": "apps/web/components/ai/ProovraChatWidget.tsx:162",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "UNPROVEN"
     },
@@ -7527,7 +7539,7 @@
       "method": "POST",
       "route": "/v1/ai/chat",
       "registeringFile": "services/api/src/routes/ai.routes.ts",
-      "productConsumer": "apps/web/components/ai/ProovraChatWidget.tsx:107",
+      "productConsumer": "apps/web/components/ai/ProovraChatWidget.tsx:227",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -23803,8 +23815,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/ai/workspace-ai-policy.service.ts#workspaceAiPolicy.create@448",
-      "terminalLocation": "services/api/src/services/ai/workspace-ai-policy.service.ts:448",
+      "writerId": "services/api/src/services/ai/workspace-ai-policy.service.ts#workspaceAiPolicy.create@470",
+      "terminalLocation": "services/api/src/services/ai/workspace-ai-policy.service.ts:470",
       "file": "services/api/src/services/ai/workspace-ai-policy.service.ts",
       "enclosingDeclaration": "upsertWorkspaceAiPolicy",
       "kind": "DATABASE",
@@ -23836,8 +23848,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/ai/workspace-ai-policy.service.ts#workspaceAiPolicy.updateMany@412",
-      "terminalLocation": "services/api/src/services/ai/workspace-ai-policy.service.ts:412",
+      "writerId": "services/api/src/services/ai/workspace-ai-policy.service.ts#workspaceAiPolicy.updateMany@434",
+      "terminalLocation": "services/api/src/services/ai/workspace-ai-policy.service.ts:434",
       "file": "services/api/src/services/ai/workspace-ai-policy.service.ts",
       "enclosingDeclaration": "upsertWorkspaceAiPolicy",
       "kind": "DATABASE",
@@ -23892,6 +23904,7 @@
         "GET /v1/admin/identity/scim/managed-membership",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
+        "GET /v1/ai/availability",
         "GET /v1/auth/sso/callback",
         "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
@@ -24064,6 +24077,7 @@
         "GET /v1/admin/identity/scim/managed-membership",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
+        "GET /v1/ai/availability",
         "GET /v1/auth/sso/callback",
         "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
@@ -24236,6 +24250,7 @@
         "GET /v1/admin/identity/scim/managed-membership",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
+        "GET /v1/ai/availability",
         "GET /v1/auth/sso/callback",
         "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
@@ -25466,6 +25481,7 @@
         "GET /v1/admin/identity/scim/managed-membership",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
+        "GET /v1/ai/availability",
         "GET /v1/auth/sso/callback",
         "GET /v1/billing/accounts/:type/:id",
         "GET /v1/billing/overview",
@@ -63858,6 +63874,7 @@
         "GET /v1/admin/search",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
+        "GET /v1/ai/availability",
         "GET /v1/ai/qc/samples",
         "GET /v1/analytics/artifacts",
         "GET /v1/analytics/automation",
@@ -83301,6 +83318,80 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/ai/availability",
+      "method": "GET",
+      "path": "/v1/ai/availability",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/ai.routes.ts:291",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/components/ai/ProovraChatWidget.tsx",
+          "line": 162,
+          "caller": "ProovraChatWidget",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/components/ai/ProovraChatWidget.tsx:162 (ProovraChatWidget, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
+        "organization",
+        "report",
+        "subscription",
+        "team",
+        "teamMember",
+        "verificationPackage",
+        "workspaceAiPolicy",
+        "workspaceStorageAddon"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "analyticsEvent",
+        "entitlement"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/workspace-usage.service.ts: teamMember.count paired with a lifecycle-status predicate (packages/shared-billing/src/plan-catalog.ts)",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/ai/qc/samples",
       "method": "GET",
       "path": "/v1/ai/qc/samples",
@@ -83897,7 +83988,7 @@
       "method": "GET",
       "path": "/v1/auth/email/availability",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:944",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:945",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -83945,7 +84036,7 @@
       "method": "GET",
       "path": "/v1/auth/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1566",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1567",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -84153,7 +84244,7 @@
       "method": "GET",
       "path": "/v1/auth/session-light",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1612",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1613",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -115863,7 +115954,7 @@
       "method": "POST",
       "path": "/v1/ai/capture/analyze-session",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai.routes.ts:477",
+      "registrationEvidence": "services/api/src/routes/ai.routes.ts:587",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116033,7 +116124,7 @@
       "method": "POST",
       "path": "/v1/ai/chat",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai.routes.ts:266",
+      "registrationEvidence": "services/api/src/routes/ai.routes.ts:323",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116044,8 +116135,8 @@
       "productConsumers": [
         {
           "file": "apps/web/components/ai/ProovraChatWidget.tsx",
-          "line": 107,
-          "caller": "handleSend",
+          "line": 227,
+          "caller": "ProovraChatWidget",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -116054,7 +116145,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/ai/ProovraChatWidget.tsx:107 (handleSend, WEB)",
+      "dispositionEvidence": "apps/web/components/ai/ProovraChatWidget.tsx:227 (ProovraChatWidget, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -116539,7 +116630,7 @@
       "method": "POST",
       "path": "/v1/auth/apple",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:752",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:753",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116645,7 +116736,7 @@
       "method": "POST",
       "path": "/v1/auth/email/login",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:969",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:970",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116711,7 +116802,7 @@
       "method": "POST",
       "path": "/v1/auth/email/register",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:847",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:848",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -116783,7 +116874,7 @@
       "method": "POST",
       "path": "/v1/auth/email/resend-verification",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1265",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1266",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -116852,7 +116943,7 @@
       "method": "POST",
       "path": "/v1/auth/email/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1192",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1193",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -116909,7 +117000,7 @@
       "method": "POST",
       "path": "/v1/auth/google",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:654",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:655",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -117007,7 +117098,7 @@
       "method": "POST",
       "path": "/v1/auth/logout",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1525",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1526",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -117059,7 +117150,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1312",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1313",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -117129,7 +117220,7 @@
       "method": "POST",
       "path": "/v1/auth/password-reset/confirm",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1156",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1157",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -117183,7 +117274,7 @@
       "method": "POST",
       "path": "/v1/auth/password-reset/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1069",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1070",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"

@@ -36,7 +36,7 @@ export function createAiProvider(): AiProvider {
     "gpt-4.1-mini";
 
   if (!enabled) {
-    return new NoopAiProvider();
+    return new NoopAiProvider("PROVIDER_NOT_CONFIGURED");
   }
 
   // Phase A3 — validate provider privacy posture before returning a live
@@ -54,7 +54,7 @@ export function createAiProvider(): AiProvider {
           code: privacy.code,
         }),
       );
-      return new NoopAiProvider();
+      return new NoopAiProvider("PROVIDER_PRIVACY_REFUSED");
     }
     // eslint-disable-next-line no-console
     console.warn(

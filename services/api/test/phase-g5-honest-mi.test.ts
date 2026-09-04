@@ -130,6 +130,19 @@ const LEGAL_DISCLAIMER_ALLOWLIST = new Set<string>([
   // .js extensions, so both siblings must be allowlisted or the
   // anti-overclaim disclaimer copy trips the pin.
   "lib/platform-context/workflowHelp.js",
+  /*
+   * The assistant's own boundary copy, in both places it lives.
+   *
+   * The panel header says it "does not determine whether evidence is
+   * authentic"; the SAFETY_BLOCKED state says the assistant "does not judge
+   * whether evidence is authentic, identify people, or give legal advice".
+   * Both NAME the claim in order to refuse it, which is what this allowlist is
+   * for — the previous wording ("Not legal or factual determination") avoided
+   * the banned word only by being vague enough that a reader learned nothing
+   * from it.
+   */
+  "components/ai/ProovraChatWidget.tsx",
+  "lib/ai/assistant-state.ts",
 ]);
 
 // Comment-stripping helper. Removes // line comments and /* block */

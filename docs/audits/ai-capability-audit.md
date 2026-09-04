@@ -273,23 +273,109 @@ POST /v1/ai/chat  "How I can capture evidence" → 200
 
 ---
 
-## 7. Open items — not fixed by this pass
+## 7. Security defects — RESOLVED
 
-1. **`NoopAiProvider` leaks operator instructions to end users.** Its summary
-   reads *"Configure OPENAI_AI_ENABLED=true and provide OPENAI_API_KEY to enable
-   this feature."* That is an instruction for an operator, returned in a 200 to
-   whoever is typing. The new UI never displays it — a `disabled` status is
-   classified and replaced with the panel's own copy — but the string is still
-   emitted by the API and would reach any other client.
-2. **`POST /v1/auth/email/login` returns the user's `passwordHash`** in the
-   success body. Observed directly during this audit. Out of scope here, but it
-   should not wait.
-3. **The scope classifier scores pricing questions `AMBIGUOUS_REQUEST`.** Harmless
+Both were found by the audit above and closed in a follow-up security pass.
+Neither was fixed by hiding anything in the frontend: the API responses
+themselves changed.
+
+### 7.1 Password hash returned to the client — RESOLVED
+
+**Impact.** `POST /v1/auth/email/login` returned the user's scrypt
+`passwordHash` inside its **HTTP 200** body, at `user.passwordHash`.
+Reproduced against the local fixture: the response carried 23 user fields, one
+of them the hash. Anything holding that response held it too — client storage,
+any proxy or gateway logging bodies, browser devtools, crash reporters. A
+scrypt hash is not a plaintext password, so this is not an automatic account
+compromise and no credential rotation is implied; it is offline-crackable
+material that should never have left the server.
+
+**Root cause.** Not a mention of the secret anywhere — the opposite. Five auth
+routes ended `return reply.code(200).send({ token, user })` where `user` was
+the row `prisma.user.findFirst` returned. Prisma selects every column when no
+`select` is given and `reply.send` serialises what it is handed, so the
+persistence model was used as the transport model with nothing between them.
+The affected routes were `/v1/auth/google`, `/v1/auth/apple`,
+`/v1/auth/email/login`, `/v1/auth/email/verify` and `/v1/auth/mfa/verify`.
+
+**Fix.** A canonical allow-list projection, `toAuthUserProjection` in
+`services/api/src/http/auth-user-projection.ts`, applied at all five sends. Not
+`delete user.passwordHash`: a deny-list is a list of mistakes already made, and
+the next credential column added to the User model would have shipped through
+all five routes the day it was added. A field now reaches a client only because
+it is named in that file.
+
+The contract is otherwise unchanged — 22 of the 23 fields are preserved, so no
+client change was required. Narrowing further is a contract decision, not a
+security one, and was deliberately not bundled into a security fix.
+
+**Audited and found already safe:** `/v1/auth/me` (explicit projection),
+`/v1/auth/email/register` (returns `{ verificationSent, email }`), SCIM user
+read (`select` of four fields, then `buildUserResource`), and
+`projectApiCredential` for integration keys (exposes `keyPrefix`, never the
+key or its hash). No log serialises a user object; the startup config snapshot
+that names `OPENAI_*` variables is log-only and reaches no HTTP response.
+
+**Verified.** Correct password → 200 with a working token and no
+`passwordHash` anywhere in the body; wrong password → 401
+`invalid_credentials`; the issued token authenticates `/v1/auth/me`.
+
+### 7.2 Deployment configuration returned to the user — RESOLVED
+
+**Impact.** `NoopAiProvider` answered with *"AI assistance is currently
+disabled. Configure OPENAI_AI_ENABLED=true and provide OPENAI_API_KEY to enable
+this feature."* in `summary` — a **user-facing** field, rendered by the
+assistant panel and forwarded verbatim by the evidence categorisation route. It
+disclosed which provider the platform uses, that its key is absent, and the
+exact variable an attacker would want to influence. It was also useless advice:
+the one person who cannot act on it is the person reading it.
+
+**Reachable in production, not only in development.** `createAiProvider` also
+falls back to this adapter when the provider PRIVACY posture is refused
+(`AI_REQUIRE_PROVIDER_PRIVACY=true` with an unsafe or unknown region/data-use
+configuration). In that state `OPENAI_AI_ENABLED` is `"true"` and a key IS
+present, so `isPlatformAiGloballyEnabled()` returns true, the workspace policy
+gate PASSES, and the route calls the provider — with AI switched fully on.
+
+**Fix.** The user-facing text is now one neutral sentence naming no provider,
+no variable and no instruction: *"AI assistance is temporarily unavailable. You
+can continue using PROOVRA normally — capture, reports, verification and
+packages are unaffected."* The suggestion telling the reader to reconfigure a
+backend is gone.
+
+**Operator detail moved rather than deleted.** An operator still has to tell "no
+key configured" from "privacy posture refused" — different problems, different
+fixes. The adapter now takes a bounded reason (`PROVIDER_NOT_CONFIGURED` /
+`PROVIDER_PRIVACY_REFUSED`), logs it once at construction as structured JSON
+with no secret values, and exposes it via `getReason()` for health surfaces.
+
+**Not a fake success.** `status` stays `"disabled"`, so nothing records an
+inference that never happened: `recordWorkspaceAiOperation` counts only
+`status === "ok"`, the audit entry is not a success, and provider health is not
+falsely green.
+
+**`GET /v1/ai/availability` re-checked:** returns only `available`,
+`decision` (a bounded enum), `groundedAnswersAvailable`, `groundedTopics`
+and `policyVersion`. No variable name, no key, no secret.
+
+### Regression tests
+
+`services/api/test/security-credential-and-config-leakage.test.ts` (15 tests)
+and the shared `test/_helpers/no-credential-material.ts`, which walks a
+response recursively for forbidden credential KEYS at any depth and then scans
+for hash/key VALUE patterns under innocent keys. It is itself tested against the
+pre-fix login body, so the guard cannot silently stop guarding, and against
+`hasPassword` / `passwordUpdatedAt` so it does not fail on legitimate facts
+about a credential.
+
+## 8. Open items — not fixed
+
+1. **The scope classifier scores pricing questions `AMBIGUOUS_REQUEST`.** Harmless
    today only because `answerProductKnowledge` runs first; a reordering would
    start refusing "how much does Pro cost?".
-4. **Copilot and semantic-search features default to off** and have no UI that
+2. **Copilot and semantic-search features default to off** and have no UI that
    explains why they are absent.
-5. **The production decision code is not established here.** The mechanism is
+3. **The production decision code is not established here.** The mechanism is
    proven and identical for every denial, but which decision fires in production
    depends on the deployed environment, which this audit did not touch. The new
    availability endpoint reports it directly.

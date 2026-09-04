@@ -27,6 +27,7 @@ import {
 import { getEmailService } from "../services/email.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
 import { requireAuth } from "../middleware/auth.js";
+import { toAuthUserProjection } from "../http/auth-user-projection.js";
 import { prisma } from "../db.js";
 import {
   signJwt,
@@ -715,7 +716,7 @@ export async function authRoutes(app: FastifyInstance) {
       // one session model for every provider.
       await recordSessionFromSignedToken(req, user, token);
       maybeSetWebCookie(req, reply, token);
-      return reply.code(200).send({ token, user });
+      return reply.code(200).send({ token, user: toAuthUserProjection(user) });
     } catch (err) {
       const message = err instanceof Error ? err.message : "invalid_id_token";
 
@@ -806,7 +807,7 @@ export async function authRoutes(app: FastifyInstance) {
       // gate so Apple sessions appear in the user's session inventory.
       await recordSessionFromSignedToken(req, user, token);
       maybeSetWebCookie(req, reply, token);
-      return reply.code(200).send({ token, user });
+      return reply.code(200).send({ token, user: toAuthUserProjection(user) });
     } catch (err) {
       const message = err instanceof Error ? err.message : "invalid_id_token";
 
@@ -1063,7 +1064,7 @@ export async function authRoutes(app: FastifyInstance) {
     });
 
     maybeSetWebCookie(req, reply, token);
-    return reply.code(200).send({ token, user });
+    return reply.code(200).send({ token, user: toAuthUserProjection(user) });
   });
 
   app.post("/v1/auth/password-reset/request", async (req, reply) => {
@@ -1257,7 +1258,7 @@ export async function authRoutes(app: FastifyInstance) {
       metadata: { provider: fullUser.provider, email: fullUser.email },
     });
 
-    return reply.code(200).send({ token, user: fullUser });
+    return reply.code(200).send({ token, user: toAuthUserProjection(fullUser) });
   });
 
   // EV4 — email verification: resend the link. Always returns 200
@@ -1519,7 +1520,7 @@ export async function authRoutes(app: FastifyInstance) {
     await recordSessionFromSignedToken(req, user, token);
     clearMfaPendingCookie(req, reply);
     maybeSetWebCookie(req, reply, token);
-    return reply.code(200).send({ token, user });
+    return reply.code(200).send({ token, user: toAuthUserProjection(user) });
   });
 
   app.post("/v1/auth/logout", async (req, reply) => {

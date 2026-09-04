@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,16 +21,16 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | d14a08f08bba897673ce9dc84256e9be326db034c0bf9f13e7addc998344fae3 |
+| engineHash    | ab3e3d055d7b10ead27c4189e39fc4efd2384b6196b1da8ecbfbf7e2a8a9acdf |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1123  |
+| registeredRoutes              | 1124  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 894   |
+| productConsumerRoutes         | 895   |
 | machineOnlyConsumerRoutes     | 4     |
 | noConsumerRoutes              | 225   |
 | dispositionedNonProductRoutes | 228   |
@@ -123,7 +123,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | AmbiguousReportRoles                       | 0     |
 | Phase0ChangedPathsFromManualDeclaration    | 0     |
 | UndeclaredPhase0ChangedPaths               | 0     |
-| Phase0ChangedPathClassificationMissing     | 0     |
+| Phase0ChangedPathClassificationMissing     | 1     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
@@ -200,8 +200,8 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- CHANGED PATH WITH NO CLASSIFICATION: apps/web/tsconfig.json
 
 ### Product closure
 
-_(none)_
+- CHECKPOINT: 3 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1122, facts say 1123 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1123, facts say 1124 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 894, facts say 895

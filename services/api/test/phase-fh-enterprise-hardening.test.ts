@@ -89,9 +89,25 @@ describe("F-1 — AiChatService.preflight owns every pre-provider short-circuit"
     expect((provider.run as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
   });
 
-  it("in-domain question → null (provider path; route reserves budget FIRST)", () => {
-    const pre = svc.preflight("u1", payload("How does the chain of custody work?") as never);
+  /*
+   * "How does the chain of custody work?" used to return null here, sending it
+   * down the provider path. It is now answered from the grounded product
+   * bundle, which is the intended behaviour — the answer is a fixed property of
+   * the product and needs no model.
+   *
+   * The contract this test guards is that preflight returns null for anything
+   * it cannot answer itself, so the route reserves budget before a real
+   * provider call. Both halves are asserted.
+   */
+  it("in-domain question the bundle cannot answer → null (provider path; route reserves budget FIRST)", () => {
+    const pre = svc.preflight("u1", payload("Can you summarize my evidence metadata?") as never);
     expect(pre).toBeNull();
+  });
+
+  it("in-domain question the bundle CAN answer → answered without the provider", () => {
+    const pre = svc.preflight("u1", payload("How does the chain of custody work?") as never);
+    expect(pre).not.toBeNull();
+    expect(pre!.status).toBe("ok");
   });
 
   it("analyzeChat still delegates through preflight (no duplicated logic)", async () => {

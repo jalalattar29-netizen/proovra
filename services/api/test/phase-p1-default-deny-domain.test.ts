@@ -83,9 +83,36 @@ describe("P1 — refused requests NEVER call the provider (runtime proof)", () =
       expect(result.summary.length).toBeGreaterThan(20);
     });
   }
-  it("in-scope request DOES reach the provider", async () => {
+  /*
+   * The question here used to be "How do I capture evidence?".
+   *
+   * That stopped reaching the provider once `answerProductKnowledge` grew from
+   * pricing-only to a set of grounded product topics — capture among them. The
+   * short-circuit is deliberate: the answer is a fixed property of the product,
+   * so serving it locally costs nothing, sends nothing outbound, and works with
+   * AI switched off. Asserting that it still reached OpenAI would be asserting
+   * a defect.
+   *
+   * What this test exists to prove is unchanged and still proven: a request the
+   * classifier ALLOWS but the bundle cannot answer must reach the provider, so
+   * that default-deny is a gate and not an accidental blanket refusal. The
+   * question below is in scope and ungrounded.
+   */
+  it("an in-scope request the bundle cannot answer DOES reach the provider", async () => {
     const { svc, calls } = chatServiceWithSpy();
-    await svc.analyzeChat("u1", { messages: [{ role: "user", content: "How do I capture evidence?" }] } as never);
+    await svc.analyzeChat("u1", {
+      messages: [{ role: "user", content: "Can you summarize my evidence metadata?" }],
+    } as never);
     expect(calls()).toBe(1);
+  });
+
+  it("an in-scope request the bundle CAN answer never reaches the provider", async () => {
+    const { svc, calls } = chatServiceWithSpy();
+    const result = await svc.analyzeChat("u1", {
+      messages: [{ role: "user", content: "How do I capture evidence?" }],
+    } as never);
+    expect(calls()).toBe(0);
+    expect(result.status).toBe("ok");
+    expect(result.summary).toMatch(/Review & Sign/);
   });
 });
