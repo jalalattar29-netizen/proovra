@@ -46,6 +46,22 @@ import {
   LAUNCHED_PERSONAL_AI_FEATURES,
   deriveAiSettingsMode,
 } from "../../../../lib/ai/aiAssistanceView";
+import type { AiAssistanceStatus } from "../../../../lib/ai/assistanceStatus";
+import { AiStatusRow } from "./AiStatusRow";
+
+/**
+ * The API's resolved answer to "would an AI request succeed right now".
+ *
+ * Bounded and user-safe: never a decision code, never a variable name. It is
+ * produced by the same evaluator that gates every provider call, so this page
+ * cannot disagree with enforcement. Optional because an older API build will
+ * not send it — absent means "say nothing" rather than "claim available".
+ */
+type Assistance = {
+  status: AiAssistanceStatus;
+  available: boolean;
+  enabled: boolean;
+};
 
 type Policy = {
   aiEnabled: boolean;
@@ -66,6 +82,7 @@ type PolicyEnvelope = {
   policy: Policy;
   version: number;
   hasExplicitPolicy: boolean;
+  assistance?: Assistance;
   lastModifiedByUserId: string | null;
   lastModifiedAtUtc: string | null;
 };
@@ -236,6 +253,13 @@ export function AiSection() {
   // ---------------------------------------------------------------------
   if (mode === "personal-not-included") {
     return (
+      <>
+      <AiStatusRow
+        status="NOT_INCLUDED_IN_PLAN"
+        enabled={false}
+        workspaceKind={isOrg ? "ORGANIZATION" : "PERSONAL"}
+        canManage={false}
+      />
       <section className="set-card" data-cc-ai-not-included>
         <p style={muted}>
           AI assistance is not included in your plan. Plans with AI
@@ -250,6 +274,7 @@ export function AiSection() {
           </Link>
         </div>
       </section>
+      </>
     );
   }
 
@@ -284,6 +309,16 @@ export function AiSection() {
         {/* PHASE 7 §10.5 — AI policy is workspace-scoped; show the owning
             workspace/org so a policy change lands in the intended context. */}
         <WorkspaceContextBanner action="AI settings for" />
+        {/* The effective answer, before any switch. The toggles below say what
+            is SET; this says whether it would work. */}
+        {envelopeState?.assistance ? (
+          <AiStatusRow
+            status={envelopeState.assistance.status}
+            enabled={envelopeState.assistance.enabled}
+            workspaceKind={isOrg ? "ORGANIZATION" : "PERSONAL"}
+            canManage
+          />
+        ) : null}
         <p style={{ ...muted, maxWidth: 680 }}>
           Control the AI-assisted features available in your Personal Space.
           AI provides advisory support only and never determines truth,
@@ -574,6 +609,14 @@ function OrgAiView({
         style={{ display: "grid", gap: 14, maxWidth: 860 }}
         data-cc-ai-org={mode}
       >
+        {envelopeState?.assistance ? (
+          <AiStatusRow
+            status={envelopeState.assistance.status}
+            enabled={envelopeState.assistance.enabled}
+            workspaceKind="ORGANIZATION"
+            canManage={canEdit}
+          />
+        ) : null}
         <p style={{ ...muted, maxWidth: 720 }}>
           {canEdit
             ? "Organization-level AI policy for this workspace. Disabling a capability immediately prevents backend provider calls — enforcement is server-side. AI stays advisory: it never determines truth, authenticity, or admissibility."

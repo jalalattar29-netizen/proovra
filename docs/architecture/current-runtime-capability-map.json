@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "72402cd801880f6d11ca3188370f7bb071af1ec7a2266e082d9a2966171dc4bc",
-  "consumerInventoryHash": "08be373e3d2951316087e23834b0334dd0de4d4b93bcfda38ae604a91a127505",
+  "consumerInventoryHash": "3a0c2622298590fd373e04fce4138a26638a5fced6ca32a7d9a37169b35da598",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1124,
@@ -6135,7 +6135,7 @@
       "method": "GET",
       "route": "/v1/teams/:id",
       "registeringFile": "services/api/src/routes/teams.routes.ts",
-      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:148",
+      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:165",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -6255,7 +6255,7 @@
       "method": "GET",
       "route": "/v1/teams/ai-policy",
       "registeringFile": "services/api/src/routes/workspace-ai-policy.routes.ts",
-      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:148",
+      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:165",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6267,7 +6267,7 @@
       "method": "GET",
       "route": "/v1/teams/ai-usage",
       "registeringFile": "services/api/src/routes/workspace-ai-policy.routes.ts",
-      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:160",
+      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:177",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13743,7 +13743,7 @@
       "method": "PUT",
       "route": "/v1/teams/ai-policy",
       "registeringFile": "services/api/src/routes/workspace-ai-policy.routes.ts",
-      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:195",
+      "productConsumer": "apps/web/app/(app)/settings/_sections/AiSection.tsx:212",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -108465,7 +108465,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
-          "line": 148,
+          "line": 165,
           "caller": "AiSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -108473,7 +108473,7 @@
         },
         {
           "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
-          "line": 160,
+          "line": 177,
           "caller": "AiSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -108507,7 +108507,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:148 (AiSection, WEB); apps/web/app/(app)/settings/_sections/AiSection.tsx:160 (AiSection, WEB); apps/web/app/(app)/teams/[id]/page.tsx:525 (TeamDetailPageBody, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:165 (AiSection, WEB); apps/web/app/(app)/settings/_sections/AiSection.tsx:177 (AiSection, WEB); apps/web/app/(app)/teams/[id]/page.tsx:525 (TeamDetailPageBody, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109100,7 +109100,7 @@
       "method": "GET",
       "path": "/v1/teams/ai-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workspace-ai-policy.routes.ts:102",
+      "registrationEvidence": "services/api/src/routes/workspace-ai-policy.routes.ts:105",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -109113,7 +109113,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
-          "line": 148,
+          "line": 165,
           "caller": "AiSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109131,7 +109131,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:148 (AiSection, WEB); apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:61 (AiCapabilityStatusTable, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:165 (AiSection, WEB); apps/web/components/ai-copilot/AiCapabilityStatusTable.tsx:61 (AiCapabilityStatusTable, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109172,7 +109172,7 @@
       "method": "GET",
       "path": "/v1/teams/ai-usage",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workspace-ai-policy.routes.ts:125",
+      "registrationEvidence": "services/api/src/routes/workspace-ai-policy.routes.ts:155",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -109185,7 +109185,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
-          "line": 160,
+          "line": 177,
           "caller": "AiSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109195,7 +109195,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:160 (AiSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:177 (AiSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151519,7 +151519,7 @@
       "method": "PUT",
       "path": "/v1/teams/ai-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workspace-ai-policy.routes.ts:202",
+      "registrationEvidence": "services/api/src/routes/workspace-ai-policy.routes.ts:232",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -151532,7 +151532,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/settings/_sections/AiSection.tsx",
-          "line": 195,
+          "line": 212,
           "caller": "AiSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -151542,7 +151542,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:195 (AiSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/AiSection.tsx:212 (AiSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

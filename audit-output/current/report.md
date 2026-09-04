@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | e86609ae90c705ac2edf995f42e41f559e15963d74f80cf107e0a20db1249435 |
+| engineHash    | b216569b6ace48a72987864c3c9843c1438405402280fc8a1bc087c16373172d |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -123,7 +123,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | AmbiguousReportRoles                       | 0     |
 | Phase0ChangedPathsFromManualDeclaration    | 0     |
 | UndeclaredPhase0ChangedPaths               | 0     |
-| Phase0ChangedPathClassificationMissing     | 1     |
+| Phase0ChangedPathClassificationMissing     | 2     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
@@ -200,6 +200,7 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
+- CHANGED PATH WITH NO CLASSIFICATION: apps/web/next-env.d.ts
 - CHANGED PATH WITH NO CLASSIFICATION: apps/web/tsconfig.json
 
 ### Product closure

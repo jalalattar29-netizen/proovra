@@ -13,6 +13,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
+import { projectAiAssistance } from "../services/ai/ai-assistance-projection.js";
+
 import type { Permission } from "@proovra/shared";
 
 import { prisma } from "../db.js";
@@ -26,6 +28,7 @@ import { resolveCommercialContext } from "../services/billing/commercial-context
 import {
   DEFAULT_WORKSPACE_AI_POLICY,
   WorkspaceAiPolicyVersionConflictError,
+  evaluateWorkspaceAiPolicy,
   getWorkspaceAiPolicyRow,
   resolveWorkspaceAiPolicy,
   upsertWorkspaceAiPolicy,
@@ -110,6 +113,30 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
       const resolved = await resolveWorkspaceAiPolicy(query.teamId);
       const row = await getWorkspaceAiPolicyRow(query.teamId);
       const capabilities = await resolveAiCapabilityDisclosure(query.teamId);
+
+      /*
+       * THE EFFECTIVE STATUS, RESOLVED HERE RATHER THAN IN THE BROWSER.
+       *
+       * The policy row above says what an administrator has SET. It does not
+       * say whether an AI request would succeed: the platform gate runs first
+       * and can deny before the workspace's own switches are consulted.
+       *
+       * Settings previously rendered the row alone, so a deployment with no
+       * provider configured showed "AI assistance" enabled with green toggles
+       * while every request in the product returned unavailable. Sending the
+       * evaluator's own answer removes the client's need to reason about
+       * policy at all — it renders a bounded status, and cannot reach a
+       * different conclusion from the gate that actually enforces it.
+       *
+       * SUPPORT_CHAT / METADATA is the right probe: it is the least-privileged
+       * advisory operation, so a denial here means no AI operation would pass.
+       */
+      const decision = await evaluateWorkspaceAiPolicy({
+        teamId: query.teamId,
+        feature: "SUPPORT_CHAT",
+        dataClass: "METADATA",
+      });
+
       return reply.code(200).send({
         policy: resolved,
         version: row?.policyVersion ?? DEFAULT_WORKSPACE_AI_POLICY.policyVersion,
@@ -117,6 +144,9 @@ export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
         lastModifiedByUserId: row?.updatedByUserId ?? null,
         lastModifiedAtUtc: row?.updatedAt ?? null,
         capabilities,
+        // Bounded and user-safe: never a decision code, an environment
+        // variable name, or a provider name. See ai-assistance-projection.ts.
+        assistance: projectAiAssistance(decision, resolved),
       });
     },
   );
