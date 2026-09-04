@@ -12,46 +12,52 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 258,
-    "classifiedMigrations": 258,
+    "filesystemMigrations": 260,
+    "classifiedMigrations": 259,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 258,
-    "holds": true
+    "productionSnapshotUnknown": 260,
+    "holds": false
   },
   "metrics": {
-    "filesystemMigrations": 258,
-    "classifiedMigrations": 258,
+    "filesystemMigrations": 260,
+    "classifiedMigrations": 259,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 258,
+    "productionSnapshotUnknown": 260,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 41,
+      "EXPAND": 42,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
-      "REPAIR": 4
+      "REPAIR": 4,
+      "UNCLASSIFIED": 1
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 50,
+      "SAFE_TO_APPLY_NOW": 51,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
-      "WAIT_FOR_RUNTIME_CUTOVER": 1
+      "WAIT_FOR_RUNTIME_CUTOVER": 1,
+      "UNKNOWN": 1
     },
-    "MigrationInventoryUnknown": 0,
-    "UnclassifiedMigrations": 0,
+    "MigrationInventoryUnknown": 1,
+    "UnclassifiedMigrations": 1,
     "UnknownDependencies": 0,
-    "UnknownReleaseWave": 0,
+    "UnknownReleaseWave": 1,
     "ConditionlessContractDrops": 0,
     "MigrationInventoryDuplicates": 0,
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 258
+    "ProductionMigrationStateUnknown": 260
   },
-  "gateFailures": [],
+  "gateFailures": [
+    "UNCLASSIFIED: 20280125000000_intake_customer_id has no curated classification",
+    "UNKNOWN_RELEASE_WAVE: 20280125000000_intake_customer_id",
+    "NO_EVIDENCE: 20280125000000_intake_customer_id carries no classification evidence"
+  ],
   "migrations": [
     {
       "name": "20260131235343_init",
@@ -20202,8 +20208,150 @@
       "evidence": "ONE ACTIVE BREAK-GLASS GRANT PER (ORGANIZATION, EMERGENCY USER). Creates a single partial unique index, `emergency_access_grants_active_org_user_uk`, over columns that already exist. No table, column, type or constraint is added, altered or dropped, and no row is read, written or deleted.  WHY IT IS NEEDED: `activateBreakGlass` created unconditionally. Measured against a live fixture, four simultaneous activations — each carrying its own genuinely approved, single-use step-up challenge — produced FOUR overlapping ACTIVE grants for the same organization and the same emergency user. Every one was individually authorized, so this is not an authorization hole; it is an operational one. The staff console lists live emergency access over a customer's data, and revoking the grant an operator can see leaves three they cannot. Emergency access that survives its own revocation is the exact failure mode break-glass exists to bound.  WHY THE DATABASE AND NOT THE SERVICE: a read-then-create cannot close it. Two callers both read 'none active' and both create. The exclusion has to be an index.  WHY PARTIAL: only ACTIVE rows are exclusive. Revoked and expired grants are history and must accumulate freely — a full unique index would make it impossible to grant emergency access to the same person twice, ever.  SAFE BEFORE CODE DEPLOYMENT: the index only forbids a state the product already treats as invalid, and the previous image never intentionally created overlapping ACTIVE grants. A deployment still running that image continues to work; a concurrent duplicate now fails at the database instead of silently succeeding, and the service translates that collision into a typed BREAK_GLASS_ALREADY_ACTIVE 409 rather than a 500.  BEHAVIOUR ON A DIRTY DATABASE: a database already holding overlapping ACTIVE grants cannot build this index and the deploy stops, by design. Converging live emergency access is an operator decision about who currently holds privilege over customer data, not something a migration should do unattended, so the migration RAISEs and names the conflicting group count rather than skipping silently — a silent skip would leave the invariant unenforced on precisely the database that needed it.  COLUMN GUARD: the index is preceded by an information_schema existence check naming `organization_id`, `emergency_user_id` and `status` literally, because it indexes columns this migration does not create — the failure class the Phase O gate exists to prevent.  HOLDS NO SECRET: an index over two foreign keys and a status string.  REHEARSED against live PostgreSQL 16: applies on a clean database and on a database already carrying the full migration history, converging on an identical partial index in both."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280125000000_intake_customer_id",
       "order": 257,
+      "sqlPresent": true,
+      "byteLength": 1311,
+      "checksumSha256": "b15c75e371ecab8dd40ce6691c1f1a93d66260595af95b9ae2b8995fbbbf99b5",
+      "checksumSha256Raw": "b15c75e371ecab8dd40ce6691c1f1a93d66260595af95b9ae2b8995fbbbf99b5",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": null,
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:2 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence",
+          "workflow_intake_links"
+        ],
+        "addedColumns": [
+          "customer_id",
+          "intake_customer_id"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "evidence_team_id_intake_customer_id_idx",
+          "workflow_intake_links_team_id_customer_id_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init",
+        "20260516180000_add_workflow_intake_links_phase4"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": null,
+      "requiresBackfill": null,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": null,
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": null
+    },
+    {
+      "name": "20280210000000_admin_audit_identity_contract",
+      "order": 258,
+      "sqlPresent": true,
+      "byteLength": 2614,
+      "checksumSha256": "cea367f927325dacaaf3bd7b0c0e5aa3819855607407c5a7b737c03682cce19c",
+      "checksumSha256Raw": "cea367f927325dacaaf3bd7b0c0e5aa3819855607407c5a7b737c03682cce19c",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:9 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "admin_audit_logs"
+        ],
+        "addedColumns": [
+          "actor_authority",
+          "actor_display",
+          "actor_type",
+          "event_version",
+          "previous_state",
+          "reason_code",
+          "requested_state",
+          "resulting_state",
+          "target_display"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "admin_audit_logs_actor_type_created_at_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260404180000_admin_audit_log"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "THE ADMIN AUDIT IDENTITY AND TRANSITION CONTRACT. Adds nine nullable columns to admin_audit_logs — actor_type, actor_display, actor_authority, target_display, previous_state, requested_state, resulting_state, reason_code, event_version — and one index on (actor_type, created_at). No existing column is altered or dropped, no existing row is read, written or deleted.  WHY IT IS NEEDED: user_id alone could not answer \"who acted\". It is NULL for every automated event, so a scheduled worker and an unattributed action were the same row shape; it recorded no authority, so an action taken as platform staff looked like one taken as a workspace member; and it resolved through a live join, so a record stopped being readable exactly when it matters most — after the account is renamed, anonymised or deleted. Nor could the row answer \"what changed\": one outcome column with three values and no state fields, so a refused request and a successful one differed by a word, and neither said what was asked for or what storage now holds.  EXPAND-ONLY AND SAFE BEFORE CODE DEPLOYMENT: every column is nullable and no backfill runs. A deployment still on the previous image writes NULL into all nine and continues unchanged; the reader presents a NULL actor_type as UNKNOWN_LEGACY, which is the honest answer for a row written before the contract existed, and is not a claim about who acted.  WHY NO BACKFILL: an audit trail is append-only. Historical rows do not carry the identity these columns record, and inventing plausible values would be fabricating an account of who did what — the one thing this table exists not to do. Their hashes also legitimately cover the values they were written with, so an UPDATE would invalidate them.  EVENT_VERSION DEFAULTS TO 1: existing rows describe themselves as the pre-contract shape without an UPDATE touching a single one. New rows are written as 2.  HASHING: these columns are bound into chain V4 (services/api/src/lib/admin-audit-chain.ts). V1-V3 rows are never rehashed and still verify with the algorithm of their own chain_version; the chain links across versions through prev_hash, exactly as it already does for V1→V2→V3. An attribution field that verification did not cover would be worse than an absent one — it would look authoritative and remain editable.  THE INDEX: separating operator actions from automated ones is the first question asked of an audit trail during an incident, and actor_type is created BY THIS MIGRATION, so the index needs no information_schema guard — it cannot reference a column that does not exist.  HOLDS NO SECRET: a safe display label, an authority name, state names and a reason code. The display label is a display name, or a MASKED email when the account has none; the raw address is never copied into the trail.  REHEARSED against live PostgreSQL 16: applies on a clean database (260 migrations, from zero) and on a database already carrying the previous schema with 25 historical rows, converging on identical schema in both. Row conservation proven 25 → 25, every historical row keeping NULL identity, event_version 1 and its original hash."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 259,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
