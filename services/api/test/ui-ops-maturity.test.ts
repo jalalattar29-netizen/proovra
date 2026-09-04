@@ -258,7 +258,9 @@ describe("AppSidebarV2 — IA + operational badges", () => {
     // canonical casing in routeRegistry and are covered by the registry's
     // own contract tests.)
     expect(navConfig).toMatch(/label: "Workspaces"/);
-    expect(navConfig).toMatch(/label: "Billing"/);
+    expect(navConfig).toMatch(// The registry label was normalised to the canonical Settings name
+      // ("Billing & plan") so one feature stops answering to two names.
+      /label: "Billing(?: & plan)?"/);
     expect(navConfig).toMatch(/label: "Integrations"/);
   });
 

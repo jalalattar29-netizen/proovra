@@ -21,6 +21,7 @@ import {
   PALETTE_DEFAULT_ROUTE_IDS,
 } from "../lib/navigation/paletteModel";
 import { ROUTE_REGISTRY } from "../lib/navigation/routeRegistry";
+import { resolveRouteAccess } from "../lib/navigation/routeAccessResolver";
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const byId = (id: string) => {
@@ -239,4 +240,56 @@ test("locked surfaces are still named, so the page stays discovery", () => {
   // The access resolver keeps organization-only routes nav-visible on purpose.
   // Collapsing them must not mean hiding what they are.
   assert.match(TOOLS, /data-all-tools-locked-names/);
+});
+
+// ===========================================================================
+// /tools VISIBILITY — the registry is the one authority
+// ===========================================================================
+test("All Tools is platform-admin only, and the registry says so", () => {
+  /*
+   * The sidebar, the route gate, the access gate and both palette fallbacks
+   * had already been changed to treat /tools as internal — each carrying the
+   * comment "/tools is INTERNAL (notFound for non-admins)". The registry still
+   * said ACCOUNT_SETTINGS_VIEW + NONE, which every authenticated user
+   * satisfies, so the one authority disagreed with every consumer of it: the
+   * palette kept offering "All Tools" to a personal FREE account.
+   */
+  const t = byId("workspace.tools");
+  assert.equal(t.requiredActiveSpace, "PLATFORM_ADMIN");
+});
+
+test("a non-admin cannot see All Tools in the palette corpus", () => {
+  // The resolver's PLATFORM_ADMIN branch returns canSeeNav:false, which is
+  // what removes it from the corpus — no second isPlatformAdmin check needed.
+  const access = resolveRouteAccess({
+    route: byId("workspace.tools"),
+    activeSpaceType: "PERSONAL",
+    isPlatformAdmin: false,
+    capabilities: { ACCOUNT_SETTINGS_VIEW: true },
+    accountPlan: null,
+    isEnterpriseWorkspace: false,
+    planFeatures: null,
+  } as never);
+  assert.equal(access.canSeeNav, false, "must not enter the palette corpus");
+  assert.equal(access.canLoad, false, "and the route gate must deny it");
+});
+
+test("a platform admin still gets it", () => {
+  const access = resolveRouteAccess({
+    route: byId("workspace.tools"),
+    activeSpaceType: "PERSONAL",
+    isPlatformAdmin: true,
+    capabilities: {},
+    accountPlan: null,
+    isEnterpriseWorkspace: false,
+    planFeatures: null,
+  } as never);
+  assert.equal(access.canSeeNav, true);
+  assert.equal(access.canLoad, true);
+});
+
+test("Reviewer Criteria stays gated — the tools change did not widen it", () => {
+  assert.deepEqual(byId("workspace.reviewer_criteria").requiredCapabilities, [
+    "REVIEWER_OPS_VIEW",
+  ]);
 });

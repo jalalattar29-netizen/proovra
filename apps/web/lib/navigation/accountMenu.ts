@@ -193,30 +193,31 @@ export function resolveAccountMenu(input: AccountMenuInput): AccountMenuModel {
   // ---------------------------------------------------------------------------
   // Section 1 — account management.
   //
-  // Account Settings / Security / Notification Preferences all resolve to the
-  // unified /settings surface (anchors into its sections); they are gated as a
-  // group on the /settings route loading. Billing resolves to its own route.
+  // ONE Settings entry, not three anchors into the same page.
+  //
+  // This section used to push "Account settings", "Security" and "Notification
+  // preferences" — three rows whose hrefs were `/settings`,
+  // `/settings#security` and `/settings#notifications`. One destination,
+  // three doors, and the menu grew a Settings rail of its own: the deeper the
+  // Settings navigation got, the more candidates there were to promote here,
+  // and the taller the dropdown became.
+  //
+  // Settings already has a navigation rail listing every section, and the
+  // command palette already finds those sections directly ("Settings ·
+  // Security"). The account menu's job is identity and context, so it carries
+  // ONE way into Settings and lets Settings do the rest.
+  //
+  // Billing keeps its own row: `/billing` is a different route, not a tab, and
+  // a commercial destination worth reaching in one step.
   // ---------------------------------------------------------------------------
   const account: AccountMenuLink[] = [];
 
   if (routeLoads("account.settings", input)) {
     account.push({
       id: "account.settings",
-      label: "Account settings",
+      label: "Settings",
       href: "/settings",
       iconKey: "settings",
-    });
-    account.push({
-      id: "account.security",
-      label: "Security",
-      href: "/settings#security",
-      iconKey: "security",
-    });
-    account.push({
-      id: "account.notifications",
-      label: "Notification preferences",
-      href: "/settings#notifications",
-      iconKey: "notifications",
     });
   }
 

@@ -220,17 +220,20 @@ describe("Phase ROUTE-FIX — sidebar / account-menu projection", () => {
     expect(sidebarIds).toContain("admin.settings");
   });
 
-  it("client account resolver exposes account settings / security / notifications / billing — and NO pricing (account-menu refactor 2026-07-21)", () => {
-    // The server-side account-menu projection is now always empty; the menu is
-    // resolved on the client. Assert the canonical account-management items
-    // live in the client resolver and that Pricing is gone.
+  it("client account resolver exposes Settings + Billing — and NO pricing", () => {
+    /*
+     * This asserted four ids: settings, security, notifications, billing.
+     * The middle two resolved to `/settings#security` and
+     * `/settings#notifications` — the SAME page as the first, reached by
+     * anchor — so the account menu carried three doors into one destination
+     * and grew a Settings rail of its own.
+     *
+     * Settings lists its own sections, and the command palette finds them
+     * directly ("Settings · Security"). Billing keeps its row: /billing is a
+     * different route, not a tab.
+     */
     const resolver = readAccountResolverSource();
-    for (const id of [
-      "account.settings",
-      "account.security",
-      "account.notifications",
-      "account.billing",
-    ]) {
+    for (const id of ["account.settings", "account.billing"]) {
       expect(resolver, `missing ${id} in client resolver`).toContain(
         `id: "${id}"`,
       );

@@ -85,23 +85,40 @@ function allHrefs(model: ReturnType<typeof resolveAccountMenu>): string[] {
 // 1. Section 1 — canonical order + destinations.
 // ---------------------------------------------------------------------------
 
-test("Section 1 is Account Settings · Security · Notification Preferences · Billing", () => {
+test("Section 1 is Settings · Billing — one door into Settings, not three", () => {
+  /*
+   * This asserted four entries: Account settings, Security, Notification
+   * preferences, Billing. The middle two were `/settings#security` and
+   * `/settings#notifications` — the same page as the first, reached by anchor.
+   *
+   * One destination behind three rows made the account menu a second Settings
+   * rail, and it grew with Settings: every new section was a candidate to
+   * promote here. Settings already lists its own sections, and the command
+   * palette already finds them directly ("Settings · Security").
+   *
+   * Billing stays: `/billing` is a different route, not a tab.
+   */
   const m = resolveAccountMenu(input());
   assert.deepEqual(
     m.account.map((i) => i.id),
-    [
-      "account.settings",
-      "account.security",
-      "account.notifications",
-      "account.billing",
-    ],
+    ["account.settings", "account.billing"],
   );
+  assert.equal(m.account[0].label, "Settings");
   assert.equal(m.account[0].href, "/settings");
-  assert.equal(m.account[1].href, "/settings#security");
-  assert.equal(m.account[2].href, "/settings#notifications");
   // Billing navigates INTERNALLY to the canonical /billing route — never the
   // public marketing pages.
-  assert.equal(m.account[3].href, "/billing");
+  assert.equal(m.account[1].href, "/billing");
+});
+
+test("no account row is an anchor into a page another row already opens", () => {
+  // The rule the collapse enforces: two rows must not resolve to one page.
+  const m = resolveAccountMenu(input());
+  const pages = m.account.map((i) => i.href.split("#")[0]);
+  assert.equal(
+    new Set(pages).size,
+    pages.length,
+    `two entries share a destination: ${pages.join(", ")}`,
+  );
 });
 
 // ---------------------------------------------------------------------------

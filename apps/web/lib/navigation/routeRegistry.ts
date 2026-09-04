@@ -2254,7 +2254,34 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description: "Searchable index of every product surface.",
     domain: "ACCOUNT",
     requiredCapabilities: ["ACCOUNT_SETTINGS_VIEW"],
-    requiredActiveSpace: "NONE",
+    /*
+     * PLATFORM_ADMIN — the registry catching up with a decision the rest of
+     * the product has already made.
+     *
+     * The sidebar renders this entry only for `isPlatformAdmin`; the route
+     * gate offers "Browse all tools" only to platform admins; the access gate
+     * dropped its "Browse tools" CTA; and both command-palette fallbacks route
+     * to /home instead, each carrying the same comment — "/tools is INTERNAL
+     * (notFound for non-admins)".
+     *
+     * But the registry still said `ACCOUNT_SETTINGS_VIEW` + `NONE`, which
+     * every authenticated user satisfies. So the ONE authority that decides
+     * visibility disagreed with every consumer of it: the palette kept
+     * offering "All Tools" to a personal FREE account, and the route kept
+     * loading for them — a catalogue of enterprise governance surfaces reached
+     * only by accident, through search, with no navigation home.
+     *
+     * Setting it here rather than adding another `isPlatformAdmin` check at a
+     * fourth call site: the resolver's PLATFORM_ADMIN branch already returns
+     * `canSeeNav: false`, which removes it from the palette corpus, and
+     * `canLoad: false`, which the page gate already honours. One change, every
+     * surface agrees, and no parallel visibility system.
+     *
+     * This is an IA decision, not a security one — the surfaces it lists are
+     * each independently authorized, and hiding a catalogue never was the
+     * control.
+     */
+    requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "LOAD",
 
     advancedByDefault: true,

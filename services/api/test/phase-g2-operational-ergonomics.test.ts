@@ -252,8 +252,12 @@ describe("Phase G2 (B.6) — operational quick-jump", () => {
     );
   });
 
-  it("renders a Phase B group chip per result", () => {
-    expect(COMMAND_PALETTE).toContain("data-command-palette-group-chip");
+  it("renders the operational group per result", () => {
+    // The group is still rendered per result — as a WORD on the metadata line
+    // rather than a filled capsule. A palette row could carry three capsules
+    // at once (group, Advanced, status), so twenty rows meant up to sixty
+    // pills and the list read as a diagnostic table.
+    expect(COMMAND_PALETTE).toContain("data-command-palette-group");
     expect(COMMAND_PALETTE).toContain(
       "data-command-palette-operational-group",
     );
