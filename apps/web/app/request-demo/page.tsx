@@ -356,7 +356,7 @@ const EVALUATE_CARDS: EvaluateCard[] = [
   },
   {
     title: "AI-Assisted Workflows",
-    body: "Use AI assistance to guide evidence collection, detect missing context, prepare reviewers, and support workflow decisions without replacing human judgment.",
+    body: "Where enabled, use AI assistance to guide evidence collection, detect missing context, prepare reviewers, and support workflow decisions without replacing human judgment.",
     shows: [
       "Capture guidance",
       "Submission review assistance",

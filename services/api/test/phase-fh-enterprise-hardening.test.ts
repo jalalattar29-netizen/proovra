@@ -136,7 +136,27 @@ describe("F-1/F-2 — every provider-calling AI route reserves on the durable le
     it(`${feature} route calls tryReserveAiBudget + reconcile/release`, () => {
       const src = readSource(file);
       expect(src).toContain("tryReserveAiBudget");
-      expect(src).toContain(`feature: "${feature}"`);
+      /*
+       * The label may be a literal OR a named constant.
+       *
+       * The evidence copilot now reserves with `feature:
+       * EVIDENCE_COPILOT_OPERATION`, because that route is the one place in the
+       * product where the operation label and the governing policy switch
+       * differ — it records EVIDENCE_COPILOT and is gated by
+       * EVIDENCE_CATEGORIZATION. Deriving both from one constant is what stops
+       * the gate and the ledger naming different things; see
+       * `ai-operation-registry.ts`.
+       *
+       * What this contract is about is that the route reserves durably under
+       * its own feature identity, and that identity still has to APPEAR in the
+       * file either way — so the check is widened, not weakened.
+       * `ai-operation-identity.test.ts` pins the constant's value.
+       */
+      expect(
+        src.includes(`feature: "${feature}"`) ||
+          new RegExp(`feature: [A-Z_]*${feature}[A-Z_]*\\b`).test(src),
+        `${file} must reserve under ${feature}`,
+      ).toBe(true);
       expect(src).toContain("reconcileAiUsage");
       expect(src).toContain("releaseAiReservation");
     });

@@ -67,7 +67,7 @@ have been a false finding.
 | # | Claim | Implementation | Status |
 |---|---|---|---|
 | A | AI is advisory only | no platform mutation anywhere in the AI tree | **IMPLEMENTED — proven** |
-| B | Guide collection / detect missing context / prepare reviewers | `missingContext` is a first-class schema field in both copilots | **IMPLEMENTED, off by default** |
+| B | Guide collection / detect missing context / prepare reviewers | `missingContext` is a first-class schema field in both copilots | **IMPLEMENTED — on by default; corrected in Appendix §1** |
 | C | AI does not determine truth/authorship/identity/admissibility | prohibited-claims engine + schema with no verdict fields | **IMPLEMENTED — one gap found and fixed, §L** |
 | D | AI optional, disableable per workspace | `aiEnabled=false` → `WORKSPACE_DISABLED`, fail-closed | **IMPLEMENTED — proven** |
 | E | Metadata-first by default | default policy: raw/OCR/transcription/embeddings all `false` | **IMPLEMENTED — proven** |
@@ -88,13 +88,18 @@ have been a false finding.
 | Guide evidence collection | **IMPLEMENTED** — `/v1/ai/capture/analyze-session`, `CAPTURE_ASSISTANCE` on by default |
 | Detect missing context | **IMPLEMENTED** — `missingContext` bounded list in `ai-copilot-schemas.ts` |
 | Prepare reviewers | **IMPLEMENTED** — reviewer copilot emits observations against human-authored criteria |
-| Spot missing context before submission | **IMPLEMENTED but POLICY-DEPENDENT** — `reviewerCopilotEnabled` and `caseCopilotEnabled` default **false** |
+| Spot missing context before submission | **IMPLEMENTED** — the evidence copilot, governed by `EVIDENCE_CATEGORIZATION` (default **true**) |
 
-None is placeholder or dead code. The honest qualifier is that two of the four
-are **off until an administrator enables them**, so a workspace that has never
-touched its AI policy does not have them. That is a defensible default for a
-feature that reads case material — but the marketing copy presents them without
-that qualifier.
+None is placeholder or dead code.
+
+> **CORRECTED BY APPENDIX §1.** This section originally concluded that two of
+> the four capabilities were "off until an administrator enables them", read
+> from the `reviewerCopilotEnabled` / `caseCopilotEnabled` defaults. Tracing
+> each capability to the surface that actually delivers it shows the evidence
+> copilot emits both `missingContext` and `reviewerPreparation` and is on by
+> default. Only the deeper reviewer-ops and case copilots are off. What was
+> genuinely broader than runtime truth was the marketing copy being
+> UNCONDITIONAL, not the capability being absent.
 
 ## E. Metadata-first boundary — result
 
@@ -378,3 +383,245 @@ owner rather than a technical defect.
 
 This is not a claim that PROOVRA's AI is free of vulnerabilities. It is a
 statement of what was proven, how, and what was not reachable from here.
+
+---
+
+# Appendix — final closure of the three remaining items
+
+**Date:** 2026-09-04. Closes the items left open by the verdict above.
+
+Proof classes used below:
+
+- **CODE-PROVEN** — a property of the source, demonstrated by running it.
+- **RUNTIME-PROVEN** — observed against a booted API.
+- **EXTERNAL-EVIDENCE-REQUIRED** — cannot be established from this repository.
+- **NOT EXECUTABLE IN CURRENT ENVIRONMENT** — no approved environment exists to
+  test it, and creating one is out of scope.
+
+## 1. Conditional AI Review wording — CLOSED
+
+### A correction to the audit above
+
+The audit recorded that the advertised capabilities were "off by default"
+because `reviewerCopilotEnabled` and `caseCopilotEnabled` default to `false`.
+Tracing the capability to the surface that actually delivers it shows that was
+**too broad**.
+
+The **evidence copilot** (`/v1/ai/evidence/:id/copilot`, mounted in the UI at
+`/evidence/[id]` → Review tab) emits both `missingContext` and
+`reviewerPreparation` as first-class schema fields, and it is governed by
+`EVIDENCE_CATEGORIZATION`, which defaults **`true`**. So:
+
+| Advertised | Delivered by | Default |
+|---|---|---|
+| Guide evidence collection | `CAPTURE_ASSISTANCE` | **on** |
+| Detect missing context | evidence copilot → `EVIDENCE_CATEGORIZATION` | **on** |
+| Prepare reviewers | evidence copilot `reviewerPreparation` | **on** |
+| Spot missing context before submission | evidence copilot | **on** |
+| Deeper reviewer-ops / case review | `REVIEWER_COPILOT`, `CASE_COPILOT` | **off** |
+
+The capabilities as *worded in the marketing copy* are therefore available by
+default. Only the dedicated reviewer-ops and case copilots are off.
+
+### What was actually materially broader than runtime truth
+
+Not the capability — the **unconditionality**. Every AI capability requires:
+
+1. the platform to have a provider configured (`OPENAI_AI_ENABLED` + a key), and
+2. the workspace not to have opted out, and
+3. plan entitlement.
+
+The AI Use Policy already qualifies this — *"where configured and where enabled
+for a workspace"* — and `apps/web/app/why-proovra/page.tsx` already said
+*"where enabled"*. Four other surfaces presented the same capabilities with no
+qualifier at all.
+
+### Change made
+
+The qualifier already in the product was adopted rather than a fifth phrasing
+invented. Capability claims are unchanged; positioning is not weakened.
+
+| File | Was | Now |
+|---|---|---|
+| `components/marketing/EvidenceOperations.tsx` | "Guide evidence collection, detect missing context, and prepare reviewers." | "…, where enabled." |
+| `components/marketing/EvidenceOperations.tsx` | "AI-powered insights and guidance" | "Advisory insights and guidance, where enabled" |
+| `app/platform/page.tsx` | "Guide evidence collection, detect missing context, and prepare reviewers." | "…, where enabled." |
+| `components/marketing/EvidenceLifecycle.tsx` | "Spot missing context before submission." | "…, where enabled." |
+| `app/request-demo/page.tsx` | "Use AI assistance to guide…" | "Where enabled, use AI assistance to guide…" |
+
+No legal or policy document was edited. Status: **CODE-PROVEN**; a repository
+sweep confirms no unqualified AI capability copy remains.
+
+## 2. `EVIDENCE_COPILOT` feature identity — CLOSED
+
+### Classification: (A) naming debt, with an attribution consequence
+
+Not (B) wrong key, not (C) missing flag, not (E) dead identifier.
+
+PROOVRA has two "feature" vocabularies on different axes:
+
+- **policy feature** (`WorkspaceAiFeature`) — the switch an administrator turns
+  off; a seven-member TypeScript union.
+- **operation label** — what ran, persisted to `AiUsageEvent.feature` and
+  `AiCopilotRun.feature`. Both are `String` columns, so nothing in the type
+  system ever connected them.
+
+Six of seven labels spell the same word as their policy feature. One does not:
+the evidence copilot records `EVIDENCE_COPILOT` while its gate evaluates
+`EVIDENCE_CATEGORIZATION`.
+
+### It was never a budget bypass
+
+Established by reading the ledger rather than assuming: `resolveLedgerLimits`
+reads **workspace-level** daily/monthly operation and cost limits, and the
+rollups are keyed `workspaceId_dayUtc` / `workspaceId_monthUtc` — **no feature
+dimension anywhere**. The label has never participated in a limit decision. A
+workspace cap always applied to the evidence copilot regardless of its name.
+
+The real consequence was narrower and real: **attribution**. An operator reading
+the usage ledger saw a feature governed by a switch that does not exist.
+
+### Resolution: one mapping, not one name
+
+`services/api/src/services/ai/ai-operation-registry.ts` maps every operation to
+its governing policy switch. `ai-evidence.routes.ts` now derives the gate from
+`policyFeatureForOperation(EVIDENCE_COPILOT_OPERATION)`, and the budget reserve
+and copilot-run row use that same constant.
+
+Two tempting "tidy-ups" were rejected, deliberately:
+
+- **Renaming the label to `EVIDENCE_CATEGORIZATION`** would destroy real
+  information. They are different operations — different route, different
+  provider (structured vs advisory), different model variable, different cost —
+  and the ledger has to keep telling them apart. It would also require
+  migrating persisted historical rows.
+- **Adding an eighth policy flag** would change behaviour. A workspace that has
+  already disabled evidence AI would silently regain the copilot under a new
+  flag. A naming fix must not change what is enabled.
+
+Adding an operation without naming its governing switch is now a type error,
+which is the property that was missing.
+
+**Alignment:** gate, budget ledger, copilot-run row and telemetry all resolve
+from one constant; the recorded label stays `EVIDENCE_COPILOT`; the enforced
+switch stays `EVIDENCE_CATEGORIZATION`; fail-closed behaviour is unchanged and
+asserted in both directions.
+
+**Also noted, not changed:** `OPERATIONS_INTELLIGENCE` is a member of the
+copilot-run union with **zero producers** anywhere in the source — a dead
+identifier. Left in place per "prove zero legitimate consumers before deleting";
+the proof is recorded here, the removal is not bundled into a naming fix.
+
+Status: **CODE-PROVEN** (10 tests).
+
+## 3. Live provider validation — NOT EXECUTABLE IN CURRENT ENVIRONMENT
+
+Every environment reachable from this repository was inventoried. Reporting
+presence only, never values:
+
+| Env file | `OPENAI_AI_ENABLED` | Key | `NODE_ENV` |
+|---|---|---|---|
+| `.env` | `true` | present | **production** |
+| `services/api/.env` | `true` | present | **production** |
+| `.env.audit-local` | `false` | absent | — |
+| `infra/docker/.env` | unset | absent | — |
+| `apps/web/.env.local` | unset | absent | — |
+| fixture (`scripts/local-fixture-env`) | `false` | absent | development |
+
+**The only environments with a usable provider key are production.** There is no
+staging or sandbox environment, no non-production credential, and no safe test
+workspace. Exercising the provider would mean issuing real, billed OpenAI calls
+from a configuration that also points at the production database.
+
+Per the brief, no environment was created and no production setting was
+toggled.
+
+### What this does and does not leave unproven
+
+Everything provider-facing in the audit above is proven **at the boundary** —
+the payload that would be sent, the call count that would occur, the gate that
+runs first. What cannot be observed is the model's behaviour on the far side of
+that boundary.
+
+**Still requires a real-provider run:**
+
+1. A prohibited authenticity/admissibility claim attempted against the live
+   model, to confirm the engine catches what the model actually produces —
+   distinct from what it catches in test strings.
+2. A prompt-injection attempt end to end through a real completion.
+3. Provider refusal and content-filter handling.
+4. Basic product-help quality.
+
+Note that items 1–3 are defence-in-depth confirmations: the scope classifier
+refuses these **before** the provider (proven, call count 0), so a live run
+tests the second and third layers, not the first.
+
+**Required to execute:** an approved non-production environment with AI enabled,
+a non-production provider key, no production customer data, and a disposable
+test workspace. None exists today.
+
+## 4. No-training — EXTERNAL-EVIDENCE-REQUIRED
+
+### What the code proves
+
+- `store: false` is sent on every request from both provider paths
+  (`openAiRequestStore()` defaults false; `OPENAI_STORE` is unset everywhere).
+- **Evidence content never reaches a provider at all** (§E–G above), so the
+  claim as worded — *customer evidence content* is not used to train — is
+  code-proven for evidence content specifically. What was never sent cannot be
+  trained on.
+- The code refuses to overclaim on its own behalf:
+  `// If not explicitly declared, we do NOT claim no-training in code.`
+
+### What configuration currently proves — nothing
+
+`OPENAI_DATA_USE_MODE` is **unset in every environment, production included**,
+so `resolveDataUseMode()` returns `UNKNOWN`.
+
+The platform already detects this. In production with the mode undeclared,
+`validateProviderPrivacyConfig()` returns:
+
+```
+code:     PRIVACY_MODE_UNKNOWN
+severity: warn        (block only if AI_REQUIRE_PROVIDER_PRIVACY=true)
+message:  "...the account-level no-training mode is unverified in config."
+```
+
+So production runs today with an **unverified account-level no-training
+posture**, and the platform is logging that fact as a warning rather than
+asserting a guarantee it cannot support. That is the correct behaviour and
+should not be "fixed" by defaulting the mode to something.
+
+### Required external evidence and actions
+
+| # | Required | Who |
+|---|---|---|
+| 1 | Confirm the OpenAI **organization data-control setting** (training disabled / ZDR) for the org and project used in production | Owner / OpenAI console |
+| 2 | Once confirmed, set `OPENAI_DATA_USE_MODE=NO_TRAINING` (or `ZDR`) in production so the validator can attest it | Operator |
+| 3 | Consider `AI_REQUIRE_PROVIDER_PRIVACY=true` so an undeclared posture **blocks** the live provider instead of warning | Owner decision |
+| 4 | Retain the executed **DPA / API terms** covering the metadata that does leave (titles, statuses) | Legal |
+| 5 | Confirm `OPENAI_ORG` / `OPENAI_PROJECT` are bound so the posture applies to the right account | Operator |
+
+Nothing here can be established from this repository, and no secret was read or
+printed to determine it.
+
+## Closure status
+
+| Item | Status |
+|---|---|
+| Conditional AI Review wording | **CLOSED** — CODE-PROVEN |
+| `EVIDENCE_COPILOT` feature identity | **CLOSED** — CODE-PROVEN |
+| Live provider validation | **NOT EXECUTABLE IN CURRENT ENVIRONMENT** |
+| No-training posture | **EXTERNAL-EVIDENCE-REQUIRED** (5 actions above) |
+
+## Final verdict
+
+**AI CLOSURE: PASS WITH EXTERNAL EVIDENCE REQUIRED**
+
+Unchanged from the audit above, and unchanged for the same two reasons: the
+no-training commitment depends on a provider setting and a contract that are not
+in this repository, and no environment exists in which the live model can be
+adversarially exercised. Both remaining items are external by nature; neither is
+a code defect, and neither can be closed by writing more code.
+
+The two items that *were* closeable in this repository are closed.

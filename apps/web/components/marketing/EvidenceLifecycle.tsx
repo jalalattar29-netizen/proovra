@@ -47,7 +47,7 @@ const STAGES: Stage[] = [
   {
     n: "03",
     title: "AI Review",
-    body: "Spot missing context before submission.",
+    body: "Spot missing context before submission, where enabled.",
     Icon: BrainCircuit,
     accent: "#7C3AED",
     accentSoft: "rgba(124,58,237,0.10)",

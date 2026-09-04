@@ -46,7 +46,12 @@ const CARDS: CardSpec[] = [
   },
   {
     title: "AI Assistance",
-    body: "Guide evidence collection, detect missing context, and prepare reviewers.",
+    // "where enabled" because all three depend on the platform having an AI
+    // provider configured AND the workspace not having opted out. The
+    // capabilities are real and on by default once AI is configured; the card
+    // previously implied they were unconditional. Same phrase as
+    // why-proovra/page.tsx and the AI Use Policy.
+    body: "Guide evidence collection, detect missing context, and prepare reviewers, where enabled.",
     accent: "#7C3AED",
     accentSoft: "rgba(124,58,237,0.12)",
     Icon: Sparkles,
@@ -79,7 +84,7 @@ const CARDS: CardSpec[] = [
 
 const TRUST: { Icon: LucideIcon; title: string; body: string; color: string }[] = [
   { Icon: Link2, title: "Intake Links", body: "Secure evidence collection at scale", color: "#2563EB" },
-  { Icon: Sparkles, title: "AI Review", body: "AI-powered insights and guidance", color: "#7C3AED" },
+  { Icon: Sparkles, title: "AI Review", body: "Advisory insights and guidance, where enabled", color: "#7C3AED" },
   { Icon: Users, title: "Reviewer Workflows", body: "Built for teams and investigations", color: "#0F766E" },
   { Icon: Landmark, title: "Legal Hold", body: "Preserve what matters when it matters", color: "#047857" },
   { Icon: Calendar, title: "Retention Controls", body: "Automated policies and preservation", color: "#EA580C" },

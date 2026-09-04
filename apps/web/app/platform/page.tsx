@@ -941,7 +941,7 @@ function PlatformWorkspaceSection() {
     },
     {
       title: "AI Assistance",
-      body: "Guide evidence collection, detect missing context, and prepare reviewers.",
+      body: "Guide evidence collection, detect missing context, and prepare reviewers, where enabled.",
       pill: "Advisory only",
       icon: Sparkles,
       color: "#7C3AED",

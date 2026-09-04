@@ -36,6 +36,10 @@ import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPris
 import { persistCopilotRun } from "../services/ai/ai-copilot-run-store.service.js";
 import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
 import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.service.js";
+import {
+  policyFeatureForOperation,
+  type AiOperation,
+} from "../services/ai/ai-operation-registry.js";
 import { classifyChatScope } from "../services/ai/chat-scope-classifier.service.js";
 import { buildSuggestedAction } from "../services/ai/ai-suggested-action.service.js";
 
@@ -72,6 +76,14 @@ const EVIDENCE_SYSTEM = buildCopilotSystemPrompt("Evidence Copilot", [
   "You explain the operational state of ONE evidence record: what context is present or missing, what deterministic integrity/custody/timestamping signals exist, why a Report or Verification Package is pending, and what a reviewer should inspect.",
   "Integrity, custody, TSA, OTS, and package facts are DETERMINISTIC system state provided in the context — explain them; never contradict or invent them.",
 ]);
+
+/**
+ * This route's operation label — the value written to the usage ledger and the
+ * copilot run row, and the key the registry maps to a policy switch. One
+ * constant so the gate, the budget and the audit trail cannot name three
+ * different things.
+ */
+const EVIDENCE_COPILOT_OPERATION = "EVIDENCE_COPILOT" satisfies AiOperation;
 
 export async function aiEvidenceRoutes(app: FastifyInstance) {
   app.post("/v1/ai/evidence/:evidenceId/copilot", { preHandler: requireAuth }, async (req, reply) => {
@@ -144,8 +156,20 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       }
     }
 
+    /*
+     * The switch comes from the registry, not from a name written here.
+     *
+     * This route records its usage as `EVIDENCE_COPILOT` but is governed by
+     * `EVIDENCE_CATEGORIZATION` — the one operation in the product whose label
+     * and switch differ. Spelled out at the gate, that coupling was invisible
+     * from the usage ledger and impossible to test; derived from the registry,
+     * it is stated once and asserted.
+     */
     const policyDecision = await evaluateWorkspaceAiPolicy({
-      teamId, feature: "EVIDENCE_CATEGORIZATION", dataClass: "METADATA", userRole: membership.role,
+      teamId,
+      feature: policyFeatureForOperation(EVIDENCE_COPILOT_OPERATION),
+      dataClass: "METADATA",
+      userRole: membership.role,
     });
     // The server builds the identity from the revision it just recomputed, so
     // a client cannot buy a cache hit by sending a key from a previous state.
@@ -170,7 +194,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       return reply.code(429).send({ code: guard.code, message: "Too many AI requests; please slow down." });
     }
     const ledger = await tryReserveAiBudget({
-      teamId, userId, feature: "EVIDENCE_COPILOT",
+      teamId, userId, feature: EVIDENCE_COPILOT_OPERATION,
       model: process.env.OPENAI_EVIDENCE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
       requestId: `${requestIdentity}:${Date.now()}`,
       estimatedCostUsdMicros: 250_000n,
@@ -273,7 +297,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       status: result.status, droppedCitations: result.droppedCitations ?? 0, policyDecision: policyDecision.decision,
     });
     const run = await persistCopilotRun({
-      workspaceId: teamId, userId, feature: "EVIDENCE_COPILOT",
+      workspaceId: teamId, userId, feature: EVIDENCE_COPILOT_OPERATION,
       requestId: requestIdentity,
       model: process.env.OPENAI_EVIDENCE_COPILOT_MODEL?.trim() || "gpt-4.1-mini",
       workspacePolicyVersion: policyDecision.policyVersion,

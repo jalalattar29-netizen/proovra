@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8266,
+      "METHOD_ON_VALUE": 8267,
       "UNRESOLVED_IDENTIFIER": 1041
     },
     "MutationFixpointRounds": 9,
@@ -116279,7 +116279,7 @@
       "method": "POST",
       "path": "/v1/ai/evidence/:evidenceId/copilot",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai-evidence.routes.ts:77",
+      "registrationEvidence": "services/api/src/routes/ai-evidence.routes.ts:89",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
