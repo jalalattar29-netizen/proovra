@@ -46,6 +46,7 @@ import type { ReportTrustDecision } from "./report-v2/types.js";
 import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
 import { assertNotCommittedFixture } from "@proovra/shared-runtime";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
+import { assertWorkerSignerUsable } from "./signing/signer-control-guard.js";
 
 type VerificationEvidenceFile = {
   name: string;
@@ -2127,6 +2128,20 @@ export async function createVerificationPackage(data: {
    */
   provenanceChain?: import("@proovra/shared").ProvenanceChain | null;
 }): Promise<{ buffer: Buffer; artifactPresence: VerificationPackageArtifactPresence }> {
+  // THE SIGNING BOUNDARY for the verification package.
+  //
+  // Every package this function returns carries a signed manifest —
+  // `buildSignedManifest` -> `signPackageManifestDigest`, which reads the
+  // PACKAGE_SIGNING_KEY_ID / SIGNING_KEY_ID pair. Those two are synchronous
+  // and deep in the builder, so the check is made HERE, at the async entry
+  // that every caller reaches and before any work is done: refusing after the
+  // archive is assembled would only waste the work it took to get there.
+  //
+  // Read from the database on every call, deliberately. A package job queued
+  // before a revocation and executed after it must observe the revocation, and
+  // a process-lifetime cache is exactly how that guarantee is lost.
+  await assertWorkerSignerUsable("verification_package");
+
   await _emitPackagePipelineSpans(data.evidenceId ?? "");
   // -------------------------------------------------------------------------
   // Package mode selection.

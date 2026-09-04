@@ -34,6 +34,7 @@ import {
 } from "../../observability/otel.js";
 import {
   getCurrentActiveSigners,
+  listAllSigners,
   listStagedSigners,
   SIGNER_PROVIDERS,
   SIGNER_PURPOSES,
@@ -382,8 +383,14 @@ async function runSignerLifecycleTransition(
   }
 
   // The signer must exist. The route used to accept any string and answer 200.
-  const configured = getCurrentActiveSigners();
-  const target = configured.find((s) => s.signerId === input.signerId);
+  //
+  // Existence is checked against the FULL read model — the env-configured
+  // signers plus the staged ones — because that is what the console lists and
+  // therefore what an operator can click Retire on. Checking only the
+  // env-configured set would have made every staged signer un-transitionable
+  // while still showing it the buttons.
+  const visible = await listAllSigners({ teamId: input.teamId });
+  const target = visible.find((s) => s.signerId === input.signerId);
   if (!target) {
     return {
       ok: false,
@@ -391,6 +398,12 @@ async function runSignerLifecycleTransition(
       message: "No configured signer with that id.",
     };
   }
+
+  // Availability is a different question and is answered over a different set:
+  // only a signer the deployment can actually sign WITH counts. A staged
+  // signer is a promotable candidate, not a working one, so it must not be
+  // treated as cover for retiring the signer currently in use.
+  const configured = getCurrentActiveSigners();
 
   // LEGALITY BEFORE AVAILABILITY.
   //

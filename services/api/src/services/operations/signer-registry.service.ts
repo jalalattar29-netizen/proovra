@@ -379,8 +379,23 @@ export async function listAllSigners(
   });
 
   const staged = await listStagedSigners(input, client);
+
+  // The overlay applies to STAGED signers too. A staged signer is listed by
+  // this console with Retire and Revoke buttons, so it can be transitioned —
+  // and if the persisted state were not applied to it, it would keep reporting
+  // "staged" after being retired, which is the same "the console disagrees
+  // with the truth" defect this whole change exists to remove.
+  const stagedStates = await getSignerControlStates(staged.map((s) => s.signerId));
+
   const out: SignerRecord[] = [...active];
   for (const s of staged) {
+    const row = stagedStates.get(s.signerId);
+    const overlaidStatus =
+      row && row.status !== "ACTIVE"
+        ? row.status === "REVOKED"
+          ? ("revoked" as const)
+          : ("retired" as const)
+        : s.status;
     out.push({
       signerId: s.signerId,
       signerPurpose: s.signerPurpose,
@@ -389,12 +404,11 @@ export async function listAllSigners(
       keyVersion: s.keyVersion,
       kmsKeyArn: s.kmsKeyArn,
       algorithm: s.algorithm,
-      status: s.status,
+      status: overlaidStatus,
       activatedAtUtc: null,
       retiredAtUtc:
-        s.status === "retired" || s.status === "revoked"
-          ? s.stagedAtUtc
-          : null,
+        row?.statusChangedAtUtc?.toISOString() ??
+        (s.status === "retired" || s.status === "revoked" ? s.stagedAtUtc : null),
       lastUsedAtUtc: null,
       createdByUserId: s.stagedByUserId,
       rotatedByUserId: null,

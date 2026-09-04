@@ -48,7 +48,7 @@ import { PlatformSecurityEvents } from "./_sections/PlatformSecurityEvents";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { hasRunbook } from "../../../../lib/runbooks/slugs.generated";
+import { hasRunbook, resolveRunbookSlug } from "../../../../lib/runbooks/slugs.generated";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 
 type IncidentRow = {
@@ -370,7 +370,7 @@ export default function AdminOperationsPage() {
                 catalog never rendered, so it landed at the top of a list of
                 thirty. */}
             {r.runbookSlug && hasRunbook(r.runbookSlug) ? (
-              <Link href={`/admin/platform/runbooks/${r.runbookSlug}`}>
+              <Link href={`/admin/platform/runbooks/${resolveRunbookSlug(r.runbookSlug)}`}>
                 <Button size="sm" variant="ghost">
                   Runbook
                 </Button>

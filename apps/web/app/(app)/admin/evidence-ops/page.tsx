@@ -31,6 +31,7 @@ import { Card } from "../../../../components/ui/Card";
 import { Badge } from "../../../../components/ui/Badge";
 import { Button } from "../../../../components/ui/Button";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import { resolveRunbookSlug } from "../../../../lib/runbooks/slugs.generated";
 
 type Measured = number | null;
 
@@ -335,7 +336,7 @@ function CohortCard({ c }: { c: CohortCount }) {
         )}
         {c.runbookSlug ? (
           <Link
-            href={`/admin/platform/runbooks/${c.runbookSlug}`}
+            href={`/admin/platform/runbooks/${resolveRunbookSlug(c.runbookSlug)}`}
             className="admin-hit-link"
           >
             Runbook

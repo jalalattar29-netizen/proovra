@@ -33,7 +33,7 @@ import { RuntimeStatusBanner } from "../operational";
 // canonical `app-tabs` hero/tab structure are preserved.
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
-import { hasRunbook } from "../../lib/runbooks/slugs.generated";
+import { hasRunbook, resolveRunbookSlug } from "../../lib/runbooks/slugs.generated";
 import type { GovernanceControlPlaneEnvelope, SectionStatus } from "./types";
 
 // CR1.6 — The legacy `no_workspace` LoadState branch was removed.
@@ -903,7 +903,7 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
             <div className="cc-incident-summary">{row.safeSummary}</div>
             <div className="cc-incident-row-foot">
               {row.runbookSlug && canRunbooks && hasRunbook(row.runbookSlug) ? (
-                <Link href={`/admin/platform/runbooks/${row.runbookSlug}`}>
+                <Link href={`/admin/platform/runbooks/${resolveRunbookSlug(row.runbookSlug)}`}>
                   Runbook → {row.runbookSlug}
                 </Link>
               ) : row.runbookSlug && canRunbooks ? (

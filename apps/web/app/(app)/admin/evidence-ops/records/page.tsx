@@ -42,6 +42,7 @@ import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { resolveRunbookSlug } from "../../../../../lib/runbooks/slugs.generated";
 
 type RecordRow = {
   id: string;
@@ -350,7 +351,7 @@ export default function AdminEvidenceRecordsPage() {
               </Badge>
               {r.runbookSlug ? (
                 <Link
-                  href={`/admin/platform/runbooks/${r.runbookSlug}`}
+                  href={`/admin/platform/runbooks/${resolveRunbookSlug(r.runbookSlug)}`}
                   style={{ fontSize: 12.5 }}
                 >
                   Runbook

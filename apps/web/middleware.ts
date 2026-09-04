@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { RUNBOOK_SLUGS } from "./lib/runbooks/slugs.generated";
+import { resolveRunbookSlug } from "./lib/runbooks/slugs.generated";
+import { resolveRunbookAccessForRequest } from "./lib/runbooks/request-authorization";
 
 /** `/admin/platform/runbooks/<slug>` — the detail route, not the index. */
 const RUNBOOK_DETAIL_PATH = /^\/admin\/platform\/runbooks\/([^/]+)\/?$/;
@@ -232,7 +233,7 @@ function getHost(baseUrl: string | null) {
   }
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   try {
     const isProd = process.env.NODE_ENV === "production";
 
@@ -249,29 +250,65 @@ export function middleware(req: NextRequest) {
     const host = req.headers.get("host");
     const pathname = req.nextUrl.pathname;
 
-    // ── Unknown runbook slug → a REAL 404, before anything renders ──────────
+    // ── The runbook boundary: real statuses, before anything renders ────────
     //
-    // `/admin/platform/runbooks/[slug]` used to get this from
-    // `dynamicParams = false`: an unlisted param was rejected at the routing
-    // layer, which is a true 404 status and never mounts the console shell.
+    // Three separate defects were being answered in one place, and they have
+    // to be answered HERE because middleware runs before routing and is the
+    // last point at which the status line is still ours to set.
     //
-    // That page now authorizes per request (it reads `cookies()`), so it is
-    // dynamically rendered and the static param list no longer gates it. A
-    // dynamic page under the (app) layout cannot answer 404 — the layout has
-    // already streamed and the status line is spent — which is exactly the
-    // trade-off the page's own header documented.
+    // 1. STATUS. The page authorizes per request, but a dynamic page under the
+    //    (app) layout has already streamed by the time it decides, so the best
+    //    it could do was render an empty shell with HTTP 200. A monitor, a
+    //    link checker and a CDN all read that as success. Anonymous now gets
+    //    401 and an authenticated caller without the capability gets 403 — for
+    //    the HTML, the RSC payload and the prefetch alike, because this runs
+    //    before any of them are produced.
     //
-    // Middleware runs BEFORE routing, so the status is still ours to set.
-    // Rewriting to a path with no route yields Next's own 404 handling with a
-    // genuine 404 status, which is what the page did before and what link
-    // checkers and uptime monitors read. The membership test is deliberately
-    // the CANONICAL slug set only: aliases 404 here exactly as they do today,
-    // so this change fixes the status regression and nothing else.
+    // 2. ALIASES. `hasRunbook()` accepts an alias, so surfaces rendered a
+    //    Runbook button and built its href from the RAW slug, while the route
+    //    only ever knew canonical names. Every one of those buttons was a 404
+    //    mid-incident. `resolveRunbookSlug()` existed for exactly this and was
+    //    called from no production file. An alias is now rewritten to its
+    //    canonical path, so old links and bookmarks resolve too.
+    //
+    // 3. UNKNOWN SLUGS stay a genuine 404 — the property the page's own header
+    //    documented and the reason it used `dynamicParams = false`.
+    //
+    // The capability is resolved from the SAME authority every other surface
+    // reads, and every non-grant path fails closed: a content boundary that
+    // opens when its authority is unreachable is not a boundary.
     const runbookSlug = RUNBOOK_DETAIL_PATH.exec(pathname)?.[1];
-    if (runbookSlug !== undefined && !RUNBOOK_SLUGS.has(runbookSlug)) {
-      const target = req.nextUrl.clone();
-      target.pathname = "/not-found";
-      return NextResponse.rewrite(target);
+    if (runbookSlug !== undefined) {
+      const canonical = resolveRunbookSlug(decodeURIComponent(runbookSlug));
+      if (canonical === null) {
+        const target = req.nextUrl.clone();
+        target.pathname = "/not-found";
+        return NextResponse.rewrite(target);
+      }
+
+      const access = await resolveRunbookAccessForRequest(req);
+      if (access !== "AUTHORIZED") {
+        // Deny with a status, and with a body that carries no runbook text —
+        // not the runbook's title, not its summary, not its slug.
+        return new NextResponse(
+          access === "UNAUTHENTICATED"
+            ? "Authentication required."
+            : "Platform administrator access is required for this document.",
+          {
+            status: access === "UNAUTHENTICATED" ? 401 : 403,
+            headers: {
+              "content-type": "text/plain; charset=utf-8",
+              "cache-control": "private, no-store, max-age=0, must-revalidate",
+            },
+          },
+        );
+      }
+
+      if (canonical !== runbookSlug) {
+        const target = req.nextUrl.clone();
+        target.pathname = `/admin/platform/runbooks/${canonical}`;
+        return NextResponse.rewrite(target);
+      }
     }
 
     // ✅ لا تسجّل CSP logs في production

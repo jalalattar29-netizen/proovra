@@ -39,6 +39,10 @@ import {
   getCurrentActiveSigners,
   type SignerRecord,
 } from "./signer-registry.service.js";
+import {
+  getEffectiveSignerStatus,
+  statusPermitsSigning,
+} from "./signer-control-state.service.js";
 
 // ---------------------------------------------------------------------------
 // Canonical payload
@@ -184,6 +188,28 @@ async function signCustodyEventInner(
       ok: false,
       code: "signer_unavailable",
       message: "No custody-event signer is currently active.",
+    };
+  }
+
+  // THE SIGNING BOUNDARY for custody attestations.
+  //
+  // This path does NOT go through `getEvidenceSigner()` — it reaches for
+  // KmsEvidenceSigner or `ed25519SignHexWithKeyPath` directly a few lines
+  // below — so the wrapper that guards evidence fingerprints does not cover
+  // it. It needs its own check, and it needs it most: `backfillCustodyAttestations`
+  // loops this function over a batch, so an unguarded path here would re-sign
+  // an entire workspace's custody history with a signer an operator had
+  // revoked. `pickCurrentCustodySigner` only reports what the ENVIRONMENT
+  // configures; the persisted control state is what says whether it may
+  // still be used.
+  //
+  // Read per event, from the database: a backfill that began before a
+  // revocation must stop at the next event rather than run to completion.
+  if (!statusPermitsSigning(await getEffectiveSignerStatus(signer.signerId))) {
+    return {
+      ok: false,
+      code: "signer_unavailable",
+      message: "The custody-event signer has been retired or revoked.",
     };
   }
   const canonical = buildCanonicalPayload({

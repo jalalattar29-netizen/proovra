@@ -61,7 +61,7 @@ import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { CommandCenterQuickActions } from "./CommandCenterQuickActions";
 import { WorkflowOperationsSection } from "./_sections/WorkflowOperationsSection";
 import { RuntimeStatusBanner } from "../operational";
-import { hasRunbook } from "../../lib/runbooks/slugs.generated";
+import { hasRunbook, resolveRunbookSlug } from "../../lib/runbooks/slugs.generated";
 import type {
   AuditReadinessCounter,
   CaseOperationsItem,
@@ -4503,7 +4503,7 @@ function IncidentsSection({
               // them to Operations.
               const incidentHref =
                 i.runbookSlug && canRunbooks && hasRunbook(i.runbookSlug)
-                  ? `/admin/platform/runbooks/${i.runbookSlug}`
+                  ? `/admin/platform/runbooks/${resolveRunbookSlug(i.runbookSlug)}`
                   : "/operations";
               const incidentBody = (
                 <>
