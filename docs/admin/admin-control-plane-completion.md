@@ -319,8 +319,8 @@
 | `/admin/dashboard` | 886 | 11c/3t/8s |  |
 | `/admin/demo-requests` | 1314 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 522 | 5c/0t/0s |  |
-| `/admin/evidence-ops` | 747 | 4c/0t/7s | HARDCODED_STATUS_HEX |
-| `/admin/evidence-ops/records` | 547 | 2c/1t/0s |  |
+| `/admin/evidence-ops` | 748 | 4c/0t/7s | HARDCODED_STATUS_HEX |
+| `/admin/evidence-ops/records` | 548 | 2c/1t/0s |  |
 | `/admin/executive` | 637 | 3c/2t/7s |  |
 | `/admin/identity` | 296 | 13c/3t/7s | HARDCODED_STATUS_HEX |
 | `/admin/identity/access-reviews` | 521 | 4c/1t/1s | HARDCODED_STATUS_HEX |

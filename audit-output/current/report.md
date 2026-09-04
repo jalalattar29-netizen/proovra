@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 9b62b9c763fc371081de197b68f127f7dc5ad66f56c9b539d2d174d5c4e796f6 |
+| engineHash    | 32eb59a9a9412aa65ba93f776cad36a1ba9c2def9f9f69f7d46927f65d8a4d44 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -123,7 +123,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | AmbiguousReportRoles                       | 0     |
 | Phase0ChangedPathsFromManualDeclaration    | 0     |
 | UndeclaredPhase0ChangedPaths               | 0     |
-| Phase0ChangedPathClassificationMissing     | 1     |
+| Phase0ChangedPathClassificationMissing     | 0     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
@@ -200,8 +200,8 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- CHANGED PATH WITH NO CLASSIFICATION: apps/web/tsconfig.json
+_(none — the instrument is sound)_
 
 ### Product closure
 
-- CHECKPOINT: 3 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1123, facts say 1124 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1124, facts say 1125 | SCALAR_DISAGREES_WITH_FACTS: ProductConsumedRoutes: checkpoint says 895, facts say 896
+_(none)_
