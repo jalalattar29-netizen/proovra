@@ -212,7 +212,57 @@ function projectEmergencyGrant(row: {
     revokedAtUtc: row.revokedAtUtc?.toISOString() ?? null,
     revokedByUserId: row.revokedByUserId,
     expired: row.revokedAtUtc === null && row.expiresAtUtc.getTime() <= Date.now(),
+    /**
+     * THE STATUS AN OPERATOR SHOULD ACT ON.
+     *
+     * `status` is the STORED word, and nothing sweeps it when a grant's window
+     * simply runs out — so a lapsed grant sat in the column as ACTIVE while
+     * the `expired` boolean beside it said otherwise. One row, two answers,
+     * and a staff console that listed emergency access as live hours after it
+     * had stopped being live.
+     *
+     * The stored value is kept, because it records what a writer last decided
+     * and a REVOKED grant must never be softened into merely EXPIRED. This is
+     * the derived one, and it is what the list filters on.
+     */
+    effectiveStatus: effectiveGrantStatus(row),
   };
+}
+
+/**
+ * ACTIVE only while the window is open; otherwise EXPIRED. A revocation is a
+ * decision and outranks the clock.
+ */
+function effectiveGrantStatus(row: {
+  status: string;
+  expiresAtUtc: Date;
+  revokedAtUtc: Date | null;
+}): "ACTIVE" | "REVOKED" | "EXPIRED" {
+  if (row.status === "REVOKED" || row.revokedAtUtc !== null) return "REVOKED";
+  if (row.expiresAtUtc.getTime() <= Date.now()) return "EXPIRED";
+  return row.status === "ACTIVE" ? "ACTIVE" : "EXPIRED";
+}
+
+/**
+ * The database predicate for an EFFECTIVE status.
+ *
+ * Filtering on the stored column alone is what let `?status=ACTIVE` answer
+ * with grants whose window had closed. Expiry is a function of time, so the
+ * clock has to appear in the query rather than only in the projection.
+ */
+function grantStatusWhere(status: "ACTIVE" | "REVOKED" | "EXPIRED" | undefined, now: Date) {
+  if (status === "ACTIVE") return { status: "ACTIVE", expiresAtUtc: { gt: now } };
+  if (status === "REVOKED") return { status: "REVOKED" };
+  if (status === "EXPIRED") {
+    return {
+      OR: [
+        { status: "EXPIRED" },
+        // Never swept, but lapsed: expired in every sense that matters.
+        { status: "ACTIVE", expiresAtUtc: { lte: now } },
+      ],
+    };
+  }
+  return {};
 }
 
 export async function enterpriseSecurityRoutes(app: FastifyInstance) {
@@ -339,7 +389,8 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     const rows = await prisma.emergencyAccessGrant.findMany({
       where: {
         ...(q.organizationId ? { organizationId: q.organizationId } : {}),
-        ...(q.status ? { status: q.status } : {}),
+        // Effective status, so a lapsed grant is never answered as ACTIVE.
+        ...grantStatusWhere(q.status, new Date()),
       },
       orderBy: [{ startedAtUtc: "desc" }, { id: "desc" }],
       take: Math.min(q.limit ?? 50, 200),
