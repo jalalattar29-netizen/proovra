@@ -703,6 +703,36 @@ export async function listAdminAuditLogs(params: {
     });
   }
 
+  /*
+   * PHASE 5 §11 — composite conditions are ACCUMULATED, not spread.
+   *
+   * Two of the filters need more than one clause: UNKNOWN_LEGACY has to match
+   * both the literal and NULL, and the cursor compares (createdAt, id) as a
+   * pair. Both naturally want an `OR`, and `search` already owns the top-level
+   * `OR` key — two `OR` keys in one object literal silently collide, and the
+   * later spread wins, so a filter would vanish exactly when combined with a
+   * search. Everything composite goes through this one array instead.
+   */
+  const andConditions: Prisma.AdminAuditLogWhereInput[] = [];
+
+  if (params.actorType === "UNKNOWN_LEGACY") {
+    // A row written before the identity contract stores NULL, and the read
+    // projection presents NULL as UNKNOWN_LEGACY. Without this the API would
+    // call a row unknown-legacy and then find none when asked for them.
+    andConditions.push({
+      OR: [{ actorType: "UNKNOWN_LEGACY" }, { actorType: null }],
+    });
+  }
+
+  if (cursorRow !== null) {
+    andConditions.push({
+      OR: [
+        { createdAt: { lt: cursorRow.createdAt } },
+        { AND: [{ createdAt: cursorRow.createdAt }, { id: { lt: cursorRow.id } }] },
+      ],
+    });
+  }
+
   const where: Prisma.AdminAuditLogWhereInput = {
     ...(params.action ? { action: params.action } : {}),
     ...(params.category ? { category: params.category } : {}),
@@ -715,7 +745,18 @@ export async function listAdminAuditLogs(params: {
       ? { source: params.source.trim().slice(0, 64) }
       : {}),
     // PHASE 5 §11 — actor, tenant, correlation and time, DB-side.
-    ...(params.actorType ? { actorType: params.actorType } : {}),
+    //
+    // UNKNOWN_LEGACY is the one value that is not stored. A row written before
+    // the identity contract has actor_type NULL, and the read projection
+    // presents that as UNKNOWN_LEGACY — so a filter matching only the literal
+    // string returns NOTHING for the very rows it names. The API would be
+    // telling an operator a row IS unknown-legacy and then, when they filtered
+    // on that value, that no such rows exist.
+    //
+    // The UNKNOWN_LEGACY case is composite and lives in `andConditions` above.
+    ...(params.actorType && params.actorType !== "UNKNOWN_LEGACY"
+      ? { actorType: params.actorType }
+      : {}),
     ...(params.actorUserId ? { userId: params.actorUserId } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
     ...(params.organizationId ? { organizationId: params.organizationId } : {}),
@@ -740,23 +781,7 @@ export async function listAdminAuditLogs(params: {
           ],
         }
       : {}),
-    ...(cursorRow !== null
-      ? {
-          AND: [
-            {
-              OR: [
-                { createdAt: { lt: cursorRow.createdAt } },
-                {
-                  AND: [
-                    { createdAt: cursorRow.createdAt },
-                    { id: { lt: cursorRow.id } },
-                  ],
-                },
-              ],
-            },
-          ],
-        }
-      : {}),
+    ...(andConditions.length > 0 ? { AND: andConditions } : {}),
   };
 
   const rows = await db.adminAuditLog.findMany({

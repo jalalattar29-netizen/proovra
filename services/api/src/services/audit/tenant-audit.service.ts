@@ -261,6 +261,79 @@ function boundedLabel(value: string | null | undefined, max: number): string | n
 }
 
 /**
+ * PHASE 5 §5 — THE SNAPSHOT IS TAKEN HERE, NOT ASKED OF 232 CALL SITES.
+ *
+ * Every writer could have been edited to pass a display name. None would have
+ * stayed edited: the next audit call added anywhere in the service would omit
+ * it, and the field would rot into "sometimes populated", which is worse than
+ * absent because a blank cell would then mean two different things.
+ *
+ * So the facade resolves it once, at write time, from the actor id the caller
+ * already had to supply. That is also the only moment the CONTEMPORANEOUS
+ * value exists — the whole point of a snapshot is that it is what was true
+ * when the action happened, and a later read cannot recover it.
+ *
+ * WHAT IS STORED, AND WHAT IS NOT
+ *
+ * The display name, or a masked form of the email when there is no name. Never
+ * the raw email: §5 asks for the minimum that identifies an operator, and a
+ * full address in an append-only trail is a permanent copy of personal data
+ * that no retention job can reach. `j••••@example.com` is enough to recognise
+ * a colleague and not enough to be a mailing list.
+ *
+ * FAILURE IS NOT FATAL
+ *
+ * A snapshot lookup that fails must never stop a sensitive action from being
+ * audited — an unlabelled audit row is recoverable, a missing one is not. The
+ * lookup is wrapped and falls back to null, which renders as the honest
+ * "Unnamed operator".
+ */
+const ACTOR_SNAPSHOT_CACHE = new Map<string, string | null>();
+const ACTOR_SNAPSHOT_CACHE_MAX = 500;
+
+function maskEmailForAudit(email: string): string | null {
+  const at = email.indexOf("@");
+  if (at < 1) return null;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const head = local.slice(0, 1);
+  return `${head}${"•".repeat(Math.min(Math.max(local.length - 1, 1), 6))}@${domain}`;
+}
+
+export async function resolveActorDisplaySnapshot(
+  actorUserId: string | null,
+  db: PrismaClient,
+): Promise<string | null> {
+  if (!actorUserId) return null;
+  if (ACTOR_SNAPSHOT_CACHE.has(actorUserId)) {
+    return ACTOR_SNAPSHOT_CACHE.get(actorUserId) ?? null;
+  }
+  let label: string | null = null;
+  try {
+    const user = await db.user.findUnique({
+      where: { id: actorUserId },
+      select: { displayName: true, email: true },
+    });
+    const name = user?.displayName?.trim();
+    label = name && name.length > 0 ? name : user?.email ? maskEmailForAudit(user.email) : null;
+  } catch {
+    // An audit row without a label is recoverable. An action without an audit
+    // row is not. This never throws.
+    label = null;
+  }
+  if (ACTOR_SNAPSHOT_CACHE.size >= ACTOR_SNAPSHOT_CACHE_MAX) {
+    ACTOR_SNAPSHOT_CACHE.clear();
+  }
+  ACTOR_SNAPSHOT_CACHE.set(actorUserId, label);
+  return label;
+}
+
+/** Test seam: the cache is process-local and must not leak between cases. */
+export function __clearActorSnapshotCacheForTests(): void {
+  ACTOR_SNAPSHOT_CACHE.clear();
+}
+
+/**
  * Emit ONE tenant-audit event. Denials are audited too (with a bounded reason)
  * and MUST NOT leak record existence — pass only `denialReason`, never the
  * concealed resource's data. Runs on the caller's `db`/tx when supplied so an
@@ -309,7 +382,11 @@ export async function emitTenantAudit(
     workspaceId: env.workspaceId ?? null,
     // PHASE 5 — identity and transition, as sealed columns rather than JSON.
     actorType: deriveActorType(env),
-    actorDisplay: boundedLabel(env.actorDisplay, 160),
+    actorDisplay: boundedLabel(
+      env.actorDisplay ??
+        (await resolveActorDisplaySnapshot(env.actorUserId, db ?? defaultPrisma)),
+      160,
+    ),
     actorAuthority: boundedLabel(env.actorAuthority, 64),
     targetDisplay: boundedLabel(env.targetDisplay, 160),
     previousState: boundedLabel(env.previousState, 64),
@@ -385,7 +462,11 @@ export async function emitPlatformAudit(
     organizationId: null,
     workspaceId: null,
     actorType: deriveActorType(env),
-    actorDisplay: boundedLabel(env.actorDisplay, 160),
+    actorDisplay: boundedLabel(
+      env.actorDisplay ??
+        (await resolveActorDisplaySnapshot(env.actorUserId, db ?? defaultPrisma)),
+      160,
+    ),
     actorAuthority: boundedLabel(env.actorAuthority, 64),
     targetDisplay: boundedLabel(env.targetDisplay, 160),
     previousState: boundedLabel(env.previousState, 64),
@@ -585,6 +666,14 @@ export async function emitAdminManualAudit(
     organizationId: null, // caller CANNOT set tenant scope (no persisted authz here)
     workspaceId: null,
     requestId: input.requestId ?? null,
+    // PHASE 5 — the manual-entry arm gets the same identity as the other two.
+    // It is the arm an operator uses BY HAND, so a row with no attributable
+    // actor here would be the least explicable of all.
+    actorType: input.userId ? "HUMAN" : "UNKNOWN_LEGACY",
+    actorDisplay: boundedLabel(
+      await resolveActorDisplaySnapshot(input.userId, defaultPrisma),
+      160,
+    ),
     metadata,
     ipAddress: input.ipAddress ?? null,
     userAgent: input.userAgent ?? null,

@@ -55,6 +55,59 @@ describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
     });
   }
 
+  /**
+   * A row of the shape written BEFORE the identity contract: no actor type, no
+   * snapshot, and a complete raw address and client string.
+   *
+   * Its hash is computed with the REAL V2 hasher rather than stubbed. A stub
+   * would break chain verification for every row after it, and the tamper
+   * cases below would then pass for the wrong reason — they would be detecting
+   * this fixture rather than the edit they are meant to catch.
+   */
+  async function seedLegacyRow(action: string) {
+    const { computeAuditLogChainHash, canonicalJsonForAuditHash } = await import(
+      "../src/lib/admin-audit-chain.js"
+    );
+    const last = await prisma.adminAuditLog.findFirst({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { hash: true },
+    });
+    const createdAt = new Date();
+    const metadata = { note: "written before the identity contract" };
+    const hash = computeAuditLogChainHash({
+      chainVersion: 2,
+      userId: null,
+      action,
+      category: "tenant_audit",
+      severity: null,
+      source: null,
+      outcome: null,
+      resourceType: null,
+      resourceId: null,
+      requestId: null,
+      metadataCanonical: canonicalJsonForAuditHash(metadata),
+      createdAtIso: createdAt.toISOString(),
+      prevHash: last?.hash ?? null,
+    });
+    return prisma.adminAuditLog.create({
+      data: {
+        userId: null,
+        isPublic: true,
+        action,
+        category: "tenant_audit",
+        metadata,
+        ipAddress: "203.0.113.42",
+        userAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        hash,
+        prevHash: last?.hash ?? null,
+        chainVersion: 2,
+        eventVersion: 1,
+        createdAt,
+      },
+    });
+  }
+
   // =========================================================================
   // WHO ACTED — and what kind of thing it was.
   // =========================================================================
@@ -280,6 +333,140 @@ describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
     expect(after.actorDisplay, "the historical snapshot was rewritten").toBe("Reem Ammar");
     expect(after.userId, "the correlation id was lost").toBe(actorUserId);
     expect(after.targetDisplay).toBe("Acme Legal");
+  });
+
+  // =========================================================================
+  // THE READ PATH — what the console is allowed to be told.
+  // =========================================================================
+  describe("the reader is truthful and safe", () => {
+    it("a legacy row's raw address and client string are masked on the way OUT", async () => {
+      /*
+       * PHASE 5 §12. Rows written before the writer adopted the canonical
+       * maskers hold a complete address and a complete client string. They are
+       * NOT rewritten — an append-only trail is not edited to look better, and
+       * their hashes legitimately cover the values they were written with — so
+       * the reduction has to happen in the projection.
+       */
+      const { listAdminAuditLogs } = await import(
+        "../src/services/platform-audit-log.service.js"
+      );
+      const action = `p5.legacyclient.${randomUUID().slice(0, 8)}`;
+      await seedLegacyRow(action);
+
+      const { items } = await listAdminAuditLogs({ limit: 50, action });
+      const row = items.find((i) => i.action === action);
+      expect(row, "the legacy row was not returned").toBeTruthy();
+      expect(row!.ipAddress, "the full address reached the reader").not.toBe("203.0.113.42");
+      expect(row!.ipAddress).toContain("•");
+      expect(
+        row!.userAgent,
+        "the full client string reached the reader",
+      ).not.toContain("AppleWebKit");
+      expect(row!.actorType, "a pre-contract row must read as legacy, not as a guess").toBe(
+        "UNKNOWN_LEGACY",
+      );
+    });
+
+    it("filtering for UNKNOWN_LEGACY finds the rows the projection calls UNKNOWN_LEGACY", async () => {
+      /*
+       * The projection maps a NULL actor_type to UNKNOWN_LEGACY, so a filter
+       * matching only the literal string found none of the rows it names: the
+       * API called a row unknown-legacy and then, asked for unknown-legacy
+       * rows, said there were none.
+       */
+      const { listAdminAuditLogs } = await import(
+        "../src/services/platform-audit-log.service.js"
+      );
+      const { items } = await listAdminAuditLogs({
+        limit: 100,
+        actorType: "UNKNOWN_LEGACY",
+      });
+      expect(items.length, "no legacy rows matched their own label").toBeGreaterThan(0);
+      for (const row of items) {
+        expect(row.actorType).toBe("UNKNOWN_LEGACY");
+      }
+    });
+
+    it("an actor filter survives being combined with a search", async () => {
+      /*
+       * The composite conditions and `search` both want the top-level `OR`
+       * key. Two `OR` keys in one object literal collide silently and the
+       * later spread wins — so the actor filter would have vanished exactly
+       * when an operator narrowed a search, which is when they would trust it
+       * most. Composite clauses are accumulated into `AND` instead.
+       */
+      const { listAdminAuditLogs } = await import(
+        "../src/services/platform-audit-log.service.js"
+      );
+      const combined = await listAdminAuditLogs({
+        limit: 100,
+        actorType: "UNKNOWN_LEGACY",
+        search: "p5.legacyclient",
+      });
+      expect(combined.items.length).toBeGreaterThan(0);
+      for (const row of combined.items) {
+        expect(row.actorType, "the actor filter was dropped by the search").toBe(
+          "UNKNOWN_LEGACY",
+        );
+        expect(row.action).toContain("p5.legacyclient");
+      }
+    });
+
+    it("the actor snapshot is resolved by the facade, not asked of the caller", async () => {
+      /*
+       * PHASE 5 §5. 232 call sites could each have been edited to pass a
+       * display name; none would have stayed edited, and the field would have
+       * rotted into "sometimes populated" — which is worse than absent,
+       * because a blank cell would then mean two different things.
+       */
+      const user = await prisma.user.create({
+        data: {
+          email: `p5-snapshot-${randomUUID().slice(0, 8)}@fixture.local`,
+          displayName: "Snapshot Operator",
+          provider: "EMAIL",
+          providerUserId: randomUUID(),
+        },
+        select: { id: true },
+      });
+      const action = `p5.snapshot.${randomUUID().slice(0, 8)}`;
+      await emitTenantAudit({
+        action,
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: user.id,
+        organizationId: ORG,
+        workspaceId: WS,
+      });
+      const row = await rowFor(action);
+      expect(
+        row.actorDisplay,
+        "the facade did not capture a contemporaneous actor label",
+      ).toBe("Snapshot Operator");
+    });
+
+    it("a nameless account is labelled by a MASKED email, never the raw address", async () => {
+      // §5 asks for the minimum that identifies an operator. A full address in
+      // an append-only trail is a permanent copy of personal data that no
+      // retention job can reach.
+      const email = `p5-nameless-${randomUUID().slice(0, 8)}@fixture.local`;
+      const user = await prisma.user.create({
+        data: { email, displayName: null, provider: "EMAIL", providerUserId: randomUUID() },
+        select: { id: true },
+      });
+      const action = `p5.nameless.${randomUUID().slice(0, 8)}`;
+      await emitTenantAudit({
+        action,
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: user.id,
+        organizationId: ORG,
+        workspaceId: WS,
+      });
+      const row = await rowFor(action);
+      expect(row.actorDisplay, "no label at all was captured").toBeTruthy();
+      expect(row.actorDisplay, "the raw email was copied into the audit trail").not.toBe(email);
+      expect(row.actorDisplay).toContain("•");
+    });
   });
 
   // =========================================================================
