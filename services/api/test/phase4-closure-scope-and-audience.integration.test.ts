@@ -240,7 +240,11 @@ describe("PHASE 4 CLOSURE — scope and audience (live PostgreSQL 16)", () => {
       const ok = await call(platformAdmin.token, "GET", "/v1/admin/analytics/dashboard");
       expect(ok.status, "platform analytics refused the platform operator").toBeLessThan(400);
 
-      for (const t of [orgA.owner.token, readOnly.token, freePersonal.token]) {
+      // A PAID PLAN IS NOT A PLATFORM ROLE. `proPersonal` is here on purpose:
+      // entitlement and authority are different axes, and the one mistake worth
+      // guarding is a paid tier quietly widening reach beyond the buyer's own
+      // tenant. Free and Pro must be refused identically.
+      for (const t of [orgA.owner.token, readOnly.token, freePersonal.token, proPersonal.token]) {
         const res = await call(t, "GET", "/v1/admin/analytics/dashboard");
         expect(refused(res), `platform analytics opened with ${res.status}`).toBe(true);
       }
