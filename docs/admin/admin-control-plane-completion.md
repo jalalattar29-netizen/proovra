@@ -331,7 +331,7 @@
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 324 | 0c/1t/1s |  |
 | `/admin/operations` | 513 | 2c/2t/2s |  |
-| `/admin/platform-health` | 373 | 3c/0t/2s |  |
+| `/admin/platform-health` | 378 | 3c/0t/2s |  |
 | `/admin/platform/analytics` | 813 | 0c/0t/9s | HARDCODED_STATUS_HEX |
 | `/admin/platform/automation` | 670 | 0c/2t/5s | HARDCODED_STATUS_HEX |
 | `/admin/platform/exports` | 845 | 0c/4t/0s | HARDCODED_STATUS_HEX |
@@ -345,7 +345,7 @@
 | `/admin/platform/runbooks/:slug` | 210 | 0c/0t/0s |  |
 | `/admin/platform/signers` | 1213 | 0c/3t/0s | HARDCODED_STATUS_HEX |
 | `/admin/provisioning` | 807 | 8c/1t/4s | HARDCODED_STATUS_HEX |
-| `/admin/search` | 364 | 1c/0t/0s |  |
+| `/admin/search` | 410 | 1c/0t/0s |  |
 | `/admin/security` | 91 | 13c/6t/25s |  |
 | `/admin/support-access` | 964 | 6c/2t/4s |  |
 | `/admin/timeline` | 414 | 0c/1t/1s |  |

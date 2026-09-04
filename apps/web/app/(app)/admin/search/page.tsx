@@ -112,6 +112,16 @@ export default function AdminSearchPage() {
   const [groups, setGroups] = useState<SearchGroup[]>([]);
   const [total, setTotal] = useState(0);
   const [perTypeLimit, setPerTypeLimit] = useState<number | null>(null);
+  /**
+   * A REFUSED QUERY IS NOT AN EMPTY RESULT.
+   *
+   * A malformed identifier and a valid id that matches nothing produced the
+   * same screen — "No results" — which told an operator who had pasted half
+   * an id from a log that the record did not exist. The API now answers 400
+   * INVALID_IDENTIFIER for the first case, and this state renders it as a
+   * correction rather than as an absence.
+   */
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [truncatedGroups, setTruncatedGroups] = useState<string[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -129,6 +139,7 @@ export default function AdminSearchPage() {
     try {
       setLoading(true);
       setHasSearched(true);
+      setValidationMessage(null);
 
       const params = new URLSearchParams();
       params.set("q", q);
@@ -149,10 +160,30 @@ export default function AdminSearchPage() {
         Array.isArray(data?.truncatedGroups) ? data.truncatedGroups : [],
       );
     } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
       const message = toSafeUserError(err, {
         message: "We couldn't run that search.",
       }).message;
-      addToast(message, "error");
+      if (code === "INVALID_IDENTIFIER" || code === "validation_error") {
+        /*
+         * The query was understood and refused. Shown inline, next to the
+         * box, rather than as a toast that disappears while the wrong term
+         * stays on screen.
+         *
+         * The guidance is written HERE rather than passed through from the
+         * server: `toSafeUserError` deliberately replaces server strings with
+         * a generic line, and this client knows exactly what this code means.
+         * Rendering "Please review your input and try again" for a truncated
+         * id would tell the operator nothing they did not already know.
+         */
+        setValidationMessage(
+          code === "INVALID_IDENTIFIER"
+            ? "Identifier lookups need the complete value — there is no partial or prefix matching. Paste the whole id, or search by name or email instead."
+            : message,
+        );
+      } else {
+        addToast(message, "error");
+      }
       setGroups([]);
       setTotal(0);
       setPerTypeLimit(null);
@@ -208,7 +239,7 @@ export default function AdminSearchPage() {
                   label="Search platform entities"
                   value={search}
                   onChange={setSearch}
-                  placeholder="Search by name, email, or full ID…"
+                  placeholder="Search by name, email, or a complete ID…"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") setAppliedSearch(search);
                   }}
@@ -219,7 +250,22 @@ export default function AdminSearchPage() {
             {tooShort ? (
               <EmptyState
                 title="Enter at least 2 characters"
-                purpose="Type a name, email, or a full ID (minimum 2 characters) to search across platform entities. Identifier matching is exact — a partial id will not match. This search is read-only."
+                purpose="Type a name, email, or a complete ID (minimum 2 characters) to search across platform entities. Only exact identifiers are matched — there is no partial or prefix matching. This search is read-only."
+              />
+            ) : validationMessage ? (
+              /*
+                A REFUSED QUERY, RENDERED AS A CORRECTION.
+
+                Deliberately NOT the "No matches" state below: that one says
+                the platform looked and found nothing, and this one says the
+                platform did not look. An operator who pasted a truncated id
+                needs to be told to paste the whole one, not to conclude the
+                record is gone.
+              */
+              <EmptyState
+                data-search-validation
+                title="That is not a complete identifier"
+                purpose={validationMessage}
               />
             ) : loading ? (
               <EmptyState
@@ -231,7 +277,7 @@ export default function AdminSearchPage() {
                 title="No matches"
                 purpose={
                   hasSearched
-                    ? "No platform entities match this search. Try a different name or email, or paste a complete identifier — partial ids do not match."
+                    ? "No platform entities match this search. Try a different name or email; identifiers must be complete, and only exact matches are returned."
                     : "Enter a search above to begin."
                 }
               />

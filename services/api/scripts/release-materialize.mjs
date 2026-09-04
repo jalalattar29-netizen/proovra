@@ -53,6 +53,15 @@ export const PROPOSED_ADDITIONS = {
   // boundaries read it before producing any signature.
   "20280110000000_signer_control_state":
     "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. One new table plus a status CHECK and one index. No existing column altered, no row read or written, no other table touched. Empty means ACTIVE, so applying it ahead of the code is inert; deploying the code first would write to a table that does not exist.",
+  // PHASE 2 (2026-09-04) — worker liveness lease + bounded heartbeat history.
+  //
+  // The heartbeat table is append-only with no retention: 1,440 rows per
+  // worker per day, for ever. Liveness read the newest 200 of them and
+  // deduplicated in memory, which drops instances out of a large fleet and
+  // cannot express a clean shutdown at all — so a drained worker read exactly
+  // like a crashed one.
+  "20280115000000_worker_lease_and_heartbeat_retention":
+    "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. One new table and enum for current worker state, its index, and one GUARDED index on the existing heartbeat history for the retention sweep predicate. No existing column altered, no existing row read or written. An empty lease table reads as NOT_MEASURED, so applying it ahead of the code is inert; deploying the code first would leave the worker upserting into a table that does not exist.",
   "20270923500000_persona_profiles_removal_precondition":
     "REQUIRED_LATER_CONTRACT_MIGRATION — the guard for the tracked, unguarded 20270924000000 drop. Shipping the drop without it is the release-blocking defect.",
   "20271102000000_uuid_id_default_repair": "REQUIRED_RELEASE_MIGRATION — REPAIR, SAFE_TO_APPLY_NOW.",

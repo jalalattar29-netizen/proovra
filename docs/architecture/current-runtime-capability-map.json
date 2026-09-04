@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "84ff6851a736888a2a480f3b0f61610ddd8275a31aa6918bb2bd63302a7843b9",
-  "consumerInventoryHash": "95020135a4a6b9267079003ac5a3c1f3c8c47444528d6e842f1de1fc1b4d3d3b",
+  "consumerInventoryHash": "821c6ed5b82ed9a698fe3daa1a5e779f47fcbec0e5a498e00b350e2684d1401e",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1125,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 122
     },
-    "TerminalWriters": 1252,
-    "ReachableSensitiveMutations": 1244,
-    "ClassifiedSensitiveMutations": 1244,
+    "TerminalWriters": 1256,
+    "ReachableSensitiveMutations": 1248,
+    "ClassifiedSensitiveMutations": 1248,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 8,
@@ -84,7 +84,7 @@
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 104,
       "REPORT_EXPORT_REDACTION": 49,
-      "API_KEY_SECRET_OPERATIONAL_ADMIN": 105
+      "API_KEY_SECRET_OPERATIONAL_ADMIN": 109
     },
     "byNonRequestDisposition": {
       "REGISTERED_CLI": 3,
@@ -104,7 +104,7 @@
       "JOB_ATTRIBUTED_REACHABLE": 106,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
-      "STARTUP_OR_SCHEDULED": 9,
+      "STARTUP_OR_SCHEDULED": 13,
       "MIGRATION_ONLY": 0,
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8298,
-      "UNRESOLVED_IDENTIFIER": 1044
+      "METHOD_ON_VALUE": 8314,
+      "UNRESOLVED_IDENTIFIER": 1045
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -1263,7 +1263,7 @@
       "method": "GET",
       "route": "/v1/admin/platform-health",
       "registeringFile": "services/api/src/routes/admin-platform-health.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform-health/page.tsx:248",
+      "productConsumer": "apps/web/app/(app)/admin/platform-health/page.tsx:253",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1323,7 +1323,7 @@
       "method": "GET",
       "route": "/v1/admin/search",
       "registeringFile": "services/api/src/routes/admin-search.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/search/page.tsx:136",
+      "productConsumer": "apps/web/app/(app)/admin/search/page.tsx:147",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -77347,8 +77347,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@145",
-      "terminalLocation": "services/worker/src/telemetry.ts:145",
+      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@168",
+      "terminalLocation": "services/worker/src/telemetry.ts:168",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -77360,7 +77360,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2534#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2564#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -77378,8 +77378,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@168",
-      "terminalLocation": "services/worker/src/telemetry.ts:168",
+      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@191",
+      "terminalLocation": "services/worker/src/telemetry.ts:191",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -77391,7 +77391,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2534#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2564#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -77427,6 +77427,130 @@
         "BOOT services/worker/src/index.ts:1369#runWebhookDispatcherTick",
         "BOOT services/worker/src/index.ts:1376#runWebhookDispatcherTick",
         "SCHEDULE services/worker/src/index.ts:1368#startWebhookDispatcherScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/worker-lease.ts#workerLease.updateMany@121",
+      "terminalLocation": "services/worker/src/worker-lease.ts:121",
+      "file": "services/worker/src/worker-lease.ts",
+      "enclosingDeclaration": "markWorkerDraining",
+      "kind": "DATABASE",
+      "target": "workerLease",
+      "mutationKind": "updateMany",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:2564#startTelemetrySampler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/worker-lease.ts#workerLease.updateMany@142",
+      "terminalLocation": "services/worker/src/worker-lease.ts:142",
+      "file": "services/worker/src/worker-lease.ts",
+      "enclosingDeclaration": "markWorkerStopped",
+      "kind": "DATABASE",
+      "target": "workerLease",
+      "mutationKind": "updateMany",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:2564#startTelemetrySampler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/worker-lease.ts#workerLease.upsert@103",
+      "terminalLocation": "services/worker/src/worker-lease.ts:103",
+      "file": "services/worker/src/worker-lease.ts",
+      "enclosingDeclaration": "touchWorkerLease",
+      "kind": "DATABASE",
+      "target": "workerLease",
+      "mutationKind": "upsert",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:2564#startTelemetrySampler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/worker-lease.ts#workerLease.upsert@72",
+      "terminalLocation": "services/worker/src/worker-lease.ts:72",
+      "file": "services/worker/src/worker-lease.ts",
+      "enclosingDeclaration": "registerWorkerLease",
+      "kind": "DATABASE",
+      "target": "workerLease",
+      "mutationKind": "upsert",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:2564#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -80807,7 +80931,7 @@
         "securityEvent",
         "ssoConnection",
         "uploadSession",
-        "workerTelemetrySnapshot"
+        "workerLease"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
@@ -82626,7 +82750,7 @@
         "team",
         "uploadSession",
         "user",
-        "workerTelemetrySnapshot",
+        "workerLease",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [],
@@ -82668,7 +82792,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform-health/page.tsx",
-          "line": 248,
+          "line": 253,
           "caller": "AdminPlatformHealthPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82678,7 +82802,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform-health/page.tsx:248 (AdminPlatformHealthPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform-health/page.tsx:253 (AdminPlatformHealthPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82701,7 +82825,7 @@
         "ssoConnection",
         "stripeWebhookEvent",
         "uploadSession",
-        "workerTelemetrySnapshot"
+        "workerLease"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
@@ -82821,7 +82945,7 @@
         "securityEvent",
         "ssoConnection",
         "uploadSession",
-        "workerTelemetrySnapshot"
+        "workerLease"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
@@ -82966,7 +83090,7 @@
       "method": "GET",
       "path": "/v1/admin/search",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-search.routes.ts:61",
+      "registrationEvidence": "services/api/src/routes/admin-search.routes.ts:90",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -82979,7 +83103,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/search/page.tsx",
-          "line": 136,
+          "line": 147,
           "caller": "AdminSearchPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82989,7 +83113,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/search/page.tsx:136 (AdminSearchPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/search/page.tsx:147 (AdminSearchPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -100415,7 +100539,7 @@
       "modelsRead": [
         "teamMember",
         "user",
-        "workerTelemetrySnapshot"
+        "workerLease"
       ],
       "modelsWritten": [
         "securityEvent"

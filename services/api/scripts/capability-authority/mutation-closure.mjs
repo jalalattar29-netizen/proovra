@@ -191,6 +191,13 @@ const FAMILY_RULES = Object.freeze([
   [/^aiCopilotObservationReview$/, "BILLING_SUBSCRIPTION_SEAT"],
   /** Worker queue telemetry — an operational snapshot, not product data. */
   [/^workerTelemetrySnapshot$/, "API_KEY_SECRET_OPERATIONAL_ADMIN"],
+  /**
+   * Worker liveness lease — the same operational family as the telemetry
+   * above, and for the same reason: a worker process describing its own
+   * lifecycle. It holds no tenant data and no subject data, and its writers
+   * are the worker itself rather than any request.
+   */
+  [/^workerLease$/, "API_KEY_SECRET_OPERATIONAL_ADMIN"],
 ]);
 
 const EXTERNAL_FAMILY = Object.freeze({

@@ -40,6 +40,35 @@ const SearchQuery = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional().default(10),
 });
 
+/** A complete v1-v8 UUID, which is the only identifier shape this API issues. */
+const UUID_RE =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
+/**
+ * Is this term an identifier, an attempt at one, or neither?
+ *
+ * The middle case is the one that matters. "Identifier-shaped" is deliberately
+ * narrow: hex digits and hyphens only, and either containing a hyphen or long
+ * enough that nobody types it as a name. `a1b2c3d4-0000` is an attempt;
+ * `Northwind Legal` and `not-a-real-thing` are not, because the latter carries
+ * letters outside the hex alphabet and so could never be a truncated id.
+ *
+ * Getting this wrong in the permissive direction would reject legitimate name
+ * searches, so the rule errs toward treating a term as a name.
+ */
+export function classifyIdentifierAttempt(
+  q: string,
+): "EXACT" | "MALFORMED" | "NOT_AN_IDENTIFIER" {
+  const term = q.trim();
+  if (UUID_RE.test(term)) return "EXACT";
+  const hexish = /^[0-9a-fA-F-]+$/.test(term);
+  if (!hexish) return "NOT_AN_IDENTIFIER";
+  // Hex-and-hyphens only. A hyphen, or 16+ characters, means somebody is
+  // pasting an id rather than typing a word.
+  if (term.includes("-") || term.length >= 16) return "MALFORMED";
+  return "NOT_AN_IDENTIFIER";
+}
+
 function parseTypes(raw: string | undefined): AdminSearchType[] | undefined {
   if (!raw) return undefined;
   const known = new Set<string>(ALL_SEARCH_TYPES);
@@ -76,6 +105,36 @@ export async function adminSearchRoutes(app: FastifyInstance) {
       }
 
       const { q, types, limit } = parsed.data;
+
+      /*
+       * A MALFORMED IDENTIFIER IS A 400, NOT AN EMPTY PAGE.
+       *
+       * This surface answers two different questions with one box: free-text
+       * NAME search, and EXACT identifier lookup. Only exact identifiers are
+       * supported — there is no prefix matching, deliberately, because a
+       * prefix over UUIDs has no useful collision story and a partial match
+       * on an id is a guess about which record an operator meant.
+       *
+       * The old behaviour returned `200` with `total: 0` for a truncated
+       * UUID, which is the same response a valid-but-absent id gets. Those
+       * are opposite facts — "you typed half an id" and "that record does not
+       * exist" — and an operator pasting a clipped id from a log had no way
+       * to tell which had happened. A term that is clearly an identifier
+       * ATTEMPT and is not a complete one is now refused with a typed code.
+       *
+       * A term that is not identifier-shaped at all stays a name search: it
+       * is not a malformed identifier, it is a different query.
+       */
+      const idAttempt = classifyIdentifierAttempt(q);
+      if (idAttempt === "MALFORMED") {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_IDENTIFIER",
+            message:
+              "Identifier lookups must use a complete id. Partial identifiers are not matched — paste the whole value, or search by name instead.",
+          },
+        });
+      }
 
       const result = await adminGlobalSearch({
         query: q,

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 256,
-    "classifiedMigrations": 256,
+    "filesystemMigrations": 257,
+    "classifiedMigrations": 257,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 256,
+    "productionSnapshotUnknown": 257,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 256,
-    "classifiedMigrations": 256,
+    "filesystemMigrations": 257,
+    "classifiedMigrations": 257,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 256,
+    "productionSnapshotUnknown": 257,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 39,
+      "EXPAND": 40,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 48,
+      "SAFE_TO_APPLY_NOW": 49,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 256
+    "ProductionMigrationStateUnknown": 257
   },
   "gateFailures": [],
   "migrations": [
@@ -20024,7 +20024,7 @@
       "checksumSha256Raw": "6b300d7ace704ea809fd61da956cd25bcd33f4bb1bfe7934780a4328d68ff7f1",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
       "gitTracked": true,
-      "gitIntroductionCommit": "2a4a571ed167cf9d75c5e0232b916f7a1ac3316b",
+      "gitIntroductionCommit": "549a6dd1a1e38dadf5b058e86981f9fb62e739b6",
       "sqlChangedSinceIntroduction": true,
       "classification": "EXPAND",
       "sqlShape": "EXPAND",
@@ -20077,8 +20077,72 @@
       "evidence": "SECURITY CONTAINMENT — PERSISTENT SIGNER LIFECYCLE. Creates one new table, `signer_control_state`, with a CHECK constraint on status and one index. No existing column is added, altered or dropped; no existing row is read, written or deleted; no other table is touched. EXPAND-only and safe before code deployment: an empty table changes no behaviour, because the reader treats an absent row as ACTIVE — the discovery default that keeps a deployment which has never opened the console signing normally. WHY IT IS NEEDED: `revokeSigner()` and `retireSigner()` validated a reason, bumped a counter, emitted a security event and returned ok. They wrote NO state, never checked the signer id existed, and the read model recomputes active signers from environment variables on every request with status hardcoded to `active` — so a signer 'revoked' through step-up and a typed REVOKE reappeared ACTIVE on the next page load and kept signing, while the dialog said it 'is withdrawn immediately and cannot be used again'. This table is the durable overlay that makes the two operations real: the environment says which keys the deployment HAS, this says which of them may still be USED. WHY IT CARRIES NO BACKFILL: registration is `INSERT ... ON CONFLICT DO NOTHING` at read time, never an upsert — an upsert would resurrect a revoked signer on the next boot, which is the original defect in a new place. There is nothing to backfill because absence already means ACTIVE. HOLDS NO SECRET: signer_id is the composite identity the read model already uses (purpose:provider:keyId:keyVersion); no key material, no KMS credential, no token. REHEARSED against live PostgreSQL 16: applies on a clean database and on a database already carrying the full migration history; a REVOKED row survives an API and worker restart and the signing boundary refuses it in both processes."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280115000000_worker_lease_and_heartbeat_retention",
       "order": 255,
+      "sqlPresent": true,
+      "byteLength": 3166,
+      "checksumSha256": "818d4ca81d6f87eca998e92ac86883f98fc07058b6a381f728a2e56309595936",
+      "checksumSha256Raw": "818d4ca81d6f87eca998e92ac86883f98fc07058b6a381f728a2e56309595936",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "28518d81830cbe3514a821559d70051b99110791",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:1 columns:0 types:1 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "worker_leases"
+        ],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [
+          "workerleasestate"
+        ],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "worker_leases_state_last_seen_at_utc_idx",
+          "worker_telemetry_snapshots_heartbeat_at_utc_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "WORKER LIVENESS LEASE + HEARTBEAT RETENTION INDEX. Creates one new table, `worker_leases`, one enum, `WorkerLeaseState`, its own index, and one guarded index on the existing `worker_telemetry_snapshots`. No existing column is added, altered or dropped; no existing row is read, written or deleted.  EXPAND-ONLY AND SAFE BEFORE CODE DEPLOYMENT: an empty lease table changes no behaviour for a deployment still running the previous image, because nothing in that image reads it. The reader that does treats an empty table as NOT_MEASURED — \"no worker has ever registered\" — which is the honest answer during the window between migrating and deploying, and is not a claim that the fleet is unhealthy.  WHY IT IS NEEDED: `worker_telemetry_snapshots` is append-only, one row per worker per heartbeat interval, with no retention. At the shipped 60s interval that is 1,440 rows per worker per day, forever. Liveness was derived by scanning the newest 200 of those rows and deduplicating them in memory, which additionally drops instances out of a large fleet and cannot represent a clean shutdown at all — so a drained worker and a killed worker were indistinguishable for the length of the stale threshold.  WHY IT CARRIES NO BACKFILL: a lease is current state, not history. Every running worker writes its own row on its next heartbeat (one interval, at most 60s), and a synthesised row would be a claim about a process this migration has not heard from. The honest intermediate state is NOT_MEASURED, which is what an empty table produces.  THE GUARDED INDEX: the retention sweep predicate is `heartbeat_at_utc < cutoff`, and every existing index on that table leads with another column, so none can serve a bare age scan. It is created inside a DO block that checks information_schema first, because it indexes a column this migration does not create — the failure class the Phase O gate exists to prevent.  HOLDS NO SECRET: worker id, lifecycle state, timestamps, a build revision string and queue NAMES. No payloads, no URLs, no credentials.  REHEARSED against live PostgreSQL 16: applies on a clean database and on a database already carrying the full migration history, converging on identical schema in both."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 256,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
