@@ -318,6 +318,25 @@ describe("E9 Test 6 — AI service tree never mutates platform state", () => {
     { label: "ai-cost-guard", body: AI_COST_GUARD_SRC },
     { label: "ai-chat.service", body: AI_CHAT_SVC },
     { label: "ai-capture.service", body: AI_CAPTURE_SVC },
+    /*
+     * THE COPILOT SURFACES WERE NOT COVERED.
+     *
+     * This guard listed the eight files that existed when it was written and
+     * was never extended. The copilots arrived afterwards — and they are the
+     * AI surfaces that actually read evidence, cases and review criteria, so
+     * they are the ones with a reason to write.
+     *
+     * They do not. Every write in the AI service tree targets an AI-OWNED
+     * table: usage events, copilot runs, observation reviews, the workspace
+     * policy. Nothing touches evidence, custody, legal holds, verification
+     * state, reports, retention or billing. That is the whole "AI recommends,
+     * humans decide" property, and until now it held by habit, not by test.
+     */
+    { label: "copilot-orchestrator", body: readApi("src/services/ai/copilot-orchestrator.ts") },
+    { label: "reviewer-copilot.service", body: readApi("src/services/ai/reviewer-copilot.service.ts") },
+    { label: "case-copilot.service", body: readApi("src/services/ai/case-copilot.service.ts") },
+    { label: "structured-copilot-provider", body: readApi("src/services/ai/structured-copilot-provider.ts") },
+    { label: "ai-context-resolver.service", body: readApi("src/services/ai/ai-context-resolver.service.ts") },
   ];
 
   // Mutation primitives that MUST NOT appear anywhere in the AI tree.

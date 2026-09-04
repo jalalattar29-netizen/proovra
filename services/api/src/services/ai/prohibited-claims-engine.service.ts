@@ -29,11 +29,44 @@ export type ProhibitedClaimCategory =
   | "RELIABILITY_VERDICT"
   | "CREDIBILITY_VERDICT";
 
+/*
+ * A COPULA CAN BE SEPARATED FROM ITS CLAIM, AND WAS.
+ *
+ * The rules below were written as `(is|are)\s+(authentic|admissible|…)` —
+ * the copula immediately followed by the forbidden word. That matched
+ * "this is authentic" and missed every one of these:
+ *
+ *     "this evidence is legally admissible"     ← the exact policy wording
+ *     "this evidence is clearly admissible"
+ *     "this would be fully admissible in a hearing"
+ *     "the recording is clearly authentic"
+ *     "this will be readily accepted by the court"
+ *
+ * One adverb defeated the whole layer, and an adverb is the MORE likely
+ * phrasing: a model asked for a judgement hedges it. "Clearly authentic" is
+ * the sentence this engine exists to stop, and it was the sentence it let by.
+ *
+ * The normalizer already removes the evasions someone has to try on purpose —
+ * homoglyphs, letter-spacing, punctuation. This closes the one that happens by
+ * accident, in ordinary English, every time.
+ *
+ * `GAP` allows up to three intervening words. Bounded on purpose: `.*` would
+ * reach across clauses and start matching "this is a copy of a document the
+ * court found admissible", which asserts nothing.
+ */
+const GAP = String.raw`(?:\w+\s+){0,3}`;
+
+/** `is/are/was/were/will be/would be` + up to three words + the claim. */
+function copula(claim: string): RegExp {
+  return new RegExp(String.raw`\b(?:is|are|was|were|will be|would be)\s+${GAP}(?:${claim})\b`);
+}
+
 const RULES: Array<{ category: ProhibitedClaimCategory; re: RegExp }> = [
-  { category: "FACTUAL_TRUTH", re: /\b(is|are|was|were)\s+(definitely\s+|certainly\s+)?(true|factual|a fact)\b/ },
+  { category: "FACTUAL_TRUTH", re: copula("true|factual|a fact") },
   { category: "FACTUAL_TRUTH", re: /\b(this|it|the (evidence|event|incident))\s+(proves|confirms|shows)\s+(that\s+)?(the\s+)?(event|incident)?\s*(happened|occurred|is true)\b/ },
   { category: "FACTUAL_TRUTH", re: /\bdefinitely\s+(happened|occurred|took place)\b/ },
-  { category: "AUTHENTICITY", re: /\b(is|are|looks|look|appears|appear|this is)\s+(genuine|authentic|unaltered|unmanipulated)\b/ },
+  { category: "AUTHENTICITY", re: copula("genuine|authentic|unaltered|unmanipulated") },
+  { category: "AUTHENTICITY", re: /\b(looks|look|appears|appear)\s+(?:\w+\s+){0,3}(genuine|authentic|unaltered|unmanipulated)\b/ },
   { category: "AUTHENTICITY", re: /\b(not|isn.?t|aren.?t)\s+(fake|forged|manipulated|altered|doctored)\b/ },
   { category: "AUTHENTICITY", re: /\b\d{1,3}\s*%\s*(authentic|genuine|real)\b/ },
   { category: "AUTHORSHIP", re: /\bthe\s+author\s+(is|was|of this)\b/ },
@@ -42,21 +75,21 @@ const RULES: Array<{ category: ProhibitedClaimCategory; re: RegExp }> = [
   { category: "IDENTITY", re: /\bthis\s+(person\s+)?is\s+[a-z]+\s+[a-z]+\b/ },
   { category: "INTENT", re: /\b(intentional|intentionally|deliberate|deliberately|on purpose|willful|willfully)\b/ },
   { category: "INTENT", re: /\b(meant|intended)\s+to\b/ },
-  { category: "LIABILITY", re: /\b(is|are|was|were)\s+(liable|at fault|responsible for the)\b/ },
+  { category: "LIABILITY", re: copula("liable|at fault|responsible for the") },
   { category: "LIABILITY", re: /\bliabilit(y|ies)\b/ },
   { category: "FRAUD", re: /\b(is|are|this is|committed|constitutes)\s+(fraud|fraudulent|a scam|falsified|forgery)\b/ },
   { category: "FRAUD", re: /\bfraudulent\b/ },
-  { category: "LEGAL_ADMISSIBILITY", re: /\b(is|are|will be|would be)\s+admissible\b/ },
+  { category: "LEGAL_ADMISSIBILITY", re: copula("admissible") },
   { category: "LEGAL_ADMISSIBILITY", re: /\badmissible\s+in\s+court\b/ },
-  { category: "COURT_ACCEPTANCE", re: /\b(will be|is|are)\s+accepted\s+by\s+(a|the)\s+court\b/ },
+  { category: "COURT_ACCEPTANCE", re: /\b(will be|is|are|was|were|would be)\s+(?:\w+\s+){0,3}accepted\s+by\s+(a|the)\s+court\b/ },
   { category: "COURT_ACCEPTANCE", re: /\bcourt[-\s]?ready\b/ },
-  { category: "LEGAL_VALIDITY", re: /\b(is|are)\s+legally\s+(valid|binding|enforceable)\b/ },
+  { category: "LEGAL_VALIDITY", re: copula("legally\\s+(?:valid|binding|enforceable)") },
   { category: "LEGAL_VALIDITY", re: /\blegally\s+valid\b/ },
   { category: "FORENSIC_CONCLUSION", re: /\bforensic(ally)?\s+(proof|proven|conclusion|certain|certainty)\b/ },
   { category: "EVENT_ATTESTATION", re: /\b(attest|certif(y|ies|ied)|guarantee)[a-z]*\b[^.]{0,40}\b(happened|occurred|is true|took place)\b/ },
-  { category: "RELIABILITY_VERDICT", re: /\b(100\s*%|fully|completely|totally)\s+reliable\b/ },
+  { category: "RELIABILITY_VERDICT", re: /\b(100\s*%|fully|completely|totally|entirely|highly)\s+reliable\b/ },
   { category: "RELIABILITY_VERDICT", re: /\breliability\s+(score|verdict|rating)\b/ },
-  { category: "CREDIBILITY_VERDICT", re: /\b(is|are)\s+(credible|not credible|trustworthy|untrustworthy)\b/ },
+  { category: "CREDIBILITY_VERDICT", re: copula("credible|not credible|trustworthy|untrustworthy") },
   { category: "CREDIBILITY_VERDICT", re: /\bcredibility\s+(verdict|assessment|score)\b/ },
 ];
 
