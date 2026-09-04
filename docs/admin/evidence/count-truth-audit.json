@@ -52,6 +52,22 @@
       "loadingAware": true
     },
     {
+      "route": "/admin/audit",
+      "kind": "inline",
+      "noun": "row(s) loaded in this vi",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
+      "route": "/admin/audit",
+      "kind": "inline",
+      "noun": "row(s) loaded in this vi",
+      "truth": "SERVER_HAS_MORE",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
       "route": "/admin/billing",
       "kind": "ResultCount",
       "noun": "subscription needing attention",

@@ -306,17 +306,17 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 819 | 0c/0t/10s |  |
+| `/admin` | 846 | 0c/0t/10s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
-| `/admin/audit` | 854 | 3c/1t/2s |  |
+| `/admin/audit` | 914 | 3c/1t/2s |  |
 | `/admin/billing` | 727 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 780 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 652 | 5c/0t/0s |  |
 | `/admin/costs` | 614 | 7c/3t/9s |  |
 | `/admin/customers` | 463 | 0c/1t/0s |  |
 | `/admin/customers/:id` | 1171 | 12c/1t/0s |  |
-| `/admin/dashboard` | 886 | 11c/3t/8s |  |
+| `/admin/dashboard` | 905 | 11c/3t/8s |  |
 | `/admin/demo-requests` | 1314 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 522 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 748 | 4c/0t/7s | HARDCODED_STATUS_HEX |
@@ -336,7 +336,7 @@
 | `/admin/platform/automation` | 670 | 0c/2t/5s | HARDCODED_STATUS_HEX |
 | `/admin/platform/exports` | 845 | 0c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/media-graph` | 723 | 0c/0t/5s | HARDCODED_STATUS_HEX |
-| `/admin/platform/observability` | 1576 | 0c/2t/0s | HARDCODED_STATUS_HEX |
+| `/admin/platform/observability` | 1666 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/queues` | 801 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/readiness` | 604 | 8c/0t/6s | HARDCODED_STATUS_HEX |
 | `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |

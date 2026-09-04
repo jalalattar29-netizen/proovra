@@ -16,6 +16,8 @@ confident wrong answer with no way to tell.
 | `/admin/adoption` | ResultCount — capability | `COMPLETE_LIST` | — | yes |
 | `/admin/alerts` | ResultCount — alert | `SERVER_HAS_MORE` | — | yes |
 | `/admin/audit` | ResultCount — audit entry | `SERVER_HAS_MORE` | yes | yes |
+| `/admin/audit` | inline — row(s) loaded in this vi | `SERVER_HAS_MORE` | — | — |
+| `/admin/audit` | inline — row(s) loaded in this vi | `SERVER_HAS_MORE` | — | — |
 | `/admin/billing` | ResultCount — subscription needing attention | `CAP_DISCLOSED` | — | — |
 | `/admin/contact-sales` | ResultCount — inquiry | `EXACT_TOTAL` | yes | yes |
 | `/admin/costs` | ResultCount — entitlement | `CAP_DISCLOSED` | — | — |
