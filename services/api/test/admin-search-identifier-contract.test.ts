@@ -93,6 +93,25 @@ describe("a name is not a malformed identifier", () => {
     // The hyphen alone must not condemn a term; the alphabet decides.
     expect(classifyIdentifierAttempt("north-west-team")).toBe("NOT_AN_IDENTIFIER");
   });
+
+  it("a SHORT hyphenated term in the hex alphabet is still a name", () => {
+    /*
+     * The regression this exists for. The first rule asked only "hex
+     * alphabet, and is there a hyphen?", so every one of these was refused
+     * with INVALID_IDENTIFIER and the name search behind the box became
+     * unreachable for them. None is long enough to be a truncated id, and
+     * two of them do not even put the hyphen where a UUID has one.
+     */
+    for (const term of ["dd-", "ab-", "cafe-", "fee-fee", "dead-beef"]) {
+      expect(classifyIdentifierAttempt(term), term).toBe("NOT_AN_IDENTIFIER");
+    }
+  });
+
+  it("a hyphen OUTSIDE the canonical layout is a name, however long", () => {
+    // Right alphabet, right length, wrong shape: a UUID never has a hyphen
+    // at index 4, so this cannot be a truncation of one.
+    expect(classifyIdentifierAttempt("0adf-0000-0000-4000")).toBe("NOT_AN_IDENTIFIER");
+  });
 });
 
 describe("no prefix matching is offered, and that is the stated contract", () => {

@@ -45,15 +45,52 @@ const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 
 /**
+ * The shortest term that can be an identifier ATTEMPT: eight hex digits and
+ * the first hyphen. Anything shorter is a word as far as this surface is
+ * concerned, because nobody pastes two characters of a UUID and expects a hit.
+ */
+const MIN_IDENTIFIER_ATTEMPT_LENGTH = 9;
+
+/** Hyphen positions in the canonical 8-4-4-4-12 layout. */
+const UUID_HYPHEN_POSITIONS = new Set([8, 13, 18, 23]);
+
+/**
+ * Could this term be the first N characters of a canonical UUID?
+ *
+ * Position matters, which is the whole point: a hyphen anywhere other than
+ * index 8, 13, 18 or 23 means the term is not a truncated id, no matter which
+ * letters it uses.
+ */
+function isUuidPrefixLayout(term: string): boolean {
+  if (term.length > 36) return false;
+  for (let i = 0; i < term.length; i += 1) {
+    const ch = term[i]!;
+    if (UUID_HYPHEN_POSITIONS.has(i)) {
+      if (ch !== "-") return false;
+    } else if (!/[0-9a-fA-F]/.test(ch)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Is this term an identifier, an attempt at one, or neither?
  *
- * The middle case is the one that matters. "Identifier-shaped" is deliberately
- * narrow: hex digits and hyphens only, and either containing a hyphen or long
- * enough that nobody types it as a name. `a1b2c3d4-0000` is an attempt;
- * `Northwind Legal` and `not-a-real-thing` are not, because the latter carries
- * letters outside the hex alphabet and so could never be a truncated id.
+ * The middle case is the one that matters, and it is also the one that is easy
+ * to get dangerously wide. The first version asked only "hex alphabet, and
+ * does it contain a hyphen?" — which made `dd-` a malformed identifier. So did
+ * `ab-`, `cafe-face` and every other short name that happens to spell itself
+ * with the letters a-f. An operator searching for those got a hard 400 telling
+ * them to paste a complete id, for a term that was never an id at all, and the
+ * name search behind this box became unreachable for a whole class of words.
  *
- * Getting this wrong in the permissive direction would reject legitimate name
+ * A term is an ATTEMPT only when it could actually be a truncation of an id:
+ * it follows the canonical hyphen layout, and it is long enough to have
+ * reached the first hyphen. A long unbroken hex run still counts, because that
+ * is an id with its hyphens lost.
+ *
+ * Getting this wrong in the permissive direction rejects legitimate name
  * searches, so the rule errs toward treating a term as a name.
  */
 export function classifyIdentifierAttempt(
@@ -61,11 +98,11 @@ export function classifyIdentifierAttempt(
 ): "EXACT" | "MALFORMED" | "NOT_AN_IDENTIFIER" {
   const term = q.trim();
   if (UUID_RE.test(term)) return "EXACT";
-  const hexish = /^[0-9a-fA-F-]+$/.test(term);
-  if (!hexish) return "NOT_AN_IDENTIFIER";
-  // Hex-and-hyphens only. A hyphen, or 16+ characters, means somebody is
-  // pasting an id rather than typing a word.
-  if (term.includes("-") || term.length >= 16) return "MALFORMED";
+  // An id with the hyphens stripped out. 16+ unbroken hex digits is not a word.
+  if (/^[0-9a-fA-F]{16,}$/.test(term)) return "MALFORMED";
+  if (term.length >= MIN_IDENTIFIER_ATTEMPT_LENGTH && isUuidPrefixLayout(term)) {
+    return "MALFORMED";
+  }
   return "NOT_AN_IDENTIFIER";
 }
 

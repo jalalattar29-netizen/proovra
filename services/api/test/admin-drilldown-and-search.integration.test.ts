@@ -453,6 +453,23 @@ describe("PLATFORM ADMIN — drill-down and search (live PostgreSQL 16)", () => 
 
     it("emits no inert ?search= deep links", async () => {
       const res = await get(`/v1/admin/search?q=${encodeURIComponent("dd-")}`);
+      /*
+       * The contract is asserted BEFORE it is walked.
+       *
+       * This block used to iterate `res.json().groups` directly, so any
+       * non-success answer surfaced as "groups is not iterable" — a
+       * destructuring error that says nothing about the HTTP problem behind
+       * it. A search endpoint that refuses, or drifts its response shape, must
+       * fail here as the status and body it actually returned.
+       */
+      expect(
+        res.statusCode,
+        `admin search must succeed; body was ${JSON.stringify(res.json()).slice(0, 300)}`,
+      ).toBe(200);
+      expect(
+        Array.isArray(res.json().groups),
+        `admin search must return a groups array; got keys ${JSON.stringify(Object.keys(res.json()))}`,
+      ).toBe(true);
       for (const group of res.json().groups) {
         for (const result of group.results) {
           expect(
