@@ -175,6 +175,17 @@ function projectSupportGrant(row: {
     // Derived, not stored — the staff console renders live state rather than
     // recomputing expiry from clocks it does not control.
     expired: row.revokedAtUtc === null && row.expiresAtUtc.getTime() <= Date.now(),
+    /*
+     * THE ANSWER TO "WHO CAN REACH CUSTOMER DATA RIGHT NOW".
+     *
+     * `status` is the stored column, and nothing sweeps it the moment a window
+     * closes — so a grant that lapsed a second ago still reads ACTIVE there.
+     * The sibling break-glass projection already derives this; this one did
+     * not, and the support-access console is exactly where a stale ACTIVE is
+     * most misleading. Same helper, so the two surfaces cannot disagree about
+     * what "active" means.
+     */
+    effectiveStatus: effectiveGrantStatus(row),
   };
 }
 
@@ -440,11 +451,25 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     }
   });
   app.post("/v1/support-access/revoke", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
-    const body = z.object({ teamId: z.string().uuid(), grantId: z.string().uuid() }).parse(req.body ?? {});
-    if (!(await requirePlatformStaff(req, reply))) return;
-    const auth = await authorizeOrFail(req, reply, { teamId: body.teamId, permission: "identity.org_policy.manage" });
-    if (!auth) return;
-    await revokeSupportAccess({ grantId: body.grantId, revokedByUserId: auth.actorUserId });
+    /*
+     * REVOCATION IS A PLATFORM ACTION, AND THE CALLER DOES NOT PICK ITS GATE.
+     *
+     * This ran `authorizeOrFail` on `body.teamId` — a workspace the CALLER
+     * names — and demanded `identity.org_policy.manage` in it. Platform staff
+     * are not members of their customers' workspaces, so the people whose job
+     * this is were refused 403 while the field that decided it was supplied by
+     * the request. A caller-controlled value must never choose whether
+     * authority applies, and killing live support access into customer data
+     * must never be the leg that is hardest to reach.
+     *
+     * `teamId` is still accepted for audit context and step-up anchoring; it
+     * is no longer the authority. The authority is platform staff, and the
+     * actor recorded is the authenticated staff user.
+     */
+    const body = z.object({ teamId: z.string().uuid().optional(), grantId: z.string().uuid() }).parse(req.body ?? {});
+    const staff = await requirePlatformStaff(req, reply);
+    if (!staff) return;
+    await revokeSupportAccess({ grantId: body.grantId, revokedByUserId: staff.actorUserId });
     return reply.send({ ok: true });
   });
 
@@ -466,7 +491,17 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     // is how a list and its total drift apart under a filter change.
     const where = {
       ...(q.organizationId ? { organizationId: q.organizationId } : {}),
-      ...(q.status ? { status: q.status } : {}),
+      /*
+       * The clock is part of the filter, not only part of the projection.
+       *
+       * Filtering on the stored column alone made `?status=ACTIVE` answer with
+       * grants whose window had already closed, and `?status=EXPIRED` miss
+       * them — so the one question this console exists to answer, "show me
+       * live access into customer data", returned access that was already
+       * dead and hid access that was. Same predicate the break-glass surface
+       * uses, so the two cannot drift.
+       */
+      ...grantStatusWhere(q.status, new Date()),
       // Default view is the caller's OWN grants — those are the only ones they
       // can actually enter context with.
       ...(q.mine === "false" ? {} : { supportUserId: staff.actorUserId }),

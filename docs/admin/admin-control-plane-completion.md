@@ -240,7 +240,7 @@
 | `/admin/support-access` | GET | `/v1/support-access/grants` | requirePlatformStaff | FILTER |
 | `/admin/support-access` | GET | `/v1/break-glass/grants` | requirePlatformStaff | FILTER |
 | `/admin/support-access` | POST | `/v1/support-access/enter` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | AUDIT |
-| `/admin/support-access` | POST | `/v1/support-access/revoke` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | FILTER_CANDIDATE |
+| `/admin/support-access` | POST | `/v1/support-access/revoke` | requirePlatformStaff | FILTER_CANDIDATE |
 | `/admin/support-access` | POST | `/v1/support-access/start` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | AUDIT |
 | `/admin/support-access` | POST | `/v1/break-glass/activate` | requirePlatformStaff, authorizeOrFail, requireStepUpForSensitiveAction, AUTHORIZE(?), +STEP_UP | AUDIT |
 | `/admin/support-access` | POST | `/v1/break-glass/revoke` | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?) | FILTER_CANDIDATE |
@@ -340,7 +340,7 @@
 | `/admin/platform/queues` | 801 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/readiness` | 604 | 8c/0t/6s | HARDCODED_STATUS_HEX |
 | `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/reliability` | 456 | 0c/0t/3s | HARDCODED_STATUS_HEX |
+| `/admin/platform/reliability` | 466 | 0c/0t/3s | HARDCODED_STATUS_HEX |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 210 | 0c/0t/0s |  |
 | `/admin/platform/signers` | 1213 | 0c/3t/0s | HARDCODED_STATUS_HEX |

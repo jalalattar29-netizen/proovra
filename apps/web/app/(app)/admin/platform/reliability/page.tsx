@@ -231,9 +231,19 @@ useEffect(() => {
       width="full"
       header={
         <PageHeader
-          eyebrow="Platform operations"
+          {/*
+            THE EYEBROW SAID "Platform operations" ON A ONE-WORKSPACE PAGE.
+            Its own subtitle said "for this workspace", and the API behind it
+            (`/v1/reliability/*`, `requireAdminMember`) answers for exactly one
+            workspace and refuses every other — including a platform operator
+            who is not a member. So the label promised a platform blast radius
+            for a tenant-scoped surface, which is the most consequential thing
+            a scope banner can get wrong: an operator reading "platform" trusts
+            these counts to be the whole estate.
+          */}
+          eyebrow="Workspace operations"
           title="Reliability operations"
-          subtitle={"Internal-only view of upload session health for this workspace. Stalled, failed, and review-required uploads are NEVER auto-deleted. Operator actions move the session through the canonical state machine without mutating the underlying evidence row, custody chain, or stored bytes."}
+          subtitle={"Internal-only view of upload session health for the ACTIVE WORKSPACE — not a platform-wide total. Stalled, failed, and review-required uploads are NEVER auto-deleted. Operator actions move the session through the canonical state machine without mutating the underlying evidence row, custody chain, or stored bytes."}
         />
       }
     >
