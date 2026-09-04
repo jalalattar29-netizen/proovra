@@ -45,6 +45,24 @@ export type DetectionResult = {
   riskScore: number;
   level: ReturnType<typeof sessionRiskLevel>;
   signals: ReadonlyArray<SuspiciousSessionSignal>;
+  /**
+   * WHAT THE SCORE WAS BEFORE THIS EVALUATION.
+   *
+   * Re-score returned a number and nothing to compare it against, so the
+   * operator pressing "Re-score" learned only what the score is now — not
+   * whether pressing it had changed anything, and not whether the session had
+   * got better or worse. A control whose whole purpose is to re-evaluate has
+   * to say what the re-evaluation found.
+   *
+   * `null` means the session carried no score yet, which is different from a
+   * previous score of zero.
+   */
+  previousRiskScore: number | null;
+  previousLevel: ReturnType<typeof sessionRiskLevel> | null;
+  /** When this evaluation ran. Without it, "now" is the reader's guess. */
+  evaluatedAtUtc: string;
+  /** Whether the score or the band actually moved. */
+  changed: boolean;
 };
 
 const SIGNAL_SET = new Set<string>(SUSPICIOUS_SESSION_SIGNAL_KINDS);
@@ -77,6 +95,12 @@ export async function detectAndScoreSession(
     where: { id: input.sessionId, teamId: input.teamId },
   });
   if (!session) return null;
+
+  // Captured BEFORE the update below overwrites it. A null here means the
+  // session had never been scored, which is a different fact from a score of
+  // zero and must not be flattened into one.
+  const previousRiskScore =
+    typeof session.riskScore === "number" ? session.riskScore : null;
 
   const now = (input.nowUtc ?? new Date()).getTime();
   const signals: SuspiciousSessionSignal[] = [];
@@ -235,11 +259,22 @@ export async function detectAndScoreSession(
     });
   }
 
+  /*
+   * The previous score was read off the session row BEFORE the update above
+   * overwrote it. Reading it afterwards would report the new value as the old
+   * one, which is the failure mode a before/after display exists to prevent.
+   */
+  const previousLevel =
+    previousRiskScore === null ? null : sessionRiskLevel(previousRiskScore);
   return {
     sessionId: session.id,
     riskScore,
     level,
     signals: signals.filter((s) => SIGNAL_SET.has(s.kind)),
+    previousRiskScore,
+    previousLevel,
+    evaluatedAtUtc: new Date(now).toISOString(),
+    changed: previousRiskScore !== riskScore || previousLevel !== level,
   };
 }
 

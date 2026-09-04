@@ -100,6 +100,41 @@ function describeSessionSubject(s: SessionRow): string {
 }
 
 /**
+ * What a re-score found. The previous score is what makes the new one
+ * meaningful: an operator needs to know whether pressing the button moved
+ * anything, and in which direction.
+ */
+type RiskScoreResult = {
+  sessionId: string;
+  riskScore: number;
+  level: string;
+  previousRiskScore: number | null;
+  previousLevel: string | null;
+  evaluatedAtUtc: string;
+  changed: boolean;
+  signals?: ReadonlyArray<{ kind: string; weight: number; reason: string }>;
+};
+
+/**
+ * One sentence naming before, after and whether it moved.
+ *
+ * "Session re-scored." was true and useless. A first-ever score is called out
+ * separately, because "no previous score" and "previously zero" are different
+ * facts and collapsing them would misreport a brand-new session as unchanged.
+ */
+function describeRescore(r: RiskScoreResult | undefined | null): string {
+  if (!r) return "Session re-scored.";
+  if (r.previousRiskScore === null) {
+    return `Scored for the first time: ${r.riskScore} (${r.level}).`;
+  }
+  if (!r.changed) {
+    return `Re-scored: unchanged at ${r.riskScore} (${r.level}).`;
+  }
+  const direction = r.riskScore > r.previousRiskScore ? "up" : "down";
+  return `Re-scored ${direction}: ${r.previousRiskScore} (${r.previousLevel}) → ${r.riskScore} (${r.level}).`;
+}
+
+/**
  * PHASE 12B (2026-07-30) — result of an operator-triggered identity-security
  * reconcile. The server returns the scope it actually swept plus the two
  * counts, so the projection below is the server's answer, never an
@@ -175,6 +210,7 @@ export default function IdentityRuntimePage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [reconcile, setReconcile] = useState<ReconcileResult | null>(null);
+  const [scoreResult, setScoreResult] = useState<RiskScoreResult | null>(null);
   const [emergencyReason, setEmergencyReason] = useState("");
   /**
    * The quarantine reason, chosen from the catalog the API validates against.
@@ -331,15 +367,26 @@ const load = useCallback(() => {
       if (!teamId) return;
       setBusy(sessionId);
       try {
-        await apiFetch(
+        /*
+         * RE-SCORE HAS TO SAY WHAT IT FOUND.
+         *
+         * This announced "Session re-scored." and reloaded. An operator
+         * pressing it learned nothing: not the previous score, not the new
+         * one, not when the evaluation ran, and — most importantly — not
+         * whether pressing it had changed anything at all. A button whose
+         * whole purpose is to re-evaluate cannot be the one control that
+         * refuses to report its result.
+         */
+        const res = (await apiFetch(
           `/v1/admin/identity/sessions/${encodeURIComponent(sessionId)}/score`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ teamId }),
           },
-        );
-        setNotice("Session re-scored.");
+        )) as { result?: RiskScoreResult };
+        setScoreResult(res?.result ?? null);
+        setNotice(describeRescore(res?.result));
         load();
       } catch (err) {
         setError(
@@ -609,6 +656,49 @@ const load = useCallback(() => {
         >
           {notice}
         </div>
+      ) : null}
+
+      {/*
+        THE RE-SCORE RESULT, SHOWN RATHER THAN SUMMARISED AWAY.
+
+        The sentence above already says whether the score moved. This panel
+        carries what an operator needs to act on it: both numbers with their
+        bands, when the evaluation actually ran, and the signals that produced
+        it. Without the signals a changed score is a verdict with no reasons.
+      */}
+      {scoreResult ? (
+        <Card padding="comfortable" data-rescore-result>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <Badge tone={scoreResult.changed ? "pending" : "neutral"} dot>
+              {scoreResult.changed ? "Score changed" : "No change"}
+            </Badge>
+            <span style={{ fontSize: 13 }}>
+              {scoreResult.previousRiskScore === null
+                ? "No previous score"
+                : `${scoreResult.previousRiskScore} (${scoreResult.previousLevel})`}
+              {" → "}
+              <strong>
+                {scoreResult.riskScore} ({scoreResult.level})
+              </strong>
+            </span>
+            <span style={{ ...mutedStyle, fontSize: 12 }}>
+              evaluated {formatDateTime(scoreResult.evaluatedAtUtc)}
+            </span>
+          </div>
+          {scoreResult.signals && scoreResult.signals.length > 0 ? (
+            <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: 12.5 }}>
+              {scoreResult.signals.map((sig) => (
+                <li key={sig.kind}>
+                  <strong>{sig.kind.replace(/_/g, " ").toLowerCase()}</strong> (+{sig.weight}) — {sig.reason}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ ...mutedStyle, fontSize: 12.5, margin: "10px 0 0" }}>
+              No risk signals fired for this session.
+            </p>
+          )}
+        </Card>
       ) : null}
 
       <PageSection

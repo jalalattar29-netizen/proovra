@@ -1093,7 +1093,28 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const body = z.object({ teamId: z.string().uuid() }).parse(req.body ?? {});
-      const actor = await requireIdentityAdmin(req, reply, body.teamId);
+      /*
+       * A WRITE PERMISSION, BECAUSE THIS IS A WRITE.
+       *
+       * This called `requireIdentityAdmin` with no permission argument, and
+       * that parameter defaults to `identity.org_policy.read` — so a READ
+       * permission gated an operation that persists `risk_score` on the
+       * session row and can emit a `suspicious_session_detected` security
+       * event. Measured against the fixture: the read-only operator received
+       * 200 and changed a session's score.
+       *
+       * Its two siblings on the same resource, quarantine and release, both
+       * pass `identity.contributor_session.revoke`. Re-score acts on the same
+       * session's security state and now requires the same authority — the
+       * three controls sit next to each other in the console and must not
+       * disagree about who may use them.
+       */
+      const actor = await requireIdentityAdmin(
+        req,
+        reply,
+        body.teamId,
+        "identity.contributor_session.revoke",
+      );
       if (!actor) return;
       const result = await detectAndScoreSession({
         teamId: body.teamId,
