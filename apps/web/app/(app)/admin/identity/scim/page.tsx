@@ -332,6 +332,8 @@ function TokensTab({ teamId }: { teamId: string }) {
   const { confirm } = useConfirmAction();
   const { stamp, isStale } = useTenantGuard();
   const [tokens, setTokens] = useState<ScimToken[] | null>(null);
+  /** Whether this workspace's plan includes issuing and rotating credentials. */
+  const [canProvision, setCanProvision] = useState(true);
   const [denial, setDenial] = useState<ScimDenial | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -348,9 +350,19 @@ function TokensTab({ teamId }: { teamId: string }) {
       const r = (await apiFetch(
         `/v1/admin/identity/scim/tokens?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
-      )) as { tokens?: ScimToken[] };
+      )) as { tokens?: ScimToken[]; entitlement?: { ssoScim?: boolean } };
       if (isStale(captured)) return;
       setTokens(r.tokens ?? []);
+      /*
+       * Issuing and rotating a directory credential are Enterprise
+       * capabilities; revoking one is not, because a customer must always be
+       * able to destroy a credential that already exists. The list says which
+       * side of that line this workspace is on, so the console can present
+       * create and rotate as plan-gated instead of offering buttons the
+       * server will refuse. This is presentation only — the server refuses
+       * regardless of what the page shows.
+       */
+      setCanProvision(r.entitlement?.ssoScim !== false);
       setDenial(null);
       setError(null);
     } catch (err) {
@@ -595,6 +607,12 @@ function TokensTab({ teamId }: { teamId: string }) {
         </p>
         <Button
           variant="enterprise"
+          disabled={!canProvision}
+          title={
+            canProvision
+              ? undefined
+              : "Issuing a token is part of the Enterprise plan. Existing tokens can still be revoked."
+          }
           onClick={() => {
             setShowCreate(true);
             setRevealedToken(null);
@@ -621,6 +639,28 @@ function TokensTab({ teamId }: { teamId: string }) {
         </div>
       ) : null}
 
+      {denial || canProvision ? null : (
+        <div
+          data-scim-provisioning-gated="true"
+          style={{
+            marginTop: 16,
+            padding: "12px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--border-subtle, #d6d9e0)",
+            background: "var(--surface-muted, #f6f7f9)",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: 2 }}>
+            Directory provisioning is not included in this plan
+          </strong>
+          New tokens cannot be issued and existing tokens cannot be rotated or used
+          to synchronize. Tokens already issued stay listed here and can still be
+          revoked.
+        </div>
+      )}
+
       {denial ? null : (
         <div style={{ marginTop: 16 }}>
           <DataTable
@@ -636,6 +676,12 @@ function TokensTab({ teamId }: { teamId: string }) {
                 action={
                   <Button
                     variant="enterprise"
+                    disabled={!canProvision}
+                    title={
+                      canProvision
+                        ? undefined
+                        : "Issuing a token is part of the Enterprise plan. Existing tokens can still be revoked."
+                    }
                     onClick={() => {
                       setShowCreate(true);
                       setRevealedToken(null);
@@ -652,11 +698,22 @@ function TokensTab({ teamId }: { teamId: string }) {
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={busy === t.id}
+                    disabled={busy === t.id || !canProvision}
+                    title={
+                      canProvision
+                        ? undefined
+                        : "Rotating a token is part of the Enterprise plan. You can still revoke this token."
+                    }
                     onClick={() => rotate(t)}
                   >
                     Rotate
                   </Button>
+                  {/*
+                    Revoke stays available on every plan. A customer who has
+                    downgraded still holds a live directory credential, and
+                    taking away the only way to destroy it would be the worst
+                    possible moment to do so.
+                  */}
                   <Button
                     variant="destructive"
                     size="sm"

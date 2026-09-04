@@ -327,7 +327,7 @@
 | `/admin/identity/permission-matrix` | 755 | 6c/1t/5s | HARDCODED_STATUS_HEX |
 | `/admin/identity/providers` | 967 | 9c/1t/3s | HARDCODED_STATUS_HEX |
 | `/admin/identity/runtime` | 910 | 2c/2t/3s | HARDCODED_STATUS_HEX |
-| `/admin/identity/scim` | 1345 | 7c/4t/0s | HARDCODED_STATUS_HEX |
+| `/admin/identity/scim` | 1402 | 7c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 324 | 0c/1t/1s |  |
 | `/admin/operations` | 513 | 2c/2t/2s |  |

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "84ff6851a736888a2a480f3b0f61610ddd8275a31aa6918bb2bd63302a7843b9",
-  "consumerInventoryHash": "e85737f448fd66714c5292a9cc9de250d8190775c10f2303556748ed71c750a6",
+  "consumerInventoryHash": "934e04558a31feceab6d0aac06668d5829f366ac98e1f4f204c0c7396951b696",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1125,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8315,
+      "METHOD_ON_VALUE": 8317,
       "UNRESOLVED_IDENTIFIER": 1045
     },
     "MutationFixpointRounds": 9,
@@ -1167,7 +1167,7 @@
       "method": "GET",
       "route": "/v1/admin/identity/scim/tokens",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:348",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:350",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -5871,7 +5871,7 @@
       "method": "GET",
       "route": "/v1/scim/reconciliation/preview",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:795",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:852",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -5883,7 +5883,7 @@
       "method": "GET",
       "route": "/v1/scim/sync-failures",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:1109",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:1166",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7359,7 +7359,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/scim/tokens",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:389",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:401",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7371,7 +7371,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/scim/tokens/:id/revoke",
       "registeringFile": "services/api/src/routes/admin-identity.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:501",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:513",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7383,7 +7383,7 @@
       "method": "POST",
       "route": "/v1/admin/identity/scim/tokens/:id/rotate",
       "registeringFile": "services/api/src/routes/scim-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:449",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:461",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12915,7 +12915,7 @@
       "method": "POST",
       "route": "/v1/scim/reconciliation/execute",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:851",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:908",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12927,7 +12927,7 @@
       "method": "POST",
       "route": "/v1/scim/sync-failures/:id/replay",
       "registeringFile": "services/api/src/routes/identity-operations-completion.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:1161",
+      "productConsumer": "apps/web/app/(app)/admin/identity/scim/page.tsx:1218",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -21908,8 +21908,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@805",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:805",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@872",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:872",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -21941,8 +21941,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1275",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1275",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1342",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1342",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimReactivateUser",
       "kind": "DATABASE",
@@ -21974,8 +21974,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1372",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1372",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1439",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1439",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimUpdateUserAttributes",
       "kind": "DATABASE",
@@ -22007,8 +22007,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1080",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1080",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1147",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1147",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -22041,8 +22041,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@174",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:174",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@175",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:175",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "createScimToken",
       "kind": "DATABASE",
@@ -22074,8 +22074,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@310",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:310",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.create@377",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:377",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "rotateScimToken",
       "kind": "DATABASE",
@@ -22107,41 +22107,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.update@237",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:237",
-      "file": "services/api/src/services/access-control/scim.service.ts",
-      "enclosingDeclaration": "revokeScimToken",
-      "kind": "DATABASE",
-      "target": "scimProvisioningToken",
-      "mutationKind": "update",
-      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/admin/identity/scim/tokens/:id/revoke"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/admin-identity.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.update@628",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:628",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.update@695",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:695",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "authenticateScimRequest",
       "kind": "DATABASE",
@@ -22182,8 +22149,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@295",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:295",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@259",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:259",
+      "file": "services/api/src/services/access-control/scim.service.ts",
+      "enclosingDeclaration": "revokeScimToken",
+      "kind": "DATABASE",
+      "target": "scimProvisioningToken",
+      "mutationKind": "updateMany",
+      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/admin/identity/scim/tokens/:id/revoke"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-identity.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/access-control/scim.service.ts#scimProvisioningToken.updateMany@362",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:362",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "rotateScimToken",
       "kind": "DATABASE",
@@ -22215,8 +22215,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@794",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:794",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@861",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:861",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -22248,8 +22248,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1152",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1152",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1219",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1219",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -23914,6 +23914,7 @@
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
+        "GET /v1/admin/identity/scim/tokens",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
         "GET /v1/ai/availability",
@@ -23951,6 +23952,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/identity/scim/tokens",
+        "POST /v1/admin/identity/scim/tokens/:id/revoke",
         "POST /v1/admin/identity/scim/tokens/:id/rotate",
         "POST /v1/ai/capture/analyze-session",
         "POST /v1/ai/chat",
@@ -24007,6 +24010,8 @@
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:orgId/domains",
         "POST /v1/orgs/:orgId/domains/:id/verify",
+        "POST /v1/scim/reconciliation/execute",
+        "POST /v1/scim/sync-failures/:id/replay",
         "POST /v1/teams",
         "POST /v1/teams/:id/cases/link",
         "POST /v1/teams/:id/invites",
@@ -24019,6 +24024,7 @@
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
+        "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-users.routes.ts",
         "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai.routes.ts",
@@ -24034,6 +24040,7 @@
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/external-intake.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
@@ -24087,6 +24094,7 @@
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
+        "GET /v1/admin/identity/scim/tokens",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
         "GET /v1/ai/availability",
@@ -24124,6 +24132,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/identity/scim/tokens",
+        "POST /v1/admin/identity/scim/tokens/:id/revoke",
         "POST /v1/admin/identity/scim/tokens/:id/rotate",
         "POST /v1/ai/capture/analyze-session",
         "POST /v1/ai/chat",
@@ -24180,6 +24190,8 @@
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:orgId/domains",
         "POST /v1/orgs/:orgId/domains/:id/verify",
+        "POST /v1/scim/reconciliation/execute",
+        "POST /v1/scim/sync-failures/:id/replay",
         "POST /v1/teams",
         "POST /v1/teams/:id/cases/link",
         "POST /v1/teams/:id/invites",
@@ -24192,6 +24204,7 @@
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
+        "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-users.routes.ts",
         "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai.routes.ts",
@@ -24207,6 +24220,7 @@
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/external-intake.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
@@ -24260,6 +24274,7 @@
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
+        "GET /v1/admin/identity/scim/tokens",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
         "GET /v1/ai/availability",
@@ -24297,6 +24312,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/identity/scim/tokens",
+        "POST /v1/admin/identity/scim/tokens/:id/revoke",
         "POST /v1/admin/identity/scim/tokens/:id/rotate",
         "POST /v1/ai/capture/analyze-session",
         "POST /v1/ai/chat",
@@ -24353,6 +24370,8 @@
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:orgId/domains",
         "POST /v1/orgs/:orgId/domains/:id/verify",
+        "POST /v1/scim/reconciliation/execute",
+        "POST /v1/scim/sync-failures/:id/replay",
         "POST /v1/teams",
         "POST /v1/teams/:id/cases/link",
         "POST /v1/teams/:id/invites",
@@ -24365,6 +24384,7 @@
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
+        "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-users.routes.ts",
         "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai.routes.ts",
@@ -24380,6 +24400,7 @@
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/external-intake.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
@@ -25491,6 +25512,7 @@
         "DELETE /v2/scim/Groups/:id",
         "DELETE /v2/scim/Users/:id",
         "GET /v1/admin/identity/scim/managed-membership",
+        "GET /v1/admin/identity/scim/tokens",
         "GET /v1/admin/users/:id",
         "GET /v1/admin/workspaces/:id",
         "GET /v1/ai/availability",
@@ -25517,6 +25539,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/identity/scim/tokens",
+        "POST /v1/admin/identity/scim/tokens/:id/revoke",
         "POST /v1/admin/identity/scim/tokens/:id/rotate",
         "POST /v1/ai/capture/analyze-session",
         "POST /v1/ai/chat",
@@ -25553,6 +25577,8 @@
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:orgId/domains",
         "POST /v1/orgs/:orgId/domains/:id/verify",
+        "POST /v1/scim/reconciliation/execute",
+        "POST /v1/scim/sync-failures/:id/replay",
         "POST /v1/teams",
         "POST /v1/teams/:id/invites",
         "POST /v1/teams/invites/:token/accept",
@@ -25564,6 +25590,7 @@
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
+        "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-users.routes.ts",
         "MODULE services/api/src/routes/admin-workspaces.routes.ts",
         "MODULE services/api/src/routes/ai.routes.ts",
@@ -25576,6 +25603,7 @@
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/external-intake.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/identity-operations-completion.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
         "MODULE services/api/src/routes/mfa-admin.routes.ts",
@@ -37307,8 +37335,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/access-review.service.ts#accessReview.create@233",
-      "terminalLocation": "services/api/src/services/identity/access-review.service.ts:233",
+      "writerId": "services/api/src/services/identity/access-review.service.ts#accessReview.create@238",
+      "terminalLocation": "services/api/src/services/identity/access-review.service.ts:238",
       "file": "services/api/src/services/identity/access-review.service.ts",
       "enclosingDeclaration": "enqueueIfNotExists",
       "kind": "DATABASE",
@@ -37340,13 +37368,13 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/access-review.service.ts#accessReview.update@349",
-      "terminalLocation": "services/api/src/services/identity/access-review.service.ts:349",
+      "writerId": "services/api/src/services/identity/access-review.service.ts#accessReview.updateMany@342",
+      "terminalLocation": "services/api/src/services/identity/access-review.service.ts:342",
       "file": "services/api/src/services/identity/access-review.service.ts",
-      "enclosingDeclaration": "completeAccessReview",
+      "enclosingDeclaration": "completeAccessReviewInner",
       "kind": "DATABASE",
       "target": "accessReview",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
       "insideTransaction": false,
       "entryRoutes": [
@@ -81919,7 +81947,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/permission-matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:524",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:528",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -81974,7 +82002,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:321",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:325",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82064,7 +82092,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/quarantined-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1150",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1205",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82129,7 +82157,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/role-matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:557",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:561",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveAdminWorkspace -> services/api/src/routes/admin-identity.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -82281,7 +82309,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/scim/tokens",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:646",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:650",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82292,7 +82320,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 348,
+          "line": 350,
           "caller": "TokensTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82302,7 +82330,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:348 (TokensTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:350 (TokensTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82315,16 +82343,33 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
+        "organization",
+        "report",
         "scimProvisioningToken",
-        "teamMember"
+        "subscription",
+        "team",
+        "teamMember",
+        "verificationPackage",
+        "workspaceStorageAddon"
       ],
       "modelsWritten": [
+        "entitlement",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -82337,7 +82382,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:772",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:827",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -82402,7 +82447,7 @@
       "method": "GET",
       "path": "/v1/admin/identity/timeline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:915",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:970",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90386,7 +90431,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 830,
+          "line": 855,
           "caller": "triggerReport",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90763,7 +90808,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 866,
+          "line": 891,
           "caller": "triggerPackage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -96313,7 +96358,7 @@
       "method": "GET",
       "path": "/v1/identity/sessions/:sessionId/timeline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:462",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:479",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -101483,7 +101528,7 @@
         },
         {
           "file": "apps/web/lib/useGlobalRuntimeState.ts",
-          "line": 324,
+          "line": 353,
           "caller": "tickOnce",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106128,7 +106173,7 @@
         },
         {
           "file": "apps/web/lib/useGlobalRuntimeState.ts",
-          "line": 338,
+          "line": 367,
           "caller": "tickOnce",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106138,7 +106183,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:114 (EscalationsConsolePageInner, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:574 (ReviewerConsole, WEB); apps/web/lib/useGlobalRuntimeState.ts:338 (tickOnce, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:114 (EscalationsConsolePageInner, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:574 (ReviewerConsole, WEB); apps/web/lib/useGlobalRuntimeState.ts:367 (tickOnce, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107322,7 +107367,7 @@
       "method": "GET",
       "path": "/v1/saml/mapping/current",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:264",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:281",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107375,7 +107420,7 @@
       "method": "GET",
       "path": "/v1/saml/mapping/schema",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:252",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:269",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107423,7 +107468,7 @@
       "method": "GET",
       "path": "/v1/scim/reconciliation/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:113",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:114",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107434,7 +107479,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 795,
+          "line": 852,
           "caller": "DriftTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107444,7 +107489,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:795 (DriftTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:852 (DriftTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107480,7 +107525,7 @@
       "method": "GET",
       "path": "/v1/scim/sync-failures",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:176",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:186",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -107491,7 +107536,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 1109,
+          "line": 1166,
           "caller": "ReplayTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107501,7 +107546,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:1109 (ReplayTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:1166 (ReplayTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -108530,7 +108575,7 @@
       "method": "GET",
       "path": "/v1/sso/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:429",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:446",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -114867,7 +114912,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/elevations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:580",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:584",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveAdminWorkspace -> services/api/src/routes/admin-identity.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -114947,7 +114992,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/emergency-revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1264",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1319",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115014,7 +115059,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:351",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:355",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115090,7 +115135,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers/:id/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:459",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:463",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115168,7 +115213,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/providers/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:401",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:405",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115232,7 +115277,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/runtime/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1312",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1367",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -115321,7 +115366,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/scim/tokens",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:663",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:685",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115332,7 +115377,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 389,
+          "line": 401,
           "caller": "TokensTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115342,7 +115387,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:389 (TokensTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:401 (TokensTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115355,20 +115400,27 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "authenticatedSession",
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
         "mfaFactor",
         "operationalIncident",
         "operationalIncidentEvent",
+        "organization",
+        "report",
         "revokedSession",
         "riskSignal",
         "stepUpChallenge",
+        "subscription",
         "team",
         "teamMember",
-        "trustedDevice"
+        "trustedDevice",
+        "verificationPackage",
+        "workspaceStorageAddon"
       ],
       "modelsWritten": [
-        "adminAuditLog",
+        "entitlement",
         "operationalIncident",
         "operationalIncidentEvent",
         "revokedSession",
@@ -115380,6 +115432,13 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
         "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
@@ -115398,7 +115457,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/scim/tokens/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:714",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:754",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115409,7 +115468,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 501,
+          "line": 513,
           "caller": "TokensTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115419,7 +115478,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:501 (TokensTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:513 (TokensTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115432,14 +115491,23 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
         "mfaFactor",
+        "organization",
+        "report",
         "riskSignal",
         "scimProvisioningToken",
         "stepUpChallenge",
+        "subscription",
         "team",
-        "teamMember"
+        "teamMember",
+        "verificationPackage",
+        "workspaceStorageAddon"
       ],
       "modelsWritten": [
+        "entitlement",
         "scimProvisioningToken",
         "securityEvent",
         "stepUpChallenge"
@@ -115447,7 +115515,14 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -115473,7 +115548,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 449,
+          "line": 461,
           "caller": "TokensTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -115483,7 +115558,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:449 (TokensTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:461 (TokensTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -115547,7 +115622,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/quarantine",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1186",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1241",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115626,7 +115701,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1230",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1285",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115693,7 +115768,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:812",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:867",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115756,7 +115831,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/:id/score",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1094",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1149",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -115814,7 +115889,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/reconcile-stale",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1021",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1076",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -115891,7 +115966,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/sessions/user/:userId/revoke-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:862",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:917",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125620,7 +125695,7 @@
         },
         {
           "file": "apps/web/components/reports-experience/ReportsIndex.tsx",
-          "line": 908,
+          "line": 933,
           "caller": "triggerRegenerate",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125630,7 +125705,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:80 (executeRegenerateReport, WEB); apps/web/components/reports-experience/ReportsIndex.tsx:908 (triggerRegenerate, WEB)",
+      "dispositionEvidence": "apps/web/components/ai-copilot/EvidenceCopilotPanel.tsx:80 (executeRegenerateReport, WEB); apps/web/components/reports-experience/ReportsIndex.tsx:933 (triggerRegenerate, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147207,7 +147282,7 @@
       "method": "POST",
       "path": "/v1/saml/mapping/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:287",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:304",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147262,7 +147337,7 @@
       "method": "POST",
       "path": "/v1/scim/reconciliation/execute",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:133",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:134",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147273,7 +147348,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 851,
+          "line": 908,
           "caller": "DriftTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147283,7 +147358,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:851 (DriftTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:908 (DriftTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147296,13 +147371,22 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
         "mfaFactor",
+        "organization",
+        "report",
         "riskSignal",
         "stepUpChallenge",
+        "subscription",
         "team",
-        "teamMember"
+        "teamMember",
+        "verificationPackage",
+        "workspaceStorageAddon"
       ],
       "modelsWritten": [
+        "entitlement",
         "membershipGrant",
         "scimGroup",
         "scimProvisioningToken",
@@ -147313,6 +147397,13 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/routes/identity-operations-completion.routes.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/routes/identity-operations-completion.routes.ts)",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/identity/membership-provisioning.service.ts: teamMember.update — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
@@ -147326,7 +147417,7 @@
       "method": "POST",
       "path": "/v1/scim/sync-failures/:id/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:224",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:234",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -147337,7 +147428,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/identity/scim/page.tsx",
-          "line": 1161,
+          "line": 1218,
           "caller": "ReplayTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147347,7 +147438,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:1161 (ReplayTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/identity/scim/page.tsx:1218 (ReplayTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147360,15 +147451,32 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "enterpriseContract",
+        "entitlement",
+        "evidence",
+        "organization",
+        "report",
         "securityEvent",
-        "teamMember"
+        "subscription",
+        "team",
+        "teamMember",
+        "verificationPackage",
+        "workspaceStorageAddon"
       ],
       "modelsWritten": [
+        "entitlement",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/identity-operations-completion.routes.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/routes/identity-operations-completion.routes.ts)"
+        "services/api/src/routes/identity-operations-completion.routes.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/routes/identity-operations-completion.routes.ts)",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/commercial-context.service.ts: subscription.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -151803,7 +151911,7 @@
       "method": "PUT",
       "path": "/v1/saml/mapping",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:340",
+      "registrationEvidence": "services/api/src/routes/identity-operations-completion.routes.ts:357",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

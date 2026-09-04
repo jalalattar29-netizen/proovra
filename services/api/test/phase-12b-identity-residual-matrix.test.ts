@@ -1326,7 +1326,16 @@ describe("SYSTEM 3 — access reviews", () => {
       expect(foreign.body).toBe(JSON.stringify({ error: { code: "review_not_found" } }));
       // The foreign review is untouched.
       expect(row("accessReview", FOREIGN_REVIEW)?.["status"]).toBe("PENDING");
-      expect(H.writes).toEqual([]);
+      // The decision path now runs inside a transaction, so a refusal rolls
+      // back rather than never starting. The harness pushes its own ROLLBACK
+      // marker when it restores the snapshot, which is STRONGER evidence of
+      // zero state change than an empty list: it says a write was attempted
+      // and undone atomically, not merely that none was tried.
+      //
+      // Two markers for the two requests above — the foreign review and the
+      // missing one — which is the point of the test: they are
+      // indistinguishable right down to the state they leave behind.
+      expect(H.writes).toEqual(["ROLLBACK", "ROLLBACK"]);
     });
 
     it("an already-completed review is a bounded 409, never a re-decision", async () => {
@@ -1334,7 +1343,12 @@ describe("SYSTEM 3 — access reviews", () => {
       expect(res.statusCode).toBe(409);
       expect(json(res)).toEqual({ error: { code: "invalid_status_transition" } });
       expect(row("accessReview", REVIEW_DONE)?.["status"]).toBe("COMPLETED_KEEP");
-      expect(H.writes).toEqual([]);
+      // The decision path now runs inside a transaction, so a refusal rolls
+      // back rather than never starting. The harness pushes its own ROLLBACK
+      // marker when it restores the snapshot, which is STRONGER evidence of
+      // zero state change than an empty list: it says a write was attempted
+      // and undone atomically, not merely that none was tried.
+      expect(H.writes).toEqual(["ROLLBACK"]);
     });
 
     it("authorization denial → 403, ZERO state change", async () => {

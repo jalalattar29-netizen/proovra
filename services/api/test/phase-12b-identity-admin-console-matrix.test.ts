@@ -73,6 +73,8 @@ const H = vi.hoisted(() => ({
   currentWorkspaceId: "22222222-2222-4222-8222-222222222222" as string | null,
   stepUpDenies: false,
   runtimeGateDenies: false,
+  /** Whether the workspace holds the Enterprise `ssoScim` entitlement. */
+  ssoScimEntitled: true,
   /** EVERY canonical-service invocation, in order. */
   calls: [] as Call[],
   /** Only invocations that actually CHANGED state. */
@@ -155,6 +157,30 @@ vi.mock("../src/services/access-control/adaptive-runtime-gate.service.js", () =>
     if (!H.runtimeGateDenies) return { allow: true };
     i.reply.code(403).send({ error: { code: "runtime_gate_blocked", action: i.action } });
     return { allow: false, sent: true, decision: "BLOCK" };
+  },
+}));
+
+/*
+ * SCIM token CREATE and the token LIST both consult the canonical entitlement
+ * resolver — create to enforce it, list to report it so the console can show
+ * the plan gate honestly. REVOKE deliberately does not, because a customer
+ * must always be able to destroy a credential that already exists.
+ */
+vi.mock("../src/services/enterprise-gate-resolvers.service.js", () => ({
+  resolveTeamEnterpriseFeatureGate: async () =>
+    H.ssoScimEntitled
+      ? { ok: true }
+      : { ok: false, reason: "ENTERPRISE_FEATURE_REQUIRED", statusCode: 402 },
+  denyTeamIfNotEnterprise: async (reply: Reply) => {
+    if (H.ssoScimEntitled) return false;
+    reply.code(402).send({
+      error: {
+        code: "ENTERPRISE_FEATURE_REQUIRED",
+        message: `Feature "ssoScim" is included only on Enterprise plans`,
+        upgradeCta: "/contact-sales",
+      },
+    });
+    return true;
   },
 }));
 
@@ -422,6 +448,7 @@ beforeEach(async () => {
     currentWorkspaceId: TEAM,
     stepUpDenies: false,
     runtimeGateDenies: false,
+    ssoScimEntitled: true,
   });
   H.calls.length = 0;
   H.writes.length = 0;

@@ -61,6 +61,7 @@ import {
   type IdentitySessionTimeline,
 } from "../services/security/session-timeline.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { denyTeamIfNotEnterprise } from "../services/enterprise-gate-resolvers.service.js";
 import { bump } from "../services/ops/metrics.service.js";
 
 // ---------------------------------------------------------------------------
@@ -143,6 +144,15 @@ export async function identityOperationsCompletionRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireIdentityAdmin(req, reply, body.teamId);
       if (!ctx) return;
+
+      /*
+       * Reconciliation SYNCHRONISES against the directory, so it is a use of
+       * SCIM and stops with the entitlement. After a downgrade the workspace
+       * must not keep pulling directory state — the same reason the protocol
+       * surface answers 402. Revoking a specific token is a separate route
+       * and stays available, so gating this does not strand a credential.
+       */
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "ssoScim")) return;
 
       // Step-up gate. Reconciliation can demote members + revoke
       // tokens — destructive. Always require step-up.
@@ -231,6 +241,13 @@ export async function identityOperationsCompletionRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireIdentityAdmin(req, reply, body.teamId);
       if (!ctx) return;
+      /*
+       * Replaying a failed sync IS a sync, so it stops with the entitlement
+       * for the same reason the reconciliation route above does. Reading the
+       * failure list stays available, because the record of what went wrong
+       * is needed for audit and for safe reactivation.
+       */
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "ssoScim")) return;
       const result = await replayScimSyncFailure({
         teamId: body.teamId,
         failureId: params.id,

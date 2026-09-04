@@ -87,19 +87,19 @@
     }
   ],
   "categoryCounts": {
-    "COLUMN_DEFAULT_DECLARATION": 99,
+    "COLUMN_DEFAULT_DECLARATION": 101,
     "COLUMN_TYPE_DECLARATION": 110,
     "INDEX_DECLARATION": 203,
     "FOREIGN_KEY_DECLARATION": 181,
     "INDEX_NAME_CONVENTION": 270,
     "UNIQUE_DECLARATION": 5,
+    "PARTIAL_INDEX_DECLARATION": 2,
+    "PARTIAL_UNIQUE_DECLARATION": 3,
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
-    "ENUM_LABEL_RESIDUAL": 1,
-    "PARTIAL_INDEX_DECLARATION": 2,
-    "PARTIAL_UNIQUE_DECLARATION": 2
+    "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 877,
+  "totalRegisteredObjects": 880,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -5444,6 +5444,42 @@
       "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unfiltered @@index over the retry column would cover every add-on ever sold, including the overwhelming majority whose state is NONE, which is the opposite of what the predicate is for.",
       "prismaExpressible": false,
       "purpose": "The retry worker and the reconciliation sweep both ask 'which add-ons are still owed a cancellation, and which are due now?', and both must answer without scanning the table. The predicate excludes the two resolved states, so the index stays proportional to outstanding work rather than to the number of add-ons ever sold — on a healthy system, zero rows."
+    },
+    {
+      "table": "emergency_access_grants",
+      "sign": "-",
+      "object": "Removed unique index on columns (organization_id, emergency_user_id)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "emergency_access_grants_active_org_user_uk",
+      "columns": [
+        "organization_id",
+        "emergency_user_id"
+      ],
+      "predicate": "status = 'ACTIVE'",
+      "createdBy": "20280120000000_break_glass_single_active_grant",
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional `@@unique([organizationId, emergencyUserId])` would make it impossible to grant emergency access to the same person twice, ever, because revoked and expired grants are history and must accumulate freely.",
+      "prismaExpressible": false,
+      "purpose": "ONE live emergency-access grant per (organization, emergency user). Measured against a live fixture before this existed: four simultaneous activations, each carrying its own genuinely approved single-use step-up challenge, produced FOUR overlapping ACTIVE grants. Every one was individually authorized, so this is not an authorization hole — it is an operational one. The staff console lists live emergency access over a customer's data, and revoking the grant an operator can SEE left three they could not. A read-then-create cannot close that: two callers both read 'none active' and both create. The exclusion has to be the index, and the service turns the collision into a typed BREAK_GLASS_ALREADY_ACTIVE 409."
+    },
+    {
+      "table": "worker_leases",
+      "sign": "*",
+      "object": "Altered column queue_subscriptions (default changed from Some(Value(List([]))) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION",
+      "createdBy": "20280115000000_worker_lease_and_heartbeat_retention",
+      "mayBeModifiedBy": "a forward migration only.",
+      "prismaExpressible": false,
+      "purpose": "The empty-array default lives in the migration rather than the datamodel. A worker that has registered but not yet reported its subscriptions is honestly subscribed to nothing, which is what an empty list says; Prisma's list default would be re-emitted on every introspection round-trip and drift against the column the migration actually created."
+    },
+    {
+      "table": "worker_leases",
+      "sign": "*",
+      "object": "Altered column updated_at (default changed from Some(Now) to None)",
+      "category": "COLUMN_DEFAULT_DECLARATION",
+      "createdBy": "20280115000000_worker_lease_and_heartbeat_retention",
+      "mayBeModifiedBy": "a forward migration only.",
+      "prismaExpressible": false,
+      "purpose": "`updated_at` is maintained by the application's `@updatedAt` on every lease upsert, so the database-side default is redundant at write time and exists only to make the column NOT NULL on insert. Declaring it in the datamodel as well would produce two writers for one timestamp."
     }
   ]
 }

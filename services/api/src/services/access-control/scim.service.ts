@@ -81,6 +81,7 @@ import {
   suspendWorkspaceMembership,
 } from "../identity/membership-provisioning.service.js";
 import { enforceScimManagedOwnership } from "./scim-managed-ownership.service.js";
+import { resolveTeamEnterpriseFeatureGate } from "../enterprise-gate-resolvers.service.js";
 
 // -----------------------------------------------------------------------------
 // Token hashing
@@ -195,6 +196,11 @@ export async function createScimToken(
       actorUserId: input.actorUserId,
     },
   });
+  // The credential's whole lifecycle reads the same way in the audit trail:
+  // where it came from, where it went, and whether the entitlement that
+  // permits SCIM was live at the time. The prefix identifies the token; the
+  // secret and its hash are never recorded.
+  const entitlement = await resolveTeamEnterpriseFeatureGate(input.teamId, "ssoScim");
   await emitTenantAudit({
     action: "scim.token.create",
     outcome: "success",
@@ -203,7 +209,13 @@ export async function createScimToken(
     workspaceId: input.teamId,
     resourceType: "scim_provisioning_token",
     resourceId: row.id,
-    metadata: { scopes: input.scopes },
+    metadata: {
+      scopes: input.scopes,
+      tokenPrefix,
+      previousStatus: null,
+      nextStatus: "ACTIVE",
+      entitlementActive: entitlement.ok,
+    },
   }, client);
   return { projection: projectToken(row), tokenOnce: raw };
 }
@@ -233,9 +245,19 @@ export async function revokeScimToken(
     where: { id: input.id, teamId: input.teamId },
   });
   if (!row) return null;
+  // Already revoked: return the same projection, write nothing, and emit
+  // nothing. A second "first revocation" in the log would be a lie, and a
+  // rewritten `revokedAtUtc` would move the moment the credential died.
   if (row.status === "REVOKED") return projectToken(row);
-  const updated = await client.scimProvisioningToken.update({
-    where: { id: row.id },
+
+  /*
+   * The status is re-checked IN the write, not just before it. Two
+   * administrators clicking Revoke at the same moment both read ACTIVE, and a
+   * plain `update` would let both through — two audit rows, two revocation
+   * timestamps, for one credential that can only die once.
+   */
+  const claimed = await client.scimProvisioningToken.updateMany({
+    where: { id: row.id, status: { not: "REVOKED" } },
     data: {
       status: "REVOKED",
       revokedAtUtc: new Date(),
@@ -243,13 +265,58 @@ export async function revokeScimToken(
       revokedReason: input.reason?.slice(0, 400) ?? null,
     },
   });
+  const updated = await client.scimProvisioningToken.findUniqueOrThrow({
+    where: { id: row.id },
+  });
+  if (claimed.count === 0) {
+    // A concurrent caller won. They own the audit row for this transition.
+    return projectToken(updated);
+  }
+
   bump("scim_token_revoked_total");
   safeEmitSecurityEvent({
     teamId: input.teamId,
     eventType: "scim_token_revoked",
     severity: "WARNING",
-    details: { tokenId: row.id, actorUserId: input.actorUserId },
+    details: {
+      tokenId: row.id,
+      tokenPrefix: row.tokenPrefix,
+      actorUserId: input.actorUserId,
+      previousStatus: row.status,
+      nextStatus: "REVOKED",
+    },
   });
+  /*
+   * Revocation had NO tenant audit row, while create and rotate both wrote
+   * one — so the destructive leg of the credential lifecycle was the one leg
+   * a customer could not see in their own audit trail.
+   *
+   * The entitlement state is recorded rather than enforced: revoke is
+   * deliberately available without `ssoScim` (see the route), and reading it
+   * here is what lets an auditor tell a routine revocation from one performed
+   * after a downgrade. No secret and no hash is recorded — the prefix is the
+   * same redacted identifier the list projection already exposes.
+   */
+  const entitlement = await resolveTeamEnterpriseFeatureGate(input.teamId, "ssoScim");
+  await emitTenantAudit(
+    {
+      action: "scim.token.revoke",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "scim_provisioning_token",
+      resourceId: row.id,
+      metadata: {
+        tokenPrefix: row.tokenPrefix,
+        previousStatus: row.status,
+        nextStatus: "REVOKED",
+        entitlementActive: entitlement.ok,
+        reason: input.reason?.slice(0, 400) ?? null,
+      },
+    },
+    client,
+  );
   return projectToken(updated);
 }
 

@@ -106,6 +106,10 @@ import { detectAndScoreSession } from "../services/access-control/suspicious-ses
 import { sweepStaleCallbackAttempts } from "../services/access-control/sso-hardening.service.js";
 import { runtimeAdaptiveGate } from "../services/access-control/adaptive-runtime-gate.service.js";
 import {
+  denyTeamIfNotEnterprise,
+  resolveTeamEnterpriseFeatureGate,
+} from "../services/enterprise-gate-resolvers.service.js";
+import {
   emergencyOrgRevoke,
   listQuarantinedSessions,
   quarantineSession,
@@ -655,8 +659,26 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.read",
       );
       if (!actor) return;
+      /*
+       * Also deliberately un-gated. After a downgrade the tokens must stay
+       * VISIBLE — an administrator cannot revoke what the console will not
+       * show them, and the record is needed for audit and for safe
+       * reactivation. The projection is redacted by construction: it carries
+       * the token's prefix and never its secret or its hash, so listing
+       * cannot re-display credential material at any plan.
+       */
       const tokens = await listScimTokens({ teamId: q.teamId });
-      return reply.code(200).send({ tokens });
+      /*
+       * The entitlement travels WITH the list so the console can present
+       * create and rotate honestly instead of offering buttons the server
+       * will refuse. It is reported, never enforced here — the enforcement
+       * lives on create, rotate and the protocol surface, and hiding a
+       * control has never been a security boundary.
+       */
+      const entitlement = await resolveTeamEnterpriseFeatureGate(q.teamId, "ssoScim");
+      return reply
+        .code(200)
+        .send({ tokens, entitlement: { ssoScim: entitlement.ok } });
     },
   );
 
@@ -680,6 +702,24 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      /*
+       * SCIM PROVISIONING IS AN ENTERPRISE CAPABILITY, AND MINTING IS WHERE
+       * THAT IS DECIDED.
+       *
+       * Rotation (scim-admin.routes.ts) and the protocol surface
+       * (scim.routes.ts) both consult this same resolver; creation did not.
+       * A workspace on any plan could therefore mint a standing directory
+       * credential, and only discover the entitlement when it tried to rotate
+       * or use it — the wrong way round for a security control.
+       *
+       * Placed AFTER authorization, so a non-member still gets the
+       * anti-enumeration answer rather than learning the workspace's plan,
+       * and BEFORE step-up, so nobody is asked for a second factor to perform
+       * something their plan does not include.
+       *
+       * REVOKE is deliberately NOT gated here — see the revoke route below.
+       */
+      if (await denyTeamIfNotEnterprise(reply, body.teamId, "ssoScim")) return;
       // Phase 26.75 — runtime adaptive gate.
       const runtimeGate = await runtimeAdaptiveGate({
         req,
@@ -729,11 +769,26 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
-      // PHASE 12B (2026-07-30) — SCIM token CREATE and ROTATE are step-up
-      // gated; revoke was not, so the weakest leg decided how hard it is to
-      // change directory-provisioning access. Gated here with the same
-      // external-identity purpose, bound to the TOKEN being revoked, AFTER
-      // authorization and BEFORE the write.
+      /*
+       * NO ENTITLEMENT GATE HERE, AND THAT IS THE POINT.
+       *
+       * Create, rotate and the protocol surface all require the Enterprise
+       * `ssoScim` entitlement. Revocation must not, because a customer must
+       * ALWAYS be able to destroy a credential that already exists — most of
+       * all after a downgrade, when the token can no longer be rotated and
+       * the entitlement that would have gated this call is gone. Gating
+       * revoke would strand a live directory credential on a workspace with
+       * no supported way to remove it.
+       *
+       * Authorization and step-up still apply in full: this is available to
+       * an authorized administrator, not to anyone.
+       *
+       * PHASE 12B (2026-07-30) — SCIM token CREATE and ROTATE are step-up
+       * gated; revoke was not, so the weakest leg decided how hard it is to
+       * change directory-provisioning access. Gated here with the same
+       * external-identity purpose, bound to the TOKEN being revoked, AFTER
+       * authorization and BEFORE the write.
+       */
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,

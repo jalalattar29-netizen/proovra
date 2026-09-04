@@ -42,6 +42,11 @@ import {
 export type AccessReviewErrorCode =
   | "review_not_found"
   | "invalid_status_transition"
+  // A concurrent reviewer decided this review first. Distinct from
+  // `invalid_status_transition`, which means the decision was never legal
+  // from the status the caller saw: this one says the decision was legal and
+  // somebody else got there. The route maps it to 409.
+  | "review_already_decided"
   | "subject_missing";
 
 export class AccessReviewError extends Error {
@@ -282,6 +287,40 @@ export async function completeAccessReview(
   input: CompleteAccessReviewInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.AccessReview> {
+  /*
+   * ONE DECISION PER REVIEW, DECIDED IN THE DATABASE.
+   *
+   * This used to read the review, check the transition, apply the membership
+   * mutation and then update the row. Two reviewers deciding the same pending
+   * review at the same moment both read PENDING, both passed the transition
+   * check, both revoked the member, and both wrote a success audit — two
+   * "the access review was completed" records for one decision, with two
+   * different reviewers and two different timestamps, and no way afterwards
+   * to tell which one the row's final state came from.
+   *
+   * The claim is now a compare-and-set on the status the caller actually saw,
+   * and it runs inside a transaction so the ordering can be inverted safely:
+   * claim first, then mutate. If the membership mutation throws, the whole
+   * transaction rolls back and the review returns to PENDING — the same
+   * fail-closed property the old ordering was reaching for, without the race.
+   *
+   * The transaction is opened only when this is the outermost call. A caller
+   * that already handed us a transaction client gets the same atomicity from
+   * theirs, and opening a nested one would deadlock against it.
+   */
+  const canOpenTransaction =
+    typeof (client as { $transaction?: unknown }).$transaction === "function";
+  return canOpenTransaction
+    ? await client.$transaction(
+        async (tx) => completeAccessReviewInner(input, tx as PrismaClient),
+      )
+    : await completeAccessReviewInner(input, client);
+}
+
+async function completeAccessReviewInner(
+  input: CompleteAccessReviewInput,
+  client: PrismaClient,
+): Promise<prismaPkg.AccessReview> {
   const review = await client.accessReview.findFirst({
     where: { id: input.reviewId, teamId: input.teamId },
   });
@@ -296,8 +335,30 @@ export async function completeAccessReview(
     throw new AccessReviewError("invalid_status_transition");
   }
 
-  // Apply the underlying mutation FIRST (fail-closed): if the rbac call
-  // fails we never mark the review complete.
+  /*
+   * The claim. `updateMany` matches on the status this caller read, so a
+   * concurrent winner leaves count 0 here rather than a second success.
+   */
+  const claimed = await client.accessReview.updateMany({
+    where: {
+      id: review.id,
+      teamId: input.teamId,
+      status: review.status,
+    },
+    data: {
+      status: nextStatus,
+      completedAtUtc: new Date(),
+      completedByUserId: input.actorUserId,
+      decisionNote: input.decisionNote?.slice(0, 2000) ?? null,
+    },
+  });
+  if (claimed.count === 0) {
+    throw new AccessReviewError("review_already_decided");
+  }
+
+  // The underlying mutation. A throw here rolls the claim back with it, so a
+  // review is never left complete over a membership change that did not
+  // happen.
   if (
     (input.decision === "REVOKE_MEMBER" || input.decision === "SUSPEND_MEMBER") &&
     review.subjectKind === prismaPkg.AccessReviewSubjectKind.TEAM_MEMBER
@@ -346,14 +407,10 @@ export async function completeAccessReview(
     }
   }
 
-  const updated = await client.accessReview.update({
+  // The row as this caller's claim left it. Written above, not here — a
+  // second write would move `completedAtUtc` after the fact.
+  const updated = await client.accessReview.findUniqueOrThrow({
     where: { id: review.id },
-    data: {
-      status: nextStatus,
-      completedAtUtc: new Date(),
-      completedByUserId: input.actorUserId,
-      decisionNote: input.decisionNote?.slice(0, 2000) ?? null,
-    },
   });
   safeEmitSecurityEvent(
     {

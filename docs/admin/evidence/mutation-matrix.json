@@ -204,6 +204,7 @@
         "services/api/test/admin-commercial-request-transitions.integration.test.ts",
         "services/api/test/admin-lead-cta.contract.test.ts",
         "services/api/test/contact-sales-wiring.contract.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
         "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
         "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
         "services/api/test/phase13-security-families.test.ts",
@@ -400,6 +401,7 @@
         "services/api/test/admin-commercial-request-transitions.integration.test.ts",
         "services/api/test/admin-lead-cta.contract.test.ts",
         "services/api/test/contact-sales-wiring.contract.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
         "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
         "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
         "services/api/test/phase13-security-families.test.ts",
@@ -1510,6 +1512,7 @@
         "services/api/test/phase-10-security-routes.test.ts",
         "services/api/test/phase-12-coverage-manifest.test.ts",
         "services/api/test/phase-12-point4-managed-identity-binding.test.ts",
+        "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
         "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
         "services/api/test/phase-12b-identity-residual-matrix.test.ts",
         "services/api/test/phase-12b-identity-security-matrix.test.ts",
@@ -3881,6 +3884,7 @@
         "services/api/test/admin-drilldown-and-search.integration.test.ts",
         "services/api/test/attention-arch-closure-assignment.test.ts",
         "services/api/test/attention-arch-phase4b-workspace-operations.test.ts",
+        "services/api/test/home-request-waterfall.test.ts",
         "services/api/test/operations-capability-disposition.test.ts",
         "services/api/test/operations-saved-views-authority.integration.test.ts",
         "services/api/test/phase-24-b-completion.test.ts",
@@ -5710,7 +5714,8 @@
       "handler": "services/api/src/routes/operations-queues.routes.ts",
       "authority": [
         "requirePlatformOpsActor",
-        "gateReplayCategory"
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
       ],
       "riskClass": "HIGH_IMPACT_OPERATIONAL",
       "control": "Button 'Replay' / 'Replay (step-up)' in the replay dialog opened from a failed job row",
@@ -5883,7 +5888,8 @@
       "handler": "services/api/src/routes/operations-queues.routes.ts",
       "authority": [
         "requirePlatformOpsActor",
-        "gateReplayCategory"
+        "requireStepUpForSensitiveAction",
+        "+STEP_UP"
       ],
       "riskClass": "HIGH_IMPACT_OPERATIONAL",
       "control": "Button 'Retry attempt' in the replay dialog opened from a failed job row",
