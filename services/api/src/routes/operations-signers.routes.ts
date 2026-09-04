@@ -249,6 +249,11 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           reason: z.string().min(1).max(240),
+          // The state the operator was looking at. When supplied, the
+          // transition is a compare-and-set: a signer that moved while the
+          // dialog was open is refused as stale rather than silently
+          // overwritten.
+          expectedStateVersion: z.number().int().nonnegative().optional(),
         })
         .parse(req.body ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
@@ -278,6 +283,25 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
     },
   );
 
+  /**
+   * A refusal is not always a bad request. A signer that does not exist is a
+   * 404, a state that moved under the operator is a 409, and a transition the
+   * domain forbids is a 409 — collapsing all of them into 400 told the console
+   * nothing it could act on differently.
+   */
+  const signerLifecycleStatus = (
+    code:
+      | "reason_required"
+      | "signer_not_found"
+      | "transition_not_allowed"
+      | "stale_state"
+      | "last_active_signer",
+  ): number => {
+    if (code === "signer_not_found") return 404;
+    if (code === "reason_required") return 400;
+    return 409;
+  };
+
   app.post(
     "/v1/operations/signers/:id/retire",
     { preHandler: requireAuth },
@@ -289,6 +313,11 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           reason: z.string().min(1).max(240),
+          // The state the operator was looking at. When supplied, the
+          // transition is a compare-and-set: a signer that moved while the
+          // dialog was open is refused as stale rather than silently
+          // overwritten.
+          expectedStateVersion: z.number().int().nonnegative().optional(),
         })
         .parse(req.body ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
@@ -308,10 +337,11 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
         signerId: params.id,
         reason: body.reason,
+        expectedStateVersion: body.expectedStateVersion,
       });
       if (!result.ok) {
         return reply
-          .code(400)
+          .code(signerLifecycleStatus(result.code))
           .send({ error: { code: result.code, message: result.message } });
       }
       return reply.code(200).send({ result });
@@ -329,6 +359,11 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           reason: z.string().min(1).max(240),
+          // The state the operator was looking at. When supplied, the
+          // transition is a compare-and-set: a signer that moved while the
+          // dialog was open is refused as stale rather than silently
+          // overwritten.
+          expectedStateVersion: z.number().int().nonnegative().optional(),
         })
         .parse(req.body ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
@@ -348,10 +383,11 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
         signerId: params.id,
         reason: body.reason,
+        expectedStateVersion: body.expectedStateVersion,
       });
       if (!result.ok) {
         return reply
-          .code(400)
+          .code(signerLifecycleStatus(result.code))
           .send({ error: { code: result.code, message: result.message } });
       }
       return reply.code(200).send({ result });

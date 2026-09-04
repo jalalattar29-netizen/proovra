@@ -1,6 +1,11 @@
 import { assertNotCommittedFixture } from "@proovra/shared-runtime";
 
 import { ed25519SignHexWithKeyPath } from "../crypto.js";
+import { assertSignerUsable } from "../services/operations/signer-control-state.service.js";
+import {
+  currentSignerIdForPurpose,
+  type SignerPurpose,
+} from "../services/operations/signer-registry.service.js";
 import { KmsEvidenceSigner } from "./kms-signer.js";
 
 function must(name: string): string {
@@ -86,16 +91,49 @@ class AwsKmsEvidenceSigner implements EvidenceSigner {
   }
 }
 
+/**
+ * THE SIGNING BOUNDARY.
+ *
+ * Wraps whichever provider is configured and refuses to sign with a signer the
+ * persisted control state says is RETIRED or REVOKED.
+ *
+ * It is a wrapper rather than a check at the call sites because the call sites
+ * are the thing that keeps growing: evidence completion today, a replay or a
+ * backfill tomorrow. A guard that lives beside the private key cannot be
+ * forgotten by a new caller, and that is the whole point — the previous
+ * implementation's failure was precisely that "revoked" lived somewhere the
+ * signing path never consulted.
+ *
+ * The status is read from the DATABASE on every signature, deliberately. A job
+ * queued before a revocation and executed after it must observe the revocation;
+ * an in-memory cache is exactly how that guarantee would be lost.
+ */
+class ControlledEvidenceSigner implements EvidenceSigner {
+  constructor(
+    private readonly inner: EvidenceSigner,
+    private readonly purpose: SignerPurpose,
+  ) {}
+
+  async signFingerprintHex(messageHex: string): Promise<SignFingerprintResult> {
+    await assertSignerUsable(currentSignerIdForPurpose(this.purpose));
+    return this.inner.signFingerprintHex(messageHex);
+  }
+}
+
 let cachedSigner: EvidenceSigner | null = null;
 
 export function getEvidenceSigner(): EvidenceSigner {
   if (!cachedSigner) {
     const provider = getSignerProvider();
 
-    cachedSigner =
+    const inner =
       provider === "aws-kms"
         ? new AwsKmsEvidenceSigner()
         : new LocalPemEvidenceSigner();
+
+    // Evidence fingerprints are sealed with the custody-event signing identity
+    // — the same env pair the read model derives `custody_event` from.
+    cachedSigner = new ControlledEvidenceSigner(inner, "custody_event");
   }
 
   return cachedSigner;

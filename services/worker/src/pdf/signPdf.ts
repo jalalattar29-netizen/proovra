@@ -3,6 +3,7 @@ import path from "node:path";
 import { SignPdf } from "@signpdf/signpdf";
 import { plainAddPlaceholder } from "@signpdf/placeholder-plain";
 import { P12Signer } from "@signpdf/signer-p12";
+import { assertWorkerSignerUsable } from "../signing/signer-control-guard.js";
 
 function env(name: string): string | undefined {
   const v = process.env[name];
@@ -109,6 +110,10 @@ function readPositiveIntEnv(name: string, fallback: number): number {
 }
 
 async function signPdfBuffer(unsignedPdf: Buffer): Promise<Buffer> {
+  // THE BOUNDARY. Read at execution time, on every job, from the database.
+  // A report job queued before a revocation and run after it must not sign.
+  await assertWorkerSignerUsable("report_pdf");
+
   const p12Path = resolveP12Path();
   const passphrase =
     env("PDF_SIGNING_P12_PASSWORD") ??

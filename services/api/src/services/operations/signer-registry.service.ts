@@ -31,6 +31,10 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  getSignerControlStates,
+  registerDiscoveredSigners,
+} from "./signer-control-state.service.js";
 
 // ---------------------------------------------------------------------------
 // Bounded enums
@@ -101,13 +105,27 @@ function envValue(name: string): string | null {
   return v.length > 0 ? v : null;
 }
 
-function buildSignerId(
+export function buildSignerId(
   purpose: SignerPurpose,
   provider: SignerProvider,
   keyId: string | null,
   keyVersion: string | null,
 ): string {
   return `${purpose}:${provider}:${keyId ?? "_"}:${keyVersion ?? "_"}`;
+}
+
+/**
+ * The signer id the CURRENT environment would use for this purpose.
+ *
+ * The signing boundary needs the identity without needing the whole record, and
+ * it must be derived exactly the way the read model derives it — otherwise a
+ * revocation recorded against one string would be enforced against another.
+ * One builder, one identity.
+ */
+export function currentSignerIdForPurpose(purpose: SignerPurpose): string {
+  const found = getCurrentActiveSigners().find((s) => s.signerPurpose === purpose);
+  // `getCurrentActiveSigners` emits every purpose, so this is defensive only.
+  return found?.signerId ?? buildSignerId(purpose, envProvider(), null, null);
 }
 
 function evidenceAlgorithm(provider: SignerProvider): string | null {
@@ -337,7 +355,29 @@ export async function listAllSigners(
   input: { teamId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReadonlyArray<SignerRecord>> {
-  const active = getCurrentActiveSigners();
+  const envActive = getCurrentActiveSigners();
+
+  // THE OVERLAY. `getCurrentActiveSigners()` recomputes from environment
+  // variables and hardcodes `status: "active"` — which is why a revoked signer
+  // used to reappear ACTIVE on the very next request. Registration records each
+  // configured signer once (never overwriting an existing decision), and the
+  // persisted status then replaces the env-derived one so the console shows
+  // what is true rather than what the deployment happens to be configured with.
+  await registerDiscoveredSigners(envActive.map((s) => s.signerId));
+  const controlStates = await getSignerControlStates(envActive.map((s) => s.signerId));
+
+  const active: SignerRecord[] = envActive.map((s) => {
+    const row = controlStates.get(s.signerId);
+    if (!row || row.status === "ACTIVE") return s;
+    return {
+      ...s,
+      status: row.status === "REVOKED" ? "revoked" : "retired",
+      retiredAtUtc: row.statusChangedAtUtc?.toISOString() ?? null,
+      rotatedByUserId: row.actorUserId,
+      notes: row.reason,
+    };
+  });
+
   const staged = await listStagedSigners(input, client);
   const out: SignerRecord[] = [...active];
   for (const s of staged) {

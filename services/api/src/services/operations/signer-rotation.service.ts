@@ -40,6 +40,13 @@ import {
   type SignerProvider,
   type SignerPurpose,
 } from "./signer-registry.service.js";
+import {
+  countRemainingUsableSigners,
+  getEffectiveSignerStatus,
+  isTransitionAllowed,
+  transitionSignerControlState,
+  type SignerControlStatus,
+} from "./signer-control-state.service.js";
 
 // ---------------------------------------------------------------------------
 // Stage a new signer
@@ -326,68 +333,190 @@ async function promoteStagedSignerInner(
   return { ok: true, promotedAtUtc: new Date().toISOString() };
 }
 
-export async function retireSigner(
+/**
+ * REAL retirement and revocation.
+ *
+ * Both of these used to validate a reason, bump a counter, emit a security
+ * event and return `{ ok: true }`. Nothing was written, the signer id was never
+ * checked to exist, and the read model recomputed the signer as ACTIVE from the
+ * environment on the very next request. The dialog promised an irreversible
+ * security outcome that had not happened.
+ *
+ * They now drive the persisted control state, which is what the signing
+ * boundary reads before producing any signature. The audit event is still
+ * emitted — but only when a transition actually CHANGED something, so an
+ * idempotent retry does not manufacture a second "first revocation" in the log.
+ */
+
+export type SignerLifecycleResult =
+  | { ok: true; state: "changed"; status: SignerControlStatus; changedAtUtc: string }
+  | { ok: true; state: "already"; status: SignerControlStatus }
+  | {
+      ok: false;
+      code:
+        | "reason_required"
+        | "signer_not_found"
+        | "transition_not_allowed"
+        | "stale_state"
+        | "last_active_signer";
+      message: string;
+    };
+
+async function runSignerLifecycleTransition(
   input: {
     teamId: string;
     actorUserId: string;
     signerId: string;
     reason: string;
+    expectedStateVersion?: number;
   },
-): Promise<
-  | { ok: true; retiredAtUtc: string }
-  | { ok: false; code: "reason_required" | "signer_not_found"; message: string }
-> {
+  to: SignerControlStatus,
+): Promise<SignerLifecycleResult> {
+  const verb = to === "REVOKED" ? "revoke" : "retire";
   if ((input.reason ?? "").trim().length === 0) {
     return {
       ok: false,
       code: "reason_required",
-      message: "Operator reason required for signer retire.",
+      message: `Operator reason required for signer ${verb}.`,
     };
   }
+
+  // The signer must exist. The route used to accept any string and answer 200.
+  const configured = getCurrentActiveSigners();
+  const target = configured.find((s) => s.signerId === input.signerId);
+  if (!target) {
+    return {
+      ok: false,
+      code: "signer_not_found",
+      message: "No configured signer with that id.",
+    };
+  }
+
+  // LEGALITY BEFORE AVAILABILITY.
+  //
+  // These two refusals answer different questions, and the operator needs the
+  // right one: "a revoked signer cannot be retired" is a statement about the
+  // lifecycle, while "this would leave nothing able to sign" is a statement
+  // about capacity. Running the capacity check first told someone trying to
+  // retire an already-revoked signer that they had a availability problem they
+  // did not have.
+  const currentStatus = await getEffectiveSignerStatus(input.signerId);
+  if (currentStatus !== to && !isTransitionAllowed(currentStatus, to)) {
+    return {
+      ok: false,
+      code: "transition_not_allowed",
+      message: `A ${currentStatus.toLowerCase()} signer cannot be ${
+        to === "REVOKED" ? "revoked" : "retired"
+      }.`,
+    };
+  }
+
+  // AVAILABILITY. Retiring the last signer that can still sign for a purpose
+  // would leave that purpose unable to sign, discovered at the next upload
+  // rather than here. Retirement is a planned action and must not do that.
+  //
+  // Revocation is the compromise path and IS allowed to proceed: continuing to
+  // sign with a key believed compromised is worse than being unable to sign.
+  // The result reports the state truthfully rather than the system pretending
+  // signing is still healthy.
+  if (to === "RETIRED") {
+    const remaining = await countRemainingUsableSigners({
+      candidateSignerIds: configured
+        .filter((s) => s.signerPurpose === target.signerPurpose)
+        .map((s) => s.signerId),
+      excluding: input.signerId,
+    });
+    if (remaining === 0) {
+      return {
+        ok: false,
+        code: "last_active_signer",
+        message:
+          `Retiring this signer would leave ${target.signerPurpose} with no signer that can sign. ` +
+          "Configure and verify a replacement first, or revoke it if the key is compromised.",
+      };
+    }
+  }
+
+  const outcome = await transitionSignerControlState({
+    signerId: input.signerId,
+    to,
+    actorUserId: input.actorUserId,
+    reason: input.reason,
+    transitionSource: "admin_console",
+    expectedStateVersion: input.expectedStateVersion,
+  });
+
+  if (!outcome.ok) {
+    if (outcome.code === "not_found") {
+      return {
+        ok: false,
+        code: "signer_not_found",
+        message: "No configured signer with that id.",
+      };
+    }
+    if (outcome.code === "stale_state") {
+      return {
+        ok: false,
+        code: "stale_state",
+        message:
+          "This signer changed while the page was open. Reload and review the current state before acting.",
+      };
+    }
+    return {
+      ok: false,
+      code: "transition_not_allowed",
+      message: `A ${outcome.from.toLowerCase()} signer cannot be ${
+        to === "REVOKED" ? "revoked" : "retired"
+      }.`,
+    };
+  }
+
+  // Idempotent repeat: nothing changed, so no transition is claimed or audited.
+  if (outcome.state === "already") {
+    return { ok: true, state: "already", status: outcome.status };
+  }
+
   bump("signer_rotation_total");
   safeEmitSecurityEvent({
     teamId: input.teamId,
-    eventType: "signer_retired",
-    severity: "WARNING",
+    eventType: to === "REVOKED" ? "signer_revoked" : "signer_retired",
+    severity: to === "REVOKED" ? "HIGH" : "WARNING",
     details: {
       actorUserId: input.actorUserId,
       signerId: input.signerId,
+      previousStatus: outcome.from,
+      newStatus: outcome.to,
+      stateVersion: outcome.stateVersion,
       reason: input.reason.trim().slice(0, 240),
     },
   });
-  return { ok: true, retiredAtUtc: new Date().toISOString() };
+
+  return {
+    ok: true,
+    state: "changed",
+    status: to,
+    changedAtUtc: new Date().toISOString(),
+  };
 }
 
-export async function revokeSigner(
-  input: {
-    teamId: string;
-    actorUserId: string;
-    signerId: string;
-    reason: string;
-  },
-): Promise<
-  | { ok: true; revokedAtUtc: string }
-  | { ok: false; code: "reason_required"; message: string }
-> {
-  if ((input.reason ?? "").trim().length === 0) {
-    return {
-      ok: false,
-      code: "reason_required",
-      message: "Operator reason required for signer revoke.",
-    };
-  }
-  bump("signer_rotation_total");
-  safeEmitSecurityEvent({
-    teamId: input.teamId,
-    eventType: "signer_revoked",
-    severity: "HIGH",
-    details: {
-      actorUserId: input.actorUserId,
-      signerId: input.signerId,
-      reason: input.reason.trim().slice(0, 240),
-    },
-  });
-  return { ok: true, revokedAtUtc: new Date().toISOString() };
+export async function retireSigner(input: {
+  teamId: string;
+  actorUserId: string;
+  signerId: string;
+  reason: string;
+  expectedStateVersion?: number;
+}): Promise<SignerLifecycleResult> {
+  return runSignerLifecycleTransition(input, "RETIRED");
+}
+
+export async function revokeSigner(input: {
+  teamId: string;
+  actorUserId: string;
+  signerId: string;
+  reason: string;
+  expectedStateVersion?: number;
+}): Promise<SignerLifecycleResult> {
+  return runSignerLifecycleTransition(input, "REVOKED");
 }
 
 // ---------------------------------------------------------------------------

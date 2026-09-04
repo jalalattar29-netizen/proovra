@@ -13901,3 +13901,51 @@ model ReportGenerationRequest {
   @@index([state, claimedAtUtc], map: "report_generation_requests_claim_idx")
   @@map("report_generation_requests")
 }
+
+/// THE AUTHORITATIVE LIFECYCLE STATE OF A SIGNING IDENTITY.
+///
+/// Signer configuration lives in the environment (SIGNING_KEY_ID,
+/// SIGNING_KEY_VERSION, SIGNER_PROVIDER, KMS_KEY_ID). That is a deployment
+/// fact and it is not something an operator can change from a console — which
+/// is why `revokeSigner` used to write nothing at all and the signer came back
+/// ACTIVE on the next request, recomputed from the same env.
+///
+/// This table is the overlay that makes RETIRE and REVOKE real: the ENV says
+/// which keys the deployment HAS, this says which of them may still be USED.
+/// A signer absent from this table is ACTIVE by discovery; a signer present is
+/// whatever this row says, across restarts, deploys and cache refreshes.
+///
+/// It holds NO key material, no KMS credential and no secret. `signerId` is the
+/// composite identity already used by the read model
+/// (`purpose:provider:keyId:keyVersion`) and `reason` is operator prose.
+model SignerControlState {
+  /// `purpose:provider:keyId:keyVersion` — the read model's own signer identity.
+  signerId String @id @map("signer_id") @db.VarChar(400)
+
+  /// ACTIVE | RETIRED | REVOKED. Enforced by the transition service.
+  status String @default("ACTIVE") @db.VarChar(16)
+
+  /// Compare-and-set token. Two concurrent transitions cannot both win.
+  stateVersion Int @default(1) @map("state_version")
+
+  /// When discovery first registered this configured signer.
+  firstSeenAtUtc DateTime @default(now()) @map("first_seen_at_utc") @db.Timestamptz(6)
+
+  /// When the status last changed (null while still ACTIVE by discovery).
+  statusChangedAtUtc DateTime? @map("status_changed_at_utc") @db.Timestamptz(6)
+
+  /// The operator who performed the last transition. Never a secret.
+  actorUserId String? @map("actor_user_id") @db.Uuid
+
+  /// Operator-supplied reason for the last transition, bounded.
+  reason String? @db.VarChar(400)
+
+  /// Where the transition came from (e.g. "admin_console"). Diagnostic only.
+  transitionSource String? @map("transition_source") @db.VarChar(64)
+
+  createdAtUtc DateTime @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  updatedAtUtc DateTime @default(now()) @map("updated_at_utc") @db.Timestamptz(6)
+
+  @@index([status], map: "signer_control_state_status_idx")
+  @@map("signer_control_state")
+}

@@ -731,7 +731,7 @@ function SignerDetailDrawer({
       if (!ok) return;
       setBusy(action);
       try {
-        await stepUp.runStepUpAction(async (headers) => {
+        const res = (await stepUp.runStepUpAction(async (headers) => {
           return await apiFetch(
             `/v1/operations/signers/${encodeURIComponent(signerId)}/${action}`,
             {
@@ -743,8 +743,22 @@ function SignerDetailDrawer({
               body: JSON.stringify({ teamId, reason: reason.trim() }),
             },
           );
-        });
-        onSuccess(`Signer ${action} recorded.`);
+        })) as { result?: { state?: string; status?: string } } | undefined;
+
+        // "Recorded" was the old copy, and it was the honest word for what the
+        // old backend did: it recorded an event and changed nothing. Now the
+        // transition is real, so the message says which of the two things
+        // actually happened — a change, or a no-op because it already held.
+        const state = res?.result?.state;
+        onSuccess(
+          state === "already"
+            ? `No change — this signer is already ${String(res?.result?.status ?? "").toLowerCase()}.`
+            : action === "revoke"
+              ? "Signer revoked. It can no longer sign new material."
+              : action === "retire"
+                ? "Signer retired. It will not be selected for new material."
+                : "Signer promoted.",
+        );
         setReason("");
       } catch (err) {
         const code = (err as { code?: string })?.code;
@@ -767,6 +781,11 @@ function SignerDetailDrawer({
       </section>
     );
   }
+
+  // Retire and revoke are terminal in the domain's transition table. Offering
+  // a button the server will refuse is a worse experience than not offering
+  // it, and it is the sort of thing that made the old no-op look plausible.
+  const terminalState = signer.status === "revoked" || signer.status === "retired";
 
   return (
     <section
@@ -945,7 +964,8 @@ function SignerDetailDrawer({
             <button
               type="button"
               className="apf-control"
-              disabled={busy !== null}
+              disabled={busy !== null || terminalState}
+              title={terminalState ? `A ${signer.status} signer cannot be retired.` : undefined}
               onClick={() => runStepUpAction("retire")}
               data-testid="signer-retire"
             >
@@ -958,7 +978,8 @@ function SignerDetailDrawer({
                 color: "#991b1b",
                 borderColor: "#fecaca",
               }}
-              disabled={busy !== null}
+              disabled={busy !== null || signer.status === "revoked"}
+              title={signer.status === "revoked" ? "This signer is already revoked." : undefined}
               onClick={() => runStepUpAction("revoke")}
               data-testid="signer-revoke"
             >
