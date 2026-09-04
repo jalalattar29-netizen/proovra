@@ -344,9 +344,16 @@ export type ActivateBreakGlassInput = {
 };
 
 export type BreakGlassError = Error & { statusCode: number; code: string };
-function bgError(code: string, message: string): BreakGlassError {
+function bgError(
+  code: string,
+  message: string,
+  // 403 is the default because most refusals here are authority refusals. A
+  // conflict with an existing grant is not one: the caller was allowed, the
+  // state was not.
+  statusCode = 403,
+): BreakGlassError {
   const e = new Error(message) as BreakGlassError;
-  e.statusCode = 403;
+  e.statusCode = statusCode;
   e.code = code;
   return e;
 }
@@ -372,32 +379,90 @@ export async function activateBreakGlass(
   const durationMs = Math.min(input.durationMs ?? BREAK_GLASS_MAX_DURATION_MS, BREAK_GLASS_MAX_DURATION_MS);
   const expiresAtUtc = new Date(now + durationMs);
 
-  // Typed delegate (generated client). If the table is not yet applied at
-  // runtime the create throws (P2021) → FAIL CLOSED, never a silent grant.
-  const row = await client.emergencyAccessGrant.create({
-    data: {
-      organizationId: input.organizationId,
-      emergencyUserId: input.emergencyUserId,
-      requestedByUserId: input.requestedByUserId,
-      grantedRole: input.grantedRole ?? "EMERGENCY_READ_ONLY",
-      reason: input.reason.slice(0, 600),
-      stepUpProofId: input.stepUpProofId,
-      status: "ACTIVE",
-      startedAtUtc: new Date(now),
-      expiresAtUtc,
-    },
-  });
+  /*
+   * ONE ACTIVE GRANT PER (ORGANIZATION, EMERGENCY USER).
+   *
+   * This created unconditionally. Four simultaneous activations, each with
+   * its own genuinely approved step-up challenge, produced four overlapping
+   * ACTIVE grants for the same subject — so revoking the one an operator can
+   * see left three they could not, and emergency access survived its own
+   * revocation.
+   *
+   * A read-then-create cannot fix that: two callers both read "none active"
+   * and both create. The exclusion lives in a partial unique index
+   * (`emergency_access_grants_active_org_user_uk`), and the loser of the race
+   * lands here as P2002.
+   *
+   * It is answered as a CONFLICT rather than by returning the existing grant.
+   * The second request carries its own role, duration and reason; quietly
+   * handing back a grant made under different terms would report a success
+   * for terms nobody agreed to. The operator is told what already exists and
+   * decides.
+   */
+  let row;
+  try {
+    // Typed delegate (generated client). If the table is not yet applied at
+    // runtime the create throws (P2021) → FAIL CLOSED, never a silent grant.
+    row = await client.emergencyAccessGrant.create({
+      data: {
+        organizationId: input.organizationId,
+        emergencyUserId: input.emergencyUserId,
+        requestedByUserId: input.requestedByUserId,
+        grantedRole: input.grantedRole ?? "EMERGENCY_READ_ONLY",
+        reason: input.reason.slice(0, 600),
+        stepUpProofId: input.stepUpProofId,
+        status: "ACTIVE",
+        startedAtUtc: new Date(now),
+        expiresAtUtc,
+      },
+    });
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code !== "P2002") throw err;
+    const existing = await client.emergencyAccessGrant.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        emergencyUserId: input.emergencyUserId,
+        status: "ACTIVE",
+      },
+      select: { id: true, expiresAtUtc: true },
+    });
+    throw bgError(
+      "BREAK_GLASS_ALREADY_ACTIVE",
+      existing
+        ? `This user already holds an active emergency grant for this organization until ${existing.expiresAtUtc.toISOString()}. Revoke it before granting new access.`
+        : "This user already holds an active emergency grant for this organization.",
+      409,
+    );
+  }
 
   await emitTenantAudit({
     action: "identity.break_glass.activated",
     outcome: "success",
     sourceApp: "API",
-    actorUserId: input.emergencyUserId,
+    /*
+     * THE ACTOR IS THE OPERATOR WHO GRANTED IT, NOT THE PERSON WHO RECEIVES IT.
+     *
+     * This recorded `emergencyUserId` — the subject the grant is FOR. So the
+     * audit said the emergency user activated their own emergency access,
+     * which they did not do and could not do: activation is platform-staff
+     * gated and step-up bound to the operator.
+     *
+     * Two consequences, both bad. "What did operator X do?" did not return
+     * the most consequential action they can take; and "what did user Y do?"
+     * showed Y granting themselves privilege over a customer organization.
+     * The activation is the OPERATOR's act, and the subject is what the act
+     * was about — which is what the metadata below is for.
+     */
+    actorUserId: input.requestedByUserId,
     breakGlassGrantId: row.id, // DUAL IDENTITY: the emergency overlay just opened
     organizationId: input.organizationId,
     resourceType: "organization",
     resourceId: input.organizationId,
     metadata: {
+      // The subject of the grant, kept explicit now that the actor column
+      // names the operator.
+      emergencyUserId: input.emergencyUserId,
       requestedByUserId: input.requestedByUserId,
       grantedRole: row.grantedRole,
       expiresAtUtc: expiresAtUtc.toISOString(),
