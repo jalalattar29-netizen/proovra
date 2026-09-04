@@ -283,34 +283,59 @@ test("REGRESSION GUARD: reviewer-status reads the nested workflow.status (fix ke
 // Contributor + Upload Agreement cleanup
 // ============================================================================
 
-test("source card hides the Contributor row entirely when no identity was collected", () => {
+test("source card hides the submitter row entirely when nothing was collected", () => {
   const src = read(REVIEWER_CARD_SRC);
-  // The "Not provided" / "Anonymous" placeholders for an unknown
-  // contributor were confusing operators who don't require name /
-  // email / phone / alias. Rendering only when an identity exists.
+  /*
+   * The row and its resolver were renamed `contributorIdentity` ->
+   * `submitterProvided` and "Contributor" -> "Submitter provided", because
+   * the old wording read as an identity claim about a person nobody
+   * verified. These two assertions still guard the same PROPERTY — the row
+   * is absent when nothing was collected — against the current names.
+   *
+   * Most intake workflows collect no name, email, phone or alias, and
+   * rendering "Not provided" invites the reader to wonder whether something
+   * failed.
+   */
   assert.match(
     src,
-    /contributorIdentity \? \(\s*\n?\s*<Detail label="Contributor">/,
+    /submitterProvided \? \(\s*\n?\s*<Detail label="Submitter provided">/,
   );
-  // The old placeholder strings must NOT remain in the JSX.
+  // The old placeholder strings must NOT come back.
   assert.ok(
     !/"Not provided"/.test(src),
-    "Contributor 'Not provided' placeholder must be removed",
+    "'Not provided' placeholder must stay removed",
   );
   assert.ok(
     !/:\s*"Anonymous"/.test(src),
-    "Contributor 'Anonymous' fallback must be removed (hide row instead)",
+    "'Anonymous' fallback must stay removed (hide the row instead)",
   );
 });
 
-test("source card resolves contributor identity from pseudonym / email / displayName only", () => {
+test("source card resolves the submitter row from submitter-provided fields only", () => {
   const src = read(REVIEWER_CARD_SRC);
-  // The resolver returns null when nothing was collected, which is
-  // what the conditional render hangs on.
-  assert.match(src, /const contributorIdentity: string \| null/);
+  // The resolver returns null when nothing was collected, which is what the
+  // conditional render hangs on.
+  assert.match(src, /const submitterProvided: string \| null/);
   assert.match(src, /summary\.session\.pseudonym/);
   assert.match(src, /summary\.session\.submitterEmail/);
   assert.match(src, /summary\.session\.submitterDisplayName/);
+  assert.match(src, /summary\.session\.submitterPhone/);
+
+  /*
+   * And NEVER from the link. The address a request was delivered to is not
+   * evidence of who used the link, and the recipient-contact closure made
+   * that separation load-bearing: reading a link field here would put
+   * governed contact data behind an ungoverned label.
+   */
+  const resolver = src.slice(
+    src.indexOf("const submitterProvided: string | null"),
+    src.indexOf("const recipientAddressed"),
+  );
+  assert.ok(resolver.length > 80, "submitter resolver not found");
+  assert.ok(
+    !/summary\.link\./.test(resolver),
+    "the submitter row must not read any link field",
+  );
 });
 
 test("source card labels consent as 'Upload Agreement' (terminology fix)", () => {
