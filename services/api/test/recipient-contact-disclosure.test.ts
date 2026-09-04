@@ -153,17 +153,32 @@ describe("the disclosure primitive", () => {
     expect(body).not.toContain("999900011122");
   });
 
-  it("REVEALED is an entitlement, not a payload", () => {
+  it("REVEALED carries the raw values, and says that it did", () => {
     /*
-     * The important asymmetry. REVEALED says the caller MAY ask; it does not
-     * put the value in the projection. A payload nobody requested is the
-     * easiest thing in the world to leak.
+     * This began as "an entitlement, not a payload": raw came only from an
+     * audited reveal route. On an administration screen listing many requests
+     * that made an authorized operator click once per row to answer "who did
+     * I send this to?", which is not a privacy control — it is the reason
+     * people keep a spreadsheet outside the product.
+     *
+     * The AUTHORITY is unchanged. Only REVEALED reaches this branch, and only
+     * `resolveRecipientContactDisclosure` can produce REVEALED.
      */
     const p = projectRecipientContact(source, "REVEALED");
     expect(p.recipientContactRevealAuthorized).toBe(true);
-    const body = JSON.stringify(p);
-    expect(body).not.toContain(CANARY_EMAIL);
-    expect(body).not.toContain("999900011122");
+    expect(p.recipientEmail).toBe(CANARY_EMAIL);
+    expect(p.recipientPhone).toBe(CANARY_PHONE);
+    // The mask travels with it, so a surface can show either without asking
+    // a second question.
+    expect(p.recipientEmailMasked).toBe(maskEmail(CANARY_EMAIL));
+  });
+
+  it("MASKED is still the answer for everybody else", () => {
+    // The half that did not move, asserted next to the half that did.
+    const p = projectRecipientContact(source, "MASKED");
+    expect(p.recipientEmail).toBeNull();
+    expect(p.recipientPhone).toBeNull();
+    expect(JSON.stringify(p)).not.toContain(CANARY_EMAIL);
   });
 
   it("the reveal helper refuses without the decision", () => {
@@ -442,29 +457,30 @@ describe("the notification delivery log", () => {
 describe("the card", () => {
   it("renders no control for a reader without the authority", () => {
     // Not a disabled button: offering an action that can only fail tells the
-    // reader about a capability they do not have.
-    expect(CARD).toContain(
-      "summary.link.recipientContactRevealAuthorized && recipientContacts.length > 0",
-    );
+    // reader about a capability they do not have. And no control for an
+    // AUTHORIZED reader either once the server has already sent the value —
+    // a button that swaps a string for the same string is not a control.
+    expect(CARD).toContain("summary.link.recipientContactRevealAuthorized &&");
+    expect(CARD).toContain("recipientContacts.every((c) => c.raw === null)");
     expect(CARD).toContain("{canRevealRecipient ? (");
   });
 
-  it("holds no raw value until the reader asks for one", () => {
+  it("holds a raw value only when the server decided to send one", () => {
     /*
-     * The payload that renders the page carries only masks, so there is
-     * nothing to find in the HTML, in the hydration state or in a React prop
-     * before the request is made. `rawRecipient` starts null and is filled
-     * only by the reveal response.
+     * The card makes no disclosure decision. It reads whatever the server put
+     * in the payload — which is null for a masked caller — and falls back to
+     * the reveal response for the case where an authorized caller was still
+     * sent masks. An unauthorized reader's page therefore contains no raw
+     * value in the HTML, the hydration state or a React prop, because one was
+     * never sent to it.
      */
     expect(CARD).toContain("const [rawRecipient, setRawRecipient] = useState<");
-    expect(CARD).toContain("} | null>(null);");
-    expect(CARD).toContain("raw: rawRecipient?.recipientEmail ?? null");
-    expect(CARD).toContain("raw: rawRecipient?.recipientPhone ?? null");
-    // The card never reads a raw field off the summary payload, because the
-    // summary payload no longer has one.
-    expect(CARD).not.toContain("summary.link.recipientEmail;");
-    expect(CARD).not.toMatch(/summary\.link\.recipientEmail\b(?!Masked)/);
-    expect(CARD).not.toMatch(/summary\.link\.recipientPhone\b(?!Masked)/);
+    expect(CARD).toContain("summary.link.recipientEmail ??");
+    expect(CARD).toContain("rawRecipient?.recipientEmail ??");
+    // Still no masking and no authority decision in the browser.
+    expect(CARD).not.toContain("maskEmail(");
+    expect(CARD).not.toMatch(/plan\s*===/);
+    expect(CARD).not.toMatch(/role\s*===/);
   });
 
   it("fetches through the audited route, not a second projection", () => {

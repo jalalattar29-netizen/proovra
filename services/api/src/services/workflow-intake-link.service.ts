@@ -308,8 +308,70 @@ export type ListWorkflowIntakeLinksInput = {
 
 export type IntakeArchiveScope = "active" | "archived" | "all";
 
+/**
+ * SERVER-SIDE SEARCH OVER THE STORED VALUES.
+ *
+ * The page used to filter what it had already been sent, which meant it could
+ * only ever match the MASKED previews — so "find the request I sent to
+ * john@example.com" could not work by construction, and Customer ID was not
+ * on the client at all. Sending the raw dataset down to fix that would have
+ * been the wrong repair: it hands every reader every address to make a text
+ * box work.
+ *
+ * So the match happens here, against the canonical columns, inside the
+ * tenant-scoped where clause — a needle can never reach another workspace's
+ * rows because the scope is applied in the same query, not beside it.
+ *
+ * THE RAW-CONTACT ARMS ARE GATED. A caller who may not SEE an address may not
+ * ask whether it is here either: matching on it would answer the question the
+ * mask exists to refuse. Customer ID, recipient label, workflow and link id
+ * are open to any authorized reader.
+ */
+function buildIntakeLinkSearchFilter(
+  search: string,
+  options: { matchRecipientContact: boolean },
+): Prisma.WorkflowIntakeLinkWhereInput | null {
+  const needle = search.trim().slice(0, 120);
+  if (!needle) return null;
+
+  const like = { contains: needle, mode: "insensitive" as const };
+  const or: Prisma.WorkflowIntakeLinkWhereInput[] = [
+    { customerId: like },
+    { recipientLabel: like },
+    { workflowTemplateSlug: like },
+  ];
+
+  // A pasted link id is a legitimate way to find a row, and it is exact.
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(needle)) {
+    or.push({ id: needle });
+  }
+
+  if (options.matchRecipientContact) {
+    or.push({ recipientEmail: like });
+    or.push({ recipientPhone: like });
+    /*
+     * A phone number is written a dozen ways. The operator typed
+     * "+49 176 12345678"; the link stores "+4917612345678". Matching the
+     * digits alone lets either find the other, and the leading "+" is kept
+     * when it was typed so an international prefix still means something.
+     */
+    const digits = needle.replace(/[^\d]/g, "");
+    if (digits.length >= 4) {
+      or.push({ recipientPhone: { contains: digits, mode: "insensitive" } });
+      or.push({ recipientPhone: { contains: `+${digits}`, mode: "insensitive" } });
+    }
+  }
+
+  return { OR: or };
+}
+
 export async function listWorkflowIntakeLinks(
-  input: ListWorkflowIntakeLinksInput & { archiveScope?: IntakeArchiveScope },
+  input: ListWorkflowIntakeLinksInput & {
+    archiveScope?: IntakeArchiveScope;
+    search?: string | null;
+    /** Whether this caller may match on the raw recipient contact. */
+    searchRecipientContact?: boolean;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<DbWorkflowIntakeLink[]> {
   // Archive scope is operator-driven via the page's Archived tab. The
@@ -333,6 +395,12 @@ export async function listWorkflowIntakeLinks(
         : {}),
       ...(input.caseId ? { caseId: input.caseId } : {}),
       ...archiveWhere,
+      // Inside the tenant scope, never beside it.
+      ...(input.search
+        ? (buildIntakeLinkSearchFilter(input.search, {
+            matchRecipientContact: input.searchRecipientContact === true,
+          }) ?? {})
+        : {}),
     },
     orderBy: { createdAt: "desc" },
     take: Math.min(Math.max(input.limit ?? 50, 1), 200),
@@ -974,6 +1042,9 @@ export function projectWorkflowIntakeLink(
   recipientLabel: string | null;
   recipientEmailMasked: string | null;
   recipientPhoneMasked: string | null;
+  /** Raw, for a caller the disclosure policy resolved as REVEALED. */
+  recipientEmail: string | null;
+  recipientPhone: string | null;
   hasRecipientEmail: boolean;
   hasRecipientPhone: boolean;
   recipientContactRevealAuthorized: boolean;

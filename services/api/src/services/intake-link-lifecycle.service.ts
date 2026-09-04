@@ -428,9 +428,20 @@ export type IntakeLinkListItem = {
     intakeMode: string;
     caseId: string | null;
     recipientLabel: string | null;
-    /** Masked. The raw values are not part of this projection at all. */
+    /**
+     * The organization's own identifier for its customer. A DIFFERENT concept
+     * from every recipient field below it, and it was missing from this
+     * projection entirely — so the operations screen could not show it, and a
+     * row identified by a customer number could only be recognised by the
+     * name it happened to also carry.
+     */
+    customerId: string | null;
+    /** Masked — always present, for every authorized reader. */
     recipientEmailPreview: string | null;
     recipientPhonePreview: string | null;
+    /** Raw — present only for a caller resolved as REVEALED. */
+    recipientEmail: string | null;
+    recipientPhone: string | null;
     hasRecipientEmail: boolean;
     hasRecipientPhone: boolean;
     recipientContactRevealAuthorized: boolean;
@@ -548,12 +559,13 @@ export async function projectIntakeLinkList(
         intakeMode: link.intakeMode,
         caseId: link.caseId,
         recipientLabel: link.recipientLabel,
-        // Masked by the one policy, not by a helper local to this file.
-        // The list was already masked — correctly — but with its own
-        // renderer; it now agrees with every other surface character for
-        // character.
+        customerId: link.customerId,
+        // Masked by the one policy, not by a helper local to this file, so
+        // the list agrees with every other surface character for character.
         recipientEmailPreview: recipientContact.recipientEmailMasked,
         recipientPhonePreview: recipientContact.recipientPhoneMasked,
+        recipientEmail: recipientContact.recipientEmail,
+        recipientPhone: recipientContact.recipientPhone,
         hasRecipientEmail: recipientContact.hasRecipientEmail,
         hasRecipientPhone: recipientContact.hasRecipientPhone,
         recipientContactRevealAuthorized:

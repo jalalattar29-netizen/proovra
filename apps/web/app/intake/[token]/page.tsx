@@ -78,8 +78,24 @@ function friendlyIntakeError(err: {
       "We couldn't find what you were trying to access. Try refreshing the page.",
     SUBMISSION_NOT_READY:
       "Your submission isn't quite ready yet. Make sure every required file is uploaded, then try again.",
+    // A REAL server fault. It kept the neutral retry line — but it used to
+    // be the answer to conditions that were not faults at all (a file name
+    // longer than the column that stores it, for one), and a contributor
+    // reading it had no way to tell the difference and no way forward.
     INTERNAL_ERROR:
       "We hit a problem on our side. Please try again in a moment. If the problem persists, contact the sender.",
+    INVALID_INPUT:
+      "Something about that file wasn't accepted. Try a different file, or rename it and try again.",
+    LINK_EXPIRED:
+      "This upload link has expired. Contact the sender for a new one.",
+    LINK_REVOKED:
+      "This upload link was disabled by the sender. Contact them if you still need to submit.",
+    LINK_EXHAUSTED:
+      "This upload link has already been used the maximum number of times. Contact the sender for a new one.",
+    UPLOAD_UNAVAILABLE:
+      "Uploads are temporarily unavailable. Your files haven't been sent — wait a moment and try again.",
+    WORKFLOW_UNAVAILABLE:
+      "This request can't be opened right now. Contact the sender.",
     // Forensic P0 fix — TRANSITION_NOT_ALLOWED was the 409 root cause
     // (state machine missing UPLOAD_STARTED → SUBMITTED). Even after
     // the fix, this code can still appear for legitimate double-Submit
@@ -355,6 +371,31 @@ export default function ExternalIntakePage({
     requiredStepsMissing.length === 0 &&
     !locationBlocksSubmit &&
     phase === "upload";
+
+  /*
+   * WHY SUBMIT IS DISABLED — said next to the button, in the order the
+   * contributor has to fix them.
+   *
+   * A greyed-out button with no explanation is the single most common way a
+   * submission is abandoned: the person has done what they thought was asked,
+   * the control refuses, and nothing on the page says what is missing. Each
+   * branch names the ONE next thing to do.
+   */
+  const submitBlockedReason: string | null = (() => {
+    if (canSubmit || phase !== "upload") return null;
+    if (parts.length === 0) return "Add a file to continue.";
+    if (parts.some((p) => !p.uploadedAtUtc)) {
+      return "Waiting for your file to finish uploading.";
+    }
+    if (requiredStepsMissing.length > 0) {
+      const missing = requiredStepsMissing.map((x) => x.purposeLabel).join(", ");
+      return `Assign a file to: ${missing}.`;
+    }
+    if (locationBlocksSubmit) {
+      return "This request needs your location. Use Share location above.";
+    }
+    return null;
+  })();
 
   // navigator.geolocation is NEVER called outside this handler. The
   // page only invokes it after an explicit Share click — this is the
@@ -1006,27 +1047,43 @@ export default function ExternalIntakePage({
               if (fileInputRef.current) fileInputRef.current.value = "";
             }}
           />
+          {/*
+            THE ONE THING THIS PAGE IS FOR.
+
+            It was a small grey secondary button sitting between two
+            paragraphs, indistinguishable from "Skip". It is now the obvious
+            target on the screen — a full-width drop area that is also the
+            button, so the desktop drag gesture and the phone tap are the same
+            control rather than two.
+          */}
           <button
             type="button"
-            style={secondaryButtonStyle}
+            style={addFilesStyle}
             onClick={() => fileInputRef.current?.click()}
             disabled={phase === "submitting"}
             data-intake-add-files-btn="true"
           >
-            Add files
+            <span style={{ fontSize: 15, fontWeight: 650 }}>Add files</span>
+            <span style={{ ...mutedStyle, fontSize: 12 }}>
+              You can choose more than one
+            </span>
           </button>
-          <p
-            style={{ ...mutedStyle, marginTop: 6, fontSize: 12 }}
-            data-intake-add-files-hint="true"
-          >
-            Tip: hold Cmd/Ctrl (desktop) or tap multiple thumbnails (mobile)
-            to add several files at once.
-          </p>
 
+          {/*
+            WHAT THIS NEEDS — a checklist, read at a glance.
+
+            These were bordered cards with a title row, two badges and a full
+            description each, so three requirements filled a phone screen and
+            pushed the upload control off it. They are rows now: the state
+            marker, the name, and the description in a subordinate line that
+            is still there for anyone who wants it.
+          */}
           {expectedSteps.length > 0 ? (
-            <div style={{ marginTop: 16, marginBottom: 16 }}>
-              <p style={mutedStyle}>What this workflow needs</p>
-              <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
+            <div style={{ marginTop: 14 }}>
+              <p style={{ ...mutedStyle, margin: "0 0 6px" }}>
+                What this request needs
+              </p>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {expectedSteps.map((step) => {
                   const mapped = parts.some(
                     (p) => p.checklistStepId === step.id,
@@ -1035,27 +1092,61 @@ export default function ExternalIntakePage({
                     <li
                       key={step.id}
                       style={{
-                        padding: "8px 12px",
-                        marginBottom: 6,
-                        border: "1px solid #e2e8f0",
-                        borderRadius: 6,
-                        background: mapped ? "#ecfdf5" : "#fff",
+                        display: "flex",
+                        gap: 10,
+                        alignItems: "flex-start",
+                        padding: "9px 0",
+                        borderTop: "1px solid #eef2f6",
                       }}
+                      data-intake-requirement={step.required ? "required" : "optional"}
+                      data-intake-requirement-met={mapped ? "true" : "false"}
                     >
-                      <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-                        <strong>{step.title}</strong>
-                        {step.required ? (
-                          <span style={requiredBadgeStyle}>Required</span>
-                        ) : (
-                          <span style={optionalBadgeStyle}>Optional</span>
-                        )}
-                        {mapped ? (
-                          <span style={mappedBadgeStyle}>Provided</span>
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          flex: "0 0 auto",
+                          marginTop: 3,
+                          width: 16,
+                          height: 16,
+                          borderRadius: "50%",
+                          border: mapped ? "none" : "1.5px solid #cbd5e1",
+                          background: mapped ? "#059669" : "transparent",
+                          color: "#fff",
+                          fontSize: 11,
+                          lineHeight: "16px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {mapped ? "✓" : ""}
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <span
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "baseline",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <strong style={{ fontSize: 15 }}>{step.title}</strong>
+                          {step.required ? (
+                            <span style={requiredBadgeStyle}>Required</span>
+                          ) : (
+                            <span style={optionalBadgeStyle}>Optional</span>
+                          )}
+                        </span>
+                        {step.description ? (
+                          <span
+                            style={{
+                              ...mutedStyle,
+                              display: "block",
+                              marginTop: 2,
+                            }}
+                          >
+                            {step.description}
+                          </span>
                         ) : null}
-                      </div>
-                      {step.description ? (
-                        <div style={mutedStyle}>{step.description}</div>
-                      ) : null}
+                      </span>
                     </li>
                   );
                 })}
@@ -1153,6 +1244,15 @@ export default function ExternalIntakePage({
           >
             {phase === "submitting" ? "Submitting…" : "Submit evidence"}
           </button>
+          {submitBlockedReason ? (
+            <p
+              style={submitHintStyle}
+              data-intake-submit-blocked-reason
+              role="status"
+            >
+              {submitBlockedReason}
+            </p>
+          ) : null}
         </section>
       ) : null}
     </main>
@@ -1192,13 +1292,22 @@ function LocationCard({
       data-intake-location-policy={policy}
       data-intake-location-phase={state.phase}
     >
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{title}</div>
-      <div style={{ ...mutedStyle, marginBottom: 12 }}>{body}</div>
+      {/*
+        OPTIONAL CONTEXT, SIZED LIKE IT.
+
+        "Share location" used to wear the page's primary button style, which
+        after that style became a full-width 48px bar meant this optional aside
+        outweighed "Submit evidence" — the one thing the contributor came to
+        do. It is a secondary action, and "Skip" is a quiet one beside it,
+        because skipping is a normal answer and not a failure.
+      */}
+      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{title}</div>
+      <div style={{ ...mutedStyle, marginBottom: 10 }}>{body}</div>
       {state.phase === "idle" ? (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"
-            style={primaryButtonStyle}
+            style={secondaryButtonStyle}
             onClick={onShare}
             data-intake-location-share="true"
           >
@@ -1207,11 +1316,11 @@ function LocationCard({
           {!required ? (
             <button
               type="button"
-              style={secondaryButtonStyle}
+              style={quietButtonStyle}
               onClick={onSkip}
               data-intake-location-skip="true"
             >
-              Skip
+              Not now
             </button>
           ) : null}
         </div>
@@ -1242,10 +1351,10 @@ function LocationCard({
 }
 
 const locationCardStyle: React.CSSProperties = {
-  marginTop: 24,
-  padding: 16,
+  marginTop: 18,
+  padding: 14,
   border: "1px solid #e2e8f0",
-  borderRadius: 8,
+  borderRadius: 10,
   background: "#f8fafc",
 };
 
@@ -1263,44 +1372,58 @@ const optionalBadgeStyle: React.CSSProperties = {
   color: "#475569",
   borderRadius: 999,
 };
-const mappedBadgeStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: "2px 6px",
-  background: "#dcfce7",
-  color: "#166534",
-  borderRadius: 999,
-};
 
 // Inline styles — Phase 5 deliberately ships a minimal, framework-free UI.
 // A later phase can move this to the design system; for now we avoid any
 // dependency on the authenticated app's CSS modules.
 
+/*
+ * THE RECIPIENT'S PAGE.
+ *
+ * Someone opens this on a phone, from a link a stranger sent them, and has to
+ * decide within a few seconds whether it is safe and what it wants. Every
+ * measurement below is in service of that: one column, short vertical
+ * distances, and nothing competing with "add your file".
+ *
+ * It read as a stack of unrelated documents — 48px of top padding, 32px
+ * between every section, requirement cards the size of the upload control
+ * itself — so the eye had to travel a screen and a half to find out what to
+ * do. clamp() lets the phone be tight without making the desktop cramped.
+ */
 const pageStyle: React.CSSProperties = {
-  maxWidth: 720,
+  maxWidth: 640,
   margin: "0 auto",
-  padding: "48px 24px",
+  // The bottom is 88px, not a symmetric pad: a fixed privacy launcher sits
+  // 16px from the bottom-left at 38px tall, and it was landing on top of the
+  // submit action at the end of the page. The page yields the space rather
+  // than the global control moving for one route.
+  padding: "clamp(20px, 5vw, 40px) clamp(16px, 4vw, 24px) 88px",
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   color: "#0f172a",
 };
 
 const titleStyle: React.CSSProperties = {
-  fontSize: 28,
+  // Scales down on a 320px screen instead of wrapping a workflow name across
+  // three lines before the reader has learned anything.
+  fontSize: "clamp(21px, 5.5vw, 26px)",
+  lineHeight: 1.25,
   fontWeight: 700,
-  marginBottom: 8,
+  margin: "0 0 6px",
 };
 
 const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
-  marginTop: 32,
-  marginBottom: 12,
+  fontSize: 16,
+  fontWeight: 650,
+  marginTop: 24,
+  marginBottom: 8,
 };
 
 const paragraphStyle: React.CSSProperties = {
   fontSize: 15,
-  lineHeight: 1.55,
+  lineHeight: 1.5,
   color: "#334155",
+  margin: "0 0 10px",
 };
 
 // P0 audit-fix — filename display clamp. Renders the original
@@ -1327,22 +1450,73 @@ const mutedStyle: React.CSSProperties = {
   color: "#64748b",
 };
 
+/** Sits directly under the disabled Submit, quiet enough not to read as an
+ *  error — nothing has gone wrong, there is simply one step left. */
+const submitHintStyle: React.CSSProperties = {
+  margin: "8px 0 0",
+  fontSize: 13,
+  lineHeight: 1.45,
+  color: "#475467",
+  textAlign: "center",
+};
+
+/** The upload target: full width, generous, and visibly a drop zone. */
+const addFilesStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 2,
+  width: "100%",
+  minHeight: 72,
+  marginTop: 4,
+  padding: "14px 16px",
+  border: "1.5px dashed #cbd5e1",
+  borderRadius: 12,
+  background: "#f8fafc",
+  color: "#0f172a",
+  cursor: "pointer",
+  textAlign: "center",
+};
+
 const primaryButtonStyle: React.CSSProperties = {
-  display: "inline-block",
-  marginTop: 16,
-  padding: "10px 20px",
-  fontWeight: 600,
+  // Full width on a phone: the submit action was a content-width button
+  // floating under a long page and read as one more link. 48px tall clears
+  // the accessible tap-target floor with room for a fat thumb.
+  display: "block",
+  width: "100%",
+  minHeight: 48,
+  marginTop: 20,
+  padding: "13px 20px",
+  fontSize: 16,
+  fontWeight: 650,
   color: "#fff",
   background: "#0f172a",
   border: 0,
-  borderRadius: 8,
+  borderRadius: 10,
+  cursor: "pointer",
+};
+
+/** A text-weight action. Used where declining is a normal answer and the
+ *  control should not compete with the thing the page is actually for. */
+const quietButtonStyle: React.CSSProperties = {
+  minHeight: 44,
+  padding: "10px 4px",
+  border: 0,
+  background: "none",
+  font: "inherit",
+  fontSize: 14,
+  color: "#475467",
+  textDecoration: "underline",
   cursor: "pointer",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   display: "inline-block",
-  padding: "8px 16px",
-  fontWeight: 500,
+  minHeight: 44,
+  padding: "10px 16px",
+  fontSize: 15,
+  fontWeight: 550,
   color: "#0f172a",
   background: "#f1f5f9",
   border: "1px solid #cbd5e1",
@@ -1351,13 +1525,15 @@ const secondaryButtonStyle: React.CSSProperties = {
 };
 
 const errorBoxStyle: React.CSSProperties = {
-  marginTop: 16,
-  padding: 12,
+  margin: "12px 0 0",
+  padding: "10px 12px",
   background: "#fef2f2",
   color: "#7f1d1d",
   border: "1px solid #fecaca",
+  borderLeft: "3px solid #dc2626",
   borderRadius: 8,
   fontSize: 14,
+  lineHeight: 1.45,
 };
 
 const partRowStyle: React.CSSProperties = {

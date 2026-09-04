@@ -582,6 +582,10 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           intakeErrorToReply(err, reply);
           return;
         }
+        req.log.error(
+          { err, route: "external-intake.validate", intakeErrorUnhandled: true },
+          "external intake: unhandled error",
+        );
         return reply
           .code(500)
           .send({ error: { code: "INTERNAL_ERROR" } });
@@ -674,6 +678,10 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           intakeErrorToReply(err, reply);
           return;
         }
+        req.log.error(
+          { err, route: "external-intake.identity", intakeErrorUnhandled: true },
+          "external intake: unhandled error",
+        );
         return reply
           .code(500)
           .send({ error: { code: "INTERNAL_ERROR" } });
@@ -704,7 +712,16 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
       const body = z
         .object({
           partIndex: z.number().int().min(0).max(99),
-          mimeType: z.string().min(1).max(160),
+          /*
+           * These two bounds used to be wider than the columns behind them
+           * (160 vs VARCHAR(128), 512 vs VARCHAR(255)), so a value could pass
+           * validation and then fail the insert as a 500. The file NAME is
+           * still accepted long and truncated server-side — a long name must
+           * not cost a contributor their upload — but the declared type is a
+           * real MIME type, and one that cannot be stored is malformed input,
+           * answered as such instead of as a server fault.
+           */
+          mimeType: z.string().min(1).max(128),
           originalFileName: z.string().max(512).nullable().optional(),
           checksumSha256Base64: z.string().max(128).nullable().optional(),
           contentMd5Base64: z.string().max(128).nullable().optional(),
@@ -861,6 +878,10 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         if (err instanceof ExternalIntakeOrchestrationError) {
           return orchestrationErrorToReply(err, reply);
         }
+        req.log.error(
+          { err, route: "external-intake.part", intakeErrorUnhandled: true },
+          "external intake: unhandled error",
+        );
         return reply.code(500).send({ error: { code: "INTERNAL_ERROR" } });
       }
     },
@@ -919,6 +940,10 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         if (err instanceof ExternalIntakeOrchestrationError) {
           return orchestrationErrorToReply(err, reply);
         }
+        req.log.error(
+          { err, route: "external-intake.part", intakeErrorUnhandled: true },
+          "external intake: unhandled error",
+        );
         return reply.code(500).send({ error: { code: "INTERNAL_ERROR" } });
       }
     },
@@ -1138,6 +1163,10 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           intakeErrorToReply(err, reply);
           return;
         }
+        req.log.error(
+          { err, route: "external-intake.transition", intakeErrorUnhandled: true },
+          "external intake: unhandled error",
+        );
         return reply
           .code(500)
           .send({ error: { code: "INTERNAL_ERROR" } });

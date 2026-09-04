@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "4793f9656c9021ae61adca25c49db02ca148d3e73b42c501e1c38f5cf15ccbc6",
-  "consumerInventoryHash": "182c974934df50bb62b21f9299596fd927128419b61dfafa1801a462384b272c",
+  "consumerInventoryHash": "9337b5c6de3356f6f58150fb1eec7f484bef542eb1458b1b2fdf924d3bcdf09d",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1126,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8315,
+      "METHOD_ON_VALUE": 8322,
       "UNRESOLVED_IDENTIFIER": 1047
     },
     "MutationFixpointRounds": 9,
@@ -2595,7 +2595,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/external-intake-summary",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:130",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:133",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -2703,7 +2703,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/reviewer-workflow",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:153",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:156",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2835,7 +2835,7 @@
       "method": "GET",
       "route": "/v1/external-intake/:token",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:300",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:316",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -6519,7 +6519,7 @@
       "method": "GET",
       "route": "/v1/workflow/intake-links",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:153",
+      "productConsumer": "apps/web/app/(app)/intake-links/_lib/useServerSearch.ts:87",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6927,7 +6927,7 @@
       "method": "PATCH",
       "route": "/v1/evidence/:id/reviewer-workflow",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:273",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:276",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6951,7 +6951,7 @@
       "method": "PATCH",
       "route": "/v1/external-intake/:token/sessions/:sid/parts/:partId",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:618",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:659",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9387,7 +9387,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/consent",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:446",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:487",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9399,7 +9399,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/identity",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:418",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:459",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9411,7 +9411,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/parts",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:529",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:570",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9423,7 +9423,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/submit",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:697",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:738",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -13455,7 +13455,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/archive",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:366",
+      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:371",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13467,7 +13467,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/recipient-contact",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:446",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:464",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13479,7 +13479,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/revoke",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:321",
+      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:326",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13503,7 +13503,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/unarchive",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:361",
+      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:366",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -33914,8 +33914,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@251",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:251",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@312",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:312",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "createOrLoadExternalEvidence",
       "kind": "DATABASE",
@@ -33947,8 +33947,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@288",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:288",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@349",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:349",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "createOrLoadExternalEvidence",
       "kind": "DATABASE",
@@ -33980,8 +33980,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@761",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:761",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@824",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:824",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "submitExternalIntake",
       "kind": "DATABASE",
@@ -34013,8 +34013,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@797",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:797",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@860",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:860",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "submitExternalIntake",
       "kind": "DATABASE",
@@ -34046,8 +34046,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidencePart.create@442",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:442",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidencePart.create@503",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:503",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "addExternalEvidencePart",
       "kind": "DATABASE",
@@ -34079,8 +34079,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidencePart.update@539",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:539",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidencePart.update@602",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:602",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "updateExternalEvidencePartMapping",
       "kind": "DATABASE",
@@ -34112,8 +34112,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#workflowIntakeSession.update@321",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:321",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#workflowIntakeSession.update@382",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:382",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "createOrLoadExternalEvidence",
       "kind": "DATABASE",
@@ -72648,8 +72648,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.create@859",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:859",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.create@927",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:927",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72682,8 +72682,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@918",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:918",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@1002",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:1002",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72716,8 +72716,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@934",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:934",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@986",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:986",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72788,8 +72788,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@377",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:377",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@445",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:445",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "revokeWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -72821,8 +72821,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@417",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:417",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@485",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:485",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "archiveWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -72854,8 +72854,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@435",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:435",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@503",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:503",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "unarchiveWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -89982,7 +89982,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 130,
+          "line": 133,
           "caller": "ExternalIntakeSourceCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -89992,7 +89992,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:130 (ExternalIntakeSourceCard, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:133 (ExternalIntakeSourceCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90668,7 +90668,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 153,
+          "line": 156,
           "caller": "ExternalIntakeSourceCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90676,7 +90676,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 206,
+          "line": 209,
           "caller": "reloadReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90686,7 +90686,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:153 (ExternalIntakeSourceCard, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:206 (reloadReview, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:156 (ExternalIntakeSourceCard, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:209 (reloadReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -91414,7 +91414,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 300,
+          "line": 316,
           "caller": "ExternalIntakePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -91424,7 +91424,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:300 (ExternalIntakePage, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:316 (ExternalIntakePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -110784,7 +110784,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:556",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:562",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110796,9 +110796,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 153,
-          "caller": "IntakeLinksManagement",
+          "file": "apps/web/app/(app)/intake-links/_lib/useServerSearch.ts",
+          "line": 87,
+          "caller": "fetchIntakeLinkList",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -110815,7 +110815,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:153 (IntakeLinksManagement, WEB); apps/web/components/home-experience/useHomeData.ts:145 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/_lib/useServerSearch.ts:87 (fetchIntakeLinkList, WEB); apps/web/components/home-experience/useHomeData.ts:145 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -110859,7 +110859,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:609",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:620",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110927,7 +110927,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id/submissions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:848",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:859",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110993,7 +110993,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/sender-identity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:743",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:754",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -111077,7 +111077,7 @@
         },
         {
           "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 199,
+          "line": 193,
           "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111087,7 +111087,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/capture/_hooks/useWorkflowTemplates.ts:77 (useWorkflowTemplates, WEB); apps/web/app/(app)/intake-links/page.tsx:199 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/capture/_hooks/useWorkflowTemplates.ts:77 (useWorkflowTemplates, WEB); apps/web/app/(app)/intake-links/page.tsx:193 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112963,7 +112963,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 273,
+          "line": 276,
           "caller": "recordDecision",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112971,7 +112971,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 331,
+          "line": 334,
           "caller": "patchReviewStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112989,7 +112989,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:273 (recordDecision, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:331 (patchReviewStatus, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:441 (saveWorkflow, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:276 (recordDecision, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:334 (patchReviewStatus, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:441 (saveWorkflow, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113106,7 +113106,7 @@
       "method": "PATCH",
       "path": "/v1/external-intake/:token/sessions/:sid/parts/:partId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:873",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:894",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -113117,7 +113117,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 618,
+          "line": 659,
           "caller": "setPartStep",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113127,7 +113127,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:618 (setPartStep, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:659 (setPartStep, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127091,7 +127091,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/consent",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:646",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:650",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127102,7 +127102,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 446,
+          "line": 487,
           "caller": "acceptConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127112,7 +127112,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:446 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:487 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127146,7 +127146,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/identity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:603",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:607",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127157,7 +127157,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 418,
+          "line": 459,
           "caller": "acceptConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127167,7 +127167,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:418 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:459 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127201,7 +127201,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:694",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:702",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127212,7 +127212,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 529,
+          "line": 570,
           "caller": "stageFile",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127222,7 +127222,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:529 (stageFile, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:570 (stageFile, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127309,7 +127309,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/submit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:932",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:957",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127320,7 +127320,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 697,
+          "line": 738,
           "caller": "onSubmit",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127330,7 +127330,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:697 (onSubmit, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:738 (onSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127422,7 +127422,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1094",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1119",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -144569,7 +144569,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 282,
+          "line": 285,
           "caller": "recordDecision",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144579,7 +144579,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:184 (decide, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:282 (recordDecision, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:184 (decide, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:285 (recordDecision, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150384,7 +150384,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:294",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:300",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150474,7 +150474,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:944",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:955",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150487,7 +150487,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 366,
+          "line": 371,
           "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150497,7 +150497,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:366 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:371 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150541,7 +150541,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/recipient-contact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:662",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:673",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150554,7 +150554,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 446,
+          "line": 464,
           "caller": "revealRecipient",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150564,7 +150564,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:446 (revealRecipient, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:464 (revealRecipient, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150606,7 +150606,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:870",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:881",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150619,7 +150619,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 321,
+          "line": 326,
           "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150629,7 +150629,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:321 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:326 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150673,7 +150673,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/send",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1051",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1062",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150748,7 +150748,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:996",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1007",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150761,7 +150761,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 361,
+          "line": 366,
           "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150771,7 +150771,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:361 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:366 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

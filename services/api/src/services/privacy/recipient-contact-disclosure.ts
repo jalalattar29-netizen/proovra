@@ -29,12 +29,20 @@
  *             preserved: an operator can see WHERE the request went and
  *             recognise it, without the platform handing out the address.
  *
- *   REVEALED  A caller holding `workflow.intake_recipient_contact.reveal` may
- *             obtain the raw values — through the canonical reveal path,
- *             which audits the disclosure. It does NOT mean the raw values
- *             travel in ordinary projections: they never do, for anyone. A
- *             projection is not a reveal, and a payload nobody asked for is
- *             the easiest thing in the world to leak.
+ *   REVEALED  A caller holding `workflow.intake_recipient_contact.reveal`
+ *             sees the raw values on internal administration surfaces —
+ *             the intake-links screen and the Evidence intake card —
+ *             alongside the masked form.
+ *
+ *             This began stricter: raw came only from an audited reveal
+ *             route, so the operator who typed the address had to click to
+ *             see it again, on every row. On a screen listing fifty requests
+ *             that is not privacy; it is an operator being made to click
+ *             fifty times to answer "who did I send this to?", and what
+ *             people do about that is keep a spreadsheet outside the
+ *             product. The authority did not change — holding it is now
+ *             enough. The reveal ROUTE remains for an explicit, audited
+ *             disclosure, and MASKED and HIDDEN are untouched.
  *
  * ---------------------------------------------------------------------------
  * WHY THE AUTHORITY IS ITS OWN PERMISSION
@@ -81,9 +89,16 @@ export type RecipientContactProjection = {
   hasRecipientEmail: boolean;
   hasRecipientPhone: boolean;
   /**
-   * Whether this caller may ask for the raw values through the reveal route.
-   * The UI renders its reveal control from this and nothing else, so a reader
-   * without the authority is never offered an action that would fail.
+   * The raw values, present ONLY for a REVEALED caller. Null for everyone
+   * else — not omitted, so a consumer reading the field on a masked payload
+   * gets an absence rather than an undefined it might render.
+   */
+  recipientEmail: string | null;
+  recipientPhone: string | null;
+  /**
+   * Whether this caller is seeing the raw values. The UI reads this and
+   * nothing else, so it never has to guess whether a null means "no address"
+   * or "not allowed to see it" — `hasRecipientEmail` answers the first.
    */
   recipientContactRevealAuthorized: boolean;
 };
@@ -118,13 +133,14 @@ export async function resolveRecipientContactDisclosure(
 }
 
 /**
- * The safe representation, for every authorized surface.
+ * The representation this caller is entitled to.
  *
- * Note what this CANNOT do: there is no argument that makes it emit a raw
- * value. A caller that wants one has to go through `revealRecipientContact`,
- * which is a different function, on a different route, that writes an audit
- * record. That asymmetry is the point — a projection cannot leak what it has
- * no way to produce.
+ * The masked form is always present, for everybody, so a surface can render
+ * provenance without asking who is looking. The raw form appears only for
+ * REVEALED, and the ONLY way to reach REVEALED is
+ * `resolveRecipientContactDisclosure` saying so — a caller cannot pass a
+ * literal past this function's type and get an address out of it by accident,
+ * because the decision is not theirs to write.
  */
 export function projectRecipientContact(
   source: RecipientContactSource,
@@ -134,12 +150,15 @@ export function projectRecipientContact(
     return {
       recipientEmailMasked: null,
       recipientPhoneMasked: null,
+      recipientEmail: null,
+      recipientPhone: null,
       hasRecipientEmail: false,
       hasRecipientPhone: false,
       recipientContactRevealAuthorized: false,
     };
   }
 
+  const revealed = disclosure === "REVEALED";
   return {
     recipientEmailMasked: source.recipientEmail
       ? maskEmail(source.recipientEmail)
@@ -147,9 +166,11 @@ export function projectRecipientContact(
     recipientPhoneMasked: source.recipientPhone
       ? maskPhonePreview(source.recipientPhone)
       : null,
+    recipientEmail: revealed ? source.recipientEmail : null,
+    recipientPhone: revealed ? source.recipientPhone : null,
     hasRecipientEmail: Boolean(source.recipientEmail),
     hasRecipientPhone: Boolean(source.recipientPhone),
-    recipientContactRevealAuthorized: disclosure === "REVEALED",
+    recipientContactRevealAuthorized: revealed,
   };
 }
 

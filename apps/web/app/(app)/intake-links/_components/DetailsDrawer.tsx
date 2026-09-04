@@ -89,8 +89,32 @@ export function DetailsDrawer({
           </dd>
           <dt>Link type</dt>
           <dd>{intakeModeLabel(link.intakeMode)}</dd>
+          <dt>Customer ID</dt>
+          <dd className="ilk-ltr">
+            {row.customerId ?? <span className="ilk-empty">Not set</span>}
+          </dd>
           <dt>Recipient</dt>
-          <dd className="ilk-ltr">{row.recipientText}</dd>
+          <dd>
+            {row.recipientIsPlaceholder ? (
+              <span className="ilk-empty">No recipient</span>
+            ) : (
+              <div className="ilk-recipient">
+                {row.recipientName ? (
+                  <span className="ilk-recipient__name">{row.recipientName}</span>
+                ) : null}
+                {row.recipientEmail ? (
+                  <span className="ilk-recipient__line ilk-ltr">
+                    {row.recipientEmail}
+                  </span>
+                ) : null}
+                {row.recipientPhone ? (
+                  <span className="ilk-recipient__line ilk-ltr">
+                    {row.recipientPhone}
+                  </span>
+                ) : null}
+              </div>
+            )}
+          </dd>
           <dt>Channel</dt>
           <dd>{row.channelLabel}</dd>
           <dt>Submissions used</dt>

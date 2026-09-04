@@ -46,6 +46,10 @@ function makeItem(over: {
   recipientLabel?: string | null;
   recipientEmailPreview?: string | null;
   recipientPhonePreview?: string | null;
+  customerId?: string | null;
+  recipientEmail?: string | null;
+  recipientPhone?: string | null;
+  recipientContactRevealAuthorized?: boolean;
   channel?: string | null;
   deliveryStatus?: string | null;
   attemptCount?: number;
@@ -67,8 +71,13 @@ function makeItem(over: {
       intakeMode: over.mode ?? "EXTERNAL_ONE_TIME",
       caseId: null,
       recipientLabel: over.recipientLabel ?? null,
+      customerId: over.customerId ?? null,
       recipientEmailPreview: over.recipientEmailPreview ?? null,
       recipientPhonePreview: over.recipientPhonePreview ?? null,
+      recipientEmail: over.recipientEmail ?? null,
+      recipientPhone: over.recipientPhone ?? null,
+      recipientContactRevealAuthorized:
+        over.recipientContactRevealAuthorized ?? false,
       maxUses: over.maxUses ?? 1,
       usedCount: over.usedCount ?? 0,
       status: over.status ?? "ACTIVE",
@@ -348,24 +357,79 @@ test("a disabled link reads as disabled, not as revoked jargon", () => {
   assert.equal(row.canArchive, true);
 });
 
-test("recipient falls back through label → email → phone → placeholder", () => {
-  assert.equal(
-    buildRowModel(makeItem({ recipientLabel: "Jane" }), NOW).recipientText,
-    "Jane",
+test("customer id, name, email and phone coexist — none substitutes for another", () => {
+  /*
+   * This replaced a fallback chain: `recipientLabel ?? emailPreview ??
+   * phonePreview`. A request that had a name showed ONLY the name, so the
+   * address it was sent to and the number it was texted to disappeared from
+   * the operator's screen — and the Customer ID was not on the client at all.
+   * They are four different questions and a row can answer all four.
+   */
+  const all = buildRowModel(
+    makeItem({
+      customerId: "CUST-849271",
+      recipientLabel: "John Doe",
+      recipientEmailPreview: "j***@example.com",
+      recipientPhonePreview: "+49 ••• ••• 5678",
+    }),
+    NOW,
   );
-  assert.equal(
-    buildRowModel(makeItem({ recipientEmailPreview: "j••@x.com" }), NOW)
-      .recipientText,
-    "j••@x.com",
+  assert.equal(all.customerId, "CUST-849271");
+  assert.equal(all.recipientName, "John Doe");
+  assert.equal(all.recipientEmail, "j***@example.com");
+  assert.equal(all.recipientPhone, "+49 ••• ••• 5678");
+  assert.equal(all.recipientIsPlaceholder, false);
+
+  // A name present must not suppress the contact values, and vice versa.
+  const nameOnly = buildRowModel(makeItem({ recipientLabel: "Jane" }), NOW);
+  assert.equal(nameOnly.recipientName, "Jane");
+  assert.equal(nameOnly.recipientEmail, null);
+  assert.equal(nameOnly.customerId, null);
+
+  const contactOnly = buildRowModel(
+    makeItem({ recipientEmailPreview: "j••@x.com" }),
+    NOW,
   );
-  assert.equal(
-    buildRowModel(makeItem({ recipientPhonePreview: "+491••23" }), NOW)
-      .recipientText,
-    "+491••23",
-  );
+  assert.equal(contactOnly.recipientName, null);
+  assert.equal(contactOnly.recipientEmail, "j••@x.com");
+
+  // A Customer ID alone is still an identified request, and it does not make
+  // the row claim a recipient it does not have.
+  const customerOnly = buildRowModel(makeItem({ customerId: "CUST-1" }), NOW);
+  assert.equal(customerOnly.customerId, "CUST-1");
+  assert.equal(customerOnly.recipientIsPlaceholder, true);
+
   const none = buildRowModel(makeItem(), NOW);
-  assert.equal(none.recipientText, "No recipient");
+  assert.equal(none.customerId, null);
+  assert.equal(none.recipientName, null);
+  assert.equal(none.recipientEmail, null);
+  assert.equal(none.recipientPhone, null);
   assert.equal(none.recipientIsPlaceholder, true);
+});
+
+test("the raw contact is shown only when the server said the caller may see it", () => {
+  // The browser never decides this: it reads the flag and picks a field.
+  const masked = buildRowModel(
+    makeItem({
+      recipientEmailPreview: "j***@example.com",
+      recipientEmail: "john@example.com",
+      recipientContactRevealAuthorized: false,
+    }),
+    NOW,
+  );
+  assert.equal(masked.recipientEmail, "j***@example.com");
+  assert.equal(masked.recipientContactIsMasked, true);
+
+  const revealed = buildRowModel(
+    makeItem({
+      recipientEmailPreview: "j***@example.com",
+      recipientEmail: "john@example.com",
+      recipientContactRevealAuthorized: true,
+    }),
+    NOW,
+  );
+  assert.equal(revealed.recipientEmail, "john@example.com");
+  assert.equal(revealed.recipientContactIsMasked, false);
 });
 
 test("expiry uses danger only when the link has actually expired", () => {

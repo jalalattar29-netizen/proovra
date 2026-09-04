@@ -167,6 +167,60 @@ function assertSessionUploadEligible(session: DbWorkflowIntakeSession): void {
   }
 }
 
+/**
+ * THE STORAGE WIDTHS, NAMED ONCE.
+ *
+ * `evidence_parts.original_file_name` is VARCHAR(255) and `mime_type` is
+ * VARCHAR(128). Values that came from the contributor's own device were
+ * reaching the insert longer than that, and Postgres answered P2000 — which
+ * the route's catch-all turned into a 500 and the contributor read as "We hit
+ * a problem on our side. Please try again in a moment." Retrying produced the
+ * identical failure, because the input was identical, so the intake simply
+ * could not be completed.
+ *
+ * The old bound here was `.slice(0, 256)` — one character past the column, so
+ * EVERY name of 256 characters or more failed, and always at exactly the same
+ * length. Bounds are declared next to each other now so the next person can
+ * see them disagree.
+ */
+const PART_ORIGINAL_FILE_NAME_MAX = 255;
+const PART_MIME_TYPE_MAX = 128;
+
+/**
+ * How much of the file name may appear in the STORAGE KEY.
+ *
+ * Object stores bound each path SEGMENT to 255 bytes. The last segment here
+ * is `000-<name>`, so a name allowed up to the column's 255 produced a 259-byte
+ * segment and S3 answered `XMinioInvalidObjectName` — the contributor saw
+ * "Upload failed (400)" after the record had already been created.
+ *
+ * The key does not need the whole name. It needs to be unique (the evidence id
+ * and part index already guarantee that) and recognisable to a human reading a
+ * bucket listing. The DISPLAY name stays whole at 255; only the key is short,
+ * which is the right separation anyway — where a file lives should not be
+ * decided by what somebody's phone called it.
+ */
+const PART_KEY_FILE_NAME_MAX = 120;
+
+/** The file-name fragment that goes into the object key. */
+function storageKeyFileNameFragment(fileName: string | null): string | null {
+  if (!fileName) return null;
+  if (fileName.length <= PART_KEY_FILE_NAME_MAX) return fileName;
+  const dot = fileName.lastIndexOf(".");
+  const ext = dot > 0 && fileName.length - dot <= 12 ? fileName.slice(dot) : "";
+  const stem = ext ? fileName.slice(0, dot) : fileName;
+  return stem.slice(0, PART_KEY_FILE_NAME_MAX - ext.length) + ext;
+}
+
+/**
+ * The contributor's file name, reduced to something the column can hold.
+ *
+ * A file name is presentation metadata, not evidence: a long one must never
+ * cost somebody their upload. It is truncated rather than rejected — and the
+ * EXTENSION is kept, because a reviewer looking at "IMG_2026…" with the
+ * ".heic" chopped off has lost the one part of the name that says what the
+ * file is.
+ */
 function safeOriginalFileName(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
   const cleaned = value
@@ -175,7 +229,14 @@ function safeOriginalFileName(value: string | null | undefined): string | null {
     .pop() ?? "";
   const trimmed = cleaned.replace(/^\.+/, "").trim();
   if (!trimmed) return null;
-  return trimmed.slice(0, 256);
+  if (trimmed.length <= PART_ORIGINAL_FILE_NAME_MAX) return trimmed;
+
+  const dot = trimmed.lastIndexOf(".");
+  // A "." in the first character is not an extension, and an extension long
+  // enough to crowd out the name is not one either.
+  const ext = dot > 0 && trimmed.length - dot <= 12 ? trimmed.slice(dot) : "";
+  const stem = ext ? trimmed.slice(0, dot) : trimmed;
+  return stem.slice(0, PART_ORIGINAL_FILE_NAME_MAX - ext.length) + ext;
 }
 
 function evidenceTypeFromMime(mime: string): prismaPkg.EvidenceType {
@@ -415,7 +476,7 @@ export async function addExternalEvidencePart(
   const partIndex = Math.max(0, Math.floor(input.partIndex));
   const fileName = safeOriginalFileName(input.originalFileName);
   const key = `evidence/${evidence.id}/parts/${String(partIndex).padStart(3, "0")}-${
-    fileName ?? `part-${partIndex + 1}`
+    storageKeyFileNameFragment(fileName) ?? `part-${partIndex + 1}`
   }`;
 
   // Insert the part record. Unique constraint on (evidenceId, partIndex) is
@@ -446,7 +507,9 @@ export async function addExternalEvidencePart(
         storageBucket: bucket,
         storageKey: key,
         originalFileName: fileName,
-        mimeType: input.mimeType,
+        // Bounded for the same reason as the name above. The kind is derived
+        // from the prefix, so a truncated value still classifies correctly.
+        mimeType: input.mimeType.slice(0, PART_MIME_TYPE_MAX),
         durationMs: input.durationMs ?? null,
         privateRole: input.privateRole?.slice(0, 120) ?? null,
         privateNote: input.privateNote?.slice(0, 1000) ?? null,

@@ -156,12 +156,18 @@ describe("buildSummary — privacy boundary", () => {
     expect(linkKeys).not.toContain("tokenHash");
     expect(linkKeys).not.toContain("tokenVersion");
     /*
-     * The RAW columns are not keys on this projection at all any more. A
-     * caller who may see them asks the audited reveal route; a projection
-     * has no way to emit one, which is stronger than emitting null.
+     * The raw columns ARE keys — and they are null here, because
+     * `buildSummary` defaults to MASKED and this fixture passed no decision.
+     * That default is the assertion worth making: a caller who forgets to
+     * resolve the disclosure discloses nothing.
+     *
+     * An authorized operator now gets the raw value in the projection rather
+     * than behind a per-row reveal (that made an operator click once per row
+     * to answer "who did I send this to?"), and the test for THAT lives in
+     * recipient-contact-disclosure.test.ts where the decision is an input.
      */
-    expect(linkKeys).not.toContain("recipientEmail");
-    expect(linkKeys).not.toContain("recipientPhone");
+    expect(s.link.recipientEmail).toBeNull();
+    expect(s.link.recipientPhone).toBeNull();
     expect(s.link.recipientEmailMasked).toBe("r***@example.test");
     expect(JSON.stringify(s)).not.toContain("recipient-privacy-canary@example.test");
     expect(JSON.stringify(s)).not.toContain("4915112345678");

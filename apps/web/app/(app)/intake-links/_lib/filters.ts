@@ -206,14 +206,36 @@ function matchesDelivery(
   );
 }
 
-function matchesSearch(item: IntakeLinkListItem, qLower: string): boolean {
+/**
+ * The LOCAL half of search.
+ *
+ * The canonical match happens on the server, over the stored values — that is
+ * the only place a full address or a normalised phone number exists to match
+ * against, and shipping those to the browser so a text box could work would
+ * hand every reader every address. So when `serverSearched` is set, the rows
+ * in hand are already the answer and this returns true rather than filtering
+ * a second time against masks that could never match what was typed.
+ *
+ * It still runs for a purely local narrowing (the same rows, no refetch yet),
+ * and its haystack now includes the Customer ID and whatever contact form the
+ * caller was actually sent.
+ */
+function matchesSearch(
+  item: IntakeLinkListItem,
+  qLower: string,
+  serverSearched: boolean,
+): boolean {
   if (!qLower) return true;
+  if (serverSearched) return true;
   const haystack = [
     item.link.workflowTemplateName,
     item.link.workflowTemplateSlug,
+    item.link.customerId,
     item.link.recipientLabel,
     item.link.recipientEmailPreview,
     item.link.recipientPhonePreview,
+    item.link.recipientEmail,
+    item.link.recipientPhone,
     item.link.id.slice(0, 8),
   ]
     .filter(Boolean)
@@ -246,6 +268,8 @@ export function applyFilters(
   items: ReadonlyArray<IntakeLinkListItem>,
   state: FilterState,
   now: Date = new Date(),
+  /** True when `items` came back from a server-side `search=` query. */
+  serverSearched = false,
 ): FilterResult {
   const qLower = state.q.trim().toLowerCase();
   const intakeTab = tabParamToIntakeTab(state.tab);
@@ -261,7 +285,7 @@ export function applyFilters(
     }
     if (!matchesLifecycle(item, state.lifecycle, now)) return false;
     if (!matchesDelivery(item, state.delivery)) return false;
-    if (!matchesSearch(item, qLower)) return false;
+    if (!matchesSearch(item, qLower, serverSearched)) return false;
     return true;
   });
 

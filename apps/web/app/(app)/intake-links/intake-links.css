@@ -329,12 +329,53 @@
   min-inline-size: 11ch;
   max-inline-size: 32ch;
 }
+/* The organization's own identifier. Its own column because it is how the
+   operator's own system names this request — not a property of the recipient,
+   and not something to fall back to when a name is missing. Monospace-ish
+   tracking so "CUST-849271" and "CUST-849277" are distinguishable at a
+   glance in a long list. */
+.ilk-table th[data-col="customer"],
+.ilk-table td[data-col="customer"] {
+  min-inline-size: 10ch;
+  max-inline-size: 18ch;
+}
+.ilk-customer {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
 .ilk-table th[data-col="recipient"],
 .ilk-table td[data-col="recipient"] {
-  /* 1ch to the same cause. A recipient is a masked address or a short label;
-     both wrap. */
-  min-inline-size: 9ch;
-  max-inline-size: 24ch;
+  /* Wider than before: this cell now carries up to three stacked lines
+     (name, address, number) rather than one substituted value. */
+  min-inline-size: 12ch;
+  max-inline-size: 28ch;
+}
+
+/* Three facts, stacked, each on its own line and each able to wrap. The name
+   leads because it is what a person recognises; the address and number sit
+   under it in the secondary tone so the cell reads as one identity rather
+   than three competing values. */
+.ilk-recipient {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.ilk-recipient__name {
+  font-weight: 600;
+  color: var(--app-ink-heading, #172033);
+  overflow-wrap: anywhere;
+}
+.ilk-recipient__line {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--app-ink-secondary, #667085);
+  overflow-wrap: anywhere;
+}
+/* An absent value is absent. "—" says "nothing here", which is a different
+   statement from a blank cell that might be a rendering failure. */
+.ilk-empty {
+  color: var(--app-ink-tertiary, #98a2b3);
 }
 .ilk-table th[data-col="channel"],
 .ilk-table td[data-col="channel"] {
@@ -431,7 +472,12 @@
    1068px at a 1280px viewport, 968px at 1180px. Below 1400px the nine columns
    therefore do not fit, and the two that fold are the two whose value is
    restated elsewhere. Above it the frame is 1228px and the nine fit. */
-@media (max-width: 1400px) {
+/* Ten columns now, so the fold threshold rises with them: the Customer ID
+   column asks for ~10ch more table. Channel and Latest activity still fold
+   first — both are restated in the row's own sub-line and in the drawer —
+   and Customer ID never folds, because it is the value the operator is
+   scanning for. */
+@media (max-width: 1500px) {
   .ilk-table col[data-col="channel"],
   .ilk-table th[data-col="channel"],
   .ilk-table td[data-col="channel"],

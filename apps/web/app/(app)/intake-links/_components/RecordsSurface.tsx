@@ -94,6 +94,55 @@ function buildActions(
  * column in the table, the card head on narrow widths — so the operator never
  * reads the same state twice in one record.
  */
+/**
+ * WHO THE REQUEST WAS SENT TO — name, address and number, each labelled,
+ * none standing in for another.
+ *
+ * The old cell rendered `label ?? email ?? phone`, so a request that had a
+ * name showed nothing else. These are three different operational facts: the
+ * person, the mailbox it went to, the number it was texted to. A row can have
+ * all three, and when it does an operator needs all three.
+ *
+ * Compact by construction — a stack of small lines inside one cell rather
+ * than three more columns, so the table stays readable at laptop width.
+ */
+function RecipientStack({ row }: { row: IntakeRowModel }) {
+  if (row.recipientIsPlaceholder) {
+    return (
+      <span className="ilk-empty" data-intake-links-recipient="none">
+        No recipient
+      </span>
+    );
+  }
+  return (
+    <div className="ilk-recipient" data-intake-links-recipient="present">
+      {row.recipientName ? (
+        <span className="ilk-recipient__name" data-intake-links-recipient-name>
+          {row.recipientName}
+        </span>
+      ) : null}
+      {row.recipientEmail ? (
+        <span
+          className="ilk-recipient__line ilk-ltr"
+          data-intake-links-recipient-email
+          title={row.recipientContactIsMasked ? "Masked — you do not have permission to view the full address" : undefined}
+        >
+          {row.recipientEmail}
+        </span>
+      ) : null}
+      {row.recipientPhone ? (
+        <span
+          className="ilk-recipient__line ilk-ltr"
+          data-intake-links-recipient-phone
+          title={row.recipientContactIsMasked ? "Masked — you do not have permission to view the full number" : undefined}
+        >
+          {row.recipientPhone}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function LifecycleBadge({ row }: { row: IntakeRowModel }) {
   /**
    * ONE STRUCTURE FOR THE WHOLE COLUMN.
@@ -278,8 +327,19 @@ function TableRow({
           </span>
         </p>
       </td>
+      <td data-col="customer">
+        {row.customerId ? (
+          <span className="ilk-ltr ilk-customer" data-intake-links-customer-id>
+            {row.customerId}
+          </span>
+        ) : (
+          <span className="ilk-empty" aria-label="No customer ID">
+            —
+          </span>
+        )}
+      </td>
       <td data-col="recipient">
-        <span className="ilk-ltr">{row.recipientText}</span>
+        <RecipientStack row={row} />
       </td>
       <td data-col="channel">
         <span className="app-chip">
@@ -358,8 +418,14 @@ function RecordCard({
           separate, labelled facts here. Three concepts, three regions — the
           card never merges them any more than the table does. */}
       <dl className="ilk-card__facts">
+        <dt>Customer ID</dt>
+        <dd className="ilk-ltr">
+          {row.customerId ?? <span className="ilk-empty">—</span>}
+        </dd>
         <dt>Recipient</dt>
-        <dd className="ilk-ltr">{row.recipientText}</dd>
+        <dd>
+          <RecipientStack row={row} />
+        </dd>
         <dt>Delivery</dt>
         {/* The SAME neutral fact surface the table cell uses — `app-fact-value`
             is one authority, so the card is a second renderer of one row
@@ -457,6 +523,7 @@ export function RecordsSurface({
         <table className="app-table ilk-table" data-intake-links-table aria-label="Intake links">
           <colgroup>
             <col data-col="request" />
+            <col data-col="customer" />
             <col data-col="recipient" />
             <col data-col="channel" />
             <col data-col="lifecycle" />
@@ -469,6 +536,10 @@ export function RecordsSurface({
           <thead>
             <tr>
               <th scope="col" data-col="request">Request</th>
+              {/* Customer ID is the ORGANIZATION's own identifier and gets its
+                  own column: it is how an insurer or a law office finds the
+                  request, and it is not a property of the recipient. */}
+              <th scope="col" data-col="customer">Customer ID</th>
               <th scope="col" data-col="recipient">Recipient</th>
               <th scope="col" data-col="channel">Channel</th>
               <th scope="col" data-col="lifecycle">Lifecycle</th>

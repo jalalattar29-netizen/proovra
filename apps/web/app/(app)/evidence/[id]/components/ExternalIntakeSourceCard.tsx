@@ -58,6 +58,9 @@ type Summary = {
     customerId: string | null;
     recipientEmailMasked: string | null;
     recipientPhoneMasked: string | null;
+    /** Raw, present only when the server resolved this caller as authorized. */
+    recipientEmail: string | null;
+    recipientPhone: string | null;
     hasRecipientEmail: boolean;
     hasRecipientPhone: boolean;
     /**
@@ -410,14 +413,20 @@ export default function ExternalIntakeSourceCard({
         ? {
             kind: "Email",
             masked: summary.link.recipientEmailMasked,
-            raw: rawRecipient?.recipientEmail ?? null,
+            raw:
+              summary.link.recipientEmail ??
+              rawRecipient?.recipientEmail ??
+              null,
           }
         : null,
       summary.link.recipientPhoneMasked
         ? {
             kind: "Phone",
             masked: summary.link.recipientPhoneMasked,
-            raw: rawRecipient?.recipientPhone ?? null,
+            raw:
+              summary.link.recipientPhone ??
+              rawRecipient?.recipientPhone ??
+              null,
           }
         : null,
     ].filter((v): v is { kind: string; masked: string; raw: string | null } => v !== null);
@@ -426,9 +435,18 @@ export default function ExternalIntakeSourceCard({
    * not a disabled one. Offering an action that can only fail tells them
    * about a capability they do not have and invites them to go looking for
    * it.
+   *
+   * An AUTHORIZED reader is simply shown the address. They were sent it, so
+   * there is nothing left to reveal, and a button that swaps a string they
+   * already have for the same string is not a privacy control. The control
+   * survives only for the case it can still change: authorized, but the
+   * server sent masks (an older payload, or a caller that came through a
+   * projection which had not resolved the decision).
    */
   const canRevealRecipient =
-    summary.link.recipientContactRevealAuthorized && recipientContacts.length > 0;
+    summary.link.recipientContactRevealAuthorized &&
+    recipientContacts.length > 0 &&
+    recipientContacts.every((c) => c.raw === null);
 
   async function revealRecipient(linkId: string) {
     // Hiding is local — the value is dropped from state and has to be

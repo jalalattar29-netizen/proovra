@@ -196,6 +196,12 @@ const ListQuery = z.object({
   status: z.enum(WORKFLOW_INTAKE_LINK_STATUSES).optional(),
   workflowTemplateSlug: z.string().max(120).optional(),
   caseId: z.string().uuid().optional(),
+  /**
+   * Free-text search over the stored values: Customer ID, recipient name,
+   * workflow, link id, and — for a caller allowed to see them — the recipient
+   * email and phone.
+   */
+  search: z.string().max(120).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   // Operations Console — archive scope. Default "active" so the
   // default list query continues to behave exactly as it did before
@@ -565,6 +571,12 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, query.teamId);
       if (!ok) return;
 
+      // ONE decision for the request, resolved BEFORE the query because it
+      // governs what may be matched as well as what may be shown.
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: query.teamId,
+      });
+
       const rows = await listWorkflowIntakeLinks({
         teamId: query.teamId,
         status: query.status,
@@ -572,17 +584,16 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         caseId: query.caseId,
         limit: query.limit,
         archiveScope: query.archiveScope,
+        search: query.search ?? null,
+        // The same authority that decides whether the address is SHOWN
+        // decides whether it can be searched for.
+        searchRecipientContact: disclosure === "REVEALED",
       });
 
       // Intake-links-e2e Phase 1 — enrich the list with delivery +
       // activity aggregates + computed lifecycle. The old shape is
       // preserved as `legacyLinks` for any caller that still expects
-      // the bare row projection; remove after the web client cuts
-      // over (which happens in Phase 2 of this same sprint).
-      // ONE decision for the request, consumed by both projections below.
-      const disclosure = await resolveRecipientContactDisclosure(req, {
-        teamId: query.teamId,
-      });
+      // the bare row projection.
 
       const items = await projectIntakeLinkList({
         links: rows,

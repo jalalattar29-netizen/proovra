@@ -83,6 +83,7 @@ import {
   type FilterState,
   type TabParam,
 } from "./_lib/filters";
+import { fetchIntakeLinkList, useServerSearch } from "./_lib/useServerSearch";
 import type {
   CreatedIntakeLink,
   IntakeLinkListItem,
@@ -147,18 +148,11 @@ function IntakeLinksManagement() {
   } | null>(null);
 
   const fetchLinks = React.useCallback(
-    async (workspaceId: string, mode: "initial" | "refresh") => {
+    async (workspaceId: string, mode: "initial" | "refresh", search?: string) => {
       if (mode === "refresh") setRefreshing(true);
       try {
-        const res = (await apiFetch(
-          // `archiveScope=all` so the Archived filter has rows to match; the
-          // backend default hides them and every tab then filters in memory
-          // off the same array, which is what keeps the KPI counts and the
-          // table honest with each other.
-          `/v1/workflow/intake-links?teamId=${encodeURIComponent(workspaceId)}&archiveScope=all`,
-          { method: "GET" },
-        )) as { items?: IntakeLinkListItem[] };
-        setLoad({ kind: "ready", items: res.items ?? [] });
+        const items = await fetchIntakeLinkList(workspaceId, search ?? "");
+        setLoad({ kind: "ready", items });
       } catch (err) {
         const e = err as { code?: string; statusCode?: number; message?: string };
         if (e?.statusCode === 503 || e?.code === "FEATURE_DISABLED") {
@@ -217,6 +211,17 @@ function IntakeLinksManagement() {
   const [filters, setFilters] = React.useState<FilterState>(() =>
     filtersFromQuery(new URLSearchParams(searchParams?.toString() ?? "")),
   );
+
+  // Search is server-side; the hook owns the debounce and the bookkeeping.
+  const { searchedFor } = useServerSearch({
+    workspaceId: teamId ?? null,
+    term: filters.q,
+    fetchFor: React.useCallback(
+      (ws: string, term: string) => fetchLinks(ws, "refresh", term),
+      [fetchLinks],
+    ),
+  });
+
 
   const writeQuery = React.useCallback(
     (next: FilterState) => {
@@ -397,8 +402,11 @@ function IntakeLinksManagement() {
   );
   const kpis = React.useMemo(() => computeIntakeKpis(items), [items]);
   const result = React.useMemo(
-    () => applyFilters(items, filters),
-    [items, filters],
+    // The rows already answer this term when the server matched it; filtering
+    // them again locally would drop every row matched on a value the browser
+    // was never sent.
+    () => applyFilters(items, filters, new Date(), searchedFor !== ""),
+    [items, filters, searchedFor],
   );
   const detailsItem = detailsId
     ? (items.find((i) => i.link.id === detailsId) ?? null)

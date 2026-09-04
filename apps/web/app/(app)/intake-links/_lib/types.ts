@@ -18,9 +18,14 @@ export type IntakeLinkListItem = {
     intakeMode: string;
     caseId: string | null;
     recipientLabel: string | null;
+    /** The organization's identifier for its customer. Its own concept. */
+    customerId: string | null;
     /** Masked, by the same platform policy the row projection uses. */
     recipientEmailPreview: string | null;
     recipientPhonePreview: string | null;
+    /** Raw — populated only for a caller the server resolved as authorized. */
+    recipientEmail?: string | null;
+    recipientPhone?: string | null;
     hasRecipientEmail?: boolean;
     hasRecipientPhone?: boolean;
     recipientContactRevealAuthorized?: boolean;

@@ -45,7 +45,26 @@ export type IntakeRowModel = {
   /** Secondary value under the primary. */
   modeLabel: string;
   /** Masked recipient — label, then email preview, then phone preview. */
-  recipientText: string;
+  /**
+   * FOUR INDEPENDENT FACTS, not one string.
+   *
+   * These used to be a single `recipientText` built from
+   * `recipientLabel ?? emailPreview ?? phonePreview`, so a request that had a
+   * name showed only the name — the address it went to and the number it was
+   * texted to simply vanished, and the Customer ID was never on the client at
+   * all. For anyone running many requests at once those are four different
+   * questions ("whose file is this?", "who did we ask?", "where did it go?"),
+   * and answering them with whichever one happened to be set is how an
+   * operator ends up keeping their own list somewhere else.
+   *
+   * Each is null when genuinely absent. Nothing substitutes for anything.
+   */
+  customerId: string | null;
+  recipientName: string | null;
+  recipientEmail: string | null;
+  recipientPhone: string | null;
+  /** Whether the two contact values above are the raw or the masked form. */
+  recipientContactIsMasked: boolean;
   /** True when the API returned no recipient of any kind. */
   recipientIsPlaceholder: boolean;
   channelWire: string;
@@ -149,11 +168,18 @@ export function buildRowModel(
   // ones that went on to submit — so "in progress" is the remainder.
   const inProgress = Math.max(0, activity.sessionsStarted - submissions);
 
-  const recipientText =
-    link.recipientLabel ??
-    link.recipientEmailPreview ??
-    link.recipientPhonePreview ??
-    "No recipient";
+  /*
+   * The server decides raw-versus-masked and says which it sent; the browser
+   * only chooses which field to read. An authorized operator sees the address
+   * directly — being made to press "reveal" on every row to answer "who did I
+   * send this to?" is not a privacy control, it is a tax — while a limited
+   * reader still gets the mask, and neither is decided here.
+   */
+  const revealed = link.recipientContactRevealAuthorized === true;
+  const recipientEmail =
+    (revealed ? link.recipientEmail : null) ?? link.recipientEmailPreview ?? null;
+  const recipientPhone =
+    (revealed ? link.recipientPhone : null) ?? link.recipientPhonePreview ?? null;
 
   const expiryState = expiryStateOf(link.expiresAtUtc, now);
   const expiryRelative = describeRelativeTime(link.expiresAtUtc, now);
@@ -164,11 +190,13 @@ export function buildRowModel(
     id: link.id,
     requestName: link.workflowTemplateName,
     modeLabel: intakeModeShortLabel(link.intakeMode),
-    recipientText,
+    customerId: link.customerId ?? null,
+    recipientName: link.recipientLabel ?? null,
+    recipientEmail,
+    recipientPhone,
+    recipientContactIsMasked: !revealed,
     recipientIsPlaceholder:
-      !link.recipientLabel &&
-      !link.recipientEmailPreview &&
-      !link.recipientPhonePreview,
+      !link.recipientLabel && !recipientEmail && !recipientPhone,
     channelWire,
     channelLabel: channelLabel(channelWire),
 

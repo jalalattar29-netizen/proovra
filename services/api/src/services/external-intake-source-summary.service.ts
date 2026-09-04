@@ -86,6 +86,9 @@ export type ExternalIntakeSourceSummary = {
      */
     recipientEmailMasked: string | null;
     recipientPhoneMasked: string | null;
+    /** Raw, for a caller the disclosure policy resolved as REVEALED. */
+    recipientEmail: string | null;
+    recipientPhone: string | null;
     hasRecipientEmail: boolean;
     hasRecipientPhone: boolean;
     recipientContactRevealAuthorized: boolean;
