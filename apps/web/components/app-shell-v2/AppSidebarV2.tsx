@@ -1,41 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { ForwardRefExoticComponent, RefAttributes } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Activity,
-  Bell,
-  BookOpen,
-  ArrowUpRight,
-  BriefcaseBusiness,
-  Camera,
-  CircleHelp,
-  ClipboardList,
-  CreditCard,
-  FileText,
-  FolderArchive,
-  Gauge,
-  GaugeCircle,
-  HeartPulse,
-  Home,
-  Inbox,
-  Key,
-  Layers,
-  LayoutGrid,
-  Link2,
-  ListTodo,
-  Plug,
-  Radio,
-  Search,
-  Settings,
-  ShieldAlert,
-  ShieldCheck,
-  Trash2,
-  UsersRound,
-  type LucideProps,
-} from "lucide-react";
+/*
+ * Only the three glyphs this component draws ITSELF remain. The per-route
+ * icons moved to lib/navigation/routeIcons.ts so the command palette could
+ * read the same map; the imports they needed stayed behind here and broke
+ * `next build`, which fails on an unused binding where `tsc` does not.
+ */
+import { ArrowUpRight, CircleHelp, LayoutGrid } from "lucide-react";
 
 import {
   useGlobalRuntimeState,

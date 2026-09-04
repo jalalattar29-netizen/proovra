@@ -295,56 +295,85 @@ export function useGlobalRuntimeState(
         return code === 401 || code === 403 || code === 404;
       };
 
-      // 1) Readiness
+      /*
+       * THREE READS, ONE ROUND TRIP.
+       *
+       * These were three `await`s in a row. Nothing in the second or third
+       * uses anything from the one before it — readiness, open incidents and
+       * open escalations are three independent questions about the same
+       * workspace — so the sequence was accidental, not a dependency.
+       *
+       * Measured on /home in an organization workspace: readiness started at
+       * 842ms and the other two did not start until 1260, a third wave of
+       * requests roughly 420ms behind the page's own. This hook runs on every
+       * app page, so that cost was paid everywhere, and it is paid in serial
+       * round trips — the shape that hurts most on a slow connection.
+       *
+       * Nothing else changes. Each source keeps its own access gate, its own
+       * refusal latch and its own error flag, and the staleness guards below
+       * still run once against the settled result of all three.
+       */
       let nextReadiness: GlobalRuntimeState["readiness"] = null;
-      if (access.readiness && !refusedRef.current.has("readiness")) {
-        try {
-          const r = (await apiFetch(
-            `/admin/runtime/readiness?teamId=${enc}`,
-          )) as {
-            status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
-            ranAtUtc: string;
-            subsystems: ReadonlyArray<GlobalRuntimeReadinessSubsystem>;
-          };
-          nextReadiness = {
-            status: r.status,
-            ranAtUtc: r.ranAtUtc,
-            subsystems: r.subsystems,
-          };
-        } catch (err) {
-          nextErrors.readiness = true;
-          if (isSettledRefusal(err)) refusedRef.current.add("readiness");
-        }
-      }
-
-      // 2) Incidents (OPEN)
       let nextIncidents: ReadonlyArray<GlobalRuntimeIncident> = [];
-      if (access.incidents && !refusedRef.current.has("incidents")) {
-        try {
-          const r = (await apiFetch(
-            `/v1/ops/incidents?teamId=${enc}&status=OPEN&limit=50`,
-          )) as { incidents: ReadonlyArray<GlobalRuntimeIncident> };
-          nextIncidents = r.incidents ?? [];
-        } catch (err) {
-          nextErrors.incidents = true;
-          if (isSettledRefusal(err)) refusedRef.current.add("incidents");
-        }
-      }
-
-      // 3) Escalations (OPEN)
       let nextEscalations: ReadonlyArray<GlobalRuntimeEscalation> = [];
-      if (access.escalations && !refusedRef.current.has("escalations")) {
-        try {
-          const r = (await apiFetch(
-            `/v1/reviewer-ops/escalations?teamId=${enc}&status=OPEN&limit=100`,
-          )) as { escalations: ReadonlyArray<GlobalRuntimeEscalation> };
-          nextEscalations = r.escalations ?? [];
-        } catch (err) {
-          nextErrors.escalations = true;
-          if (isSettledRefusal(err)) refusedRef.current.add("escalations");
-        }
-      }
 
+      /*
+       * `allSettled` rather than `all`: one source failing must not discard
+       * the other two. Each branch already swallows its own error into the
+       * flags above, so a rejection here would be a bug rather than a refusal
+       * — but a partial dashboard is still better than none.
+       */
+      await Promise.allSettled([
+        // 1) Readiness
+        (async () => {
+          if (!access.readiness || refusedRef.current.has("readiness")) return;
+          try {
+            const r = (await apiFetch(
+              `/admin/runtime/readiness?teamId=${enc}`,
+            )) as {
+              status: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+              ranAtUtc: string;
+              subsystems: ReadonlyArray<GlobalRuntimeReadinessSubsystem>;
+            };
+            nextReadiness = {
+              status: r.status,
+              ranAtUtc: r.ranAtUtc,
+              subsystems: r.subsystems,
+            };
+          } catch (err) {
+            nextErrors.readiness = true;
+            if (isSettledRefusal(err)) refusedRef.current.add("readiness");
+          }
+        })(),
+
+        // 2) Incidents (OPEN)
+        (async () => {
+          if (!access.incidents || refusedRef.current.has("incidents")) return;
+          try {
+            const r = (await apiFetch(
+              `/v1/ops/incidents?teamId=${enc}&status=OPEN&limit=50`,
+            )) as { incidents: ReadonlyArray<GlobalRuntimeIncident> };
+            nextIncidents = r.incidents ?? [];
+          } catch (err) {
+            nextErrors.incidents = true;
+            if (isSettledRefusal(err)) refusedRef.current.add("incidents");
+          }
+        })(),
+
+        // 3) Escalations (OPEN)
+        (async () => {
+          if (!access.escalations || refusedRef.current.has("escalations")) return;
+          try {
+            const r = (await apiFetch(
+              `/v1/reviewer-ops/escalations?teamId=${enc}&status=OPEN&limit=100`,
+            )) as { escalations: ReadonlyArray<GlobalRuntimeEscalation> };
+            nextEscalations = r.escalations ?? [];
+          } catch (err) {
+            nextErrors.escalations = true;
+            if (isSettledRefusal(err)) refusedRef.current.add("escalations");
+          }
+        })(),
+      ]);
       // Phase 32.6.4 — drop stale responses. Three guards in order
       // of cheapness: the explicit cancelled flag, the component
       // mounted flag, and the request-generation match. Generation

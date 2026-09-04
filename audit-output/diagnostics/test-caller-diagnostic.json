@@ -8,9 +8,9 @@
   "capabilityRouteInventoryHash": "84ff6851a736888a2a480f3b0f61610ddd8275a31aa6918bb2bd63302a7843b9",
   "totals": {
     "routes": 1125,
-    "routesWithAnyTestCaller": 33,
+    "routesWithAnyTestCaller": 39,
     "testOnlyRoutes": 5,
-    "testCallSites": 45,
+    "testCallSites": 66,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -772,9 +772,11 @@
     },
     {
       "routeId": "GET /v1/billing/overview",
-      "testCallerCount": 0,
+      "testCallerCount": 4,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "services/api/test/web-apifetch-single-flight.test.ts"
+      ]
     },
     {
       "routeId": "GET /v1/billing/pricing",
@@ -1068,9 +1070,11 @@
     },
     {
       "routeId": "GET /v1/dashboard/command-center",
-      "testCallerCount": 0,
+      "testCallerCount": 2,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "services/api/test/web-apifetch-single-flight.test.ts"
+      ]
     },
     {
       "routeId": "GET /v1/dashboard/org-health",
@@ -1092,10 +1096,11 @@
     },
     {
       "routeId": "GET /v1/evidence",
-      "testCallerCount": 1,
+      "testCallerCount": 3,
       "testOnly": false,
       "testCallerFiles": [
-        "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"
+        "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts",
+        "services/api/test/web-apifetch-single-flight.test.ts"
       ]
     },
     {
@@ -2094,9 +2099,11 @@
     },
     {
       "routeId": "GET /v1/me/inbox",
-      "testCallerCount": 0,
+      "testCallerCount": 2,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "services/api/test/web-apifetch-single-flight.test.ts"
+      ]
     },
     {
       "routeId": "GET /v1/me/inbox/summary",
@@ -2322,9 +2329,11 @@
     },
     {
       "routeId": "GET /v1/ops/summary",
-      "testCallerCount": 0,
+      "testCallerCount": 3,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "services/api/test/web-apifetch-single-flight.test.ts"
+      ]
     },
     {
       "routeId": "GET /v1/ops/workflows",
@@ -2454,10 +2463,11 @@
     },
     {
       "routeId": "GET /v1/platform/context",
-      "testCallerCount": 1,
+      "testCallerCount": 3,
       "testOnly": false,
       "testCallerFiles": [
-        "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"
+        "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts",
+        "services/api/test/web-apifetch-single-flight.test.ts"
       ]
     },
     {
@@ -2630,9 +2640,11 @@
     },
     {
       "routeId": "GET /v1/reports",
-      "testCallerCount": 0,
+      "testCallerCount": 2,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "services/api/test/web-apifetch-single-flight.test.ts"
+      ]
     },
     {
       "routeId": "GET /v1/reports/artifacts",
@@ -2868,10 +2880,11 @@
     },
     {
       "routeId": "GET /v1/search",
-      "testCallerCount": 2,
+      "testCallerCount": 4,
       "testOnly": false,
       "testCallerFiles": [
-        "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"
+        "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts",
+        "services/api/test/web-apifetch-single-flight.test.ts"
       ]
     },
     {
@@ -4453,9 +4466,11 @@
     },
     {
       "routeId": "POST /v1/evidence/:id/archive",
-      "testCallerCount": 0,
+      "testCallerCount": 2,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "services/api/test/web-apifetch-single-flight.test.ts"
+      ]
     },
     {
       "routeId": "POST /v1/evidence/:id/certifications/attest",
@@ -6832,5 +6847,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "d867c180e934538ff9458c580a76c63c7ddd64747ec4f3da0e8bcd6f4fdda535"
+  "contentHash": "25a9cd5993910a30ff4564085e303feefa8d3c30ddd7f1be9bdabd67f149d223"
 }

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "84ff6851a736888a2a480f3b0f61610ddd8275a31aa6918bb2bd63302a7843b9",
-  "consumerInventoryHash": "27cedb9ecfc5984c63bd4d3cc7b36f5865fb8443caa933b5d836f5f0c7560805",
+  "consumerInventoryHash": "9dd21864afd8129a0369a598b5d795ed4cb5a925a06c0e03f893ccfdc3b3542b",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1125,
@@ -101353,7 +101353,7 @@
         },
         {
           "file": "apps/web/lib/useGlobalRuntimeState.ts",
-          "line": 324,
+          "line": 353,
           "caller": "tickOnce",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -105998,7 +105998,7 @@
         },
         {
           "file": "apps/web/lib/useGlobalRuntimeState.ts",
-          "line": 338,
+          "line": 367,
           "caller": "tickOnce",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106008,7 +106008,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:114 (EscalationsConsolePageInner, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:574 (ReviewerConsole, WEB); apps/web/lib/useGlobalRuntimeState.ts:338 (tickOnce, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/reviewer-ops/escalations/page.tsx:114 (EscalationsConsolePageInner, WEB); apps/web/components/reviewer-experience/ReviewerConsole.tsx:574 (ReviewerConsole, WEB); apps/web/lib/useGlobalRuntimeState.ts:367 (tickOnce, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

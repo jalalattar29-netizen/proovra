@@ -77,7 +77,7 @@
       "machineOnlyConsumerRoutes": 4,
       "noConsumerRoutes": 225,
       "wrongOriginConsumers": 0,
-      "consumerInventoryHash": "27cedb9ecfc5984c63bd4d3cc7b36f5865fb8443caa933b5d836f5f0c7560805"
+      "consumerInventoryHash": "9dd21864afd8129a0369a598b5d795ed4cb5a925a06c0e03f893ccfdc3b3542b"
     },
     "capabilities": {
       "totalRoutes": 1125,
@@ -316,9 +316,9 @@
       "producer": "services/api/test/point5/family-coverage-manifest.ts",
       "producerPresent": true,
       "binding": "RUN_ID",
-      "bindingValue": "15ae8c49-4649-430f-b4dd-f619d1984637",
+      "bindingValue": "2bb7d7cf-648b-4720-a939-2ee46e977e73",
       "schemaVersion": null,
-      "contentHash": "9fbc48eebd73a373cae78c7da8b2fb87dd23ba53a32c676c38a167542f4f6f49",
+      "contentHash": "70e918a51a5dc11c38f0983e5fe0da659451d7268e1fdd0c9bdb5333c46d383b",
       "byteLength": 19763,
       "present": true,
       "freshness": "BOUND",
@@ -330,9 +330,9 @@
       "producer": "services/api/test/point7/scenario-manifest.ts",
       "producerPresent": true,
       "binding": "BUILD_ID",
-      "bindingValue": "422c7a9cb67397aea428adb29134c984292e972f4b0864f354c4b41b3ad975f2",
+      "bindingValue": "ee2787072cbd858e14ed791a7e450e5d34bf02b8537db87997999899d313d598",
       "schemaVersion": null,
-      "contentHash": "877c1f6a446feff6f17d2738624d1aea4846d67bae15c13fd4c23a387527e3ae",
+      "contentHash": "1b87569cc62daea07d7a9f670d07008ef5376ddc88c37705a9a2680ae7d30192",
       "byteLength": 22838,
       "present": true,
       "freshness": "BOUND",

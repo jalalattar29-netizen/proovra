@@ -32,6 +32,22 @@ const MAP_PANEL = read("components/capture-location/CaptureLocationMapPanel.tsx"
 const EXPORT_ACTION = read("components/governance/GovernedExportAction.tsx");
 const API_CLIENT = read("lib/api.ts");
 
+/** CSS with its comments removed — several rules below are EXPLAINED in prose
+ *  that names the very values and selectors being asserted, so a search over
+ *  the raw file would match the explanation instead of the rule. */
+const cssCode = SHELL_CSS.replace(/\/\*[\s\S]*?\*\//g, "");
+
+/**
+ * The header arrangement contract, comments stripped.
+ *
+ * `lastIndexOf`, because `@media (min-width: 981px)` appears earlier in the
+ * file too — the shell grid uses the same breakpoint for a different concern,
+ * which is the point of it being one number.
+ */
+const headerContract = cssCode.slice(
+  cssCode.lastIndexOf("@media (min-width: 981px)"),
+);
+
 // ===========================================================================
 // B — the header's workspace and account triggers
 // ===========================================================================
@@ -92,27 +108,72 @@ describe("header triggers: content-driven width, left-aligned labels", () => {
 
   it("the narrow-header hiding outranks the touch floor that had un-hidden it", () => {
     /*
-     * The 980px block hides the topbar's New Case, runtime pill and language
-     * button. The touch-floor block at the end of the file sets
-     * `display: inline-flex` on those same elements to centre an icon in a
-     * 44px target, later in the file and at equal-or-higher specificity — so
-     * a sizing rule was silently resurrecting three controls a responsive
-     * rule had removed, and that is what overflowed the 768px header.
+     * The touch floor sets `display: inline-flex` on these controls to centre
+     * an icon in a 44px target, at the end of the file and at equal-or-higher
+     * specificity than the responsive rules that hide them — so a sizing rule
+     * was silently resurrecting controls a breakpoint had removed.
      *
-     * Every selector in that block is prefixed with `.app-account-toolbar` to
-     * outrank it. Removing a prefix restores the overlap.
+     * Visibility is therefore decided in ONE place, after the floors, with
+     * every selector prefixed enough to outrank them on its own.
      */
-    const block = SHELL_CSS.slice(
-      SHELL_CSS.indexOf("@media (max-width: 980px)"),
-      SHELL_CSS.indexOf("@media (max-width: 419px)"),
-    );
+    const contract = headerContract;
+    expect(contract, "the contract must exist").not.toBe("");
     for (const selector of [
       ".app-account-toolbar .app-header-zone-right .app-header-primary-action",
       ".app-account-toolbar .app-topbar-v2-runtime",
       ".app-account-toolbar .app-topbar-v2-language",
+      ".app-account-toolbar .app-header-zone-left .app-account-toolbar-mobile-menu",
     ]) {
-      expect(block, `${selector} must stay prefixed`).toContain(selector);
+      expect(contract, `${selector} must stay prefixed`).toContain(selector);
     }
+
+    // It has to come after the floors, or the prefixes are doing all the work
+    // and the next control added here inherits the same trap.
+    expect(
+      SHELL_CSS.indexOf("/* HEADER ARRANGEMENT CONTRACT */"),
+    ).toBeGreaterThan(SHELL_CSS.indexOf("THE HEADER'S TOUCH FLOOR."));
+
+    // And no `!important` anywhere in it: ordering is the mechanism.
+    expect(contract).not.toContain("!important");
+  });
+
+  it("the drawer affordance is declared on BOTH sides of the breakpoint", () => {
+    /*
+     * This is what the 981-1006px overlap actually was. The hamburger is
+     * `display: none` in its base rule and the floor's
+     * `:is(button, a[href], …)` — 0,2,1 — beat it, so a sixth control the
+     * layout had never budgeted for was on screen at every width. Its 44px
+     * track plus a 20px gap pushed the desktop arrangement's real minimum from
+     * 981 to ~1045, and between those the centre track fell below the search
+     * button's own floor and the button overflowed it.
+     *
+     * A contract that only says when a control APPEARS leaves when it
+     * disappears to whatever else happens to match. Both sides, or neither.
+     */
+    const contract = headerContract;
+    const desktop = contract.slice(
+      contract.indexOf("@media (min-width: 981px)"),
+      contract.indexOf("@media (max-width: 980px)"),
+    );
+    const collapsed = contract.slice(contract.indexOf("@media (max-width: 980px)"));
+
+    expect(desktop).toContain("mobile-menu");
+    expect(desktop).toContain("display: none;");
+    expect(collapsed).toContain("mobile-menu");
+    expect(collapsed).toContain("display: inline-flex;");
+  });
+
+  it("two classes are not enough for that selector, and the file knows why", () => {
+    // `:is()` takes its most specific argument, so the floor scores 0,2,1 and
+    // a two-class selector loses wherever it sits. Naming the zone makes 0,3,0.
+    expect(headerContract).not.toMatch(
+      /\.app-account-toolbar \.app-account-toolbar-mobile-menu\s*\{/,
+    );
+    // The reasoning is in the contract's own prose, so it is read from the
+    // file WITH comments — that is the half a reader needs.
+    expect(SHELL_CSS.slice(SHELL_CSS.indexOf("/* HEADER ARRANGEMENT CONTRACT */"))).toContain(
+      "0,3,0",
+    );
   });
 });
 

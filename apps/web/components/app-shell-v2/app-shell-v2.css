@@ -1616,43 +1616,13 @@
      because the tab body and the empty state deliberately no longer render a
      duplicate. The topbar instance is the one inside the header's right zone;
      page bodies keep their button. */
-  /* EVERY SELECTOR HERE IS PREFIXED, AND THE PREFIX IS LOAD-BEARING.
-
-     These four were written unprefixed and had stopped working. The header's
-     touch-floor block at the end of this file sets `display: inline-flex` on
-     `.app-topbar-v2-runtime`, on `.app-topbar-v2-language`, and on every
-     button and link inside `.app-account-toolbar` — it needs a flex box to
-     centre an icon in a 44px target. It is later in the file at equal
-     specificity for the two pills, and higher for New Case
-     (`.app-account-toolbar :is(button, a[href], ...)` scores above
-     `.app-header-zone-right .app-header-primary-action`), so a sizing floor
-     was quietly un-hiding three controls this block had deliberately hidden.
-
-     Measured at 768x900 before this prefix: the right zone demanded 657px of
-     a 753px header, the grid's centre track was squeezed to `0px`, and the
-     search button — which lives in that track — painted from 48 to 92,
-     across the navigation hamburger on one side and under New Case on the
-     other. Two controls overlapping the only route to the navigation and the
-     palette is the exact failure the 419px block further down was written to
-     prevent; it had simply reappeared 350px earlier.
-
-     The prefix restores this block's intent without weakening the touch
-     floor and without an `!important`: a hidden control has no target size
-     to protect. */
-  .app-account-toolbar .app-header-zone-right .app-header-primary-action,
-  .app-account-toolbar .app-topbar-v2-runtime,
-  .app-account-toolbar .app-topbar-v2-language,
-  .app-account-toolbar .app-header-zone-right .app-header-divider {
-    display: none;
-  }
-
+  /* Which CONTROLS exist at which width is decided once, at the end of this
+     file, in the HEADER ARRANGEMENT CONTRACT. It has to be stated after the
+     touch floors, so this block owns sizing and layout only. */
   .app-header-zone-left {
     justify-content: flex-start;
   }
 
-  .app-account-toolbar-mobile-menu {
-    display: inline-flex;
-  }
 
   /* An icon button, with the same 36px square as every other control in this
      header. `flex` rather than `width` is what actually stops the squeeze:
@@ -2141,6 +2111,94 @@
 
   .app-topbar-v2-workspace-copy [data-context-chip-scope-line],
   .app-topbar-v2-user-copy span {
+    display: none;
+  }
+}
+
+/* HEADER ARRANGEMENT CONTRACT */
+/* ---------------------------------------------------------------------------
+   WHICH HEADER CONTROLS EXIST AT WHICH WIDTH — ONE BREAKPOINT, BOTH SIDES.
+
+   THE NUMBER IS 981, AND IT WAS ALREADY RIGHT.
+
+   Measured in an organization workspace, whose header is the widest the
+   product produces (a runtime pill and both two-line triggers): the right
+   zone's max-content is 775px, the grid gaps are 20px each and the shell
+   pads 20px a side over a 68px rail. That leaves the centre track — which
+   holds the search control and nothing else — 43px at a 981px viewport,
+   against the 44px target floor that control carries. One pixel. The
+   desktop arrangement fits down to 981 and not one step below, which is
+   exactly where `@media (min-width: 981px)` and `@media (max-width: 980px)`
+   were already drawn.
+
+   SO WHY WAS THERE AN OVERLAP BETWEEN 981 AND ~1006?
+
+   Because a sixth control was on screen that the layout had never budgeted
+   for. `.app-account-toolbar-mobile-menu` is `display: none` in its base
+   rule and is meant to appear only when the sidebar collapses into a drawer.
+   The header's touch floor — `.app-account-toolbar :is(button, a[href],
+   [role="button"], input, select)` — sets `display: inline-flex` to centre an
+   icon inside a 44px target, and it scores 0,2,1 against that base rule's
+   0,1,0 and sits later in the file. The hamburger was therefore rendered at
+   EVERY width, taking a 44px track plus a 20px gap out of the row.
+
+   64px is the entire difference. It pushed the desktop arrangement's real
+   minimum from 981 to ~1045, so between 981 and ~1006 the centre track was
+   squeezed below the search button's floor and the button overflowed its own
+   track — painting across the hamburger on one side and under New Case on the
+   other, which is how two controls ended up on top of the only route to the
+   navigation and the palette.
+
+   Verified after this fix, organization workspace, centre track vs the 44px
+   floor: 1024 -> 86, 1006 -> 68, 990 -> 52, 981 -> 43 with no overlap at any
+   of them, and the collapsed arrangement from 980 down.
+
+   WHY THE RULES LIVE HERE
+
+   Visibility is stated ONCE, after the floors, with every selector prefixed by
+   `.app-account-toolbar`. Both are deliberate:
+
+     - AFTER, because a rule that gives a control a target size must not be
+       able to decide whether the control exists. Ordering is the mechanism;
+       there is no `!important` anywhere in this section.
+     - PREFIXED far enough to WIN, which for this control means three classes,
+       not two. `:is()` takes the specificity of its most specific argument, so
+       the floor's `:is(button, a[href], …)` scores 0,2,1 — one step above the
+       obvious `.app-account-toolbar .app-account-toolbar-mobile-menu` (0,2,0),
+       which loses no matter where it sits in the file. Naming the zone as well
+       makes it 0,3,0. That is measured, not assumed: the two-class form was
+       written first and the hamburger was still on screen at 981.
+
+   And both SIDES are declared. The hamburger's base rule still says
+   `display: none`, but a contract that only says when a control appears
+   leaves when it disappears to whatever else happens to match — which is the
+   bug this section exists to close.
+
+   Sizing and layout at these widths stay in the `max-width: 980px` block
+   above: the search control's collapsed square, the zone tracks, the drawer,
+   the content padding. Those are not at risk from a floor, and splitting them
+   out would trade one scattered concern for another.
+   --------------------------------------------------------------------------- */
+
+/* The desktop arrangement: every control, and no drawer affordance. */
+@media (min-width: 981px) {
+  .app-account-toolbar .app-header-zone-left .app-account-toolbar-mobile-menu {
+    display: none;
+  }
+}
+
+/* The collapsed arrangement: the drawer affordance appears, and the three
+   controls that are reachable elsewhere stand down so the search field and the
+   two triggers keep their room. */
+@media (max-width: 980px) {
+  .app-account-toolbar .app-header-zone-left .app-account-toolbar-mobile-menu {
+    display: inline-flex;
+  }
+
+  .app-account-toolbar .app-header-zone-right .app-header-primary-action,
+  .app-account-toolbar .app-topbar-v2-runtime,
+  .app-account-toolbar .app-topbar-v2-language,
+  .app-account-toolbar .app-header-zone-right .app-header-divider {
     display: none;
   }
 }
