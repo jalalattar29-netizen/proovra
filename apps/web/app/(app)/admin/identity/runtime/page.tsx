@@ -79,6 +79,27 @@ const QUARANTINE_REASONS = [
 ] as const;
 
 /**
+ * The release window the quarantine request has always sent. It was a bare
+ * literal inside the call, invisible to the operator being asked to approve
+ * it; naming it here lets the dialog state the consequence it causes.
+ */
+const QUARANTINE_RELEASE_HOURS = 4;
+
+/**
+ * A safe human identifier for the session subject.
+ *
+ * The dialog must not say only "this session". It also must not print a raw
+ * user agent or IP — those are the fields this console deliberately previews
+ * rather than exposes.
+ */
+function describeSessionSubject(s: SessionRow): string {
+  const client = describeClient(s.uaPreview);
+  return client
+    ? `The session on ${client}`
+    : `Session ${s.id.slice(0, 8)}`;
+}
+
+/**
  * PHASE 12B (2026-07-30) — result of an operator-triggered identity-security
  * reconcile. The server returns the scope it actually swept plus the two
  * counts, so the projection below is the server's answer, never an
@@ -155,6 +176,13 @@ export default function IdentityRuntimePage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [reconcile, setReconcile] = useState<ReconcileResult | null>(null);
   const [emergencyReason, setEmergencyReason] = useState("");
+  /**
+   * The quarantine reason, chosen from the catalog the API validates against.
+   * It was previously typed into a window.prompt that accepted any string and
+   * then rejected all but eight of them.
+   */
+  const [quarantineReason, setQuarantineReason] =
+    useState<(typeof QUARANTINE_REASONS)[number]>("MANUAL_OPERATOR");
   const { confirm } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
   // Scope keys fold every server filter in, so changing one resets the walk
@@ -193,17 +221,58 @@ const load = useCallback(() => {
     load();
   }, [load]);
 
+  /**
+   * QUARANTINE — the canonical dialog, naming who and for how long.
+   *
+   * This used to collect the reason through `window.prompt`. Three things
+   * were wrong with that, and only the first is about accessibility:
+   *
+   *   * `window.prompt` is not the canonical dialog. It cannot be styled, it
+   *     traps no focus, it is not announced, and it is blocked outright in
+   *     some browsers — an operator with it disabled had a button that
+   *     silently did nothing.
+   *   * It named no target. The operator saw "Quarantine reason" with no
+   *     indication of WHOSE session was about to be cut off; the only
+   *     identifier on screen was a row they had to have kept their eye on.
+   *   * It disclosed no consequence. `releaseHours: 4` is sent on every
+   *     call and was never shown, so the dialog asked for a reason while
+   *     concealing the effect.
+   *
+   * The reason now comes from a real select over the same catalog — a free
+   * text box that only accepts eight values was a quiz — and the dialog
+   * names the person, the session and the four hours before submitting.
+   */
   const quarantine = useCallback(
     async (sessionId: string) => {
       if (!teamId) return;
-      const reason = window.prompt(
-        "Quarantine reason (catalog code, e.g. MANUAL_OPERATOR)",
-        "MANUAL_OPERATOR",
-      );
-      if (!reason || !QUARANTINE_REASONS.includes(reason as never)) {
+      const session = (sessions ?? []).find((s) => s.id === sessionId);
+      const reason = quarantineReason;
+      if (!QUARANTINE_REASONS.includes(reason as never)) {
         setError("Reason must be one of " + QUARANTINE_REASONS.join(", "));
         return;
       }
+      const who = session ? describeSessionSubject(session) : "this session";
+      const ok = await confirm({
+        title: "Quarantine this session?",
+        tone: "warning",
+        confirmLabel: "Quarantine session",
+        testId: "confirm-quarantine-session",
+        description: (
+          <>
+            <p>
+              {who} will be blocked from using this session for{" "}
+              <strong>{QUARANTINE_RELEASE_HOURS} hours</strong>, after which it
+              is released automatically. It affects this one session, not the
+              person&rsquo;s other sessions and not their account.
+            </p>
+            <p>
+              Recorded reason: <strong>{reason}</strong>. You can release the
+              session sooner from the quarantine list below.
+            </p>
+          </>
+        ),
+      });
+      if (!ok) return;
       setBusy(sessionId);
       try {
         await apiFetch(
@@ -214,7 +283,7 @@ const load = useCallback(() => {
             body: JSON.stringify({
               teamId,
               reason,
-              releaseHours: 4,
+              releaseHours: QUARANTINE_RELEASE_HOURS,
             }),
           },
         );
@@ -228,7 +297,7 @@ const load = useCallback(() => {
         setBusy(null);
       }
     },
-    [teamId, load],
+    [teamId, load, confirm, quarantineReason, sessions],
   );
 
   const release = useCallback(
@@ -652,6 +721,23 @@ const load = useCallback(() => {
               { value: "exclude", label: "Hide expired" },
               { value: "include", label: "Include expired" },
             ]}
+          />
+          {/*
+            The reason a quarantine will be recorded under, picked before the
+            action rather than typed into a prompt afterwards. The API
+            validates against exactly this catalog, so offering a free text
+            box was asking the operator to guess one of eight strings.
+          */}
+          <FilterBar.Select
+            label="Quarantine reason"
+            value={quarantineReason}
+            onChange={(v) =>
+              setQuarantineReason(v as (typeof QUARANTINE_REASONS)[number])
+            }
+            options={QUARANTINE_REASONS.map((r) => ({
+              value: r,
+              label: r.replace(/_/g, " ").toLowerCase(),
+            }))}
           />
         </FilterBar>
         <DataTable
