@@ -571,6 +571,11 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
           severity: e.severity,
           createdAt: e.createdAt,
           details: projectSecurityEventDetails(e.details),
+          // PHASE 5 §6 — a resolved display label and the stable id, so the
+          // console can name the actor and still correlate. The id is the
+          // reference; there is no email on this path.
+          actorUserId: e.actorUserId,
+          actorDisplay: e.actorDisplay,
         })),
         // The page size the read ran under, and — the fact the console
         // renders — whether another page exists. "No MFA events recorded"

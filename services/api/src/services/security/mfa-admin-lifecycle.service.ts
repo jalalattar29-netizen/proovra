@@ -390,6 +390,13 @@ export type RecentMfaEventRow = {
   severity: string;
   createdAt: string;
   details: unknown;
+  /**
+   * PHASE 5 §6 — who. A stable id for correlation and a display label for the
+   * console; never an email, which is not a thing the Security page should be
+   * a place to read out of.
+   */
+  actorUserId: string | null;
+  actorDisplay: string | null;
 };
 
 /**
@@ -438,9 +445,33 @@ export async function listRecentMfaEvents(
       severity: true,
       createdAt: true,
       details: true,
+      // PHASE 5 §6 — the Security page showed what happened to second factors
+      // and never who did it. `SecurityEvent.userId` has always been here; the
+      // read simply did not select it, so the console had nothing to render in
+      // an actor column and therefore had no actor column.
+      userId: true,
     },
   });
   const page = keysetPage(events, limit, (e) => ({ at: e.createdAt, id: e.id }));
+
+  // ONE query for the whole page, not one per row. Only ids that are actually
+  // on the page are resolved, and a deleted account simply has no entry.
+  const actorIds = Array.from(
+    new Set(page.rows.map((e) => e.userId).filter((id): id is string => Boolean(id))),
+  );
+  const displayById = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: actorIds } },
+      // No email: this is a display label, and the Security console must not
+      // become a place addresses are read out of.
+      select: { id: true, displayName: true },
+    });
+    for (const u of users) {
+      if (u.displayName && u.displayName.trim()) displayById.set(u.id, u.displayName.trim());
+    }
+  }
+
   return {
     ok: true,
     events: page.rows.map((e) => ({
@@ -449,6 +480,22 @@ export async function listRecentMfaEvents(
       severity: e.severity,
       createdAt: e.createdAt.toISOString(),
       details: e.details,
+      /*
+       * PHASE 5 §6 — the actor, resolved for the page rather than left as an
+       * id the operator would have to look up.
+       *
+       * Resolved LIVE here, deliberately, and this is the one place that is
+       * right: a SecurityEvent is not the append-only operator audit and
+       * carries no contemporaneous snapshot, so the current name is the only
+       * name available. Where the account is gone the map has no entry and the
+       * client renders the honest fallback rather than inventing one.
+       *
+       * An event with no user is not "the system" — MFA events are raised by
+       * detection as often as by a person — so the honest value is null and
+       * the client says so.
+       */
+      actorUserId: e.userId ?? null,
+      actorDisplay: e.userId ? (displayById.get(e.userId) ?? null) : null,
     })),
     nextCursor: page.nextCursor,
     hasMore: page.hasMore,

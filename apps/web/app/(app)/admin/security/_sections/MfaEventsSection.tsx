@@ -33,6 +33,7 @@ import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { PageSection } from "../../../../../components/ui/PageShell";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { presentActor } from "../../../../../lib/audit/auditPresentation";
 import {
   NoWorkspaceSelected,
   SectionDenied,
@@ -50,6 +51,9 @@ type MfaEvent = {
   severity: string;
   createdAt: string;
   details: Record<string, unknown> & { redacted?: boolean };
+  // PHASE 5 §6 — who, resolved by the API for the page.
+  actorUserId?: string | null;
+  actorDisplay?: string | null;
 };
 
 type RecoveryEvent = {
@@ -239,6 +243,39 @@ export function MfaEventsSection() {
       key: "severity",
       header: "Severity",
       render: (r) => <Badge tone={severityTone(r.severity)}>{r.severity}</Badge>,
+    },
+    {
+      key: "actor",
+      header: "Actor",
+      /*
+       * PHASE 5 §6 — THE SECURITY CONSOLE HAD NO ACTOR COLUMN.
+       *
+       * It showed what happened to second factors and never who did it, which
+       * on the surface an operator opens after a suspected account compromise
+       * is the missing half of the question. `SecurityEvent.userId` was always
+       * there; the read simply never selected it.
+       *
+       * Rendered through the same presenter as the Admin Audit table, so a
+       * deleted account reads as "Unknown legacy actor" rather than as a blank
+       * cell, and a detection with no human behind it is not dressed up as one.
+       */
+      render: (r) => {
+        const actor = presentActor({
+          actorType: r.actorUserId ? "HUMAN" : "UNKNOWN_LEGACY",
+          actorDisplay: r.actorDisplay ?? null,
+          userId: r.actorUserId ?? null,
+        });
+        return (
+          <span style={{ display: "grid", gap: 1 }}>
+            <span style={{ fontStyle: actor.unknown ? "italic" : "normal" }}>
+              {actor.name}
+            </span>
+            {actor.reference ? (
+              <span style={sectionMuted}>{actor.reference}</span>
+            ) : null}
+          </span>
+        );
+      },
     },
     {
       key: "details",
