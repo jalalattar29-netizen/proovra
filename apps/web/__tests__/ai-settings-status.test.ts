@@ -203,3 +203,94 @@ test("the status card can shrink inside the organization view's grid", () => {
    */
   assert.match(ROW, /minInlineSize:\s*0/);
 });
+
+// ===========================================================================
+// THE MEMBER-SAFE READ-ONLY VIEW
+// ===========================================================================
+const READONLY = readFileSync(
+  resolve(APP, "app/(app)/settings/_sections/AiReadOnlyView.tsx"),
+  "utf8",
+);
+
+test("the read-only view is exactly the four required cards", () => {
+  const cards = [...READONLY.matchAll(/data-cc-ai-card="([a-z]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(cards, ["assistance", "features", "data", "governance"]);
+});
+
+test("a member is offered no control at all, not even a disabled one", () => {
+  // A greyed-out switch invites a click and then refuses it. A sentence saying
+  // who decides is a better answer than a control that does nothing.
+  assert.doesNotMatch(READONLY, /<input\b/);
+  assert.doesNotMatch(READONLY, /<button\b/);
+  // The ATTRIBUTE, not the word: "Disabled" is a legitimate status label for a
+  // feature the workspace switched off, and asserting on the word failed on
+  // the very copy this view exists to show.
+  assert.doesNotMatch(READONLY, /\bdisabled=/);
+});
+
+test("the read-only view states the data boundary in the policy's own terms", () => {
+  assert.match(READONLY, /Metadata first/);
+  assert.match(READONLY, /Not sent to the AI provider by default/);
+  assert.match(READONLY, /Advisory only/);
+});
+
+test("it does not strengthen the no-training claim", () => {
+  // Code-proven for evidence content, but config- and contract-dependent for
+  // the provider posture. Settings must not assert what the AI Use Policy
+  // carefully qualifies.
+  assert.doesNotMatch(READONLY, /never used|not used to train|no training/i);
+});
+
+test("it links the AI Use Policy through the authenticated reader", () => {
+  // app/(app) must never link the public /legal route.
+  assert.match(READONLY, /\/settings\/legal\/ai-use-policy/);
+  assert.doesNotMatch(READONLY, /href="\/legal\//);
+});
+
+test("it exposes no policy keys, operation labels or provider detail", () => {
+  for (const forbidden of [
+    "EVIDENCE_COPILOT",
+    "EVIDENCE_CATEGORIZATION",
+    "SUPPORT_CHAT",
+    "GLOBAL_DISABLED",
+    "PROVIDER_NOT_CONFIGURED",
+    "OPENAI",
+    "aiEnabled",
+  ]) {
+    assert.doesNotMatch(READONLY, new RegExp(forbidden), forbidden);
+  }
+});
+
+test("every card can shrink, so nothing clips on a narrow screen", () => {
+  // The measured 806px overflow came from flex/grid items defaulting to
+  // `min-width: auto`. Each card and each status row opts out.
+  const cards = (READONLY.match(/className="set-card"/g) ?? []).length;
+  const optOuts = (READONLY.match(/minInlineSize: 0/g) ?? []).length;
+  assert.equal(cards, 4);
+  assert.ok(optOuts >= cards, `expected every card to opt out, got ${optOuts} for ${cards}`);
+});
+
+test("the section clears prior workspace state before loading the next", () => {
+  // A member switching from a workspace they administer to one they do not
+  // must not keep rendering the previous workspace's editable policy.
+  // The LOADING effect, located by its own body — the file has several
+  // useEffects and the first one is not this one.
+  const loadEffectStart = SECTION.lastIndexOf("useEffect(() => {", SECTION.indexOf("void load()"));
+  const effect = SECTION.slice(loadEffectStart, SECTION.indexOf("void load()") + 200);
+  const clearIdx = effect.indexOf("setEnvelopeState(null)");
+  const loadIdx = effect.indexOf("void load()");
+  assert.ok(clearIdx > -1, "state must be cleared on workspace change");
+  assert.ok(clearIdx < loadIdx, "cleared BEFORE the next load, not after");
+  // Substring, not a regex: these contain parentheses, and escaping them into
+  // a pattern is a step that can be got wrong for no benefit — the check is
+  // "does this literal text appear", which `includes` says exactly.
+  for (const setter of ["setDraft(null)", "setReadOnly(null)", "setUsage(null)"]) {
+    assert.ok(effect.includes(setter), `${setter} must be cleared on workspace change`);
+  }
+});
+
+test("the viewer fallback is driven by the server's refusal, not a role check", () => {
+  assert.match(SECTION, /statusCode === 403/);
+  assert.match(SECTION, /ai-assistance-status/);
+  assert.doesNotMatch(SECTION, /role === "VIEWER"/);
+});

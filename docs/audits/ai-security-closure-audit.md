@@ -625,3 +625,97 @@ adversarially exercised. Both remaining items are external by nature; neither is
 a code defect, and neither can be closed by writing more code.
 
 The two items that *were* closeable in this repository are closed.
+
+---
+
+# Appendix B — AI Settings governance surface
+
+**Date:** 2026-09-04. Closes the four items left open by the Settings pass.
+
+## Organization-level policy locking — NOT IMPLEMENTED
+
+**Classification: PRODUCT GOVERNANCE CAPABILITY — NOT IMPLEMENTED.** Not a
+security defect: no public claim asserts it exists, and nothing in the product
+implies it.
+
+> **Independent organization-level AI policy locking across child workspaces is
+> not currently implemented.**
+
+**What actually exists.** `WorkspaceAiPolicy` is keyed by `teamId`. A workspace
+IS a team, of kind `PERSONAL` or `ORGANIZATION`, so an ORGANIZATION workspace's
+policy row is that organization's policy for that workspace. There is no parent
+record that constrains a child workspace's row, and no evaluation step that
+consults one — `decideAiPolicy` reads a single resolved policy and the platform
+flags, nothing above them.
+
+**What an Enterprise administrator can control today**, per workspace they
+administer: the master AI switch, each capability switch, the data-class
+controls (raw content, OCR, transcription, embeddings), the allowed-roles list,
+and the daily/monthly operation and cost limits. Enforcement is server-side via
+`evaluateWorkspaceAiPolicy`; the UI never gates anything on its own.
+
+**What an Enterprise administrator cannot do today:** set a policy at the
+organization level that a workspace administrator may not override, or apply one
+policy across several workspaces in one action. Each workspace is configured on
+its own.
+
+**Wording used, and why.** The Settings surface says "Managed by your
+organization" **only** to a member of an ORGANIZATION-kind workspace who cannot
+edit it — which is true: that organization's administrators set it. An
+administrator of the same workspace is told "Managed by workspace
+administrators", not something above them, because nothing above them exists.
+`resolveManagedBy` carries this rule and is tested in both directions. No
+organization toggle was created, and no frontend simulation of a lock.
+
+**Would require future architecture work:** an organization-scoped policy
+record, an inheritance/override precedence step in the evaluator, a resolution
+order for conflicts, and an admin surface for the org scope. None of that is in
+this task.
+
+## VIEWER transparency — CLOSED, least privilege
+
+A VIEWER could not open Settings → AI: the privileged envelope requires
+`intelligence.read`, which VIEWER does not hold.
+
+**Granting it was refused.** `intelligence.read` gates twenty-six endpoints
+including `/v1/executive/metrics`, `/v1/intelligence/budgets/spend`,
+`/v1/intelligence/providers/health` and `/v1/intelligence/quality/reviewers`.
+Making an AI status visible must not hand a read-only member executive
+analytics, provider budgets and reviewer quality scores.
+
+**Lowering the existing endpoint was also refused.** That envelope returns the
+whole policy row, the capability disclosure with its internal statuses
+(`DISABLED_BY_PLATFORM_CONFIGURATION`, `NOT_CONFIGURED`) and the identity of the
+last modifier.
+
+**What was done instead:** `GET /v1/workspaces/ai-assistance-status`, behind
+`governance.policy.read` — a permission all five membership roles already hold,
+and which means precisely "read the policies that govern you". No role gained
+anything. The response carries a bounded status, two booleans, `editable`, three
+product-named feature rows and a fixed processing summary; no decision code,
+policy version, modifier identity, cost figure, provider or model.
+
+Verified against the fixture as a VIEWER: safe read **200**; and **403** on the
+policy write, the privileged envelope, AI usage, intelligence budgets, executive
+metrics, provider health and NL search.
+
+## Mobile overflow — CLOSED, and it was not where it looked
+
+The card was a victim, not the cause. Measured min-content contributions of the
+organization view's children: the **live capability status table** was **808px**,
+every other child 107–189px. An implicit `auto` grid track sizes to the largest
+min-content, so one wide table stretched the single track to 807px inside a
+298px container and every sibling card rendered at 808px and clipped — with
+`documentElement.scrollWidth` still equal to the viewport, which is why it read
+as missing text rather than overflow.
+
+Fixed at the cause: `minmax(0, 1fr)` on the track so no item can size it, and
+`overflow-x: auto` on the table's own wrapper so it scrolls itself.
+
+| Viewport | Content column | Status card | Doc scrollWidth | Elements wider than viewport, outside the table's scroller |
+|---|---|---|---|---|
+| 390 | 298 | **298** (was 808) | 390 | **0** |
+| 375 | 283 | **283** | 375 | **0** |
+| 320 | 228 | **228** | 320 | **0** |
+
+Confirmed by screenshot at 375px: every line wraps inside the column.

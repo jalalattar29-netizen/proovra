@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "5ed058805558999585e841a2cb95ea5fe6e11219d63af300ee9319dda79d2fa6",
-  "capabilityRouteInventoryHash": "72402cd801880f6d11ca3188370f7bb071af1ec7a2266e082d9a2966171dc4bc",
+  "capabilityRouteInventoryHash": "84ff6851a736888a2a480f3b0f61610ddd8275a31aa6918bb2bd63302a7843b9",
   "totals": {
-    "routes": 1124,
+    "routes": 1125,
     "routesWithAnyTestCaller": 33,
     "testOnlyRoutes": 5,
     "testCallSites": 45,
@@ -3044,6 +3044,12 @@
     },
     {
       "routeId": "GET /v1/teams/:workspaceId/operations/health",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/teams/ai-assistance-status",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6826,5 +6832,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "eed1fba69f3ba470ea4ce54c81a4e83813895443e1a353b3fa9b129c4cf13ebc"
+  "contentHash": "d867c180e934538ff9458c580a76c63c7ddd64747ec4f3da0e8bcd6f4fdda535"
 }

@@ -383,7 +383,25 @@ test("§9D — enterprise governance is role-gated and members are read-only", (
   assert.match(AI_PAGE, /"org-governance"[\s\S]{0,80}"org-readonly"/);
   assert.match(AI_PAGE, /const canEdit = mode === "org-governance"/);
   // The diagnostics table mounts only for governance.
-  assert.match(AI_PAGE, /\{canEdit \? \([\s\S]{0,120}AiCapabilityStatusTable/);
+  //
+  // Asserted as "its only mount site sits inside the canEdit branch" rather
+  // than "it appears within 120 characters of it". The character window failed
+  // when the wrapper gained a style prop — a layout fix that moved no branch —
+  // which is the fixed-window trap this repository has now hit three times.
+  const mountIdx = AI_PAGE.indexOf("<AiCapabilityStatusTable");
+  const guardIdx = AI_PAGE.lastIndexOf("{canEdit ? (", mountIdx);
+  assert.ok(mountIdx > -1, "the diagnostics table must be mounted");
+  assert.ok(guardIdx > -1, "its mount must sit inside a canEdit branch");
+  // Nothing closes that branch between the guard and the mount.
+  assert.ok(
+    !AI_PAGE.slice(guardIdx, mountIdx).includes(") : null}"),
+    "the table must be inside the canEdit branch, not after it",
+  );
+  assert.equal(
+    (AI_PAGE.match(/<AiCapabilityStatusTable/g) ?? []).length,
+    1,
+    "one mount site only",
+  );
 });
 
 test("§10 — personal FREE reaches an honest not-included surface, not controls", () => {

@@ -48,6 +48,10 @@ import {
 } from "../../../../lib/ai/aiAssistanceView";
 import type { AiAssistanceStatus } from "../../../../lib/ai/assistanceStatus";
 import { AiStatusRow } from "./AiStatusRow";
+import {
+  AiReadOnlyView,
+  type AiAssistanceSettings,
+} from "./AiReadOnlyView";
 
 /**
  * The API's resolved answer to "would an AI request succeed right now".
@@ -153,6 +157,16 @@ export function AiSection() {
   const [envelopeState, setEnvelopeState] = useState<PolicyEnvelope | null>(null);
   const [draft, setDraft] = useState<Policy | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
+  /*
+   * The member-safe projection, used when the privileged read is refused.
+   *
+   * A VIEWER holds `governance.policy.read` but not `intelligence.read`, so
+   * the admin envelope 403s for them while the narrow status read succeeds.
+   * Keyed off the actual refusal rather than a role check in the browser: the
+   * server decides what this user may see, and the page renders whichever
+   * answer it was given.
+   */
+  const [readOnly, setReadOnly] = useState<AiAssistanceSettings | null>(null);
   const [status, setStatus] = useState<
     "idle" | "loading" | "saving" | "saved" | "conflict" | "denied" | "error"
   >("loading");
@@ -167,11 +181,31 @@ export function AiSection() {
       )) as PolicyEnvelope;
       setEnvelopeState(res);
       setDraft(res.policy);
+      setReadOnly(null);
       setStatus("idle");
       setMessage(null);
-    } catch {
-      setStatus("error");
-      setMessage("Could not load the AI settings for this workspace.");
+    } catch (err) {
+      /*
+       * A 403 here is not an error to show the user — it is the answer that
+       * this member may read the status but not the policy. Anything else is a
+       * genuine failure.
+       */
+      if (err instanceof ApiError && err.statusCode === 403) {
+        try {
+          const safe = (await apiFetch(
+            `/v1/workspaces/ai-assistance-status?teamId=${teamId}`,
+          )) as AiAssistanceSettings;
+          setReadOnly(safe);
+          setStatus("idle");
+          setMessage(null);
+        } catch {
+          setStatus("error");
+          setMessage("Could not load the AI settings for this workspace.");
+        }
+      } else {
+        setStatus("error");
+        setMessage("Could not load the AI settings for this workspace.");
+      }
     }
     try {
       const u = (await apiFetch(
@@ -184,6 +218,16 @@ export function AiSection() {
   }, [teamId]);
 
   useEffect(() => {
+    /*
+     * Clear FIRST, then load. Without this a member switching from a workspace
+     * they can administer to one they cannot would keep rendering the previous
+     * workspace's editable policy until the new fetch resolved — stale admin
+     * controls for a workspace where they have none.
+     */
+    setEnvelopeState(null);
+    setDraft(null);
+    setReadOnly(null);
+    setUsage(null);
     if (mode !== "personal-not-included") void load();
   }, [load, mode]);
 
@@ -246,6 +290,17 @@ export function AiSection() {
 
   if (!teamId) {
     return <p style={muted}>Select a workspace to manage its AI settings.</p>;
+  }
+
+  // Transparency without authority: the member-safe four-card view.
+  if (readOnly) {
+    return (
+      <AiReadOnlyView
+        data={readOnly}
+        workspaceKind={isOrg ? "ORGANIZATION" : "PERSONAL"}
+        canManage={canManageWorkspaceAiPolicy}
+      />
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -606,7 +661,22 @@ function OrgAiView({
 
   return (
       <div
-        style={{ display: "grid", gap: 14, maxWidth: 860 }}
+        /*
+         * `minmax(0, 1fr)` rather than the default implicit `auto` track.
+         *
+         * An `auto` track sizes to the largest MIN-CONTENT among its items, and
+         * one item here — the live capability status table — has a min-content
+         * of 808px. At 390px that stretched the single track to 808px and every
+         * sibling card with it: measured, the container was 298px wide while
+         * its track was 807px, so all seven cards rendered at 808px and clipped.
+         *
+         * The page did not scroll horizontally, which is what made this read as
+         * missing text rather than as an overflow.
+         *
+         * `minmax(0, …)` lets the track shrink below its content; the table then
+         * scrolls inside its own box (below) instead of widening the page.
+         */
+        style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 14, maxWidth: 860 }}
         data-cc-ai-org={mode}
       >
         {envelopeState?.assistance ? (
@@ -806,7 +876,17 @@ function OrgAiView({
         {/* Runtime capability disclosure — governance/audit surface for
             org admins only. Personal users never see this table. */}
         {canEdit ? (
-          <div data-cc-ai-org-disclosure>
+          <div
+            data-cc-ai-org-disclosure
+            /*
+             * A wide table scrolls inside its own container rather than making
+             * the page wide. It is a governance/audit grid with a fixed set of
+             * columns that do not usefully collapse, so letting it scroll is
+             * the honest answer — the alternative is either clipping it or
+             * reflowing an audit table into something harder to read.
+             */
+            style={{ minInlineSize: 0, overflowX: "auto" }}
+          >
             <AiCapabilityStatusTable />
           </div>
         ) : null}

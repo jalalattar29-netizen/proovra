@@ -14,6 +14,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { projectAiAssistance } from "../services/ai/ai-assistance-projection.js";
+import { buildAiAssistanceSettings } from "../services/ai/ai-assistance-settings.service.js";
 
 import type { Permission } from "@proovra/shared";
 
@@ -98,10 +99,43 @@ const PatchBody = z.object({
 // other route in this system has.
 // -----------------------------------------------------------------------------
 const AI_POLICY_PATH = "/v1/teams/ai-policy";
+// Registered under the POST-REWRITE spelling. `workspace-alias.plugin.ts`
+// turns every incoming `/v1/workspaces…` into `/v1/teams…` before routing, so a
+// route registered under the `/v1/workspaces` prefix is unreachable — the exact
+// defect FINAL-005 documents above. Clients call `/v1/workspaces/…`.
+const AI_ASSISTANCE_STATUS_PATH = "/v1/teams/ai-assistance-status";
 const AI_USAGE_PATH = "/v1/teams/ai-usage";
 
 export async function workspaceAiPolicyRoutes(app: FastifyInstance) {
   // GET effective policy + capability disclosure (member read).
+  /*
+   * THE MEMBER-SAFE READ.
+   *
+   * `AI_POLICY_PATH` below requires `intelligence.read`, which VIEWER does not
+   * hold — so a VIEWER could not learn whether AI was on in a workspace they
+   * belong to. Granting them that permission was not an option: it gates
+   * twenty-six endpoints including executive metrics, provider budgets and
+   * reviewer quality scores.
+   *
+   * This route answers the question and nothing else, behind
+   * `governance.policy.read` — a permission every membership role already
+   * holds. The workspace AI policy IS a governance policy, and reading which
+   * policies govern you is what that permission means. No role gains anything
+   * it did not already have, and the response carries no decision code, policy
+   * version, modifier identity or provider detail.
+   */
+  app.get(
+    AI_ASSISTANCE_STATUS_PATH,
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
+      const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
+      if (!ok) return;
+
+      return reply.code(200).send(await buildAiAssistanceSettings({ teamId: query.teamId }));
+    },
+  );
+
   app.get(
     AI_POLICY_PATH,
     { preHandler: requireAuth },
