@@ -1871,7 +1871,8 @@
       "typedConfirmation": true,
       "apiTests": [
         "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
-        "services/api/test/phase26_75-identity-runtime.test.ts"
+        "services/api/test/phase26_75-identity-runtime.test.ts",
+        "services/api/test/phase4-identity-audience.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
@@ -2036,7 +2037,8 @@
         "services/api/test/phase-3-admin-sso-policy-crud.test.ts",
         "services/api/test/phase-p1-identity-operations.test.ts",
         "services/api/test/phase-p3-1-signer-governance.test.ts",
-        "services/api/test/phase26-identity-governance.test.ts"
+        "services/api/test/phase26-identity-governance.test.ts",
+        "services/api/test/phase4-identity-audience.integration.test.ts"
       ],
       "boundTests": {
         "api": [
@@ -2531,7 +2533,9 @@
         "services/api/test/phase-4-org-lifecycle.test.ts",
         "services/api/test/phase-p1-identity-operations.test.ts",
         "services/api/test/phase26-identity-governance.test.ts",
-        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts",
+        "services/api/test/phase4-closure-scope-and-audience.integration.test.ts",
+        "services/api/test/phase4-identity-audience.integration.test.ts"
       ],
       "boundTests": {
         "api": [
@@ -2700,7 +2704,9 @@
         "services/api/test/phase-4-org-lifecycle.test.ts",
         "services/api/test/phase-p1-identity-operations.test.ts",
         "services/api/test/phase26-identity-governance.test.ts",
-        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts",
+        "services/api/test/phase4-closure-scope-and-audience.integration.test.ts",
+        "services/api/test/phase4-identity-audience.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
@@ -3028,7 +3034,8 @@
         "services/api/test/phase-12b-identity-admin-console-matrix.test.ts",
         "services/api/test/phase-12b-identity-selfservice-matrix.test.ts",
         "services/api/test/phase-p1-1-identity-operations-completion.test.ts",
-        "services/api/test/phase26_75-identity-runtime.test.ts"
+        "services/api/test/phase26_75-identity-runtime.test.ts",
+        "services/api/test/phase4-identity-audience.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
@@ -8410,9 +8417,7 @@
       "path": "/v1/support-access/revoke",
       "handler": "services/api/src/routes/enterprise-security.routes.ts",
       "authority": [
-        "requirePlatformStaff",
-        "authorizeOrFail",
-        "AUTHORIZE(?)"
+        "requirePlatformStaff"
       ],
       "riskClass": "SECURITY_SENSITIVE",
       "control": "Row action 'Revoke grant' on a support grant",
@@ -8568,7 +8573,8 @@
         "services/api/test/phase-10-support-enforcement.test.ts",
         "services/api/test/phase-12b-identity-security-matrix.test.ts",
         "services/api/test/phase-rw-rbac-hardening.test.ts",
-        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts",
+        "services/api/test/phase4-support-access-lifecycle.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
@@ -8743,7 +8749,8 @@
         "services/api/test/phase-10-security-routes.test.ts",
         "services/api/test/phase-10-support-enforcement.test.ts",
         "services/api/test/phase-12b-identity-security-matrix.test.ts",
-        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts",
+        "services/api/test/phase4-support-access-lifecycle.integration.test.ts"
       ],
       "boundTests": {
         "api": [],

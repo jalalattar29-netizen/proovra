@@ -85,7 +85,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 318,
+    "AuditFilesInventoried": 319,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -138,7 +138,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 190
+    "ProductBehaviorTestsInventoried": 191
   },
   "reportRoles": {
     "counts": {
@@ -157,7 +157,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 190,
+    "PRODUCT_BEHAVIOR_TEST": 191,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
@@ -4930,6 +4930,21 @@
     },
     {
       "path": "services/api/test/phase27_5-governance-operations.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/phase4-closure-scope-and-audience.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
