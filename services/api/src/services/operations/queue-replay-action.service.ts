@@ -23,7 +23,12 @@
 
 import type { Job } from "bullmq";
 
+import {
+  QUEUE_JOB_RESOURCE_TYPE,
+  queueJobCorrelationRef,
+} from "@proovra/shared";
 import { bump } from "../ops/metrics.service.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import {
   getJobReplayCategory,
@@ -308,6 +313,49 @@ async function doReplayLike(
         reason,
       },
     });
+
+    /*
+     * PHASE 5 §4 (family F) — QUEUED IS NOT COMPLETED, AND THIS ROUTE HAD NO
+     * AUDIT ROW AT ALL.
+     *
+     * `job.retry()` puts the job back on the queue. It does not run it. The
+     * security event above is named `..._succeeded` and fires here, which
+     * describes the enqueue succeeding — but an operator reading the Admin
+     * audit for "did the replay work" is asking about the WORK, and until now
+     * the canonical audit trail had nothing to answer with: this family wrote
+     * security events only.
+     *
+     * So the row says `queued`, carries no resulting state, and anchors a
+     * correlation that the worker can independently derive — the queue name
+     * and job id, which both sides already hold — so the later completion or
+     * failure joins to this request without either side inventing an id.
+     */
+    await emitTenantAudit({
+      action: "operations.queue_job.replay_requested",
+      outcome: "queued",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      actorAuthority: "PLATFORM_OPS",
+      workspaceId: input.teamId,
+      resourceType: QUEUE_JOB_RESOURCE_TYPE,
+      resourceId: queueJobCorrelationRef(input.queueName, input.jobId),
+      targetDisplay: `${input.queueName} · ${job.name}`,
+      previousState: "FAILED",
+      requestedState: action === "replay" ? "REPLAYED" : "RETRIED",
+      // Deliberately null: the job is on the queue and has not run.
+      resultingState: null,
+      reasonCode: "OPERATOR_REQUESTED_REPLAY",
+      metadata: {
+        action,
+        queueName: input.queueName,
+        jobId: input.jobId,
+        jobName: job.name,
+        category,
+        reason,
+        attemptsMadeAtRequest: Number(job.attemptsMade ?? 0),
+      },
+    }).catch(() => null);
+
     return {
       ok: true,
       action,

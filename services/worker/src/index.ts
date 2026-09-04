@@ -112,6 +112,7 @@ import { runAutomationDispatchSweepTick } from "./automation-dispatch.js";
 // P5 — Webhook dispatcher + Evidence Exchange package builder schedulers.
 import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
+import { recordQueueReplayResultIfRequested } from "./queue-replay-correlation.js";
 // Hotfix — API readiness probe so startup-triggered fetches don't
 // race the api process and trigger spurious operational alerts.
 import {
@@ -209,6 +210,18 @@ function bindWorkerEvents(
       outcome: "completed",
       correlationId: requestId,
     });
+
+    // PHASE 5 §4 — if an operator replayed this job, the Admin audit is still
+    // holding a `queued` row with no result. Close it. Only replayed jobs
+    // qualify (see the module header for why this is not "audit every job"),
+    // and the call never throws.
+    void recordQueueReplayResultIfRequested({
+      queueName: jobKind,
+      jobId: job.id ?? null,
+      attemptsMade: job.attemptsMade,
+      outcome: "completed",
+      workspaceId: null,
+    });
   });
 
   workerInstance.on("failed", (job, err) => {
@@ -278,6 +291,19 @@ function bindWorkerEvents(
       outcome: "failed",
       correlationId: requestId,
       errorMessage: getErrorMessage(err),
+    });
+
+    // PHASE 5 §4 — the other half of a replay, when it went the other way.
+    // The reason is a bounded CODE, never the raw error message: an operator
+    // needs to know the replay failed, and an audit row is not the place to
+    // put whatever text an exception happened to carry.
+    void recordQueueReplayResultIfRequested({
+      queueName: jobKind,
+      jobId: job.id ?? null,
+      attemptsMade: job.attemptsMade,
+      outcome: "error",
+      failureReason: "REPLAY_FAILED",
+      workspaceId: null,
     });
   });
 

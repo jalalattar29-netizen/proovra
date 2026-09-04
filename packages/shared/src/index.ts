@@ -2292,3 +2292,7 @@ export {
   isValidCustomerId,
   normalizeCustomerId,
 } from "./workflow-intake.js";
+
+// PHASE 5 — the derived correlation both the API and the Worker compute for
+// a queue job, so a replay request and its eventual result can be joined.
+export * from "./queue-job-correlation.js";

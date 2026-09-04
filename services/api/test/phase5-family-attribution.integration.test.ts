@@ -439,6 +439,177 @@ describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
   });
 
   // =========================================================================
+  // FAMILY F — QUEUES AND REPLAY.
+  //
+  // The family where "it worked" has two different meanings, and the whole
+  // point of the outcome vocabulary is that they get different words.
+  // =========================================================================
+  describe("family F — queue replay correlation", () => {
+    it("the request says QUEUED with no result, and the worker's row joins it", async () => {
+      /*
+       * The API accepting a replay puts the job back on the queue; it does not
+       * run it. An audit row that said `success` there would tell an operator
+       * the work is done at the moment it has merely been scheduled.
+       *
+       * The two rows are written by two processes and joined by a reference
+       * BOTH DERIVE from the queue name and the job id. A generated id could
+       * not have worked: `job.retry()` re-runs a job that already existed, so
+       * there is no payload to carry an id the API invented.
+       */
+      const { QUEUE_JOB_RESOURCE_TYPE, queueJobCorrelationRef } = await import(
+        "@proovra/shared"
+      );
+      const queueName = "reports";
+      const jobId = `p5-${randomUUID()}`;
+      const ref = queueJobCorrelationRef(queueName, jobId);
+
+      // The API half, written exactly as the replay action writes it.
+      const { emitTenantAudit } = await import(
+        "../src/services/audit/tenant-audit.service.js"
+      );
+      await emitTenantAudit({
+        action: "operations.queue_job.replay_requested",
+        outcome: "queued",
+        sourceApp: "API",
+        actorUserId: platformAdmin.userId,
+        actorAuthority: "PLATFORM_OPS",
+        workspaceId: orgA.workspaceId,
+        resourceType: QUEUE_JOB_RESOURCE_TYPE,
+        resourceId: ref,
+        targetDisplay: `${queueName} · build-report`,
+        previousState: "FAILED",
+        requestedState: "REPLAYED",
+        resultingState: null,
+        reasonCode: "OPERATOR_REQUESTED_REPLAY",
+      });
+
+      const [request] = await waitForAudit({
+        action: "operations.queue_job.replay_requested",
+        resourceId: ref,
+      });
+      assertCoreAttribution(request, {
+        actorUserId: platformAdmin.userId,
+        label: "replay request",
+      });
+      expect(request.outcome).toBe("queued");
+      expect(
+        request.resultingState,
+        "an accepted replay claimed the work had finished",
+      ).toBeNull();
+
+      // The WORKER half — the real correlation recorder, not a stand-in.
+      const { recordQueueReplayResultIfRequested } = await import(
+        "../../worker/src/queue-replay-correlation.js"
+      );
+      const recorded = await recordQueueReplayResultIfRequested({
+        queueName,
+        jobId,
+        attemptsMade: 1,
+        outcome: "completed",
+        workspaceId: orgA.workspaceId,
+      });
+      expect(recorded, "the worker did not recognise an outstanding replay").toBe(true);
+
+      const [result] = await waitForAudit({
+        action: "operations.queue_job.replay_result",
+        resourceId: ref,
+      });
+
+      // A worker retry is NOT a new human request.
+      expect(result.actorType, "the worker's completion looked human").toBe("WORKER");
+      expect(result.userId, "a worker row named a human actor").toBeNull();
+      expect(result.actorDisplay).toBe(`${queueName} worker`);
+      expect(result.outcome, "asynchronous completion must not be `success`").toBe(
+        "completed",
+      );
+      expect(result.previousState).toBe("QUEUED");
+      expect(result.resultingState).toBe("COMPLETED");
+      expect(result.reasonCode).toBe("REPLAY_EXECUTED");
+
+      // …and the two halves join, on a reference neither side invented.
+      expect(result.resourceId).toBe(request.resourceId);
+      expect(
+        result.metadata["requestedByUserId"],
+        "the completion cannot name the operator who asked",
+      ).toBe(platformAdmin.userId);
+      expect(result.metadata["requestAuditId"]).toBe(request.id);
+    });
+
+    it("a second worker attempt does not write a second completion", async () => {
+      /*
+       * PHASE 5 §5 — a worker retry must not appear as a new human request,
+       * and one operator request must not accumulate results. The recorder
+       * refuses once a result already exists for that request.
+       */
+      const { queueJobCorrelationRef } = await import("@proovra/shared");
+      const { recordQueueReplayResultIfRequested } = await import(
+        "../../worker/src/queue-replay-correlation.js"
+      );
+      const { emitTenantAudit } = await import(
+        "../src/services/audit/tenant-audit.service.js"
+      );
+      const queueName = "reports";
+      const jobId = `p5-dup-${randomUUID()}`;
+      const ref = queueJobCorrelationRef(queueName, jobId);
+
+      await emitTenantAudit({
+        action: "operations.queue_job.replay_requested",
+        outcome: "queued",
+        sourceApp: "API",
+        actorUserId: platformAdmin.userId,
+        workspaceId: orgA.workspaceId,
+        resourceType: "queue_job",
+        resourceId: ref,
+        requestedState: "REPLAYED",
+      });
+      await waitForAudit({
+        action: "operations.queue_job.replay_requested",
+        resourceId: ref,
+      });
+
+      const first = await recordQueueReplayResultIfRequested({
+        queueName,
+        jobId,
+        attemptsMade: 1,
+        outcome: "error",
+        failureReason: "REPLAY_FAILED",
+      });
+      const second = await recordQueueReplayResultIfRequested({
+        queueName,
+        jobId,
+        attemptsMade: 2,
+        outcome: "completed",
+      });
+      expect(first).toBe(true);
+      expect(second, "a second attempt wrote a second result for one request").toBe(false);
+
+      const results = await prisma.adminAuditLog.findMany({
+        where: { action: "operations.queue_job.replay_result", resourceId: ref },
+      });
+      expect(results, "one request accumulated more than one result").toHaveLength(1);
+      expect(results[0]!.outcome).toBe("error");
+      // The failure reason is a bounded CODE, never a raw error message.
+      expect(results[0]!.reasonCode).toBe("REPLAY_FAILED");
+    });
+
+    it("a job that was never replayed writes nothing", async () => {
+      // The guard that stops this becoming "audit every job".
+      const { recordQueueReplayResultIfRequested } = await import(
+        "../../worker/src/queue-replay-correlation.js"
+      );
+      const wrote = await recordQueueReplayResultIfRequested({
+        queueName: "reports",
+        jobId: `p5-never-${randomUUID()}`,
+        attemptsMade: 3,
+        outcome: "completed",
+      });
+      expect(wrote, "an ordinary job completion reached the operator audit trail").toBe(
+        false,
+      );
+    });
+  });
+
+  // =========================================================================
   // FAMILY H — SSO, SCIM AND PROVISIONING.
   //
   // The one family where the audit row is next to a secret at every step.
