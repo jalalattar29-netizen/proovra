@@ -215,6 +215,27 @@ export function classifyAssistantError(err: AssistantErrorLike): AssistantState 
     };
   }
 
+  /*
+   * NOT INCLUDED is not EXHAUSTED, and this is the branch that used to
+   * conflate them.
+   *
+   * A plan with no AI allowance threw `AI_MONTHLY_LIMIT_REACHED`, so a FREE
+   * account's very first message — before any usage existed — was answered
+   * with "This workspace has used its AI allowance". The API now sends
+   * `AI_NOT_INCLUDED` (402) for a capability the plan does not carry, and
+   * keeps `AI_MONTHLY_LIMIT_REACHED` (429) for one that is genuinely spent.
+   */
+  if (code === "AI_NOT_INCLUDED") {
+    return {
+      kind: "NOT_AVAILABLE_FOR_PLAN",
+      title: "Not included in this plan",
+      body:
+        "AI assistance is not part of your current plan. Capture, custody, verification and reporting are fully available without it.",
+      canSend: false,
+      tone: "notice",
+    };
+  }
+
   if (code === "AI_MONTHLY_LIMIT_REACHED" || code.startsWith("AI_BUDGET_")) {
     return {
       kind: "COST_GUARD",

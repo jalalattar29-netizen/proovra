@@ -562,9 +562,21 @@ export async function aiRoutes(app: FastifyInstance) {
         emitAiChatAbuseSignal(req, userId, "cost_guard_exceeded");
       }
 
-      // Pricing-hardening: only successful operations count toward the
-      // plan's monthly cap. Failure / block paths do not consume.
-      if (result.status === "ok") {
+      /*
+       * Only a real PROVIDER operation counts toward the monthly plan cap.
+       *
+       * Failure and block paths never consumed, but deterministic
+       * short-circuits did: a grounded product answer returns status "ok", so
+       * "how do I capture evidence?" — answered from knowledge compiled into
+       * this build, with no outbound call — spent one of the month's AI
+       * operations.
+       *
+       * The durable cost ledger already excludes these by design; the Phase
+       * F-1 note above says deterministic short-circuits "never reserve
+       * durable budget". Two counters existed, one honouring that intent and
+       * one not. This is the second one catching up, not a policy change.
+       */
+      if (result.status === "ok" && !preflight) {
         try {
           await recordWorkspaceAiOperation(aiScope);
         } catch {

@@ -705,11 +705,22 @@ export async function assertWorkspaceAllowsAiOperation(
 
   if (cap === null) return; // ENTERPRISE / custom — no monthly cap.
   if (cap <= 0) {
+    /*
+     * NOT INCLUDED — a different thing from EXHAUSTED, and it used to carry
+     * the exhausted code.
+     *
+     * The message here has always said "not included in the current plan"
+     * while the code said AI_MONTHLY_LIMIT_REACHED, and the UI keys on the
+     * code. So a FREE account's very first AI message — before any usage
+     * existed at all — was answered with "you have reached your AI usage
+     * limit". The status was already 402 (the canonical "not included"), which
+     * is how the two states were telling different stories in one response.
+     */
     const err: Error & { statusCode?: number; code?: string } = new Error(
       "AI assistance is not included in the current plan",
     );
     err.statusCode = 402;
-    err.code = "AI_MONTHLY_LIMIT_REACHED";
+    err.code = "AI_NOT_INCLUDED";
     throw err;
   }
 

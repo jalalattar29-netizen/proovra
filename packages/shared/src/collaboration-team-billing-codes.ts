@@ -50,6 +50,18 @@ export const COLLABORATION_TEAM_BILLING_ERROR_CODES = [
   "EVIDENCE_RECORD_LIMIT_REACHED",
   "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
   "AI_MONTHLY_LIMIT_REACHED",
+  /*
+   * "The plan does not include AI" is not "you have used up your AI".
+   *
+   * This table already draws that distinction everywhere else —
+   * TEAM_INVITES_NOT_INCLUDED (402) beside TEAM_LIMIT_REACHED (409) — and the
+   * header above states the rule: 402 means the capability is not included,
+   * 409 means it is included and at cap. AI was the one capability that
+   * skipped it, so a plan with no AI allowance threw AI_MONTHLY_LIMIT_REACHED
+   * and a FREE user's very FIRST message was answered with "you have reached
+   * your AI usage limit" — a limit they never had.
+   */
+  "AI_NOT_INCLUDED",
   "ENTERPRISE_FEATURE_REQUIRED",
 ] as const;
 
@@ -77,6 +89,8 @@ export const COLLABORATION_TEAM_BILLING_ERROR_HTTP_STATUS: Record<
   EVIDENCE_RECORD_LIMIT_REACHED: 409,
   EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED: 409,
   AI_MONTHLY_LIMIT_REACHED: 429,
+  // 402, per the rule above: the capability is not included at all.
+  AI_NOT_INCLUDED: 402,
   ENTERPRISE_FEATURE_REQUIRED: 402,
 };
 
