@@ -216,6 +216,44 @@ function safeJsonSnapshot(
 }
 
 /**
+ * A UNIQUE-INDEX COLLISION IS A RACE, NOT A FAILURE.
+ *
+ * The platform-scope partial index
+ * (`operational_incidents_platform_fingerprint_uk ON (fingerprint)
+ * WHERE team_id IS NULL`) makes a concurrent duplicate impossible — which is
+ * the point. But it also means the loser of a race gets P2002 from
+ * `create`, and this writer had no handler for it: the function-wide catch
+ * logged `worker.incident.record_failed` and returned null, and every caller
+ * reads null as "nothing to do".
+ *
+ * So closing the duplicate hole in the schema converted a duplicated
+ * observation into a SILENTLY LOST one. The API writer has carried this
+ * recovery since the index landed; the worker never got the second half.
+ */
+function isIncidentIdentityCollision(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
+}
+
+/**
+ * The dedupe lookup names its columns. Without an explicit select Prisma
+ * asks for every scalar the model declares, which turns the statement into a
+ * full-width compatibility check between the worker image and the database —
+ * and one column the model has and the database lacks then fails EVERY worker
+ * incident identically.
+ */
+const DEDUPE_SELECT = {
+  id: true,
+  status: true,
+  severity: true,
+  relatedEvidenceId: true,
+} as const;
+
+/**
  * Canonical worker incident recording. Replace direct
  * `prisma.operationalIncident.upsert(...)` / `findUnique` + `create`
  * logic with this helper.
@@ -272,13 +310,9 @@ export async function recordWorkerIncident(
     // provides no exclusion for those rows at all. Their dedup is therefore
     // explicitly at this layer, which is where it was always happening.
     // ---------------------------------------------------------------
-    const DEDUPE_SELECT = {
-      id: true,
-      status: true,
-      severity: true,
-      relatedEvidenceId: true,
-    } as const;
-    const existing = teamId
+    // Reassigned by the P2002 recovery below when another evaluator wins
+    // the race, so the observation lands on the canonical row.
+    let existing = teamId
       ? await prisma.operationalIncident.findUnique({
           where: { teamId_fingerprint: { teamId, fingerprint } },
           select: DEDUPE_SELECT,
@@ -289,7 +323,10 @@ export async function recordWorkerIncident(
           select: DEDUPE_SELECT,
         });
     if (!existing) {
-      const row = await prisma.operationalIncident.create({
+      let row: Awaited<ReturnType<typeof prisma.operationalIncident.create>> | null =
+        null;
+      try {
+        row = await prisma.operationalIncident.create({
         data: {
           teamId,
           // DERIVED, never defaulted. The column's default is WORKSPACE, so
@@ -313,21 +350,53 @@ export async function recordWorkerIncident(
           relatedJobId: input.relatedJobId?.slice(0, 128) ?? null,
           openedBySystem: true,
         },
-      });
-      try {
-        await prisma.operationalIncidentEvent.create({
-          data: {
-            incidentId: row.id,
-            eventType: "opened",
-            safeMessage: safeSummary,
-            metadataJson: sanitisedMetadata,
-          },
         });
-      } catch {
-        // event history is best-effort
+      } catch (err) {
+        if (!isIncidentIdentityCollision(err)) throw err;
+        // Another evaluator won the race. Re-read and fall through to the
+        // re-fire path so the observation lands on the canonical row instead
+        // of being dropped.
+        existing = teamId
+          ? await prisma.operationalIncident.findUnique({
+              where: { teamId_fingerprint: { teamId, fingerprint } },
+              select: DEDUPE_SELECT,
+            })
+          : await prisma.operationalIncident.findFirst({
+              where: { teamId: null, fingerprint },
+              orderBy: { firstSeenAtUtc: "asc" },
+              select: DEDUPE_SELECT,
+            });
+        if (!existing) throw err;
       }
-      return row;
+
+      if (row) {
+        try {
+          await prisma.operationalIncidentEvent.create({
+            data: {
+              incidentId: row.id,
+              eventType: "opened",
+              safeMessage: safeSummary,
+              metadataJson: sanitisedMetadata,
+            },
+          });
+        } catch {
+          // event history is best-effort
+        }
+        return row;
+      }
+      // Lost the race: `existing` is now the canonical row and execution
+      // continues into the re-fire branch below.
     }
+    // Past this point the row exists: either the first read found it, or the
+    // create raced and the recovery above re-read the winner. Stating the
+    // invariant keeps the re-fire branch honest instead of optional-chaining
+    // its way around a case that cannot happen.
+    if (!existing) {
+      throw new Error(
+        "incident dedupe invariant: no canonical incident after create/recover",
+      );
+    }
+
     // Re-fire — escalate severity but never de-escalate. WHAT THE
     // OBSERVATION MAY DO TO THE STATUS IS NOT DECIDED HERE.
     //
