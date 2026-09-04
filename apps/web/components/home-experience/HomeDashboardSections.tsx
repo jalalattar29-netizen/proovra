@@ -451,6 +451,91 @@ export function WorkspacePrioritiesCard({
   // and it is not news at all.
   const mayAssertAllClear = operations ? operations.mayAssertAllClear : false;
   const operationsUnavailable = operations != null && !operations.available;
+
+  /*
+   * NINE REASONS, ONE SENTENCE — AND IT NAMED THE WRONG ONE.
+   *
+   * This card said "Not every source could be read, so this may not be the
+   * full picture" for every refusal of the all-clear. There are nine, and they
+   * do not mean the same thing.
+   *
+   * Reproduced against the local fixture, FREE personal workspace with one
+   * evidence record: `/v1/ops/summary` returned `readiness: READY`,
+   * `complete: true`, `failedSources: []`, `truncatedSources: []`, all ten
+   * required sources successful — and `clearRefusalReason:
+   * UNRESOLVED_CONDITIONS`, because the sweep found three open worker-level
+   * conditions. Every source WAS read. The sentence was false, and it was the
+   * one sentence a reader would use to decide whether to trust the page.
+   *
+   * The workspace priority list is built from evidence, pipeline, report and
+   * storage signals; it has no input from operational conditions at all, so a
+   * workspace whose only open conditions are platform-shaped renders zero
+   * priorities while the all-clear is correctly refused. That combination is
+   * what put this card on screen.
+   *
+   * The server has always sent the reason, and the runtime's own docblock says
+   * it is "ordered from most to least specific so the caller renders the most
+   * useful sentence". Home now renders it.
+   *
+   * What does NOT change: no branch here says "All clear". The card still
+   * refuses to fabricate a complete summary, which is the contract. It just
+   * stops attributing the refusal to a read failure that did not happen.
+   */
+  const refusal = operations?.clearRefusalReason ?? null;
+  const refusalCopy = ((): { title: string; detail: string } => {
+    if (operationsUnavailable) {
+      return {
+        title: "Operations status unavailable",
+        detail:
+          "This workspace's shared operational status could not be loaded, so we can't tell you it's clear.",
+      };
+    }
+    switch (refusal) {
+      // The sweep completed and FOUND things. Not a failure — the opposite.
+      case "UNRESOLVED_CONDITIONS":
+        return {
+          title: "Open operational conditions",
+          detail:
+            "Operations is tracking conditions that aren't listed here. Open Operations to see them.",
+        };
+      // Nothing has looked, or not recently enough to describe now.
+      case "NEVER_RUN":
+        return {
+          title: "Operations not scanned yet",
+          detail:
+            "This workspace hasn't been scanned yet, so we can't tell you it's clear.",
+        };
+      case "RUNNING":
+        return {
+          title: "Operations scan in progress",
+          detail: "A scan is running now. This will settle once it finishes.",
+        };
+      case "STALE":
+        return {
+          title: "Operations status out of date",
+          detail:
+            "The last complete scan is too old to describe the workspace now.",
+        };
+      case "FAILED":
+      case "STALLED":
+        return {
+          title: "Operations scan did not complete",
+          detail:
+            "The last scan did not finish, so we can't tell you it's clear.",
+        };
+      // The three that genuinely are read failures — the original sentence.
+      case "PARTIAL_SOURCES":
+      case "TRUNCATED_SOURCE":
+      case "INCIDENT_READ_INCOMPLETE":
+      case null:
+      default:
+        return {
+          title: "Operations status incomplete",
+          detail:
+            "Not every source could be read, so this may not be the full picture.",
+        };
+    }
+  })();
   return (
     <section className="home-card" style={homeCardStyle} data-self-serve-section="workspace-priorities">
       <header style={homeCardHeaderStyle}>
@@ -461,20 +546,22 @@ export function WorkspacePrioritiesCard({
         <h2 style={homeCardTitleStyle}>What needs attention</h2>
       </header>
       {top.length === 0 && !mayAssertAllClear ? (
-        <div style={allClearStyle} data-priorities-unknown>
+        <div
+          style={allClearStyle}
+          data-priorities-unknown
+          data-priorities-refusal={
+            operationsUnavailable ? "UNAVAILABLE" : (refusal ?? "UNKNOWN")
+          }
+        >
           <span style={iconBlockStyle(HOME_TINTS.warn, 34)}>
             <Icon d={ICONS.shield} color={HOME_COLORS.warn} size={17} />
           </span>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 650, color: HOME_COLORS.slate }}>
-              {operationsUnavailable
-                ? "Operations status unavailable"
-                : "Operations status incomplete"}
+              {refusalCopy.title}
             </div>
             <div style={{ fontSize: 12, color: HOME_COLORS.slate }}>
-              {operationsUnavailable
-                ? "This workspace's shared operational status could not be loaded, so we can't tell you it's clear."
-                : "Not every source could be read, so this may not be the full picture."}
+              {refusalCopy.detail}
             </div>
           </div>
         </div>

@@ -625,9 +625,47 @@ export type HomeOperationsSummary = {
    * surface may render "0 issues" / "all clear" while this is false.
    */
   mayAssertAllClear: boolean;
+  /**
+   * WHY the all-clear was refused — the server's own bounded verdict, carried
+   * through rather than guessed at.
+   *
+   * `mayAssertAllClear: false` has NINE distinct causes and they do not mean
+   * the same thing to a reader. Three of them are read failures
+   * (`PARTIAL_SOURCES`, `TRUNCATED_SOURCE`, `INCIDENT_READ_INCOMPLETE`), five
+   * are "nothing has looked recently enough" (`NEVER_RUN`, `RUNNING`,
+   * `STALE`, `FAILED`, `STALLED`), and one — `UNRESOLVED_CONDITIONS` — is the
+   * opposite of a failure: the sweep read everything and FOUND open
+   * conditions.
+   *
+   * The shared runtime's own docblock says the reason is "ordered from most to
+   * least specific so the caller renders the most useful sentence". Home never
+   * received it, so it rendered one sentence for all nine.
+   *
+   * Null when the all-clear was granted, or when the summary itself could not
+   * be loaded (`available: false` already says that).
+   */
+  clearRefusalReason: HomeClearRefusalReason | null;
   /** Where the operator goes to act on any of it. Home links; it never acts. */
   href: string;
 };
+
+/**
+ * The server's `ClearRefusalReason`, mirrored.
+ *
+ * Declared as a union rather than `string` so a new server reason cannot slip
+ * through the UI as an unhandled case — the exhaustive switch that renders it
+ * stops compiling instead.
+ */
+export type HomeClearRefusalReason =
+  | "NEVER_RUN"
+  | "RUNNING"
+  | "STALE"
+  | "FAILED"
+  | "STALLED"
+  | "PARTIAL_SOURCES"
+  | "TRUNCATED_SOURCE"
+  | "INCIDENT_READ_INCOMPLETE"
+  | "UNRESOLVED_CONDITIONS";
 
 /** A verifiable record the user can open on the public verify page. */
 export type VerifiableRecord = {
@@ -3348,6 +3386,8 @@ export type HomeOperationsSummaryInput = {
   overdue: number;
   assignedToMe: number;
   mayAssertAllClear: boolean;
+  /** `GET /v1/ops/summary` has always sent this; Home simply never read it. */
+  clearRefusalReason?: HomeClearRefusalReason | null;
 };
 
 export type NormalizeInputs = {
@@ -3550,6 +3590,8 @@ export function normalizeHomeViewModel(
         overdue: inputs.operationsSummary.overdue,
         assignedToMe: inputs.operationsSummary.assignedToMe,
         mayAssertAllClear: inputs.operationsSummary.mayAssertAllClear,
+        clearRefusalReason:
+          inputs.operationsSummary.clearRefusalReason ?? null,
         href: "/operations",
       }
     : {
@@ -3563,6 +3605,9 @@ export function normalizeHomeViewModel(
         // UNAVAILABLE IS NOT HEALTHY. The zeros above exist only so the type
         // stays total; this flag is what any UI must read first.
         mayAssertAllClear: false,
+        // No summary means no verdict to carry; `available: false` is the
+        // fact the UI renders in that case.
+        clearRefusalReason: null,
         href: "/operations",
       };
   // Phase HOME-INTELLIGENCE — caseIds that already have a report
