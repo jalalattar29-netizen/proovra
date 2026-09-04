@@ -34,13 +34,25 @@
  * rows; this generalises it to every metric.
  */
 
-export type MetricState = "VALUE" | "NOT_MEASURED" | "UNKNOWN" | "ERROR";
+export type MetricState =
+  | "VALUE"
+  | "NOT_MEASURED"
+  | "UNKNOWN"
+  | "ERROR"
+  | "STALE"
+  | "PARTIAL"
+  | "NOT_APPLICABLE";
 
 export type Metric<T> =
-  | { state: "VALUE"; value: T }
+  | { state: "VALUE"; value: T; freshness?: MetricFreshness }
   | { state: "NOT_MEASURED"; value: null; reason: string }
   | { state: "UNKNOWN"; value: null; reason: string }
-  | { state: "ERROR"; value: null; reason: string };
+  | { state: "ERROR"; value: null; reason: string }
+  // STALE and PARTIAL carry a real number. They are still not affirmative:
+  // see `metricIsAffirmative`.
+  | { state: "STALE"; value: T; reason: string; freshness: MetricFreshness }
+  | { state: "PARTIAL"; value: T; reason: string; coverage: MetricCoverage }
+  | { state: "NOT_APPLICABLE"; value: null; reason: string };
 
 export function metricValue<T>(value: T): Metric<T> {
   return { state: "VALUE", value };
@@ -97,4 +109,118 @@ export function metricNumber(m: Metric<number> | undefined): number | null {
  */
 export function metricOr<T>(m: Metric<T> | undefined, fallback: T): T {
   return m?.state === "VALUE" ? m.value : fallback;
+}
+
+// ===========================================================================
+// PHASE 2 — THE REST OF THE VOCABULARY, AND THE ENVELOPE THAT SCOPES IT
+// ===========================================================================
+//
+// The four states above answered "did we measure it?". They could not answer
+// three questions the Admin audit proved were being answered wrongly:
+//
+//   STALE           a real measurement exists but is older than its freshness
+//                   rule. A worker heartbeat from twenty minutes ago is not a
+//                   live worker, and rendering it as current is how a dead
+//                   fleet looked healthy.
+//   PARTIAL         a bounded read completed. "1,000 rows verified" is not
+//                   "the chain is verified", and 25 loaded rows are not a
+//                   population total.
+//   NOT_APPLICABLE  the metric does not apply to this scope or configuration
+//                   — distinct from "not built" and from "not answered".
+//
+// VALUE is the MEASURED state and ERROR is the UNAVAILABLE state; those are
+// the names already on the wire and in `AdminMetric.tsx`, so they keep their
+// spelling rather than gaining a synonym. One meaning, one label — which is
+// the same rule that forbids two subsystems sharing the word "healthy" while
+// meaning different things.
+
+/** Where a number is true OF. A number without this is not yet a fact. */
+export type MetricScope =
+  | { kind: "PLATFORM" }
+  | { kind: "ORGANIZATION"; organizationId: string }
+  | { kind: "WORKSPACE"; teamId: string }
+  | { kind: "ACCOUNT"; userId: string }
+  | { kind: "EVIDENCE_COHORT"; teamId: string | null; cohort: string };
+
+/**
+ * The context every metric in one response inherits.
+ *
+ * Carried once per response rather than repeated on every card: a health
+ * evaluation has ONE instant, and the defect this replaces was thirty cards
+ * each calling `new Date()` and disagreeing about when "now" was.
+ */
+export type TruthEnvelope = {
+  scope: MetricScope;
+  /** One instant for the whole evaluation. Never per-card. */
+  evaluatedAtUtc: string;
+  /** The measurement window, when the numbers are windowed rather than lifetime. */
+  window: { days: number } | { fromUtc: string; toUtc: string } | null;
+  /** Identifier of the authority that produced these numbers. */
+  source: string;
+};
+
+export type MetricFreshness = {
+  /** When the underlying signal was actually observed. */
+  measuredAtUtc: string;
+  /** Older than this and the value is STALE, not current. */
+  maxAgeSeconds: number;
+};
+
+export type MetricCoverage = {
+  /** How many the read actually covered. */
+  measured: number;
+  /** The population, when it is known exactly. Null when it is not. */
+  population: number | null;
+  /** The cap that bounded the read. */
+  limit: number;
+};
+
+export function metricStale<T>(
+  value: T,
+  freshness: MetricFreshness,
+  reason: string,
+): Metric<T> {
+  return { state: "STALE", value, reason, freshness } as Metric<T>;
+}
+
+export function metricPartial<T>(
+  value: T,
+  coverage: MetricCoverage,
+  reason: string,
+): Metric<T> {
+  return { state: "PARTIAL", value, reason, coverage } as Metric<T>;
+}
+
+export function metricNotApplicable<T>(reason: string): Metric<T> {
+  return { state: "NOT_APPLICABLE", value: null, reason } as Metric<T>;
+}
+
+/**
+ * Classify a measurement against its freshness rule.
+ *
+ * The caller supplies the observation time; this decides whether that counts
+ * as current. Freshness is a property of the SIGNAL, not of the request, so a
+ * page that re-renders does not make a stale reading fresh.
+ */
+export function metricWithFreshness<T>(
+  value: T,
+  freshness: MetricFreshness,
+  nowMs: number,
+  staleReason: string,
+): Metric<T> {
+  const ageSeconds = (nowMs - Date.parse(freshness.measuredAtUtc)) / 1000;
+  return ageSeconds > freshness.maxAgeSeconds
+    ? metricStale(value, freshness, staleReason)
+    : ({ state: "VALUE", value, freshness } as Metric<T>);
+}
+
+/**
+ * TRUE only for a state that may be painted as an all-clear.
+ *
+ * Every other state — including STALE and PARTIAL, which DO carry a number —
+ * must not be rendered green. A stale green light is the specific failure this
+ * phase exists to remove.
+ */
+export function metricIsAffirmative(m: { state: MetricState } | undefined): boolean {
+  return m?.state === "VALUE";
 }

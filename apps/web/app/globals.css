@@ -2301,8 +2301,9 @@ a.admin-stat--link:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-/* The four metric states, visually distinct. */
+/* The metric states, visually distinct — and none of them green but VALUE. */
 .admin-stat-value[data-state="NOT_MEASURED"],
+.admin-stat-value[data-state="NOT_APPLICABLE"],
 .admin-stat-value[data-state="UNKNOWN"] {
   font-size: 1.05rem;
   font-weight: 600;
@@ -2315,6 +2316,24 @@ a.admin-stat--link:focus-visible {
   font-weight: 700;
   color: var(--risk-strong, #a4243b);
   letter-spacing: 0;
+}
+
+/*
+ * STALE and PARTIAL carry a real number, so they keep the numeric type scale —
+ * but they must never read as an all-clear. STALE takes the warning tone
+ * because "this was true a while ago" is a live operational problem; PARTIAL
+ * takes the muted tone because the figure is correct as far as it goes and the
+ * caveat is about coverage, not correctness.
+ *
+ * The state is also carried in the text itself ("(stale)", "(partial)") and in
+ * the reason line, so colour is never the only indicator.
+ */
+.admin-stat-value[data-state="STALE"] {
+  color: var(--warning-strong, #a3560f);
+}
+
+.admin-stat-value[data-state="PARTIAL"] {
+  color: var(--ink-muted, #64748b);
 }
 
 .admin-stat-value[data-emphasis="attention"] {

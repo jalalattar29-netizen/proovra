@@ -21,7 +21,14 @@ import Link from "next/link";
  * every tile into a paragraph.
  */
 
-export type MetricState = "VALUE" | "NOT_MEASURED" | "UNKNOWN" | "ERROR";
+export type MetricState =
+  | "VALUE"
+  | "NOT_MEASURED"
+  | "UNKNOWN"
+  | "ERROR"
+  | "STALE"
+  | "PARTIAL"
+  | "NOT_APPLICABLE";
 
 export type Metric<T = number> = {
   state: MetricState;
@@ -34,17 +41,32 @@ export type OverviewFigure = {
   drillDown: string | null;
 };
 
-const STATE_LABEL: Record<Exclude<MetricState, "VALUE">, string> = {
+const STATE_LABEL: Record<Exclude<MetricState, "VALUE" | "STALE" | "PARTIAL">, string> = {
   NOT_MEASURED: "Not measured",
   UNKNOWN: "Unknown",
   ERROR: "Unavailable",
+  NOT_APPLICABLE: "Not applicable",
 };
 
 export function formatMetricNumber(m: Metric<number> | undefined): string {
   if (m?.state === "VALUE" && typeof m.value === "number") {
     return new Intl.NumberFormat().format(m.value);
   }
-  return STATE_LABEL[(m?.state ?? "UNKNOWN") as Exclude<MetricState, "VALUE">];
+  /**
+   * STALE and PARTIAL DO have a number, and hiding it would be its own
+   * dishonesty — "1,000 rows verified" is real, it is simply not the whole
+   * chain. They are shown qualified so the reader gets the figure AND the
+   * caveat, and `metricIsAffirmative` still refuses them the green treatment.
+   */
+  if (m?.state === "STALE" && typeof m.value === "number") {
+    return `${new Intl.NumberFormat().format(m.value)} (stale)`;
+  }
+  if (m?.state === "PARTIAL" && typeof m.value === "number") {
+    return `${new Intl.NumberFormat().format(m.value)} (partial)`;
+  }
+  return STATE_LABEL[
+    (m?.state ?? "UNKNOWN") as Exclude<MetricState, "VALUE" | "STALE" | "PARTIAL">
+  ];
 }
 
 /** Money is never rendered without the currency it is denominated in (ADM-012). */
@@ -79,7 +101,10 @@ export function AdminStat({
   emphasis?: "attention" | "critical";
 }) {
   const m = figure?.metric ?? metric;
-  const isProblem = m?.state === "ERROR";
+  // ERROR and STALE both mean "what you are looking at is not the current
+  // truth". A stale reading painted calm is exactly how a dead worker fleet
+  // read as healthy, so it earns the same visual weight as a failed read.
+  const isProblem = m?.state === "ERROR" || m?.state === "STALE";
   const text = formatMetricNumber(m);
   const href = figure?.drillDown ?? null;
 
@@ -124,7 +149,7 @@ export function AdminStat({
   const title =
     m && m.state !== "VALUE" && m.reason ? m.reason : undefined;
 
-  if (href && m?.state === "VALUE") {
+  if (href && (m?.state === "VALUE" || m?.state === "PARTIAL")) {
     return (
       <Link
         href={href}
