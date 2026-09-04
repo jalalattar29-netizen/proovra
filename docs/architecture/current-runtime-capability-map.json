@@ -110876,7 +110876,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:582",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:596",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110951,7 +110951,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:640",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:654",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -111019,7 +111019,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id/submissions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:847",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:861",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -111085,7 +111085,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/sender-identity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:774",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:788",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150479,10 +150479,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:320",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:334",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150569,10 +150569,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:943",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:957",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150636,7 +150636,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/recipient-contact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:693",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:707",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150701,10 +150701,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:869",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:883",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150768,10 +150768,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/send",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1050",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1064",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150843,10 +150843,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:995",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1009",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [

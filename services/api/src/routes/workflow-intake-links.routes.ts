@@ -43,7 +43,6 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   assertWorkspaceAllowsIntake,
 } from "../services/billing-enforcement.service.js";
-import { hasRole } from "../services/rbac.js";
 import {
   archiveWorkflowIntakeLink,
   createWorkflowIntakeLink,
@@ -253,15 +252,39 @@ function sendFeatureDisabled(reply: FastifyReply): void {
 }
 
 /**
- * PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical intake-link admin.
- * Routes through authorizeOrFail (ACTIVE membership + org lifecycle +
- * operation capability [workflow.intake_link.create / .revoke] + fail-closed
- * + anti-enumeration 404), THEN preserves the stricter OWNER/ADMIN-only
- * restriction the former hasRole(ADMIN) enforced (the intake_link.* caps are
- * also held by REVIEWER, so the role check is retained via an informational
- * lookup to avoid widening this administration surface).
+ * THE INTAKE WORKFLOW GATE.
+ *
+ * Creating a link, sending it, revoking it, archiving it: these are steps in
+ * a workflow, not acts of workspace administration. Nothing here touches
+ * settings, billing, membership, SSO, retention or governance.
+ *
+ * It used to route through the canonical primitive and then ALSO require the
+ * DB role to be OWNER or ADMIN. The comment that stood here said why in as
+ * many words: "the intake_link.* caps are also held by REVIEWER, so the role
+ * check is retained ... to avoid widening this administration surface". That
+ * is a raw role-name check placed on top of the capability model precisely
+ * because the two disagreed — and the capability model was right. Canonical
+ * REVIEWER holds `workflow.intake_link.create` and `.revoke`, and the DB role
+ * MEMBER maps to REVIEWER, so an ordinary operational member was told they
+ * may create intake links by the permission registry and told 404 by the
+ * route.
+ *
+ * That produced a genuinely incoherent product: the same member could open
+ * an intake record, read its recipient's full contact details, search by
+ * them, and review the evidence that arrived — but could not create the link
+ * that starts any of it.
+ *
+ * The role check is gone. The capability is the whole answer, and it is
+ * unchanged: `authorizeOrFail` still enforces ACTIVE membership, org
+ * lifecycle, the operation capability, fail-closed denial and anti-enumeration
+ * 404s. VIEWER and CONTRIBUTOR hold neither intake capability and are refused
+ * exactly as before.
+ *
+ * NOTHING ELSE MOVES. No permission was granted to any role by this change —
+ * the registry is untouched — so no other surface can widen with it. What
+ * changed is that this route stopped overriding the registry.
  */
-async function requireAdmin(
+async function requireIntakeWorkflowActor(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
@@ -272,16 +295,7 @@ async function requireAdmin(
     permission,
     antiEnumeration: true,
   });
-  if (!outcome) return null;
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId: outcome.actorUserId } },
-    select: { role: true },
-  });
-  if (!membership || !hasRole(membership.role, "ADMIN")) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  return { userId: outcome.actorUserId };
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 /**
@@ -326,7 +340,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       }
 
       const body = CreateBody.parse(req.body ?? {});
-      const ok = await requireAdmin(req, reply, body.teamId, "workflow.intake_link.create");
+      const ok = await requireIntakeWorkflowActor(req, reply, body.teamId, "workflow.intake_link.create");
       if (!ok) return;
 
       // Secure-intake plan gate (2026-07-15) — intake links are excluded
@@ -884,7 +898,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
 
-      const ok = await requireAdmin(req, reply, existing.teamId, "workflow.intake_link.revoke");
+      const ok = await requireIntakeWorkflowActor(req, reply, existing.teamId, "workflow.intake_link.revoke");
       if (!ok) return;
 
       const updated = await revokeWorkflowIntakeLink({
@@ -952,7 +966,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       if (!existing) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
-      const ok = await requireAdmin(req, reply, existing.teamId, "workflow.intake_link.revoke");
+      const ok = await requireIntakeWorkflowActor(req, reply, existing.teamId, "workflow.intake_link.revoke");
       if (!ok) return;
 
       const updated = await archiveWorkflowIntakeLink({
@@ -1004,7 +1018,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       if (!existing) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
-      const ok = await requireAdmin(req, reply, existing.teamId, "workflow.intake_link.create");
+      const ok = await requireIntakeWorkflowActor(req, reply, existing.teamId, "workflow.intake_link.create");
       if (!ok) return;
 
       const updated = await unarchiveWorkflowIntakeLink({
@@ -1073,7 +1087,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       if (!existing) {
         return reply.code(404).send({ message: "Intake link not found" });
       }
-      const ok = await requireAdmin(req, reply, existing.teamId, "workflow.intake_link.create");
+      const ok = await requireIntakeWorkflowActor(req, reply, existing.teamId, "workflow.intake_link.create");
       if (!ok) return;
 
       // Phase 7 — per-link resend rate limit. 10/min per
