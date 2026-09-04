@@ -491,9 +491,21 @@ describe("Phase 31.8 — ops actions: retry + replay DLQ", () => {
     expect(routeSrc).toMatch(
       /reply\.code\(200\)\.send\(\{\s*runId,\s*retried:\s*true\s*\}\)/,
     );
-    expect(routeSrc).toMatch(
-      /reply\.code\(200\)\.send\(\{\s*attempted:[\s\S]*?retried:[\s\S]*?skipped:/,
-    );
+    // The replay response gained honest counts — `discovered` (what the queue
+    // returned within the limit) and `eligible` (what was still failed when
+    // re-checked) — because reporting only `attempted` could not distinguish
+    // "50 jobs replayed" from "50 looked at, 3 replayed". It is still a closed
+    // set of scalars: no job, no payload, no Redis internals.
+    const replaySend = routeSrc.match(
+      /reply\.code\(200\)\.send\(\{\s*scope:[\s\S]*?\}\);/,
+    )?.[0];
+    expect(replaySend, "bounded replay response found").toBeTruthy();
+    for (const field of ["discovered", "eligible", "retried", "skipped", "limit"]) {
+      expect(replaySend!).toContain(field);
+    }
+    for (const forbidden of ["job.", "jobId", "data", "stacktrace", "failedReason"]) {
+      expect(replaySend!).not.toContain(forbidden);
+    }
   });
 });
 

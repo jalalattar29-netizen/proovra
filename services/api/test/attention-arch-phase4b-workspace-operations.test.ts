@@ -140,19 +140,48 @@ describe("Phase 4B.2 — canonical Operations permissions replace D29", () => {
     );
   });
 
-  it("domain retries stay DOMAIN-authorized through a separate named gate", () => {
+  it("a genuinely workspace-scoped domain action stays DOMAIN-authorized", () => {
     expect(OPS_ROUTES).toMatch(
       /async function requireDomainActionOnOpsSurface\([\s\S]{0,600}"intelligence\.run"/,
     );
+    // Dismissing a run is the domain action this gate was written for, and it
+    // is scoped in fact: `dismissRun(runId, teamId)` narrows on `team_id` in
+    // SQL, so the workspace permission authorizes work in that workspace.
+    const at = OPS_ROUTES.indexOf('"/v1/ops/media-intelligence/runs/:runId/dismiss"');
+    expect(at).toBeGreaterThan(0);
+    const block = OPS_ROUTES.slice(at, at + 1200);
+    expect(block).toContain("requireDomainActionOnOpsSurface");
+    expect(block).toContain('"intelligence.run"');
+  });
+
+  it("the two PLATFORM-WIDE queue actions carry PLATFORM authority, not a workspace permission", () => {
+    // CORRECTED. This case previously asserted that DLQ replay and single-job
+    // retry were gated by `requireDomainActionOnOpsSurface(…, "intelligence.run")`
+    // — a workspace permission held by the OWNER, ADMIN and REVIEWER of ANY
+    // workspace. The functions behind them are `replayMediaIntelligenceDlq({maxJobs})`
+    // and `retryMediaIntelligenceJob(jobId)`: neither takes a teamId, and the
+    // replay calls `getFailed()` on the single global queue. So the workspace
+    // permission authorized a fleet-wide action, and an org owner of one
+    // workspace could requeue every other tenant's dead-lettered jobs. That was
+    // reproduced at runtime — org-owner received a 200.
+    //
+    // The scope is not something that can be filtered away: the DLQ is one
+    // global queue and this surface is platform-scoped. So the AUTHORITY was
+    // moved to match the blast radius, using the same guard the sibling
+    // platform-operations families already use. The assertion is inverted here
+    // deliberately: it now fails if the workspace gate ever returns.
     for (const route of [
       "/v1/ops/media-intelligence/runs/:runId/retry",
       "/v1/ops/media-intelligence/dlq/replay",
     ]) {
       const at = OPS_ROUTES.indexOf(`"${route}"`);
       expect(at).toBeGreaterThan(0);
-      const block = OPS_ROUTES.slice(at, at + 1200);
-      expect(block).toContain("requireDomainActionOnOpsSurface");
-      expect(block).toContain('"intelligence.run"');
+      const block = OPS_ROUTES.slice(at, at + 1600);
+      // Match the CALL, not the mere presence of the name: the handler carries
+      // a comment explaining which gate it moved away from, and a bare
+      // substring check would read that prose as the defect it describes.
+      expect(block).toMatch(/await requirePlatformOpsActor\(req, reply,/);
+      expect(block).not.toMatch(/await requireDomainActionOnOpsSurface\(req, reply,/);
     }
   });
 });

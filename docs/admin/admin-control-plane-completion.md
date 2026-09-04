@@ -100,7 +100,7 @@
 | `/admin/platform/analytics` | WORKSPACE_FILTERED | adminNavigation registry | ANALYTICS_VIEW | AUTH_ONLY, gateAnalyticsRead, requireTeamCapability | operations | /admin/platform |
 | `/admin/platform/automation` | WORKSPACE_FILTERED | adminNavigation registry | AUTOMATION_VIEW | requireTeamCapability | operations | /admin/platform |
 | `/admin/platform/exports` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor | operations | /admin/platform |
-| `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin, requireDomainActionOnOpsSurface | operations | /admin/platform |
+| `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin, requirePlatformOpsActor | operations | /admin/platform |
 | `/admin/platform/observability` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | operations | /admin/platform |
 | `/admin/platform/queues` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | operations | /admin/platform |
 | `/admin/platform/readiness` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | operations | /admin/platform |
@@ -198,8 +198,8 @@
 | `/admin/platform/exports` | GET | `/v1/operations/exports/:id` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/exports` | POST | `/v1/operations/exports/:id/verify` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/media-graph` | GET | `/v1/admin/platform/metrics` | requirePlatformAdmin | NONE |
-| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/runs/:runId/retry` | requireDomainActionOnOpsSurface | FILTER_CANDIDATE |
-| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/dlq/replay` | requireDomainActionOnOpsSurface | FILTER_CANDIDATE |
+| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/runs/:runId/retry` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/media-graph` | POST | `/v1/ops/media-intelligence/dlq/replay` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/observability` | GET | `/v1/admin/platform/metrics` | requirePlatformAdmin | NONE |
 | `/admin/platform/observability` | GET | `/v1/admin/platform/alerts` | requirePlatformAdmin | NONE |
 | `/admin/platform/observability` | GET | `/v1/admin/platform/readiness` | requirePlatformAdmin | NONE |
@@ -342,8 +342,8 @@
 | `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/reliability` | 456 | 0c/0t/3s | HARDCODED_STATUS_HEX |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
-| `/admin/platform/runbooks/:slug` | 195 | 0c/0t/0s |  |
-| `/admin/platform/signers` | 1192 | 0c/3t/0s | HARDCODED_STATUS_HEX |
+| `/admin/platform/runbooks/:slug` | 210 | 0c/0t/0s |  |
+| `/admin/platform/signers` | 1213 | 0c/3t/0s | HARDCODED_STATUS_HEX |
 | `/admin/provisioning` | 807 | 8c/1t/4s | HARDCODED_STATUS_HEX |
 | `/admin/search` | 364 | 1c/0t/0s |  |
 | `/admin/security` | 91 | 13c/6t/25s |  |

@@ -1186,6 +1186,15 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // `security_events` column, index, enum or mapping is altered by it,
       // which is what this allowlist is about.
       "20280104000000_operational_incident_platform_uniqueness",
+      // SECURITY CONTAINMENT (2026-09-04) — persistent signer lifecycle.
+      // Creates `signer_control_state`, the durable overlay that makes signer
+      // RETIRE and REVOKE real: both previously wrote no state, and the read
+      // model recomputes active signers from environment variables, so a
+      // revoked signer came back ACTIVE on the next request and kept signing.
+      // It touches that one new table alone: no `security_events` column,
+      // index, enum or mapping is altered by it, which is what this allowlist
+      // is about.
+      "20280110000000_signer_control_state",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

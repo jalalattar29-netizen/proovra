@@ -133,7 +133,7 @@
     "AmbiguousReportRoles": 0,
     "Phase0ChangedPathsFromManualDeclaration": 0,
     "UndeclaredPhase0ChangedPaths": 0,
-    "Phase0ChangedPathClassificationMissing": 1,
+    "Phase0ChangedPathClassificationMissing": 0,
     "ManualPhase0ChangeInventories": 0,
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
@@ -175,9 +175,7 @@
     "DEPRECATED_DELEGATE": 1,
     "AUDIT_ENGINE_TEST": 15
   },
-  "problems": [
-    "CHANGED PATH WITH NO CLASSIFICATION: apps/web/tsconfig.json"
-  ],
+  "problems": [],
   "duplicateClaims": [],
   "multiProducer": [],
   "selfReading": [],
@@ -5417,7 +5415,7 @@
     "phase0UndeclaredSelfGeneratedExclusions": 0,
     "phase0ChangedPathsFromManualDeclaration": 0,
     "undeclaredPhase0ChangedPaths": 0,
-    "phase0ChangedPathClassificationMissing": 1,
+    "phase0ChangedPathClassificationMissing": 0,
     "manualPhase0ChangeInventories": 0,
     "uniqueAuthoritativeAuditEvidenceLost": 0,
     "retiredNonAuthoritativeDiagnosticArtifacts": 1,

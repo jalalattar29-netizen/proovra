@@ -44,6 +44,15 @@ const PRISMA_REL = "services/api/prisma";
  * from the image — absence is what caused the defect.
  */
 export const PROPOSED_ADDITIONS = {
+  // SECURITY CONTAINMENT (2026-09-04) — the persistent signer lifecycle.
+  //
+  // Retire and revoke previously wrote nothing: the read model recomputes the
+  // active set from environment variables on every request, so a revoked signer
+  // came back ACTIVE on the next page load and kept signing. This table is the
+  // overlay that makes the two operations real, and the API and worker signing
+  // boundaries read it before producing any signature.
+  "20280110000000_signer_control_state":
+    "REQUIRED_RELEASE_MIGRATION — EXPAND, SAFE_TO_APPLY_NOW. One new table plus a status CHECK and one index. No existing column altered, no row read or written, no other table touched. Empty means ACTIVE, so applying it ahead of the code is inert; deploying the code first would write to a table that does not exist.",
   "20270923500000_persona_profiles_removal_precondition":
     "REQUIRED_LATER_CONTRACT_MIGRATION — the guard for the tracked, unguarded 20270924000000 drop. Shipping the drop without it is the release-blocking defect.",
   "20271102000000_uuid_id_default_repair": "REQUIRED_RELEASE_MIGRATION — REPAIR, SAFE_TO_APPLY_NOW.",
