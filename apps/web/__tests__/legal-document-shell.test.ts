@@ -158,10 +158,9 @@ test("legacy admin document styling is deleted from migrated pages", () => {
   assert.doesNotMatch(SECTION_LIST, /cases-panel/);
 });
 
-test("drift badges + references + load-state contracts survive the redesign", () => {
+test("drift badges + load-state contracts survive the redesign", () => {
   for (const marker of [
     "data-trust-center-page-phase",
-    "data-trust-center-page-references",
     "data-trust-article-state",
     "DriftBadge",
   ]) {
@@ -169,6 +168,42 @@ test("drift badges + references + load-state contracts survive the redesign", ()
   }
   assert.ok(SUBPROCESSORS.includes("data-subprocessors-table"));
   assert.ok(SUBPROCESSORS.includes("data-subprocessors-phase"));
+});
+
+test("the Trust Center publishes no engineering evidence to customers", () => {
+  // `data-trust-center-page-references` used to mark an expandable
+  // "Implementation references · N" list of `services/api/src/...` and
+  // `packages/shared/src/...` paths, shown to every reader. That tells a
+  // customer where our controls live in our repository — a statement about our
+  // source tree, not about their data — so the RENDERING is gone.
+  //
+  // The FIELD is not: `implementationReferences` is still declared on every
+  // article and still re-checked server-side, which is what produces the drift
+  // state the badge above each section reports. Asserting the marker's absence
+  // here is what stops the block being reinstated by a future redesign.
+  assert.ok(
+    !SECTION_LIST.includes("data-trust-center-page-references"),
+    "the implementation-reference disclosure must not return",
+  );
+
+  // Comments are stripped before every content assertion below: the section
+  // list's own header explains what was removed and names the paths it
+  // removed, which is documentation of the fix rather than output of it.
+  const rendered = SECTION_LIST.replace(/\/\*[\s\S]*?\*\//g, "").replace(
+    /\{\/\*[\s\S]*?\*\/\}/g,
+    "",
+  );
+  assert.doesNotMatch(rendered, /Implementation references/);
+
+  // No repository path may be rendered anywhere in this surface.
+  for (const pattern of [/services\/api\/src/, /packages\/[a-z-]+\/src/, /\.service\.ts/]) {
+    assert.doesNotMatch(rendered, pattern, `rendered output leaks ${pattern}`);
+  }
+
+  // The scope label matches where the data actually comes from: article rows
+  // are stored per workspace and the live capability table reads the active
+  // workspace's AI policy, so this page is not account-scoped.
+  assert.match(SECTION_LIST, /scope="WORKSPACE"/);
 });
 
 // ---------------------------------------------------------------------------

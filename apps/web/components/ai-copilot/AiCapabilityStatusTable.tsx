@@ -55,13 +55,41 @@ export function AiCapabilityStatusTable() {
 
   useEffect(() => {
     let cancelled = false;
+    /*
+     * CLEAR FIRST, THEN LOAD.
+     *
+     * The cancel flag stopped a stale RESPONSE from being committed, but the
+     * previously rendered rows were left on screen while the new workspace's
+     * request was in flight — so switching workspace showed one workspace's
+     * name in the header above another workspace's live AI status, with
+     * nothing to say it was out of date. On a disclosure surface that is the
+     * worst kind of stale: every column reads as a statement about the
+     * workspace you are looking at.
+     */
+    setCaps(null);
+    setError(null);
     if (!teamId) return;
     (async () => {
       try {
         const res = (await apiFetch(`/v1/workspaces/ai-policy?teamId=${teamId}`)) as { capabilities?: Capability[] };
         if (!cancelled) setCaps(res.capabilities ?? []);
-      } catch {
-        if (!cancelled) setError("Live capability status is unavailable right now.");
+      } catch (err) {
+        if (cancelled) return;
+        /*
+         * A REFUSAL IS NOT AN OUTAGE.
+         *
+         * A member without the AI-policy read capability gets 403 here, and
+         * every one of them was told "unavailable right now" — which reads as
+         * a fault on our side and invites them to wait for something that is
+         * never going to appear. The disclosure articles below are unaffected
+         * and still render; only the live per-capability table is withheld.
+         */
+        const status = (err as { statusCode?: number } | null)?.statusCode;
+        setError(
+          status === 403 || status === 401
+            ? "Live capability status isn't shown for your role in this workspace. The disclosures below still apply."
+            : "Live capability status is unavailable right now.",
+        );
       }
     })();
     return () => { cancelled = true; };

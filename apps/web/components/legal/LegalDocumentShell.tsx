@@ -35,17 +35,34 @@ import {
   LEGAL_TITLE_GRADIENT,
 } from "./legalArticleStyles";
 
-export type LegalDocumentScope = "PUBLIC" | "ACCOUNT" | "ORGANIZATION";
+/**
+ * WORKSPACE is not a synonym for ACCOUNT.
+ *
+ * The Trust Center's article rows are stored per workspace
+ * (`trustCenterArticle.teamId`) and read through the request's ACTIVE
+ * workspace, and the AI Disclosure Center's live capability table reads
+ * `/v1/workspaces/ai-policy?teamId=<active workspace>`. Both halves of that
+ * page therefore describe one workspace, and it was labelled "Scope: Account"
+ * — which tells a reader with several workspaces that they are looking at
+ * something they are not.
+ */
+export type LegalDocumentScope =
+  | "PUBLIC"
+  | "ACCOUNT"
+  | "WORKSPACE"
+  | "ORGANIZATION";
 
 const SCOPE_BADGE_LABEL: Record<LegalDocumentScope, string | null> = {
   PUBLIC: null,
   ACCOUNT: "Trust documentation",
+  WORKSPACE: "Trust documentation",
   ORGANIZATION: "Organization document",
 };
 
 const SCOPE_META_LABEL: Record<LegalDocumentScope, string | null> = {
   PUBLIC: null,
   ACCOUNT: "Scope: Account",
+  WORKSPACE: "Scope: Active workspace",
   ORGANIZATION: "Scope: Organization",
 };
 

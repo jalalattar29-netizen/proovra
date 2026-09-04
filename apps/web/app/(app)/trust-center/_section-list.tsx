@@ -13,8 +13,27 @@
  * Behavior preserved from Phase 4A:
  *  - 4-phase load state (loading / loaded / empty / degraded / error)
  *    with bounded vocabulary (no env names / stack traces),
- *  - drift badges + implementation-reference disclosures,
+ *  - drift badges,
  *  - all data-* contract markers.
+ *
+ * WHAT IT DELIBERATELY DOES NOT RENDER (2026-09-05)
+ * -------------------------------------------------
+ * `implementationReferences` — the repository paths each article declares as
+ * the code that backs its claims. They were shown to every reader as
+ * "Implementation references · N" over a list of
+ * `services/api/src/...` and `packages/shared/src/...` paths.
+ *
+ * That is engineering evidence, not customer transparency: it tells a customer
+ * where our controls live in our repository, which is a statement about our
+ * source tree rather than about their data.
+ *
+ * The FIELD is untouched. It is canonical metadata with real internal
+ * consumers — `security-claim-check.service.ts` verifies every declared path
+ * still exists, which is what produces the drift state this page's badge
+ * renders, and the organization Trust admin surface reports
+ * `implementationReferencesOk` from the same check. Deleting the data would
+ * break the very verification that makes the badge meaningful; only the
+ * customer-facing rendering is gone.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -142,7 +161,7 @@ export function TrustCenterSectionList({
         label="Trust documentation"
         title={title}
         summary={description}
-        scope="ACCOUNT"
+        scope="WORKSPACE"
         backHref="/trust-center"
         backLabel="Back to Trust Center"
         heroChildren={heroChildren}
@@ -152,7 +171,13 @@ export function TrustCenterSectionList({
 
         <div className="mb-6 flex items-center justify-between gap-3">
           <span className={LEGAL_META_CLASSES}>
-            Published for the active workspace · implementation-backed
+            {/*
+              "implementation-backed" was the phrase the path list justified
+              itself with. The claim it made is real and is now made by the
+              drift badge on each section, which is computed by re-checking
+              those paths server-side rather than by printing them.
+            */}
+            Published for the active workspace
           </span>
           <button
             type="button"
@@ -187,10 +212,14 @@ export function TrustCenterSectionList({
             data-trust-center-page-reason={state.reason}
             className="grid gap-1.5 rounded-lg border border-[rgba(148,163,184,0.28)] bg-[rgba(148,163,184,0.10)] px-4 py-3 text-[0.9rem] text-[#334155]"
           >
+            {/*
+              The prose above already says what happened in the reader's terms.
+              The raw reason is an internal enum — `DB_UNAVAILABLE`,
+              `SCHEMA_NOT_READY` — and naming our database's state adds nothing
+              a customer can use. It stays on `data-trust-center-page-reason`
+              for support and for the tests that assert the phase.
+            */}
             <div>{degradedMessage(state.reason)}</div>
-            <div>
-              Reason: <code>{state.reason}</code>
-            </div>
           </div>
         ) : null}
 
@@ -211,33 +240,31 @@ export function TrustCenterSectionList({
               >
                 <h2 id={a.section}>{a.title}</h2>
                 <div className={`-mt-2 mb-4 ${LEGAL_META_CLASSES}`}>
-                  <code>{a.section}</code> · Version {a.version} · {a.state}
+                  {/*
+                    The section slug is an internal identifier and led the line
+                    with a monospaced token that meant nothing to a reader. It
+                    is still the heading's anchor id and the data attribute, so
+                    deep links and tests are unaffected.
+                  */}
+                  Version {a.version} · {a.state}
                   {a.driftState ? <DriftBadge state={a.driftState} /> : null}
                 </div>
                 <p>
                   <strong>{a.summary}</strong>
                 </p>
                 <BodyParagraphs body={a.body} />
-                {a.implementationReferences.length > 0 ? (
-                  <details
-                    data-trust-center-page-references={a.section}
-                    className="mb-6 mt-2"
-                  >
-                    <summary
-                      className={`cursor-pointer ${LEGAL_META_CLASSES}`}
-                      style={{ fontWeight: 600 }}
-                    >
-                      Implementation references · {a.implementationReferences.length}
-                    </summary>
-                    <div className="mt-2 leading-[1.9]">
-                      {a.implementationReferences.map((r) => (
-                        <code key={r} className="mb-1 mr-1.5 inline-block">
-                          {r}
-                        </code>
-                      ))}
-                    </div>
-                  </details>
-                ) : null}
+                {/*
+                  The repository paths that used to be listed here are still
+                  declared on the article and still checked; see this file's
+                  header. What the reader gets instead is the RESULT of that
+                  check, in the drift badge above — which is the part that
+                  actually tells them whether the statement is current.
+
+                  Nothing is rendered in this slot, so there is no empty
+                  container or orphaned separator left behind: the section ends
+                  at its body and the rule below closes it, exactly as a
+                  section with no references always did.
+                */}
                 <hr />
               </section>
             ))
