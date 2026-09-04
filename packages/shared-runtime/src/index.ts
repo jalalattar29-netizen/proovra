@@ -27,6 +27,11 @@ export * from "./search-index-reconciliation.js";
 // decides whether "workspace operations are clear" may be said at all.
 export * from "./workspace-operations-reconciliation.js";
 
+// The External Intake identity a search document carries. Both hosts index
+// evidence — the API inline, the Worker from the queue — and both compose the
+// same document, so both read these four values through one function.
+export * from "./intake-identity-index.js";
+
 // THE ONE incident transition decision, shared by the API and the Worker
 // writers so a rule fixed in one cannot keep failing in the other.
 export * from "./incident-transition-authority.js";

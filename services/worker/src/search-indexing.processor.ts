@@ -59,7 +59,7 @@ import {
 // the processor's behavior — every read/write below already uses
 // the same prisma surface.
 import { prisma } from "./db.js";
-import { loadIntakeIdentityForIndex } from "../../api/src/services/search/intake-identity-search.js";
+import { loadIntakeIdentityForIndex } from "@proovra/shared-runtime";
 import { logger } from "./logger.js";
 
 /**

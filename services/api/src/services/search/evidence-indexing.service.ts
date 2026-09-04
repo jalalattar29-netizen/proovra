@@ -33,7 +33,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import { loadIntakeIdentityForIndex } from "./intake-identity-search.js";
+import { loadIntakeIdentityForIndex } from "@proovra/shared-runtime";
 import * as prismaPkg from "@prisma/client";
 import {
   buildEvidenceProjection,
