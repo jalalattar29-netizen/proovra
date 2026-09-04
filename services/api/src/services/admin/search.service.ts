@@ -140,7 +140,11 @@ export async function adminGlobalSearch(
           // result that dead-ended in a 404 when opened.
           where: {
             ...customerOrganizationWhere(),
-            OR: [{ name: insensitive(q) }, { legalName: insensitive(q) }],
+            OR: [
+              { name: insensitive(q) },
+              { legalName: insensitive(q) },
+              ...(isUuidLike(q) ? [{ id: q }] : []),
+            ],
           },
           take: limit,
           orderBy: { createdAt: "desc" },
@@ -152,7 +156,11 @@ export async function adminGlobalSearch(
     wants("user")
       ? client.user.findMany({
           where: {
-            OR: [{ email: insensitive(q) }, { displayName: insensitive(q) }],
+            OR: [
+              { email: insensitive(q) },
+              { displayName: insensitive(q) },
+              ...(isUuidLike(q) ? [{ id: q }] : []),
+            ],
           },
           take: limit,
           orderBy: { createdAt: "desc" },
@@ -170,7 +178,11 @@ export async function adminGlobalSearch(
     wants("team")
       ? client.team.findMany({
           where: {
-            OR: [{ name: insensitive(q) }, { legalName: insensitive(q) }],
+            OR: [
+              { name: insensitive(q) },
+              { legalName: insensitive(q) },
+              ...(isUuidLike(q) ? [{ id: q }] : []),
+            ],
           },
           take: limit,
           orderBy: { createdAt: "desc" },
@@ -186,6 +198,7 @@ export async function adminGlobalSearch(
               { workEmail: insensitive(q) },
               { organization: insensitive(q) },
               { fullName: insensitive(q) },
+              ...(isUuidLike(q) ? [{ id: q }] : []),
             ],
           },
           take: limit,
@@ -209,6 +222,7 @@ export async function adminGlobalSearch(
               { workEmail: insensitive(q) },
               { organization: insensitive(q) },
               { fullName: insensitive(q) },
+              ...(isUuidLike(q) ? [{ id: q }] : []),
             ],
           },
           take: limit,
@@ -234,6 +248,7 @@ export async function adminGlobalSearch(
               { title: insensitive(q) },
               { originalFileName: insensitive(q) },
               { displayFileName: insensitive(q) },
+              ...(isUuidLike(q) ? [{ id: q }] : []),
             ],
           },
           take: limit,
@@ -446,6 +461,20 @@ export async function adminGlobalSearch(
 // A cheap UUID-shape guard so we only add exact id/evidenceId equality
 // predicates when the needle actually looks like a UUID (avoids scanning
 // id columns with a `contains` on arbitrary text).
+/**
+ * EVERY searchable category matches on its id, not just two of eight.
+ *
+ * The UI promises "Search by name, email, or ID" in four places. Only `report`
+ * and `verificationPackage` ever honoured it; pasting a user, organization,
+ * workspace, evidence or inbound-request id returned `total: 0` while the same
+ * record was findable by name. An operator reading an id off one screen and
+ * pasting it into the search box got nothing.
+ *
+ * EXACT equality only, and deliberately so: every id column here is postgres
+ * `uuid`, which has no LIKE operator, so a prefix search would need a `::text`
+ * cast — raw SQL, no index, and a collision policy nobody has specified. The
+ * guard below keeps arbitrary text away from the id columns entirely.
+ */
 function isUuidLike(value: string): boolean {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
     value.trim(),

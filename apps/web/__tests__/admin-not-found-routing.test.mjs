@@ -79,12 +79,34 @@ test("an unknown runbook slug returns a real 404", { skip }, async () => {
   );
 });
 
-test("a known runbook slug still returns 200", { skip }, async () => {
+/*
+ * This asserted 200 for an ANONYMOUS request, which was true when it was
+ * written and stopped being true when runbook authorization moved into
+ * middleware: an unauthenticated reader is now refused before the page is
+ * composed. The point it was making — a known slug is a real route, not
+ * another 404 — still needs making, so it is made against the status the
+ * route actually owes an anonymous caller.
+ *
+ * 401 and 404 are both asserted here on purpose. They are what separates
+ * "this route exists and you may not read it" from "this route does not
+ * exist", and a change that collapsed the first into the second would
+ * otherwise look like a pass.
+ */
+test("a known runbook slug is a real route, and is refused, not 404", { skip }, async () => {
   const res = await fetch(
     `${BASE}/admin/platform/runbooks/tsa-timestamp-failure`,
     { signal: AbortSignal.timeout(120_000) },
   );
-  assert.equal(res.status, 200);
+  assert.equal(
+    res.status,
+    401,
+    "an anonymous reader must be refused the runbook, not served it",
+  );
+  assert.notEqual(
+    res.status,
+    404,
+    "a known slug answering 404 would mean the route stopped resolving",
+  );
 });
 
 test("an unknown /admin address returns 404", { skip }, async () => {

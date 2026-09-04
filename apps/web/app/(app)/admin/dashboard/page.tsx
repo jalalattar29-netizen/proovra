@@ -117,7 +117,10 @@ type TrendPoint = {
 type FunnelStep = {
   key: string;
   label: string;
-  count: number;
+  /** Null when the stage is not instrumented. Never 0 for an absent emitter. */
+  count: number | null;
+  measured: boolean;
+  notMeasuredReason: string | null;
   conversionFromPrevious: number | null;
   dropOffFromPrevious: number | null;
 };
@@ -337,7 +340,7 @@ export default function AdminDashboardPage() {
       {
         label: "Total Users",
         value: formatCount(s.totalUsers),
-        sub: `${formatCount(s.registeredUsers) ?? 0} registered · ${formatCount(s.guestUsers) ?? 0} guests`,
+        sub: `${formatCount(s.registeredUsers) ?? "not measured"} registered · ${formatCount(s.guestUsers) ?? "not measured"} guests`,
         accent: "#1e3a5f",
       },
       {
@@ -349,7 +352,7 @@ export default function AdminDashboardPage() {
       {
         label: "Live Workspaces",
         value: formatCount(s.workspaces.total),
-        sub: `${formatCount(s.workspaces.active) ?? 0} billing active · ${formatCount(s.workspaces.pastDue) ?? 0} past due`,
+        sub: `${formatCount(s.workspaces.active) ?? "not measured"} billing active · ${formatCount(s.workspaces.pastDue) ?? "not measured"} past due`,
         accent: "#1e3a5f",
         href: "/admin/workspaces?lifecycle=LIVE",
       },
@@ -364,7 +367,7 @@ export default function AdminDashboardPage() {
       {
         label: "Evidence Created",
         value: formatCount(s.totalEvidence),
-        sub: `${formatCount(s.usersWithEvidence) ?? 0} owners with evidence`,
+        sub: `${formatCount(s.usersWithEvidence) ?? "not measured"} owners with evidence`,
         accent: "#1e3a5f",
       },
       {
@@ -388,7 +391,7 @@ export default function AdminDashboardPage() {
       {
         label: "Active Subscriptions",
         value: formatCount(s.billing.activeSubscriptions),
-        sub: `${formatCount(s.billing.trialingSubscriptions) ?? 0} trialing · ${formatCount(s.billing.pastDueSubscriptions) ?? 0} past due`,
+        sub: `${formatCount(s.billing.trialingSubscriptions) ?? "not measured"} trialing · ${formatCount(s.billing.pastDueSubscriptions) ?? "not measured"} past due`,
         accent: "#1e3a5f",
       },
       {
@@ -711,12 +714,25 @@ export default function AdminDashboardPage() {
                           <div style={{ fontSize: 13.5, fontWeight: 650, color: INK_PRIMARY }}>
                             {idx + 1}. {step.label}
                           </div>
-                          <div style={{ fontSize: 12, color: INK_SECONDARY, marginTop: 2 }}>
-                            {idx === 0
-                              ? "Entry step"
-                              : step.conversionFromPrevious != null
-                                ? `${step.conversionFromPrevious}% conversion · ${step.dropOffFromPrevious ?? 0}% drop-off`
-                                : "No prior-step traffic"}
+                          {/*
+                            An UNINSTRUMENTED stage is not a drop-off.
+                            This read "0% conversion · 100% drop-off" for a
+                            stage whose event nothing emits — reporting a total
+                            product collapse where the truth was a missing
+                            measurement.
+                          */}
+                          <div
+                            style={{ fontSize: 12, color: INK_SECONDARY, marginTop: 2 }}
+                            data-funnel-state={step.measured ? "MEASURED" : "NOT_MEASURED"}
+                          >
+                            {!step.measured
+                              ? (step.notMeasuredReason ??
+                                "Not measured — this stage is not instrumented.")
+                              : idx === 0
+                                ? "Entry step"
+                                : step.conversionFromPrevious != null
+                                  ? `${step.conversionFromPrevious}% conversion · ${step.dropOffFromPrevious ?? 0}% drop-off`
+                                  : "Not comparable — the previous stage was not measured."}
                           </div>
                         </div>
                         <div
@@ -728,7 +744,10 @@ export default function AdminDashboardPage() {
                             flexShrink: 0,
                           }}
                         >
-                          {formatCount(step.count) ?? "0"}
+                          {/* No number, rather than a zero standing in for one. */}
+                          {step.measured && typeof step.count === "number"
+                            ? (formatCount(step.count) ?? "0")
+                            : "—"}
                         </div>
                       </div>
                     ))}

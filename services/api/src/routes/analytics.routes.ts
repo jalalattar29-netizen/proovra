@@ -39,7 +39,12 @@ type TrendBucket = {
 type FunnelStep = {
   key: string;
   label: string;
-  count: number;
+  /** Null when the stage is not instrumented — never 0 for an absent emitter. */
+  count: number | null;
+  /** False when no code path emits this stage's event. */
+  measured: boolean;
+  notMeasuredReason: string | null;
+  /** Null unless BOTH this stage and the previous one were measured. */
   conversionFromPrevious: number | null;
   dropOffFromPrevious: number | null;
 };
@@ -969,45 +974,100 @@ function pct(numerator: number, denominator: number): number | null {
   return Number(((numerator / denominator) * 100).toFixed(1));
 }
 
+/**
+ * INSTRUMENTED STAGES ONLY GET A CONVERSION.
+ *
+ * `evidence_created` has no emitter. Not a broken one — none: no code path in
+ * the api, the worker or the web app has ever written an AnalyticsEvent with
+ * that type, and the browser ingest allowlist explicitly refuses to let a
+ * client claim it. The stage was therefore permanently 0, and because a
+ * conversion was computed against it anyway the funnel rendered
+ * "0% conversion · 100% drop-off" — reporting a total product collapse where
+ * the real condition was a measurement that does not exist.
+ *
+ * A stage is marked here as instrumented or not. An uninstrumented stage
+ * reports NOT_MEASURED and no conversion is calculated ACROSS it in either
+ * direction: not into it (its zero is not a denominator's numerator) and not
+ * out of it (its zero is not the next stage's denominator). Adding an emitter
+ * to satisfy the chart would be worse than the chart being honest — the event
+ * has to mean something at the domain point that emits it.
+ */
 async function getFunnel(query: AdminAnalyticsQuery) {
-  const stepsConfig: Array<{ key: string; label: string; eventType: string }> = [
-    { key: "page_view", label: "Page Views", eventType: "page_view" },
-    { key: "login_completed", label: "Logins", eventType: "login_completed" },
+  const stepsConfig: Array<{
+    key: string;
+    label: string;
+    eventType: string;
+    instrumented: boolean;
+    notMeasuredReason?: string;
+  }> = [
+    {
+      key: "page_view",
+      label: "Page Views",
+      eventType: "page_view",
+      instrumented: true,
+    },
+    {
+      key: "login_completed",
+      label: "Logins",
+      eventType: "login_completed",
+      instrumented: true,
+    },
     {
       key: "evidence_created",
       label: "Evidence Created",
       eventType: "evidence_created",
+      instrumented: false,
+      notMeasuredReason:
+        "No evidence_created analytics event is emitted anywhere in the platform, so this stage is not instrumented. Its absence is not a drop-off.",
     },
     {
       key: "report_generated",
       label: "Reports Generated",
       eventType: "report_generated",
+      instrumented: true,
     },
   ];
 
   const counts = await Promise.all(
     stepsConfig.map((step) =>
-      prisma.analyticsEvent.count({
-        where: buildAnalyticsWhere(query, {
-          eventType: step.eventType,
-        }),
-      })
-    )
+      step.instrumented
+        ? prisma.analyticsEvent.count({
+            where: buildAnalyticsWhere(query, {
+              eventType: step.eventType,
+            }),
+          })
+        : // Not queried at all: a count of an event nobody emits is a fact
+          // about the schema, not about the product.
+          Promise.resolve(null),
+    ),
   );
 
   const steps: FunnelStep[] = stepsConfig.map((step, index) => {
-    const count = counts[index] ?? 0;
-    const prev = index > 0 ? (counts[index - 1] ?? 0) : 0;
-    const conversion = index === 0 ? null : pct(count, prev);
+    const count = counts[index];
+    const prevStep = index > 0 ? stepsConfig[index - 1] : null;
+    const prevCount = index > 0 ? counts[index - 1] : null;
+
+    // A conversion needs BOTH ends measured. If either this stage or the one
+    // before it is uninstrumented, there is no ratio to report — and reporting
+    // one would be inventing the denominator or the numerator.
+    const comparable =
+      index > 0 &&
+      step.instrumented &&
+      (prevStep?.instrumented ?? false) &&
+      typeof count === "number" &&
+      typeof prevCount === "number";
+
+    const conversion = comparable ? pct(count as number, prevCount as number) : null;
     const dropOff =
-      index === 0 || conversion === null
-        ? null
-        : Number((100 - conversion).toFixed(1));
+      conversion === null ? null : Number((100 - conversion).toFixed(1));
 
     return {
       key: step.key,
       label: step.label,
       count,
+      measured: step.instrumented,
+      notMeasuredReason: step.instrumented ? null : (step.notMeasuredReason ?? null),
+      /** Null when either end of the comparison was not measured. */
       conversionFromPrevious: conversion,
       dropOffFromPrevious: dropOff,
     };

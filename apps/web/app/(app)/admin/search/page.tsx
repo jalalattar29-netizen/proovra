@@ -208,7 +208,7 @@ export default function AdminSearchPage() {
                   label="Search platform entities"
                   value={search}
                   onChange={setSearch}
-                  placeholder="Search by name, email, or ID…"
+                  placeholder="Search by name, email, or full ID…"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") setAppliedSearch(search);
                   }}
@@ -219,7 +219,7 @@ export default function AdminSearchPage() {
             {tooShort ? (
               <EmptyState
                 title="Enter at least 2 characters"
-                purpose="Type a name, email, or ID (minimum 2 characters) to search across platform entities. This search is read-only."
+                purpose="Type a name, email, or a full ID (minimum 2 characters) to search across platform entities. Identifier matching is exact — a partial id will not match. This search is read-only."
               />
             ) : loading ? (
               <EmptyState
@@ -231,7 +231,7 @@ export default function AdminSearchPage() {
                 title="No matches"
                 purpose={
                   hasSearched
-                    ? "No platform entities match this search. Try a different name, email, or ID."
+                    ? "No platform entities match this search. Try a different name or email, or paste a complete identifier — partial ids do not match."
                     : "Enter a search above to begin."
                 }
               />

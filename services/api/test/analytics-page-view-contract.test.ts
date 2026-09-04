@@ -120,7 +120,10 @@ describe("every ingestible event is understood downstream", () => {
     expect(overview).toContain('eventType: "page_view"');
 
     const routes = readSource("../src/routes/analytics.routes.ts");
-    expect(routes).toContain('{ key: "page_view", label: "Page Views"');
+    // The funnel stage and the event name it queries, checked independently of
+    // how the config object happens to be wrapped.
+    expect(routes).toContain('key: "page_view"');
+    expect(routes).toContain('eventType: "page_view"');
   });
 });
 

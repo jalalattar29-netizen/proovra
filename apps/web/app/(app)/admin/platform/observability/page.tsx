@@ -269,6 +269,35 @@ const GAUGE_GROUPS: Array<{
 // sampling effect can depend on them honestly instead of re-allocating the array
 // on every render (which is what made them an unlistable dependency before).
 const SAMPLE_CAP = 20;
+/**
+ * THE TILES, BOUND TO METRICS THAT EXIST.
+ *
+ * Five of the six keys here were never registered anywhere in the platform:
+ * `reviewer_sla_breach_total`, `reviewer_escalation_raised_total`,
+ * `queue_depth`, `worker_retries_total` and `governance_incident_opened_total`
+ * appeared in this file and nowhere else. `bump()` and `setGauge()` silently
+ * ignore an unregistered name, so nothing ever threw — the tiles simply read
+ * `?? 0` and sat flat at zero forever, which an operator reads as "no SLA
+ * breaches" rather than "this was never wired up".
+ *
+ * Each is now bound to the closest metric the registry ACTUALLY exports, and
+ * the caption says what that metric measures rather than what someone hoped it
+ * would. Where the honest metric is a gauge of a current level rather than a
+ * monotonic total, the caption says level — a "rate" caption over a gauge is
+ * the same class of lie in smaller type.
+ *
+ * A key that is still absent at runtime now renders NOT_MEASURED, not zero:
+ * see `readHot` below.
+ */
+const sparklineNotMeasuredStyle: React.CSSProperties = {
+  border: "1px dashed var(--hairline, #e2e8f0)",
+  borderRadius: 8,
+  padding: "10px 12px",
+  display: "grid",
+  gap: 4,
+  minHeight: 64,
+};
+
 const HOT_METRICS: ReadonlyArray<{
   key: string;
   caption: string;
@@ -276,38 +305,49 @@ const HOT_METRICS: ReadonlyArray<{
   source: "counter" | "gauge";
 }> = [
   {
-    key: "reviewer_sla_breach_total",
-    caption: "SLA breaches",
+    // was reviewer_sla_breach_total (unregistered) — this gauge is really set
+    // by the reviewer operations engine.
+    key: "reviewer_queue_overdue",
+    caption: "Reviewer queue overdue",
     severity: "high",
-    source: "counter",
+    source: "gauge",
   },
   {
-    key: "reviewer_escalation_raised_total",
-    caption: "Escalation rate",
+    // was reviewer_escalation_raised_total (unregistered). A count of open
+    // escalations, so it is a level, not a raise-rate.
+    key: "reviewer_escalations_open",
+    caption: "Escalations open",
     severity: "high",
-    source: "counter",
+    source: "gauge",
   },
   {
-    key: "queue_depth",
-    caption: "Queue depth",
+    // was queue_depth (no such key) — the documented queue-health gauge, and
+    // the one the alert catalog already thresholds on.
+    key: "queue_backlog_count",
+    caption: "Queue backlog",
     severity: "warning",
     source: "gauge",
   },
   {
-    key: "worker_retries_total",
-    caption: "Worker retries",
+    // was worker_retries_total (unregistered) — really bumped by the queue
+    // replay action service.
+    key: "queue_retry_total",
+    caption: "Queue retries",
     severity: "warning",
     source: "counter",
   },
   {
+    // The one key that was always real.
     key: "webhook_invalid_signature_total",
     caption: "Webhook bad-sig",
     severity: "warning",
     source: "counter",
   },
   {
-    key: "governance_incident_opened_total",
-    caption: "Governance incidents",
+    // was governance_incident_opened_total (unregistered). The real counter is
+    // operational, not governance-specific, so the caption follows the metric.
+    key: "operational_incident_opened",
+    caption: "Incidents opened",
     severity: "high",
     source: "counter",
   },
@@ -758,12 +798,24 @@ function ObservabilityDashboardPageInner() {
     setSamples((prev) => {
       const next: Record<string, number[]> = { ...prev };
       for (const hot of HOT_METRICS) {
-        const v =
+        /**
+         * A KEY THE REGISTRY DOES NOT EXPORT IS NOT A ZERO.
+         *
+         * This was `metrics.counters[hot.key] ?? 0`, which turned "this metric
+         * does not exist" into "this metric is zero" — a flat, permanent,
+         * reassuring line. The registry only emits names it knows, so absence
+         * here is absence of instrumentation, and the tile must say so.
+         *
+         * No sample is recorded for a missing key; `samples[key]` stays
+         * undefined and the tile renders NOT_MEASURED.
+         */
+        const raw =
           hot.source === "counter"
-            ? metrics.counters[hot.key] ?? 0
-            : metrics.gauges[hot.key] ?? 0;
+            ? metrics.counters[hot.key]
+            : metrics.gauges[hot.key];
+        if (typeof raw !== "number") continue;
         const buffer = next[hot.key] ? [...next[hot.key]] : [];
-        buffer.push(v);
+        buffer.push(raw);
         while (buffer.length > SAMPLE_CAP) buffer.shift();
         next[hot.key] = buffer;
       }
@@ -895,9 +947,16 @@ function ObservabilityDashboardPageInner() {
       ) : alerts ? (
         <section style={okRibbonStyle}>
           <strong>No alerts firing</strong>
+          {/*
+            "No alerts firing · 0 counters · 0 gauges · uptime 0s" is what this
+            read when `metrics` was absent: three fabricated zeros next to an
+            all-clear. The alerts and the metrics are separate reads, so one
+            can arrive without the other.
+          */}
           <span style={mutedStyle}>
-            {Object.keys(metrics?.counters ?? {}).length} counters · {Object.keys(metrics?.gauges ?? {}).length} gauges
-            · uptime {metrics?.uptimeSeconds ?? 0}s
+            {metrics
+              ? `${Object.keys(metrics.counters ?? {}).length} counters · ${Object.keys(metrics.gauges ?? {}).length} gauges · uptime ${metrics.uptimeSeconds}s`
+              : "Metric totals not measured — the alert evaluation loaded, the metric snapshot did not."}
           </span>
         </section>
       ) : null}
@@ -1144,7 +1203,38 @@ function ObservabilityDashboardPageInner() {
           </p>
           <div style={sparklineGridStyle}>
             {HOT_METRICS.map((hot) => {
-              const buffer = samples[hot.key] ?? [];
+              const buffer = samples[hot.key];
+              /**
+               * NOT MEASURED, rather than a flat zero line.
+               *
+               * The sampler records nothing for a key the registry does not
+               * export, so an undefined buffer means "no such metric is
+               * registered" — which is a different fact from "this metric is
+               * currently zero", and the one an operator needs to know before
+               * concluding the platform is quiet.
+               */
+              if (!buffer || buffer.length === 0) {
+                const present =
+                  metrics &&
+                  (hot.source === "counter"
+                    ? typeof metrics.counters[hot.key] === "number"
+                    : typeof metrics.gauges[hot.key] === "number");
+                return (
+                  <div
+                    key={hot.key}
+                    style={sparklineNotMeasuredStyle}
+                    data-metric-state={present ? "AWAITING_SAMPLE" : "NOT_MEASURED"}
+                    data-metric-key={hot.key}
+                  >
+                    <div style={{ fontWeight: 600 }}>{hot.caption}</div>
+                    <div style={mutedStyle}>
+                      {present
+                        ? "Awaiting the first sample this session."
+                        : "Not measured — no metric by this name is registered."}
+                    </div>
+                  </div>
+                );
+              }
               const first = buffer[0] ?? 0;
               const last = buffer[buffer.length - 1] ?? 0;
               const delta = buffer.length >= 2 ? last - first : null;

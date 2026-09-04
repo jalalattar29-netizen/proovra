@@ -160,16 +160,34 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
   );
 }
 
+/**
+ * A TILE THAT CANNOT SHOW A NUMBER IT DOES NOT HAVE.
+ *
+ * These four tiles were derived from `items`, which initialises to `[]` and
+ * is never reset on failure. So a total backend outage rendered
+ * "AUDIT ENTRIES 0 · ANCHORED ROWS 0 · FAILURES 0 · HIGH SEVERITY 0" — four
+ * confident zeros, in the tamper-evidence surface, while a red connection
+ * toast sat on the same screen. Zero failures and "I could not ask" are the
+ * distinction an operator most needs during an incident, and this page
+ * already knew the difference: `loadFailed` existed and was passed to exactly
+ * one `ResultCount`.
+ *
+ * They are also PARTIAL even on success: they count the rows currently loaded
+ * (≤100), not the population. "Rollup of the rows currently loaded" was in the
+ * subtitle; it is now in the tile, where the number is.
+ */
 function SummaryCard({
   label,
   value,
   note,
   tone,
+  state = "MEASURED",
 }: {
   label: string;
   value: number;
   note: string;
   tone: BadgeTone;
+  state?: "MEASURED" | "UNAVAILABLE" | "PARTIAL";
 }) {
   return (
     <Card padding="comfortable" style={{ minWidth: 0 }}>
@@ -184,23 +202,29 @@ function SummaryCard({
       >
         {label}
       </div>
-      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+      <div
+        style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}
+        data-metric-state={state}
+      >
         <span
           style={{
-            fontSize: 30,
+            fontSize: state === "UNAVAILABLE" ? 17 : 30,
             fontWeight: 750,
             letterSpacing: "-0.02em",
-            color: INK_PRIMARY,
+            color: state === "UNAVAILABLE" ? INK_MUTED : INK_PRIMARY,
           }}
         >
-          {value}
+          {state === "UNAVAILABLE" ? "Unavailable" : value}
         </span>
-        <Badge tone={tone} dot>
+        {/* A tile with no number has nothing to be verified or at risk about. */}
+        <Badge tone={state === "UNAVAILABLE" ? "neutral" : tone} dot>
           {label}
         </Badge>
       </div>
       <div style={{ marginTop: 8, fontSize: 12.5, color: INK_SECONDARY, lineHeight: 1.6 }}>
-        {note}
+        {state === "UNAVAILABLE"
+          ? "The audit log could not be read, so this is not a zero. Reload to try the read again."
+          : note}
       </div>
     </Card>
   );
@@ -540,26 +564,46 @@ export default function AdminAuditPage() {
             value={summary.total}
             note="Recent administrative actions currently visible in this log view."
             tone="info"
+            state={loadFailed ? "UNAVAILABLE" : "PARTIAL"}
           />
           <SummaryCard
             label="Anchored Rows"
             value={summary.anchoredCount}
             note="Entries that include an anchor timestamp in the current result set."
             tone="verified"
+            state={loadFailed ? "UNAVAILABLE" : "PARTIAL"}
           />
           <SummaryCard
             label="Failures"
             value={summary.failureCount}
             note="Requests marked with failed, denied, or error outcomes."
             tone="risk"
+            state={loadFailed ? "UNAVAILABLE" : "PARTIAL"}
           />
           <SummaryCard
             label="High Severity"
             value={summary.highSeverityCount}
             note="Actions classified as high or critical severity."
             tone="risk"
+            state={loadFailed ? "UNAVAILABLE" : "PARTIAL"}
           />
         </div>
+        {/*
+          The coverage belongs to the section, not to each tile: all four are
+          counted over the same loaded rows. Stated once, and citing the
+          server's own `hasMore` so the reader is told whether this window is
+          the whole log or the start of it.
+        */}
+        <p
+          data-audit-coverage
+          style={{ marginTop: 12, fontSize: 13, color: "var(--text-muted)" }}
+        >
+          {loadFailed
+            ? "These rollups could not be counted — the audit log did not load, so no figure above is a measurement."
+            : hasMore
+              ? `Counted over the ${items.length} row(s) loaded in this view. The server holds more entries beyond this window, so these are not totals for the whole log.`
+              : `Counted over the ${items.length} row(s) loaded in this view, which is the full result set for the current filters.`}
+        </p>
       </PageSection>
 
       <div
@@ -607,18 +651,34 @@ export default function AdminAuditPage() {
                   minWidth: 0,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {/*
+                  THE HEADLINE MAY NOT OUTRUN THE VERIFICATION.
+                  The page always requests `?limit=1000`, so `partial: true` is
+                  the NORMAL response — and it rendered as a green
+                  "Audit chain verified · Verified" with the word "Tail" in
+                  smaller type below. On a tamper-evidence surface the headline
+                  is the claim; a tail check is not a chain check, and it does
+                  not get the verified tone.
+                */}
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 10 }}
+                  data-metric-state={verify.partial ? "PARTIAL" : "MEASURED"}
+                >
                   <span style={{ fontSize: 15, fontWeight: 700, color: INK_PRIMARY, overflowWrap: "anywhere" }}>
-                    Audit chain verified
+                    {verify.partial
+                      ? "Audit chain tail verified"
+                      : "Audit chain verified"}
                   </span>
-                  <Badge tone="verified" dot>
-                    Verified
+                  <Badge tone={verify.partial ? "neutral" : "verified"} dot>
+                    {verify.partial ? "Partial" : "Verified"}
                   </Badge>
                 </div>
                 <div style={{ fontSize: 13, color: INK_SECONDARY, marginTop: 6, lineHeight: 1.6, overflowWrap: "anywhere" }}>
-                  {verify.partial ? "Tail verification" : "Full verification"}
+                  {verify.partial
+                    ? "Only the most recent rows were checked — earlier rows in the chain were not."
+                    : "Full verification across the whole chain."}
                   {typeof verify.verifiedCount === "number"
-                    ? ` · ${verify.verifiedCount} rows checked`
+                    ? ` ${verify.verifiedCount} row(s) checked.`
                     : ""}
                 </div>
               </div>

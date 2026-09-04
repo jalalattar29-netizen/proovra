@@ -91,6 +91,20 @@ type PlatformOverview = {
   };
   evidenceOps: {
     uploads?: { stalled?: number | null; failed?: number | null };
+    /**
+     * The EVIDENCE cohort — Postgres rows. This block was missing from the
+     * local type, so `evidenceOps.evidence.withoutReport` could not be read
+     * here and the "Signed, no report" card reached for a queue counter
+     * instead. Absence in a type is how that mis-binding stayed invisible.
+     */
+    evidence?: {
+      withoutReport?: number | null;
+      signed?: number | null;
+      created?: number | null;
+    };
+    /** BullMQ job state — NOT evidence records. `failedGeneration` counts
+     *  failed report JOBS plus the report DLQ backlog, and reads 0 whenever
+     *  Redis has been drained, however much signed evidence lacks a report. */
     reports?: { failedGeneration?: number | null; queued?: number | null };
     preservation?: {
       tsaFailures?: number | null;
@@ -254,7 +268,7 @@ function attentionRows(ov: PlatformOverview): AttentionRow[] {
     {
       label: "Signed without a report",
       metric: evidenceFigure(
-        ov.evidenceOps?.reports?.failedGeneration,
+        ov.evidenceOps?.evidence?.withoutReport,
         "SIGNED_NO_REPORT",
       ).metric,
       href: "/admin/evidence-ops/records?signal=SIGNED_NO_REPORT",
@@ -766,10 +780,23 @@ export default function AdminOverviewPage() {
               />
               <AdminStat
                 label="Signed, no report"
-                figure={evidenceFigure(ov.evidenceOps?.reports?.failedGeneration, "SIGNED_NO_REPORT")}
+                figure={evidenceFigure(ov.evidenceOps?.evidence?.withoutReport, "SIGNED_NO_REPORT")}
                 emphasis="attention"
+                hint="Overlaps TSA failures — a record can be in both. Do not add these."
               />
             </AdminStatGrid>
+            {/*
+              THESE COHORTS INTERSECT.
+              A record whose timestamp failed AND which has no report is
+              counted in both tiles, so their sum is not a population. The
+              evidence-health page measures the union with a real OR rather
+              than adding, and says so; this grid is flat, so it says it here.
+            */}
+            <p className="admin-stat-hint" data-cohort-overlap>
+              TSA failures and “Signed, no report” overlap. The measured union —
+              not their sum — is on{" "}
+              <Link href="/admin/evidence-ops">Evidence health</Link>.
+            </p>
           </PageSection>
 
           {/* ---- F. Security ----------------------------------------------- */}

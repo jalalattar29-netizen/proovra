@@ -257,10 +257,32 @@ export async function buildPlatformTimeline(
   // ---------------------------------------------------------------------------
   // OperationalIncident — platform incidents.
   // ---------------------------------------------------------------------------
+  /**
+   * THE ORGANIZATION FILTER APPLIES HERE TOO.
+   *
+   * This branch read `organizationId` not at all. Every other source either
+   * filters by it (organization_audit) or withdraws from the feed when it is
+   * set (admin_audit, security_event, analytics_event, all of which have no
+   * organization attribution). Incidents did neither: they stayed in the
+   * result unfiltered while the response echoed `filters.organizationId`, so
+   * a nonexistent organization returned the same incident population as no
+   * filter at all — and looked like it had worked.
+   *
+   * Incidents have no organization column, but they do have a real relation:
+   * `OperationalIncident.teamId -> Team.organizationId`, non-nullable on the
+   * team side. So the filter is expressible as a relation predicate.
+   *
+   * PLATFORM-SCOPE ROWS ARE EXCLUDED, NOT MATCHED. An incident with
+   * `teamId IS NULL` describes the platform itself and belongs to no
+   * organization by construction. Under an organization filter it is not a
+   * miss, it is out of scope — and `{ team: { organizationId } }` excludes it
+   * for free, because the relation cannot be satisfied by a null team.
+   */
   const incidentRows = wants("operational_incident")
     ? await prisma.operationalIncident.findMany({
         where: {
           ...(beforeClause ? { createdAt: beforeClause } : {}),
+          ...(organizationId ? { team: { organizationId } } : {}),
         },
         orderBy: [{ createdAt: "desc" }],
         take: limit,
@@ -272,6 +294,7 @@ export async function buildPlatformTimeline(
           title: true,
           teamId: true,
           createdAt: true,
+          team: { select: { organizationId: true } },
         },
       })
     : [];
@@ -283,9 +306,13 @@ export async function buildPlatformTimeline(
       actor: null,
       eventType: `incident_${String(r.status).toLowerCase()}`,
       severity: normaliseSeverity(r.severity),
-      organizationId: null,
+      // Known when the incident belongs to a workspace; genuinely null for a
+      // platform-scope incident, which owns no organization.
+      organizationId: r.team?.organizationId ?? null,
       targetLabel: r.title,
-      href: "/admin/security",
+      // The alerts service already links incidents to the surface that can act
+      // on them; /admin/security cannot select one.
+      href: `/admin/operations?incident=${encodeURIComponent(r.id)}`,
     });
   }
 
