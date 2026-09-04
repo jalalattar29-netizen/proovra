@@ -1,5 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+// The canonical client-label maskers — the same two the session inventory uses,
+// so "safe preview" has one definition in the product rather than two.
+import { maskIpPreview, summariseUserAgent } from "@proovra/shared";
 import {
   ADMIN_AUDIT_ADVISORY_LOCK_KEY,
   assertMetadataMaxDepth,
@@ -14,6 +17,18 @@ const LEGACY_PUBLIC_VERIFY_USER_ID = "__public_verify__";
 
 const METADATA_MAX_BYTES = 5120;
 const MAX_ACTION_LEN = 128;
+
+/**
+ * PHASE 5 — the version of the EVENT CONTRACT, distinct from `chainVersion`.
+ *
+ * `chainVersion` says how a row was hashed. This says which dimensions the row
+ * was written to carry. They move independently: a future change could seal an
+ * existing field without adding one, or add one without changing the hash
+ * algorithm. Historical rows default to 1 in the database and are read through
+ * the legacy fallback rather than being rewritten to claim a contract they
+ * never had.
+ */
+export const ADMIN_AUDIT_EVENT_VERSION = 2;
 const MAX_CATEGORY_LEN = 64;
 const MAX_SEVERITY_LEN = 16;
 const MAX_SOURCE_LEN = 64;
@@ -38,6 +53,19 @@ type AuditRowForVerify = {
   organizationId: string | null;
   workspaceId: string | null;
   requestId: string | null;
+  // PHASE 5 — sealed by V4, so verification has to read them back. A field
+  // bound into the hash but absent from the verify projection would make every
+  // V4 row fail verification, which is the failure mode worth being explicit
+  // about: the chain does not "mostly" work.
+  actorType: string | null;
+  actorDisplay: string | null;
+  actorAuthority: string | null;
+  targetDisplay: string | null;
+  previousState: string | null;
+  requestedState: string | null;
+  resultingState: string | null;
+  reasonCode: string | null;
+  eventVersion: number | null;
   metadata: Prisma.JsonValue;
   hash: string;
   prevHash: string | null;
@@ -118,22 +146,37 @@ export function assertMetadataSize(metadata: Prisma.InputJsonValue): void {
   }
 }
 
-function truncateUa(ua: string | undefined, max: number): string | null {
+/**
+ * PHASE 5 §12 — THESE TWO FUNCTIONS DID NOTHING.
+ *
+ * They were named `truncateUa` and `truncateIp` and they capped LENGTH: the
+ * user-agent at 512 characters and the address at 45. A real user-agent is
+ * about 120 characters and every IPv4 address is at most 15, so in practice
+ * neither was ever shortened by a single byte. The audit trail stored the
+ * complete raw client string and the complete raw address, under two names
+ * that read like data minimisation.
+ *
+ * The product already decided how this is done: `AuthenticatedSession` stores
+ * `uaPreview` and `ipPreview` and never the raw values, using the canonical
+ * `summariseUserAgent` and `maskIpPreview` in @proovra/shared. The audit log
+ * simply never adopted them. It does now — the same helpers, so there is one
+ * definition of what a safe client label is rather than two that can drift.
+ *
+ * Historical rows keep whatever they already hold. They are not rewritten: an
+ * append-only trail does not get edited to look better, and their hashes cover
+ * the values they were written with. The READ path masks legacy values on the
+ * way out instead (see `projectAuditClientLabels`).
+ */
+function safeUaPreview(ua: string | undefined): string | null {
   if (!ua) return null;
-
-  const t = ua.trim();
-  if (!t) return null;
-
-  return t.length > max ? t.slice(0, max) : t;
+  const summary = summariseUserAgent(ua);
+  return summary.trim().length > 0 ? summary.slice(0, 512) : null;
 }
 
-function truncateIp(ip: string | undefined): string | null {
+function safeIpPreview(ip: string | undefined): string | null {
   if (!ip) return null;
-
-  const t = ip.trim();
-  if (!t) return null;
-
-  return t.length > 45 ? t.slice(0, 45) : t;
+  const masked = maskIpPreview(ip);
+  return masked.trim().length > 0 ? masked.slice(0, 45) : null;
 }
 
 export type AppendPlatformAuditParams = {
@@ -147,10 +190,24 @@ export type AppendPlatformAuditParams = {
   resourceType?: string | null;
   resourceId?: string | null;
   /** PHASE 11 — authoritative tenant columns (populated ONLY by the canonical
-   * tenant-audit facade; enable DB-level scope filtering). Not part of the hash. */
+   * tenant-audit facade; enable DB-level scope filtering). Bound into V3+. */
   organizationId?: string | null;
   workspaceId?: string | null;
   requestId?: string | null;
+  /**
+   * PHASE 5 — the identity and transition contract. Populated by the canonical
+   * audit facade, which derives what the caller did not state. Bound into V4:
+   * an attribution field that verification did not cover would look
+   * authoritative while remaining editable.
+   */
+  actorType?: string | null;
+  actorDisplay?: string | null;
+  actorAuthority?: string | null;
+  targetDisplay?: string | null;
+  previousState?: string | null;
+  requestedState?: string | null;
+  resultingState?: string | null;
+  reasonCode?: string | null;
   metadata: unknown;
   ipAddress?: string | null;
   userAgent?: string | null;
@@ -249,8 +306,19 @@ export async function appendPlatformAuditLog(
     // hash. V3 is the ONLY new write format; historical V1/V2 rows are untouched.
     const organizationId = params.organizationId ?? null;
     const workspaceId = params.workspaceId ?? null;
+    // PHASE 5 — the identity and transition contract, normalised once so the
+    // hashed value and the stored value cannot possibly differ.
+    const actorType = params.actorType ?? null;
+    const actorDisplay = params.actorDisplay ?? null;
+    const actorAuthority = params.actorAuthority ?? null;
+    const targetDisplay = params.targetDisplay ?? null;
+    const previousState = params.previousState ?? null;
+    const requestedState = params.requestedState ?? null;
+    const resultingState = params.resultingState ?? null;
+    const reasonCode = params.reasonCode ?? null;
+    const eventVersion = ADMIN_AUDIT_EVENT_VERSION;
     const hash = computeAuditLogChainHash({
-      chainVersion: 3,
+      chainVersion: 4,
       userId,
       action,
       category,
@@ -262,6 +330,15 @@ export async function appendPlatformAuditLog(
       organizationId,
       workspaceId,
       requestId,
+      actorType,
+      actorDisplay,
+      actorAuthority,
+      targetDisplay,
+      previousState,
+      requestedState,
+      resultingState,
+      reasonCode,
+      eventVersion,
       metadataCanonical,
       createdAtIso: createdAt.toISOString(),
       prevHash: last?.hash ?? null,
@@ -279,12 +356,21 @@ export async function appendPlatformAuditLog(
         resourceType,
         resourceId,
         requestId,
+        actorType,
+        actorDisplay,
+        actorAuthority,
+        targetDisplay,
+        previousState,
+        requestedState,
+        resultingState,
+        reasonCode,
+        eventVersion,
         metadata: sanitized,
-        ipAddress: truncateIp(params.ipAddress ?? undefined),
-        userAgent: truncateUa(params.userAgent ?? undefined, 512),
+        ipAddress: safeIpPreview(params.ipAddress ?? undefined),
+        userAgent: safeUaPreview(params.userAgent ?? undefined),
         hash,
         prevHash: last?.hash ?? null,
-        chainVersion: 3,
+        chainVersion: 4,
         organizationId,
         workspaceId,
         createdAt,
@@ -296,9 +382,38 @@ export async function appendPlatformAuditLog(
 function computeExpectedHashForRow(
   row: AuditRowForVerify,
   previousHash: string | null,
-  version: 1 | 2 | 3
+  version: 1 | 2 | 3 | 4
 ): string {
   const metadataCanonical = canonicalJsonForAuditHash(row.metadata);
+
+  if (version === 4) {
+    return computeAuditLogChainHash({
+      chainVersion: 4,
+      userId: row.userId,
+      action: row.action,
+      category: row.category,
+      severity: row.severity,
+      source: row.source,
+      outcome: row.outcome,
+      resourceType: row.resourceType,
+      resourceId: row.resourceId,
+      organizationId: row.organizationId ?? null,
+      workspaceId: row.workspaceId ?? null,
+      requestId: row.requestId,
+      actorType: row.actorType ?? null,
+      actorDisplay: row.actorDisplay ?? null,
+      actorAuthority: row.actorAuthority ?? null,
+      targetDisplay: row.targetDisplay ?? null,
+      previousState: row.previousState ?? null,
+      requestedState: row.requestedState ?? null,
+      resultingState: row.resultingState ?? null,
+      reasonCode: row.reasonCode ?? null,
+      eventVersion: row.eventVersion ?? ADMIN_AUDIT_EVENT_VERSION,
+      metadataCanonical,
+      createdAtIso: row.createdAt.toISOString(),
+      prevHash: previousHash,
+    });
+  }
 
   if (version === 3) {
     return computeAuditLogChainHash({
@@ -364,7 +479,13 @@ function verifyOrderedRows(
     const expected = computeExpectedHashForRow(
       row,
       previousHash,
-      row.chainVersion === 3 ? 3 : row.chainVersion === 2 ? 2 : 1
+      row.chainVersion === 4
+        ? 4
+        : row.chainVersion === 3
+          ? 3
+          : row.chainVersion === 2
+            ? 2
+            : 1
     );
 
     if (expected !== row.hash) {
@@ -405,6 +526,18 @@ export async function verifyAdminAuditChain(options?: {
     organizationId: true,
     workspaceId: true,
     requestId: true,
+    // PHASE 5 — V4 binds these, so verification must read exactly what was
+    // hashed. Omitting one here would fail every V4 row rather than a
+    // tampered one, which is the kind of break that looks like a compromise.
+    actorType: true,
+    actorDisplay: true,
+    actorAuthority: true,
+    targetDisplay: true,
+    previousState: true,
+    requestedState: true,
+    resultingState: true,
+    reasonCode: true,
+    eventVersion: true,
     metadata: true,
     hash: true,
     prevHash: true,

@@ -28,7 +28,58 @@ export type TenantAuditSourceApp =
   | "SSO"
   | "SYSTEM";
 
-export type TenantAuditOutcome = "success" | "denied" | "error";
+/**
+ * PHASE 5 §3/§7 — THE OUTCOME TAXONOMY, WIDENED RATHER THAN REPLACED.
+ *
+ * It said success | denied | error. Those three are kept verbatim — they are
+ * already persisted on every historical row and are what every existing filter
+ * and query sends — but they cannot express the states that make an
+ * asynchronous audit trail honest:
+ *
+ *   - `queued` is not `success`. Accepting a request and putting a job on a
+ *     queue is not the same as the work happening, and an audit row that calls
+ *     the first one a success tells an operator the estate changed when it may
+ *     never have. The worker writes `completed` or `error` LATER, correlated
+ *     to the same request.
+ *   - `no_op` is not `success`. A replayed revoke, a compare-and-set that
+ *     lost, an idempotent retry — each is a legitimate request that changed
+ *     nothing. Recording them as success implies the action happened twice.
+ *   - `partial` is neither. A bulk action where some members succeeded is not
+ *     honestly either one.
+ *
+ * Lowercase, matching what is already on disk, so no historical row and no
+ * existing filter has to be rewritten to understand the new values.
+ */
+export type TenantAuditOutcome =
+  | "success"
+  | "denied"
+  | "error"
+  | "queued"
+  | "completed"
+  | "no_op"
+  | "partial";
+
+/**
+ * PHASE 5 §4 — WHAT KIND OF THING ACTED.
+ *
+ * `actorUserId === null` used to carry this by implication, and it conflated
+ * three unlike things: a worker running a scheduled job, a service account
+ * calling the API, and an event with no recoverable actor at all. An operator
+ * reading "—" cannot tell which, and the difference decides whether an
+ * incident is an automation fault or an unattributed action.
+ *
+ * UNKNOWN_LEGACY is deliberately available and deliberately never inferred.
+ * Historical rows predate the contract; the honest answer is that we do not
+ * know, not a plausible-looking reconstruction.
+ */
+export type AuditActorType =
+  | "HUMAN"
+  | "SERVICE"
+  | "WORKER"
+  | "SYSTEM"
+  | "SUPPORT_CONTEXT"
+  | "UNKNOWN_LEGACY";
+
 export type WorkspaceKind = "PERSONAL" | "OWNED" | "ORGANIZATION";
 
 export type TenantAuditEnvelope = {
@@ -39,6 +90,38 @@ export type TenantAuditEnvelope = {
 
   /** Authenticated human actor (null for pure service/system actions). */
   actorUserId: string | null;
+  /**
+   * PHASE 5 §4 — what kind of thing acted. Derived when omitted (see
+   * `deriveActorType`), so no existing caller has to change to get a truthful
+   * value, but statable explicitly where the caller knows better.
+   */
+  actorType?: AuditActorType | null;
+  /**
+   * PHASE 5 §5 — a safe display label captured AT THE TIME OF THE ACTION.
+   *
+   * Not a convenience. A record that resolves its actor through a live join
+   * stops being readable exactly when it is most needed: after the account is
+   * renamed, anonymised or deleted. The snapshot is what keeps a two-year-old
+   * revocation intelligible; the immutable id is what keeps it correlatable.
+   * Both, or the record is only one of legible and durable.
+   */
+  actorDisplay?: string | null;
+  /** The authority the actor acted UNDER, at the time (e.g. PLATFORM_ADMIN). */
+  actorAuthority?: string | null;
+  /** Safe display label for the target, captured the same way and for the same reason. */
+  targetDisplay?: string | null;
+  /**
+   * PHASE 5 §3 — the transition. `previousState` is what authoritative storage
+   * held before, `requestedState` is what was asked for, `resultingState` is
+   * what storage holds now. They are three fields and not two because a
+   * refused or failed action has a requested state and no resulting change,
+   * and collapsing them would make those indistinguishable from a success.
+   */
+  previousState?: string | null;
+  requestedState?: string | null;
+  resultingState?: string | null;
+  /** Stable machine reason (a code, not prose) for why this happened. */
+  reasonCode?: string | null;
   /** Worker/service identity when there is no human actor. */
   serviceActor?: string | null;
   /** SUPPORT dual identity: the customer scope the support actor operated on. */
@@ -134,6 +217,50 @@ function resolveSeverity(
 }
 
 /**
+ * PHASE 5 §4 — the ONE place an actor type is decided.
+ *
+ * Derived rather than demanded, so that 196 existing `emitTenantAudit` callers
+ * and 36 `emitPlatformAudit` callers get a truthful value without each having
+ * to be edited to say something they already implied. A caller that knows
+ * better states it and wins.
+ *
+ * The order is the precedence that matters. Support context is checked BEFORE
+ * plain human, because a staff member acting inside a customer's workspace is
+ * not simply a human actor — flattening the two is the exact confusion that
+ * makes a support action read as though the customer performed it.
+ */
+export function deriveActorType(env: {
+  actorType?: AuditActorType | null;
+  actorUserId: string | null;
+  supportActorUserId?: string | null;
+  breakGlassGrantId?: string | null;
+  serviceActor?: string | null;
+  sourceApp?: TenantAuditSourceApp;
+}): AuditActorType {
+  if (env.actorType) return env.actorType;
+  if (env.supportActorUserId || env.breakGlassGrantId) return "SUPPORT_CONTEXT";
+  if (env.actorUserId) return "HUMAN";
+  if (env.serviceActor) {
+    // `worker:*` names a background executor; anything else named itself as a
+    // service. The distinction is what separates "a job ran" from "an
+    // integration called us", and operators triage those differently.
+    return env.serviceActor.startsWith("worker:") ? "WORKER" : "SERVICE";
+  }
+  if (env.sourceApp === "SYSTEM") return "SYSTEM";
+  // No human, no named service, no system source. Saying SYSTEM here would be
+  // a guess dressed as a fact.
+  return "UNKNOWN_LEGACY";
+}
+
+/** Bound a snapshot to its column width without throwing at the database. */
+function boundedLabel(value: string | null | undefined, max: number): string | null {
+  if (!value) return null;
+  const t = String(value).trim();
+  if (!t) return null;
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+/**
  * Emit ONE tenant-audit event. Denials are audited too (with a bounded reason)
  * and MUST NOT leak record existence — pass only `denialReason`, never the
  * concealed resource's data. Runs on the caller's `db`/tx when supplied so an
@@ -180,6 +307,15 @@ export async function emitTenantAudit(
     // AUTHORITATIVE tenant columns (DB-level scope filter) — never JSON only.
     organizationId: env.organizationId ?? null,
     workspaceId: env.workspaceId ?? null,
+    // PHASE 5 — identity and transition, as sealed columns rather than JSON.
+    actorType: deriveActorType(env),
+    actorDisplay: boundedLabel(env.actorDisplay, 160),
+    actorAuthority: boundedLabel(env.actorAuthority, 64),
+    targetDisplay: boundedLabel(env.targetDisplay, 160),
+    previousState: boundedLabel(env.previousState, 64),
+    requestedState: boundedLabel(env.requestedState, 64),
+    resultingState: boundedLabel(env.resultingState, 64),
+    reasonCode: boundedLabel(env.reasonCode, 64),
     metadata,
     db,
   });
@@ -205,6 +341,20 @@ export type PlatformAuditEnvelope = {
   correlationId?: string | null;
   causationId?: string | null;
   metadata?: Record<string, unknown>;
+  // PHASE 5 — the platform arm carries the same contract as the tenant arm.
+  // A platform-scoped event has no tenant subject; it still has an actor, a
+  // target and a transition, and an operator reading the two side by side in
+  // one console should not find one of them mute.
+  actorType?: AuditActorType | null;
+  actorDisplay?: string | null;
+  actorAuthority?: string | null;
+  targetDisplay?: string | null;
+  previousState?: string | null;
+  requestedState?: string | null;
+  resultingState?: string | null;
+  reasonCode?: string | null;
+  supportActorUserId?: string | null;
+  breakGlassGrantId?: string | null;
 };
 
 export async function emitPlatformAudit(
@@ -234,6 +384,14 @@ export async function emitPlatformAudit(
     resourceId: env.resourceId ?? null,
     organizationId: null,
     workspaceId: null,
+    actorType: deriveActorType(env),
+    actorDisplay: boundedLabel(env.actorDisplay, 160),
+    actorAuthority: boundedLabel(env.actorAuthority, 64),
+    targetDisplay: boundedLabel(env.targetDisplay, 160),
+    previousState: boundedLabel(env.previousState, 64),
+    requestedState: boundedLabel(env.requestedState, 64),
+    resultingState: boundedLabel(env.resultingState, 64),
+    reasonCode: boundedLabel(env.reasonCode, 64),
     metadata,
     db,
   });

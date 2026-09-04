@@ -64,11 +64,40 @@ describe("§1 — V3 hash binds the authoritative tenant scope", () => {
     expect(new Set([h1, h2, h3]).size).toBe(3);
   });
 
-  it("SOURCE CONTRACT — the writer emits chainVersion 3 (new V1/V2 writes = 0)", () => {
+  it("SOURCE CONTRACT — the writer emits chainVersion 4 (new V1/V2/V3 writes = 0)", () => {
+    /*
+     * PHASE 5 — the pin moves from 3 to 4, and the exclusion list grows to
+     * match. The point of this guard was never the number: it is that the
+     * writer emits the CURRENT format and can never silently fall back to an
+     * older one, because a chain whose newest rows are hashed by an older
+     * algorithm binds fewer fields than the reader believes.
+     *
+     * V4 seals the Phase 5 identity and transition columns. Verification of
+     * historical V1/V2/V3 rows is unchanged and still exercised above.
+     */
     const src = readFileSync(resolve(__dirname, "../src/services/platform-audit-log.service.ts"), "utf8");
     const createIdx = src.indexOf("tx.adminAuditLog.create");
-    const block = src.slice(createIdx, createIdx + 700);
-    expect(block).toMatch(/chainVersion:\s*3/);
-    expect(block).not.toMatch(/chainVersion:\s*[12]\b/);
+    const block = src.slice(createIdx, createIdx + 1200);
+    expect(block).toMatch(/chainVersion:\s*4/);
+    expect(block).not.toMatch(/chainVersion:\s*[123]\b/);
+  });
+
+  it("SOURCE CONTRACT — the worker writer emits the same version as the API's", () => {
+    /*
+     * The worker keeps a synced COPY of the chain library, and Phase 12 Point 3
+     * records what happens when the two drift: the worker's copy had no V3
+     * variant, so every worker-originated row was a new V2 write with unbound
+     * tenant columns while the API believed the chain was V3 throughout. One
+     * chain, two writers, one format — asserted rather than remembered.
+     */
+    const api = readFileSync(resolve(__dirname, "../src/services/platform-audit-log.service.ts"), "utf8");
+    const worker = readFileSync(resolve(__dirname, "../../worker/src/platform-audit-append.ts"), "utf8");
+    const versionOf = (src: string) => {
+      const i = src.indexOf("tx.adminAuditLog.create");
+      return /chainVersion:\s*(\d+)/.exec(src.slice(i, i + 1200))?.[1] ?? null;
+    };
+    expect(versionOf(worker), "the worker writes a different chain version than the API").toBe(
+      versionOf(api),
+    );
   });
 });

@@ -2435,6 +2435,26 @@ model AdminAuditLog {
   organizationId String?   @map("organization_id") @db.Uuid
   workspaceId    String?   @map("workspace_id") @db.Uuid
   requestId      String?   @map("request_id") @db.VarChar(64)
+  // PHASE 5 — THE IDENTITY AND TRANSITION CONTRACT.
+  //
+  // `userId` alone cannot answer "who acted": it is null for every automated
+  // event, it says nothing about the authority used, and it stops resolving
+  // the moment the account is renamed or deleted — which is precisely when an
+  // audit record has to be readable. These columns carry the answer WITH the
+  // event instead of hoping the world still contains it.
+  //
+  // They are bound into chain V4, not left unhashed. An attribution field an
+  // attacker can edit while the rest of the row stays sealed is worse than no
+  // field: it looks authoritative and is not.
+  actorType      String?   @map("actor_type") @db.VarChar(24)
+  actorDisplay   String?   @map("actor_display") @db.VarChar(160)
+  actorAuthority String?   @map("actor_authority") @db.VarChar(64)
+  targetDisplay  String?   @map("target_display") @db.VarChar(160)
+  previousState  String?   @map("previous_state") @db.VarChar(64)
+  requestedState String?   @map("requested_state") @db.VarChar(64)
+  resultingState String?   @map("resulting_state") @db.VarChar(64)
+  reasonCode     String?   @map("reason_code") @db.VarChar(64)
+  eventVersion   Int       @default(1) @map("event_version")
   metadata       Json
   ipAddress      String?   @map("ip_address") @db.VarChar(45)
   userAgent      String?   @map("user_agent") @db.VarChar(512)
@@ -2455,6 +2475,9 @@ model AdminAuditLog {
   @@index([organizationId, createdAt])
   @@index([hash])
   @@index([prevHash])
+  // "Show me everything a worker did" and "show me everything a human did" are
+  // the two questions that separate an operator mistake from an automated one.
+  @@index([actorType, createdAt])
   @@map("admin_audit_logs")
 }
 
