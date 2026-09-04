@@ -40,6 +40,7 @@ type ServiceStatus =
   | "degraded"
   | "critical"
   | "stale"
+  | "stopped"
   | "unavailable"
   | "unknown"
   | "not_connected";
@@ -104,6 +105,10 @@ function statusPresentation(status: ServiceStatus): {
     // chases a stopped worker for the first and a broken query for the second.
     case "stale":
       return { tone: "pending", label: "Stale" };
+    // Amber, not neutral: a cleanly stopped fleet is understood, but there is
+    // still nothing processing work.
+    case "stopped":
+      return { tone: "pending", label: "Stopped" };
     case "unavailable":
       return { tone: "neutral", label: "Unavailable" };
     case "unknown":

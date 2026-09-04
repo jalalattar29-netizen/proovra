@@ -2240,6 +2240,33 @@ async function shutdown(exitCode: number) {
 
   logger.info({ requestId: randomUUID(), exitCode }, "worker.shutdown_started");
 
+  /*
+   * THE LEASE IS MARKED FIRST, WHILE THE DATABASE IS STILL REACHABLE.
+   *
+   * Everything below this line tears connections down. If the shutdown
+   * marker were written after that, a clean stop would routinely fail to
+   * record and every deliberate scale-down would read as a crash.
+   *
+   * Marking DRAINING here also means the Admin fleet view stops counting
+   * this instance the moment shutdown begins, rather than continuing to show
+   * it as healthy until the stale threshold expires.
+   *
+   * A failure to record is NOT swallowed into a success: `shutdown()` returns
+   * false, we log it, and the instance will correctly read as a crash —
+   * which, from the reader's side, is exactly what happened.
+   */
+  try {
+    const recorded = (await telemetrySampler?.shutdown("SIGTERM")) ?? null;
+    if (recorded === false) {
+      logger.warn(
+        { requestId: randomUUID() },
+        "worker.lease.shutdown_not_recorded — this instance will read as a crash",
+      );
+    }
+  } catch (err) {
+    logger.error({ requestId: randomUUID(), err }, "worker.lease.shutdown_failed");
+  }
+
   stopDemoFollowUpScheduler();
   stopCaptureDraftReaperScheduler();
   stopOrphanScanScheduler();
@@ -2442,6 +2469,9 @@ async function shutdown(exitCode: number) {
   }
 
   try {
+    // Idempotent: the graceful path at the top of shutdown() already
+    // stopped the timer. This stays as the belt-and-braces stop for any
+    // path that reached here without it.
     telemetrySampler?.stop();
   } catch (err) {
     const requestId = randomUUID();

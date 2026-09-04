@@ -6,7 +6,7 @@
  * NOT_MEASURED" check while still rendering a fabricated zero.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   metricIsAffirmative,
@@ -91,85 +91,15 @@ describe("the truth vocabulary", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Worker liveness — an empty queue is not a living worker.
+// Worker liveness moved out of this file.
+//
+// It lived here while the fleet verdict was derived from the heartbeat table,
+// which this file already had a prisma double for. Liveness now reads the
+// worker LEASE, and its contract — including the graceful-stop-versus-crash
+// distinction the heartbeat could not express — is exercised in
+// worker-fleet-health-contract.test.ts against a lease-shaped double.
+//  against a lease-shaped double.
+//
+// Two files mocking the same store to assert the same behaviour is how one of
+// them quietly stops being true.
 // ---------------------------------------------------------------------------
-
-const H: { rows: unknown[]; throws: boolean } = { rows: [], throws: false };
-
-vi.mock("../src/db.js", () => ({
-  prisma: {
-    workerTelemetrySnapshot: {
-      findMany: async () => {
-        if (H.throws) throw new Error("simulated heartbeat store outage");
-        return H.rows;
-      },
-    },
-  },
-}));
-
-const { getWorkerFleetLiveness, WORKER_HEARTBEAT_STALE_SECONDS } = await import(
-  "../src/services/operations/worker-liveness.service.js"
-);
-
-const beat = (workerId: string, ageSeconds: number) => ({
-  workerId,
-  workerKind: "WORKER",
-  status: "HEALTHY",
-  heartbeatAtUtc: new Date(Date.now() - ageSeconds * 1000),
-  processedCount: 1,
-  failedCount: 0,
-});
-
-describe("worker liveness", () => {
-  it("reports NO_HEARTBEAT when nothing has ever reported — not healthy", async () => {
-    H.rows = [];
-    H.throws = false;
-    const r = await getWorkerFleetLiveness();
-    expect(r.state).toBe("NO_HEARTBEAT");
-    expect(r.liveInstances).toBe(0);
-    // The reason has to say why an empty queue proves nothing.
-    expect(r.reason).toMatch(/empty queue/i);
-  });
-
-  it("reports LIVE for a fresh heartbeat and aggregates instances", async () => {
-    H.rows = [beat("a", 1), beat("b", 2)];
-    const r = await getWorkerFleetLiveness();
-    expect(r.state).toBe("LIVE");
-    expect(r.liveInstances).toBe(2);
-  });
-
-  it("goes STALE — never HEALTHY — once every instance is outside the window", async () => {
-    H.rows = [beat("a", WORKER_HEARTBEAT_STALE_SECONDS + 60)];
-    const r = await getWorkerFleetLiveness();
-    expect(r.state).toBe("STALE");
-    expect(r.liveInstances).toBe(0);
-    expect(r.staleInstances).toBe(1);
-  });
-
-  it("keeps the fleet LIVE while one instance still reports, and counts the crashed one", async () => {
-    H.rows = [beat("a", 2), beat("b", WORKER_HEARTBEAT_STALE_SECONDS + 60)];
-    const r = await getWorkerFleetLiveness();
-    expect(r.state).toBe("LIVE");
-    expect(r.liveInstances).toBe(1);
-    expect(r.staleInstances).toBe(1);
-  });
-
-  it("reports UNKNOWN when the heartbeat store cannot be read", async () => {
-    H.rows = [];
-    H.throws = true;
-    const r = await getWorkerFleetLiveness();
-    expect(r.state).toBe("UNKNOWN");
-    // Explicitly NOT a claim of health, and explicitly not a zero.
-    expect(r.reason).toMatch(/not a statement that workers are healthy/i);
-    H.throws = false;
-  });
-
-  it("judges every instance against ONE injected instant", async () => {
-    const rows = [beat("a", 300)];
-    H.rows = rows;
-    const late = await getWorkerFleetLiveness();
-    const early = await getWorkerFleetLiveness({ nowMs: Date.now() - 250_000 });
-    expect(late.state).toBe("STALE");
-    expect(early.state).toBe("LIVE");
-  });
-});

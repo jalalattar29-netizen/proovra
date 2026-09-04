@@ -1195,6 +1195,12 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // index, enum or mapping is altered by it, which is what this allowlist
       // is about.
       "20280110000000_signer_control_state",
+      // PHASE 2 (2026-09-04) — worker liveness lease + a guarded retention
+      // index on the heartbeat history. Creates one table, one enum and two
+      // indexes, and touches `security_events` in no way at all: no column,
+      // index, enum or mapping of it is read or altered, which is what this
+      // allowlist is about.
+      "20280115000000_worker_lease_and_heartbeat_retention",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

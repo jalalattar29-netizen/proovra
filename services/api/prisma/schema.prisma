@@ -9423,7 +9423,74 @@ model WorkerTelemetrySnapshot {
   @@index([workerKind, heartbeatAtUtc(sort: Desc)])
   @@index([status, heartbeatAtUtc(sort: Desc)])
   @@index([workerId, heartbeatAtUtc(sort: Desc)])
+  /// Retention sweep predicate: DELETE ... WHERE heartbeat_at_utc < cutoff.
+  /// The composite indexes above all lead with another column, so none of
+  /// them can serve a bare age scan.
+  @@index([heartbeatAtUtc])
   @@map("worker_telemetry_snapshots")
+}
+
+/// The lifecycle a worker instance reports about ITSELF.
+///
+/// The distinction that matters is DRAINING/STOPPED versus its absence. A
+/// worker that shut down cleanly says so; a worker that was killed says
+/// nothing, and the reader can tell those apart only because the clean case
+/// leaves a marker. Without it, both look identical — a last heartbeat and
+/// then silence — and a deliberate scale-down is indistinguishable from a
+/// crash for the length of the stale threshold.
+enum WorkerLeaseState {
+  /// Registered, first heartbeat not yet written. Never counted as live.
+  STARTING
+  /// Reported inside the freshness window.
+  LIVE
+  /// Shutdown began; finishing in-flight work. Not live.
+  DRAINING
+  /// Clean shutdown completed. Not live, and explicitly NOT stale.
+  STOPPED
+}
+
+/// CURRENT worker state — one row per instance, updated in place.
+///
+/// This is the authority for "is the fleet alive?". It replaced a scan of
+/// the append-only heartbeat table, which answered the same question by
+/// reading up to 200 historical rows and deduplicating them in memory, and
+/// which could not represent a clean shutdown at all.
+///
+/// One row per `workerId`, so the table's size is the size of the fleet
+/// rather than a function of uptime.
+model WorkerLease {
+  workerId   String              @id @map("worker_id") @db.VarChar(120)
+  workerKind WorkerTelemetryKind @map("worker_kind")
+  state      WorkerLeaseState
+
+  /// When this instance first registered.
+  startedAtUtc DateTime @default(now()) @map("started_at_utc") @db.Timestamptz(6)
+  /// Last successful heartbeat. Preserved through DRAINING and STOPPED so a
+  /// reader can always say WHEN, not merely THAT.
+  lastSeenAtUtc DateTime @default(now()) @map("last_seen_at_utc") @db.Timestamptz(6)
+  /// Set only by a clean shutdown. Its ABSENCE is what makes a stale lease
+  /// a crash rather than a scale-down.
+  stoppedAtUtc DateTime? @map("stopped_at_utc") @db.Timestamptz(6)
+  /// Bounded, operator-safe. e.g. "SIGTERM".
+  shutdownReason String? @map("shutdown_reason") @db.VarChar(80)
+
+  /// Immutable build identity, from the canonical release-revision variable.
+  /// NULL means unknown — never an empty string, never a placeholder.
+  buildRevision String? @map("build_revision") @db.VarChar(64)
+  /// Queue names this instance subscribes to. Names only.
+  queueSubscriptions String[] @map("queue_subscriptions")
+  /// The interval this instance reports on, so a reader can judge the age.
+  heartbeatIntervalSeconds Int? @map("heartbeat_interval_seconds")
+
+  processedCount Int? @map("processed_count")
+  failedCount    Int? @map("failed_count")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  /// The canonical liveness read: live-ish states ordered by recency.
+  @@index([state, lastSeenAtUtc(sort: Desc)])
+  @@map("worker_leases")
 }
 
 enum CaseEvidenceLinkRole {

@@ -160,6 +160,15 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
 
   return {
     NODE_ENV: "development",
+
+    /**
+     * The canonical build identity, so a fixture worker publishes the same
+     * kind of value a deployed one does. A literal marks it as a fixture
+     * rather than borrowing the host git state, which would make the proof
+     * depend on the checkout.
+     */
+    APP_RELEASE_SHA: "fixture0000000000000000000000000000000f",
+
     PORT: apiPort,
     WORKER_PORT: String(Number(apiPort) + 1),
 

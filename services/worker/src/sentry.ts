@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/node";
+import { resolveBuildRevision } from "./build-revision.js";
 // Phase P2.0B — Sentry profiling on the worker. Same env knobs as
 // the api so a single deployment env-block controls both.
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
@@ -90,8 +91,8 @@ export function initSentry() {
     "development";
   const release =
     (process.env.SENTRY_RELEASE ?? "").trim() ||
-    (process.env.APP_RELEASE_SHA ?? "").trim() ||
-    (process.env.GIT_SHA ?? "").trim() ||
+    // Same rule as everywhere else, from the one place that states it.
+    resolveBuildRevision() ||
     undefined;
 
   // Phase O1.3 — gate Sentry's internal OTEL setup behind

@@ -58,6 +58,8 @@ export type ServiceStatus =
   | "critical"
   /** Reported, but the reading is older than its freshness rule. */
   | "stale"
+  /** Every instance shut down cleanly. Known, explained, and not running. */
+  | "stopped"
   /** The source itself could not be read. Different from never having one. */
   | "unavailable"
   | "unknown"
@@ -121,6 +123,33 @@ import { UNRESOLVED_INCIDENT_STATUSES } from "../operations/incident-open-status
 
 const OPEN_INCIDENT_STATUSES = UNRESOLVED_INCIDENT_STATUSES;
 const IN_PROGRESS_UPLOAD_STATUSES = ["CREATED", "UPLOADING", "PARTIAL"] as const;
+
+/**
+ * WHICH BUILD IS ACTUALLY RUNNING?
+ *
+ * "The fleet is live" cannot distinguish a live NEW deployment from a live
+ * OLD one that never got replaced, which is exactly the question during a
+ * rollout. The revision comes from the same variable Sentry and OTEL resolve
+ * their release from, so an operator comparing the two cannot be told two
+ * different stories.
+ *
+ * An instance that reported no revision reads "unknown" — deliberately a word
+ * and not a blank, because a missing build identity is a fact worth seeing.
+ * Distinct revisions are listed, so a half-finished rollout is visible rather
+ * than averaged away.
+ */
+function describeFleetBuilds(
+  instances: ReadonlyArray<{ buildRevision: string | null }>,
+): string {
+  if (instances.length === 0) return "";
+  const revisions = [
+    ...new Set(instances.map((i) => i.buildRevision ?? "unknown")),
+  ];
+  if (revisions.length === 1) {
+    return `Build ${revisions[0]}.`;
+  }
+  return `Builds ${revisions.join(", ")} — the fleet is not on one revision.`;
+}
 
 /** Map a runtime-readiness ReadinessStatus onto our ServiceStatus vocabulary. */
 function fromReadiness(status: ReadinessStatus): ServiceStatus {
@@ -284,16 +313,18 @@ export async function buildPlatformHealth(): Promise<PlatformHealth> {
         ? "healthy"
         : fleet.state === "STALE"
           ? "stale"
-          : fleet.state === "UNAVAILABLE"
-            ? "unavailable"
-            : "unknown",
+          : fleet.state === "STOPPED"
+            ? "stopped"
+            : fleet.state === "UNAVAILABLE"
+              ? "unavailable"
+              : "unknown",
     // The last heartbeat, so a stale row shows how old the truth is rather
     // than the moment we happened to look.
     lastCheckedAtUtc: fleet.lastHeartbeatAtUtc ?? nowIso,
     detail:
       fleet.lastHeartbeatAtUtc === null
         ? fleet.reason
-        : `${fleet.reason} Last heartbeat ${fleet.lastHeartbeatAgeSeconds}s ago; a worker is considered live for ${fleet.staleAfterSeconds}s after it reports.`,
+        : `${fleet.reason} Last heartbeat ${fleet.lastHeartbeatAgeSeconds}s ago; a worker is considered live for ${fleet.staleAfterSeconds}s after it reports. ${describeFleetBuilds(fleet.instances)}`,
     lastError: fleet.state === "UNAVAILABLE" ? fleet.reason : undefined,
   });
 

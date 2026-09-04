@@ -19,6 +19,7 @@
  *     api-side `/v1/runtime/otel-health` endpoint can render it.
  */
 
+import { resolveBuildRevision } from "./build-revision.js";
 import {
   diag,
   DiagConsoleLogger,
@@ -118,8 +119,10 @@ export function initOpenTelemetry(input: {
     (process.env.NODE_ENV ?? "development");
   const serviceVersion =
     process.env.OTEL_SERVICE_VERSION ??
-    process.env.APP_RELEASE_SHA ??
-    process.env.GIT_SHA ??
+    // The commit answer comes from the one authority; OTEL_SERVICE_VERSION
+    // above is an intentional tool-specific override, not a second opinion
+    // about which commit this is.
+    resolveBuildRevision() ??
     null;
 
   diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR);

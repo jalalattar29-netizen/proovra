@@ -11,27 +11,33 @@
  * `lastActivityAtUtc: null` with the comment "heartbeat is logged but not
  * persisted today".
  *
- * That comment was stale by a phase. A durable heartbeat DOES exist:
- * `worker_telemetry_snapshots` is written every 60 seconds by
- * `services/worker/src/telemetry.ts` from inside a `finally`, so a sample
- * lands even when every queue probe that cycle failed. It carries
- * `heartbeatAtUtc`, the worker id, its kind and its processed/failed counts,
- * and it is already read correctly by the trust-centre probe. The queue
- * inventory simply never looked at it.
+ * The first repair pointed this at the durable heartbeat history. That was
+ * right about the source and wrong about its shape: the history is
+ * append-only, so the read was "newest 200 rows, deduplicated in memory",
+ * which drops instances out of a large fleet and cannot express a clean
+ * shutdown at all.
  *
  * =============================================================================
- * WHAT LIVENESS ACTUALLY MEANS HERE
+ * THE AUTHORITY IS NOW A CURRENT-STATE LEASE
  * =============================================================================
- * An empty queue is not evidence of a living worker, and the absence of a
- * heartbeat is not evidence of a healthy one. So:
+ * `worker_leases` holds ONE row per instance, upserted on every heartbeat and
+ * updated in place. The worker writes its own lifecycle into it — STARTING,
+ * LIVE, DRAINING, STOPPED — and this module derives the fleet verdict:
  *
- *   LIVE          a heartbeat inside the freshness window.
- *   STALE         a heartbeat, but older than the window. The fleet WAS there.
- *                 This is the state that used to read as healthy.
- *   NO_HEARTBEAT  the table has no row for this kind at all. Not zero, not
- *                 healthy — we have never heard from a worker.
- *   UNKNOWN       the heartbeat store itself could not be read. A failure to
- *                 ask is not an answer.
+ *   LIVE          a LIVE lease inside the freshness window.
+ *   STALE         a LIVE lease outside it with NO stop marker. The worker
+ *                 stopped without saying so, which is a crash.
+ *   STOPPED       every instance recorded a clean shutdown. Not live, and
+ *                 explicitly NOT stale: nothing about it is unexplained.
+ *   STARTING      registered, first heartbeat not yet landed. Never live.
+ *   NO_HEARTBEAT  no lease has ever been written.
+ *   UNKNOWN       the lease store could not be read. A failure to ask is not
+ *                 an answer.
+ *
+ * STALE is DERIVED, never stored, and the derivation turns on the stop
+ * marker rather than on age alone. A crash cannot write a marker, which is
+ * precisely what makes its absence evidence — and why a drained worker leaves
+ * the live set the instant it drains rather than after the threshold.
  *
  * `NO_HEARTBEAT` is deliberately distinct from `UNKNOWN`: "no worker has ever
  * reported" and "we could not reach the table" lead an operator to different
@@ -41,6 +47,7 @@
 import { prisma } from "../../db.js";
 import {
   metricError,
+  metricNotApplicable,
   metricNotMeasured,
   metricStale,
   metricValue,
@@ -91,30 +98,16 @@ export function resolveStaleAfterSeconds(explicit?: number): number {
 }
 
 
-/**
- * The heartbeat metadata, read defensively.
- *
- * These rows are written by a DIFFERENT deployable on its own release
- * cadence, so a heartbeat from an older worker simply has no metadata and a
- * newer one may have fields this reader has never heard of. Neither is an
- * error, and neither may be allowed to throw inside a liveness read — a
- * crash here would turn "the fleet is alive" into "unknown".
- */
-function meta(raw: unknown): {
-  buildRevision: string | null;
-  queueSubscriptions: string[];
-} {
-  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  const rev = typeof o.buildRevision === "string" ? o.buildRevision : null;
-  const subs = Array.isArray(o.queueSubscriptions)
-    ? o.queueSubscriptions.filter((q): q is string => typeof q === "string")
-    : [];
-  return { buildRevision: rev, queueSubscriptions: subs };
-}
+/** The lease states a worker writes about itself. */
+export type WorkerLeaseStateWord = "STARTING" | "LIVE" | "DRAINING" | "STOPPED";
 
 export type WorkerLivenessState =
   | "LIVE"
   | "STALE"
+  /** Every instance shut down cleanly. Explained, therefore not stale. */
+  | "STOPPED"
+  /** Registered, no first heartbeat yet. Never counted as live. */
+  | "STARTING"
   | "NO_HEARTBEAT"
   | "UNKNOWN";
 
@@ -123,6 +116,11 @@ export type WorkerInstanceLiveness = {
   workerKind: string;
   /** The worker's own last self-reported status, not our verdict. */
   reportedStatus: string;
+  /** The lease state this instance wrote about itself. */
+  leaseState: WorkerLeaseStateWord;
+  /** Set only by a clean shutdown; its absence is what makes a lease stale. */
+  stoppedAtUtc: string | null;
+  shutdownReason: string | null;
   heartbeatAtUtc: string;
   ageSeconds: number;
   live: boolean;
@@ -140,7 +138,10 @@ export type WorkerFleetLiveness = {
   /** One instant for the whole evaluation — never re-read per instance. */
   evaluatedAtUtc: string;
   liveInstances: number;
+  /** LIVE leases past the window with NO stop marker: crashes. */
   staleInstances: number;
+  /** Instances that recorded a clean drain or stop. */
+  stoppedInstances: number;
   instances: ReadonlyArray<WorkerInstanceLiveness>;
   /** The freshness rule this verdict was reached under. */
   staleAfterSeconds: number;
@@ -149,9 +150,15 @@ export type WorkerFleetLiveness = {
 };
 
 /**
- * The fleet's liveness, from the durable heartbeat.
+ * The fleet's liveness, read from the CURRENT-STATE lease table.
  *
- * `nowMs` is injected so a test can age a heartbeat without sleeping, and so
+ * This used to scan the append-only heartbeat history — newest 200 rows,
+ * deduplicated by worker id in memory. That answered the question badly in
+ * two ways beyond its cost: the 200-row cap silently dropped instances out of
+ * a busy fleet, and the history has no way to record a clean shutdown, so a
+ * drained worker was indistinguishable from a killed one.
+ *
+ * `nowMs` is injected so a test can age a lease without sleeping, and so
  * every row in one evaluation is judged against ONE instant.
  */
 export async function getWorkerFleetLiveness(options?: {
@@ -166,79 +173,118 @@ export async function getWorkerFleetLiveness(options?: {
     evaluatedAtUtc,
     liveInstances: 0,
     staleInstances: 0,
+    stoppedInstances: 0,
     instances: [],
     staleAfterSeconds,
     newestHeartbeatAtUtc: null,
   };
 
-  let rows;
+  let leases;
   try {
-    // Newest heartbeat per worker id. The table is append-per-sample, so a
-    // long-running instance has many rows and only its latest one is evidence.
-    rows = await prisma.workerTelemetrySnapshot.findMany({
-      orderBy: { heartbeatAtUtc: "desc" },
-      take: 200,
+    // One row per instance, so there is no cap to fall off the end of and no
+    // deduplication to get wrong.
+    leases = await prisma.workerLease.findMany({
+      orderBy: { lastSeenAtUtc: "desc" },
     });
   } catch {
     return {
       ...base,
       state: "UNKNOWN",
       reason:
-        "The worker heartbeat store could not be read, so worker liveness is unknown. This is not a statement that workers are healthy.",
+        "The worker lease store could not be read, so worker liveness is unknown. This is not a statement that workers are healthy.",
     };
   }
 
-  const newestByWorker = new Map<string, (typeof rows)[number]>();
-  for (const r of rows) {
-    const seen = newestByWorker.get(r.workerId);
-    if (!seen || r.heartbeatAtUtc > seen.heartbeatAtUtc) {
-      newestByWorker.set(r.workerId, r);
-    }
-  }
-
-  if (newestByWorker.size === 0) {
+  if (leases.length === 0) {
     return {
       ...base,
       state: "NO_HEARTBEAT",
       reason:
-        "No worker has ever reported a heartbeat. An empty queue is not evidence that a worker is running.",
+        "No worker has ever registered a lease. An empty queue is not evidence that a worker is running.",
     };
   }
 
   const instances: WorkerInstanceLiveness[] = [];
   let newestMs = -Infinity;
-  for (const r of newestByWorker.values()) {
-    const beatMs = r.heartbeatAtUtc.getTime();
-    const ageSeconds = Math.max(0, Math.round((nowMs - beatMs) / 1000));
-    newestMs = Math.max(newestMs, beatMs);
+  for (const r of leases) {
+    const seenMs = r.lastSeenAtUtc.getTime();
+    const ageSeconds = Math.max(0, Math.round((nowMs - seenMs) / 1000));
+    newestMs = Math.max(newestMs, seenMs);
+    /*
+     * ONLY A LIVE LEASE INSIDE THE WINDOW COUNTS.
+     *
+     * STARTING has never proved anything. DRAINING and STOPPED have said
+     * they are going — counting either would keep a deliberately removed
+     * worker in the fleet for the length of the stale threshold, which is
+     * the exact defect the lease exists to fix.
+     */
     instances.push({
       workerId: r.workerId,
       workerKind: String(r.workerKind),
-      reportedStatus: String(r.status),
-      heartbeatAtUtc: r.heartbeatAtUtc.toISOString(),
+      reportedStatus: String(r.state),
+      leaseState: r.state as WorkerLeaseStateWord,
+      heartbeatAtUtc: r.lastSeenAtUtc.toISOString(),
       ageSeconds,
-      live: ageSeconds <= staleAfterSeconds,
+      live: r.state === "LIVE" && ageSeconds <= staleAfterSeconds,
+      stoppedAtUtc: r.stoppedAtUtc?.toISOString() ?? null,
+      shutdownReason: r.shutdownReason ?? null,
       processedCount: r.processedCount ?? null,
       failedCount: r.failedCount ?? null,
-      buildRevision: meta(r.metadataJson).buildRevision,
-      queueSubscriptions: meta(r.metadataJson).queueSubscriptions,
+      buildRevision: r.buildRevision ?? null,
+      queueSubscriptions: r.queueSubscriptions ?? [],
     });
   }
   instances.sort((a, b) => a.ageSeconds - b.ageSeconds);
 
   const liveInstances = instances.filter((i) => i.live).length;
-  const staleInstances = instances.length - liveInstances;
+  /*
+   * STALE IS DERIVED, AND ONLY FROM A MISSING SHUTDOWN MARKER.
+   *
+   * A lease still claiming LIVE whose heartbeat has aged out, with no
+   * stop marker, means the process went away without saying so. That is a
+   * crash. A lease that reached DRAINING or STOPPED said goodbye, and is
+   * simply not live — no amount of ageing makes it stale, because nothing
+   * about it is unexplained.
+   */
+  const staleInstances = instances.filter(
+    (i) => i.leaseState === "LIVE" && !i.live && i.stoppedAtUtc === null,
+  ).length;
+  const stoppedInstances = instances.filter(
+    (i) => i.leaseState === "STOPPED" || i.leaseState === "DRAINING",
+  ).length;
   const newestHeartbeatAtUtc =
     newestMs === -Infinity ? null : new Date(newestMs).toISOString();
 
-  if (liveInstances === 0) {
+  if (liveInstances === 0 && staleInstances > 0) {
+    const oldest = instances.find((i) => i.leaseState === "LIVE" && !i.live);
     return {
       ...base,
       state: "STALE",
       reason:
-        `No worker has reported within ${staleAfterSeconds}s. The newest heartbeat is ` +
-        `${instances[0]?.ageSeconds ?? "?"}s old, so the fleet is not confirmed running.`,
+        `No worker has reported within ${staleAfterSeconds}s and none recorded a shutdown. ` +
+        `The newest heartbeat is ${oldest?.ageSeconds ?? "?"}s old, so the fleet stopped without saying so.`,
       staleInstances,
+      stoppedInstances,
+      instances,
+      newestHeartbeatAtUtc,
+    };
+  }
+
+  if (liveInstances === 0) {
+    /*
+     * Every instance shut down cleanly, or none has started yet. Neither is
+     * STALE: there is nothing unexplained. It is also emphatically not
+     * healthy — there is no worker running.
+     */
+    const allStopped = stoppedInstances > 0;
+    return {
+      ...base,
+      state: allStopped ? "STOPPED" : "STARTING",
+      reason: allStopped
+        ? `Every worker instance shut down cleanly (${stoppedInstances} recorded a stop marker). No worker is running.`
+        : "A worker has registered but has not yet completed its first heartbeat, so it is not confirmed running.",
+      staleInstances,
+      stoppedInstances,
       instances,
       newestHeartbeatAtUtc,
     };
@@ -250,6 +296,7 @@ export async function getWorkerFleetLiveness(options?: {
     reason: `${liveInstances} worker instance(s) reported within ${staleAfterSeconds}s.`,
     liveInstances,
     staleInstances,
+    stoppedInstances,
     instances,
     newestHeartbeatAtUtc,
   };
@@ -280,6 +327,8 @@ export async function getWorkerFleetLiveness(options?: {
 export type WorkerFleetHealthState =
   | "HEALTHY"
   | "STALE"
+  /** Every instance shut down cleanly. Explained, so never STALE. */
+  | "STOPPED"
   | "NOT_MEASURED"
   | "UNAVAILABLE";
 
@@ -293,7 +342,10 @@ export type WorkerFleetHealth = {
   /** Its age at the evaluated instant, preserved through STALE. */
   lastHeartbeatAgeSeconds: number | null;
   liveInstances: number;
+  /** LIVE leases past the window with no stop marker: crashes. */
   staleInstances: number;
+  /** Instances that recorded a clean drain or stop. */
+  stoppedInstances: number;
   knownInstances: number;
   staleAfterSeconds: number;
   heartbeatIntervalSeconds: number;
@@ -320,6 +372,7 @@ export async function getWorkerFleetHealth(options?: {
     lastHeartbeatAgeSeconds: newest?.ageSeconds ?? null,
     liveInstances: fleet.liveInstances,
     staleInstances: fleet.staleInstances,
+    stoppedInstances: fleet.stoppedInstances,
     knownInstances: fleet.instances.length,
     staleAfterSeconds: fleet.staleAfterSeconds,
     heartbeatIntervalSeconds: WORKER_HEARTBEAT_INTERVAL_SECONDS,
@@ -353,6 +406,27 @@ export async function getWorkerFleetHealth(options?: {
           },
           fleet.reason,
         ),
+      };
+
+    case "STOPPED":
+      return {
+        ...base,
+        state: "STOPPED",
+        operatorAction:
+          "Every instance recorded a clean shutdown. If workers are meant to be running, start the deployment; nothing here indicates a fault.",
+        // A clean stop is not a measurement of a live fleet, and it is not a
+        // failure either. NOT_APPLICABLE says exactly that: there is no live
+        // fleet to count, on purpose.
+        metric: metricNotApplicable(fleet.reason),
+      };
+
+    case "STARTING":
+      return {
+        ...base,
+        state: "NOT_MEASURED",
+        operatorAction:
+          "A worker registered but has not completed its first heartbeat. Wait one interval, then check the worker logs.",
+        metric: metricNotMeasured(fleet.reason),
       };
 
     case "NO_HEARTBEAT":

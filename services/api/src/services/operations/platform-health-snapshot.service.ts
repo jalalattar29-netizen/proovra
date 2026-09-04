@@ -555,7 +555,13 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
         ? "HEALTHY"
         : fleet.state === "STALE"
           ? "STALE"
-          : "UNKNOWN",
+          // STOPPED is DEGRADED, not UNKNOWN: we know exactly what happened
+          // (every instance shut down cleanly) and there is still no worker
+          // running, which is a real operational condition rather than an
+          // absence of information.
+          : fleet.state === "STOPPED"
+            ? "DEGRADED"
+            : "UNKNOWN",
     reason: fleet.reason,
     operatorAction: fleet.operatorAction,
     runbookSlug: fleet.state === "HEALTHY" ? null : "worker-heartbeat-stale",

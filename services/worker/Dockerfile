@@ -207,6 +207,22 @@ COPY --from=build /app/packages/shared-evidence-presentation /app/packages/share
 COPY --from=build /app/packages/shared-runtime /app/packages/shared-runtime
 COPY --from=build /app/tsconfig.json /app/tsconfig.json
 
+# BUILD IDENTITY.
+#
+# APP_RELEASE_SHA is the revision authority this repository already uses:
+# otel.ts and sentry.ts in BOTH services resolve their release from it,
+# falling back to GIT_SHA. The worker heartbeat publishes the same value, so
+# the Admin fleet view and Sentry cannot disagree about which build is
+# running.
+#
+# Deliberately unset by default. An unset value resolves to NULL and renders
+# as "unknown" — a build identity that reads as a real string when nothing
+# was configured is worse than an honest absence.
+#
+#   docker build --build-arg APP_RELEASE_SHA="$(git rev-parse HEAD)" ...
+ARG APP_RELEASE_SHA=""
+ENV APP_RELEASE_SHA=$APP_RELEASE_SHA
+
 WORKDIR /app/services/worker
 
 USER app

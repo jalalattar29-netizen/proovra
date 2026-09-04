@@ -29,9 +29,9 @@ const getQueueInventoryMock = vi.fn();
 const getWorkerHealthMock = vi.fn();
 const runReadinessCheckMock = vi.fn();
 const buildEvidenceHealthSnapshotMock = vi.fn();
-// The worker heartbeat is now its OWN source of this snapshot, so a world
-// that claims to be healthy has to include a living worker in it.
-const workerHeartbeatFindMany = vi.fn();
+// The worker LEASE is its own source of this snapshot, so a world that claims
+// to be healthy has to include a living worker in it.
+const workerLeaseFindMany = vi.fn();
 
 vi.mock("../src/db.js", () => ({
   prisma: {
@@ -39,8 +39,8 @@ vi.mock("../src/db.js", () => ({
       groupBy: (...a: unknown[]) => incidentGroupBy(...a),
       count: (...a: unknown[]) => incidentCount(...a),
     },
-    workerTelemetrySnapshot: {
-      findMany: (...a: unknown[]) => workerHeartbeatFindMany(...a),
+    workerLease: {
+      findMany: (...a: unknown[]) => workerLeaseFindMany(...a),
     },
   },
 }));
@@ -93,16 +93,19 @@ function healthyWorld(): void {
       disabledReason: null,
     },
   ]);
-  // One instance, reporting a second ago: LIVE.
-  workerHeartbeatFindMany.mockResolvedValue([
+  // One LIVE lease, last seen a second ago.
+  workerLeaseFindMany.mockResolvedValue([
     {
       workerId: "fixture-worker-1",
       workerKind: "WORKER",
-      status: "HEALTHY",
-      heartbeatAtUtc: new Date(Date.now() - 1000),
+      state: "LIVE",
+      lastSeenAtUtc: new Date(Date.now() - 1000),
+      stoppedAtUtc: null,
+      shutdownReason: null,
+      buildRevision: null,
+      queueSubscriptions: [],
       processedCount: 13,
       failedCount: 0,
-      metadataJson: null,
     },
   ]);
   getWorkerHealthMock.mockResolvedValue([

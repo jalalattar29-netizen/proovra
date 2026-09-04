@@ -15,6 +15,15 @@
 
 import type { Queue } from "bullmq";
 import { prisma } from "./db.js";
+import { resolveBuildRevision } from "./build-revision.js";
+import {
+  markWorkerDraining,
+  markWorkerStopped,
+  registerWorkerLease,
+  touchWorkerLease,
+  type WorkerLeaseIdentity,
+} from "./worker-lease.js";
+import { sweepHeartbeatHistory } from "./heartbeat-retention.js";
 import { logger } from "./logger.js";
 import {
   derivedAssetsQueue,
@@ -65,8 +74,22 @@ function buildSampledQueues(): SampledQueue[] {
   ];
 }
 
+/**
+ * How often the retention sweep is attempted. Retention is an age predicate,
+ * so attempting it on every 60s heartbeat would be the same DELETE over and
+ * over; hourly drains a backlog quickly enough while costing almost nothing.
+ */
+const RETENTION_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
 export type TelemetrySampler = {
+  /** Stop the timer. Leaves no shutdown marker — use for abrupt teardown. */
   stop: () => void;
+  /**
+   * Graceful shutdown: DRAINING, then STOPPED.
+   * Resolves to whether the STOPPED marker was persisted; false means this
+   * instance will correctly read as a crash rather than a clean stop.
+   */
+  shutdown: (reason?: string) => Promise<boolean>;
 };
 
 /**
@@ -100,17 +123,6 @@ function resolveWorkerId(explicit?: string): string {
   return `${host}-${process.pid}`.slice(0, 120);
 }
 
-/** Build/revision, for telling a live new deployment from a live old one. */
-function resolveBuildRevision(): string | null {
-  const rev =
-    process.env.GIT_SHA ??
-    process.env.GIT_COMMIT ??
-    process.env.SOURCE_VERSION ??
-    process.env.BUILD_REVISION ??
-    null;
-  return rev ? rev.trim().slice(0, 64) : null;
-}
-
 export function startTelemetrySampler(opts?: {
   intervalMs?: number;
   workerId?: string;
@@ -125,8 +137,19 @@ export function startTelemetrySampler(opts?: {
   const queues = buildSampledQueues();
   const buildRevision = resolveBuildRevision();
 
+  /** One identity object, so the lease and the history cannot disagree. */
+  const identity: WorkerLeaseIdentity = {
+    workerId,
+    workerKind: "WORKER",
+    queueSubscriptions: queues.map((q) => q.name),
+    heartbeatIntervalSeconds: Math.round(interval / 1000),
+  };
+
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
+  // Sweep far less often than we heartbeat: retention is an age predicate,
+  // so running it every minute would be the same delete over and over.
+  let lastSweepAt = 0;
 
   async function sampleOnce(): Promise<void> {
     let processedCount = 0;
@@ -188,13 +211,44 @@ export function startTelemetrySampler(opts?: {
       } catch (err) {
         logger.warn({ err }, "telemetry heartbeat failed");
       }
+
+      /*
+       * THE LEASE IS THE LIVENESS AUTHORITY, SO IT IS WRITTEN SEPARATELY.
+       *
+       * A failed history write must not stop the lease being touched: the
+       * history is a nice-to-have and the lease is what decides whether this
+       * fleet reads as alive. Its own failure is logged and swallowed for the
+       * same reason every other write here is — telemetry never takes a
+       * worker down — and the consequence is honest: no touch, so the lease
+       * ages, and the reader eventually says STALE. Which is true.
+       */
+      try {
+        await touchWorkerLease(identity, { processedCount, failedCount });
+      } catch (err) {
+        logger.warn({ err }, "worker.lease.touch_failed");
+      }
     }
+  }
+
+  /**
+   * Retention runs on the heartbeat tick rather than on a timer of its own,
+   * so there is one scheduler to reason about and one thing to stop. Only the
+   * advisory-lock holder actually sweeps; everyone else returns immediately.
+   */
+  async function sweepIfDue(): Promise<void> {
+    const now = Date.now();
+    if (now - lastSweepAt < RETENTION_SWEEP_INTERVAL_MS) return;
+    lastSweepAt = now;
+    await sweepHeartbeatHistory().catch((err) => {
+      logger.warn({ err }, "worker.heartbeat_retention.unexpected");
+    });
   }
 
   function schedule(): void {
     if (stopped) return;
     timer = setTimeout(() => {
       sampleOnce()
+        .then(sweepIfDue)
         .catch((err) => {
           logger.warn({ err }, "telemetry sampleOnce failed");
         })
@@ -202,8 +256,15 @@ export function startTelemetrySampler(opts?: {
     }, interval);
   }
 
-  // Kick off an immediate sample, then schedule the loop.
-  sampleOnce()
+  // Register BEFORE the first sample, as STARTING. A reader must never count
+  // this instance as live because a process began — only because a heartbeat
+  // landed, which `sampleOnce` records by promoting the lease to LIVE.
+  const bootstrap = registerWorkerLease(identity).catch((err) => {
+    logger.warn({ err }, "worker.lease.register_failed");
+  });
+
+  void bootstrap
+    .then(() => sampleOnce())
     .catch((err) => {
       logger.warn({ err }, "telemetry initial sample failed");
     })
@@ -213,6 +274,23 @@ export function startTelemetrySampler(opts?: {
     stop: () => {
       stopped = true;
       if (timer) clearTimeout(timer);
+    },
+    /**
+     * The graceful path. DRAINING first so a reader stops counting this
+     * instance the moment shutdown begins, then STOPPED once it is done.
+     *
+     * Returns whether the marker was actually persisted, because a caller
+     * must not report a clean stop it failed to record.
+     */
+    shutdown: async (reason = "SIGTERM") => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      try {
+        await markWorkerDraining(workerId, reason);
+      } catch (err) {
+        logger.warn({ err }, "worker.lease.draining_failed");
+      }
+      return markWorkerStopped(workerId, reason);
     },
   };
 }
