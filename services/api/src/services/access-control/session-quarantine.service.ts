@@ -118,12 +118,37 @@ export async function quarantineSession(
     outcome: "success",
     sourceApp: "API",
     actorUserId: input.actorUserId,
+    actorAuthority: "WORKSPACE_IDENTITY_ADMIN",
     workspaceId: input.teamId,
     resourceType: "authenticated_session",
     resourceId: row.id,
+    /*
+     * PHASE 5 §3 (family C) — THE OPERATOR IS NOT THE SUBJECT.
+     *
+     * `actorUserId` is the identity admin who quarantined; `row.userId` is
+     * whose session it was. Conflating them is the specific confusion this
+     * family exists to prevent — an audit that names one person for both
+     * roles reads as somebody locking themselves out.
+     *
+     * The label uses the session's stored PREVIEW, never the raw client
+     * string. `uaPreview` is what the product persists precisely so that a
+     * fingerprint never has to be shown to describe a session.
+     */
+    targetDisplay: row.uaPreview
+      ? `Session — ${row.uaPreview}`
+      : "Session (client not recorded)",
+    previousState: row.quarantinedAtUtc ? "QUARANTINED" : "ACTIVE",
+    requestedState: "QUARANTINED",
+    resultingState: updated.quarantinedAtUtc ? "QUARANTINED" : "ACTIVE",
+    // The canonical reason the operator chose, from the closed enum the route
+    // validates — not free text, so it stays a filterable code.
+    reasonCode: input.reason,
     metadata: {
       reason: input.reason,
       releaseHours: hours,
+      // The SUBJECT, recorded explicitly and separately from the actor.
+      subjectUserId: row.userId,
+      releaseAtUtc: releaseAt ? releaseAt.toISOString() : null,
     },
   }, client);
   return projectQuarantine(updated);
@@ -168,10 +193,20 @@ export async function releaseQuarantine(
     outcome: "success",
     sourceApp: "API",
     actorUserId: input.actorUserId,
+    actorAuthority: "WORKSPACE_IDENTITY_ADMIN",
     workspaceId: input.teamId,
     resourceType: "authenticated_session",
     resourceId: row.id,
-    metadata: { note: input.note ?? null },
+    targetDisplay: row.uaPreview
+      ? `Session — ${row.uaPreview}`
+      : "Session (client not recorded)",
+    previousState: "QUARANTINED",
+    requestedState: "ACTIVE",
+    resultingState: "ACTIVE",
+    // A release is an operator decision, distinct from the scheduled sweep
+    // that releases a quarantine when its window simply expires.
+    reasonCode: "OPERATOR_RELEASED",
+    metadata: { note: input.note ?? null, subjectUserId: row.userId },
   }, client);
   return true;
 }
@@ -313,6 +348,12 @@ export async function emergencyOrgRevoke(
     distinct: ["userId"],
   });
   let sessionsAffected = 0;
+  // PHASE 5 §4 — the loop below is best-effort by design: one stuck user must
+  // not stop the rest of the estate going dark. That is right, and it is also
+  // why the outcome cannot be a constant — a run that reached four of five
+  // users and a run that reached all five are different facts, and the count
+  // of SESSIONS cannot tell them apart because one user may hold several.
+  let usersFailed = 0;
   for (const u of activeUsers) {
     try {
       await revokeAllSessionsForUser(
@@ -338,7 +379,9 @@ export async function emergencyOrgRevoke(
       });
       sessionsAffected += upd.count;
     } catch {
-      /* best-effort */
+      // Best-effort, but COUNTED. Swallowing the failure silently is what made
+      // a partial sweep indistinguishable from a complete one.
+      usersFailed += 1;
     }
   }
   bump("emergency_org_revoke_total");
@@ -354,13 +397,43 @@ export async function emergencyOrgRevoke(
     },
   });
   await emitTenantAudit({
+    /*
+     * PHASE 5 §4 — FOUR OUTCOMES, BECAUSE THERE ARE FOUR THINGS THAT HAPPEN.
+     *
+     *   no_op   — there was nobody signed in. A valid request that caused no
+     *             transition; calling it `success` tells an operator the
+     *             estate went dark when nothing was signed out.
+     *   error   — there were users and not one could be reached.
+     *   partial — some users were reached and some were not. "Everyone is
+     *             signed out" and "most people are" cannot share a label, and
+     *             during an incident that difference is the whole message.
+     *   success — every user found was revoked.
+     *
+     * Measured in USERS, not sessions: one person may hold several sessions,
+     * so a session count cannot distinguish a complete sweep from a partial
+     * one.
+     */
     action: "session.emergency_org_revoke",
-    outcome: "success",
+    outcome:
+      activeUsers.length === 0
+        ? "no_op"
+        : usersFailed === activeUsers.length
+          ? "error"
+          : usersFailed > 0
+            ? "partial"
+            : "success",
     sourceApp: "API",
     actorUserId: input.actorUserId,
+    actorAuthority: "WORKSPACE_IDENTITY_ADMIN",
     workspaceId: input.teamId,
     resourceType: "team",
     resourceId: input.teamId,
+    targetDisplay: "All active sessions in this workspace",
+    // Both sides counted in USERS, so the two numbers are comparable at a
+    // glance; the session total stays in metadata where it is detail.
+    requestedState: `REVOKE_${activeUsers.length}_USERS`,
+    resultingState: `REVOKED_${activeUsers.length - usersFailed}_USERS`,
+    reasonCode: "EMERGENCY_ORG_WIDE",
     metadata: {
       usersRevoked: activeUsers.length,
       sessionsAffected,

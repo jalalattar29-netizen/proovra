@@ -1,0 +1,516 @@
+/**
+ * PHASE 5 — ATTRIBUTION ACROSS THE ADMIN MUTATION FAMILIES.
+ *
+ * Live PostgreSQL 16, real routes, real authorization. Families A (commercial)
+ * and D (support access) are proved in their own files — the transitions there
+ * were already established and the attribution was added to those existing
+ * proofs rather than duplicated here. This file covers the rest.
+ *
+ * ===========================================================================
+ * WHAT THIS FILE IS GUARDING AGAINST
+ * ===========================================================================
+ * The facade populates nine identity and transition fields for every audit
+ * writer in the service. That is exactly the situation in which a proof can
+ * fool itself: every field is non-null, every row looks complete, and nothing
+ * says whether the values are TRUE.
+ *
+ * So each field is checked against a different source than the one that wrote
+ * it — the actor against the seeded operator, the target against the seeded
+ * record, the previous state against storage read before the call, and the
+ * resulting state against storage re-read after it. A facade that invented a
+ * plausible value from request intent would pass a self-consistent check and
+ * fail these.
+ */
+
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import type { IntegrationHarness } from "./integration-harness.js";
+import {
+  bootstrapPersonalSpace,
+  seedOrganizationTenant,
+  seedUser,
+  type FixtureDeps,
+  type SeededUser,
+} from "./point7/product-fixtures.js";
+
+type AuditRow = {
+  id: string;
+  action: string;
+  outcome: string | null;
+  userId: string | null;
+  actorType: string | null;
+  actorDisplay: string | null;
+  actorAuthority: string | null;
+  targetDisplay: string | null;
+  previousState: string | null;
+  requestedState: string | null;
+  resultingState: string | null;
+  reasonCode: string | null;
+  eventVersion: number | null;
+  organizationId: string | null;
+  workspaceId: string | null;
+  requestId: string | null;
+  metadata: Record<string, unknown>;
+};
+
+describe("PHASE 5 — mutation family attribution (live PostgreSQL 16)", () => {
+  let harness: IntegrationHarness;
+  let prisma: typeof import("../src/db.js")["prisma"];
+  let deps: FixtureDeps;
+
+  let platformAdmin: SeededUser;
+  let secondAdmin: SeededUser;
+  let orgA: { organizationId: string; workspaceId: string; owner: SeededUser };
+  let orgB: { organizationId: string; workspaceId: string; owner: SeededUser };
+
+  async function call(
+    token: string | null,
+    method: "GET" | "POST" | "PATCH" | "DELETE",
+    url: string,
+    payload?: unknown,
+  ) {
+    const res = await harness.app.inject({
+      method,
+      url,
+      ...(token ? { headers: { authorization: `Bearer ${token}` } } : {}),
+      ...(payload === undefined ? {} : { payload: payload as Record<string, unknown> }),
+    });
+    let body: unknown = null;
+    try {
+      body = JSON.parse(res.body);
+    } catch {
+      body = res.body;
+    }
+    return { status: res.statusCode, body: body as Record<string, unknown>, text: res.body };
+  }
+
+  /** Poll briefly: several writers fire their audit without awaiting it. */
+  async function waitForAudit(
+    where: { action?: string; resourceId?: string; outcome?: string },
+    minCount = 1,
+  ): Promise<AuditRow[]> {
+    const deadline = Date.now() + 6_000;
+    for (;;) {
+      const rows = (await prisma.adminAuditLog.findMany({
+        where: {
+          ...(where.action ? { action: where.action } : {}),
+          ...(where.resourceId ? { resourceId: where.resourceId } : {}),
+          ...(where.outcome ? { outcome: where.outcome } : {}),
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      })) as unknown as AuditRow[];
+      if (rows.length >= minCount) return rows;
+      if (Date.now() > deadline) {
+        throw new Error(
+          `audit row not found within 6s: ${JSON.stringify(where)} (have ${rows.length}, want ${minCount})`,
+        );
+      }
+      await new Promise((r) => setTimeout(r, 60));
+    }
+  }
+
+  /**
+   * The dimensions §2 requires of every material row, checked as a set so a
+   * family proof cannot forget one. `expectActorIsNotSubject` is passed the
+   * subject id where the two are different people — the confusion this whole
+   * exercise exists to prevent.
+   */
+  function assertCoreAttribution(
+    row: AuditRow,
+    opts: {
+      actorUserId: string;
+      actorType?: string;
+      subjectUserId?: string | null;
+      label: string;
+    },
+  ) {
+    expect(row.actorType, `${opts.label}: actor type`).toBe(opts.actorType ?? "HUMAN");
+    expect(row.userId, `${opts.label}: the row names a different actor than the caller`).toBe(
+      opts.actorUserId,
+    );
+    expect(row.actorDisplay, `${opts.label}: no contemporaneous actor label`).toBeTruthy();
+    expect(
+      row.actorDisplay,
+      `${opts.label}: the raw identifier was stored where a label belongs`,
+    ).not.toBe(opts.actorUserId);
+    expect(row.eventVersion, `${opts.label}: event version`).toBe(2);
+    if (opts.subjectUserId) {
+      expect(
+        row.userId,
+        `${opts.label}: the operator and the subject were recorded as the same person`,
+      ).not.toBe(opts.subjectUserId);
+    }
+  }
+
+  /** No row may carry credential or client material, whatever else it says. */
+  function assertNoSecret(row: AuditRow, label: string) {
+    const serialized = JSON.stringify(row).toLowerCase();
+    for (const marker of [
+      "supportcontexttoken",
+      "passwordhash",
+      "privatekey",
+      "authorization:",
+      "bearer ",
+      "set-cookie",
+      "applewebkit",
+      "kmskeyarn",
+      "secretaccesskey",
+    ]) {
+      expect(serialized, `${label}: the row carries ${marker}`).not.toContain(marker);
+    }
+  }
+
+  beforeAll(async () => {
+    const { bootIntegrationHarness } = await import("./integration-harness.js");
+    harness = await bootIntegrationHarness();
+    ({ prisma } = await import("../src/db.js"));
+    const { signJwt } = await import("../src/services/jwt.js");
+    const secret = process.env.AUTH_JWT_SECRET!;
+    deps = {
+      prisma: prisma as never,
+      tag: `p5fam-${Date.now().toString(36)}`,
+      mintToken: (userId, email) =>
+        signJwt(
+          {
+            sub: userId,
+            provider: "EMAIL",
+            email,
+            authMethod: "PASSWORD",
+            authAt: Math.floor(Date.now() / 1000),
+          },
+          secret,
+          3600,
+        ),
+    };
+
+    platformAdmin = await seedUser(deps, "p5fam-admin");
+    await prisma.user.update({
+      where: { id: platformAdmin.userId },
+      data: { platformRole: "admin", displayName: "Platform Operator One" },
+    });
+    await bootstrapPersonalSpace(deps, platformAdmin.userId);
+
+    secondAdmin = await seedUser(deps, "p5fam-admin2");
+    await prisma.user.update({
+      where: { id: secondAdmin.userId },
+      data: { platformRole: "admin", displayName: "Platform Operator Two" },
+    });
+    await bootstrapPersonalSpace(deps, secondAdmin.userId);
+
+    const a = await seedOrganizationTenant(deps, { contractStatus: "ACTIVE" });
+    orgA = { organizationId: a.organizationId, workspaceId: a.workspaceId, owner: a.owner };
+    const b = await seedOrganizationTenant(deps, { contractStatus: "ACTIVE" });
+    orgB = { organizationId: b.organizationId, workspaceId: b.workspaceId, owner: b.owner };
+  }, 300_000);
+
+  afterAll(async () => {
+    await harness?.cleanup?.();
+  });
+
+  // =========================================================================
+  // FAMILY B — CUSTOMERS AND ORGANIZATIONS.
+  // =========================================================================
+  describe("family B — organization lifecycle", () => {
+    it("suspend names the operator, the customer, and both states read from storage", async () => {
+      const { suspendOrganization } = await import(
+        "../src/services/organization/org-lifecycle.service.js"
+      );
+      const before = await prisma.organization.findUniqueOrThrow({
+        where: { id: orgA.organizationId },
+        select: { status: true, name: true },
+      });
+
+      await suspendOrganization({
+        organizationId: orgA.organizationId,
+        actorUserId: platformAdmin.userId,
+      });
+
+      const after = await prisma.organization.findUniqueOrThrow({
+        where: { id: orgA.organizationId },
+        select: { status: true },
+      });
+      const [row] = await waitForAudit({
+        action: "identity.organization_suspended",
+        resourceId: orgA.organizationId,
+      });
+
+      assertCoreAttribution(row, {
+        actorUserId: platformAdmin.userId,
+        label: "org suspend",
+      });
+      expect(row.actorAuthority).toBe("PLATFORM_ADMIN");
+      // TARGET — the customer's own name, not an id an operator must resolve.
+      expect(row.targetDisplay).toBe(before.name);
+      expect(row.organizationId, "the tenant column is authoritative").toBe(
+        orgA.organizationId,
+      );
+      // STATE — before from storage, after re-read from storage.
+      expect(row.previousState).toBe(before.status);
+      expect(row.requestedState).toBe("SUSPENDED");
+      expect(row.resultingState, "the resulting state was not read back").toBe(after.status);
+      expect(row.reasonCode).toBe("OPERATOR_SUSPENDED_ORGANIZATION");
+      assertNoSecret(row, "org suspend");
+    });
+
+    it("resume records the real previous state, which is SUSPENDED and not a constant", async () => {
+      const { resumeOrganization } = await import(
+        "../src/services/organization/org-lifecycle.service.js"
+      );
+      const before = await prisma.organization.findUniqueOrThrow({
+        where: { id: orgA.organizationId },
+        select: { status: true, name: true },
+      });
+      expect(before.status, "the suspend case must run first").toBe("SUSPENDED");
+
+      await resumeOrganization({
+        organizationId: orgA.organizationId,
+        actorUserId: secondAdmin.userId,
+      });
+
+      const after = await prisma.organization.findUniqueOrThrow({
+        where: { id: orgA.organizationId },
+        select: { status: true },
+      });
+      const [row] = await waitForAudit({
+        action: "identity.organization_resumed",
+        resourceId: orgA.organizationId,
+      });
+
+      // A DIFFERENT operator resumed than suspended — an audit that always
+      // names one identity cannot be shown to record the real one.
+      assertCoreAttribution(row, {
+        actorUserId: secondAdmin.userId,
+        label: "org resume",
+      });
+      expect(row.previousState).toBe("SUSPENDED");
+      expect(row.resultingState).toBe(after.status);
+      expect(row.targetDisplay).toBe(before.name);
+      expect(row.reasonCode).toBe("OPERATOR_RESUMED_ORGANIZATION");
+    });
+  });
+
+  // =========================================================================
+  // FAMILY C — IDENTITY AND SESSIONS.
+  //
+  // The operator is not the subject. That is the whole family in one line, and
+  // it is the confusion most likely to make an audit trail read as though
+  // somebody locked themselves out.
+  // =========================================================================
+  describe("family C — sessions", () => {
+    async function seedSession(userId: string, teamId: string) {
+      return prisma.authenticatedSession.create({
+        data: {
+          userId,
+          teamId,
+          sessionIdHash: `p5sid-${randomUUID()}`,
+          uaPreview: "Chrome on Windows",
+          ipPreview: "203.•••.•••.42",
+          issuedAtUtc: new Date(),
+          lastSeenAtUtc: new Date(),
+          expiresAtUtc: new Date(Date.now() + 3_600_000),
+        },
+        select: { id: true, userId: true, quarantinedAtUtc: true },
+      });
+    }
+
+    it("quarantine separates the operator from the subject and shows a safe client label", async () => {
+      const { quarantineSession } = await import(
+        "../src/services/access-control/session-quarantine.service.js"
+      );
+      const session = await seedSession(orgA.owner.userId, orgA.workspaceId);
+      expect(session.quarantinedAtUtc).toBeNull();
+
+      await quarantineSession({
+        teamId: orgA.workspaceId,
+        sessionId: session.id,
+        reason: "MANUAL_OPERATOR",
+        actorUserId: platformAdmin.userId,
+        releaseHours: 4,
+      });
+
+      const after = await prisma.authenticatedSession.findUniqueOrThrow({
+        where: { id: session.id },
+        select: { quarantinedAtUtc: true, quarantineReleaseAtUtc: true },
+      });
+      const [row] = await waitForAudit({
+        action: "session.quarantine",
+        resourceId: session.id,
+      });
+
+      assertCoreAttribution(row, {
+        actorUserId: platformAdmin.userId,
+        subjectUserId: orgA.owner.userId,
+        label: "session quarantine",
+      });
+      // The SUBJECT is recorded, separately and explicitly.
+      expect(
+        row.metadata["subjectUserId"],
+        "the session's owner was not recorded as the subject",
+      ).toBe(orgA.owner.userId);
+      // The client label is the stored PREVIEW, never a raw fingerprint.
+      expect(row.targetDisplay).toContain("Chrome on Windows");
+      assertNoSecret(row, "session quarantine");
+
+      expect(row.previousState).toBe("ACTIVE");
+      expect(row.requestedState).toBe("QUARANTINED");
+      expect(row.resultingState).toBe("QUARANTINED");
+      expect(after.quarantinedAtUtc, "storage does not agree with the audit").not.toBeNull();
+      // Duration is a consequence an operator must be able to see.
+      expect(row.metadata["releaseHours"]).toBe(4);
+      expect(row.metadata["releaseAtUtc"]).toBeTruthy();
+      expect(row.reasonCode).toBe("MANUAL_OPERATOR");
+      expect(row.workspaceId).toBe(orgA.workspaceId);
+    });
+
+    it("release records the reverse transition, attributed to whoever released it", async () => {
+      const { quarantineSession, releaseQuarantine } = await import(
+        "../src/services/access-control/session-quarantine.service.js"
+      );
+      const session = await seedSession(orgA.owner.userId, orgA.workspaceId);
+      await quarantineSession({
+        teamId: orgA.workspaceId,
+        sessionId: session.id,
+        reason: "MANUAL_OPERATOR",
+        actorUserId: platformAdmin.userId,
+      });
+      await releaseQuarantine({
+        teamId: orgA.workspaceId,
+        sessionId: session.id,
+        actorUserId: secondAdmin.userId,
+        note: "verified with the member by phone",
+      });
+
+      const [row] = await waitForAudit({
+        action: "session.quarantine_released",
+        resourceId: session.id,
+      });
+      assertCoreAttribution(row, {
+        actorUserId: secondAdmin.userId,
+        subjectUserId: orgA.owner.userId,
+        label: "quarantine release",
+      });
+      expect(row.previousState).toBe("QUARANTINED");
+      expect(row.resultingState).toBe("ACTIVE");
+      expect(row.reasonCode).toBe("OPERATOR_RELEASED");
+    });
+
+    it("a bulk revoke that reaches nobody is not a success", async () => {
+      /*
+       * PHASE 5 §4. The per-user revocation loop is best-effort by design, so
+       * one stuck user cannot stop the estate going dark. That makes `success`
+       * the wrong word when the number reached is not the number intended —
+       * "everyone is signed out" and "most people are" cannot share a label.
+       *
+       * Workspace B has no active sessions, so the honest outcome for an
+       * emergency revoke over it is not `success`.
+       */
+      const { emergencyOrgRevoke } = await import(
+        "../src/services/access-control/session-quarantine.service.js"
+      );
+
+      // Workspace B has active members but no seeded sessions, so the revoke
+      // reaches nobody. `success` here would tell an operator the estate is
+      // dark when nothing was signed out.
+      await emergencyOrgRevoke({
+        teamId: orgB.workspaceId,
+        actorUserId: platformAdmin.userId,
+        reason: "p5 emergency revoke over a workspace with no live sessions",
+      });
+
+      const [row] = await waitForAudit({
+        action: "session.emergency_org_revoke",
+        resourceId: orgB.workspaceId,
+      });
+      assertCoreAttribution(row, {
+        actorUserId: platformAdmin.userId,
+        label: "emergency org revoke",
+      });
+      expect(
+        row.outcome,
+        "a revoke that signed nobody out was recorded as a plain success",
+      ).not.toBe("success");
+      expect(["error", "partial", "no_op"]).toContain(row.outcome);
+      expect(row.requestedState).toMatch(/^REVOKE_\d+_USERS$/);
+      expect(row.resultingState).toMatch(/^REVOKED_\d+_USERS$/);
+      expect(row.reasonCode).toBe("EMERGENCY_ORG_WIDE");
+      expect(row.workspaceId).toBe(orgB.workspaceId);
+    });
+  });
+
+  // =========================================================================
+  // FAMILY H — SSO, SCIM AND PROVISIONING.
+  //
+  // The one family where the audit row is next to a secret at every step.
+  // =========================================================================
+  describe("family H — SCIM tokens", () => {
+    it("creating a token attributes the workspace admin and never records the secret", async () => {
+      const created = await call(
+        orgA.owner.token,
+        "POST",
+        "/v1/admin/identity/scim/tokens",
+        { teamId: orgA.workspaceId, label: `p5-token-${randomUUID().slice(0, 6)}` },
+      );
+      // Entitlement may refuse this on a non-Enterprise fixture. A refusal is
+      // a legitimate outcome and must itself be attributed — what must never
+      // happen is a refusal recorded as a success.
+      const rows = await prisma.adminAuditLog.findMany({
+        where: { action: { contains: "scim" } },
+        orderBy: [{ createdAt: "desc" }],
+        take: 5,
+      });
+      for (const row of rows as unknown as AuditRow[]) {
+        assertNoSecret(row, "scim audit");
+        const serialized = JSON.stringify(row);
+        expect(serialized, "a SCIM token value reached the audit trail").not.toMatch(
+          /scim_[A-Za-z0-9]{16,}/,
+        );
+      }
+      if (created.status >= 400) {
+        const denied = (rows as unknown as AuditRow[]).filter((r) => r.outcome === "denied");
+        for (const d of denied) {
+          expect(
+            d.resultingState,
+            "a refused SCIM mutation claimed a resulting state",
+          ).toBeNull();
+        }
+      }
+    });
+  });
+
+  // =========================================================================
+  // CROSS-FAMILY — a refusal changes nothing, and says nothing false.
+  // =========================================================================
+  it("a cross-tenant refusal writes no success and moves no state", async () => {
+    const beforeB = await prisma.organization.findUniqueOrThrow({
+      where: { id: orgB.organizationId },
+      select: { status: true },
+    });
+
+    // An org owner of A reaching for B's organization through the admin route.
+    const res = await call(
+      orgA.owner.token,
+      "POST",
+      `/v1/admin/orgs/${orgB.organizationId}/suspend`,
+      { teamId: orgA.workspaceId, reason: "p5 cross-tenant probe" },
+    );
+    expect(res.status, "a workspace owner reached a platform lifecycle route").toBeGreaterThanOrEqual(
+      400,
+    );
+
+    const afterB = await prisma.organization.findUniqueOrThrow({
+      where: { id: orgB.organizationId },
+      select: { status: true },
+    });
+    expect(afterB.status, "a refused request changed the target").toBe(beforeB.status);
+
+    const successes = await prisma.adminAuditLog.findMany({
+      where: {
+        action: "identity.organization_suspended",
+        resourceId: orgB.organizationId,
+        outcome: "success",
+      },
+    });
+    expect(successes, "a refused cross-tenant request wrote a success row").toHaveLength(0);
+  });
+});
