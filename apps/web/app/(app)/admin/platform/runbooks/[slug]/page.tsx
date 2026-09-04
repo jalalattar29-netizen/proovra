@@ -47,6 +47,7 @@ import {
   runbookBySlug,
 } from "../../../../../../lib/runbooks/catalog.generated";
 import { renderRunbookMarkdown } from "../../../../../../lib/runbooks/render";
+import { resolveRunbookAccess } from "../../../../../../lib/runbooks/server-authorization";
 import { RunbookLayout } from "../_RunbookLayout";
 import "../runbooks.css";
 
@@ -90,6 +91,9 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
+  // The title is content too: it names an internal failure mode. An
+  // unauthorized caller gets the generic title, never the runbook's.
+  if ((await resolveRunbookAccess()) !== "AUTHORIZED") return { title: "Runbook" };
   const { slug } = await params;
   const rb = runbookBySlug(slug);
   return { title: rb ? `${rb.title} — Runbook` : "Runbook" };
@@ -100,6 +104,17 @@ export default async function RunbookDetailPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  // THE BOUNDARY. Authorization is resolved BEFORE the catalog is consulted,
+  // so an unauthorized response does not contain a hidden body — it contains
+  // no body. `PageRouteGate` still renders the canonical denial panel for the
+  // browser; it is no longer what decides whether the content was sent.
+  const access = await resolveRunbookAccess();
+  if (access !== "AUTHORIZED") {
+    return (
+      <PageRouteGate routeId="platform.runbook_document">{null}</PageRouteGate>
+    );
+  }
+
   const { slug } = await params;
   const rb = runbookBySlug(slug);
   if (!rb) notFound();

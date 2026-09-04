@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { RUNBOOK_SLUGS } from "./lib/runbooks/slugs.generated";
+
+/** `/admin/platform/runbooks/<slug>` — the detail route, not the index. */
+const RUNBOOK_DETAIL_PATH = /^\/admin\/platform\/runbooks\/([^/]+)\/?$/;
+
 import { findSurfaceTierRule } from "./lib/surface/tiers";
 
 const APP_BASE = process.env.NEXT_PUBLIC_APP_BASE;
@@ -243,6 +248,31 @@ export function middleware(req: NextRequest) {
 
     const host = req.headers.get("host");
     const pathname = req.nextUrl.pathname;
+
+    // ── Unknown runbook slug → a REAL 404, before anything renders ──────────
+    //
+    // `/admin/platform/runbooks/[slug]` used to get this from
+    // `dynamicParams = false`: an unlisted param was rejected at the routing
+    // layer, which is a true 404 status and never mounts the console shell.
+    //
+    // That page now authorizes per request (it reads `cookies()`), so it is
+    // dynamically rendered and the static param list no longer gates it. A
+    // dynamic page under the (app) layout cannot answer 404 — the layout has
+    // already streamed and the status line is spent — which is exactly the
+    // trade-off the page's own header documented.
+    //
+    // Middleware runs BEFORE routing, so the status is still ours to set.
+    // Rewriting to a path with no route yields Next's own 404 handling with a
+    // genuine 404 status, which is what the page did before and what link
+    // checkers and uptime monitors read. The membership test is deliberately
+    // the CANONICAL slug set only: aliases 404 here exactly as they do today,
+    // so this change fixes the status regression and nothing else.
+    const runbookSlug = RUNBOOK_DETAIL_PATH.exec(pathname)?.[1];
+    if (runbookSlug !== undefined && !RUNBOOK_SLUGS.has(runbookSlug)) {
+      const target = req.nextUrl.clone();
+      target.pathname = "/not-found";
+      return NextResponse.rewrite(target);
+    }
 
     // ✅ لا تسجّل CSP logs في production
     // إذا بدكها فقط في dev:
