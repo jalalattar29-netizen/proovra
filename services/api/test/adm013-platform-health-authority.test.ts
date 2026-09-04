@@ -29,12 +29,18 @@ const getQueueInventoryMock = vi.fn();
 const getWorkerHealthMock = vi.fn();
 const runReadinessCheckMock = vi.fn();
 const buildEvidenceHealthSnapshotMock = vi.fn();
+// The worker heartbeat is now its OWN source of this snapshot, so a world
+// that claims to be healthy has to include a living worker in it.
+const workerHeartbeatFindMany = vi.fn();
 
 vi.mock("../src/db.js", () => ({
   prisma: {
     operationalIncident: {
       groupBy: (...a: unknown[]) => incidentGroupBy(...a),
       count: (...a: unknown[]) => incidentCount(...a),
+    },
+    workerTelemetrySnapshot: {
+      findMany: (...a: unknown[]) => workerHeartbeatFindMany(...a),
     },
   },
 }));
@@ -85,6 +91,18 @@ function healthyWorld(): void {
       health: "healthy",
       oldestWaitingAgeMs: null,
       disabledReason: null,
+    },
+  ]);
+  // One instance, reporting a second ago: LIVE.
+  workerHeartbeatFindMany.mockResolvedValue([
+    {
+      workerId: "fixture-worker-1",
+      workerKind: "WORKER",
+      status: "HEALTHY",
+      heartbeatAtUtc: new Date(Date.now() - 1000),
+      processedCount: 13,
+      failedCount: 0,
+      metadataJson: null,
     },
   ]);
   getWorkerHealthMock.mockResolvedValue([
@@ -454,5 +472,64 @@ describe("ADM-013 Phase 3 — a new readiness probe cannot go unreported", () =>
     // An absent probe is not a passing probe.
     expect(s.search.state).toBe("UNKNOWN");
     expect(s.overall.state).not.toBe("HEALTHY");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ONE EVALUATION, ONE STATE PER SUBSYSTEM.
+//
+// The concrete defect: `queues` and `workers` each appeared TWICE in one
+// payload — once as an owned axis and once as a readiness probe contributed
+// under the same id — so a single response could carry "workers: HEALTHY" and
+// "workers: DEGRADED" together. Renaming the readiness rows fixed the
+// collision; this asserts the property rather than the rename, so any future
+// contributor that re-introduces a duplicate id fails here.
+// ---------------------------------------------------------------------------
+describe("a single evaluation cannot contradict itself", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __resetPlatformHealthSnapshotFreshness();
+    healthyWorld();
+  });
+
+  it("never emits one subsystem id twice", async () => {
+    const s = await buildPlatformHealthSnapshot();
+    const all = [
+      s.queues,
+      s.workers,
+      s.search,
+      s.evidencePipeline,
+      ...s.dependencies,
+    ];
+    const ids = all.map((x) => x.id);
+    const duplicated = ids.filter((id, i) => ids.indexOf(id) !== i);
+    expect(duplicated, `duplicate subsystem ids: ${duplicated.join(", ")}`).toEqual([]);
+  });
+
+  it("never reports two different states for one subsystem", async () => {
+    const s = await buildPlatformHealthSnapshot();
+    const byId = new Map<string, Set<string>>();
+    for (const sub of [
+      s.queues,
+      s.workers,
+      s.search,
+      s.evidencePipeline,
+      ...s.dependencies,
+    ]) {
+      if (!byId.has(sub.id)) byId.set(sub.id, new Set());
+      byId.get(sub.id)!.add(sub.state);
+    }
+    const contradictions = [...byId.entries()]
+      .filter(([, states]) => states.size > 1)
+      .map(([id, states]) => `${id}: ${[...states].join(" AND ")}`);
+    expect(contradictions).toEqual([]);
+  });
+
+  it("gives every non-healthy subsystem an operator action, so no state word is unactionable", async () => {
+    const s = await buildPlatformHealthSnapshot();
+    const silent = [s.queues, s.workers, s.search, s.evidencePipeline, ...s.dependencies]
+      .filter((x) => x.state !== "HEALTHY" && !x.operatorAction)
+      .map((x) => `${x.id}=${x.state}`);
+    expect(silent).toEqual([]);
   });
 });

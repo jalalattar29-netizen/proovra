@@ -25,7 +25,12 @@ import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { RuntimeDegradedNotice } from "./OperationalEmptyState";
 import { OPS_TONES } from "./tokens";
 
-type ReadinessStatus = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+type ReadinessStatus =
+  | "HEALTHY"
+  | "DEGRADED"
+  | "CRITICAL"
+  | "STALE"
+  | "UNKNOWN";
 
 /**
  * Phase 32.7 — bounded operational domain enum mirrored from the

@@ -69,13 +69,61 @@ export type TelemetrySampler = {
   stop: () => void;
 };
 
+/**
+ * THE HEARTBEAT IS THE ONLY EVIDENCE THAT THIS PROCESS EXISTS.
+ *
+ * Everything the platform says about worker liveness is derived from the rows
+ * this function writes, so what goes in them matters:
+ *
+ *   workerId    identity. Two instances MUST NOT share one, or the fleet
+ *               aggregates to a single row and losing one instance becomes
+ *               invisible. It comes from WORKER_ID, else the hostname, else a
+ *               per-process random suffix — never a bare constant.
+ *   metadata    the build this heartbeat came from and the queues this
+ *               instance actually subscribes to. Without the build, "the fleet
+ *               is live" cannot distinguish a live NEW deployment from a live
+ *               OLD one that never got replaced; without the subscriptions, a
+ *               worker that is alive but listening to nothing looks identical
+ *               to one doing the work.
+ *
+ * The interval is env-overridable so a lifecycle proof can run in seconds, and
+ * bounded (15s–600s) so a mistyped value cannot silently stop the heartbeat or
+ * hammer the database.
+ */
+function resolveWorkerId(explicit?: string): string {
+  if (explicit) return explicit.slice(0, 120);
+  const fromEnv = process.env.WORKER_ID?.trim();
+  if (fromEnv) return fromEnv.slice(0, 120);
+  const host = process.env.HOSTNAME?.trim() || "worker";
+  // The pid keeps two instances on one host distinct, which is precisely the
+  // case where a shared id would hide a dead one.
+  return `${host}-${process.pid}`.slice(0, 120);
+}
+
+/** Build/revision, for telling a live new deployment from a live old one. */
+function resolveBuildRevision(): string | null {
+  const rev =
+    process.env.GIT_SHA ??
+    process.env.GIT_COMMIT ??
+    process.env.SOURCE_VERSION ??
+    process.env.BUILD_REVISION ??
+    null;
+  return rev ? rev.trim().slice(0, 64) : null;
+}
+
 export function startTelemetrySampler(opts?: {
   intervalMs?: number;
   workerId?: string;
 }): TelemetrySampler {
-  const interval = Math.min(Math.max(opts?.intervalMs ?? 60_000, 15_000), 600_000);
-  const workerId = (opts?.workerId ?? "worker-default").slice(0, 120);
+  const envInterval = Number(process.env.WORKER_HEARTBEAT_INTERVAL_MS ?? "");
+  const requested =
+    opts?.intervalMs ?? (Number.isFinite(envInterval) && envInterval > 0
+      ? envInterval
+      : 60_000);
+  const interval = Math.min(Math.max(requested, 15_000), 600_000);
+  const workerId = resolveWorkerId(opts?.workerId);
   const queues = buildSampledQueues();
+  const buildRevision = resolveBuildRevision();
 
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
@@ -127,6 +175,14 @@ export function startTelemetrySampler(opts?: {
             processedCount,
             failedCount,
             durationMs: duration,
+            // Operator-safe and bounded: a revision string, an interval, and
+            // queue NAMES. No payloads, no URLs, no credentials.
+            metadataJson: {
+              buildRevision,
+              heartbeatIntervalMs: interval,
+              queueSubscriptions: queues.map((q) => q.name),
+              nodeVersion: process.version,
+            },
           },
         });
       } catch (err) {

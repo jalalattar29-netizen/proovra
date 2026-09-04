@@ -39,6 +39,8 @@ type ServiceStatus =
   | "healthy"
   | "degraded"
   | "critical"
+  | "stale"
+  | "unavailable"
   | "unknown"
   | "not_connected";
 
@@ -97,6 +99,13 @@ function statusPresentation(status: ServiceStatus): {
       return { tone: "risk", label: "Critical" };
     case "not_connected":
       return { tone: "neutral", label: "Not connected" };
+    // Neither is green. "Stale" means we have a reading and it is old;
+    // "Unavailable" means the source could not be read at all. An operator
+    // chases a stopped worker for the first and a broken query for the second.
+    case "stale":
+      return { tone: "pending", label: "Stale" };
+    case "unavailable":
+      return { tone: "neutral", label: "Unavailable" };
     case "unknown":
     default:
       return { tone: "neutral", label: "Not measured" };
@@ -106,6 +115,7 @@ function statusPresentation(status: ServiceStatus): {
 function cardTone(status: ServiceStatus): "verified" | "risk" | "neutral" {
   if (status === "healthy") return "verified";
   if (status === "critical") return "risk";
+  // stale is not an outage, but it is never green either.
   // degraded / unknown / not_connected are non-green, non-red neutrals.
   return "neutral";
 }

@@ -71,11 +71,17 @@
  * The reconciliation is a first-class part of the snapshot rather than
  * something each surface derives:
  *
- *   openDurableIncidents     72   rows in the incident table
+ *   openDurableIncidents     72   OPEN rows in the incident table
+ *   unresolvedDurable        73   OPEN or ACKNOWLEDGED rows
  *   activeUnresolvedSignals  78   every alert-worthy signal right now
- *   incidentBackedSignals    72   of those, the ones an incident produced
+ *   incidentBackedSignals    72   of those, the ones an OPEN incident produced
  *   additionalSignals         6   of those, the ones nothing durable owns
- *   distinctAttentionItems   78   incidents + additional, counted once each
+ *   distinctAttentionItems   79   unresolved incidents + additional, once each
+ *
+ * The last line uses `unresolvedDurable`, not `openDurableIncidents`. The
+ * alert builder only emits for OPEN incidents, so an ACKNOWLEDGED one is
+ * neither incident-backed nor additional — using the OPEN count dropped it
+ * from the total entirely, and the card beside it said "unresolved".
  *
  * `distinctAttentionItems` is the number a human should act on, and it is
  * derived here so that no card can invent a different one.
@@ -90,7 +96,8 @@ import {
   type AlertSource,
   type PlatformAlert,
 } from "../admin/alerts.service.js";
-import { getQueueInventory, getWorkerHealth } from "./queue-inventory.service.js";
+import { getQueueInventory } from "./queue-inventory.service.js";
+import { getWorkerFleetHealth } from "./worker-liveness.service.js";
 import { runReadinessCheck } from "../../runtime/runtime-readiness.js";
 import { buildEvidenceHealthSnapshot } from "./evidence-health.service.js";
 
@@ -108,7 +115,21 @@ export const PLATFORM_HEALTH_SNAPSHOT_VERSION = 1 as const;
  */
 export const SNAPSHOT_STALENESS_BOUND_SECONDS = 120;
 
-export type HealthState = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+/**
+ * STALE is its own state, not a flavour of DEGRADED.
+ *
+ * "Degraded" tells an operator the subsystem is working badly. "Stale" tells
+ * them the platform does not currently know how it is working and is showing
+ * them an old answer. Those lead to different actions — one is a capacity
+ * problem, the other is a visibility problem — and collapsing them is how a
+ * fleet that stopped reporting was read as a fleet that was merely busy.
+ */
+export type HealthState =
+  | "HEALTHY"
+  | "DEGRADED"
+  | "CRITICAL"
+  | "STALE"
+  | "UNKNOWN";
 
 /** Why a source is not contributing. Never inferred — always recorded. */
 export type SourceOutcome = "OK" | "PARTIAL" | "UNAVAILABLE";
@@ -268,10 +289,22 @@ async function runSource<T>(
   }
 }
 
-/** Worst-first ordering, so a rollup can take the maximum. */
+/**
+ * Worst-first ordering, so a rollup can take the maximum.
+ *
+ * STALE sits above UNKNOWN and below DEGRADED. Above UNKNOWN because a
+ * subsystem that reported and then stopped is positive evidence something
+ * changed, where an unreadable collector is only an absence of evidence.
+ * Below DEGRADED because a known-bad subsystem is a fact and a stale one is
+ * a doubt, and a rollup should surface the fact first.
+ *
+ * What matters more than the exact order: no state here rounds down to
+ * HEALTHY, so a rollup can never paint the platform green over any of them.
+ */
 const STATE_RANK: Record<HealthState, number> = {
-  CRITICAL: 3,
-  DEGRADED: 2,
+  CRITICAL: 4,
+  DEGRADED: 3,
+  STALE: 2,
   UNKNOWN: 1,
   HEALTHY: 0,
 };
@@ -332,10 +365,11 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
   const openDurable = incidentRows
     ? incidentRows.openBySeverity.reduce((n, r) => n + r._count._all, 0)
     : null;
+  const unresolvedDurable = incidentRows ? incidentRows.unresolved : null;
 
   const incidents: IncidentBreakdown = {
     openDurable,
-    unresolvedDurable: incidentRows ? incidentRows.unresolved : null,
+    unresolvedDurable,
     bySeverity: {
       critical: incidentRows ? (bySeverity.get("CRITICAL") ?? 0) : null,
       high: incidentRows ? (bySeverity.get("HIGH") ?? 0) : null,
@@ -388,17 +422,31 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
   /**
    * Incidents plus the signals nothing durable owns.
    *
-   * NOT `openDurable + activeUnresolved`, which double-counts every incident,
-   * and not `activeUnresolved` alone, which under-counts when the alert
-   * builder's `take: 100` truncates a larger incident population. Taking the
-   * larger of the two incident figures is deliberate: the table is the
-   * authority on how many incidents exist, and the alert list is the authority
-   * on how many non-incident signals exist.
+   * NOT `unresolvedDurable + activeUnresolved`, which double-counts every
+   * incident, and not `activeUnresolved` alone, which under-counts when the
+   * alert builder's `take: 100` truncates a larger incident population. The
+   * table is the authority on how many incidents exist; the alert list is the
+   * authority on how many non-incident signals exist.
+   *
+   * THE INCIDENT TERM IS `unresolvedDurable`, NOT `openDurable`.
+   *
+   * It used to be `openDurable`, and that silently dropped every ACKNOWLEDGED
+   * incident out of the total. The alert builder only emits a signal for OPEN
+   * incidents, so an acknowledged one is neither incident-backed NOR
+   * additional — it appeared in no term at all, and a card reading
+   * "14 unresolved incidents" sat beside a total of 29 that had counted 13 of
+   * them. Acknowledged means somebody has seen it, not that it is finished,
+   * and a reconciliation whose parts do not add to its own total is the exact
+   * defect this field exists to prevent.
+   *
+   * No double count is introduced: were the builder ever to emit for an
+   * acknowledged incident, that signal would be incident-BACKED and so would
+   * not appear in `additional` either.
    */
   const distinctAttentionItems =
-    openDurable === null || signals.additional === null
+    unresolvedDurable === null || signals.additional === null
       ? null
-      : openDurable + signals.additional;
+      : unresolvedDurable + signals.additional;
 
   // ---- Queues + workers ---------------------------------------------------
   const inventory = await runSource(
@@ -407,12 +455,19 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
     () => getQueueInventory(),
     sources,
   );
-  const workers = await runSource(
-    "workers",
-    "Worker heartbeat",
-    () => getWorkerHealth(),
-    sources,
-  );
+  /**
+   * The heartbeat is its own source, recorded as one, so an unreadable
+   * heartbeat store shows up in `unavailableSources` instead of quietly
+   * becoming a healthy-looking absence. `getWorkerFleetHealth` never throws —
+   * it returns UNAVAILABLE — so this always yields a projection.
+   */
+  const fleet = await getWorkerFleetHealth();
+  sources.push({
+    id: "worker_heartbeat",
+    label: "Worker heartbeat",
+    outcome: fleet.state === "UNAVAILABLE" ? "UNAVAILABLE" : "OK",
+    detail: fleet.reason,
+  });
 
   const nowIso = new Date().toISOString();
 
@@ -481,72 +536,37 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
     };
   })();
 
-  const workerHealth: SubsystemHealth = (() => {
-    if (!workers) {
-      return {
-        id: "workers",
-        label: "Workers",
-        state: "UNKNOWN",
-        reason:
-          "Worker heartbeat could not be read, so worker liveness is unknown for this evaluation.",
-        operatorAction:
-          "Check Redis reachability from the API process, then re-evaluate.",
-        runbookSlug: "queue-inventory-unavailable",
-        affectedResource: null,
-        observedAtUtc: nowIso,
-      };
-    }
-    const missing = workers.filter((w) => w.status === "missing");
-    const degraded = workers.filter((w) => w.status === "degraded");
-    const unknown = workers.filter((w) => w.status === "unknown");
-    if (missing.length > 0) {
-      return {
-        id: "workers",
-        label: "Workers",
-        state: "CRITICAL",
-        reason: `${missing.length} worker${missing.length === 1 ? " is" : "s are"} unreachable.`,
-        operatorAction:
-          "Confirm the worker deployment is running and connected before replaying anything.",
-        runbookSlug: "worker-heartbeat-stale",
-        affectedResource: missing.map((w) => w.queueName).join(", "),
-        observedAtUtc: nowIso,
-      };
-    }
-    if (degraded.length > 0) {
-      return {
-        id: "workers",
-        label: "Workers",
-        state: "DEGRADED",
-        reason: `${degraded.length} worker${degraded.length === 1 ? " is" : "s are"} stalled or backed up.`,
-        operatorAction: "Inspect stalled jobs; a stalled job holds its lock until the lease expires.",
-        runbookSlug: "worker-heartbeat-stale",
-        affectedResource: degraded.map((w) => w.queueName).join(", "),
-        observedAtUtc: nowIso,
-      };
-    }
-    if (unknown.length > 0) {
-      return {
-        id: "workers",
-        label: "Workers",
-        state: "UNKNOWN",
-        reason: `${unknown.length} worker${unknown.length === 1 ? " reports" : "s report"} no usable status.`,
-        operatorAction: "Confirm the worker publishes telemetry for these queues.",
-        runbookSlug: "worker-heartbeat-stale",
-        affectedResource: unknown.map((w) => w.queueName).join(", "),
-        observedAtUtc: nowIso,
-      };
-    }
-    return {
-      id: "workers",
-      label: "Workers",
-      state: "HEALTHY",
-      reason: `${workers.length} worker${workers.length === 1 ? "" : "s"} reporting activity.`,
-      operatorAction: null,
-      runbookSlug: null,
-      affectedResource: null,
-      observedAtUtc: nowIso,
-    };
-  })();
+  /**
+   * WORKERS ARE ANSWERED BY THE HEARTBEAT, AND ONLY BY THE HEARTBEAT.
+   *
+   * This block used to classify the fleet from per-queue rows: `missing`
+   * became CRITICAL, `degraded` became DEGRADED. Both are statements about
+   * QUEUES. A fleet whose heartbeat had aged out therefore surfaced as
+   * "N workers are unreachable" — a CRITICAL sentence derived from queue
+   * state — while the one source that actually knew, the heartbeat, was
+   * never consulted. The fleet health projection is now the single input, so
+   * this row says what the heartbeat supports and nothing more.
+   */
+  const workerHealth: SubsystemHealth = {
+    id: "workers",
+    label: "Workers",
+    state:
+      fleet.state === "HEALTHY"
+        ? "HEALTHY"
+        : fleet.state === "STALE"
+          ? "STALE"
+          : "UNKNOWN",
+    reason: fleet.reason,
+    operatorAction: fleet.operatorAction,
+    runbookSlug: fleet.state === "HEALTHY" ? null : "worker-heartbeat-stale",
+    affectedResource:
+      fleet.instances.length > 0
+        ? fleet.instances.map((i) => i.workerId).join(", ")
+        : null,
+    // The last heartbeat, not the moment we looked — a STALE row stamped
+    // "now" tells the reader nothing about how old the truth is.
+    observedAtUtc: fleet.lastHeartbeatAtUtc ?? nowIso,
+  };
 
   // ---- Readiness: dependencies + search + schema --------------------------
   const readiness = await runSource(

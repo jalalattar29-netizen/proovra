@@ -69,7 +69,12 @@ import {
 
 const POLL_INTERVAL_MS = 30_000;
 
-type HealthState = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+type HealthState =
+  | "HEALTHY"
+  | "DEGRADED"
+  | "CRITICAL"
+  | "STALE"
+  | "UNKNOWN";
 
 type WorkspaceHealth = {
   scope: "WORKSPACE";
@@ -118,6 +123,9 @@ const STATE_TONE: Record<HealthState, AppTone> = {
   HEALTHY: "green",
   DEGRADED: "amber",
   CRITICAL: "red",
+  // Amber, not slate: STALE is an observation that something stopped
+  // reporting, which is a warning. UNKNOWN is the absence of any observation.
+  STALE: "amber",
   UNKNOWN: "slate",
 };
 
@@ -125,6 +133,7 @@ const STATE_WORD: Record<HealthState, string> = {
   HEALTHY: "Healthy",
   DEGRADED: "Degraded",
   CRITICAL: "Critical",
+  STALE: "Stale",
   UNKNOWN: "Unknown",
 };
 

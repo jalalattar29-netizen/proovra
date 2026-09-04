@@ -51,6 +51,8 @@ type PlatformOverview = {
     reason: string;
     activeIncidents: OverviewFigure;
     degradedServices: Metric<number>;
+    /** Live worker instances, from the heartbeat authority. */
+    workerFleet: Metric<number>;
     unresolvedAlerts: Metric<number>;
     criticalAlerts: Metric<number>;
     highAlerts: Metric<number>;
@@ -525,6 +527,14 @@ export default function AdminOverviewPage() {
                 emphasis="attention"
               />
               <AdminStat label="Degraded services" metric={ov.status.degradedServices} />
+              {/* The fleet reads STALE when it reported and stopped: the tile
+                  keeps the last real instance count rather than dropping to a
+                  zero that would be indistinguishable from an idle fleet. */}
+              <AdminStat
+                label="Worker fleet"
+                metric={ov.status.workerFleet}
+                hint="Instances that reported a heartbeat inside the freshness window"
+              />
               <AdminStat label="Critical alerts" metric={ov.status.criticalAlerts} emphasis="critical" />
             </AdminStatGrid>
             {/* THE RECONCILIATION.

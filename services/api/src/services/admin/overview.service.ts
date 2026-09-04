@@ -9,6 +9,7 @@ import {
   buildPlatformHealthSnapshot,
   type PlatformHealthSnapshot,
 } from "../operations/platform-health-snapshot.service.js";
+import { getWorkerFleetHealth } from "../operations/worker-liveness.service.js";
 import { untriagedIncidentWhere } from "../operations/incident-open-statuses.js";
 import { buildEvidenceHealthSnapshot } from "../operations/evidence-health.service.js";
 import {
@@ -104,6 +105,15 @@ export type PlatformOverview = {
     unresolvedAlerts: Metric<number>;
     criticalAlerts: Metric<number>;
     highAlerts: Metric<number>;
+    /**
+     * Live worker instances, from the ONE heartbeat authority.
+     *
+     * This is the field that carries STALE to the Overview: a fleet that
+     * stopped reporting keeps its last real count here with a STALE state,
+     * rather than disappearing into a queue-derived sentence somewhere else
+     * on the page.
+     */
+    workerFleet: Metric<number>;
     /**
      * ADM-013 PHASE 3 — THE RECONCILIATION.
      *
@@ -460,6 +470,14 @@ export async function buildPlatformOverview(
     snapshot = null;
   }
 
+  /**
+   * The fleet is read directly rather than lifted out of the snapshot, so that
+   * a snapshot failure cannot erase a worker verdict the heartbeat could still
+   * answer — and so this page and Platform Health call the SAME function
+   * rather than two readings of one table.
+   */
+  const fleet = await getWorkerFleetHealth();
+
   const snapshotUnavailable: Metric<number> = {
     state: "ERROR",
     value: null,
@@ -634,6 +652,7 @@ export async function buildPlatformOverview(
       unresolvedAlerts,
       criticalAlerts,
       highAlerts,
+      workerFleet: fleet.metric,
       incidentBackedSignals,
       additionalSignals,
       distinctAttentionItems,

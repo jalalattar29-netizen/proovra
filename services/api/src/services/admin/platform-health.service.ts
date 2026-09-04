@@ -31,6 +31,7 @@ import {
 } from "../../runtime/runtime-readiness.js";
 import { probeSignerHealth } from "../operations/signer-health.service.js";
 import { getQueueInventory } from "../operations/queue-inventory.service.js";
+import { getWorkerFleetHealth } from "../operations/worker-liveness.service.js";
 import { buildObservabilityHealth } from "../observability/registry.js";
 import { computeReadinessPosture } from "../operations/readiness-posture.service.js";
 import { probeAzureDocumentIntelligence } from "../redaction/providers/azure-document-intelligence-client.js";
@@ -55,6 +56,10 @@ export type ServiceStatus =
   | "healthy"
   | "degraded"
   | "critical"
+  /** Reported, but the reading is older than its freshness rule. */
+  | "stale"
+  /** The source itself could not be read. Different from never having one. */
+  | "unavailable"
   | "unknown"
   | "not_connected";
 
@@ -255,11 +260,48 @@ export async function buildPlatformHealth(): Promise<PlatformHealth> {
     "s3_object_lock",
     "Object Lock configuration probe via runtime-readiness.",
   );
+  /**
+   * "BACKGROUND WORKERS" NOW MEANS THE WORKERS.
+   *
+   * This row used to be the readiness `workers` axis, which checks for a
+   * recent `reviewer_reconcile_run` security event. That is an API-side
+   * scheduled sweep, not the worker fleet. On a fixture with no cron secret
+   * configured it read "Background workers — Degraded — Reconcile endpoint
+   * cannot be authenticated", which is a true sentence about the wrong
+   * subsystem: it says nothing at all about whether a worker is alive, and it
+   * would have read exactly the same with a healthy fleet or with none.
+   *
+   * The row now comes from the same heartbeat projection the snapshot uses, so
+   * this page and Observability cannot disagree. The reconcile sweep keeps its
+   * own row below, under the name of the thing it actually measures.
+   */
+  const fleet = await getWorkerFleetHealth();
+  services.push({
+    key: "workers",
+    label: "Background workers",
+    status:
+      fleet.state === "HEALTHY"
+        ? "healthy"
+        : fleet.state === "STALE"
+          ? "stale"
+          : fleet.state === "UNAVAILABLE"
+            ? "unavailable"
+            : "unknown",
+    // The last heartbeat, so a stale row shows how old the truth is rather
+    // than the moment we happened to look.
+    lastCheckedAtUtc: fleet.lastHeartbeatAtUtc ?? nowIso,
+    detail:
+      fleet.lastHeartbeatAtUtc === null
+        ? fleet.reason
+        : `${fleet.reason} Last heartbeat ${fleet.lastHeartbeatAgeSeconds}s ago; a worker is considered live for ${fleet.staleAfterSeconds}s after it reports.`,
+    lastError: fleet.state === "UNAVAILABLE" ? fleet.reason : undefined,
+  });
+
   pushSubsystem(
+    "reviewer_reconcile",
+    "Reviewer reconcile sweep",
     "workers",
-    "Background workers",
-    "workers",
-    "Worker heartbeat probe via runtime-readiness.",
+    "Presence of a recent reviewer_reconcile_run security event. This is an API-side scheduled sweep, not worker liveness.",
   );
   pushSubsystem(
     "queues",

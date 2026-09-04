@@ -39,9 +39,78 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  metricError,
+  metricNotMeasured,
+  metricStale,
+  metricValue,
+  type Metric,
+} from "../admin/metric-state.js";
+
+/**
+ * THE HEARTBEAT CONTRACT, IN ONE PLACE.
+ *
+ * The worker's sampler (`services/worker/src/telemetry.ts`) writes one
+ * `worker_telemetry_snapshots` row per cycle from inside a `finally`, so a
+ * sample lands even when every queue probe that cycle threw. Its interval is
+ * bounded at the source: default 60s, floor 15s, ceiling 600s.
+ *
+ * The stale threshold has to be a MULTIPLE of that interval, not a number
+ * picked to feel right. At exactly one interval every ordinary scheduling
+ * delay reads as a dead fleet; at three, a worker has to miss three
+ * consecutive cycles before the platform says so, which is the difference
+ * between "late" and "gone". 180s is 3 × 60s and is derived that way below so
+ * the relationship survives someone changing the interval.
+ *
+ * Both are overridable for tests — the lifecycle proof needs a threshold it
+ * can outlive in seconds rather than minutes — but the override is bounded so
+ * a mistyped env cannot make every fleet permanently live.
+ */
+export const WORKER_HEARTBEAT_INTERVAL_SECONDS = 60;
+
+/** How many consecutive missed heartbeats before the fleet is not "live". */
+export const WORKER_HEARTBEAT_MISSED_CYCLES = 3;
 
 /** Older than this and a heartbeat is not evidence of a live worker. */
-export const WORKER_HEARTBEAT_STALE_SECONDS = 180;
+export const WORKER_HEARTBEAT_STALE_SECONDS =
+  WORKER_HEARTBEAT_INTERVAL_SECONDS * WORKER_HEARTBEAT_MISSED_CYCLES;
+
+/**
+ * The effective threshold, honouring a bounded test override.
+ *
+ * Floor 5s so a proof can run in seconds; ceiling 3600s so a fat-fingered
+ * value cannot silently declare a dead fleet healthy for a day.
+ */
+export function resolveStaleAfterSeconds(explicit?: number): number {
+  const raw =
+    explicit ?? Number(process.env.WORKER_HEARTBEAT_STALE_SECONDS ?? "");
+  // An unset env gives Number("") === 0, which falls through to the default
+  // along with every other unusable value.
+  if (!Number.isFinite(raw) || raw <= 0) return WORKER_HEARTBEAT_STALE_SECONDS;
+  return Math.min(Math.max(Math.round(raw), 5), 3600);
+}
+
+
+/**
+ * The heartbeat metadata, read defensively.
+ *
+ * These rows are written by a DIFFERENT deployable on its own release
+ * cadence, so a heartbeat from an older worker simply has no metadata and a
+ * newer one may have fields this reader has never heard of. Neither is an
+ * error, and neither may be allowed to throw inside a liveness read — a
+ * crash here would turn "the fleet is alive" into "unknown".
+ */
+function meta(raw: unknown): {
+  buildRevision: string | null;
+  queueSubscriptions: string[];
+} {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const rev = typeof o.buildRevision === "string" ? o.buildRevision : null;
+  const subs = Array.isArray(o.queueSubscriptions)
+    ? o.queueSubscriptions.filter((q): q is string => typeof q === "string")
+    : [];
+  return { buildRevision: rev, queueSubscriptions: subs };
+}
 
 export type WorkerLivenessState =
   | "LIVE"
@@ -59,6 +128,10 @@ export type WorkerInstanceLiveness = {
   live: boolean;
   processedCount: number | null;
   failedCount: number | null;
+  /** The build this instance is running, when it reported one. */
+  buildRevision: string | null;
+  /** Queues this instance subscribes to, when it reported them. */
+  queueSubscriptions: ReadonlyArray<string>;
 };
 
 export type WorkerFleetLiveness = {
@@ -86,8 +159,7 @@ export async function getWorkerFleetLiveness(options?: {
   staleAfterSeconds?: number;
 }): Promise<WorkerFleetLiveness> {
   const nowMs = options?.nowMs ?? Date.now();
-  const staleAfterSeconds =
-    options?.staleAfterSeconds ?? WORKER_HEARTBEAT_STALE_SECONDS;
+  const staleAfterSeconds = resolveStaleAfterSeconds(options?.staleAfterSeconds);
   const evaluatedAtUtc = new Date(nowMs).toISOString();
 
   const base: Omit<WorkerFleetLiveness, "state" | "reason"> = {
@@ -148,6 +220,8 @@ export async function getWorkerFleetLiveness(options?: {
       live: ageSeconds <= staleAfterSeconds,
       processedCount: r.processedCount ?? null,
       failedCount: r.failedCount ?? null,
+      buildRevision: meta(r.metadataJson).buildRevision,
+      queueSubscriptions: meta(r.metadataJson).queueSubscriptions,
     });
   }
   instances.sort((a, b) => a.ageSeconds - b.ageSeconds);
@@ -179,4 +253,125 @@ export async function getWorkerFleetLiveness(options?: {
     instances,
     newestHeartbeatAtUtc,
   };
+}
+
+// ---------------------------------------------------------------------------
+// THE CANONICAL PROJECTION
+//
+// `getWorkerFleetLiveness` answers the question. This turns that one answer
+// into the shape every Admin surface renders, so Overview, Platform Health,
+// Observability, Runtime and Operations cannot reach different verdicts about
+// the same fleet at the same instant — which is what happened when one read
+// the heartbeat, one read queue depth, and one read a reviewer-reconcile audit
+// row and all three called their answer "workers".
+//
+// The four states are deliberately the four the heartbeat can justify:
+//
+//   HEALTHY       at least one instance reported inside the window.
+//   STALE         instances exist and every one is outside it. Carries the
+//                 LAST REAL count and timestamp, because "3 workers, 11
+//                 minutes ago" is actionable and "0 workers" is a lie.
+//   NOT_MEASURED  the store holds no heartbeat at all. Never STALE: there is
+//                 no measurement to have gone stale.
+//   UNAVAILABLE   the store could not be read. Never STALE and never HEALTHY:
+//                 a failure to ask is not an answer.
+// ---------------------------------------------------------------------------
+
+export type WorkerFleetHealthState =
+  | "HEALTHY"
+  | "STALE"
+  | "NOT_MEASURED"
+  | "UNAVAILABLE";
+
+export type WorkerFleetHealth = {
+  state: WorkerFleetHealthState;
+  reason: string;
+  /** `null` only when the state is HEALTHY. */
+  operatorAction: string | null;
+  /** The last real heartbeat, preserved through STALE. */
+  lastHeartbeatAtUtc: string | null;
+  /** Its age at the evaluated instant, preserved through STALE. */
+  lastHeartbeatAgeSeconds: number | null;
+  liveInstances: number;
+  staleInstances: number;
+  knownInstances: number;
+  staleAfterSeconds: number;
+  heartbeatIntervalSeconds: number;
+  evaluatedAtUtc: string;
+  instances: ReadonlyArray<WorkerInstanceLiveness>;
+  /**
+   * The metric every card renders. Its state mirrors the fleet state one for
+   * one, so a surface cannot paint a green badge over a stale fleet by
+   * consulting a different field.
+   */
+  metric: Metric<number>;
+};
+
+export async function getWorkerFleetHealth(options?: {
+  nowMs?: number;
+  staleAfterSeconds?: number;
+}): Promise<WorkerFleetHealth> {
+  const fleet = await getWorkerFleetLiveness(options);
+  const newest = fleet.instances[0] ?? null;
+
+  const base = {
+    reason: fleet.reason,
+    lastHeartbeatAtUtc: fleet.newestHeartbeatAtUtc,
+    lastHeartbeatAgeSeconds: newest?.ageSeconds ?? null,
+    liveInstances: fleet.liveInstances,
+    staleInstances: fleet.staleInstances,
+    knownInstances: fleet.instances.length,
+    staleAfterSeconds: fleet.staleAfterSeconds,
+    heartbeatIntervalSeconds: WORKER_HEARTBEAT_INTERVAL_SECONDS,
+    evaluatedAtUtc: fleet.evaluatedAtUtc,
+    instances: fleet.instances,
+  };
+
+  switch (fleet.state) {
+    case "LIVE":
+      return {
+        ...base,
+        state: "HEALTHY",
+        operatorAction: null,
+        metric: metricValue(fleet.liveInstances),
+      };
+
+    case "STALE":
+      return {
+        ...base,
+        state: "STALE",
+        operatorAction:
+          "Confirm the worker deployment is running and can reach Postgres. " +
+          "Its last heartbeat and age are recorded above — treat the counts as that old.",
+        // The value is the fleet size we last had evidence for, not zero.
+        metric: metricStale(
+          fleet.instances.length,
+          {
+            measuredAtUtc:
+              fleet.newestHeartbeatAtUtc ?? fleet.evaluatedAtUtc,
+            maxAgeSeconds: fleet.staleAfterSeconds,
+          },
+          fleet.reason,
+        ),
+      };
+
+    case "NO_HEARTBEAT":
+      return {
+        ...base,
+        state: "NOT_MEASURED",
+        operatorAction:
+          "No worker has ever reported. Confirm a worker is deployed and that its telemetry sampler is enabled.",
+        metric: metricNotMeasured(fleet.reason),
+      };
+
+    case "UNKNOWN":
+    default:
+      return {
+        ...base,
+        state: "UNAVAILABLE",
+        operatorAction:
+          "The heartbeat store could not be read. Check Postgres reachability from the API process before drawing any conclusion about the workers.",
+        metric: metricError(fleet.reason),
+      };
+  }
 }

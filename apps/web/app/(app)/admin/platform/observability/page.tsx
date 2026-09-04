@@ -106,7 +106,12 @@ type PlatformHealthSnapshot = {
   };
 };
 
-type HealthStateWord = "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
+type HealthStateWord =
+  | "HEALTHY"
+  | "DEGRADED"
+  | "CRITICAL"
+  | "STALE"
+  | "UNKNOWN";
 
 type SnapshotSubsystem = {
   id: string;
@@ -519,6 +524,10 @@ const POSTURE_TONE: Record<HealthStateWord, { bg: string; border: string; ink: s
   // a measurement, and colouring it like a warning claims an observation that
   // was never made.
   UNKNOWN: { bg: "#f8fafc", border: "#cbd5e1", ink: "#334155" },
+  // Amber, like DEGRADED, because STALE IS an observation: something reported
+  // and then stopped. That is a warning, unlike UNKNOWN, which is the absence
+  // of any observation at all.
+  STALE: { bg: "#fffbeb", border: "#fcd34d", ink: "#92400e" },
 };
 
 function postureBlockStyle(state: HealthStateWord): React.CSSProperties {
