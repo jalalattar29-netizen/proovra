@@ -25442,8 +25442,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@759",
-      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:759",
+      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@770",
+      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:770",
       "file": "services/api/src/services/billing-enforcement.service.ts",
       "enclosingDeclaration": "recordWorkspaceAiOperation",
       "kind": "DATABASE",
@@ -116149,7 +116149,7 @@
       "method": "POST",
       "path": "/v1/ai/capture/analyze-session",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai.routes.ts:587",
+      "registrationEvidence": "services/api/src/routes/ai.routes.ts:599",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

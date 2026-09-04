@@ -10,7 +10,7 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
 | ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 32eb59a9a9412aa65ba93f776cad36a1ba9c2def9f9f69f7d46927f65d8a4d44 |
+| engineHash    | 629e3e222ea1e7692ce6cb72f400164a4819bc8208dbe05421b4467121d34061 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -123,7 +123,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | AmbiguousReportRoles                       | 0     |
 | Phase0ChangedPathsFromManualDeclaration    | 0     |
 | UndeclaredPhase0ChangedPaths               | 0     |
-| Phase0ChangedPathClassificationMissing     | 0     |
+| Phase0ChangedPathClassificationMissing     | 1     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
@@ -200,7 +200,7 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- CHANGED PATH WITH NO CLASSIFICATION: apps/web/tsconfig.json
 
 ### Product closure
 
