@@ -479,7 +479,7 @@ describe("Signers — promote / retire / revoke lifecycle", () => {
       teamId: WS,
       reason: "quarterly key rotation",
     });
-    expect(document.body.textContent).toContain("Signer promote recorded.");
+    expect(document.body.textContent).toContain("Signer promoted.");
   });
 
   it("POST /v1/operations/signers/:id/retire — confirm fires once with the reason", async () => {
@@ -496,7 +496,7 @@ describe("Signers — promote / retire / revoke lifecycle", () => {
       teamId: WS,
       reason: "staged signer superseded",
     });
-    expect(document.body.textContent).toContain("Signer retire recorded.");
+    expect(document.body.textContent).toContain("Signer retired. It will not be selected for new material.");
   });
 
   it("POST /v1/operations/signers/:id/revoke — typed 'REVOKE' gates the irreversible leg", async () => {
@@ -530,7 +530,7 @@ describe("Signers — promote / retire / revoke lifecycle", () => {
     await submitModal("signer-promote-confirm");
     expect(document.body.textContent).toContain(SAFE_500);
     expect(document.body.textContent).not.toContain("request failed");
-    expect(document.body.textContent).not.toContain("Signer promote recorded.");
+    expect(document.body.textContent).not.toContain("Signer promoted.");
   });
 });
 

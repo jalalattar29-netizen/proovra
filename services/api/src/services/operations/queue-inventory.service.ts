@@ -24,6 +24,7 @@ import { Queue, type QueueOptions } from "bullmq";
 import IORedis from "ioredis";
 
 import { KNOWN_QUEUE_NAMES } from "./queue-replay-safety.service.js";
+import { getWorkerFleetLiveness } from "./worker-liveness.service.js";
 
 // ---------------------------------------------------------------------------
 // Shared connection + queue handle cache
@@ -442,11 +443,34 @@ export type WorkerHealthRow = {
 export async function getWorkerHealth(): Promise<
   ReadonlyArray<WorkerHealthRow>
 > {
+  /**
+   * LIVENESS FIRST, QUEUE DEPTH SECOND.
+   *
+   * This function used to answer "is the worker alive?" with "is its queue
+   * tidy?", so a crashed fleet with drained queues reported healthy on every
+   * row. The durable heartbeat is the evidence; the queue is only the work.
+   *
+   * When the fleet is not confirmed live, no queue row may claim health —
+   * whatever its counts say. A quiet queue in front of a dead worker is the
+   * exact state the old code called healthy.
+   */
   const inventory = await getQueueInventory();
+  const fleet = await getWorkerFleetLiveness();
+
+  const fleetBlocksHealth = fleet.state !== "LIVE";
+  const fleetStatus: WorkerHealthRow["status"] =
+    fleet.state === "STALE" || fleet.state === "NO_HEARTBEAT"
+      ? "missing"
+      : "unknown";
+
   return inventory.map((q) => {
     let status: WorkerHealthRow["status"] = "healthy";
     let recommendedAction: string | null = null;
-    if (q.health === "outage") {
+
+    if (fleetBlocksHealth) {
+      status = fleetStatus;
+      recommendedAction = fleet.reason;
+    } else if (q.health === "outage") {
       status = "missing";
       recommendedAction =
         "Queue read failed. Confirm worker container is running and Redis is reachable.";
@@ -465,10 +489,27 @@ export async function getWorkerHealth(): Promise<
         recommendedAction = "Oldest waiting job > 5 minutes. Worker may be saturated.";
       }
     }
+    /**
+     * An UNPROBED queue is not a healthy queue.
+     *
+     * `getQueueInventory` reports `health: "unknown"` when its probe budget
+     * is spent — which happens precisely when Redis is not answering. Those
+     * rows fell into the default `healthy` branch, so the moment the probe
+     * stopped working every queue started reporting well.
+     */
+    if (!fleetBlocksHealth && (q.health === "unknown" || q.health === "unconfigured")) {
+      status = "unknown";
+      recommendedAction =
+        recommendedAction ??
+        "This queue was not probed in this sample, so its state is unknown rather than healthy.";
+    }
+
     return {
       queueName: q.queueName,
       status,
-      lastActivityAtUtc: null, // Worker heartbeat is logged but not persisted today.
+      // The real heartbeat, at last: the newest observation from the fleet
+      // this queue is served by.
+      lastActivityAtUtc: fleet.newestHeartbeatAtUtc,
       stalledCount: q.stalledCount,
       recommendedAction,
     };

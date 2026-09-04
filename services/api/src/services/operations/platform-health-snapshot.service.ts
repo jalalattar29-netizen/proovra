@@ -616,7 +616,42 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
    * stop being part of the platform's health, which is the class of omission
    * this whole module exists to close.
    */
-  const OWN_AXES = new Set(["search_indexing"]);
+  const OWN_AXES = new Set(["search_indexing", "queues", "workers"]);
+
+  /**
+   * ONE MEANING, ONE LABEL.
+   *
+   * `queues` and `workers` used to appear TWICE in this payload with opposite
+   * states, because two probes answering different questions were both called
+   * by the subsystem's name:
+   *
+   *   snapshot.queues / snapshot.workers   read Redis: is the queue reachable,
+   *                                        is the fleet heartbeating?
+   *   readiness "queues" / "workers"       read Postgres: is there an open
+   *                                        HIGH/CRITICAL worker incident, and
+   *                                        has a reviewer reconcile run lately?
+   *
+   * Both are worth knowing and neither is wrong. What was wrong was giving them
+   * the same name, so one screen could say HEALTHY and DEGRADED about "queues"
+   * at the same instant and both be reporting faithfully.
+   *
+   * The Redis-derived pair keeps the subsystem names, because that is what an
+   * operator means by "are the queues up". The Postgres-derived pair is
+   * renamed to what it actually measures and stays in the payload, because
+   * deleting a real signal to resolve a naming collision would trade a
+   * contradiction for a blind spot.
+   */
+  const RENAMED_AXES: Record<string, { id: string; label: string }> = {
+    queues: {
+      id: "worker_incident_backlog",
+      label: "worker incident backlog",
+    },
+    workers: {
+      id: "reviewer_reconcile",
+      label: "reviewer reconcile sweep",
+    },
+  };
+
   const dependencies: SubsystemHealth[] = readiness
     ? readiness.subsystems
         .filter((s) => !OWN_AXES.has(s.id))
@@ -635,6 +670,33 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
           observedAtUtc: readiness.ranAtUtc,
         }))
     : [];
+
+  /**
+   * The two renamed axes, re-added under names that say what they measure.
+   * Same probe, same state, same remediation — only the label is corrected, so
+   * an operator reading "worker incident backlog: DEGRADED" beside
+   * "workers: HEALTHY" sees two facts rather than a contradiction.
+   */
+  if (readiness) {
+    for (const probe of readiness.subsystems) {
+      const renamed = RENAMED_AXES[probe.id];
+      if (!renamed) continue;
+      dependencies.push({
+        id: renamed.id,
+        label: renamed.label,
+        state: probe.status as HealthState,
+        reason: probe.detail,
+        operatorAction:
+          probe.status === "HEALTHY"
+            ? null
+            : (probe.remediationHint ??
+              "No remediation is recorded for this probe; escalate rather than guessing."),
+        runbookSlug: null,
+        affectedResource: null,
+        observedAtUtc: readiness.ranAtUtc,
+      });
+    }
+  }
 
   // ---- Evidence pipeline --------------------------------------------------
   const evidence = await runSource(

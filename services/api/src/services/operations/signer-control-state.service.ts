@@ -43,6 +43,21 @@ export type SignerControlRow = {
   signerId: string;
   status: SignerControlStatus;
   stateVersion: number;
+  /**
+   * When discovery FIRST observed this signer configured.
+   *
+   * Written once, by the column default, on the insert that registers the
+   * signer — and never rewritten, because registration is
+   * `ON CONFLICT DO NOTHING` rather than an upsert. That is what makes it a
+   * durable fact rather than a restatement of "now".
+   *
+   * It is the honest answer to "since when has this signer been in use by this
+   * deployment", and it is NOT a claim about when the key itself was created.
+   * For a signer configured before this table existed it is the registration
+   * date, not the true activation date, and the console must say so rather
+   * than relabelling one claim as the other.
+   */
+  firstSeenAtUtc: Date;
   statusChangedAtUtc: Date | null;
   actorUserId: string | null;
   reason: string | null;
@@ -107,6 +122,7 @@ export async function getSignerControlStates(
       signerId: r.signerId,
       status: r.status as SignerControlStatus,
       stateVersion: r.stateVersion,
+      firstSeenAtUtc: r.firstSeenAtUtc,
       statusChangedAtUtc: r.statusChangedAtUtc,
       actorUserId: r.actorUserId,
       reason: r.reason,

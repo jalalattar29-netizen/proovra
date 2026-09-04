@@ -13,8 +13,11 @@ import { untriagedIncidentWhere } from "../operations/incident-open-statuses.js"
 import { buildEvidenceHealthSnapshot } from "../operations/evidence-health.service.js";
 import {
   measure,
+  metricError,
   metricNotMeasured,
   metricNumber,
+  metricPartial,
+  metricUnknown,
   metricValue,
   type Metric,
 } from "./metric-state.js";
@@ -487,13 +490,53 @@ export async function buildPlatformOverview(
 
   const evidenceOpsValue =
     evidenceOps.state === "VALUE" ? evidenceOps.value : null;
-  const degradedCount =
-    (evidenceOpsValue as { workerQueues?: { degradedCount?: number | null } } | null)
-      ?.workerQueues?.degradedCount ?? null;
-  const degradedServices: Metric<number> =
-    degradedCount === null
-      ? metricNotMeasured("No worker-queue degradation signal in this sample.")
-      : metricValue(degradedCount);
+
+  /**
+   * "DEGRADED SERVICES" MUST COUNT SERVICES.
+   *
+   * This tile read `evidenceOps.workerQueues.degradedCount` — the number of
+   * BullMQ QUEUES in a non-healthy state — under the label "Degraded services",
+   * linking to /admin/platform-health, which lists platform SUBSYSTEMS. With
+   * fifteen tidy queues it reported 0 while object storage, signing keys and
+   * backup verification were all degraded on the page it linked to. Its own
+   * not-measured reason admitted what it was: "No worker-queue degradation
+   * signal in this sample."
+   *
+   * It is now derived from the canonical health evaluation — the same
+   * subsystem rows the drill-down renders — so the count and the list it opens
+   * cannot disagree.
+   *
+   * UNKNOWN IS NOT HEALTHY, AND IT IS NOT DEGRADED EITHER. A subsystem nobody
+   * could evaluate is counted separately and named in the reason, because
+   * folding it into "degraded" would overstate what is broken while folding it
+   * into "healthy" would understate it. The tile counts what is PROVEN
+   * degraded; the reason says how many could not be evaluated at all.
+   */
+  const degradedServices: Metric<number> = (() => {
+    if (!snapshot) {
+      return metricError(
+        "Platform health could not be evaluated, so the number of degraded services is unknown. This is not a statement that every service is healthy.",
+      );
+    }
+    const rows = snapshot.dependencies ?? [];
+    if (rows.length === 0) {
+      return metricUnknown(
+        "The health evaluation returned no subsystem rows, so no service state was observed.",
+      );
+    }
+    const degraded = rows.filter(
+      (d) => d.state === "DEGRADED" || d.state === "CRITICAL",
+    ).length;
+    const unevaluated = rows.filter((d) => d.state === "UNKNOWN").length;
+    if (unevaluated > 0) {
+      return metricPartial(
+        degraded,
+        { measured: rows.length - unevaluated, population: rows.length, limit: rows.length },
+        `${degraded} of ${rows.length - unevaluated} evaluated subsystems are degraded. ${unevaluated} could not be evaluated and are neither counted as degraded nor assumed healthy.`,
+      );
+    }
+    return metricValue(degraded);
+  })();
 
   // ADM-013 PHASE 3 — the level is READ, not recomputed.
   //

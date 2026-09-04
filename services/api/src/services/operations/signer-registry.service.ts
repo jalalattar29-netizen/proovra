@@ -368,9 +368,35 @@ export async function listAllSigners(
 
   const active: SignerRecord[] = envActive.map((s) => {
     const row = controlStates.get(s.signerId);
-    if (!row || row.status === "ACTIVE") return s;
+
+    /**
+     * ACTIVATION TIME IS A FACT, NOT THE CLOCK.
+     *
+     * `getCurrentActiveSigners` stamps every record with `new Date()`, so the
+     * "activated" time of a signing key was the moment the operator loaded the
+     * page and advanced on every refresh — on the one surface where "when did
+     * this key come into use" is a forensically meaningful question.
+     *
+     * The durable answer is `first_seen_at_utc`: written once by the insert
+     * that registers the signer and never rewritten, because registration is
+     * `ON CONFLICT DO NOTHING`. It survives restart, refresh, retire and
+     * revoke.
+     *
+     * This is applied BEFORE the status branch below, deliberately. The common
+     * case is an ACTIVE signer, which used to return early — so correcting only
+     * the retired/revoked branch would have left every healthy signer still
+     * reporting the request time.
+     *
+     * A signer with no row yet (the request that first registers it) reports
+     * null rather than now: unknown is the truthful answer, and the next read
+     * has the real one.
+     */
+    const activatedAtUtc = row?.firstSeenAtUtc?.toISOString() ?? null;
+
+    if (!row || row.status === "ACTIVE") return { ...s, activatedAtUtc };
     return {
       ...s,
+      activatedAtUtc,
       status: row.status === "REVOKED" ? "revoked" : "retired",
       retiredAtUtc: row.statusChangedAtUtc?.toISOString() ?? null,
       rotatedByUserId: row.actorUserId,
