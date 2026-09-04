@@ -27,7 +27,6 @@ import Link from "next/link";
 
 import { PageShell, PageHeader, PageSection } from "../../../components/ui/PageShell";
 import { Card } from "../../../components/ui/Card";
-import { Badge, type BadgeTone } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { FilterBar } from "../../../components/ui/FilterBar";
 import { EmptyState } from "../../../components/ui/EmptyState";
@@ -160,21 +159,39 @@ function AllToolsPageBody() {
     );
   }
 
+  /*
+   * SPLIT EACH GROUP INTO WHAT YOU CAN OPEN AND WHAT YOU CANNOT.
+   *
+   * A personal account reaches this page and 116 routes are nav-visible, most
+   * of them organization-only. Rendered as one flat list that was 116 cards,
+   * each carrying up to three capsules, a red explanation, and its own copy of
+   * the same "Create or switch organization" button.
+   *
+   * The locked ones are not noise — the access resolver keeps them visible on
+   * purpose, so an evaluator can see what an organization workspace unlocks
+   * rather than finding a silently shorter product. But repeating one
+   * requirement dozens of times states it dozens of times; it does not state it
+   * better. Locked items collapse into a single line per group with one CTA.
+   */
   const visibleGroups = (Object.keys(GROUP_LABEL) as GroupId[])
-    .map((groupId) => ({
-      groupId,
-      items: groups[groupId].filter((i) =>
+    .map((groupId) => {
+      const matching = groups[groupId].filter((i) =>
         matchesSearch(i.route.label, i.route.description),
-      ),
-    }))
-    .filter((g) => g.items.length > 0);
+      );
+      return {
+        groupId,
+        open: matching.filter((i) => i.access.canLoad),
+        locked: matching.filter((i) => !i.access.canLoad),
+      };
+    })
+    .filter((g) => g.open.length + g.locked.length > 0);
 
   return (
     <PageShell data-all-tools-page>
       <PageHeader
         eyebrow="All Tools"
         title="Browse every product surface"
-        subtitle="Workflow profiles personalize layout, defaults, and recommendations. They do not change permissions or remove tools."
+        subtitle="Everything this workspace can open, grouped by what it is for. Surfaces that need an organization are listed at the end of each group."
       />
 
       <FilterBar>
@@ -194,119 +211,158 @@ function AllToolsPageBody() {
           purpose="Try a different term, or clear the search to see every surface available to you."
         />
       ) : (
-        visibleGroups.map(({ groupId, items }) => (
+        visibleGroups.map(({ groupId, open, locked }) => (
           <PageSection
             key={groupId}
             title={GROUP_LABEL[groupId]}
             data-all-tools-group={groupId}
           >
-            <div
-              data-all-tools-items
-              style={{
-                display: "grid",
-                gap: 12,
-                gridTemplateColumns:
-                  "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
-              }}
-            >
-              {items.map((item) => {
-                const isRecommended = recommendedIds.has(item.route.id);
-                const isAvailable = item.access.canLoad;
-                const badge = badgeForAccess(item.access.accessState);
-                return (
-                  <Card
-                    key={item.route.id}
-                    padding="compact"
-                    data-all-tools-route-id={item.route.id}
-                    data-all-tools-access-state={item.access.accessState}
-                    data-all-tools-recommended={
-                      isRecommended ? "true" : "false"
-                    }
-                  >
-                    <div
+            {open.length > 0 ? (
+              <div
+                data-all-tools-items
+                style={{
+                  display: "grid",
+                  gap: 12,
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
+                }}
+              >
+                {open.map((item) => {
+                  const isRecommended = recommendedIds.has(item.route.id);
+                  return (
+                    <Card
+                      key={item.route.id}
+                      padding="compact"
+                      data-all-tools-route-id={item.route.id}
+                      data-all-tools-access-state={item.access.accessState}
+                      data-all-tools-recommended={isRecommended ? "true" : "false"}
                       style={{
                         display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        flexWrap: "wrap",
+                        flexDirection: "column",
+                        minInlineSize: 0,
                       }}
                     >
                       <strong style={{ fontSize: 14, fontWeight: 650 }}>
                         {item.route.label}
                       </strong>
-                      {isRecommended ? (
-                        <Badge
-                          tone="governance"
-                          subtle
-                          data-all-tools-recommended-chip
-                        >
-                          Recommended
-                        </Badge>
-                      ) : null}
-                      {item.route.advancedByDefault ? (
-                        <Badge
-                          tone="neutral"
-                          subtle
-                          data-all-tools-advanced-chip
-                        >
-                          Advanced
-                        </Badge>
-                      ) : null}
-                      <Badge
-                        tone={badge.tone}
-                        subtle
-                        data-all-tools-status-chip={item.access.accessState}
-                      >
-                        {badge.label}
-                      </Badge>
-                    </div>
 
-                    <div
-                      style={{
-                        fontSize: 12.5,
-                        color: "var(--ink-secondary, #475569)",
-                        marginTop: 6,
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {item.route.description}
-                    </div>
-
-                    {!isAvailable && item.access.reason ? (
                       <div
                         style={{
-                          fontSize: 11.5,
-                          color: "var(--status-risk-fg, #991b1b)",
+                          fontSize: 12.5,
+                          color: "var(--ink-secondary, #475569)",
                           marginTop: 6,
+                          lineHeight: 1.5,
+                          // Fills the space between title and action so cards
+                          // in a row end up the same height without forcing an
+                          // arbitrary one on a two-word description.
+                          flex: 1,
                         }}
-                        data-all-tools-reason
                       >
-                        {item.access.reason}
+                        {item.route.description}
                       </div>
-                    ) : null}
 
-                    <div style={{ marginTop: 12 }}>
-                      {isAvailable ? (
+                      {/*
+                        METADATA AS WORDS, NOT CAPSULES.
+
+                        Three filled pills per card — Recommended, Advanced,
+                        Available — turned a catalogue into a wall of
+                        lozenges, and "Available" earned a capsule on every
+                        single card that could be opened, which is most of
+                        them. Semantic colour on plain text says the same
+                        thing and lets the title stay the loudest element.
+                      */}
+                      <div
+                        style={{ marginTop: 10, fontSize: 11.5, minInlineSize: 0 }}
+                        data-all-tools-meta
+                      >
+                        {isRecommended ? (
+                          <span
+                            style={{ color: "var(--accent-600, #6d28d9)", fontWeight: 600 }}
+                            data-all-tools-recommended-label
+                          >
+                            Recommended
+                          </span>
+                        ) : null}
+                        {isRecommended && item.route.advancedByDefault ? (
+                          <span style={{ color: "var(--app-ink-secondary, #667085)" }}> · </span>
+                        ) : null}
+                        {item.route.advancedByDefault ? (
+                          <span
+                            style={{ color: "var(--app-ink-secondary, #667085)" }}
+                            data-all-tools-advanced-label
+                          >
+                            Advanced
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div style={{ marginTop: 10 }}>
                         <Link href={item.route.href} data-all-tools-open>
                           <Button variant="secondary" size="sm">
                             Open
                           </Button>
                         </Link>
-                      ) : item.access.primaryAction ? (
-                        <Link
-                          href={item.access.primaryAction.href}
-                          data-all-tools-primary-action
-                        >
-                          <Button variant="secondary" size="sm">
-                            {item.access.primaryAction.label}
-                          </Button>
-                        </Link>
-                      ) : null}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {/*
+              THE LOCKED SET, STATED ONCE.
+
+              One line naming what is in it and one CTA, instead of a card per
+              surface each repeating the same requirement. The names stay
+              visible so the section is still discovery rather than a wall.
+            */}
+            {locked.length > 0 ? (
+              <div
+                data-all-tools-locked-group={groupId}
+                data-all-tools-locked-count={locked.length}
+                style={{
+                  marginTop: open.length > 0 ? 14 : 0,
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border, #e2e8f0)",
+                  background: "var(--surface-soft, #f8fafc)",
+                  minInlineSize: 0,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: "var(--ink-primary, #0f172a)",
+                  }}
+                >
+                  {lockedHeadline(locked)}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--app-ink-secondary, #667085)",
+                    marginTop: 4,
+                    lineHeight: 1.5,
+                  }}
+                  data-all-tools-locked-names
+                >
+                  {locked.map((i) => i.route.label).join(" · ")}
+                </div>
+                {locked[0]?.access.primaryAction ? (
+                  <div style={{ marginTop: 10 }}>
+                    <Link
+                      href={locked[0].access.primaryAction.href}
+                      data-all-tools-primary-action
+                    >
+                      <Button variant="secondary" size="sm">
+                        {locked[0].access.primaryAction.label}
+                      </Button>
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </PageSection>
         ))
       )}
@@ -314,23 +370,30 @@ function AllToolsPageBody() {
   );
 }
 
-function badgeForAccess(state: string): { label: string; tone: BadgeTone } {
-  switch (state) {
-    case "ALLOWED":
-      return { label: "Available", tone: "verified" };
-    case "NEEDS_ORGANIZATION":
-      return { label: "Requires organization", tone: "pending" };
-    case "NEEDS_PERSONAL_OR_ORG":
-      return { label: "Requires workspace", tone: "pending" };
-    case "DENIED_NO_CAPABILITY":
-      return { label: "Requires permission", tone: "risk" };
-    case "NEEDS_UPGRADE":
-      return { label: "Requires upgrade", tone: "governance" };
-    case "RECOVERY_REQUIRED":
-      return { label: "Recovery required", tone: "risk" };
-    default:
-      return { label: "Unavailable", tone: "neutral" };
+/**
+ * One sentence for a group's locked set.
+ *
+ * Deliberately not red and not the word "denied": needing an organization is a
+ * normal entitlement boundary, and the previous card rendered the resolver's
+ * reason in `--status-risk-fg` (#991b1b), so a personal account saw dozens of
+ * enterprise surfaces painted as though something had gone wrong.
+ */
+function lockedHeadline(
+  locked: ReadonlyArray<{ access: { accessState: string } }>,
+): string {
+  const n = locked.length;
+  const noun = n === 1 ? "surface" : "surfaces";
+  const state = locked[0]?.access.accessState;
+  if (state === "NEEDS_ORGANIZATION") {
+    return `${n} ${noun} available in organization-governed workspaces`;
   }
+  if (state === "NEEDS_PERSONAL_OR_ORG") {
+    return `${n} ${noun} need an active workspace`;
+  }
+  if (state === "NEEDS_UPGRADE") {
+    return `${n} ${noun} included on other plans`;
+  }
+  return `${n} ${noun} not available in this workspace`;
 }
 
 // Closure verification Part C — canonical PageRouteGate wrapper.

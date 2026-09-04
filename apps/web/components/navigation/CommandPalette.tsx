@@ -42,12 +42,17 @@ import {
   ROUTE_REGISTRY,
   type RouteDefinition,
 } from "../../lib/navigation/routeRegistry";
+import {
+  dedupeByDestination,
+  orderPaletteCandidates,
+  paletteGroupFor,
+  paletteTitleFor,
+} from "../../lib/navigation/paletteModel";
 import { operationalGroupDescriptor } from "../../lib/navigation/phaseBOperationalGroups";
 import {
   resolveRouteAccess,
   type RouteAccessResult,
 } from "../../lib/navigation/routeAccessResolver";
-import { Badge, type BadgeTone } from "../ui/Badge";
 
 type IndexedItem = {
   route: RouteDefinition;
@@ -58,22 +63,6 @@ type IndexedItem = {
 
 const MAX_RESULTS = 20;
 
-function badgeForAccessState(state: string): { label: string; tone: BadgeTone } {
-  switch (state) {
-    case "ALLOWED":
-      return { label: "Available", tone: "verified" };
-    case "NEEDS_ORGANIZATION":
-      return { label: "Requires organization", tone: "pending" };
-    case "NEEDS_PERSONAL_OR_ORG":
-      return { label: "Requires workspace", tone: "pending" };
-    case "DENIED_NO_CAPABILITY":
-      return { label: "Requires permission", tone: "risk" };
-    case "NEEDS_UPGRADE":
-      return { label: "Requires upgrade", tone: "governance" };
-    default:
-      return { label: "Unavailable", tone: "neutral" };
-  }
-}
 
 export function CommandPalette() {
   const { envelope } = usePlatformContext();
@@ -119,29 +108,36 @@ export function CommandPalette() {
       // command-palette search even before query filtering.
       if (!access.canSeeNav) continue;
       if (!route.commandPaletteVisible) continue;
-      let rank = 0;
-      if (access.canLoad) rank += 2;
-      if (!route.advancedByDefault) rank += 1;
-      items.push({ route, access, rank });
+      /*
+       * No pre-ranking here any more.
+       *
+       * The old score was `canLoad ? 2 : 0` plus `advancedByDefault ? 0 : 1`,
+       * so every route landed on one of four values and the list was then cut
+       * at twenty. A user entitled to MORE routes had more 3s, which pushed
+       * every 2 — `/tools` among them — off the visible list entirely. That is
+       * why FREE saw All Tools and PRO did not.
+       *
+       * Ordering is now a function of the QUERY, in `paletteModel`.
+       */
+      items.push({ route, access, rank: 0 });
     }
     return items;
   }, [envelope, workspaceFragment, personalSpaceFragment]);
 
   // Filter + rank for the current query.
   const results = useMemo<IndexedItem[]>(() => {
-    const q = query.trim().toLowerCase();
-    let pool = indexed;
-    if (q.length > 0) {
-      pool = pool.filter(
-        (item) =>
-          item.route.label.toLowerCase().includes(q) ||
-          item.route.description.toLowerCase().includes(q) ||
-          item.route.id.toLowerCase().includes(q),
-      );
-    }
-    return [...pool]
-      .sort((a, b) => b.rank - a.rank)
-      .slice(0, MAX_RESULTS);
+    /*
+     * Relevance first, then destination-dedup, then the cap.
+     *
+     * Deduping AFTER ordering keeps the best-matching label for a destination
+     * that several registry entries point at, and deduping BEFORE the cap means
+     * a duplicate can no longer consume one of the twenty slots.
+     */
+    const ordered = orderPaletteCandidates(
+      indexed.map((item) => ({ route: item.route, canLoad: item.access.canLoad, item })),
+      query,
+    );
+    return dedupeByDestination(ordered.map((c) => c.item)).slice(0, MAX_RESULTS);
   }, [indexed, query]);
 
   // Reset highlight when the result set changes.
@@ -316,7 +312,6 @@ export function CommandPalette() {
             </li>
           ) : (
             results.map((item, idx) => {
-              const badge = badgeForAccessState(item.access.accessState);
               const isHighlighted = idx === highlight;
               // Phase G2 (B.6) — Phase B operational group attribution.
               // Renders a small group chip beside each result so
@@ -368,34 +363,19 @@ export function CommandPalette() {
                         flexWrap: "wrap",
                       }}
                     >
+                      {/*
+                        ONE title and, below, one quiet metadata line.
+
+                        A row could previously carry three capsules at once — an
+                        operational-group chip, an "Advanced" chip and a status
+                        chip — so a list of twenty rows rendered up to sixty
+                        pills and read like a diagnostic table rather than a way
+                        to get somewhere. The same facts are still here; they
+                        are just no longer shouted.
+                      */}
                       <strong style={{ fontSize: 13, color: "#0f172a" }}>
-                        {item.route.label}
+                        {paletteTitleFor(item.route)}
                       </strong>
-                      {opGroup ? (
-                        <Badge
-                          tone="governance"
-                          subtle
-                          data-command-palette-group-chip={opGroup.id}
-                        >
-                          {opGroup.title}
-                        </Badge>
-                      ) : null}
-                      {item.route.advancedByDefault ? (
-                        <Badge
-                          tone="neutral"
-                          subtle
-                          data-command-palette-advanced-chip
-                        >
-                          Advanced
-                        </Badge>
-                      ) : null}
-                      <Badge
-                        tone={badge.tone}
-                        subtle
-                        data-command-palette-status={item.access.accessState}
-                      >
-                        {badge.label}
-                      </Badge>
                     </div>
                     <div
                       style={{
@@ -409,18 +389,45 @@ export function CommandPalette() {
                     >
                       {item.route.description}
                     </div>
-                    {!item.access.canLoad && item.access.reason ? (
-                      <div
-                        data-command-palette-reason
-                        style={{
-                          fontSize: 11,
-                          color: "var(--status-risk-fg, #991b1b)",
-                          marginTop: 2,
-                        }}
-                      >
-                        {item.access.reason}
-                      </div>
-                    ) : null}
+                    {/*
+                      ONE metadata line, in words rather than capsules.
+
+                      Group tells the reader what KIND of destination this is —
+                      the distinction the screenshots lost, where seven Settings
+                      subpages read as unrelated product tools. Availability is
+                      appended only when it is not simply "you can open this".
+                    */}
+                    <div
+                      data-command-palette-meta
+                      data-command-palette-group={paletteGroupFor(item.route)}
+                      style={{
+                        fontSize: 11,
+                        color: "var(--app-ink-secondary, #667085)",
+                        marginTop: 3,
+                      }}
+                    >
+                      {paletteGroupFor(item.route)}
+                      {item.access.canLoad ? null : (
+                        <>
+                          {" · "}
+                          {/*
+                            Slate, not red. Needing an organization is a normal
+                            entitlement boundary, not a fault — this line used
+                            `--status-risk-fg` (#991b1b), so every enterprise
+                            surface a personal user could see was painted like
+                            an error they had caused.
+                          */}
+                          <span
+                            data-command-palette-availability={item.access.accessState}
+                            style={{ color: "var(--app-ink-secondary, #667085)" }}
+                          >
+                            {item.access.accessState === "NEEDS_ORGANIZATION"
+                              ? "Requires organization"
+                              : "Not available here"}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <kbd
                     aria-hidden="true"

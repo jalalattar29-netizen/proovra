@@ -315,7 +315,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "account.privacy",
     href: "/settings#privacy",
-    label: "Privacy & legal records",
+    // Canonical Settings name — the rail says "Privacy & data".
+    label: "Privacy & data",
     description:
       "Cookie preferences, policy acceptance history, and privacy requests.",
     domain: "ACCOUNT",
@@ -354,7 +355,8 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "account.billing",
     href: "/billing",
-    label: "Billing",
+    // Canonical Settings name, so a search for either word lands here.
+    label: "Billing & plan",
     description: "Account-tier plan, invoices, payment methods.",
     domain: "ACCOUNT",
     requiredCapabilities: ["ACCOUNT_BILLING_VIEW"],
@@ -2481,7 +2483,10 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.ai_settings",
     href: "/settings#ai",
-    label: "AI & Automation",
+    // Canonical Settings name. The Settings rail says "AI & assistance";
+    // this registry still said "AI & Automation", so one feature answered to
+    // two names depending on which surface you found it from.
+    label: "AI & assistance",
     description:
       "Workspace AI governance — enable/disable AI capabilities, data-class limits, and truthful capability disclosure.",
     domain: "ACCOUNT",
@@ -2504,7 +2509,22 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     description:
       "Human-authored, versioned reviewer criteria sets — draft, publish (immutable), duplicate, retire.",
     domain: "ACCOUNT",
-    requiredCapabilities: [],
+    /*
+     * REVIEWER_OPS_VIEW, not the empty list this carried.
+     *
+     * The API gates every reviewer-criteria endpoint on `review.queue.read`,
+     * held by OWNER, ADMIN and REVIEWER — not CONTRIBUTOR, not VIEWER, and not
+     * a personal workspace, where REVIEWER_OPS_VIEW is not granted at all.
+     * With no capability declared here the surface was offered to everyone,
+     * including a brand-new personal FREE account whose very first request to
+     * it would 403. It also sat at `advancedByDefault: false`, which put it in
+     * the command palette ahead of surfaces the user can actually open.
+     *
+     * Criteria govern reviewer workflows. A workspace with no reviewer
+     * workflow has no consumer for them. This is UX alignment only — the
+     * server gate is unchanged and remains the authority.
+     */
+    requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
     fallbackBehavior: "LOAD",
 
