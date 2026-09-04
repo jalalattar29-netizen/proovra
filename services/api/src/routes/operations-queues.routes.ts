@@ -65,39 +65,30 @@ import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
 const KnownQueueName = z.enum(KNOWN_QUEUE_NAMES as [string, ...string[]]);
 
 /**
- * Applies the replay safety matrix's step-up requirement to a queue job.
+ * Whether the replay safety matrix requires step-up for THIS job.
  *
  * The category is derived from the job that is actually about to be
  * replayed — never from anything the caller supplied — so a caller cannot
  * skip the gate by omitting or misstating a hint.
  *
- * Returns `true` when the reply has already been sent (a step-up challenge
- * was issued) and the handler must stop. When the queue or job cannot be
- * resolved it returns `false`, leaving the action service to answer with its
- * canonical `queue_unknown` / `job_not_found` refusal.
+ * This deliberately answers the QUESTION and does not perform the gate.
+ * Wrapping `requireStepUpForSensitiveAction` in a helper hid it from the
+ * capability analyzer, and the generated authority ledger stopped recording
+ * these routes as step-up gated — understating a control is the same class of
+ * error as overstating one, so the call itself stays in each handler where
+ * the tracer reads it.
+ *
+ * A `null` job kind means the queue or job could not be resolved; the caller
+ * falls through so the action service can answer with its canonical
+ * `queue_unknown` / `job_not_found` refusal.
  */
-async function gateReplayCategory(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  userId: string,
-  teamId: string,
-  params: { queueName: string; jobId: string },
-): Promise<boolean> {
+async function replayNeedsStepUp(params: {
+  queueName: string;
+  jobId: string;
+}): Promise<boolean> {
   const actualJobName = await resolveJobKind(params.queueName, params.jobId);
   if (!actualJobName) return false;
-  if (getJobReplayCategory(params.queueName, actualJobName) !== "requires_step_up") {
-    return false;
-  }
-  const stepUp = await requireStepUpForSensitiveAction({
-    req,
-    reply,
-    teamId,
-    userId,
-    purpose: "QUEUE_JOB_REPLAY",
-    resourceKind: "queue_job",
-    resourceId: `${params.queueName}:${params.jobId}`,
-  });
-  return stepUp.sent;
+  return getJobReplayCategory(params.queueName, actualJobName) === "requires_step_up";
 }
 
 export async function operationsQueuesRoutes(app: FastifyInstance) {
@@ -228,8 +219,17 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
        * Retry and replay call the same BullMQ `job.retry()`, so they carry
        * the same risk and take the same gate.
        */
-      if (await gateReplayCategory(req, reply, ctx.userId, body.teamId, params)) {
-        return;
+      if (await replayNeedsStepUp(params)) {
+        const stepUp = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: body.teamId,
+          userId: ctx.userId,
+          purpose: "QUEUE_JOB_REPLAY",
+          resourceKind: "queue_job",
+          resourceId: `${params.queueName}:${params.jobId}`,
+        });
+        if (stepUp.sent) return;
       }
       const result = await retryFailedJob({
         queueName: params.queueName,
@@ -295,8 +295,17 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
        * canonical `queue_unknown` / `job_not_found` refusal rather than
        * duplicating that logic here.
        */
-      if (await gateReplayCategory(req, reply, ctx.userId, body.teamId, params)) {
-        return;
+      if (await replayNeedsStepUp(params)) {
+        const stepUp = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: body.teamId,
+          userId: ctx.userId,
+          purpose: "QUEUE_JOB_REPLAY",
+          resourceKind: "queue_job",
+          resourceId: `${params.queueName}:${params.jobId}`,
+        });
+        if (stepUp.sent) return;
       }
 
       const result = await replayFailedJob({

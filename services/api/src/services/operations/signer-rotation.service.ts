@@ -43,6 +43,7 @@ import {
 } from "./signer-registry.service.js";
 import {
   countRemainingUsableSigners,
+  getSignerControlStates,
   getEffectiveSignerStatus,
   isTransitionAllowed,
   transitionSignerControlState,
@@ -270,11 +271,16 @@ export async function promoteStagedSigner(
     actorUserId: string;
     signerId: string;
     reason: string;
+    expectedStateVersion?: number;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<
   | { ok: true; promotedAtUtc: string }
-  | { ok: false; code: "staged_not_found" | "reason_required"; message: string }
+  | {
+      ok: false;
+      code: "staged_not_found" | "reason_required" | "stale_state";
+      message: string;
+    }
 > {
   return withProovraSpan(
     PROOVRA_SPAN_NAMES.SIGNER_ROTATION_PROMOTE,
@@ -292,11 +298,16 @@ async function promoteStagedSignerInner(
     actorUserId: string;
     signerId: string;
     reason: string;
+    expectedStateVersion?: number;
   },
   client: PrismaClient,
 ): Promise<
   | { ok: true; promotedAtUtc: string }
-  | { ok: false; code: "staged_not_found" | "reason_required"; message: string }
+  | {
+      ok: false;
+      code: "staged_not_found" | "reason_required" | "stale_state";
+      message: string;
+    }
 > {
   if ((input.reason ?? "").trim().length === 0) {
     return {
@@ -315,6 +326,30 @@ async function promoteStagedSignerInner(
       code: "staged_not_found",
       message: "Staged signer not found.",
     };
+  }
+  /*
+   * The compare-and-set the route documents.
+   *
+   * `expectedStateVersion` was parsed by the promote route and then dropped on
+   * the floor — retire and revoke both honour it, promote alone did not. A
+   * caller sending it believed a signer that moved while their dialog was open
+   * would be refused; instead the promotion went through against whatever the
+   * signer had become. It is checked against the same persisted control state
+   * those two transitions use, so all three agree on what "the state I was
+   * looking at" means. An absent row is version 0 — a signer nobody has
+   * transitioned yet.
+   */
+  if (input.expectedStateVersion !== undefined) {
+    const states = await getSignerControlStates([input.signerId]);
+    const currentVersion = states.get(input.signerId)?.stateVersion ?? 0;
+    if (currentVersion !== input.expectedStateVersion) {
+      return {
+        ok: false,
+        code: "stale_state",
+        message:
+          "This signer changed since the page was loaded. Reload and review the current state before promoting it.",
+      };
+    }
   }
   bump("signer_rotation_total");
   safeEmitSecurityEvent({

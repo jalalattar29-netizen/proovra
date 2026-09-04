@@ -76,6 +76,12 @@ export class SsoServiceError extends Error {
   constructor(
     public readonly code:
       | "SSO_CONNECTION_NOT_FOUND"
+      // A connection for this provider already exists in this state. The
+      // database has always enforced it — `@@unique([teamId, provider,
+      // status])` — but nothing caught the collision, so an operator adding
+      // the same provider twice got a 500 "Request failed." with a request
+      // id, and no way to tell a duplicate from an outage.
+      | "SSO_CONNECTION_EXISTS"
       | "SSO_CONNECTION_REVOKED"
       | "SSO_INVALID_PROVIDER"
       | "SSO_INVALID_STATE"
@@ -278,9 +284,25 @@ export async function createSsoConnection(
   input: SsoConnectionCreateInput & { actorUserId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<CreateSsoConnectionResult> {
-  // Re-validate via the shared schema; routes already validate but
-  // belt-and-braces.
-  const parsed = SsoConnectionCreateInputSchema.safeParse(input);
+  /*
+   * Re-validate via the shared schema; routes already validate but
+   * belt-and-braces.
+   *
+   * The ACTOR is stripped first. `SsoConnectionCreateInputSchema` is
+   * `.strict()`, and this function's own input type requires `actorUserId`
+   * alongside it — so re-parsing the whole object rejected the very field the
+   * signature demands, with "Unrecognized key: actorUserId". Every SSO
+   * connection creation threw `SSO_INVALID_PROVIDER`, which blamed the
+   * operator's provider choice for a fault in this line. Route-level tests
+   * did not see it because they assert this service was CALLED, with the
+   * service itself mocked.
+   *
+   * The actor is not part of the connection's declared shape; it is who is
+   * doing it. Only the declared shape is re-validated.
+   */
+  const declared = { ...input };
+  delete (declared as { actorUserId?: string }).actorUserId;
+  const parsed = SsoConnectionCreateInputSchema.safeParse(declared);
   if (!parsed.success) {
     throw new SsoServiceError("SSO_INVALID_PROVIDER", {
       detail: parsed.error.flatten(),
@@ -316,7 +338,27 @@ export async function createSsoConnection(
     createdByUserId: input.actorUserId,
   };
 
-  const row = await client.ssoConnection.create({ data });
+  /*
+   * `@@unique([teamId, provider, status])` means a workspace may hold only one
+   * connection per provider in a given state. That is a normal thing for an
+   * operator to run into — adding Okta twice, or double-submitting the dialog
+   * — and it surfaced as a 500 "Request failed." with a request id, which
+   * reads as an outage rather than "you already have one of these".
+   */
+  let row;
+  try {
+    row = await client.ssoConnection.create({ data });
+  } catch (err) {
+    if (
+      err instanceof prismaPkg.Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      throw new SsoServiceError("SSO_CONNECTION_EXISTS", {
+        provider: input.provider,
+      });
+    }
+    throw err;
+  }
 
   bump("sso_connection_created_total");
   safeEmitSecurityEvent({

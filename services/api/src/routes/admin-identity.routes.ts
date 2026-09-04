@@ -179,7 +179,11 @@ function sendError(reply: FastifyReply, err: unknown): boolean {
           : err.code === "SSO_JIT_DISABLED" ||
               err.code === "SSO_EMAIL_DOMAIN_NOT_ALLOWED"
             ? 403
-            : 502;
+            : // A duplicate connection is a conflict with a state that
+              // already exists, not a bad request and not an upstream fault.
+              err.code === "SSO_CONNECTION_EXISTS"
+              ? 409
+              : 502;
     reply.code(status).send({
       error: { code: err.code, details: err.details ?? null },
     });

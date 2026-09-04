@@ -104,25 +104,25 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:629",
+      "site": "services/api/src/services/access-control/sso.service.ts:671",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) — the customer's OIDC identity provider discovery document.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:776",
+      "site": "services/api/src/services/access-control/sso.service.ts:818",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) on the callback path.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:813",
+      "site": "services/api/src/services/access-control/sso.service.ts:855",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(discovery.token_endpoint) — the IdP's token endpoint.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:890",
+      "site": "services/api/src/services/access-control/sso.service.ts:932",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(discovery.userinfo_endpoint) — the IdP's userinfo endpoint.",
       "reviewedAtUtc": "2026-08-15"

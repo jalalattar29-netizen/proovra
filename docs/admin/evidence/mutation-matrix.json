@@ -96,8 +96,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-contact-sales.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -296,8 +296,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-contact-sales.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -497,8 +497,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -693,8 +693,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-provisioning.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12a-reconciliation-gate.test.ts"
             }
           ],
           "reason": null
@@ -881,8 +881,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/production-phase2-drift-remediation.test.ts"
             }
           ],
           "reason": null
@@ -1059,8 +1059,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -1239,8 +1239,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-demo-requests.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-commercial-request-transitions.integration.test.ts"
             }
           ],
           "reason": null
@@ -1419,8 +1419,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-provisioning.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-10-security-routes.test.ts"
             }
           ],
           "reason": null
@@ -1601,8 +1601,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
             }
           ],
           "reason": null
@@ -1773,8 +1773,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
             }
           ],
           "reason": null
@@ -1947,8 +1947,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
             }
           ],
           "reason": null
@@ -2114,8 +2114,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
             }
           ],
           "reason": null
@@ -2280,8 +2280,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
             }
           ],
           "reason": null
@@ -2440,8 +2440,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
             }
           ],
           "reason": null
@@ -2608,8 +2608,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12-arch-004-org-membership-lifecycle.integration.test.ts"
             }
           ],
           "reason": null
@@ -2772,8 +2772,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/scim-admin.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
             }
           ],
           "reason": null
@@ -2934,8 +2934,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-keyset-cursor-pagination.test.ts"
             }
           ],
           "reason": null
@@ -3100,8 +3100,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-keyset-cursor-pagination.test.ts"
             }
           ],
           "reason": null
@@ -3263,8 +3263,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-admin-console-matrix.test.ts"
             }
           ],
           "reason": null
@@ -3429,8 +3429,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -3609,8 +3609,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -3789,8 +3789,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -3992,8 +3992,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-provisioning.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -4181,8 +4181,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/admin-provisioning.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-authorization-matrix.integration.test.ts"
             }
           ],
           "reason": null
@@ -4367,8 +4367,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/enterprise-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-10-enterprise-identity.test.ts"
             }
           ],
           "reason": null
@@ -4541,8 +4541,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/enterprise-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-10-enterprise-identity.test.ts"
             }
           ],
           "reason": null
@@ -4636,6 +4636,7 @@
         "services/api/test/phase-2b-closure-external-portal.test.ts",
         "services/api/test/phase-2b-external-reviewer-portal.test.ts",
         "services/api/test/phase-3-external-review-grant-step-up.test.ts",
+        "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
         "services/api/test/phase-rw-rbac-hardening.test.ts"
       ],
       "boundTests": {
@@ -4721,8 +4722,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/identity-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/identity-security.test.ts"
             }
           ],
           "reason": null
@@ -4905,8 +4906,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
             }
           ],
           "reason": null
@@ -5076,8 +5077,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/identity.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-residual-matrix.test.ts"
             }
           ],
           "reason": null
@@ -5251,8 +5252,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-signers.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
             }
           ],
           "reason": null
@@ -5430,8 +5431,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-signers.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
             }
           ],
           "reason": null
@@ -5594,8 +5595,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-exports.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-32-8-c-command-center.test.ts"
             }
           ],
           "reason": null
@@ -5709,8 +5710,7 @@
       "handler": "services/api/src/routes/operations-queues.routes.ts",
       "authority": [
         "requirePlatformOpsActor",
-        "requireStepUpForSensitiveAction",
-        "+STEP_UP"
+        "gateReplayCategory"
       ],
       "riskClass": "HIGH_IMPACT_OPERATIONAL",
       "control": "Button 'Replay' / 'Replay (step-up)' in the replay dialog opened from a failed job row",
@@ -5773,8 +5773,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-queues.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
             }
           ],
           "reason": null
@@ -5862,6 +5862,7 @@
       "typedConfirmation": false,
       "apiTests": [
         "services/api/test/adm013-operations-platform-authority.integration.test.ts",
+        "services/api/test/attention-arch-phase4b-workspace-operations.test.ts",
         "services/api/test/operations-capability-disposition.test.ts",
         "services/api/test/phase-p2-final-closure.test.ts"
       ],
@@ -5881,7 +5882,8 @@
       "path": "/v1/operations/queues/:queueName/jobs/:jobId/retry",
       "handler": "services/api/src/routes/operations-queues.routes.ts",
       "authority": [
-        "requirePlatformOpsActor"
+        "requirePlatformOpsActor",
+        "gateReplayCategory"
       ],
       "riskClass": "HIGH_IMPACT_OPERATIONAL",
       "control": "Button 'Retry attempt' in the replay dialog opened from a failed job row",
@@ -5944,8 +5946,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-queues.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
             }
           ],
           "reason": null
@@ -6033,6 +6035,7 @@
       "typedConfirmation": false,
       "apiTests": [
         "services/api/test/adm013-operations-platform-authority.integration.test.ts",
+        "services/api/test/attention-arch-phase4b-workspace-operations.test.ts",
         "services/api/test/operations-capability-disposition.test.ts",
         "services/api/test/phase-32-8-c-command-center.test.ts",
         "services/api/test/phase-p2-final-closure.test.ts"
@@ -6124,8 +6127,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-recovery.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
             }
           ],
           "reason": null
@@ -6304,8 +6307,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-recovery.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-p2-final-closure.test.ts"
             }
           ],
           "reason": null
@@ -6477,8 +6480,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-signers.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
             }
           ],
           "reason": null
@@ -6656,8 +6659,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-signers.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/adm013-operations-platform-authority.integration.test.ts"
             }
           ],
           "reason": null
@@ -6745,6 +6748,7 @@
       "typedConfirmation": true,
       "apiTests": [
         "services/api/test/adm013-operations-platform-authority.integration.test.ts",
+        "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
         "services/api/test/phase-p3-1-signer-governance.test.ts"
       ],
       "boundTests": {
@@ -6789,7 +6793,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -6836,8 +6840,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-signers.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -6847,7 +6851,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -6857,7 +6861,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -6905,7 +6909,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -6915,7 +6919,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -6924,6 +6928,7 @@
       "stepUp": true,
       "typedConfirmation": true,
       "apiTests": [
+        "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
         "services/api/test/phase-p3-1-signer-governance.test.ts"
       ],
       "boundTests": {
@@ -6968,7 +6973,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -7015,8 +7020,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/operations-signers.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -7026,7 +7031,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -7036,7 +7041,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -7084,7 +7089,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -7094,7 +7099,7 @@
           "proofs": [
             {
               "kind": "API",
-              "where": "services/api/test/phase-p3-1-signer-governance.test.ts"
+              "where": "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts"
             }
           ],
           "reason": null
@@ -7103,6 +7108,7 @@
       "stepUp": true,
       "typedConfirmation": true,
       "apiTests": [
+        "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
         "services/api/test/phase-p3-1-signer-governance.test.ts"
       ],
       "boundTests": {
@@ -7121,7 +7127,7 @@
       "path": "/v1/ops/media-intelligence/dlq/replay",
       "handler": "services/api/src/routes/ops.routes.ts",
       "authority": [
-        "requireDomainActionOnOpsSurface"
+        "requirePlatformOpsActor"
       ],
       "riskClass": "HIGH_IMPACT_OPERATIONAL",
       "control": "Button 'Replay DLQ' in the media-graph operator actions panel",
@@ -7192,8 +7198,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/ops.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
             }
           ],
           "reason": null
@@ -7301,7 +7307,7 @@
       "path": "/v1/ops/media-intelligence/runs/:runId/retry",
       "handler": "services/api/src/routes/ops.routes.ts",
       "authority": [
-        "requireDomainActionOnOpsSurface"
+        "requirePlatformOpsActor"
       ],
       "riskClass": "HIGH_IMPACT_OPERATIONAL",
       "control": "Button 'Retry job' (with job-id field) in the media-graph operator actions panel",
@@ -7372,8 +7378,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/ops.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/attention-arch-phase4b-workspace-operations.test.ts"
             }
           ],
           "reason": null
@@ -7554,8 +7560,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/reliability.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-reliability-operator-actions.integration.test.ts"
             }
           ],
           "reason": null
@@ -7749,8 +7755,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/reliability.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/admin-reliability-operator-actions.integration.test.ts"
             }
           ],
           "reason": null
@@ -7934,8 +7940,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/identity-operations-completion.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
             }
           ],
           "reason": null
@@ -8104,8 +8110,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/identity-operations-completion.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts"
             }
           ],
           "reason": null
@@ -8279,8 +8285,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/enterprise-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-10-enterprise-identity.test.ts"
             }
           ],
           "reason": null
@@ -8456,8 +8462,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/enterprise-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-10-enterprise-identity.test.ts"
             }
           ],
           "reason": null
@@ -8631,8 +8637,8 @@
           "final": "PROVEN",
           "proofs": [
             {
-              "kind": "SOURCE",
-              "where": "services/api/src/routes/enterprise-security.routes.ts"
+              "kind": "API",
+              "where": "services/api/test/phase-10-enterprise-identity.test.ts"
             }
           ],
           "reason": null

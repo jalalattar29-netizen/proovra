@@ -126,6 +126,27 @@ export const REQUIRED = Object.freeze([
 
 const NEVER_NOT_APPLICABLE = new Set(["failureLeavesStateCorrect", "noOptimisticSuccess"]);
 
+/*
+ * The dimensions that are claims about what the SERVER DOES when the request
+ * arrives — as opposed to what the page renders, which source text can
+ * legitimately settle.
+ *
+ * None of these may be concluded from reading a handler. See the note at the
+ * cell resolver for the three Phase 3 defects that each read as correct in
+ * the source and were false in execution.
+ */
+const SERVER_BEHAVIOUR_CHECKS = new Set([
+  "backendAuthorization",
+  "unauthorizedRefused",
+  "persistedEffect",
+  "concurrency",
+  "auditOutput",
+  "tenantIsolation",
+]);
+
+/** Evidence kinds that ran the code, rather than reading it. */
+const EXECUTED_KINDS = new Set(["API", "E2E"]);
+
 // ---------------------------------------------------------------------------
 // The mutations, from the same inventory the route ledger uses.
 // ---------------------------------------------------------------------------
@@ -538,6 +559,45 @@ const rows = mutations().map((m) => {
         }
       }
     }
+    /*
+     * A SERVER-BEHAVIOUR CELL MAY NOT BE SETTLED FROM SOURCE TEXT.
+     *
+     * Reading a handler tells you what it NAMES, never what it DOES, and
+     * Phase 3 kept finding the gap between the two by executing the routes:
+     *
+     *   * POST /v1/admin/identity/sessions/:id/score named
+     *     `requireIdentityAdmin` and passed the source scan, while actually
+     *     enforcing `identity.org_policy.read` — a READ permission on a route
+     *     that rewrites a session's risk score.
+     *   * The queue replay route imported the step-up middleware and called
+     *     it only when the CALLER volunteered a job-name hint; omitting the
+     *     hint skipped the gate. The retry route imported it and never called
+     *     it at all, while its comment said the service did.
+     *   * `createSsoConnection` had an unremarkable handler that could never
+     *     succeed: it re-validated its own actor field against a `.strict()`
+     *     schema, so every provider creation threw.
+     *
+     * Each of those reads as correct in the source. So a server-behaviour
+     * dimension backed only by SOURCE is reported MISSING, and the run fails
+     * until an executed API/E2E proof names the mutation.
+     */
+    if (SERVER_BEHAVIOUR_CHECKS.has(check) && final === "PROVEN") {
+      const executed = proofs.filter((p) => EXECUTED_KINDS.has(p.kind));
+      if (executed.length === 0) {
+        problems.push(
+          `${m.key}/${check}: settled from SOURCE alone — a server-behaviour ` +
+            `dimension needs an executed API or E2E proof that names this mutation`,
+        );
+        return {
+          final: "MISSING",
+          proofs,
+          reason:
+            "source text shows what the handler names, not what it does; " +
+            "an executed proof is required",
+        };
+      }
+    }
+
     return { final, proofs, reason };
   };
 
@@ -552,7 +612,21 @@ const rows = mutations().map((m) => {
     explainsScope: cell("explainsScope", src.explainsScope, "SOURCE", sites[0]?.file),
     confirmation: cell("confirmation", src.confirms, "SOURCE", sites[0]?.file),
     request: cell("request", Boolean(src.method), "SOURCE", sites[0]?.file),
-    backendAuthorization: cell("backendAuthorization", m.authority.length > 0 && !m.authority.includes("UNRESOLVED"), "SOURCE", m.handlerFile),
+    /*
+     * Both halves are required, and the second is the one that matters.
+     *
+     * That the handler NAMES an authority is a precondition read from source;
+     * that the authority actually refuses the wrong caller is a claim only an
+     * executed test can settle. This cell used to be SOURCE-only, and rated
+     * `POST /v1/admin/identity/sessions/:id/score` PROVEN while it enforced a
+     * READ permission on a route that rewrites a session's risk score.
+     */
+    backendAuthorization: cell(
+      "backendAuthorization",
+      m.authority.length > 0 && !m.authority.includes("UNRESOLVED") && apiTests.length > 0,
+      "API",
+      apiTests[0],
+    ),
     persistedEffect: cell("persistedEffect", apiTests.length > 0, "API", apiTests[0]),
     concurrency: cell("concurrency", apiTests.length > 0, "API", apiTests[0]),
     refreshFromServer: cell("refreshFromServer", src.reloadsAfter, "SOURCE", sites[0]?.file),

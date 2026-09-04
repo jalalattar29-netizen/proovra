@@ -273,10 +273,25 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
         signerId: params.id,
         reason: body.reason,
+        // Honoured, not merely parsed. Retire and revoke both pass this
+        // through; promote used to drop it, so a caller who asked for a
+        // compare-and-set got an unconditional write.
+        expectedStateVersion: body.expectedStateVersion,
       });
       if (!result.ok) {
+        /*
+         * Every refusal used to be a 404, including a missing reason and a
+         * signer that moved under the operator — the console could not tell
+         * "no such signer" from "reload and look again".
+         */
+        const status =
+          result.code === "staged_not_found"
+            ? 404
+            : result.code === "reason_required"
+              ? 400
+              : 409;
         return reply
-          .code(404)
+          .code(status)
           .send({ error: { code: result.code, message: result.message } });
       }
       return reply.code(200).send({ result });

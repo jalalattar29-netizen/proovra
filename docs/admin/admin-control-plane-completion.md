@@ -209,7 +209,7 @@
 | `/admin/platform/queues` | GET | `/v1/operations/queues/replay-safety` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/queues` | GET | `/v1/operations/queues/:queueName/failed` | requirePlatformOpsActor | FILTER_CANDIDATE |
 | `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
-| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/retry` | requirePlatformOpsActor | FILTER_CANDIDATE |
+| `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/retry` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/queues` | POST | `/v1/operations/queues/:queueName/jobs/:jobId/replay` | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | FILTER_CANDIDATE |
 | `/admin/platform/readiness` | GET | `/v1/operations/readiness` | requirePlatformAdmin | NONE |
 | `/admin/platform/recovery` | GET | `/v1/operations/recovery` | requirePlatformOpsActor | FILTER_CANDIDATE |
@@ -326,7 +326,7 @@
 | `/admin/identity/access-reviews` | 521 | 4c/1t/1s | HARDCODED_STATUS_HEX |
 | `/admin/identity/permission-matrix` | 755 | 6c/1t/5s | HARDCODED_STATUS_HEX |
 | `/admin/identity/providers` | 967 | 9c/1t/3s | HARDCODED_STATUS_HEX |
-| `/admin/identity/runtime` | 734 | 1c/2t/3s | HARDCODED_STATUS_HEX |
+| `/admin/identity/runtime` | 910 | 2c/2t/3s | HARDCODED_STATUS_HEX |
 | `/admin/identity/scim` | 1345 | 7c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 324 | 0c/1t/1s |  |
