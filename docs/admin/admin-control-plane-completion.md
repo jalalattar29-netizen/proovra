@@ -306,7 +306,7 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 846 | 0c/0t/10s |  |
+| `/admin` | 856 | 0c/0t/10s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
 | `/admin/audit` | 914 | 3c/1t/2s |  |
@@ -331,12 +331,12 @@
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 324 | 0c/1t/1s |  |
 | `/admin/operations` | 513 | 2c/2t/2s |  |
-| `/admin/platform-health` | 363 | 3c/0t/2s |  |
+| `/admin/platform-health` | 373 | 3c/0t/2s |  |
 | `/admin/platform/analytics` | 813 | 0c/0t/9s | HARDCODED_STATUS_HEX |
 | `/admin/platform/automation` | 670 | 0c/2t/5s | HARDCODED_STATUS_HEX |
 | `/admin/platform/exports` | 845 | 0c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/media-graph` | 723 | 0c/0t/5s | HARDCODED_STATUS_HEX |
-| `/admin/platform/observability` | 1666 | 0c/2t/0s | HARDCODED_STATUS_HEX |
+| `/admin/platform/observability` | 1675 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/queues` | 801 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/readiness` | 604 | 8c/0t/6s | HARDCODED_STATUS_HEX |
 | `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |

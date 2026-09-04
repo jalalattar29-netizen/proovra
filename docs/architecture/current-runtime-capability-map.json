@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "84ff6851a736888a2a480f3b0f61610ddd8275a31aa6918bb2bd63302a7843b9",
-  "consumerInventoryHash": "085178ace2898274b7d69de461ce50d91b0620adac3deb7b5634a9fc798c6b8f",
+  "consumerInventoryHash": "95020135a4a6b9267079003ac5a3c1f3c8c47444528d6e842f1de1fc1b4d3d3b",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1125,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8293,
-      "UNRESOLVED_IDENTIFIER": 1042
+      "METHOD_ON_VALUE": 8298,
+      "UNRESOLVED_IDENTIFIER": 1044
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -1251,7 +1251,7 @@
       "method": "GET",
       "route": "/v1/admin/overview",
       "registeringFile": "services/api/src/routes/admin-overview.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/page.tsx:394",
+      "productConsumer": "apps/web/app/(app)/admin/page.tsx:396",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1263,7 +1263,7 @@
       "method": "GET",
       "route": "/v1/admin/platform-health",
       "registeringFile": "services/api/src/routes/admin-platform-health.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform-health/page.tsx:238",
+      "productConsumer": "apps/web/app/(app)/admin/platform-health/page.tsx:248",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1275,7 +1275,7 @@
       "method": "GET",
       "route": "/v1/admin/platform/alerts",
       "registeringFile": "services/api/src/routes/admin-platform-telemetry.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:655",
+      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:664",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1287,7 +1287,7 @@
       "method": "GET",
       "route": "/v1/admin/platform/health-snapshot",
       "registeringFile": "services/api/src/routes/admin-platform-telemetry.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:686",
+      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:695",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1311,7 +1311,7 @@
       "method": "GET",
       "route": "/v1/admin/platform/readiness",
       "registeringFile": "services/api/src/routes/admin-platform-telemetry.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:672",
+      "productConsumer": "apps/web/app/(app)/admin/platform/observability/page.tsx:681",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6231,7 +6231,7 @@
       "method": "GET",
       "route": "/v1/teams/:workspaceId/operations/alerts",
       "registeringFile": "services/api/src/routes/workspace-operations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/health/page.tsx:191",
+      "productConsumer": "apps/web/app/(app)/operations/health/page.tsx:200",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6243,7 +6243,7 @@
       "method": "GET",
       "route": "/v1/teams/:workspaceId/operations/health",
       "registeringFile": "services/api/src/routes/workspace-operations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/operations/health/page.tsx:175",
+      "productConsumer": "apps/web/app/(app)/operations/health/page.tsx:184",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -77347,8 +77347,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@97",
-      "terminalLocation": "services/worker/src/telemetry.ts:97",
+      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@145",
+      "terminalLocation": "services/worker/src/telemetry.ts:145",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -77378,8 +77378,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@120",
-      "terminalLocation": "services/worker/src/telemetry.ts:120",
+      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@168",
+      "terminalLocation": "services/worker/src/telemetry.ts:168",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -82587,7 +82587,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/page.tsx",
-          "line": 394,
+          "line": 396,
           "caller": "AdminOverviewPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82597,7 +82597,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/page.tsx:394 (AdminOverviewPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/page.tsx:396 (AdminOverviewPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82668,7 +82668,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform-health/page.tsx",
-          "line": 238,
+          "line": 248,
           "caller": "AdminPlatformHealthPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82678,7 +82678,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform-health/page.tsx:238 (AdminPlatformHealthPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform-health/page.tsx:248 (AdminPlatformHealthPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82700,7 +82700,8 @@
         "securityEvent",
         "ssoConnection",
         "stripeWebhookEvent",
-        "uploadSession"
+        "uploadSession",
+        "workerTelemetrySnapshot"
       ],
       "modelsWritten": [],
       "tenantBindingResolved": true,
@@ -82739,7 +82740,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
-          "line": 655,
+          "line": 664,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82749,7 +82750,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:655 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:664 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82791,7 +82792,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
-          "line": 686,
+          "line": 695,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82801,7 +82802,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:686 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:695 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82869,7 +82870,7 @@
         },
         {
           "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
-          "line": 652,
+          "line": 661,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82879,7 +82880,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:276 (load, WEB); apps/web/app/(app)/admin/platform/observability/page.tsx:652 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/media-graph/page.tsx:276 (load, WEB); apps/web/app/(app)/admin/platform/observability/page.tsx:661 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -82921,7 +82922,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/observability/page.tsx",
-          "line": 672,
+          "line": 681,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -82931,7 +82932,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:672 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/observability/page.tsx:681 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109116,7 +109117,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/health/page.tsx",
-          "line": 191,
+          "line": 200,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109126,7 +109127,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/health/page.tsx:191 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/health/page.tsx:200 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109180,7 +109181,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/operations/health/page.tsx",
-          "line": 175,
+          "line": 184,
           "caller": "tick",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -109190,7 +109191,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/operations/health/page.tsx:175 (tick, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/operations/health/page.tsx:184 (tick, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
