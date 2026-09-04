@@ -195,7 +195,24 @@ export function resolveSettingsNavigation(
    * `intelligence.policy.manage` regardless of what this rail offers.
    */
   const isPersonalSpace = input.activeSpace?.type === "PERSONAL";
-  if (isPersonalSpace || (isOrg && has(input, "SETTINGS_MANAGE"))) {
+  /*
+   * MEMBERSHIP, NOT AUTHORITY.
+   *
+   * The previous pass opened this to personal spaces and left organization
+   * MEMBERS out, because the gate still required `SETTINGS_MANAGE`. That
+   * contradicted the surface behind it: `AiSection` falls back to
+   * `AiReadOnlyView` — four cards, no controls — precisely for a member who
+   * may see the policy but not change it, and the API grew
+   * `GET /v1/workspaces/ai-assistance-status` behind
+   * `governance.policy.read` (held by every membership role) so that view had
+   * something safe to read. All of it was unreachable for the members it was
+   * written for.
+   *
+   * Whether a member may CHANGE the policy is still decided by
+   * `SETTINGS_MANAGE` inside the pane and enforced server-side by
+   * `intelligence.policy.manage`. This decides only whether they can look.
+   */
+  if (isPersonalSpace || isOrg) {
     // CONTEXT AUTHORITY (2026-09-03) — "General" is now called what it is.
     //
     // The label said General and the pane's own subtitle said "Workspace

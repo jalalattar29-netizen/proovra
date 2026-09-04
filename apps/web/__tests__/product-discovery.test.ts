@@ -293,3 +293,41 @@ test("Reviewer Criteria stays gated — the tools change did not widen it", () =
     "REVIEWER_OPS_VIEW",
   ]);
 });
+
+test("Reviewer Criteria is HIDDEN without the capability, not merely denied", () => {
+  /*
+   * Adding REVIEWER_OPS_VIEW stopped a personal account OPENING it but not
+   * SEEING it: with `fallbackBehavior: "LOAD"` the resolver answers a missing
+   * capability with `canSeeNav: true` and a "request access" state, so the row
+   * stayed in the command palette for exactly the brand-new FREE account that
+   * reported it. Half a fix looks like a whole one from the code.
+   */
+  const r = byId("workspace.reviewer_criteria");
+  assert.equal(r.fallbackBehavior, "HIDDEN_IF_NO_CAPABILITY");
+
+  const access = resolveRouteAccess({
+    route: r,
+    activeSpaceType: "PERSONAL",
+    isPlatformAdmin: false,
+    capabilities: { ACCOUNT_SETTINGS_VIEW: true },
+    accountPlan: null,
+    isEnterpriseWorkspace: false,
+    planFeatures: null,
+  } as never);
+  assert.equal(access.canSeeNav, false, "must not appear in the palette corpus");
+  assert.equal(access.canLoad, false);
+});
+
+test("a reviewer-capable workspace still gets it", () => {
+  const access = resolveRouteAccess({
+    route: byId("workspace.reviewer_criteria"),
+    activeSpaceType: "ORGANIZATION",
+    isPlatformAdmin: false,
+    capabilities: { REVIEWER_OPS_VIEW: true },
+    accountPlan: null,
+    isEnterpriseWorkspace: false,
+    planFeatures: null,
+  } as never);
+  assert.equal(access.canSeeNav, true);
+  assert.equal(access.canLoad, true);
+});

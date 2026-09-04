@@ -2553,7 +2553,20 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
      */
     requiredCapabilities: ["REVIEWER_OPS_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG",
-    fallbackBehavior: "LOAD",
+    /*
+     * HIDDEN, not merely denied.
+     *
+     * Adding `REVIEWER_OPS_VIEW` stopped a personal account from OPENING this,
+     * but not from SEEING it: with `fallbackBehavior: "LOAD"` the resolver
+     * answers a missing capability with `canSeeNav: true` and a "request
+     * access" state, so the entry stayed in the command palette for exactly
+     * the brand-new FREE account that reported it. Half the fix.
+     *
+     * Reviewer criteria govern reviewer workflows. A workspace with no
+     * reviewer workflow has nothing to request access TO, so offering the row
+     * teaches nothing and asking an admin for it leads nowhere.
+     */
+    fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 
     advancedByDefault: false,
     commandPaletteVisible: true,

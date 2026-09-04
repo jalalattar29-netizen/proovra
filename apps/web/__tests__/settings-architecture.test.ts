@@ -473,12 +473,41 @@ test("Settings offers AI & assistance to a personal workspace, not only an org",
       capabilities: {},
       accountPlan: plan,
       personalSpace: { id: "p-1" },
-      organizations: [],
-    });
+      orgAdminOrgId: null,
+      isEnterpriseWorkspace: false,
+    } as never);
     const labels = nav.groups.flatMap((g) => g.items.map((i) => i.label));
     assert.ok(
       labels.includes("AI & assistance"),
       `${plan} personal workspace must reach AI & assistance; got ${labels.join(", ") || "(none)"}`,
     );
   }
+});
+
+test("an organization MEMBER can see AI & assistance, read-only", () => {
+  /*
+   * The gate required SETTINGS_MANAGE, so members were excluded — while
+   * `AiSection` falls back to `AiReadOnlyView` (four cards, no controls)
+   * precisely for a member who may see the policy but not change it, and the
+   * API grew `GET /v1/workspaces/ai-assistance-status` behind
+   * `governance.policy.read` (every membership role holds it) so that view had
+   * something safe to read. All of it was unreachable for its own audience.
+   *
+   * Whether they may CHANGE it is still SETTINGS_MANAGE inside the pane, and
+   * still `intelligence.policy.manage` server-side.
+   */
+  const member = resolveSettingsNavigation({
+    activeSpace: { type: "ORGANIZATION", id: "o-1", displayName: "Acme" },
+    isPlatformAdmin: false,
+    capabilities: { ACCOUNT_SETTINGS_VIEW: true, SETTINGS_VIEW: true, TEAM_VIEW: true },
+    accountPlan: null,
+    personalSpace: { id: "p-1" },
+    orgAdminOrgId: null,
+    isEnterpriseWorkspace: false,
+  } as never);
+  const labels = member.groups.flatMap((g) => g.items.map((i) => i.label));
+  assert.ok(
+    labels.includes("AI & assistance"),
+    `an org member must reach it read-only; got ${labels.join(", ") || "(none)"}`,
+  );
 });
