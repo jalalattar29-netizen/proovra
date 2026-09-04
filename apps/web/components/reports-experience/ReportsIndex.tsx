@@ -384,12 +384,14 @@ export function ReportsIndex() {
   const ctxStateName = ctxState.name;
   const ctxErrorCode = ctxState.name === "FAILED" ? ctxState.errorCode : null;
   const ctxMessage = ctxState.name === "FAILED" ? ctxState.message : null;
-  // The CURRENT query, read (not subscribed to) by the workspace-switch reload.
-  // Filter and search changes are owned by the debounced effect below; firing
-  // them from here as well would issue the same request twice.
-  const queryRef = useRef({ filter, search, reload });
-  queryRef.current = { filter, search, reload };
-
+  /*
+   * There used to be a `queryRef` here, holding the current filter and search
+   * so the workspace-switch effect could fire the list request itself. Its own
+   * comment already warned that "firing them from here as well would issue the
+   * same request twice" — and it did, because the effect also reset the cursor
+   * and that alone re-runs the list effect. The ref went with the duplicate
+   * call: nothing reads the live query except the effect that owns it.
+   */
   useEffect(() => {
     if (ctxStateName === "IDLE" || ctxStateName === "LOADING_CONTEXT") {
       setState({ status: "loading" });
@@ -413,9 +415,32 @@ export function ReportsIndex() {
       setState({ status: "no_workspace" });
       return;
     }
-    const q = queryRef.current;
-    setCursors([]);
-    void q.reload(q.filter, q.search, null);
+    /*
+     * TWO EFFECTS WERE ISSUING THE SAME LIST REQUEST.
+     *
+     * This one called `reload` directly AND reset the cursor with a fresh
+     * `[]`. A new array is never `Object.is`-equal to the old one, so React
+     * committed a state change even when the cursor was already empty, and
+     * that commit re-ran the list effect below — whose dependency array
+     * includes `cursors`. The second request then aborted the first.
+     *
+     * Measured on /reports in an organization workspace: four requests to
+     * `/v1/reports/artifacts?lifecycle=all&summary=0`, three of them cancelled
+     * after 3-20ms (twice that pair, because dev double-invokes effects). Every
+     * cancelled one had already made the server run the aggregation.
+     *
+     * The list effect below says it owns this query, so it does. This effect
+     * keeps the two things only IT can do: send a workspace switch back to
+     * page 1, and refresh the summary sections, which the list request
+     * deliberately does not carry (`summary=0`).
+     *
+     * The cursor reset returns the SAME reference when there is nothing to
+     * reset, so React bails out and no needless commit happens. When there IS
+     * a cursor to drop, the new array is exactly the dependency change that
+     * makes the list effect re-query page 1 — which is the intent, expressed
+     * once rather than twice.
+     */
+    setCursors((prev) => (prev.length > 0 ? [] : prev));
     void loadSummary();
     // Reload when the workspace switches (or provider state resolves).
   }, [ctxStateName, ctxErrorCode, ctxMessage, workspaceId, loadSummary]);

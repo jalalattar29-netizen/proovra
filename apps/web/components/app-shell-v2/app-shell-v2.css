@@ -1083,18 +1083,48 @@
   position: relative;
 }
 
+/*
+  WHY THESE TRIGGERS WERE STILL WIDE, AFTER THE ALIGNMENT FIX.
+
+  Alignment was never what set the width. Measured in the browser at 1440,
+  signed in to an organization workspace: the account trigger rendered 195px
+  and the workspace trigger 191px — 386px of header for two controls.
+
+  Both were at their CAP, not at their content. The label column is sized by
+  the wider of its two lines, and the caps were generous enough that the cap
+  is what the eye reads:
+
+    account   30 avatar + 8 + 120 copy + 8 + 16 chevron + 11 padding = 193
+    workspace 22 icon   + 8 + 119 copy + 8 + 16 chevron + 18 padding = 191
+
+  Two things follow from those numbers. The chrome around the words is 62-73px
+  of the control, and on the workspace trigger the widest line is the SECOND
+  one — "Organization • OWNER" wants 173px against the name's 128 — so the
+  trigger was being sized by its subtitle.
+
+  So the caps come down to one number instead of two generous ones, and every
+  piece of chrome gives back a few pixels: a 26px avatar rather than 30, a
+  20px workspace glyph rather than 22, 6px gaps rather than 8, and padding
+  trimmed on both. Nothing here sets a width or a min-width — the control is
+  still content-driven and simply stops sooner, and both lines already carry
+  `text-overflow: ellipsis`, so a long organization name truncates rather
+  than pushing the header around.
+
+  160 is the same number the narrow-viewport block below uses, give or take
+  the 8px it trims further. One cap, not a ladder of them.
+*/
 .app-topbar-v2-workspace-button {
   height: 36px;
   min-height: 36px;
-  padding: 0 10px 0 8px !important;
-  gap: 8px !important;
+  padding: 0 8px 0 6px !important;
+  gap: 6px !important;
   border-radius: 8px !important;
   background: transparent !important;
   border: 1px solid transparent !important;
   box-shadow: none !important;
   color: var(--content-ink) !important;
   cursor: pointer;
-  max-width: 220px;
+  max-width: 160px;
   transition: background 120ms ease, border-color 120ms ease;
   display: inline-flex;
   align-items: center;
@@ -1111,13 +1141,13 @@
 }
 
 .app-topbar-v2-workspace-icon {
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
   display: grid;
   place-items: center;
   color: var(--content-ink-muted);
-  flex: 0 0 22px;
+  flex: 0 0 20px;
 }
 
 /*
@@ -1198,14 +1228,14 @@
   /* Trailing padding trimmed with the stretch fix above — 10px against a 3px
      leading edge was sized for a column that no longer grows. */
   padding: 2px 8px 2px 3px !important;
-  gap: 8px !important;
+  gap: 6px !important;
   border-radius: 999px !important;
   background: transparent !important;
   border: 1px solid transparent !important;
   box-shadow: none !important;
   color: var(--content-ink) !important;
   cursor: pointer;
-  max-width: 230px;
+  max-width: 160px;
   display: inline-flex;
   align-items: center;
   transition: background 120ms ease, border-color 120ms ease;
@@ -1223,10 +1253,10 @@
 
 .app-topbar-v2-avatar,
 .app-topbar-v2-avatar-fallback {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   border-radius: 999px;
-  flex: 0 0 30px;
+  flex: 0 0 26px;
 }
 
 .app-topbar-v2-avatar {

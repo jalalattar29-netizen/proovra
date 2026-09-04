@@ -2895,6 +2895,31 @@ export async function buildCommandCenter(input: {
   const { scope, memberCount, population: pop } =
     await detectWorkspaceScope(input.teamId);
 
+  /*
+   * TWENTY-FOUR ENGINES, ONE BARRIER.
+   *
+   * These were THREE consecutive `await Promise.all(...)` statements — twelve
+   * engines, then five, then seven — so the endpoint paid three round-trip
+   * barriers back to back and each batch waited for the slowest member of the
+   * one before it.
+   *
+   * Nothing made them three. Every engine below takes its arguments from
+   * `input`, from `scope` and from `pop`, all of which are resolved by
+   * `detectWorkspaceScope` above; not one of them reads a result produced by
+   * an earlier batch. The grouping was how the file grew — Phase 32.8C added a
+   * batch, then Phase 32.8C++ added another — rather than a dependency anyone
+   * had to honour.
+   *
+   * It is the single slowest read on Home. Measured on the local fixture in an
+   * organization workspace, `/v1/dashboard/command-center` took 406ms while
+   * every other Home read had settled by 925ms and the page's own barrier ran
+   * to 1173ms: a quarter of Home's data phase was this one endpoint finishing
+   * after everything else.
+   *
+   * The two things that DO depend on these outputs — the predictive risk
+   * forecast and Org Intelligence V2 — still run afterwards, unchanged. Same
+   * calls, same arguments, same results; only the waiting is gone.
+   */
   const [
     pressure,
     caseOps,
@@ -2908,6 +2933,18 @@ export async function buildCommandCenter(input: {
     incidents,
     legacyPipeline,
     legacyReviewer,
+    investigation,
+    queueCongestionResult,
+    integrityResult,
+    securityResult,
+    workloadEngineResult,
+    relationshipResult,
+    crossCaseV2Result,
+    reconstructedTimelineResult,
+    deepIntegrityResult,
+    securityClassifierResult,
+    queueWorkerTelemetryResult,
+    coordinationResult,
   ] = await Promise.all([
     runOperationalPressure(input.teamId, scope, input.role),
     runCaseOperations(input.teamId, scope, pop),
@@ -2921,33 +2958,15 @@ export async function buildCommandCenter(input: {
     runIncidents(input.teamId),
     runLegacyPipelineSummary(input.teamId, pop),
     runLegacyReviewerWorkload(input.teamId, scope),
-  ]);
 
-  // Phase 32.8C+ intelligence engines (parallel + partial-failure tolerant).
-  const [
-    investigation,
-    queueCongestionResult,
-    integrityResult,
-    securityResult,
-    workloadEngineResult,
-  ] = await Promise.all([
+    // Phase 32.8C intelligence engines (partial-failure tolerant).
     runInvestigationIntelligence(input.teamId, scope, pop),
     runQueueCongestion(input.teamId, scope, pop),
     runCustodyIntegrityAnomalies(input.teamId, pop),
     runAccessSecurityAnomalies(input.teamId),
     runWorkloadEngine(input.teamId, scope),
-  ]);
 
-  // Phase 32.8C++ deep operations intelligence (parallel + partial-failure tolerant).
-  const [
-    relationshipResult,
-    crossCaseV2Result,
-    reconstructedTimelineResult,
-    deepIntegrityResult,
-    securityClassifierResult,
-    queueWorkerTelemetryResult,
-    coordinationResult,
-  ] = await Promise.all([
+    // Phase 32.8C++ deep operations intelligence (partial-failure tolerant).
     runRelationshipIntelligence(input.teamId, pop),
     runCrossCaseIntelligenceV2(input.teamId, scope, pop),
     runReconstructedTimeline(input.teamId),

@@ -594,7 +594,9 @@ export function AppAccountToolbar({
                 </span>
               </div>
 
-              <ChevronDown size={16} strokeWidth={1.9} />
+              {/* 14, matching the workspace trigger's. A 16px chevron beside a
+                  26px avatar reads as the largest thing in the control. */}
+              <ChevronDown size={14} strokeWidth={1.9} />
             </button>
 
             {accountOpen ? (
