@@ -38,9 +38,9 @@ seeded workspaces.
 | `/admin/alerts`, `/admin/audit`, `/admin/timeline`, `/admin/security` | PROVEN_CORRECT |
 | `/admin/billing`, `/admin/costs` | PROVEN_CORRECT |
 | `/admin/platform/observability`, `/admin/platform-health`, `/admin/platform/readiness` | PROVEN_CORRECT |
-| `/admin/platform/analytics` | PROVEN_CORRECT — platform-scoped; every workspace role refused |
+| `/admin/platform/analytics` | NOT_APPLICABLE to this table — WORKSPACE-scoped, listed below |
 | `/admin/provisioning`, `/admin/enterprise/provision` | FIXED_AND_RUNTIME_PROVEN — personal-container plan grant refused (pushed earlier) |
-| `/admin/support-access` | FIXED_AND_RUNTIME_PROVEN — see below |
+| `/admin/support-access` | FIXED_AND_RUNTIME_PROVEN — see below; scope corrected to PLATFORM_AUDIT |
 
 ## Workspace-scoped surfaces
 
@@ -58,6 +58,9 @@ the other tenant, and a refusal writes nothing.
 | `/admin/identity/permission-matrix` | PROVEN_CORRECT — WORKSPACE_ADMIN_SELF_SERVICE |
 | `/admin/platform/reliability` | FIXED_AND_RUNTIME_PROVEN — see below |
 | `/admin/platform/automation` | PROVEN_CORRECT — workspace Operations Center; its own copy already says so |
+| `/admin/platform/analytics` | PROVEN_CORRECT — `/v1/analytics/*` is served by `analytics-operations.routes.ts` under `authorizeOrFail`, not by the platform `analytics.routes.ts` |
+| `/admin/platform/exports`, `/admin/platform/recovery` | PROVEN_CORRECT as WORKSPACE — the gate is platform (`requirePlatformOpsActor`) but `listExports` narrows on `evidence.teamId` and `listRecoveryReports` on `teamId`. The banner describes what is DISPLAYED, and what is displayed is one workspace's |
+| `/admin/security` | PROVEN_CORRECT as WORKSPACE — `/v1/identity/mfa-admin/*` is `authorizeOrFail` |
 
 **`/admin/platform/reliability`** led with the eyebrow *"Platform operations"*
 while its own subtitle said *"for this workspace"* and its API answers for
@@ -91,6 +94,26 @@ target, and no caller-controlled field able to choose whether either applies.
 | A revoked grant never becomes effectively ACTIVE again | PROVEN_CORRECT |
 | No token, secret or hash in the inventory | PROVEN_CORRECT |
 | Effective state recomputed from the store, not cached in the process | PROVEN_CORRECT |
+| The console's scope label matches what the page displays | FIXED_AND_RUNTIME_PROVEN — see below |
+
+The page carried the **workspace** banner: *"This page administers your own
+active workspace — not the platform."* On the surface that starts break-glass
+into a customer organization, that is the most reassuring possible wording for
+the least contained action in the product.
+
+It had been true. The support grant listing used to narrow by the supplied
+`teamId`, so the page really did show one workspace's rows. The Phase 4
+authority fix removed that narrowing — `/v1/support-access/grants` is now
+platform staff, listing the actor's grants across every tenant, and
+`/v1/break-glass/grants` never narrowed at all. The label was left behind by its
+own justification.
+
+It now reads **platform-wide, active workspace as audit scope** — the third
+state this console already models for `/admin/provisioning` and
+`/admin/customers/:id`. `teamId` still binds authority and audit on `/start`
+and `/enter`; it filters nothing that is shown. The claim is pinned by
+`the listing is NOT narrowed by any workspace` in the lifecycle proof: two
+grants, two organizations, two workspaces, one staff request, both rows back.
 
 **Workspace-owned projection of support grants: NOT_APPLICABLE** — the product
 has no surface offering a workspace administrator a view of support grants

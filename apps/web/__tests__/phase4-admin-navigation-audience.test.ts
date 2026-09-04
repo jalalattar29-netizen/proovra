@@ -72,7 +72,7 @@ test("a platform operator can see and load every Admin destination it offers", (
     const access = resolveRouteAccess({ route, ...PLATFORM_ADMIN });
     // An entry the intended audience cannot open is a dead link in their own
     // console — the "intended role has a discoverable path" half of the rule.
-    if (!access.canSeeNav || !access.canLoad) unreachable.push(`${id} (${route.path})`);
+    if (!access.canSeeNav || !access.canLoad) unreachable.push(`${id} (${route.href})`);
   }
   assert.deepEqual(
     unreachable,
@@ -97,7 +97,7 @@ test("no non-platform identity is offered a platform-admin Admin destination", (
         capabilities: identity.capabilities,
       });
       if (access.canSeeNav || access.canLoad) {
-        leaked.push(`${identity.name} → ${id} (${route.path})`);
+        leaked.push(`${identity.name} → ${id} (${route.href})`);
       }
     }
   }
@@ -126,7 +126,7 @@ test("a refused Admin route states a reason rather than going blank", () => {
       capabilities: {},
     });
     if (access.canLoad) continue;
-    if (!access.accessState || !access.reason) silent.push(`${id} (${route.path})`);
+    if (!access.accessState || !access.reason) silent.push(`${id} (${route.href})`);
   }
   assert.deepEqual(
     silent,
@@ -173,7 +173,7 @@ test("the sidebar and the Command Palette agree about every Admin destination", 
       // explicit opt-out). It must never surface one the sidebar would hide.
       if (paletteWouldOffer && !sidebarWouldOffer) {
         disagreements.push(
-          `${identity.name}: palette offers ${id} (${route.path}) that the sidebar hides`,
+          `${identity.name}: palette offers ${id} (${route.href}) that the sidebar hides`,
         );
       }
     }

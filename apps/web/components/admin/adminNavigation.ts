@@ -158,8 +158,23 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         href: "/admin/support-access",
         label: "Support access",
         purpose: "Support-access and break-glass grants.",
+        // The comment below this line already said the true thing — "platform
+        // action; the active workspace is the audit envelope" — and then chose
+        // WORKSPACE, which is the label for the opposite fact. The console
+        // therefore told an operator about to break glass into a CUSTOMER
+        // organization that this page "administers your own active workspace
+        // — not the platform".
+        //
+        // It was defensible when written: the grant listing narrowed by the
+        // supplied teamId, so the page really did show one workspace's rows.
+        // Phase 4 removed that narrowing. `/v1/support-access/grants` is now
+        // `requirePlatformStaff` and lists the staff member's own grants
+        // across every tenant, so the active workspace filters nothing and
+        // selects nothing; it only binds the operator's action, exactly as on
+        // /admin/provisioning and /admin/customers/:id.
+        //
         // Platform action; the active workspace is the audit envelope.
-        scope: "WORKSPACE",
+        scope: "PLATFORM_AUDIT",
       },
       {
         routeId: "admin.identity",

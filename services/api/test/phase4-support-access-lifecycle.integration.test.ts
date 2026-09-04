@@ -390,5 +390,48 @@ describe("PHASE 4 — support access lifecycle (live PostgreSQL 16)", () => {
       );
       expect(row!["effectiveStatus"]).toBe("EXPIRED");
     });
+
+    it("the listing is NOT narrowed by any workspace — the console's label depends on it", async () => {
+      /*
+       * WHY THIS IS A TEST AND NOT A COMMENT.
+       *
+       * The Admin console prints one of two banners on this page, and the
+       * choice is a claim about behaviour: "workspace-scoped — this page
+       * administers your own active workspace", or "platform-wide — that
+       * workspace is not a filter on what you see". Until this phase it
+       * printed the first, which told an operator about to break glass into a
+       * customer organization that they were looking at their own tenant.
+       *
+       * The label is now the second one. That is only honest while the
+       * listing really does cross tenants, so the label is pinned here rather
+       * than left to the next person's reading of the handler: two grants on
+       * two different organizations and two different workspaces, one staff
+       * caller, one request, both rows back.
+       */
+      const inA = await seedGrant({
+        organizationId: orgA.organizationId,
+        teamId: orgA.workspaceId,
+        supportUserId: staff.userId,
+        expiresInMs: 10 * 60_000,
+      });
+      const inB = await seedGrant({
+        organizationId: orgB.organizationId,
+        teamId: orgB.workspaceId,
+        supportUserId: staff.userId,
+        expiresInMs: 10 * 60_000,
+      });
+
+      const res = await call(staff.token, "GET", "/v1/support-access/grants?limit=200");
+      expect(res.status).toBe(200);
+      const ids = (res.body["grants"] as Array<Record<string, unknown>>).map(
+        (g) => g["id"],
+      );
+      expect(ids, "a grant on organization A was not listed").toContain(inA.id);
+      expect(
+        ids,
+        "the listing dropped organization B — it is narrowing by workspace, " +
+          "and the platform-wide banner on /admin/support-access is now a lie",
+      ).toContain(inB.id);
+    });
   });
 });

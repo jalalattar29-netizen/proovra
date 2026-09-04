@@ -112,7 +112,7 @@
 | `/admin/provisioning` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | customers | /admin |
 | `/admin/search` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | audit | /admin |
 | `/admin/security` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | security | /admin |
-| `/admin/support-access` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?), requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin |
+| `/admin/support-access` | WORKSPACE_FILTERED | handler trace | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?), requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin |
 | `/admin/timeline` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
 | `/admin/users` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | accounts | /admin |
 | `/admin/users/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/users |
@@ -340,7 +340,7 @@
 | `/admin/platform/queues` | 801 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/readiness` | 604 | 8c/0t/6s | HARDCODED_STATUS_HEX |
 | `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |
-| `/admin/platform/reliability` | 466 | 0c/0t/3s | HARDCODED_STATUS_HEX |
+| `/admin/platform/reliability` | 465 | 0c/0t/3s | HARDCODED_STATUS_HEX |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
 | `/admin/platform/runbooks/:slug` | 210 | 0c/0t/0s |  |
 | `/admin/platform/signers` | 1213 | 0c/3t/0s | HARDCODED_STATUS_HEX |

@@ -121,22 +121,38 @@ export const ADMIN_SCOPE_DISPOSITIONS: readonly AdminScopeDisposition[] = [
   },
   {
     route: "/admin/support-access",
-    // WORKSPACE_FILTERED, upgraded from WORKSPACE_CANDIDATE.
+    // RECLASSIFIED IN PHASE 4, because the code moved under the judgement.
     //
-    // The conclusion did not change; the EVIDENCE did. The tracer used to lose
-    // two of this page's endpoints — their URLs are built as
-    // `/v1/support-access/grants${qs ? `?${qs}` : ""}`, and the extractor
-    // truncated the template — so it could only report teamId as a filter
-    // CANDIDATE. With the query-building interpolation handled it resolves
-    // them, sees the narrowing, and reports a proven filter.
+    // The previous entry was right about the tree it was written against: the
+    // grant listing narrowed by the supplied teamId, so the page showed one
+    // workspace's rows and WORKSPACE was the honest label.
     //
-    // The guard flagged the difference rather than letting a recorded
-    // judgement drift silently away from what the tree says, which is what it
-    // is for.
+    // Phase 4 changed that tree. `GET /v1/support-access/grants` is now gated
+    // by `requirePlatformStaff` and returns the staff member's own grants
+    // across every tenant — the narrowing is gone. Revocation was moved to
+    // platform authority in the same change, because a customer must be able
+    // to have a support grant destroyed and the old caller-supplied teamId
+    // refused the very staff whose job that is.
+    //
+    // What remains of teamId is the audit envelope: /start and /enter still
+    // demand `identity.org_policy.manage` on the workspace the operator is
+    // standing in, on TOP of platform staff. It filters nothing and selects
+    // nothing. That is PLATFORM_AUDIT_CONTEXT, the same shape already recorded
+    // for /admin/provisioning and /admin/customers/:id.
+    //
+    // Keeping the old label would have been the worst of the three states: the
+    // console reassuring an operator about to break glass into a CUSTOMER
+    // organization that the page administers their own workspace.
+    // `observed` stays WORKSPACE_FILTERED because that is what the tracer
+    // still reports, and it is not wrong: /v1/support-access/enter compares
+    // `grant.teamId` against the supplied teamId and refuses a mismatch. That
+    // is a real narrowing — of ONE action, to the workspace its grant already
+    // names. The decision differs from the observation on purpose; that is
+    // what these two fields are for.
     observed: "WORKSPACE_FILTERED",
-    decision: "WORKSPACE_SURFACE_LABELLED",
+    decision: "PLATFORM_AUDIT_CONTEXT",
     why:
-      "CORRECTED. /v1/support-access/enter authorizes on `permission: identity.org_policy.manage` for the supplied body.teamId — a workspace permission, not a platform one. The grant is scoped to the workspace named in the request, and the grant listings narrow by the same teamId.",
+      "RECLASSIFIED. The banner describes what the page DISPLAYS, and both listings are now platform-wide: GET /v1/support-access/grants and GET /v1/break-glass/grants are requirePlatformStaff and neither narrows by teamId — the support listing returns the staff actor's grants across every tenant. The teamId the page still sends binds authority and audit on /start, /enter and the grant it enters, and filters nothing that is shown. Same shape as /admin/provisioning.",
   },
   {
     route: "/admin/provisioning",
