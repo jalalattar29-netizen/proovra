@@ -21,6 +21,7 @@ import {
   COLLABORATION_TEAM_BILLING_ERROR_CODES,
   COLLABORATION_TEAM_BILLING_ERROR_HTTP_STATUS,
 } from "@proovra/shared";
+import { PLAN_CAPABILITIES } from "@proovra/shared-billing";
 
 const API_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ENFORCEMENT = readFileSync(
@@ -120,5 +121,46 @@ describe("deterministic answers and the monthly plan cap", () => {
     // The reservation happens in the else branch — the provider path only.
     expect(elseIdx).toBeGreaterThan(preflightIdx);
     expect(reserveIdx).toBeGreaterThan(elseIdx);
+  });
+});
+
+// ===========================================================================
+// FREE CARRIES A LIMITED AI TRIAL
+// ===========================================================================
+describe("plan AI allowances", () => {
+  it("FREE includes a limited monthly allowance, not zero", () => {
+    /*
+     * Zero meant the enforcement layer refused before any usage existed, so a
+     * free account could never try the assistant. Ten makes it a trial.
+     *
+     * ALLOWANCE IS NOT ENTITLEMENT: this only bounds billable operations.
+     * Which capabilities exist is decided by the workspace AI policy and the
+     * capability registry — reviewer and case copilots, content intelligence
+     * and semantic search all default off, and enterprise governance needs an
+     * organization workspace. Raising this opened none of them.
+     */
+    expect(PLAN_CAPABILITIES.FREE.aiAdvisoryMonthlyOperations).toBe(10);
+  });
+
+  it("every other plan's allowance is unchanged", () => {
+    expect(PLAN_CAPABILITIES.PAYG.aiAdvisoryMonthlyOperations).toBe(50);
+    expect(PLAN_CAPABILITIES.PRO.aiAdvisoryMonthlyOperations).toBe(100);
+    expect(PLAN_CAPABILITIES.TEAM.aiAdvisoryMonthlyOperations).toBe(500);
+    expect(PLAN_CAPABILITIES.ENTERPRISE.aiAdvisoryMonthlyOperations).toBeNull();
+  });
+
+  it("FREE no longer reports NOT_INCLUDED, because it is included", () => {
+    // `cap <= 0` is the branch that raises AI_NOT_INCLUDED. FREE must not be
+    // in it any more, while a genuinely unentitled plan still would be.
+    expect(PLAN_CAPABILITIES.FREE.aiAdvisoryMonthlyOperations).toBeGreaterThan(0);
+  });
+
+  it("raising the allowance did not grant a single AI capability", () => {
+    // The guard on A1: a trial allowance must not open reviewer operations,
+    // copilots or intelligence to FREE.
+    const free = PLAN_CAPABILITIES.FREE;
+    expect(free.reviewerOperationsIncluded).toBe(false);
+    expect(free.reviewQueuesIncluded).toBe(false);
+    expect(free.professionalSurfacesIncluded).toBe(false);
   });
 });

@@ -297,7 +297,29 @@ export const PLAN_CAPABILITIES: Record<PlanType, PlanCapabilities> = {
     maxEvidenceRecords: 3,
     maxEvidenceRecordsPerMonth: null,
     paygCreditsRequiredPerCompletion: 0,
-    aiAdvisoryMonthlyOperations: 0,
+    /*
+     * FREE gets a LIMITED TRIAL of AI, not AI access.
+     *
+     * This was 0, which the enforcement layer reads as "the plan does not
+     * include the capability" and refuses with AI_NOT_INCLUDED before any
+     * usage exists. Ten operations a month makes the assistant something a
+     * free account can actually try.
+     *
+     * ALLOWANCE IS NOT ENTITLEMENT. This number only says how many billable
+     * operations a month the plan may spend. WHICH AI capabilities exist for a
+     * workspace is decided separately by `WorkspaceAiPolicy` and the capability
+     * registry — reviewer and case copilots default off, content intelligence
+     * and semantic search default off, and the enterprise governance surfaces
+     * need an organization workspace. Raising this opens none of them; it opens
+     * the support assistant, capture assistance and evidence categorisation
+     * that a personal workspace already carries.
+     *
+     * Deterministic product answers do not consume it: the chat route records a
+     * monthly operation only for a real provider call
+     * (`status === "ok" && !preflight`), so a free account's ten are spent on
+     * inference, not on answers compiled into the build.
+     */
+    aiAdvisoryMonthlyOperations: 10,
     allowsPersonalWorkspacePurchase: true,
     allowsSharedWorkspace: false,
     maxCollaborationTeamsPerWorkspace: 0,

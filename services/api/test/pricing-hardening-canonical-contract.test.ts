@@ -123,7 +123,7 @@ describe("canonical plan capabilities (shared-billing)", () => {
 
   it("AI advisory monthly caps match the published spec", () => {
     expect(text).toMatch(
-      /FREE:\s*\{[\s\S]*?aiAdvisoryMonthlyOperations:\s*0/,
+      /FREE:\s*\{[\s\S]*?aiAdvisoryMonthlyOperations:\s*10/,
     );
     expect(text).toMatch(
       /PRO:\s*\{[\s\S]*?aiAdvisoryMonthlyOperations:\s*100/,

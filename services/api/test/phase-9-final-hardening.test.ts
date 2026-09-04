@@ -4,7 +4,11 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NO_CONTRACT_LIMITS } from "../src/services/billing/enterprise-contract-limits.js";
+import {
+  NO_CONTRACT_LIMITS,
+  resolveEffectiveContractAiCap,
+} from "../src/services/billing/enterprise-contract-limits.js";
+import { PLAN_CAPABILITIES } from "@proovra/shared-billing";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -115,12 +119,35 @@ describe("AI subject — Workspace A's AI entitlement cannot come from Personal 
     };
   }
 
-  it("a FREE Workspace A denies AI even when the acting user's PERSONAL plan is PRO", async () => {
-    // The assert consumes THE SCOPE's plan (aiAdvisoryMonthlyOperations of
-    // FREE = 0) — the owner's personal PRO entitlement is not an input.
-    await expect(
-      assertWorkspaceAllowsAiOperation(scope({ plan: "FREE" as WorkspaceScope["plan"] })),
-    ).rejects.toMatchObject({ code: expect.stringMatching(/AI/) });
+  it("a FREE Workspace A gets FREE's AI allowance, never the acting user's PERSONAL PRO one", () => {
+    /*
+     * THE ISOLATION PROPERTY, RE-EXPRESSED AGAINST A NON-ZERO FREE.
+     *
+     * This used to assert that a FREE workspace REJECTED outright, which was
+     * only true while FREE's allowance was 0 — the rejection was a side effect
+     * of the value, not a test of the boundary. FREE now carries a limited
+     * trial of 10, so "denies" no longer describes it and asserting a
+     * rejection would pin the old commercial state instead of the isolation.
+     *
+     * What must remain true is what the test was named for: the cap comes from
+     * THE SCOPE's plan. A FREE workspace owned by someone whose personal plan
+     * is PRO gets ten, not a hundred.
+     */
+    const freeCap = resolveEffectiveContractAiCap({
+      plan: "FREE" as WorkspaceScope["plan"],
+      contract: NO_CONTRACT_LIMITS,
+    });
+    const proCap = resolveEffectiveContractAiCap({
+      plan: "PRO" as WorkspaceScope["plan"],
+      contract: NO_CONTRACT_LIMITS,
+    });
+
+    expect(freeCap).toBe(PLAN_CAPABILITIES.FREE.aiAdvisoryMonthlyOperations);
+    expect(freeCap).not.toBe(proCap);
+    expect(
+      freeCap,
+      "a FREE workspace must not inherit the owner's personal PRO allowance",
+    ).toBeLessThan(proCap as number);
   });
 
   it("Workspace B's allowance cannot satisfy Workspace A (usage is tenant-keyed from the SCOPE)", () => {

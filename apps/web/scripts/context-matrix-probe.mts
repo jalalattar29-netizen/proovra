@@ -49,7 +49,7 @@ const TEAM_BASE = {
 };
 
 const CONTEXTS: Ctx[] = [
-  { name: "Personal FREE", space: "PERSONAL", caps: PERSONAL_CAPS, aiOps: 0, orgs: 0, workspaces: 1, isEnterprise: false },
+  { name: "Personal FREE", space: "PERSONAL", caps: PERSONAL_CAPS, aiOps: 10, orgs: 0, workspaces: 1, isEnterprise: false },
   { name: "PAYG", space: "PERSONAL", caps: PERSONAL_CAPS, aiOps: 50, orgs: 0, workspaces: 1, isEnterprise: false },
   { name: "Personal PRO", space: "PERSONAL", caps: PERSONAL_CAPS, aiOps: 100, orgs: 0, workspaces: 1, isEnterprise: false },
   { name: "Team Owner/Admin", space: "ORGANIZATION", caps: { ...TEAM_BASE, SETTINGS_MANAGE: true, BILLING_MANAGE: true }, aiOps: 500, orgs: 1, workspaces: 2, isEnterprise: false },

@@ -25,12 +25,18 @@ describe("PLAN_CAPABILITIES", () => {
     );
   });
 
-  it("FREE: 3 records, 250 MB, no AI", () => {
+  it("FREE: 3 records, 250 MB, 10 AI ops", () => {
     const f = PLAN_CAPABILITIES.FREE;
     expect(f.maxEvidenceRecords).toBe(3);
     expect(f.maxEvidenceRecordsPerMonth).toBeNull();
     expect(f.includedStorageBytes).toBe(250n * MB);
-    expect(f.aiAdvisoryMonthlyOperations).toBe(0);
+    /*
+     * FREE now carries a LIMITED AI TRIAL — ten operations a month, up from
+     * zero. Allowance is not entitlement: which capabilities exist is still
+     * decided by the workspace AI policy and the capability registry, and
+     * raising this opened none of them.
+     */
+    expect(f.aiAdvisoryMonthlyOperations).toBe(10);
   });
 
   it("PAYG: no record cap, 5 GB, 50 AI ops, credit-bound", () => {

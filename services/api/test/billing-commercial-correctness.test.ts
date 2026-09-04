@@ -239,7 +239,7 @@ describe("evidence outputs follow the RECORD's funding, not the account plan", (
       const outputs = resolveEvidenceOutputEntitlements({ plan: "FREE", funding });
       expect(typeof outputs.reportsIncluded).toBe("boolean");
     }
-    expect(getPlanCapabilities("FREE").aiAdvisoryMonthlyOperations).toBe(0);
+    expect(getPlanCapabilities("FREE").aiAdvisoryMonthlyOperations).toBe(10);
     expect(getPlanCapabilities("FREE").includedStorageBytes).toBe(250n * MB);
   });
 
@@ -266,7 +266,7 @@ describe("one canonical quota authority", () => {
     expect(PLAN_CAPABILITIES.FREE.maxEvidenceRecords).toBe(3);
     expect(PLAN_CAPABILITIES.FREE.maxEvidenceRecordsPerMonth).toBeNull();
     expect(PLAN_CAPABILITIES.FREE.includedStorageBytes).toBe(250n * MB);
-    expect(PLAN_CAPABILITIES.FREE.aiAdvisoryMonthlyOperations).toBe(0);
+    expect(PLAN_CAPABILITIES.FREE.aiAdvisoryMonthlyOperations).toBe(10);
 
     expect(PLAN_CAPABILITIES.PRO.maxEvidenceRecords).toBe(100);
     expect(PLAN_CAPABILITIES.PRO.maxEvidenceRecordsPerMonth).toBeNull();
