@@ -20,6 +20,7 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { describeClient } from "../../../../lib/ui/describeClient";
 import {
   classifyStatusRefusal,
   commercialStatusActions,
@@ -1293,7 +1294,7 @@ export default function AdminDemoRequestsPage() {
                   <br />
                   IP: {details.ipAddress ?? "—"}
                   <br />
-                  User agent: {details.userAgent ?? "—"}
+                  Client: {describeClient(details.userAgent) ?? "Unrecognised client"}
                 </div>
               </MetaBlock>
             </div>

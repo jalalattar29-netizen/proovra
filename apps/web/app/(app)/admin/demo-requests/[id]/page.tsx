@@ -28,6 +28,7 @@ import { Button } from "../../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { apiFetch, ApiError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { describeClient } from "../../../../../lib/ui/describeClient";
 
 type DemoStatus =
   | "NEW"
@@ -453,7 +454,10 @@ export default function AdminDemoRequestDetailPage({
                 <Row label="Reviewed by" value={state.details.reviewedByUserId ?? "—"} />
                 <Row label="Notes" value={state.details.notes ?? "—"} />
                 <Row label="IP" value={state.details.ipAddress ?? "—"} />
-                <Row label="User agent" value={state.details.userAgent ?? "—"} />
+                <Row
+                  label="Client"
+                  value={describeClient(state.details.userAgent) ?? "Unrecognised client"}
+                />
               </Box>
             </div>
 

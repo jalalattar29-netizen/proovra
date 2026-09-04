@@ -13,7 +13,7 @@
   artefact that backs it.
 -->
 
-**47 routes** · 47 completed · 0 pending · 1071 API routes traced
+**47 routes** · 47 completed · 0 pending · 1082 API routes traced
 
 ## Status
 
@@ -317,8 +317,8 @@
 | `/admin/customers` | 463 | 0c/1t/0s |  |
 | `/admin/customers/:id` | 1171 | 12c/1t/0s |  |
 | `/admin/dashboard` | 905 | 11c/3t/8s |  |
-| `/admin/demo-requests` | 1314 | 3c/0t/2s |  |
-| `/admin/demo-requests/:id` | 522 | 5c/0t/0s |  |
+| `/admin/demo-requests` | 1315 | 3c/0t/2s |  |
+| `/admin/demo-requests/:id` | 526 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 748 | 4c/0t/7s | HARDCODED_STATUS_HEX |
 | `/admin/evidence-ops/records` | 548 | 2c/1t/0s |  |
 | `/admin/executive` | 637 | 3c/2t/7s |  |

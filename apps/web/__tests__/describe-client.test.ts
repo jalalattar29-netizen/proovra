@@ -74,3 +74,49 @@ test("an unrecognisable client returns null rather than a guess", () => {
 test("a platform with no recognisable browser still says something useful", () => {
   assert.equal(d("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"), "Windows");
 });
+
+/*
+ * PHASE 4 — the rule holds across every Admin surface, not just sessions.
+ *
+ * The sessions table was fixed when `describeClient` was written, but two
+ * other Admin surfaces still printed a raw user-agent verbatim: the demo
+ * request list panel and the demo request detail page, both rendering
+ * `details.userAgent` straight into the page. Same failure, different screen —
+ * and on those screens the string is a lead's browser, captured at form
+ * submission.
+ *
+ * This walks the Admin tree rather than naming the two files, so a third
+ * surface that starts rendering one fails here.
+ */
+test("no Admin page renders a raw user-agent field", async () => {
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+
+  const root = join(import.meta.dirname, "..", "app", "(app)", "admin");
+  const offenders: string[] = [];
+
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.endsWith(".tsx")) continue;
+      const src = readFileSync(full, "utf8");
+      // A JSX expression that puts a userAgent value on the page. Type
+      // declarations (`userAgent: string | null;`) are not renders.
+      const rendered =
+        /\{[^}]*\.userAgent[^}]*\}/.test(src) &&
+        !/describeClient\s*\([^)]*\.userAgent/.test(src);
+      if (rendered) offenders.push(full);
+    }
+  };
+  walk(root);
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `these Admin pages render a raw user-agent:\n${offenders.join("\n")}`,
+  );
+});

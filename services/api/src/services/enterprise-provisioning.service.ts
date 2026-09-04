@@ -69,6 +69,10 @@ export class EnterpriseProvisioningError extends Error {
   code:
     | "ORG_NOT_FOUND"
     | "ORG_HAS_NO_WORKSPACES"
+    // The organization exists but is not a customer. Distinct from
+    // ORG_NOT_FOUND, which would tell an operator to go looking for a row
+    // that is right there.
+    | "NOT_CUSTOMER_ORGANIZATION"
     // PHASE 4 §7.1 (2026-07-22) — idempotency outcomes.
     | "IDEMPOTENCY_CONFLICT"
     | "PROVISIONING_IN_PROGRESS";
@@ -148,11 +152,30 @@ export async function grantEnterprisePlanToOrg(
         "Organization not found.",
       );
     }
+    /*
+     * A PERSONAL SPACE'S CONTAINER IS NOT AN ENTERPRISE CUSTOMER.
+     *
+     * The guard here is NOT `kind !== "CUSTOMER"`. This function is the act
+     * that MAKES an organization a customer — it promotes `kind` to CUSTOMER
+     * below, which is the whole point of the P1 domain remediation. Refusing a
+     * SYSTEM organization would refuse every legitimate first grant.
+     *
+     * What must never happen is granting an org-wide enterprise plan to the
+     * 1:1 container behind somebody's PERSONAL space. `Team.isPersonal` is the
+     * property that distinguishes the two, and it is the one this checks: a
+     * personal space is bootstrapped for an individual and is not a purchased
+     * organization, so rewriting its `billingPlan`, `includedSeats` and
+     * `billingStatus` through a customer control would silently move an
+     * individual onto an enterprise plan they never bought — and the customer
+     * roster would never show it, because a personal container is not a
+     * customer and never becomes one this way.
+     */
 
     const workspaces = await tx.team.findMany({
       where: { organizationId: input.orgId },
       select: {
         id: true,
+        isPersonal: true,
         _count: {
           // PHASE 12 POINT 4 PASS C — ACTIVE-only, matching the canonical seat
           // authority. This counted ALL members, so a suspended or revoked
@@ -162,6 +185,17 @@ export async function grantEnterprisePlanToOrg(
         },
       },
     });
+
+    /*
+     * The guard reads the workspaces this grant is about to rewrite, rather
+     * than asking a second question of the database.
+     */
+    if (workspaces.some((ws) => ws.isPersonal)) {
+      throw new EnterpriseProvisioningError(
+        "NOT_CUSTOMER_ORGANIZATION",
+        "Plan grants apply to customer organizations, not to a personal space container.",
+      );
+    }
 
     for (const ws of workspaces) {
       // One seat-limit policy, shared with refreshTeamSeatState. The inline

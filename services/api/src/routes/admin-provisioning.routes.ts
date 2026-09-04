@@ -117,7 +117,15 @@ export async function adminProvisioningRoutes(app: FastifyInstance) {
         return reply.code(200).send(result);
       } catch (err) {
         if (err instanceof EnterpriseProvisioningError) {
-          return reply.code(404).send({
+          /*
+           * An organization that exists but is not a customer is a CONFLICT
+           * with what it is, not a missing row. Collapsing it into 404 would
+           * send an operator looking for a record that is sitting right there,
+           * and would read identically to a mistyped id.
+           */
+          const status =
+            err.code === "NOT_CUSTOMER_ORGANIZATION" ? 409 : 404;
+          return reply.code(status).send({
             error: { code: err.code, message: err.message },
           });
         }

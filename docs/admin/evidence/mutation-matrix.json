@@ -793,6 +793,7 @@
         "services/api/test/phase-ia-home-v2.test.ts",
         "services/api/test/phase-ia-self-serve-regression-fix.test.ts",
         "services/api/test/phase2-enterprise-provisioning.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts",
         "services/api/test/production-phase2-drift-remediation.test.ts"
       ],
       "boundTests": {
@@ -1521,6 +1522,7 @@
         "services/api/test/phase-8-bulk-invite.test.ts",
         "services/api/test/phase13-final-002-saml-authorization.integration.test.ts",
         "services/api/test/phase2-enterprise-provisioning.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts",
         "services/api/test/production-phase2-drift-remediation.test.ts"
       ],
       "boundTests": {
@@ -2528,7 +2530,8 @@
         "services/api/test/phase-12b-identity-residual-matrix.test.ts",
         "services/api/test/phase-4-org-lifecycle.test.ts",
         "services/api/test/phase-p1-identity-operations.test.ts",
-        "services/api/test/phase26-identity-governance.test.ts"
+        "services/api/test/phase26-identity-governance.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
       ],
       "boundTests": {
         "api": [
@@ -2696,7 +2699,8 @@
         "services/api/test/phase-12b-identity-residual-matrix.test.ts",
         "services/api/test/phase-4-org-lifecycle.test.ts",
         "services/api/test/phase-p1-identity-operations.test.ts",
-        "services/api/test/phase26-identity-governance.test.ts"
+        "services/api/test/phase26-identity-governance.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
@@ -4090,7 +4094,8 @@
         "services/api/test/phase-12b-identity-recovery-org-matrix.test.ts",
         "services/api/test/phase-4-org-lifecycle.test.ts",
         "services/api/test/phase-4-workspace-lifecycle.test.ts",
-        "services/api/test/phase2-enterprise-provisioning.test.ts"
+        "services/api/test/phase2-enterprise-provisioning.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
@@ -4286,7 +4291,8 @@
         "services/api/test/phase-4-workspace-lifecycle.test.ts",
         "services/api/test/phase-ia-home-v2.test.ts",
         "services/api/test/phase13-new-024-org-ownership-transfer-status.integration.test.ts",
-        "services/api/test/phase2-enterprise-provisioning.test.ts"
+        "services/api/test/phase2-enterprise-provisioning.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
@@ -8383,7 +8389,8 @@
         "services/api/test/phase-10-security-routes.test.ts",
         "services/api/test/phase-10-support-context-token.test.ts",
         "services/api/test/phase-10-support-enforcement.test.ts",
-        "services/api/test/phase-12b-identity-security-matrix.test.ts"
+        "services/api/test/phase-12b-identity-security-matrix.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
       ],
       "boundTests": {
         "api": [
@@ -8560,7 +8567,8 @@
         "services/api/test/phase-10-security-routes.test.ts",
         "services/api/test/phase-10-support-enforcement.test.ts",
         "services/api/test/phase-12b-identity-security-matrix.test.ts",
-        "services/api/test/phase-rw-rbac-hardening.test.ts"
+        "services/api/test/phase-rw-rbac-hardening.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
@@ -8734,7 +8742,8 @@
         "services/api/test/phase-10-enterprise-identity.test.ts",
         "services/api/test/phase-10-security-routes.test.ts",
         "services/api/test/phase-10-support-enforcement.test.ts",
-        "services/api/test/phase-12b-identity-security-matrix.test.ts"
+        "services/api/test/phase-12b-identity-security-matrix.test.ts",
+        "services/api/test/phase4-admin-scope-and-tenant-isolation.integration.test.ts"
       ],
       "boundTests": {
         "api": [],
