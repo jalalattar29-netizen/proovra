@@ -51,6 +51,7 @@ type AuditRow = {
   organizationId: string | null;
   workspaceId: string | null;
   requestId: string | null;
+  resourceId: string | null;
   metadata: Record<string, unknown>;
 };
 

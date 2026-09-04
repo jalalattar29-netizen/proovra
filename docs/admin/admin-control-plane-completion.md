@@ -329,7 +329,7 @@
 | `/admin/identity/runtime` | 910 | 2c/2t/3s | HARDCODED_STATUS_HEX |
 | `/admin/identity/scim` | 1402 | 7c/4t/0s | HARDCODED_STATUS_HEX |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
-| `/admin/identity/timeline` | 324 | 0c/1t/1s |  |
+| `/admin/identity/timeline` | 354 | 0c/1t/1s |  |
 | `/admin/operations` | 513 | 2c/2t/2s |  |
 | `/admin/platform-health` | 378 | 3c/0t/2s |  |
 | `/admin/platform/analytics` | 813 | 0c/0t/9s | HARDCODED_STATUS_HEX |
@@ -348,7 +348,7 @@
 | `/admin/search` | 410 | 1c/0t/0s |  |
 | `/admin/security` | 91 | 13c/6t/25s |  |
 | `/admin/support-access` | 964 | 6c/2t/4s |  |
-| `/admin/timeline` | 414 | 0c/1t/1s |  |
+| `/admin/timeline` | 465 | 0c/1t/1s |  |
 | `/admin/users` | 467 | 2c/2t/1s |  |
 | `/admin/users/:id` | 572 | 7c/2t/6s |  |
 | `/admin/workspaces` | 427 | 1c/1t/0s |  |

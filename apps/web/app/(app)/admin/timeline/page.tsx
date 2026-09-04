@@ -34,6 +34,11 @@ import { Button } from "../../../../components/ui/Button";
 import { ResultCount } from "../../../../components/ui/ResultCount";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../lib/api";
+import {
+  presentActor,
+  presentOutcome,
+  presentTransition,
+} from "../../../../lib/audit/auditPresentation";
 import { useToast } from "../../../../components/ui";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -51,6 +56,12 @@ type TimelineEntry = {
   at: string;
   source: TimelineSource;
   actor: string | null;
+  // PHASE 5 §6 — the identity contract, as the timeline API now returns it.
+  actorType?: string | null;
+  actorDisplay?: string | null;
+  outcome?: string | null;
+  previousState?: string | null;
+  resultingState?: string | null;
   eventType: string;
   severity: TimelineSeverity;
   organizationId: string | null;
@@ -232,11 +243,51 @@ export default function AdminTimelinePage() {
     {
       key: "actor",
       header: "Actor",
-      render: (r) => (
-        <span style={{ fontSize: 12, color: INK_MUTED, overflowWrap: "anywhere" }}>
-          {dash(r.actor)}
-        </span>
-      ),
+      // PHASE 5 §6 — this rendered `dash(r.actor)`, which is a raw UUID for a
+      // human action and an em-dash for everything else. In a feed that merges
+      // five sources, that made an operator decision and an automated
+      // detection look identical.
+      render: (r) => {
+        const actor = presentActor(r);
+        return (
+          <span style={{ display: "grid", gap: 1, fontSize: 12 }}>
+            <span
+              style={{
+                color: actor.unknown ? INK_MUTED : "var(--ink-primary, #0F172A)",
+                fontStyle: actor.unknown ? "italic" : "normal",
+              }}
+            >
+              {actor.name}
+            </span>
+            <span style={{ color: INK_MUTED, fontSize: 11 }}>{actor.kind}</span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "outcome",
+      header: "Outcome",
+      // Absence is said as absence. Several timeline sources record no outcome
+      // at all, and "Not recorded" is the truthful thing to show for them.
+      render: (r) => {
+        const o = presentOutcome(r.outcome);
+        const transition = presentTransition(r);
+        return (
+          <span style={{ display: "grid", gap: 1, fontSize: 12 }}>
+            <span
+              style={{
+                color: o.unknown ? INK_MUTED : "var(--ink-primary, #0F172A)",
+                fontStyle: o.unknown ? "italic" : "normal",
+              }}
+            >
+              {o.label}
+            </span>
+            {transition ? (
+              <span style={{ color: INK_MUTED, fontSize: 11 }}>{transition.text}</span>
+            ) : null}
+          </span>
+        );
+      },
     },
     {
       key: "at",

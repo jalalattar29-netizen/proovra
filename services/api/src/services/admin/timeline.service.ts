@@ -48,6 +48,27 @@ export type TimelineEntry = {
   source: TimelineSource;
   /** Best-effort actor id (user id / org id). May be null. No email/PII. */
   actor: string | null;
+  /**
+   * PHASE 5 §6 — WHAT THE ACTOR ID COULD NOT SAY.
+   *
+   * The timeline rendered `actor` alone, which is a UUID for a human action
+   * and null for everything else — so an operator scanning a feed of five
+   * merged sources could not tell a person from a job, and had nothing to
+   * read where a name belongs.
+   *
+   * `actorType` and `actorDisplay` come from the audit row's own identity
+   * columns where the source has them. Where a source genuinely has no actor
+   * — an operational incident is raised by the system, not by a person — they
+   * are null and the client renders the honest fallback rather than a
+   * plausible-looking guess.
+   */
+  actorType: string | null;
+  actorDisplay: string | null;
+  /** The canonical outcome, so a refusal never reads like a success. */
+  outcome: string | null;
+  /** The transition, where the source records one. */
+  previousState: string | null;
+  resultingState: string | null;
   /** Canonical event-type / action string. */
   eventType: string;
   severity: TimelineSeverity;
@@ -157,6 +178,12 @@ export async function buildPlatformTimeline(
             resourceId: true,
             userId: true,
             createdAt: true,
+            // PHASE 5 — the identity contract the audit row already carries.
+            actorType: true,
+            actorDisplay: true,
+            targetDisplay: true,
+            previousState: true,
+            resultingState: true,
           },
         })
       : [];
@@ -166,12 +193,21 @@ export async function buildPlatformTimeline(
       at: r.createdAt.toISOString(),
       source: "admin_audit",
       actor: r.userId ?? null,
+      // A pre-contract row stores NULL; the reader presents that as
+      // UNKNOWN_LEGACY rather than guessing who acted.
+      actorType: r.actorType ?? "UNKNOWN_LEGACY",
+      actorDisplay: r.actorDisplay ?? null,
+      outcome: r.outcome ?? null,
+      previousState: r.previousState ?? null,
+      resultingState: r.resultingState ?? null,
       eventType: r.action,
       severity: normaliseSeverity(r.severity),
       organizationId: null,
-      targetLabel: r.resourceType
-        ? `${r.resourceType}${r.resourceId ? ` · ${r.resourceId}` : ""}`
-        : r.category ?? null,
+      targetLabel:
+        r.targetDisplay ??
+        (r.resourceType
+          ? `${r.resourceType}${r.resourceId ? ` · ${r.resourceId}` : ""}`
+          : r.category ?? null),
       href: "/admin/audit",
     });
   }
@@ -204,6 +240,12 @@ export async function buildPlatformTimeline(
     entries.push({
       at: r.createdAt.toISOString(),
       source: "organization_audit",
+      // An organization audit row records a human actor and no transition.
+      actorType: r.actorUserId ? "HUMAN" : "UNKNOWN_LEGACY",
+      actorDisplay: null,
+      outcome: null,
+      previousState: null,
+      resultingState: null,
       actor: r.actorUserId ?? null,
       eventType: r.eventType,
       // Org lifecycle events have no severity column; treat as low by default.
@@ -245,6 +287,13 @@ export async function buildPlatformTimeline(
     entries.push({
       at: r.createdAt.toISOString(),
       source: "security_event",
+      // A security event may or may not have a human behind it; where it does
+      // not, the honest answer is that we do not know, not SYSTEM.
+      actorType: r.userId ? "HUMAN" : "UNKNOWN_LEGACY",
+      actorDisplay: null,
+      outcome: null,
+      previousState: null,
+      resultingState: null,
       actor: r.userId ?? null,
       eventType: r.eventType,
       severity: normaliseSeverity(r.severity),
@@ -303,6 +352,14 @@ export async function buildPlatformTimeline(
     entries.push({
       at: r.createdAt.toISOString(),
       source: "operational_incident",
+      // PHASE 5 §3 (family E) — an incident is RAISED BY THE EVALUATOR, not by
+      // a person. Typing it SYSTEM is what keeps an automated detection from
+      // reading as an operator decision in a merged feed.
+      actorType: "SYSTEM",
+      actorDisplay: "Incident evaluator",
+      outcome: null,
+      previousState: null,
+      resultingState: null,
       actor: null,
       eventType: `incident_${String(r.status).toLowerCase()}`,
       severity: normaliseSeverity(r.severity),
@@ -345,6 +402,12 @@ export async function buildPlatformTimeline(
     entries.push({
       at: r.createdAt.toISOString(),
       source: "analytics_event",
+      // A product/billing event: the subject is a user, but nobody "acted".
+      actorType: r.userId ? "HUMAN" : "SYSTEM",
+      actorDisplay: null,
+      outcome: null,
+      previousState: null,
+      resultingState: null,
       actor: r.userId ?? null,
       eventType: r.eventType,
       severity: normaliseSeverity(r.severity ?? "low"),

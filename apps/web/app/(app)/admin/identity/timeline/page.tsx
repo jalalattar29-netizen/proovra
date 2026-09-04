@@ -29,6 +29,7 @@ import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
+import { presentActor } from "../../../../../lib/audit/auditPresentation";
 
 type TimelineEvent = {
   id: string;
@@ -241,6 +242,35 @@ export default function IdentityTimelinePage() {
           {e.kind}
         </code>
       ),
+    },
+    {
+      key: "actor",
+      header: "Actor",
+      /*
+       * PHASE 5 §6 — THIS COLUMN DID NOT EXIST.
+       *
+       * `actorUserId` has been on the row type since this page was written and
+       * nothing rendered it, so an identity timeline — the surface an operator
+       * opens to answer "who changed our SSO" — showed what happened and never
+       * who. The presenter is the same one the Admin Audit table uses, so the
+       * two surfaces cannot describe the same actor two ways.
+       */
+      render: (e) => {
+        const actor = presentActor({
+          actorType: e.actorUserId ? "HUMAN" : "SYSTEM",
+          userId: e.actorUserId,
+        });
+        return (
+          <span style={{ display: "grid", gap: 1, fontSize: 12 }}>
+            <span style={{ fontStyle: actor.unknown ? "italic" : "normal" }}>
+              {actor.name}
+            </span>
+            {actor.reference ? (
+              <span style={{ fontSize: 11, opacity: 0.75 }}>{actor.reference}</span>
+            ) : null}
+          </span>
+        );
+      },
     },
     {
       key: "summary",
