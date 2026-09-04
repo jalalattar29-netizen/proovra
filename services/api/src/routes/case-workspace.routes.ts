@@ -14,6 +14,7 @@
  * that audit.
  */
 
+import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -1205,9 +1206,15 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       const query = ArtifactsQuery.parse(req.query ?? {});
       const member = await requireWorkspaceMember(req, reply, query.teamId);
       if (!member) return;
+      // The same authority that decides whether the address is shown decides
+      // whether it can be searched for.
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: query.teamId,
+      });
       const envelope = await listWorkspaceArtifacts({
         teamId: query.teamId,
         role: member.role,
+        matchRecipientContact: disclosure === "REVEALED",
         limit: query.limit,
         cursor: query.cursor ?? null,
         lifecycleFilter: query.lifecycle ?? "all",

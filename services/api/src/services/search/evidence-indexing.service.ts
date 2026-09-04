@@ -33,6 +33,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { loadIntakeIdentityForIndex } from "./intake-identity-search.js";
 import * as prismaPkg from "@prisma/client";
 import {
   buildEvidenceProjection,
@@ -390,7 +391,16 @@ export async function indexEvidence(
   // The pure builder applies governance gates (deleted / DESTROYED /
   // PENDING_DESTRUCTION → delete-from-index) so the API and worker
   // agree on what's indexable.
+  const intakeIdentityForIndex = await loadIntakeIdentityForIndex(
+    input.evidenceId,
+    client as never,
+  );
+
   const result = buildEvidenceProjection({
+    // Loaded through the 1:1 session relation rather than snapshotted onto
+    // Evidence: these are contact details, and a second copy is a second
+    // place a disclosure decision has to be got right.
+    intakeIdentity: intakeIdentityForIndex,
     teamId: input.teamId,
     evidenceId: input.evidenceId,
     evidence: {

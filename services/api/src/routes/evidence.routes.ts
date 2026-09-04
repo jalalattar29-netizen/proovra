@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { getSecret } from "../config/runtime-secrets.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
+import { evidenceIntakeIdentityArms } from "../services/search/intake-identity-search.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
 // single source of truth the single-record case-attach route uses).
 import { evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
@@ -2246,11 +2247,48 @@ async function getAccessibleEvidenceContext(userId: string) {
   };
 }
 
+/**
+ * The workspaces in which this caller may MATCH on an intake link's raw
+ * recipient contact.
+ *
+ * The Evidence list spans every workspace the caller belongs to, and the
+ * disclosure answer is per workspace: an admin in one and a viewer in another
+ * is ordinary. Resolving it once per workspace keeps the search box from
+ * becoming an oracle in the workspace where they are a viewer, without
+ * refusing the search they are entitled to run in the one where they are not.
+ *
+ * Skipped entirely when there is no search term — there is nothing to match,
+ * and this would otherwise be an authorization round-trip per list request.
+ */
+async function resolveRecipientContactSearchScope(
+  req: FastifyRequest,
+  memberTeamIds: string[],
+  search: string | null,
+): Promise<string[]> {
+  if (!search || memberTeamIds.length === 0) return [];
+  const decisions = await Promise.all(
+    memberTeamIds.map(async (teamId) => ({
+      teamId,
+      disclosure: await resolveRecipientContactDisclosure(req, { teamId }),
+    })),
+  );
+  return decisions
+    .filter((d) => d.disclosure === "REVEALED")
+    .map((d) => d.teamId);
+}
+
 function buildEvidenceListBaseWhere(params: {
   query: EvidenceListQuery;
   userId: string;
   memberTeamIds: string[];
   accessibleCaseIds: string[];
+  /**
+   * The workspaces in which this caller may MATCH on the raw recipient
+   * contact of an intake link. Empty (the default) means none, so a caller
+   * that does not resolve the decision cannot use the search box to ask
+   * whether an address exists here.
+   */
+  recipientContactTeamIds?: string[];
 }): Prisma.EvidenceWhereInput {
   const { query } = params;
 
@@ -2304,7 +2342,10 @@ function buildEvidenceListBaseWhere(params: {
         ],
       };
 
-  const searchFilter = buildEvidenceListSearchFilter(query.search);
+  const searchFilter = buildEvidenceListSearchFilter(query.search, {
+    matchRecipientContact: (params.recipientContactTeamIds ?? []).length > 0,
+    revealedTeamIds: params.recipientContactTeamIds ?? [],
+  });
   const statusFilter = query.status ? ({ status: query.status } satisfies Prisma.EvidenceWhereInput) : null;
   const typeFilter = buildEvidenceListTypeFilter(query.type);
   const caseAssignmentFilter = buildEvidenceListCaseAssignmentFilter(query.caseAssignment);
@@ -2347,7 +2388,10 @@ function buildEvidenceListBaseWhere(params: {
 }
 
 function buildEvidenceListSearchFilter(
-  search: string | null
+  search: string | null,
+  options: { matchRecipientContact: boolean; revealedTeamIds?: string[] } = {
+    matchRecipientContact: false,
+  },
 ): Prisma.EvidenceWhereInput | null {
   if (!search) return null;
 
@@ -2360,17 +2404,20 @@ function buildEvidenceListSearchFilter(
       { displayFileName: { contains: search, mode: "insensitive" } },
       { originalFileName: { contains: search, mode: "insensitive" } },
       /*
-       * Customer ID — the organization's own identifier for its customer,
-       * snapshotted onto the record at intake.
+       * EXTERNAL INTAKE IDENTITY — Customer ID, recipient name, and (for a
+       * caller allowed to see them) the recipient's address and number.
        *
-       * Case-insensitive `contains`, matching every other term in this
-       * filter: an operator pasting CUST-849271 out of their own system
-       * should not have to reproduce our casing, and partial matching is
-       * already this surface's convention. The workspace predicate is applied
-       * by the caller and is never optional, so a customer id from one
-       * workspace can never surface a record in another.
+       * The arms come from the one module every search surface shares, so a
+       * phone number typed with spaces resolves here exactly as it does on
+       * the intake-links screen. The workspace predicate is applied by the
+       * caller and is never optional, so an identifier from one workspace can
+       * never surface a record in another.
+       *
+       * MATCHING IS NOT DISCLOSURE: nothing here puts a contact detail into
+       * the response. It decides which rows come back, and what those rows
+       * then show is the disclosure policy's business, not this filter's.
        */
-      { intakeCustomerId: { contains: search, mode: "insensitive" } },
+      ...evidenceIntakeIdentityArms(search, options),
     ],
   };
 }
@@ -6264,6 +6311,11 @@ return {
       userId: ownerUserId,
       memberTeamIds,
       accessibleCaseIds,
+      recipientContactTeamIds: await resolveRecipientContactSearchScope(
+        req,
+        memberTeamIds,
+        parsedQuery.search,
+      ),
     });
     const cursorFilter = buildEvidenceListCursorFilter(cursor, sort);
     const where: Prisma.EvidenceWhereInput = cursorFilter
@@ -6400,6 +6452,11 @@ return {
         userId: ownerUserId,
         memberTeamIds,
         accessibleCaseIds,
+        recipientContactTeamIds: await resolveRecipientContactSearchScope(
+          req,
+          memberTeamIds,
+          parsedQuery.search,
+        ),
       });
 
       const REPORTS_READY_PREDICATE: Prisma.EvidenceWhereInput = {

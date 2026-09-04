@@ -32,6 +32,7 @@
  *     ONLY as a length + a hash — never the raw text.
  */
 
+import { intakePhoneE164 } from "./intake-identity-search.js";
 import { createHash } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
@@ -209,6 +210,23 @@ export async function executeSearch(
       { summary: { contains: filter.q, mode: "insensitive" } },
       { searchableText: { contains: filter.q, mode: "insensitive" } },
     ];
+
+    /*
+     * A phone number, normalised the same way every other search surface
+     * normalises it.
+     *
+     * The indexed body holds the number as the operator typed it AND its
+     * canonical form, so "+49 176 12345678" and "+4917612345678" both match a
+     * literal `contains`. "0049 176 12345678" matches neither — it is the same
+     * number written a third way, and without this the index would be the one
+     * surface that disagreed with the other three about whether it is the same
+     * number. `intakePhoneE164` is the shared normaliser; this adds one arm
+     * for what it produces, rather than a second opinion about country codes.
+     */
+    const e164 = intakePhoneE164(filter.q);
+    if (e164 && !filter.q.includes(e164)) {
+      where.OR.push({ searchableText: { contains: e164, mode: "insensitive" } });
+    }
   }
 
   // Cursor.

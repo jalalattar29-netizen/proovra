@@ -232,6 +232,32 @@ export type EvidenceProjectionInput = {
     reviewReadyAtUtc: Date | null;
     updatedAt: Date;
   };
+  /**
+   * EXTERNAL INTAKE IDENTITY — the four values that let an operator find this
+   * record by what their own systems call it.
+   *
+   * Optional: every record NOT created through an intake link simply has none,
+   * and an older caller that does not supply them indexes exactly what it
+   * indexed before.
+   *
+   * These go into `searchableText`, which is a MATCH-ONLY body: the search
+   * response projects title, subtitle, summary and states, and never the
+   * indexed text. So the index can answer "which record has this address"
+   * without the answer containing the address — which is the whole reason
+   * searchability and disclosure can be different questions.
+   */
+  intakeIdentity?: {
+    /** The organization's own identifier for its customer. */
+    customerId: string | null;
+    /** The name the operator wrote on the request. */
+    recipientLabel: string | null;
+    /** The address it was delivered to. */
+    recipientEmail: string | null;
+    /** The number as typed. */
+    recipientPhone: string | null;
+    /** The canonical form, so one number written three ways matches. */
+    recipientPhoneE164: string | null;
+  } | null;
   /** Optional already-fetched workflow status. */
   workflowState: string | null;
   /**
@@ -315,10 +341,27 @@ export function buildEvidenceProjection(
     SEARCH_SUMMARY_MAX_CHARS,
   );
 
+  const intake = input.intakeIdentity ?? null;
   const bodyParts = [
     evidence.title ?? "",
     evidence.displayFileName ?? "",
     evidence.originalFileName ?? "",
+    /*
+     * The identifiers an operator actually types when they are looking for
+     * one record among thousands: a customer number off their own file, the
+     * name they addressed the request to, the address it went to, the number
+     * they texted. All four, because they are four different facts and a
+     * record can carry all of them.
+     *
+     * Both phone forms are indexed — as typed and canonical — so "+49 176
+     * 12345678" and "+4917612345678" each find the row without the query
+     * having to guess which one was stored.
+     */
+    intake?.customerId ?? "",
+    intake?.recipientLabel ?? "",
+    intake?.recipientEmail ?? "",
+    intake?.recipientPhone ?? "",
+    intake?.recipientPhoneE164 ?? "",
     extracted,
   ].filter((s) => s.length > 0);
   const searchableText = sanitiseSearchBody(bodyParts.join("\n").trim());

@@ -44,6 +44,11 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
+import {
+  INTAKE_SEARCH_NEEDLE_MAX,
+  intakeLinkIdentityArms,
+  intakePhoneE164,
+} from "./search/intake-identity-search.js";
 import { error as logError } from "../utils/logger.js";
 import {
   projectRecipientContact,
@@ -272,6 +277,11 @@ export async function createWorkflowIntakeLink(
       recipientLabel: input.recipientLabel ?? null,
       recipientEmail: input.recipientEmail ?? null,
       recipientPhone: input.recipientPhone ?? null,
+      // The canonical form beside the value as typed. Derived here, once, so
+      // no search has to strip punctuation from every stored number.
+      recipientPhoneE164: input.recipientPhone
+        ? intakePhoneE164(input.recipientPhone)
+        : null,
       // Authoritative. Normalised at the route boundary; an absent value is
       // null here and stays null everywhere downstream.
       customerId: input.customerId ?? null,
@@ -331,35 +341,20 @@ function buildIntakeLinkSearchFilter(
   search: string,
   options: { matchRecipientContact: boolean },
 ): Prisma.WorkflowIntakeLinkWhereInput | null {
-  const needle = search.trim().slice(0, 120);
+  const needle = search.trim().slice(0, INTAKE_SEARCH_NEEDLE_MAX);
   if (!needle) return null;
 
-  const like = { contains: needle, mode: "insensitive" as const };
+  // The four identity arms come from the ONE module every surface shares, so
+  // a phone number typed with spaces resolves the same way here as it does on
+  // the Evidence list and in Reports.
   const or: Prisma.WorkflowIntakeLinkWhereInput[] = [
-    { customerId: like },
-    { recipientLabel: like },
-    { workflowTemplateSlug: like },
+    ...intakeLinkIdentityArms(needle, options),
+    // Local to this surface: the workflow this link was created from, and a
+    // pasted link id, which is exact.
+    { workflowTemplateSlug: { contains: needle, mode: "insensitive" } },
   ];
-
-  // A pasted link id is a legitimate way to find a row, and it is exact.
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(needle)) {
     or.push({ id: needle });
-  }
-
-  if (options.matchRecipientContact) {
-    or.push({ recipientEmail: like });
-    or.push({ recipientPhone: like });
-    /*
-     * A phone number is written a dozen ways. The operator typed
-     * "+49 176 12345678"; the link stores "+4917612345678". Matching the
-     * digits alone lets either find the other, and the leading "+" is kept
-     * when it was typed so an international prefix still means something.
-     */
-    const digits = needle.replace(/[^\d]/g, "");
-    if (digits.length >= 4) {
-      or.push({ recipientPhone: { contains: digits, mode: "insensitive" } });
-      or.push({ recipientPhone: { contains: `+${digits}`, mode: "insensitive" } });
-    }
   }
 
   return { OR: or };

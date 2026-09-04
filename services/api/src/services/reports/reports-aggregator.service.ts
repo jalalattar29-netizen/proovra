@@ -24,6 +24,7 @@
 
 import type { Prisma } from "@prisma/client";
 
+import { evidenceIntakeIdentityArms } from "../search/intake-identity-search.js";
 import { prisma } from "../../db.js";
 import {
   workspaceEvidenceWhere,
@@ -225,6 +226,13 @@ export async function listWorkspaceArtifacts(input: {
    * first, because a filter cannot move a workspace total.
    */
   includeSummary?: boolean;
+  /**
+   * Whether this caller may match on the raw recipient contact of the intake
+   * link behind a record. The same authority that decides whether an address
+   * is SHOWN decides whether it can be searched for — otherwise the search box
+   * answers "is this address in this workspace?" for someone who may not see it.
+   */
+  matchRecipientContact?: boolean;
 }): Promise<ReportsArtifactsEnvelope> {
   const limit = Math.min(
     Math.max(input.limit ?? DEFAULT_LIMIT, 1),
@@ -388,11 +396,20 @@ export async function listWorkspaceArtifacts(input: {
         { title: like },
         { displayFileName: like },
         { originalFileName: like },
-        // Customer ID, on the same terms: this aggregator is a projection over
-        // Evidence, so the snapshotted column is filterable here exactly as it
-        // is on the evidence list, and an operator can find the deliverables
-        // for a customer by pasting their own identifier.
-        { intakeCustomerId: like },
+        /*
+         * EXTERNAL INTAKE IDENTITY. This aggregator is a projection over
+         * Evidence, so the same arms the evidence list uses apply here
+         * unchanged — an operator who found the record by a customer number
+         * or a recipient's address can find its deliverables the same way.
+         *
+         * Reports are NOT given their own copy of the recipient data to make
+         * this work. There is a 1:1 relation through a unique key; a second
+         * table holding the same contact details would be a second place a
+         * disclosure decision has to be got right.
+         */
+        ...evidenceIntakeIdentityArms(needle, {
+          matchRecipientContact: input.matchRecipientContact === true,
+        }),
       ];
     }
     // Cursor — opaque, last (createdAt, id) pair, base64-encoded JSON.

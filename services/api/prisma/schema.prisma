@@ -1186,6 +1186,7 @@ model Team {
   // presenting switch targets. Creation paths always set it explicitly.
   /**
    * /**
+   * /**
    * PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — MANDATORY.
    * Nullable meant readers could not rely on it, which is why
    * `normalizeWorkspaceKind` carried a plan-derived fallback that turned a
@@ -3750,6 +3751,20 @@ model WorkflowIntakeLink {
   recipientEmail String? @map("recipient_email") @db.VarChar(320)
   recipientPhone String? @map("recipient_phone") @db.VarChar(32)
 
+  /// The E.164 form of `recipientPhone`, derived at write time.
+  ///
+  /// NOT a replacement for the stored value: `recipientPhone` keeps exactly
+  /// what the operator typed, because that is provenance and rewriting it to
+  /// suit a query would be rewriting the record. This is the canonical form
+  /// beside it, so "+49 176 12345678", "+4917612345678" and
+  /// "0049 176 12345678" — one number written three ways — all resolve to the
+  /// same row.
+  ///
+  /// It exists because the alternative is stripping punctuation from every
+  /// stored number on every search, which no index can help with. Null when
+  /// there is no number, or when what was entered cannot be normalised.
+  recipientPhoneE164 String? @map("recipient_phone_e164") @db.VarChar(32)
+
   /// THE AUTHORITATIVE Customer ID.
   ///
   /// The identifier the ORGANIZATION uses for its own customer, supplied when
@@ -3838,6 +3853,11 @@ model WorkflowIntakeLink {
   @@index([workflowTemplateId])
   @@index([caseId])
   @@index([teamId, customerId])
+  // The two arms of intake identity search that can use an index. A name is
+  // matched with `contains`, which no btree serves, and is left to the
+  // tenant-scoped scan it already was.
+  @@index([teamId, recipientEmail])
+  @@index([teamId, recipientPhoneE164])
   @@map("workflow_intake_links")
 }
 

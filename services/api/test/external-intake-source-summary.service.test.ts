@@ -28,6 +28,7 @@ function fakeLink(overrides: Record<string, unknown> = {}) {
     // rather than passing because there was nothing to mask.
     recipientEmail: "recipient-privacy-canary@example.test",
     recipientPhone: "+4915112345678",
+    recipientPhoneE164: null,
     customerId: null,
     maxUses: 1,
     usedCount: 1,

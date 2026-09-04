@@ -59,6 +59,7 @@ import {
 // the processor's behavior — every read/write below already uses
 // the same prisma surface.
 import { prisma } from "./db.js";
+import { loadIntakeIdentityForIndex } from "../../api/src/services/search/intake-identity-search.js";
 import { logger } from "./logger.js";
 
 /**
@@ -191,7 +192,16 @@ async function buildForEvidence(evidenceId: string): Promise<BuildOutcome> {
     /* transcript table may not exist on this DB yet — non-fatal. */
   }
 
+  const intakeIdentityForIndex = await loadIntakeIdentityForIndex(
+    evidenceId,
+    prisma as never,
+  );
+
   const result = buildEvidenceProjection({
+    // Loaded through the 1:1 session relation rather than snapshotted onto
+    // Evidence: these are contact details, and a second copy is a second
+    // place a disclosure decision has to be got right.
+    intakeIdentity: intakeIdentityForIndex,
     teamId,
     evidenceId,
     evidence: {

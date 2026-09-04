@@ -57,6 +57,7 @@ function fakeLink(overrides: Record<string, unknown> = {}) {
     recipientLabel: "John Smith — claim 4842",
     recipientEmail: "jane@example.com",
     recipientPhone: "+15555555555",
+    recipientPhoneE164: null,
     customerId: null,
     maxUses: 1,
     usedCount: 0,
