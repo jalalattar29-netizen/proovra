@@ -24,8 +24,10 @@ function fakeLink(overrides: Record<string, unknown> = {}) {
     tokenHash: "0".repeat(64),
     tokenVersion: 1,
     recipientLabel: "John Smith — claim 4842",
-    recipientEmail: null,
-    recipientPhone: null,
+    // A real address in the fixture, so the masking is actually exercised
+    // rather than passing because there was nothing to mask.
+    recipientEmail: "recipient-privacy-canary@example.test",
+    recipientPhone: "+4915112345678",
     customerId: null,
     maxUses: 1,
     usedCount: 1,
@@ -154,14 +156,16 @@ describe("buildSummary — privacy boundary", () => {
     expect(linkKeys).not.toContain("tokenHash");
     expect(linkKeys).not.toContain("tokenVersion");
     /*
-     * recipientEmail / recipientPhone ARE keys now — but they carry the raw
-     * value only for a caller the route decided may see it, and `buildSummary`
-     * defaults that decision to false. The key existing is not the leak; a
-     * populated key for an unauthorized caller would be, and that is what the
-     * masking tests below assert.
+     * The RAW columns are not keys on this projection at all any more. A
+     * caller who may see them asks the audited reveal route; a projection
+     * has no way to emit one, which is stronger than emitting null.
      */
-    expect(s.link.recipientEmail).toBeNull();
-    expect(s.link.recipientPhone).toBeNull();
+    expect(linkKeys).not.toContain("recipientEmail");
+    expect(linkKeys).not.toContain("recipientPhone");
+    expect(s.link.recipientEmailMasked).toBe("r***@example.test");
+    expect(JSON.stringify(s)).not.toContain("recipient-privacy-canary@example.test");
+    expect(JSON.stringify(s)).not.toContain("4915112345678");
+    expect(s.link.recipientContactRevealAuthorized).toBe(false);
     expect(linkKeys).not.toContain("ipAllowlistCidrs");
     expect(linkKeys).not.toContain("revokedReason");
     expect(linkKeys).not.toContain("consentDisclosureText");

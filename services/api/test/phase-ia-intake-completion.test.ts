@@ -124,7 +124,9 @@ describe("Phase IA-intake-completion P2 — Send UI + E.164", () => {
 
   it("the intake-links surface wires the phone input + Send buttons", () => {
     const SURFACE = intakeLinksSurface();
-    expect(SURFACE).toMatch(/recipientPhone:\s*string\s*\|\s*null/);
+    // The row projection carries the MASKED number now; the raw column left
+    // every projection when recipient contact came under one disclosure rule.
+    expect(SURFACE).toMatch(/recipientPhoneMasked:\s*string\s*\|\s*null/);
     expect(SURFACE).toMatch(/data-intake-link-phone/);
     expect(SURFACE).toMatch(/data-intake-link-send="SMS"/);
     expect(SURFACE).toMatch(/data-intake-link-send="WHATSAPP"/);
@@ -142,9 +144,9 @@ describe("Phase IA-intake-completion P2 — Send UI + E.164", () => {
   });
 
   it("Send is gated on recipientPhone presence (cannot send without phone)", () => {
-    expect(intakeLinksSurface()).toMatch(
-      /canSend = Boolean\(link\.recipientPhone\)/,
-    );
+    // Presence, not the number: the dialog never needed to read the phone to
+    // decide whether a channel exists, and the projection no longer offers it.
+    expect(intakeLinksSurface()).toMatch(/canSend = link\.hasRecipientPhone/);
   });
 });
 

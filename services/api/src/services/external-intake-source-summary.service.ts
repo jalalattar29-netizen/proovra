@@ -29,8 +29,11 @@ import type {
   WorkflowIntakeSession as DbWorkflowIntakeSession,
 } from "@prisma/client";
 
-import { maskEmail, maskPhonePreview } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../db.js";
+import {
+  projectRecipientContact,
+  type RecipientContactDisclosure,
+} from "./privacy/recipient-contact-disclosure.js";
 
 export type ExternalIntakeSourceSummary = {
   // High-level "where it came from"
@@ -63,36 +66,29 @@ export type ExternalIntakeSourceSummary = {
      */
     customerId: string | null;
     /*
-     * RECIPIENT CONTACT — masked by default, raw only under capability.
+     * RECIPIENT CONTACT — masked, always, for everyone.
      *
      * Both columns exist on WorkflowIntakeLink and both are the workspace's
-     * own outbound contact detail. They used to be omitted from this
-     * projection entirely, which meant a reviewer could not tell where a
-     * request had been sent; the omission was recorded as a decision rather
-     * than a gap, so replacing it is a decision too, and this is it.
+     * own outbound contact detail. They were originally omitted from this
+     * projection entirely, then briefly returned raw to a caller holding
+     * `workflow.intake_link.create` — which the DB role MEMBER holds, so
+     * "authorized" was a wider circle than it read as.
      *
-     * The stored values are untouched. What leaves the API is:
+     * Now this projection cannot emit a raw value at all. It carries the
+     * masked form and a flag saying whether this caller MAY ask for the raw
+     * one; the asking happens at
+     * POST /v1/workflow/intake-links/:id/recipient-contact, which is gated on
+     * `workflow.intake_recipient_contact.reveal` and audits the disclosure.
      *
-     *   - the masked form, ALWAYS, for anyone who can read the record;
-     *   - the raw form, ONLY for a caller who holds the permission that
-     *     creates intake links in this workspace — the people who chose the
-     *     recipient in the first place.
-     *
-     * The masks come from the platform's own helpers (`maskEmail`,
-     * `maskPhonePreview`) rather than a local variant. The capability is
-     * decided by the canonical authorization primitive at the route, never by
-     * a plan name, and `recipientContactRevealed` states which of the two the
-     * caller is looking at instead of leaving them to guess.
-     *
-     * None of this reaches public verify: that response is a separate,
-     * hand-written literal that reads none of these fields.
+     * The shape below is `RecipientContactProjection` from the canonical
+     * policy module, spread in, so this surface cannot drift from the intake
+     * administration surface.
      */
     recipientEmailMasked: string | null;
     recipientPhoneMasked: string | null;
-    /** Raw values, present only when the caller holds the reveal capability. */
-    recipientEmail: string | null;
-    recipientPhone: string | null;
-    recipientContactRevealed: boolean;
+    hasRecipientEmail: boolean;
+    hasRecipientPhone: boolean;
+    recipientContactRevealAuthorized: boolean;
     revokedAtUtc: string | null;
   };
 
@@ -116,7 +112,7 @@ export type ExternalIntakeSourceSummary = {
 
 export async function loadExternalIntakeSourceSummary(
   evidenceId: string,
-  options?: { revealRecipientContact?: boolean },
+  options?: { recipientContactDisclosure?: RecipientContactDisclosure },
   client: PrismaClient = defaultPrisma,
 ): Promise<ExternalIntakeSourceSummary | null> {
   const session = await client.workflowIntakeSession.findFirst({
@@ -129,7 +125,7 @@ export async function loadExternalIntakeSourceSummary(
   if (!link) return null;
 
   // Decided by the route through the canonical authorization primitive.
-  return buildSummary(link, session, options?.revealRecipientContact === true);
+  return buildSummary(link, session, options?.recipientContactDisclosure ?? "MASKED");
 }
 
 /**
@@ -140,11 +136,12 @@ export function buildSummary(
   link: DbWorkflowIntakeLink,
   session: DbWorkflowIntakeSession,
   /**
-   * Whether this caller holds the capability to see the RAW recipient
-   * contact. Defaults to false: masked is the safe answer, so a caller that
-   * forgets to pass it cannot leak one.
+   * What this caller may be shown. MASKED by default, because a caller that
+   * forgets to pass it should disclose less, not more. Note that neither
+   * value makes this function emit a raw address — REVEALED only records
+   * that the caller may go and ASK for one.
    */
-  revealRecipientContact = false,
+  disclosure: RecipientContactDisclosure = "MASKED",
 ): ExternalIntakeSourceSummary {
   const snapshot = link.workflowTemplateSnapshot as {
     name?: string;
@@ -181,13 +178,7 @@ export function buildSummary(
       createdByUserId: link.createdByUserId,
       recipientLabel: link.recipientLabel,
       customerId: link.customerId,
-      recipientEmailMasked: maskEmail(link.recipientEmail),
-      recipientPhoneMasked: link.recipientPhone
-        ? maskPhonePreview(link.recipientPhone)
-        : null,
-      recipientEmail: revealRecipientContact ? link.recipientEmail : null,
-      recipientPhone: revealRecipientContact ? link.recipientPhone : null,
-      recipientContactRevealed: revealRecipientContact,
+      ...projectRecipientContact(link, disclosure),
       revokedAtUtc: link.revokedAtUtc?.toISOString() ?? null,
     },
     session: {

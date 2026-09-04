@@ -58,10 +58,14 @@ type Summary = {
     customerId: string | null;
     recipientEmailMasked: string | null;
     recipientPhoneMasked: string | null;
-    /** Present only when the API decided this caller may see the raw value. */
-    recipientEmail: string | null;
-    recipientPhone: string | null;
-    recipientContactRevealed: boolean;
+    hasRecipientEmail: boolean;
+    hasRecipientPhone: boolean;
+    /**
+     * Whether this caller may ASK for the raw contact. The raw values are not
+     * in this payload for anybody — the card fetches them, once, when a
+     * reader activates the control.
+     */
+    recipientContactRevealAuthorized: boolean;
     revokedAtUtc: string | null;
   };
   session: {
@@ -184,7 +188,18 @@ export default function ExternalIntakeSourceCard({
    * reports as "rendered more hooks than during the previous render" and which
    * took down the whole evidence page.
    */
-  const [showRawRecipient, setShowRawRecipient] = useState(false);
+  /*
+   * The raw recipient contact, once a reader with the authority has asked
+   * for it. Null until then, because the server does not send it until then:
+   * there is nothing here to find in the HTML, the hydration state or a
+   * React prop before the request is made.
+   */
+  const [rawRecipient, setRawRecipient] = useState<{
+    recipientEmail: string | null;
+    recipientPhone: string | null;
+  } | null>(null);
+  const [revealBusy, setRevealBusy] = useState(false);
+  const [revealError, setRevealError] = useState<string | null>(null);
 
   /** Refresh the workflow projection after any server-side change. */
   async function reloadReview() {
@@ -385,10 +400,9 @@ export default function ExternalIntakeSourceCard({
   })();
 
   /*
-   * The contact the request was DELIVERED to. Masked unless the API says this
-   * caller may see it — the browser never makes that decision and never holds
-   * a raw value it was not sent. `showRawRecipient` only chooses between two
-   * strings the server already provided.
+   * The contact the request was DELIVERED to. The payload carries the masked
+   * form only; `raw` is filled in from the reveal response and is null until
+   * a reader with the authority activates it.
    */
   const recipientContacts: Array<{ kind: string; masked: string; raw: string | null }> =
     [
@@ -396,20 +410,59 @@ export default function ExternalIntakeSourceCard({
         ? {
             kind: "Email",
             masked: summary.link.recipientEmailMasked,
-            raw: summary.link.recipientEmail,
+            raw: rawRecipient?.recipientEmail ?? null,
           }
         : null,
       summary.link.recipientPhoneMasked
         ? {
             kind: "Phone",
             masked: summary.link.recipientPhoneMasked,
-            raw: summary.link.recipientPhone,
+            raw: rawRecipient?.recipientPhone ?? null,
           }
         : null,
     ].filter((v): v is { kind: string; masked: string; raw: string | null } => v !== null);
+  /*
+   * A reader without the authority is shown the mask and no control at all —
+   * not a disabled one. Offering an action that can only fail tells them
+   * about a capability they do not have and invites them to go looking for
+   * it.
+   */
   const canRevealRecipient =
-    summary.link.recipientContactRevealed &&
-    recipientContacts.some((c) => c.raw !== null);
+    summary.link.recipientContactRevealAuthorized && recipientContacts.length > 0;
+
+  async function revealRecipient(linkId: string) {
+    // Hiding is local — the value is dropped from state and has to be
+    // fetched again, and audited again, to come back.
+    if (rawRecipient) {
+      setRawRecipient(null);
+      return;
+    }
+    setRevealBusy(true);
+    setRevealError(null);
+    try {
+      // apiFetch resolves to the PARSED body, not a Response — calling
+      // .json() on it throws a TypeError that surfaces as "couldn't reach
+      // the service", which is a confusing way to say "we misread the API".
+      const body = (await apiFetch(
+        `/v1/workflow/intake-links/${encodeURIComponent(linkId)}/recipient-contact`,
+        { method: "POST" },
+      )) as {
+        recipientContact: {
+          recipientEmail: string | null;
+          recipientPhone: string | null;
+        };
+      };
+      setRawRecipient(body.recipientContact);
+    } catch (err) {
+      setRevealError(
+        toSafeUserError(err, {
+          message: "Could not show the full recipient contact.",
+        }).message,
+      );
+    } finally {
+      setRevealBusy(false);
+    }
+  }
 
   return (
     <section className="evd-panel" aria-label="External intake source">
@@ -453,7 +506,7 @@ export default function ExternalIntakeSourceCard({
               <span key={contact.kind} className="evd-recipient-line">
                 <span className="evd-muted">{contact.kind}</span>{" "}
                 <span className="evd-mono evd-wrap">
-                  {showRawRecipient && contact.raw ? contact.raw : contact.masked}
+                  {contact.raw ?? contact.masked}
                 </span>
               </span>
             ))}
@@ -461,11 +514,21 @@ export default function ExternalIntakeSourceCard({
               <button
                 type="button"
                 className="evd-linkbtn"
-                onClick={() => setShowRawRecipient((v) => !v)}
+                onClick={() => void revealRecipient(summary.link.id)}
+                disabled={revealBusy}
                 data-intake-recipient-reveal
               >
-                {showRawRecipient ? "Hide full contact" : "Show full contact"}
+                {revealBusy
+                  ? "Loading…"
+                  : rawRecipient
+                    ? "Hide full contact"
+                    : "Show full contact"}
               </button>
+            ) : null}
+            {revealError ? (
+              <span className="evd-hint" role="alert">
+                {revealError}
+              </span>
             ) : null}
             <span className="evd-hint">
               Delivery address on the intake link. Not proof of who submitted.

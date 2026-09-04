@@ -167,30 +167,22 @@ describe("reviewer workflow mutation requires reviewer authority", () => {
 // Provenance — recipient is not submitter
 // ===========================================================================
 describe("intake provenance", () => {
-  it("projects the recipient contact masked, and raw only under capability", () => {
+  it("projects the recipient contact masked, and cannot emit a raw value", () => {
     /*
-     * These two columns used to be omitted from the projection entirely. That
-     * omission was recorded as a decision, so replacing it is a decision too:
-     * the masked form goes to everyone who can read the record, the raw form
-     * only to a caller the route said holds the capability.
+     * Three revisions of the same decision. The columns were omitted
+     * entirely; then returned raw to a holder of
+     * `workflow.intake_link.create` — which the DB role MEMBER holds, so
+     * "authorized" was a wider circle than it read as; and now the
+     * projection is spread from the canonical policy and has no branch that
+     * emits a raw address at all.
      */
     const projection = SUMMARY_SERVICE.split("return {")[1] ?? "";
     expect(projection).toContain("recipientLabel: link.recipientLabel");
-    expect(projection).toContain("recipientEmailMasked: maskEmail(link.recipientEmail)");
-    expect(projection).toContain("maskPhonePreview(link.recipientPhone)");
-    // Never unconditionally.
-    expect(projection).toContain(
-      "recipientEmail: revealRecipientContact ? link.recipientEmail : null",
-    );
-    expect(projection).toContain(
-      "recipientPhone: revealRecipientContact ? link.recipientPhone : null",
-    );
-    // The masks are the platform's, not a local re-implementation.
-    expect(SUMMARY_SERVICE).toContain(
-      'import { maskEmail, maskPhonePreview } from "@proovra/shared"',
-    );
-    // Safe by default: an omitted flag masks.
-    expect(SUMMARY_SERVICE).toContain("revealRecipientContact = false,");
+    expect(projection).toContain("...projectRecipientContact(link, disclosure)");
+    expect(projection).not.toContain("link.recipientEmail");
+    expect(projection).not.toContain("link.recipientPhone");
+    // Safe by default: an omitted decision masks.
+    expect(SUMMARY_SERVICE).toContain('disclosure: RecipientContactDisclosure = "MASKED"');
   });
 
   it("decides the reveal with the canonical primitive, never a plan name", () => {
@@ -198,13 +190,13 @@ describe("intake provenance", () => {
       EVIDENCE_ROUTES.indexOf('"/v1/evidence/:id/external-intake-summary"'),
       EVIDENCE_ROUTES.indexOf('"/v1/evidence/:id/reviewer-workflow/events"'),
     );
-    expect(handler).toContain("evaluateAuthorize(req, {");
-    expect(handler).toContain('permission: "workflow.intake_link.create"');
-    expect(handler).toContain("antiEnumeration: true");
-    // A personal workspace has no membership to check.
-    expect(handler).toContain("let revealRecipientContact = !evidence.teamId;");
-    // No plan-name branching anywhere near the decision.
+    // The decision is not re-derived here; it is asked for.
+    expect(handler).toContain("resolveRecipientContactDisclosure(req, {");
+    expect(handler).toContain("teamId: evidence.teamId");
+    expect(handler).toContain("recipientContactDisclosure: disclosure");
+    // No plan-name and no role-name branching anywhere near the decision.
     expect(handler).not.toMatch(/plan\s*===/);
+    expect(handler).not.toMatch(/role\s*===/);
     expect(handler).not.toContain('"PRO"');
   });
   it("never projects the token, the IP hash or the user agent", () => {

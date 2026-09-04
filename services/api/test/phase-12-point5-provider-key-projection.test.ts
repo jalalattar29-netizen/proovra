@@ -195,7 +195,7 @@ describe("POINT 5 — exposed provider idempotency keys = 0", () => {
   });
 
   it("the canonical notification projection returns neither the key nor the metadata", () => {
-    for (const opts of [{}, { maskRecipient: true }]) {
+    for (const opts of [{}, { disclosure: "MASKED" as const }]) {
       const projected = projectNotificationDelivery(deliveryRow() as never, opts);
       const json = JSON.stringify(projected);
       expect(json).not.toContain(KEY);

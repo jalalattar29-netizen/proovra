@@ -18,8 +18,12 @@ export type IntakeLinkListItem = {
     intakeMode: string;
     caseId: string | null;
     recipientLabel: string | null;
+    /** Masked, by the same platform policy the row projection uses. */
     recipientEmailPreview: string | null;
     recipientPhonePreview: string | null;
+    hasRecipientEmail?: boolean;
+    hasRecipientPhone?: boolean;
+    recipientContactRevealAuthorized?: boolean;
     maxUses: number;
     usedCount: number;
     status: string;
@@ -82,8 +86,16 @@ export type IntakeLinkRow = {
   intakeMode: string;
   caseId: string | null;
   recipientLabel: string | null;
-  recipientEmail: string | null;
-  recipientPhone: string | null;
+  /**
+   * Masked. The raw address and number are not part of any projection — a
+   * caller with the authority fetches them from
+   * POST /v1/workflow/intake-links/:id/recipient-contact.
+   */
+  recipientEmailMasked: string | null;
+  recipientPhoneMasked: string | null;
+  hasRecipientEmail: boolean;
+  hasRecipientPhone: boolean;
+  recipientContactRevealAuthorized: boolean;
   maxUses: number;
   usedCount: number;
   maxFileCountPerSession: number | null;

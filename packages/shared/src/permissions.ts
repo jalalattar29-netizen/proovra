@@ -45,6 +45,23 @@ export const PERMISSIONS = [
   "workflow.intake_link.create",
   "workflow.intake_link.revoke",
   "workflow.external_submission.read",
+  /*
+   * REVEAL THE RAW RECIPIENT CONTACT ON AN INTAKE LINK.
+   *
+   * The address or number an intake request was DELIVERED to belongs to a
+   * third party who never agreed to be visible to the workspace at large. Its
+   * masked form is provenance and everyone who can read the record gets it;
+   * the raw value is a disclosure, and this is the authority for it.
+   *
+   * It is deliberately NOT `workflow.intake_link.create`. That is a mutation
+   * capability held by canonical REVIEWER — which is what the DB role MEMBER
+   * maps to — so gating disclosure on it would have handed every ordinary
+   * team member the stored contact details, and would have silently changed
+   * who may see them the next time somebody adjusted who may create links.
+   * Administration and disclosure are separate questions and now have
+   * separate answers.
+   */
+  "workflow.intake_recipient_contact.reveal",
 
   // Evidence requests
   "evidence_request.create",
@@ -305,6 +322,10 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "workflow.intake_link.create",
     "workflow.intake_link.revoke",
     "workflow.external_submission.read",
+    // Disclosure of a third party's stored contact detail is an
+    // administrative act. REVIEWER may create the link and may read the
+    // record; neither of those is a reason to hand out the address.
+    "workflow.intake_recipient_contact.reveal",
     "evidence_request.create",
     "evidence_request.assign",
     "evidence_request.review",

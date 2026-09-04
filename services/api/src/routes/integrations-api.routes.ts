@@ -26,6 +26,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
+import { maskEmail } from "@proovra/shared";
 
 import { prisma } from "../db.js";
 import {
@@ -255,7 +256,12 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
               workflowTemplateVersion: link.workflowTemplateVersion,
               intakeMode: link.intakeMode,
               recipientLabel: link.recipientLabel,
-              recipientEmail: link.recipientEmail,
+              // Masked, like every other projection of this column. An API
+              // key echoing back the address it just sent is still a
+              // disclosure surface, and this credential holds an integration
+              // scope, not the recipient-contact reveal authority.
+              recipientEmailMasked: maskEmail(link.recipientEmail),
+              hasRecipientEmail: Boolean(link.recipientEmail),
               maxUses: link.maxUses,
               usedCount: link.usedCount,
               expiresAtUtc: link.expiresAtUtc?.toISOString() ?? null,

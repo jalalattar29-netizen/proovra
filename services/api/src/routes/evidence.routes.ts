@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { getSecret } from "../config/runtime-secrets.js";
-import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
+import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
 // single source of truth the single-record case-attach route uses).
 import { evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
@@ -7734,28 +7735,21 @@ return {
       /*
        * REVEALING THE RECIPIENT'S ADDRESS IS NOT PART OF READING THE RECORD.
        *
-       * Everyone who can read the record sees the masked form. The raw address
-       * goes only to a caller who holds the permission that creates intake
-       * links here — the role that chose the recipient. Decided by the
-       * canonical primitive, never by a plan name; a personal workspace has no
-       * membership to check, and read access there already means sole
-       * ownership.
+       * The decision is not made here: it is made once, by the canonical
+       * recipient-contact policy, which every External Intake surface shares.
+       * What comes back either way is the masked form — REVEALED only means
+       * this caller may go and ask for the raw one at
+       * POST /v1/workflow/intake-links/:id/recipient-contact.
        */
-      let revealRecipientContact = !evidence.teamId;
-      if (evidence.teamId) {
-        const outcome = await evaluateAuthorize(req, {
-          teamId: evidence.teamId,
-          permission: "workflow.intake_link.create",
-          antiEnumeration: true,
-        });
-        revealRecipientContact = outcome.allowed;
-      }
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: evidence.teamId,
+      });
 
       const { loadExternalIntakeSourceSummary } = await import(
         "../services/external-intake-source-summary.service.js"
       );
       const summary = await loadExternalIntakeSourceSummary(id, {
-        revealRecipientContact,
+        recipientContactDisclosure: disclosure,
       });
       return reply.code(200).send({ summary });
     },

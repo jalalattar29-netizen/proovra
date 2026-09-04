@@ -462,6 +462,8 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
       "An attestation verified successfully. The success case.",
     external_review_token_revealed:
       "An authorised reveal, recorded for audit. Not a fault.",
+    workflow_intake_recipient_contact_revealed:
+      "An authorised reveal, recorded for audit. Not a fault.",
     governance_export_snapshot_created:
       "A governance export snapshot was produced. The success case.",
     governance_notification_emitted:

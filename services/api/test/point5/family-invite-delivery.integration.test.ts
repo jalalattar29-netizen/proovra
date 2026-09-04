@@ -870,7 +870,7 @@ describe("POINT 5 FAMILY — invite delivery (live PostgreSQL 16)", () => {
       [
         "projectNotificationDelivery(masked)",
         notifications.projectNotificationDelivery(row as never, {
-          maskRecipient: true,
+          disclosure: "MASKED" as const,
         }),
       ],
     ];

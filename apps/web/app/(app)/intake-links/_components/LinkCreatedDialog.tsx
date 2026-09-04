@@ -45,7 +45,9 @@ export function LinkCreatedDialog({
   const sendingRef = React.useRef(false);
 
   const { delivery, link, rawToken } = created;
-  const canSend = Boolean(link.recipientPhone);
+  // Presence, not the number. The dialog needs to know a channel exists;
+  // it has never needed to read the recipient's phone number to decide that.
+  const canSend = link.hasRecipientPhone;
 
   React.useEffect(() => {
     dialogRef.current?.focus();

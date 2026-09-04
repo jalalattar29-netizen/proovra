@@ -31,7 +31,13 @@ import type {
   WorkflowIntakeSession as DbWorkflowIntakeSession,
 } from "@prisma/client";
 
+import { maskEmail, maskPhonePreview } from "@proovra/shared";
+
 import { prisma as defaultPrisma } from "../db.js";
+import {
+  projectRecipientContact,
+  type RecipientContactDisclosure,
+} from "./privacy/recipient-contact-disclosure.js";
 
 // =============================================================================
 // Lifecycle
@@ -372,6 +378,14 @@ function updateRange(
 // PII masking — recipient previews for the list
 // =============================================================================
 
+/**
+ * @deprecated Recipient and submitter contact are masked by the platform's
+ * shared helpers now, through `projectRecipientContact`. This local pair
+ * produced a THIRD rendering of the same data class (`j••e@x.com` here,
+ * `j***@x.com` on Evidence Detail), so the same address looked different
+ * depending on which screen you were on. Retained only because its contract
+ * test documents the old behaviour; nothing in the service calls it.
+ */
 export function maskEmailForList(email: string | null): string | null {
   if (!email) return null;
   const e = email.trim();
@@ -414,8 +428,12 @@ export type IntakeLinkListItem = {
     intakeMode: string;
     caseId: string | null;
     recipientLabel: string | null;
+    /** Masked. The raw values are not part of this projection at all. */
     recipientEmailPreview: string | null;
     recipientPhonePreview: string | null;
+    hasRecipientEmail: boolean;
+    hasRecipientPhone: boolean;
+    recipientContactRevealAuthorized: boolean;
     maxUses: number;
     usedCount: number;
     status: string;
@@ -459,6 +477,12 @@ export type IntakeLinkListItem = {
 };
 
 export type ProjectIntakeLinkListInput = {
+  /**
+   * What this caller may be shown. Optional, and absent means MASKED: a
+   * route that forgets to pass it discloses nothing, which is the only safe
+   * direction for a default to fail in.
+   */
+  recipientContactDisclosure?: RecipientContactDisclosure;
   links: DbWorkflowIntakeLink[];
   /** Pass true for platform admins or `?_debug=intake-delivery` opt-in. */
   includeProviderMessageId?: boolean;
@@ -474,6 +498,14 @@ export type ProjectIntakeLinkListInput = {
 export async function projectIntakeLinkList(
   input: ProjectIntakeLinkListInput,
 ): Promise<IntakeLinkListItem[]> {
+  /*
+   * One decision for the whole page. Every link in this list belongs to the
+   * workspace the caller was authorized against, so the disclosure is the
+   * same for all of them and is resolved once by the route rather than
+   * re-derived per row.
+   */
+  const disclosure: RecipientContactDisclosure =
+    input.recipientContactDisclosure ?? "MASKED";
   const client = input.client ?? defaultPrisma;
   const linkIds = input.links.map((l) => l.id);
 
@@ -504,6 +536,8 @@ export async function projectIntakeLinkList(
         ? snapshot.name
         : link.workflowTemplateSlug;
 
+    const recipientContact = projectRecipientContact(link, disclosure);
+
     return {
       link: {
         id: link.id,
@@ -514,8 +548,16 @@ export async function projectIntakeLinkList(
         intakeMode: link.intakeMode,
         caseId: link.caseId,
         recipientLabel: link.recipientLabel,
-        recipientEmailPreview: maskEmailForList(link.recipientEmail),
-        recipientPhonePreview: maskPhoneForList(link.recipientPhone),
+        // Masked by the one policy, not by a helper local to this file.
+        // The list was already masked — correctly — but with its own
+        // renderer; it now agrees with every other surface character for
+        // character.
+        recipientEmailPreview: recipientContact.recipientEmailMasked,
+        recipientPhonePreview: recipientContact.recipientPhoneMasked,
+        hasRecipientEmail: recipientContact.hasRecipientEmail,
+        hasRecipientPhone: recipientContact.hasRecipientPhone,
+        recipientContactRevealAuthorized:
+          recipientContact.recipientContactRevealAuthorized,
         maxUses: link.maxUses,
         usedCount: link.usedCount,
         status: link.status,
@@ -572,6 +614,7 @@ export async function projectIntakeLinkListItem(
     includeProviderMessageId?: boolean;
     client?: PrismaClient;
     now?: Date;
+    recipientContactDisclosure?: RecipientContactDisclosure;
   } = {},
 ): Promise<IntakeLinkListItem> {
   const [item] = await projectIntakeLinkList({
@@ -579,6 +622,7 @@ export async function projectIntakeLinkListItem(
     includeProviderMessageId: options.includeProviderMessageId,
     client: options.client,
     now: options.now,
+    recipientContactDisclosure: options.recipientContactDisclosure,
   });
   return item;
 }
@@ -666,10 +710,10 @@ export async function loadIntakeLinkSubmissions(
     submitterDisplayName: isAnonymous ? null : s.submitterDisplayName,
     submitterEmailPreview: isAnonymous
       ? null
-      : maskEmailForList(s.submitterEmail),
+      : maskEmail(s.submitterEmail),
     submitterPhonePreview: isAnonymous
       ? null
-      : maskPhoneForList(s.submitterPhone),
+      : maskPhonePreview(s.submitterPhone),
     pseudonym:
       link.intakeMode === "EXTERNAL_PSEUDONYMOUS" ? s.pseudonym : null,
     openedAtUtc: s.openedAtUtc?.toISOString() ?? null,

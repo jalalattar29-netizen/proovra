@@ -38,6 +38,8 @@ import {
   projectNotificationDelivery,
   resendNotificationDelivery,
 } from "../services/notifications/index.js";
+import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
+import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { runReminderScheduler } from "../services/notifications/reminder-scheduler.js";
 import { runDigestScheduler } from "../services/notifications/digest-scheduler.js";
 
@@ -113,7 +115,6 @@ export async function notificationsRoutes(app: FastifyInstance) {
           createdAfter: z.string().datetime().optional(),
           createdBefore: z.string().datetime().optional(),
           limit: z.coerce.number().int().min(1).max(200).optional(),
-          maskRecipient: z.union([z.literal("true"), z.literal("false")]).optional(),
         })
         .parse(req.query ?? {});
 
@@ -137,10 +138,44 @@ export async function notificationsRoutes(app: FastifyInstance) {
         limit: query.limit,
       });
 
-      const mask = query.maskRecipient === "true";
+      /*
+       * The client used to choose this with `?maskRecipient=true`, which
+       * meant raw addresses by default for anyone who did not opt in. The
+       * server decides now, through the same recipient-contact authority the
+       * intake surfaces use — this log carries External Intake recipients
+       * among others, and one data class cannot have two rules.
+       */
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: query.teamId,
+      });
+      /*
+       * This log EXISTS to show raw recipients — it is the org's outbound
+       * delivery debugging surface — so a REVEALED caller still gets them.
+       * What changed is that the disclosure is recorded, the same way the
+       * per-link reveal is. One event per request, not per row: the operator
+       * opened the log once, and a hundred rows is one act.
+       *
+       * Nothing is recorded when the read disclosed nothing, so an empty log
+       * or a masked read does not manufacture audit noise.
+       */
+      if (disclosure === "REVEALED" && rows.length > 0) {
+        safeEmitSecurityEvent({
+          teamId: query.teamId,
+          eventType: "workflow_intake_recipient_contact_revealed",
+          severity: "WARNING",
+          details: {
+            actorUserId: ok.userId,
+            surface: "notification_delivery_log",
+            disclosureType: "recipient_contact",
+            deliveryCount: rows.length,
+            intakeLinkCount: rows.filter((r) => r.intakeLinkId).length,
+          },
+        });
+      }
+
       return reply.code(200).send({
         deliveries: rows.map((r) =>
-          projectNotificationDelivery(r, { maskRecipient: mask }),
+          projectNotificationDelivery(r, { disclosure }),
         ),
       });
     },
@@ -162,9 +197,26 @@ export async function notificationsRoutes(app: FastifyInstance) {
       if (!row) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: query.teamId,
+      });
+      if (disclosure === "REVEALED") {
+        safeEmitSecurityEvent({
+          teamId: query.teamId,
+          eventType: "workflow_intake_recipient_contact_revealed",
+          severity: "WARNING",
+          details: {
+            actorUserId: ok.userId,
+            surface: "notification_delivery_detail",
+            disclosureType: "recipient_contact",
+            deliveryId: row.id,
+            intakeLinkId: row.intakeLinkId,
+          },
+        });
+      }
       return reply
         .code(200)
-        .send({ delivery: projectNotificationDelivery(row) });
+        .send({ delivery: projectNotificationDelivery(row, { disclosure }) });
     },
   );
 
@@ -191,11 +243,17 @@ export async function notificationsRoutes(app: FastifyInstance) {
         force: body.force ?? false,
       });
 
+      // Same decision as the read surfaces, so an operator does not see the
+      // recipient one way on the detail and another way after a resend.
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: body.teamId,
+      });
+
       switch (result.outcome) {
         case "resent":
           return reply.code(200).send({
             delivery: result.delivery
-              ? projectNotificationDelivery(result.delivery)
+              ? projectNotificationDelivery(result.delivery, { disclosure })
               : null,
             outcome: result.outcome,
           });
@@ -210,7 +268,7 @@ export async function notificationsRoutes(app: FastifyInstance) {
           // the (failed) projection so the operator sees the new state.
           return reply.code(200).send({
             delivery: result.delivery
-              ? projectNotificationDelivery(result.delivery)
+              ? projectNotificationDelivery(result.delivery, { disclosure })
               : null,
             outcome: result.outcome,
           });

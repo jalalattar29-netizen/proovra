@@ -185,7 +185,10 @@ test("an unconfigured channel cannot be submitted even if it is somehow selected
 
 test("the reveal dialog hides Send-by-SMS / Send-by-WhatsApp when no recipient phone", () => {
   const src = read(CREATED_DIALOG);
-  assert.match(src, /const canSend = Boolean\(link\.recipientPhone\)/);
+  // Presence, not the number. The recipient-contact policy removed the raw
+  // column from every projection, and "can I send this?" never needed it —
+  // the dialog only has to know a channel exists.
+  assert.match(src, /const canSend = link\.hasRecipientPhone/);
   assert.match(
     src,
     /\{canSend \? \(\s*\n?[\s\S]{0,2000}data-intake-link-send="WHATSAPP"[\s\S]{0,400}\) : null\}/,

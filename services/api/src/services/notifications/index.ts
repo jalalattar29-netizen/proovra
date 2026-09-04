@@ -49,6 +49,9 @@ import {
   STORED_IDEMPOTENCY_KEY_FIELD,
 } from "@proovra/shared-runtime";
 
+import type { RecipientContactDisclosure } from "../privacy/recipient-contact-disclosure.js";
+import { maskEmail, maskPhonePreview } from "@proovra/shared";
+
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
 import { renderTransactionalTemplate, TemplateContext } from "./templates.js";
@@ -776,17 +779,23 @@ export async function getNotificationDelivery(
 // recipient is partially masked when it contains an email.
 // -----------------------------------------------------------------------------
 
-function maskEmail(value: string): string {
-  if (!value.includes("@")) return value;
-  const [local, domain] = value.split("@");
-  if (!local || !domain) return value;
-  const head = local.slice(0, 2);
-  return `${head}${"*".repeat(Math.max(0, local.length - 2))}@${domain}`;
-}
-
+/**
+ * THE OUTBOUND DELIVERY LOG'S PROJECTION.
+ *
+ * `recipient` here is the address a message was actually sent to. For a
+ * delivery carrying an `intakeLinkId` that is the External Intake recipient —
+ * the same data class the recipient-contact policy governs everywhere else —
+ * so this surface has to obey the same rule.
+ *
+ * It used to be raw by DEFAULT, masked only if the client passed
+ * `?maskRecipient=true`, and SMS/WhatsApp were never masked at all because
+ * the branch tested `channel === "EMAIL"`. A disclosure the caller opts out
+ * of is not a policy. The decision now arrives from the server-side authority
+ * and the client cannot influence it.
+ */
 export function projectNotificationDelivery(
   delivery: DbNotificationDelivery,
-  opts: { maskRecipient?: boolean } = {},
+  opts: { disclosure?: RecipientContactDisclosure } = {},
 ): {
   id: string;
   eventType: string;
@@ -813,10 +822,19 @@ export function projectNotificationDelivery(
   createdAt: string;
   updatedAt: string;
 } {
+  /*
+   * Masked unless the caller was resolved as REVEALED, and masked for every
+   * channel rather than only for email — a phone number is not less personal
+   * than an address. MASKED is the default so a caller that forgets to pass a
+   * decision discloses less, not more.
+   */
+  const disclosure = opts.disclosure ?? "MASKED";
   const recipient =
-    opts.maskRecipient && delivery.channel === "EMAIL"
-      ? maskEmail(delivery.recipient)
-      : delivery.recipient;
+    disclosure === "REVEALED"
+      ? delivery.recipient
+      : delivery.channel === "EMAIL"
+        ? (maskEmail(delivery.recipient) ?? "")
+        : maskPhonePreview(delivery.recipient);
   return {
     id: delivery.id,
     eventType: delivery.eventType,

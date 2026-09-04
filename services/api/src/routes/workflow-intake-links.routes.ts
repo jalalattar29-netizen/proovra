@@ -33,6 +33,11 @@ import {
 } from "@proovra/shared";
 
 import { authorizeOrFail } from "../middleware/authorize.js";
+import {
+  resolveRecipientContactDisclosure,
+  revealRecipientContact,
+} from "../services/privacy/recipient-contact-disclosure.js";
+import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
@@ -513,7 +518,15 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         }
 
         return reply.code(201).send({
-          link: projectWorkflowIntakeLink(result.link),
+          link: projectWorkflowIntakeLink(
+            result.link,
+            // Even the caller who just typed the address gets it back masked.
+            // The create response is a projection like any other, and the one
+            // place a raw value leaves this service is the reveal route.
+            await resolveRecipientContactDisclosure(req, {
+              teamId: body.teamId,
+            }),
+          ),
           rawToken: result.rawToken,
           warning:
             "The raw token is shown exactly once. Capture it now — it is not retrievable later.",
@@ -566,8 +579,14 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       // preserved as `legacyLinks` for any caller that still expects
       // the bare row projection; remove after the web client cuts
       // over (which happens in Phase 2 of this same sprint).
+      // ONE decision for the request, consumed by both projections below.
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: query.teamId,
+      });
+
       const items = await projectIntakeLinkList({
         links: rows,
+        recipientContactDisclosure: disclosure,
         // Provider IDs are admin-only — controlled by the
         // ?_debug=intake-delivery URL flag the web client respects.
         includeProviderMessageId:
@@ -577,8 +596,10 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
 
       return reply.code(200).send({
         items,
-        // Back-compat for the prior frontend.
-        links: rows.map(projectWorkflowIntakeLink),
+        // Back-compat for the prior frontend. It is a second projection of
+        // the same rows, and it obeys the same decision — a legacy shape is
+        // not a licence to disclose more.
+        links: rows.map((row) => projectWorkflowIntakeLink(row, disclosure)),
       });
     },
   );
@@ -602,15 +623,112 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, link.teamId);
       if (!ok) return;
 
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: link.teamId,
+      });
+
       const item = await projectIntakeLinkListItem(link, {
         includeProviderMessageId:
           typeof (req.query as Record<string, unknown>)?._debug === "string" &&
           (req.query as Record<string, string>)._debug === "intake-delivery",
+        recipientContactDisclosure: disclosure,
       });
 
       return reply
         .code(200)
-        .send({ link: projectWorkflowIntakeLink(link), item });
+        .send({ link: projectWorkflowIntakeLink(link, disclosure), item });
+    },
+  );
+
+  // -- Recipient contact reveal ----------------------------------------
+
+  /*
+   * THE ONLY PLACE A RAW RECIPIENT ADDRESS LEAVES THE API.
+   *
+   * Every projection ships the masked form and nothing else, for everybody.
+   * A caller who genuinely needs the address — to phone the person, to
+   * confirm a delivery went to the right place — asks here, holds
+   * `workflow.intake_recipient_contact.reveal`, and the disclosure is
+   * recorded.
+   *
+   * POST, not GET: this is an act with a consequence, not a cacheable read,
+   * and a GET would end up in browser history, proxy logs and prefetchers.
+   *
+   * Both surfaces that show recipient provenance use this one route — the
+   * intake-links administration screen and the Evidence Detail intake card —
+   * so there is one gate, one audit record, and one behaviour to reason
+   * about.
+   */
+  app.post(
+    "/v1/workflow/intake-links/:id/recipient-contact",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (workflowIntakeFeatureDisabledReason()) {
+        return sendFeatureDisabled(reply);
+      }
+
+      const { id } = ParamsId.parse(req.params);
+      const link = await getWorkflowIntakeLink(id);
+      if (!link) {
+        return reply.code(404).send({ message: "Intake link not found" });
+      }
+
+      /*
+       * Two gates, in this order. First the resource: a caller who cannot
+       * read this workspace's links gets the same 404 a missing link gets,
+       * so the route cannot be used to probe for ids. Only then the
+       * disclosure authority, which answers 403 — by that point the caller
+       * has already proven they may see the record, so telling them the
+       * difference between "no such link" and "not yours to reveal" costs
+       * nothing and saves them guessing.
+       */
+      const member = await requireMember(req, reply, link.teamId);
+      if (!member) return;
+
+      const disclosure = await resolveRecipientContactDisclosure(req, {
+        teamId: link.teamId,
+      });
+      if (disclosure !== "REVEALED") {
+        return reply.code(403).send({
+          error: {
+            code: "FORBIDDEN",
+            message:
+              "You do not have permission to view the full recipient contact for this intake link.",
+          },
+        });
+      }
+
+      const revealed = revealRecipientContact(link, disclosure);
+
+      /*
+       * Recorded on the platform's existing sensitive-reveal convention, the
+       * same one that covers a re-revealed reviewer token. WARNING severity
+       * because it is worth seeing in a trail, not because anything failed.
+       *
+       * The address is NOT in the record. Writing the value into an audit
+       * log to prove it was disclosed copies it into a second, longer-lived
+       * place — which is the opposite of the point. What is recorded is who
+       * asked, for which link, which channels came back, and when.
+       */
+      safeEmitSecurityEvent({
+        teamId: link.teamId,
+        eventType: "workflow_intake_recipient_contact_revealed",
+        severity: "WARNING",
+        details: {
+          actorUserId: member.userId,
+          intakeLinkId: link.id,
+          disclosureType: "recipient_contact",
+          revealedEmail: Boolean(revealed.recipientEmail),
+          revealedPhone: Boolean(revealed.recipientPhone),
+        },
+      });
+
+      return reply.code(200).send({
+        recipientContact: {
+          recipientEmail: revealed.recipientEmail,
+          recipientPhone: revealed.recipientPhone,
+        },
+      });
     },
   );
 
@@ -806,7 +924,14 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
 
       return reply
         .code(200)
-        .send({ link: projectWorkflowIntakeLink(updated) });
+        .send({
+          link: projectWorkflowIntakeLink(
+            updated,
+            await resolveRecipientContactDisclosure(req, {
+              teamId: updated.teamId,
+            }),
+          ),
+        });
     },
   );
 
@@ -857,7 +982,14 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
 
       return reply
         .code(200)
-        .send({ link: projectWorkflowIntakeLink(updated) });
+        .send({
+          link: projectWorkflowIntakeLink(
+            updated,
+            await resolveRecipientContactDisclosure(req, {
+              teamId: updated.teamId,
+            }),
+          ),
+        });
     },
   );
 
@@ -899,7 +1031,14 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
 
       return reply
         .code(200)
-        .send({ link: projectWorkflowIntakeLink(updated) });
+        .send({
+          link: projectWorkflowIntakeLink(
+            updated,
+            await resolveRecipientContactDisclosure(req, {
+              teamId: updated.teamId,
+            }),
+          ),
+        });
     },
   );
 

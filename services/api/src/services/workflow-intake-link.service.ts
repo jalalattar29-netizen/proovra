@@ -45,6 +45,10 @@ import {
 
 import { prisma as defaultPrisma } from "../db.js";
 import { error as logError } from "../utils/logger.js";
+import {
+  projectRecipientContact,
+  type RecipientContactDisclosure,
+} from "./privacy/recipient-contact-disclosure.js";
 import { issueIntakeToken } from "./workflow-intake-token.service.js";
 import {
   liftIntakeTemplateToWorkflowTemplate,
@@ -942,7 +946,25 @@ export async function sendIntakeLinkViaEmail(
   };
 }
 
-export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
+/**
+ * The admin/API projection of an intake link.
+ *
+ * It used to return `recipientEmail` and `recipientPhone` RAW, and the routes
+ * that serve it are gated on `evidence.read` — so every workspace member,
+ * VIEWER included, could read the address a request had been delivered to
+ * simply by listing intake links. The Evidence Detail card had already been
+ * brought under a masked-by-default rule; this projection had not, which left
+ * one data class with two disclosure rules depending on which endpoint you
+ * asked.
+ *
+ * It now takes the disclosure decision as an argument and emits only what
+ * that decision allows. There is no argument that makes it emit a raw value:
+ * the raw values live behind the audited reveal route and nowhere else.
+ */
+export function projectWorkflowIntakeLink(
+  link: DbWorkflowIntakeLink,
+  disclosure: RecipientContactDisclosure,
+): {
   id: string;
   teamId: string;
   workflowTemplateSlug: string;
@@ -950,8 +972,11 @@ export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
   intakeMode: string;
   caseId: string | null;
   recipientLabel: string | null;
-  recipientEmail: string | null;
-  recipientPhone: string | null;
+  recipientEmailMasked: string | null;
+  recipientPhoneMasked: string | null;
+  hasRecipientEmail: boolean;
+  hasRecipientPhone: boolean;
+  recipientContactRevealAuthorized: boolean;
   /** Organization-supplied customer identifier. Authoritative here. */
   customerId: string | null;
   maxUses: number;
@@ -977,8 +1002,10 @@ export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
     intakeMode: link.intakeMode,
     caseId: link.caseId,
     recipientLabel: link.recipientLabel,
-    recipientEmail: link.recipientEmail,
-    recipientPhone: link.recipientPhone,
+    ...projectRecipientContact(link, disclosure),
+    // Customer ID is a DIFFERENT data class — organization-supplied business
+    // metadata, governed by its own decision — and is deliberately not routed
+    // through the recipient-contact policy.
     customerId: link.customerId,
     maxUses: link.maxUses,
     usedCount: link.usedCount,

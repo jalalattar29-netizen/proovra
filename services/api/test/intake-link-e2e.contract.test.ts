@@ -146,8 +146,12 @@ test("Create handler — return envelope includes link, rawToken, warning, deliv
   // MANUAL, where it's `{method: "MANUAL", status: "skipped"}`).
   const replyIdx = src.indexOf("return reply.code(201).send({");
   assert.ok(replyIdx > 0, "201 response missing");
-  const slice = src.slice(replyIdx, replyIdx + 400);
-  assert.match(slice, /link: projectWorkflowIntakeLink\(result\.link\)/);
+  // Widened from 400: the link projection now carries the recipient-contact
+  // disclosure argument, and the envelope this asserts on sits below it.
+  const slice = src.slice(replyIdx, replyIdx + 900);
+  // The projection now takes the recipient-contact disclosure decision, so
+  // even the caller who just typed the address gets it back masked.
+  assert.match(slice, /link: projectWorkflowIntakeLink\(\s*\n\s*result\.link,/);
   assert.match(slice, /rawToken: result\.rawToken/);
   assert.match(slice, /delivery,/);
 });

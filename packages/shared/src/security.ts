@@ -162,6 +162,11 @@ export const SECURITY_EVENT_TYPES = [
   "workflow_export_blocked",
   "workflow_intake_link_created",
   "workflow_intake_link_revoked",
+  // Sensitive: an authorised operator asked for, and received, the raw
+  // recipient contact behind an intake link. Recorded the same way a
+  // re-revealed reviewer token is. The values themselves are never in the
+  // record — only who asked, for which link, and when.
+  "workflow_intake_recipient_contact_revealed",
   "workflow_intake_abuse_detected",
   // Phase 24 — Enterprise Evidence Discovery Platform.
   // Operator-visible signals for search execution, indexing failures,
