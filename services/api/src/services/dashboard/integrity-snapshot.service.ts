@@ -311,6 +311,36 @@ export async function recordSnapshotFromEvidence(
  * The dashboard treats `null` snapshots as "fall back to live
  * derivation" — never as "OK".
  */
+/**
+ * Does this workspace have ANY integrity snapshot at all?
+ *
+ * `listWorkspaceIntegritySnapshots` deliberately narrows to
+ * `REVIEW_REQUIRED` and `FAILED` — it exists to surface what an operator has
+ * to action, so a workspace whose evidence is entirely healthy correctly gets
+ * an empty list back.
+ *
+ * That made it the wrong thing to ask "have the snapshots been written yet?".
+ * The command centre's lazy backfill used the empty list as its "no rows
+ * exist" signal, so on a healthy workspace it re-ran the backfill on EVERY
+ * read and the rows it wrote could never satisfy the guard, because they were
+ * healthy and the list filters those out. Measured on the local fixture: 21
+ * INSERTs into evidence_integrity_snapshots on every single load of Home,
+ * indefinitely.
+ *
+ * This asks the existence question with no status filter, which is what the
+ * guard meant. `findFirst` over the workspace index rather than a count: the
+ * caller only needs to know whether there is one.
+ */
+export async function hasWorkspaceIntegritySnapshots(input: {
+  teamId: string;
+}): Promise<boolean> {
+  const row = await prisma.evidenceIntegritySnapshot.findFirst({
+    where: { teamId: input.teamId },
+    select: { evidenceId: true },
+  });
+  return row !== null;
+}
+
 export async function listWorkspaceIntegritySnapshots(input: {
   teamId: string;
   limit: number;

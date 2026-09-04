@@ -46,6 +46,7 @@ import {
 } from "@proovra/shared-runtime";
 import {
   backfillIntegritySnapshots,
+  hasWorkspaceIntegritySnapshots,
   listWorkspaceIntegritySnapshots,
 } from "./integrity-snapshot.service.js";
 import {
@@ -3298,8 +3299,68 @@ async function runOperationalGraphSection(
       "OperationalIncident / OperationalWorkflow / OperationalCorrelation (real sources)",
     ],
   };
-  // Lazy generate.
-  await projectOperationalGraphForWorkspace({ teamId }).catch(() => {});
+  /*
+   * "LAZY GENERATE" NOW MEANS IT.
+   *
+   * This line said lazy and generated unconditionally, so the operational
+   * graph was re-projected on EVERY read of the command centre — which is
+   * every load of Home.
+   *
+   * That projection is not cheap and it is not a read.
+   * `projectOperationalGraphForWorkspace` upserts one row per node and one per
+   * edge, each awaited in turn, so it is a sequential write fan-out on a path
+   * whose own file header states "READ ONLY. No prisma.*.create / update /
+   * delete / upsert."
+   *
+   * Measured against the local fixture, one GET of
+   * /v1/dashboard/command-center: 320 SQL statements and 822ms of cumulative
+   * database time, of which 83 statements were writes — 34 INSERTs into
+   * operational_graph_nodes, plus the workflow rows the same projection
+   * touches. Repeating the request produced the same 320 and the same 83, so
+   * this was the steady-state cost of opening Home, not a first-run cost.
+   *
+   * On a database on the same machine that compresses to ~300ms of wall clock
+   * and looks survivable. It is not what a deployed instance sees: 320
+   * statements against a managed Postgres, through a pool whose default
+   * ceiling is ten connections, is roughly thirty serialised waves of network
+   * round trips before any of the writes' commit costs. That is the shape of
+   * a page that takes seconds rather than milliseconds, and no amount of
+   * client-side parallelism can help with it.
+   *
+   * The fix is the pattern this file already chose for exactly this problem
+   * one projection further down — refresh on a stale read, with the same
+   * PROJECTION_FRESH_THRESHOLD_SEC bound and for the same stated reasons:
+   * freshness only matters when somebody is looking, and a per-tenant
+   * scheduler would project graphs for tenants nobody has opened in months.
+   * A window of that length also means concurrent loads converge on one
+   * projection instead of each doing the whole fan-out.
+   *
+   * Nothing about the RESPONSE changes: the summary below is read after this,
+   * from the same rows, exactly as before. What changes is that a second Home
+   * load inside the window reads the projection instead of rebuilding it.
+   */
+  let graphFreshAtUtc: Date | null = null;
+  try {
+    const newest = await prisma.operationalGraphNode.findFirst({
+      where: { teamId },
+      select: { updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    graphFreshAtUtc = newest?.updatedAt ?? null;
+  } catch {
+    // A failed freshness probe must not skip the projection — an unknown age
+    // is treated as stale, which is the safe direction.
+    graphFreshAtUtc = null;
+  }
+
+  const graphStale =
+    graphFreshAtUtc === null ||
+    Date.now() - graphFreshAtUtc.getTime() >
+      PROJECTION_FRESH_THRESHOLD_SEC * 1000;
+
+  if (graphStale) {
+    await projectOperationalGraphForWorkspace({ teamId }).catch(() => {});
+  }
   let data: CommandCenterEnvelope["sections"]["operationalGraph"]["data"] = {
     nodeCountsByType: [],
     edgeCountsByType: [],
@@ -5211,7 +5272,23 @@ async function runDeepIntegrityWatch(
       teamId,
       limit: DEEP_INTEGRITY_LIMIT,
     });
-    if (snapshots.length === 0) {
+    /*
+     * AN EMPTY LIST IS NOT AN EMPTY TABLE.
+     *
+     * This branch used `snapshots.length === 0` as "no rows exist yet", but
+     * the list above narrows to REVIEW_REQUIRED and FAILED — the signals an
+     * operator has to action. A workspace whose evidence is all healthy
+     * therefore returns an empty list forever, the backfill re-ran on every
+     * read, and the rows it wrote could never satisfy the guard because
+     * healthy rows are exactly what the list excludes.
+     *
+     * Measured before this fix: 21 INSERTs into evidence_integrity_snapshots
+     * on every load of Home, repeating identically on the next load and the
+     * one after.
+     */
+    const needsBackfill =
+      snapshots.length === 0 && !(await hasWorkspaceIntegritySnapshots({ teamId }));
+    if (needsBackfill) {
       // Lazy backfill — small bounded slice. Wrapped in try/catch so
       // a failure never blocks the rest of the engine.
       try {

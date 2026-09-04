@@ -1084,47 +1084,36 @@
 }
 
 /*
-  WHY THESE TRIGGERS WERE STILL WIDE, AFTER THE ALIGNMENT FIX.
+  THE TRIGGERS KEEP THEIR SIZE. THE MENU IS WHAT GETS SMALLER.
 
-  Alignment was never what set the width. Measured in the browser at 1440,
-  signed in to an organization workspace: the account trigger rendered 195px
-  and the workspace trigger 191px — 386px of header for two controls.
+  A previous pass read "the account selector is too wide" as being about
+  these two header controls and compressed them — one 160px cap for both, a
+  26px avatar, 6px gaps, a 14px chevron. That was the wrong control: the
+  complaint was about the DROPDOWN the account trigger opens, which is
+  handled at the end of this file.
 
-  Both were at their CAP, not at their content. The label column is sized by
-  the wider of its two lines, and the caps were generous enough that the cap
-  is what the eye reads:
+  So the geometry here is back to what it was: a 30px avatar, a 22px
+  workspace glyph, 8px gaps, 220/230px caps, and the padding each had. The
+  triggers are meant to be comfortable — they carry the operating workspace,
+  which has to be readable before a custody-sensitive action, not squeezed.
 
-    account   30 avatar + 8 + 120 copy + 8 + 16 chevron + 11 padding = 193
-    workspace 22 icon   + 8 + 119 copy + 8 + 16 chevron + 18 padding = 191
-
-  Two things follow from those numbers. The chrome around the words is 62-73px
-  of the control, and on the workspace trigger the widest line is the SECOND
-  one — "Organization • OWNER" wants 173px against the name's 128 — so the
-  trigger was being sized by its subtitle.
-
-  So the caps come down to one number instead of two generous ones, and every
-  piece of chrome gives back a few pixels: a 26px avatar rather than 30, a
-  20px workspace glyph rather than 22, 6px gaps rather than 8, and padding
-  trimmed on both. Nothing here sets a width or a min-width — the control is
-  still content-driven and simply stops sooner, and both lines already carry
-  `text-overflow: ellipsis`, so a long organization name truncates rather
-  than pushing the header around.
-
-  160 is the same number the narrow-viewport block below uses, give or take
-  the 8px it trims further. One cap, not a ladder of them.
+  What DOES stay from that pass is the alignment work above: the labels read
+  from the leading edge instead of floating in the middle, because
+  `text-align: center` is the user-agent default on a `<button>`. That was
+  always a separate fix and it was always correct.
 */
 .app-topbar-v2-workspace-button {
   height: 36px;
   min-height: 36px;
-  padding: 0 8px 0 6px !important;
-  gap: 6px !important;
+  padding: 0 10px 0 8px !important;
+  gap: 8px !important;
   border-radius: 8px !important;
   background: transparent !important;
   border: 1px solid transparent !important;
   box-shadow: none !important;
   color: var(--content-ink) !important;
   cursor: pointer;
-  max-width: 160px;
+  max-width: 220px;
   transition: background 120ms ease, border-color 120ms ease;
   display: inline-flex;
   align-items: center;
@@ -1141,13 +1130,13 @@
 }
 
 .app-topbar-v2-workspace-icon {
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
   display: grid;
   place-items: center;
   color: var(--content-ink-muted);
-  flex: 0 0 20px;
+  flex: 0 0 22px;
 }
 
 /*
@@ -1228,14 +1217,14 @@
   /* Trailing padding trimmed with the stretch fix above — 10px against a 3px
      leading edge was sized for a column that no longer grows. */
   padding: 2px 8px 2px 3px !important;
-  gap: 6px !important;
+  gap: 8px !important;
   border-radius: 999px !important;
   background: transparent !important;
   border: 1px solid transparent !important;
   box-shadow: none !important;
   color: var(--content-ink) !important;
   cursor: pointer;
-  max-width: 160px;
+  max-width: 230px;
   display: inline-flex;
   align-items: center;
   transition: background 120ms ease, border-color 120ms ease;
@@ -1253,10 +1242,10 @@
 
 .app-topbar-v2-avatar,
 .app-topbar-v2-avatar-fallback {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
-  flex: 0 0 26px;
+  flex: 0 0 30px;
 }
 
 .app-topbar-v2-avatar {
@@ -1283,7 +1272,6 @@
   position: absolute;
   top: calc(100% + 8px);
   inset-inline-end: 0;
-  min-width: 288px;
   background: #FFFFFF;
   color: var(--content-ink);
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -1293,10 +1281,6 @@
     0 2px 6px rgba(15, 23, 42, 0.04);
   padding: 6px;
   z-index: 140;
-}
-
-.app-topbar-v2-account-menu {
-  min-width: 280px;
 }
 
 .app-topbar-v2-account-menu-header,
@@ -2231,4 +2215,77 @@
   .app-account-toolbar .app-header-zone-right .app-header-divider {
     display: none;
   }
+}
+
+/* ACCOUNT AND WORKSPACE MENUS — GEOMETRY */
+/* ---------------------------------------------------------------------------
+   THE MENU WAS WEARING THE HEADER'S TOUCH FLOOR.
+
+   Measured with the account menu open at 1440: 280px wide, 369px tall, and
+   every row reporting `justify-content: center`, `min-block-size: 44px`,
+   `min-inline-size: 44px`. None of that is in the menu's own rules — the rows
+   are `display: flex`, `text-align: start`, `min-height: 34px` and
+   `padding: 0 10px`, which is right.
+
+   It comes from the header's touch floor at the end of this file:
+
+     .app-account-toolbar :is(button, a[href], [role="button"], input, select)
+
+   The menu is rendered INSIDE `.app-account-toolbar`, so every row matched.
+   That selector scores 0,2,1 against the menu's own 0,1,1 and sits later in
+   the file, so it won twice over. The floor exists for the toolbar's own
+   controls — a thumb hitting a header icon — and a popover's rows are not
+   that.
+
+   Two visible consequences, both of them the complaint:
+
+     - `justify-content: center` centres each row's CONTENT AS A GROUP, so the
+       icon's position depends on how long its label is. Measured icon x
+       across the five rows: 1226, 1233, 1194, 1142, 1226. Five rows, five
+       different columns, and every label floating in the middle of its row.
+     - `min-block-size: 44px` inflated 34px rows to 44px, which is where a
+       five-row menu got to 369px tall.
+
+   The override below is prefixed with `.app-account-toolbar` so it outranks
+   the floor on its own (0,3,1) rather than relying on file order, and it
+   restores exactly what the menu's own rules asked for.
+
+   THE WIDTH.
+
+   `min-width: 280px` on the account menu and 288px on the workspace one were
+   the other half. A floor that high is a fixed width in practice: the content
+   never reached it, so the menu always rendered at the floor with the slack
+   as empty space on the right.
+
+   Content-driven between a small floor and a cap instead. The floor keeps a
+   short menu from collapsing to the width of "Billing"; the cap stops a long
+   organization name or a long email from stretching it. The email truncates,
+   which is what every account menu of this shape does — the full address is
+   in Settings, and a menu is not where it is read.
+   --------------------------------------------------------------------------- */
+.app-account-toolbar .app-topbar-v2-account-menu :is(a, button),
+.app-account-toolbar .app-topbar-v2-workspace-menu :is(a, button) {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: 0;
+  min-height: 34px;
+  width: 100%;
+}
+
+.app-topbar-v2-account-menu,
+.app-topbar-v2-workspace-menu {
+  min-width: 216px;
+  max-width: 268px;
+}
+
+/* The identity block's three lines each hold to one line and truncate. Without
+   this the email alone sets the menu's width and the cap above just clips it. */
+.app-topbar-v2-account-menu-header > *,
+.app-topbar-v2-workspace-menu-header > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
