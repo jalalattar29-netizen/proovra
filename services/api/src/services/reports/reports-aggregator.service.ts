@@ -88,6 +88,13 @@ export type ArtifactRow = {
   caseId: string | null;
   /** The linked case's name, for display. Null only when it has none. */
   caseTitle: string | null;
+  /**
+   * The organization's own customer identifier, snapshotted from the intake
+   * link. Searchable (see the `OR` in the where clause) and therefore
+   * projected: a row that came back because someone searched CUST-849271 has
+   * to be able to show why. Null for everything not acquired through intake.
+   */
+  intakeCustomerId: string | null;
   createdAt: string;
   /** Report lifecycle (bounded enum, never raw enum values). */
   report: {
@@ -381,6 +388,11 @@ export async function listWorkspaceArtifacts(input: {
         { title: like },
         { displayFileName: like },
         { originalFileName: like },
+        // Customer ID, on the same terms: this aggregator is a projection over
+        // Evidence, so the snapshotted column is filterable here exactly as it
+        // is on the evidence list, and an operator can find the deliverables
+        // for a customer by pasting their own identifier.
+        { intakeCustomerId: like },
       ];
     }
     // Cursor — opaque, last (createdAt, id) pair, base64-encoded JSON.
@@ -421,6 +433,7 @@ export async function listWorkspaceArtifacts(input: {
         type: true,
         status: true,
         verificationStatus: true,
+        intakeCustomerId: true,
         // The case NAME travels with the link, in this one query. Selecting
         // only the identifier is what forced the row to render "Case #f2b146"
         // to a human, and fetching the name per row would have been an N+1.
@@ -527,6 +540,7 @@ export async function listWorkspaceArtifacts(input: {
           // Null when a legacy row genuinely has no name; the client falls
           // back to the short id only then.
           caseTitle: r.caseLinks[0]?.case?.name?.trim() || null,
+          intakeCustomerId: r.intakeCustomerId ?? null,
           createdAt: r.createdAt.toISOString(),
           report: {
             state: reportState,

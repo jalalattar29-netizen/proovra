@@ -29,6 +29,7 @@ import type {
   WorkflowIntakeSession as DbWorkflowIntakeSession,
 } from "@prisma/client";
 
+import { maskEmail, maskPhonePreview } from "@proovra/shared";
 import { prisma as defaultPrisma } from "../db.js";
 
 export type ExternalIntakeSourceSummary = {
@@ -55,21 +56,43 @@ export type ExternalIntakeSourceSummary = {
     createdAt: string;
     createdByUserId: string;
     recipientLabel: string | null;
+    /**
+     * The organization's identifier for its own customer, as supplied when
+     * the link was created. Authoritative value; opaque to us. Null when none
+     * was given.
+     */
+    customerId: string | null;
     /*
-     * DELIBERATELY NOT PROJECTED: recipientEmail / recipientPhone.
+     * RECIPIENT CONTACT — masked by default, raw only under capability.
      *
      * Both columns exist on WorkflowIntakeLink and both are the workspace's
-     * own outbound contact detail, so surfacing them to a reviewer who can
-     * already read the record is arguable. But the omission here is not an
-     * oversight — the summary service test names both
-     * fields as forbidden in this projection, which makes it a recorded
-     * privacy decision rather than a gap.
+     * own outbound contact detail. They used to be omitted from this
+     * projection entirely, which meant a reviewer could not tell where a
+     * request had been sent; the omission was recorded as a decision rather
+     * than a gap, so replacing it is a decision too, and this is it.
      *
-     * `recipientLabel` is the projected, human-readable stand-in and is what
-     * the evidence card renders as the delivery destination. Widening this to
-     * the raw address is a product decision for whoever owns that contract,
-     * and it is one line here plus the two assertions that guard it.
+     * The stored values are untouched. What leaves the API is:
+     *
+     *   - the masked form, ALWAYS, for anyone who can read the record;
+     *   - the raw form, ONLY for a caller who holds the permission that
+     *     creates intake links in this workspace — the people who chose the
+     *     recipient in the first place.
+     *
+     * The masks come from the platform's own helpers (`maskEmail`,
+     * `maskPhonePreview`) rather than a local variant. The capability is
+     * decided by the canonical authorization primitive at the route, never by
+     * a plan name, and `recipientContactRevealed` states which of the two the
+     * caller is looking at instead of leaving them to guess.
+     *
+     * None of this reaches public verify: that response is a separate,
+     * hand-written literal that reads none of these fields.
      */
+    recipientEmailMasked: string | null;
+    recipientPhoneMasked: string | null;
+    /** Raw values, present only when the caller holds the reveal capability. */
+    recipientEmail: string | null;
+    recipientPhone: string | null;
+    recipientContactRevealed: boolean;
     revokedAtUtc: string | null;
   };
 
@@ -93,6 +116,7 @@ export type ExternalIntakeSourceSummary = {
 
 export async function loadExternalIntakeSourceSummary(
   evidenceId: string,
+  options?: { revealRecipientContact?: boolean },
   client: PrismaClient = defaultPrisma,
 ): Promise<ExternalIntakeSourceSummary | null> {
   const session = await client.workflowIntakeSession.findFirst({
@@ -104,7 +128,8 @@ export async function loadExternalIntakeSourceSummary(
   const link = session.intakeLink;
   if (!link) return null;
 
-  return buildSummary(link, session);
+  // Decided by the route through the canonical authorization primitive.
+  return buildSummary(link, session, options?.revealRecipientContact === true);
 }
 
 /**
@@ -114,6 +139,12 @@ export async function loadExternalIntakeSourceSummary(
 export function buildSummary(
   link: DbWorkflowIntakeLink,
   session: DbWorkflowIntakeSession,
+  /**
+   * Whether this caller holds the capability to see the RAW recipient
+   * contact. Defaults to false: masked is the safe answer, so a caller that
+   * forgets to pass it cannot leak one.
+   */
+  revealRecipientContact = false,
 ): ExternalIntakeSourceSummary {
   const snapshot = link.workflowTemplateSnapshot as {
     name?: string;
@@ -149,6 +180,14 @@ export function buildSummary(
       createdAt: link.createdAt.toISOString(),
       createdByUserId: link.createdByUserId,
       recipientLabel: link.recipientLabel,
+      customerId: link.customerId,
+      recipientEmailMasked: maskEmail(link.recipientEmail),
+      recipientPhoneMasked: link.recipientPhone
+        ? maskPhonePreview(link.recipientPhone)
+        : null,
+      recipientEmail: revealRecipientContact ? link.recipientEmail : null,
+      recipientPhone: revealRecipientContact ? link.recipientPhone : null,
+      recipientContactRevealed: revealRecipientContact,
       revokedAtUtc: link.revokedAtUtc?.toISOString() ?? null,
     },
     session: {

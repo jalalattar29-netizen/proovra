@@ -114,3 +114,8 @@ services/worker/worker-report.json
 # meant to recover is not a recovery record. The rule below is a backstop for
 # the path the earlier pass used, so an old checkout cannot commit one.
 audit-output/phase0-recovery/
+
+# Fixture signing keys — GENERATED per machine, never committed. A committed
+# signing key would make a fixture signature indistinguishable from a real one;
+# services/api/src/signing/signer.ts refuses one, and this keeps it moot.
+.local-fixture-keys/

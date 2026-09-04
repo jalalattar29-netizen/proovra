@@ -54,6 +54,7 @@ const FIELD_FOCUS_SELECTOR: Record<WizardField, string> = {
   purposeSlug: `#${FIELD_IDS.purpose}`,
   intakeMode: '[data-intake-link-choice-group="intake-mode"] input:not(:disabled)',
   channel: '[data-intake-link-choice-group="delivery-channel"] input:not(:disabled)',
+  customerId: `#${FIELD_IDS.customerId}`,
   recipientEmail: `#${FIELD_IDS.recipientEmail}`,
   recipientPhone: `#${FIELD_IDS.recipientPhone}`,
   senderName: `#${FIELD_IDS.senderName}`,

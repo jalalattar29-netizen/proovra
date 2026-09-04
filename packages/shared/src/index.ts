@@ -2285,3 +2285,10 @@ export * from "./evidence-bulk-actions.js";
 // confirm, and the refusal codes the API answers with. The API enforces it;
 // the admin pages read it to decide what to offer.
 export * from "./commercial-request-transitions.js";
+
+// External intake — the organization's own customer identifier.
+export {
+  CUSTOMER_ID_MAX_LENGTH,
+  isValidCustomerId,
+  normalizeCustomerId,
+} from "./workflow-intake.js";

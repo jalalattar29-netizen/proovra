@@ -66,6 +66,8 @@ export type CreateWorkflowIntakeLinkInput = {
   recipientLabel?: string | null;
   recipientEmail?: string | null;
   recipientPhone?: string | null;
+  /** The organization's identifier for its own customer. Optional, opaque. */
+  customerId?: string | null;
   maxUses?: number;
   maxFileCountPerSession?: number | null;
   maxBytesPerSession?: bigint | null;
@@ -266,6 +268,9 @@ export async function createWorkflowIntakeLink(
       recipientLabel: input.recipientLabel ?? null,
       recipientEmail: input.recipientEmail ?? null,
       recipientPhone: input.recipientPhone ?? null,
+      // Authoritative. Normalised at the route boundary; an absent value is
+      // null here and stays null everywhere downstream.
+      customerId: input.customerId ?? null,
       maxUses,
       usedCount: 0,
       maxFileCountPerSession: input.maxFileCountPerSession ?? null,
@@ -947,6 +952,8 @@ export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
   recipientLabel: string | null;
   recipientEmail: string | null;
   recipientPhone: string | null;
+  /** Organization-supplied customer identifier. Authoritative here. */
+  customerId: string | null;
   maxUses: number;
   usedCount: number;
   maxFileCountPerSession: number | null;
@@ -972,6 +979,7 @@ export function projectWorkflowIntakeLink(link: DbWorkflowIntakeLink): {
     recipientLabel: link.recipientLabel,
     recipientEmail: link.recipientEmail,
     recipientPhone: link.recipientPhone,
+    customerId: link.customerId,
     maxUses: link.maxUses,
     usedCount: link.usedCount,
     maxFileCountPerSession: link.maxFileCountPerSession,

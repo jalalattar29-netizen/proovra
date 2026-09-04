@@ -337,6 +337,8 @@ type PreparedReportArtifacts = {
     packageMetadataContext: {
     caseId: string | null;
     caseName: string | null;
+    /** Organization-supplied customer identifier; null unless intake. */
+    customerId: string | null;
     retentionPolicy: string | null;
     workspaceId: string | null;
     organizationId: string | null;
@@ -1822,6 +1824,8 @@ async function prepareReportArtifacts(
       reviewReadyAtUtc: true,
       reviewerSummaryVersion: true,
       intakePlanJson: true,
+      // Snapshot taken at submission; the intake link stays authoritative.
+      intakeCustomerId: true,
       createdAt: true,
       uploadedAtUtc: true,
       signedAtUtc: true,
@@ -2520,6 +2524,7 @@ captureMethod: deriveReportCaptureMethod({
   const reportEvidencePayload = {
     id: evidence.id,
     type: evidence.type,
+    intakeCustomerId: evidence.intakeCustomerId ?? null,
 createdAtUtc: evidence.createdAt.toISOString(),
     // Client/browser-reported device capture time (NOT a trusted timestamp,
     // NOT the server submission time, NOT EXIF). Carried through so the
@@ -2774,6 +2779,7 @@ custodyForVerificationPackage,
 packageMetadataContext: {
     caseId: primaryCaseId,
     caseName: caseItem?.name ?? null,
+    customerId: evidence.intakeCustomerId ?? null,
     retentionPolicy: null,
     workspaceId: evidence.teamId ?? null,
     organizationId: evidence.organizationId ?? null,
@@ -3983,6 +3989,7 @@ submittedByAuthProvider:
               finalized.finalizedReportEvidencePayload.otsStatus ?? null,
 caseId: prepared.packageMetadataContext.caseId,
 caseName: prepared.packageMetadataContext.caseName,
+customerId: prepared.packageMetadataContext.customerId,
 retentionPolicy: prepared.packageMetadataContext.retentionPolicy,
 workspaceId: prepared.packageMetadataContext.workspaceId,
 organizationId: prepared.packageMetadataContext.organizationId,

@@ -254,6 +254,16 @@ export async function createOrLoadExternalEvidence(
       captureMethod: prismaPkg.CaptureMethod.EXTERNAL_INTAKE_UPLOAD,
       submittedByEmail: externalSubmitterEmail,
       // submittedByUserId stays null — the contributor has no User row.
+      //
+      // SNAPSHOT, taken once, here. The link is authoritative; this copy
+      // records which customer the organization associated the submission
+      // with AT THE TIME it was submitted, so a later correction on their
+      // side cannot silently rewrite this record's provenance. It is also
+      // what evidence search filters on, as an indexed column rather than
+      // two joins through session -> link.
+      //
+      // Null when the organization supplied none, which is the common case.
+      intakeCustomerId: pair.link.customerId ?? null,
     },
   });
 

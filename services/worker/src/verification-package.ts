@@ -235,6 +235,8 @@ type VerificationPackageMetadata = {
   caseName?: string | null;
   matterNumber?: string | null;
   clientName?: string | null;
+  /** Organization-supplied customer identifier; see buildCaseMetadata. */
+  customerId?: string | null;
   reviewer?: string | null;
   jurisdiction?: string | null;
   retentionPolicy?: string | null;
@@ -1039,6 +1041,12 @@ export function buildCaseMetadata(
       caseName: metadata.caseName ?? null,
       matterNumber: metadata.matterNumber ?? null,
       clientName: metadata.clientName ?? null,
+      // The organization's identifier for its own customer, carried through
+      // from the intake link. It sits beside matterNumber and clientName
+      // because it is the same class of value: supplied by the organization,
+      // meaningful only in their system, and NOT issued, validated or verified
+      // by PROOVRA. Null for every record not acquired through an intake link.
+      customerId: metadata.customerId ?? null,
       reviewer: metadata.reviewer ?? null,
       jurisdiction: metadata.jurisdiction ?? null,
     },

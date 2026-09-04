@@ -113,6 +113,7 @@ type UserReportRow = {
   status: string;
   caseId: string | null;
   caseTitle?: string | null;
+  intakeCustomerId?: string | null;
   createdAt: string;
   report: {
     available: boolean;
@@ -166,6 +167,7 @@ async function tryUserScopedReports(): Promise<ReportsArtifactsEnvelope | null> 
       verificationStatus: null,
       caseId: row.caseId,
       caseTitle: row.caseTitle ?? null,
+      intakeCustomerId: row.intakeCustomerId ?? null,
       createdAt: row.createdAt,
       report: {
         state: row.report.available ? "ready" : "not_requested",
@@ -795,6 +797,18 @@ function ArtifactRowView({
                     for a legacy row that genuinely has no name. */}
                 Case: {row.caseTitle ?? `#${row.caseId.slice(0, 6)}`}
               </Link>
+            ) : null}
+            {/* Business metadata the organization supplied, and the reason
+                this row matches a Customer ID search. Same weight as the other
+                meta items — it asserts nothing about the record's integrity. */}
+            {row.intakeCustomerId ? (
+              <span
+                className="rpt-row__captured"
+                data-reports-customer-id={row.intakeCustomerId}
+                title="Customer ID supplied by your organization"
+              >
+                Customer: {row.intakeCustomerId}
+              </span>
             ) : null}
             <time dateTime={row.createdAt} className="rpt-row__captured">
               Captured {formatRelativeTime(row.createdAt)}

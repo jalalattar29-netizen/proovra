@@ -26,6 +26,7 @@ function fakeLink(overrides: Record<string, unknown> = {}) {
     recipientLabel: "John Smith — claim 4842",
     recipientEmail: null,
     recipientPhone: null,
+    customerId: null,
     maxUses: 1,
     usedCount: 1,
     maxFileCountPerSession: 10,
@@ -152,8 +153,15 @@ describe("buildSummary — privacy boundary", () => {
     const linkKeys = Object.keys(s.link);
     expect(linkKeys).not.toContain("tokenHash");
     expect(linkKeys).not.toContain("tokenVersion");
-    expect(linkKeys).not.toContain("recipientEmail");
-    expect(linkKeys).not.toContain("recipientPhone");
+    /*
+     * recipientEmail / recipientPhone ARE keys now — but they carry the raw
+     * value only for a caller the route decided may see it, and `buildSummary`
+     * defaults that decision to false. The key existing is not the leak; a
+     * populated key for an unauthorized caller would be, and that is what the
+     * masking tests below assert.
+     */
+    expect(s.link.recipientEmail).toBeNull();
+    expect(s.link.recipientPhone).toBeNull();
     expect(linkKeys).not.toContain("ipAllowlistCidrs");
     expect(linkKeys).not.toContain("revokedReason");
     expect(linkKeys).not.toContain("consentDisclosureText");

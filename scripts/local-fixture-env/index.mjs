@@ -70,6 +70,13 @@
  * may never contain is a credential.
  */
 
+import { generateKeyPairSync } from "node:crypto";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
 const DEFAULTS = Object.freeze({
   webPort: "3311",
   apiPort: "8191",
@@ -145,6 +152,37 @@ const CREDENTIAL_SHAPES = Object.freeze([
 const LOCAL_HOSTS = /^(localhost|127\.0\.0\.1|\[?::1\]?|0\.0\.0\.0|host\.docker\.internal|minio|postgres|redis)$/i;
 
 /**
+ * THE FIXTURE'S OWN SIGNING KEY.
+ *
+ * Evidence cannot be completed without one — the signer refuses at the moment
+ * it would produce a signature — so a fixture with no key can create an intake
+ * link and upload bytes and then fail at submit, which is exactly the shape of
+ * the gap this closes.
+ *
+ * It is GENERATED, never committed. `assertNotCommittedFixture` in
+ * services/api/src/signing/signer.ts refuses a key that ships in the
+ * repository, and it is right to: a signature made with a key everyone has is
+ * indistinguishable from a real one to a downstream verifier. So the pair is
+ * written on first use into a gitignored directory, unique to this machine,
+ * and the key id says out loud what it is.
+ */
+const FIXTURE_KEY_DIR = resolve(REPO_ROOT, ".local-fixture-keys");
+
+function ensureFixtureSigningKeys() {
+  const privatePath = resolve(FIXTURE_KEY_DIR, "signing-private.pem");
+  const publicPath = resolve(FIXTURE_KEY_DIR, "signing-public.pem");
+
+  if (!existsSync(privatePath) || !existsSync(publicPath)) {
+    mkdirSync(FIXTURE_KEY_DIR, { recursive: true });
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+    writeFileSync(privatePath, privateKey.export({ type: "pkcs8", format: "pem" }));
+    writeFileSync(publicPath, publicKey.export({ type: "spki", format: "pem" }));
+  }
+
+  return { privatePath, publicPath };
+}
+
+/**
  * Every value the fixture actually runs on.
  *
  * Anything an integration needs is here as a LOCAL or INERT value rather than
@@ -157,6 +195,7 @@ const LOCAL_HOSTS = /^(localhost|127\.0\.0\.1|\[?::1\]?|0\.0\.0\.0|host\.docker\
 function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
   const web = `http://localhost:${webPort}`;
   const api = `http://localhost:${apiPort}`;
+  const signingKeys = ensureFixtureSigningKeys();
 
   return {
     NODE_ENV: "development",
@@ -229,6 +268,18 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
     S3_SECRET_KEY: "fixture-local-only",
     S3_FORCE_PATH_STYLE: "true",
     S3_ALLOW_INSECURE: "true",
+
+    // Signing — a locally generated pair, so a fixture can actually finish an
+    // upload. Paths, not PEM: the credential scan below rejects a private key
+    // sitting in an environment value, and it should.
+    SIGNING_KEY_ID: "fixture-local-only-signing-key",
+    SIGNING_KEY_VERSION: "1",
+    SIGNING_PRIVATE_KEY_PATH: signingKeys.privatePath,
+    SIGNING_PUBLIC_KEY_PATH: signingKeys.publicPath,
+    PACKAGE_SIGNING_KEY_ID: "fixture-local-only-package-key",
+    PACKAGE_SIGNING_KEY_VERSION: "1",
+    PACKAGE_SIGNING_PRIVATE_KEY_PATH: signingKeys.privatePath,
+    PACKAGE_SIGNING_PUBLIC_KEY_PATH: signingKeys.publicPath,
     S3_OBJECT_LOCK_ENABLED: "false",
     S3_OBJECT_LOCK_LEGAL_HOLD: "false",
 

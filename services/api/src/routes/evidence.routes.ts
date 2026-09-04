@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { getSecret } from "../config/runtime-secrets.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
 // single source of truth the single-record case-attach route uses).
 import { evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
@@ -2358,6 +2358,18 @@ function buildEvidenceListSearchFilter(
       { title: { contains: search, mode: "insensitive" } },
       { displayFileName: { contains: search, mode: "insensitive" } },
       { originalFileName: { contains: search, mode: "insensitive" } },
+      /*
+       * Customer ID — the organization's own identifier for its customer,
+       * snapshotted onto the record at intake.
+       *
+       * Case-insensitive `contains`, matching every other term in this
+       * filter: an operator pasting CUST-849271 out of their own system
+       * should not have to reproduce our casing, and partial matching is
+       * already this surface's convention. The workspace predicate is applied
+       * by the caller and is never optional, so a customer id from one
+       * workspace can never surface a record in another.
+       */
+      { intakeCustomerId: { contains: search, mode: "insensitive" } },
     ],
   };
 }
@@ -7717,12 +7729,34 @@ return {
     async (req, reply) => {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
-      await getEvidenceWithReadAccess(userId, id);
+      const evidence = await getEvidenceWithReadAccess(userId, id);
+
+      /*
+       * REVEALING THE RECIPIENT'S ADDRESS IS NOT PART OF READING THE RECORD.
+       *
+       * Everyone who can read the record sees the masked form. The raw address
+       * goes only to a caller who holds the permission that creates intake
+       * links here — the role that chose the recipient. Decided by the
+       * canonical primitive, never by a plan name; a personal workspace has no
+       * membership to check, and read access there already means sole
+       * ownership.
+       */
+      let revealRecipientContact = !evidence.teamId;
+      if (evidence.teamId) {
+        const outcome = await evaluateAuthorize(req, {
+          teamId: evidence.teamId,
+          permission: "workflow.intake_link.create",
+          antiEnumeration: true,
+        });
+        revealRecipientContact = outcome.allowed;
+      }
 
       const { loadExternalIntakeSourceSummary } = await import(
         "../services/external-intake-source-summary.service.js"
       );
-      const summary = await loadExternalIntakeSourceSummary(id);
+      const summary = await loadExternalIntakeSourceSummary(id, {
+        revealRecipientContact,
+      });
       return reply.code(200).send({ summary });
     },
   );

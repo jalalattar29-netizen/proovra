@@ -64,6 +64,11 @@ export type WizardState = {
   recipientLabel: string;
   recipientEmail: string;
   recipientPhone: string;
+  /**
+   * The organization's own identifier for this customer. Optional, opaque to
+   * us, and never a PROOVRA identifier — see the API's shared validation rule.
+   */
+  customerId: string;
   senderMode: IntakeSenderDisplayMode;
   senderName: string;
   locationPolicy: IntakeLinkLocationPolicy;
@@ -92,6 +97,7 @@ export function initialWizardState(input: {
     channel: "SMS",
     channelTouched: false,
     recipientLabel: "",
+    customerId: "",
     recipientEmail: "",
     recipientPhone: "",
     senderMode: input.workspaceName ? "WORKSPACE" : "PROOVRA",
@@ -120,6 +126,7 @@ export function isWizardDirty(
     state.intakeMode !== initial.intakeMode ||
     state.channelTouched ||
     state.recipientLabel.trim() !== "" ||
+    state.customerId.trim() !== "" ||
     state.recipientEmail.trim() !== "" ||
     state.recipientPhone.trim() !== "" ||
     state.senderMode !== initial.senderMode ||
@@ -140,6 +147,7 @@ export type WizardField =
   | "purposeSlug"
   | "intakeMode"
   | "channel"
+  | "customerId"
   | "recipientEmail"
   | "recipientPhone"
   | "senderName"
@@ -286,7 +294,13 @@ export function validateStep(
 /** Field order per step — drives "focus the FIRST invalid field". */
 export const STEP_FIELD_ORDER: Record<WizardStep, ReadonlyArray<WizardField>> = {
   request: ["purposeSlug", "intakeMode"],
-  delivery: ["channel", "recipientEmail", "recipientPhone", "senderName"],
+  delivery: [
+    "channel",
+    "customerId",
+    "recipientEmail",
+    "recipientPhone",
+    "senderName",
+  ],
   rules: ["expiresInHours", "maxFiles", "acceptedKinds", "consentText"],
   review: [],
 };
@@ -355,6 +369,8 @@ export function buildCreateBody(
     deliveryMethod: state.channel,
     intakeUrlBase: state.channel === "MANUAL" ? undefined : ctx.intakeUrlBase,
     recipientLabel: state.recipientLabel.trim() || null,
+    // Empty stays null. An absent customer id is an absence, not "".
+    customerId: state.customerId.trim() || null,
     recipientEmail: state.recipientEmail.trim() || null,
     recipientPhone: canonicalPhone,
     maxUses: maxUsesForMode(state.intakeMode),

@@ -159,6 +159,12 @@ export type ReportEvidence = {
   identityLevelSnapshot?: string | null;
   submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
+  /**
+   * The organization's own identifier for its customer, snapshotted onto the
+   * evidence row when it was submitted through an intake link. Business
+   * metadata: PROOVRA did not issue it and did not verify it.
+   */
+  intakeCustomerId?: string | null;
   submittedByUserId?: string | null;
   createdByUserId?: string | null;
   uploadedByUserId?: string | null;

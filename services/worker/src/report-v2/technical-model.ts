@@ -208,6 +208,19 @@ export function buildTechnicalIdentityRows(
         label: "Requester Identity",
         value: mapIdentityLevelLabel(evidence.identityLevelSnapshot),
       },
+      // Business metadata, not a PROOVRA identifier. The label says who
+      // supplied it precisely so the reader does not read it as something the
+      // platform issued, checked, or matched against the contributor. Omitted
+      // entirely when the organization did not supply one — an empty
+      // "Customer Reference: —" row invites the reader to wonder what failed.
+      ...(evidence.intakeCustomerId
+        ? [
+            {
+              label: "Customer Reference (organization-supplied)",
+              value: evidence.intakeCustomerId,
+            },
+          ]
+        : []),
       ...orgRows,
     ];
   }

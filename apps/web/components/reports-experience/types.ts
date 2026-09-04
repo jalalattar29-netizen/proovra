@@ -44,6 +44,8 @@ export type ArtifactRow = {
   caseId: string | null;
   /** The linked case's NAME. Null only when the case genuinely has none. */
   caseTitle: string | null;
+  /** Organization-supplied Customer ID from the intake link. Null unless intake. */
+  intakeCustomerId: string | null;
   createdAt: string;
   report: {
     state: ReportLifecycle;

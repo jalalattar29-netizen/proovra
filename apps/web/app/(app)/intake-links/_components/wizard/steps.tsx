@@ -9,6 +9,7 @@
  */
 
 import * as React from "react";
+import { CUSTOMER_ID_MAX_LENGTH } from "@proovra/shared";
 
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { AppStatusBadge } from "../../../../../components/app-primitives/AppStatusBadge";
@@ -57,9 +58,13 @@ import {
 import { ChoiceCards, Field, KindChips } from "./fields";
 import { MessagePreview, type PreviewChannel } from "./MessagePreview";
 
+/** Same bound the API enforces, imported so the two cannot drift. */
+const CUSTOMER_ID_MAX = CUSTOMER_ID_MAX_LENGTH;
+
 export const FIELD_IDS = {
   purpose: "ilk-f-purpose",
   recipientLabel: "ilk-f-recipient-label",
+  customerId: "ilk-f-customer-id",
   recipientEmail: "ilk-f-email",
   recipientPhone: "ilk-f-phone",
   senderName: "ilk-f-sender-name",
@@ -262,6 +267,37 @@ export function StepDelivery({
             })
           }
           data-intake-link-recipient-label
+        />
+      </Field>
+
+      {/*
+        CUSTOMER ID — optional, and always shown, because it belongs to the
+        organization's own bookkeeping rather than to the delivery channel.
+        One line of help; the semantics are not over-explained here.
+      */}
+      <Field
+        label="Customer ID (optional)"
+        htmlFor={FIELD_IDS.customerId}
+        help="Your organization's identifier for this customer."
+        error={errors.customerId ?? null}
+      >
+        <input
+          id={FIELD_IDS.customerId}
+          className="app-form-input"
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          placeholder="CUST-849271"
+          value={state.customerId}
+          maxLength={CUSTOMER_ID_MAX}
+          aria-invalid={Boolean(errors.customerId)}
+          aria-describedby={
+            errors.customerId ? `${FIELD_IDS.customerId}-error` : undefined
+          }
+          onChange={(e) =>
+            onPatch({ customerId: e.target.value.slice(0, CUSTOMER_ID_MAX) })
+          }
+          data-intake-link-customer-id
         />
       </Field>
 

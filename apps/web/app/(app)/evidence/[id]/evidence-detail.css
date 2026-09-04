@@ -5260,3 +5260,40 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   font-weight: 500;
   color: var(--content-ink-muted, #64748B);
 }
+
+/* A long business identifier must not push the card sideways. Wraps at any
+   character so an 80-character customer id from somebody else's system stays
+   inside the column and stays selectable in full. */
+.evd-wrap {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Masked recipient contact, one line per channel. Its own line so a long
+   address wraps inside the detail rather than widening the card. */
+.evd-recipient-line {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+/* Text-weight control for the capability-gated reveal. Not a button-looking
+   button: revealing a stored contact is a disclosure, not a primary action. */
+.evd-linkbtn {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--brand-600, #2563eb);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.evd-linkbtn:hover {
+  opacity: 0.8;
+}

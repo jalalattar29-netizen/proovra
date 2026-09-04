@@ -24,7 +24,9 @@ import type {
 } from "fastify";
 import { z } from "zod";
 import {
+  CUSTOMER_ID_MAX_LENGTH,
   INTAKE_LINK_LOCATION_POLICIES,
+  normalizeCustomerId,
   WORKFLOW_INTAKE_LINK_STATUSES,
   WORKFLOW_INTAKE_MODES,
   type Permission,
@@ -90,6 +92,22 @@ const CreateBody = z
     recipientLabel: z.string().max(180).nullable().optional(),
     recipientEmail: z.string().email().nullable().optional(),
     recipientPhone: z.string().max(32).nullable().optional(),
+    /*
+     * Customer ID — optional, and validated through the ONE shared rule so the
+     * public API, the wizard and any future caller cannot disagree about what
+     * a usable identifier is. Empty string collapses to null: absence is
+     * absence.
+     */
+    customerId: z
+      .string()
+      .max(CUSTOMER_ID_MAX_LENGTH)
+      .nullable()
+      .optional()
+      .transform((v) => normalizeCustomerId(v))
+      .refine((v) => v !== undefined, {
+        message:
+          "customerId may contain letters, digits and the separators . _ - / : # and spaces",
+      }),
     maxUses: z.number().int().min(1).max(10_000).optional(),
     maxFileCountPerSession: z.number().int().min(1).max(500).nullable().optional(),
     maxBytesPerSession: z
@@ -360,6 +378,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
             recipientLabel: body.recipientLabel ?? null,
             recipientEmail: body.recipientEmail ?? null,
             recipientPhone: body.recipientPhone ?? null,
+            customerId: body.customerId ?? null,
             maxUses: body.maxUses,
             maxFileCountPerSession: body.maxFileCountPerSession ?? null,
             maxBytesPerSession: bigintFromOptional(body.maxBytesPerSession),

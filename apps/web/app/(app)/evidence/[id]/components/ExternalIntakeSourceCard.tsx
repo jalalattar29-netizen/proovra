@@ -55,6 +55,13 @@ type Summary = {
     createdAt: string;
     createdByUserId: string;
     recipientLabel: string | null;
+    customerId: string | null;
+    recipientEmailMasked: string | null;
+    recipientPhoneMasked: string | null;
+    /** Present only when the API decided this caller may see the raw value. */
+    recipientEmail: string | null;
+    recipientPhone: string | null;
+    recipientContactRevealed: boolean;
     revokedAtUtc: string | null;
   };
   session: {
@@ -169,6 +176,15 @@ export default function ExternalIntakeSourceCard({
     (typeof REVIEWER_DECISION_ACTIONS)[number]["decision"] | null
   >(null);
   const [pendingReason, setPendingReason] = useState("");
+  /*
+   * Whether the reader has asked to see the raw recipient contact rather than
+   * the mask. Declared HERE, with the other hooks, because the component
+   * returns early for a record that did not arrive through intake — a hook
+   * below those returns runs on some renders and not others, which React
+   * reports as "rendered more hooks than during the previous render" and which
+   * took down the whole evidence page.
+   */
+  const [showRawRecipient, setShowRawRecipient] = useState(false);
 
   /** Refresh the workflow projection after any server-side change. */
   async function reloadReview() {
@@ -368,6 +384,33 @@ export default function ExternalIntakeSourceCard({
     return parts.length > 0 ? parts.join(" · ") : null;
   })();
 
+  /*
+   * The contact the request was DELIVERED to. Masked unless the API says this
+   * caller may see it — the browser never makes that decision and never holds
+   * a raw value it was not sent. `showRawRecipient` only chooses between two
+   * strings the server already provided.
+   */
+  const recipientContacts: Array<{ kind: string; masked: string; raw: string | null }> =
+    [
+      summary.link.recipientEmailMasked
+        ? {
+            kind: "Email",
+            masked: summary.link.recipientEmailMasked,
+            raw: summary.link.recipientEmail,
+          }
+        : null,
+      summary.link.recipientPhoneMasked
+        ? {
+            kind: "Phone",
+            masked: summary.link.recipientPhoneMasked,
+            raw: summary.link.recipientPhone,
+          }
+        : null,
+    ].filter((v): v is { kind: string; masked: string; raw: string | null } => v !== null);
+  const canRevealRecipient =
+    summary.link.recipientContactRevealed &&
+    recipientContacts.some((c) => c.raw !== null);
+
   return (
     <section className="evd-panel" aria-label="External intake source">
       <header className="evd-header">
@@ -389,9 +432,41 @@ export default function ExternalIntakeSourceCard({
             ? formatUserDateTime(summary.session.submittedAtUtc)
             : "—"}
         </Detail>
-        {recipientAddressed ? (
+        {/*
+          CUSTOMER ID — the organization's own identifier, not ours.
+          Contextual business metadata, rendered like any other detail rather
+          than as a badge, because it asserts nothing about integrity or
+          identity. Absent means the row is not rendered at all.
+        */}
+        {summary.link.customerId ? (
+          <Detail label="Customer ID">
+            <span className="evd-mono evd-wrap">{summary.link.customerId}</span>
+            <span className="evd-hint">
+              Supplied by the organization that created this intake.
+            </span>
+          </Detail>
+        ) : null}
+        {recipientAddressed || recipientContacts.length > 0 ? (
           <Detail label="Intake sent to">
             {recipientAddressed}
+            {recipientContacts.map((contact) => (
+              <span key={contact.kind} className="evd-recipient-line">
+                <span className="evd-muted">{contact.kind}</span>{" "}
+                <span className="evd-mono evd-wrap">
+                  {showRawRecipient && contact.raw ? contact.raw : contact.masked}
+                </span>
+              </span>
+            ))}
+            {canRevealRecipient ? (
+              <button
+                type="button"
+                className="evd-linkbtn"
+                onClick={() => setShowRawRecipient((v) => !v)}
+                data-intake-recipient-reveal
+              >
+                {showRawRecipient ? "Hide full contact" : "Show full contact"}
+              </button>
+            ) : null}
             <span className="evd-hint">
               Delivery address on the intake link. Not proof of who submitted.
             </span>

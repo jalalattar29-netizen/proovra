@@ -7,11 +7,30 @@ datasource db {
 }
 
 model Evidence {
-  departmentId                     String?             @map("department_id") @db.Uuid
-  id                               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title                            String?             @db.VarChar(160)
-  internalNotes                    String?             @map("internal_notes")
-  intakePlanJson                   Json?               @map("intake_plan_json")
+  departmentId   String? @map("department_id") @db.Uuid
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String? @db.VarChar(160)
+  internalNotes  String? @map("internal_notes")
+  intakePlanJson Json?   @map("intake_plan_json")
+
+  /// SNAPSHOT of the intake link's `customerId`, taken when this record was
+  /// created from an external intake submission. NOT authoritative — the link
+  /// is.
+  ///
+  /// Two reasons it is copied rather than joined:
+  ///
+  ///   1. PROVENANCE IS HISTORICAL. This says which customer the organization
+  ///      associated the submission with AT THE TIME it was submitted. If they
+  ///      later re-point the link or correct their own record, that must not
+  ///      silently rewrite what this evidence was collected under.
+  ///   2. SEARCH. Evidence search filters `Prisma.EvidenceWhereInput` over
+  ///      indexed columns; reaching the value through session -> link on every
+  ///      query is two joins on an unindexed path, which is exactly the scan
+  ///      the search architecture avoids everywhere else.
+  ///
+  /// Null for every record not created through external intake, and for every
+  /// record created before the field existed. Nothing backfills it.
+  intakeCustomerId                 String?             @map("intake_customer_id") @db.VarChar(120)
   type                             EvidenceType
   status                           EvidenceStatus      @default(CREATED)
   verificationStatus               VerificationStatus? @map("verification_status")
@@ -359,6 +378,7 @@ model Evidence {
   @@index([otsAnchoredAtUtc])
   // Phase T — non-unique per-workspace template lookups.
   @@index([teamId, templateSlug])
+  @@index([teamId, intakeCustomerId])
   @@map("evidence")
 }
 
@@ -905,8 +925,8 @@ model User {
   // ARCH-004 — who suspended / revoked a governance membership. Back-relations
   // for the attributable lifecycle; SetNull so removing an administrator never
   // erases the record of what they did.
-  suspendedOrgMemberships           OrganizationMembership[]     @relation("OrgMembershipSuspendedBy")
-  revokedOrgMemberships             OrganizationMembership[]     @relation("OrgMembershipRevokedBy")
+  suspendedOrgMemberships           OrganizationMembership[]      @relation("OrgMembershipSuspendedBy")
+  revokedOrgMemberships             OrganizationMembership[]      @relation("OrgMembershipRevokedBy")
   claimedGuestIdentities            GuestIdentity[]               @relation("GuestClaimedBy")
   guestIdentity                     GuestIdentity?
   passwordResetTokens               PasswordResetToken[]
@@ -1129,7 +1149,7 @@ model Team {
   ///
   /// Read it through `liveWorkspaceWhere()` / `workspaceLifecycleWhere()` in
   /// `@proovra/shared-runtime`, never by hand.
-  closedAtUtc          DateTime?         @map("closed_at_utc") @db.Timestamptz(6)
+  closedAtUtc DateTime? @map("closed_at_utc") @db.Timestamptz(6)
 
   owner        User  @relation("TeamOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   billingOwner User? @relation("TeamBillingOwner", fields: [billingOwnerUserId], references: [id], onDelete: SetNull)
@@ -1165,8 +1185,8 @@ model Team {
   // ORGANIZATION, else OWNED). Readers must FAIL CLOSED on NULL when
   // presenting switch targets. Creation paths always set it explicitly.
   /**
+   * /**
    * PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — MANDATORY.
-   *
    * Nullable meant readers could not rely on it, which is why
    * `normalizeWorkspaceKind` carried a plan-derived fallback that turned a
    * commercial upgrade into a silent tenancy change. Made NOT NULL by
@@ -1212,7 +1232,7 @@ model Team {
   apiCredentials            ApiCredential[]
   webhookEndpoints          WebhookEndpoint[]
   // Lifecycle Phase 7 — closure request back-relation.
-  closureRequests           WorkspaceClosureRequest[]  @relation("WorkspaceClosureRequests")
+  closureRequests           WorkspaceClosureRequest[]   @relation("WorkspaceClosureRequests")
 
   // Phase 32.8C++++ — Dashboard intelligence back-relation.
   accessAnomalies AccessAnomaly[]
@@ -1455,13 +1475,11 @@ model EvidenceReviewWorkflow {
   /**
    * PHASE 12 CORRECTIVE PASS §1 (ARCH-001, 2026-08-07) — CLASSIFIED AS
    * PERSISTENCE, DELIBERATELY NOT RENAMED.
-   *
    * §1.1 requires every occurrence of the retired vocabulary to be CLASSIFIED,
    * and §1.2 forbids blindly renaming historically stable identifiers. This is
    * a persisted VARCHAR carrying "PERSONAL" or "TEAM" on every existing row.
    * Renaming the column would rewrite settled history for a label; renaming
    * only the Prisma field would put a second name on one fact.
-   *
    * What matters is that it is INERT: it is written once at workflow creation
    * and read back only as a display label. It authorizes nothing, selects no
    * tenant, grants no entitlement and decides no plan — which is exactly why
@@ -1790,24 +1808,24 @@ model CaptureSessionEvent {
 }
 
 model WorkspaceStorageAddon {
-  id                     String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerUserId            String                      @map("owner_user_id") @db.Uuid
-  teamId                 String?                     @map("team_id") @db.Uuid
-  addonKey               StorageAddonKey             @map("addon_key")
-  extraStorageBytes      BigInt                      @map("extra_storage_bytes")
-  billingCycle           StorageAddonBillingCycle    @map("billing_cycle")
-  status                 WorkspaceStorageAddonStatus @default(ACTIVE)
-  paymentProvider        PaymentProvider?            @map("payment_provider")
-  externalSubscriptionId String?                     @unique @map("external_subscription_id") @db.VarChar(191)
-  externalPaymentId      String?                     @unique @map("external_payment_id") @db.VarChar(191)
-  currency               String?                     @db.VarChar(8)
-  amountCents            Int?                        @map("amount_cents")
-  activatedAtUtc         DateTime?                   @map("activated_at_utc") @db.Timestamptz(6)
-  currentPeriodEnd       DateTime?                   @map("current_period_end") @db.Timestamptz(6)
-  expiresAtUtc           DateTime?                   @map("expires_at_utc") @db.Timestamptz(6)
-  canceledAtUtc          DateTime?                   @map("canceled_at_utc") @db.Timestamptz(6)
+  id                                             String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId                                    String                      @map("owner_user_id") @db.Uuid
+  teamId                                         String?                     @map("team_id") @db.Uuid
+  addonKey                                       StorageAddonKey             @map("addon_key")
+  extraStorageBytes                              BigInt                      @map("extra_storage_bytes")
+  billingCycle                                   StorageAddonBillingCycle    @map("billing_cycle")
+  status                                         WorkspaceStorageAddonStatus @default(ACTIVE)
+  paymentProvider                                PaymentProvider?            @map("payment_provider")
+  externalSubscriptionId                         String?                     @unique @map("external_subscription_id") @db.VarChar(191)
+  externalPaymentId                              String?                     @unique @map("external_payment_id") @db.VarChar(191)
+  currency                                       String?                     @db.VarChar(8)
+  amountCents                                    Int?                        @map("amount_cents")
+  activatedAtUtc                                 DateTime?                   @map("activated_at_utc") @db.Timestamptz(6)
+  currentPeriodEnd                               DateTime?                   @map("current_period_end") @db.Timestamptz(6)
+  expiresAtUtc                                   DateTime?                   @map("expires_at_utc") @db.Timestamptz(6)
+  canceledAtUtc                                  DateTime?                   @map("canceled_at_utc") @db.Timestamptz(6)
   /// See Subscription.providerStateAtUtc.
-  providerStateAtUtc     DateTime?                   @map("provider_state_at_utc") @db.Timestamptz(6)
+  providerStateAtUtc                             DateTime?                   @map("provider_state_at_utc") @db.Timestamptz(6)
   /// THE DURABLE CANCELLATION OBLIGATION.
   ///
   /// Extends the existing add-on authority rather than opening a parallel
@@ -1816,21 +1834,21 @@ model WorkspaceStorageAddon {
   ///
   /// A legacy ONE_TIME add-on is not a provider subscription and never leaves
   /// NONE.
-  dependentCancellationState DependentCancellationState @default(NONE) @map("dependent_cancellation_state")
-  dependentCancellationRequestedAtUtc DateTime? @map("dependent_cancellation_requested_at_utc") @db.Timestamptz(6)
-  dependentCancellationFailedAtUtc    DateTime? @map("dependent_cancellation_failed_at_utc") @db.Timestamptz(6)
-  dependentCancellationConfirmedAtUtc DateTime? @map("dependent_cancellation_confirmed_at_utc") @db.Timestamptz(6)
-  dependentCancellationNextRetryAtUtc DateTime? @map("dependent_cancellation_next_retry_at_utc") @db.Timestamptz(6)
-  dependentCancellationAttemptCount   Int       @default(0) @map("dependent_cancellation_attempt_count")
+  dependentCancellationState                     DependentCancellationState  @default(NONE) @map("dependent_cancellation_state")
+  dependentCancellationRequestedAtUtc            DateTime?                   @map("dependent_cancellation_requested_at_utc") @db.Timestamptz(6)
+  dependentCancellationFailedAtUtc               DateTime?                   @map("dependent_cancellation_failed_at_utc") @db.Timestamptz(6)
+  dependentCancellationConfirmedAtUtc            DateTime?                   @map("dependent_cancellation_confirmed_at_utc") @db.Timestamptz(6)
+  dependentCancellationNextRetryAtUtc            DateTime?                   @map("dependent_cancellation_next_retry_at_utc") @db.Timestamptz(6)
+  dependentCancellationAttemptCount              Int                         @default(0) @map("dependent_cancellation_attempt_count")
   /// A SAFE internal vocabulary, never a provider error body.
-  dependentCancellationReasonCode     String?   @map("dependent_cancellation_reason_code") @db.VarChar(64)
+  dependentCancellationReasonCode                String?                     @map("dependent_cancellation_reason_code") @db.VarChar(64)
   /// Which base subscription's cancellation created this obligation.
-  dependentCancellationTriggeredBySubscriptionId String? @map("dependent_cancellation_triggered_by_subscription_id") @db.Uuid
+  dependentCancellationTriggeredBySubscriptionId String?                     @map("dependent_cancellation_triggered_by_subscription_id") @db.Uuid
   /// The durable lease that stops two workers retrying one add-on at once.
-  dependentCancellationLeaseUntilUtc  DateTime? @map("dependent_cancellation_lease_until_utc") @db.Timestamptz(6)
-  metadata               Json?
-  createdAt              DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  dependentCancellationLeaseUntilUtc             DateTime?                   @map("dependent_cancellation_lease_until_utc") @db.Timestamptz(6)
+  metadata                                       Json?
+  createdAt                                      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                                      DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   owner User  @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
   team  Team? @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -1921,31 +1939,31 @@ model MembershipGrant {
 /// signals consumed only by the resolver's compatibility fallback until the
 /// contract backfill migration is applied.
 model EnterpriseContract {
-  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId         String                   @unique @map("organization_id") @db.Uuid
-  status                 EnterpriseContractStatus @default(PENDING_ACTIVATION)
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId          String                   @unique @map("organization_id") @db.Uuid
+  status                  EnterpriseContractStatus @default(PENDING_ACTIVATION)
   /// Owner-onboarding progress: PENDING_OWNER | OWNER_INVITED | ACTIVATED.
-  activationState        String?                  @map("activation_state") @db.VarChar(40)
-  effectiveAtUtc         DateTime?                @map("effective_at_utc") @db.Timestamptz(6)
-  endsAtUtc              DateTime?                @map("ends_at_utc") @db.Timestamptz(6)
-  seatCount              Int?                     @map("seat_count")
-  storageGb              Int?                     @map("storage_gb")
+  activationState         String?                  @map("activation_state") @db.VarChar(40)
+  effectiveAtUtc          DateTime?                @map("effective_at_utc") @db.Timestamptz(6)
+  endsAtUtc               DateTime?                @map("ends_at_utc") @db.Timestamptz(6)
+  seatCount               Int?                     @map("seat_count")
+  storageGb               Int?                     @map("storage_gb")
   /// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — contract-managed
   /// operational allowances. NULL means the contract does not specify one,
   /// in which case the canonical ENTERPRISE catalog default applies and the
   /// UI renders "Contract-managed" rather than inventing a number. A
   /// specified value is ENFORCED, not merely displayed.
-  evidenceRecordsPerMonth Int?                    @map("evidence_records_per_month")
-  aiOperationsPerMonth    Int?                    @map("ai_operations_per_month")
-  region                 String?                  @db.VarChar(40)
-  planVersion            String?                  @map("plan_version") @db.VarChar(40)
-  billingCustomerRef     String?                  @map("billing_customer_ref") @db.VarChar(200)
-  billingSubscriptionRef String?                  @map("billing_subscription_ref") @db.VarChar(200)
-  contractOwnerUserId    String?                  @map("contract_owner_user_id") @db.Uuid
-  terminatedAtUtc        DateTime?                @map("terminated_at_utc") @db.Timestamptz(6)
-  terminationReason      String?                  @map("termination_reason") @db.VarChar(400)
-  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  evidenceRecordsPerMonth Int?                     @map("evidence_records_per_month")
+  aiOperationsPerMonth    Int?                     @map("ai_operations_per_month")
+  region                  String?                  @db.VarChar(40)
+  planVersion             String?                  @map("plan_version") @db.VarChar(40)
+  billingCustomerRef      String?                  @map("billing_customer_ref") @db.VarChar(200)
+  billingSubscriptionRef  String?                  @map("billing_subscription_ref") @db.VarChar(200)
+  contractOwnerUserId     String?                  @map("contract_owner_user_id") @db.Uuid
+  terminatedAtUtc         DateTime?                @map("terminated_at_utc") @db.Timestamptz(6)
+  terminationReason       String?                  @map("termination_reason") @db.VarChar(400)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   organization Organization @relation("OrganizationEnterpriseContract", fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -2143,13 +2161,13 @@ enum EvidenceCreditEntryType {
 }
 
 model Subscription {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String             @map("user_id") @db.Uuid
-  provider         PaymentProvider
-  providerSubId    String             @map("provider_sub_id") @db.VarChar(128)
-  status           SubscriptionStatus
-  plan             PlanType
-  currentPeriodEnd DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  id                        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                    String             @map("user_id") @db.Uuid
+  provider                  PaymentProvider
+  providerSubId             String             @map("provider_sub_id") @db.VarChar(128)
+  status                    SubscriptionStatus
+  plan                      PlanType
+  currentPeriodEnd          DateTime?          @map("current_period_end") @db.Timestamptz(6)
   /// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — provider-confirmed
   /// "cancels at the end of the paid period". Set ONLY from a provider
   /// response or webhook, never optimistically by the cancel route: the
@@ -2158,13 +2176,13 @@ model Subscription {
   /// cancelled subscription that the provider was still billing.
   /// status stays ACTIVE while this is true — access runs to
   /// currentPeriodEnd; the terminal CANCELED transition arrives by webhook.
-  cancelAtPeriodEnd Boolean           @default(false) @map("cancel_at_period_end")
+  cancelAtPeriodEnd         Boolean            @default(false) @map("cancel_at_period_end")
   /// When the provider recorded the cancellation request.
-  canceledAtUtc     DateTime?         @map("canceled_at_utc") @db.Timestamptz(6)
+  canceledAtUtc             DateTime?          @map("canceled_at_utc") @db.Timestamptz(6)
   /// The PROVIDER's own timestamp for the state this row last recorded.
   /// Reconciliation discards an observation older than it, so a slow poll
   /// cannot overwrite a newer webhook. NULL = none recorded yet (accept).
-  providerStateAtUtc DateTime?        @map("provider_state_at_utc") @db.Timestamptz(6)
+  providerStateAtUtc        DateTime?          @map("provider_state_at_utc") @db.Timestamptz(6)
   /// BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a PROVIDER-CONFIRMED
   /// scheduled plan change, for the period-end downgrade.
   ///
@@ -2174,11 +2192,11 @@ model Subscription {
   /// customer has already paid the current period for. Both columns are set
   /// only after the provider accepts the schedule, and are cleared by the
   /// webhook that applies it.
-  pendingPlan       PlanType?         @map("pending_plan")
-  pendingPlanEffectiveAtUtc DateTime? @map("pending_plan_effective_at_utc") @db.Timestamptz(6)
-  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  teamId           String?            @map("team_id") @db.Uuid
+  pendingPlan               PlanType?          @map("pending_plan")
+  pendingPlanEffectiveAtUtc DateTime?          @map("pending_plan_effective_at_utc") @db.Timestamptz(6)
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  teamId                    String?            @map("team_id") @db.Uuid
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -2190,15 +2208,15 @@ model Subscription {
 }
 
 model Payment {
-  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String          @map("user_id") @db.Uuid
-  provider          PaymentProvider
-  providerPaymentId String          @map("provider_payment_id") @db.VarChar(128)
-  amountCents       Int             @map("amount_cents")
-  currency          String          @db.VarChar(8)
-  status            PaymentStatus
-  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  teamId            String?         @map("team_id") @db.Uuid
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String          @map("user_id") @db.Uuid
+  provider           PaymentProvider
+  providerPaymentId  String          @map("provider_payment_id") @db.VarChar(128)
+  amountCents        Int             @map("amount_cents")
+  currency           String          @db.VarChar(8)
+  status             PaymentStatus
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  teamId             String?         @map("team_id") @db.Uuid
   /// The PROVIDER's own timestamp for the state this row last recorded.
   ///
   /// Same guard, and the same column name, as Subscription.providerStateAtUtc:
@@ -2206,7 +2224,7 @@ model Payment {
   /// than applied, so a slow poll cannot undo a newer webhook and a webhook
   /// that arrives out of order cannot move a settled payment backwards.
   /// NULL = nothing recorded yet (accept).
-  providerStateAtUtc DateTime?      @map("provider_state_at_utc") @db.Timestamptz(6)
+  providerStateAtUtc DateTime?       @map("provider_state_at_utc") @db.Timestamptz(6)
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -3732,6 +3750,20 @@ model WorkflowIntakeLink {
   recipientEmail String? @map("recipient_email") @db.VarChar(320)
   recipientPhone String? @map("recipient_phone") @db.VarChar(32)
 
+  /// THE AUTHORITATIVE Customer ID.
+  ///
+  /// The identifier the ORGANIZATION uses for its own customer, supplied when
+  /// it creates the intake. PROOVRA does not issue it, validate it against
+  /// anything, or verify that it refers to a real person: it is a foreign key
+  /// into somebody else's system and is stored as the opaque string they gave.
+  ///
+  /// It is NOT a PROOVRA user id, an account id, a submitter id, a recipient
+  /// id, an evidence id or an intake link id, and it proves nothing about who
+  /// opened the link or who submitted the evidence.
+  ///
+  /// Absent means absent: null, never "N/A" or an empty string.
+  customerId String? @map("customer_id") @db.VarChar(120)
+
   // Constraints
   maxUses                Int      @default(1) @map("max_uses")
   usedCount              Int      @default(0) @map("used_count")
@@ -3805,6 +3837,7 @@ model WorkflowIntakeLink {
   @@index([expiresAtUtc])
   @@index([workflowTemplateId])
   @@index([caseId])
+  @@index([teamId, customerId])
   @@map("workflow_intake_links")
 }
 
@@ -6124,14 +6157,12 @@ model StepUpChallenge {
 
   /**
    * PHASE 13 (NEW-058) — the ENROLLED FACTOR this challenge was minted for.
-   *
    * Before this the destination came from the request body, so an approved
    * challenge proved possession of a handset the caller had chosen. Recording
    * the factor makes the approval attributable to something the ACCOUNT owns,
    * and recording its generation makes the approval expire the moment that
    * enrolment is replaced — a challenge issued against generation 3 cannot be
    * spent once the user re-enrols and the factor moves to generation 4.
-   *
    * NULLABLE for rows written before this migration; the consume path treats a
    * null factor as UNSPENDABLE rather than as "unbound", so the pre-existing
    * window fails closed instead of open and closes entirely as those rows
@@ -6314,7 +6345,6 @@ model MfaFactor {
 
   /**
    * Monotonic generation, bumped whenever the factor's destination changes.
-   *
    * A step-up challenge records the generation it was minted against. If the
    * user re-enrols a different handset between issuing a challenge and
    * spending it, the generation moves and the pending challenge stops being
@@ -6341,16 +6371,16 @@ model MfaFactor {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // A user can have multiple authenticators (e.g. phone + hardware
-  // token). The unique constraint stops duplicate active rows; we
-  // enforce one-ACTIVE-per-label at the service layer.
-  @@index([userId, status])
-  @@index([status])
   // PHASE 13 (NEW-058) — one enrolled destination per user per channel. The
   // hash is the key because the plaintext is sealed; without this a caller
   // could enrol the same number repeatedly and leave several ACTIVE rows for
   // the resolver to choose between.
   @@unique([userId, kind, destinationHash], map: "mfa_factors_user_kind_destination_key")
+  // A user can have multiple authenticators (e.g. phone + hardware
+  // token). The unique constraint stops duplicate active rows; we
+  // enforce one-ACTIVE-per-label at the service layer.
+  @@index([userId, status])
+  @@index([status])
   @@index([userId, kind, status])
   @@map("mfa_factors")
 }
@@ -7009,9 +7039,9 @@ model OperationalIncident {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  team           Team?                      @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  acknowledgedBy User?                      @relation("OperationalIncidentAcknowledgedBy", fields: [acknowledgedByUserId], references: [id], onDelete: SetNull)
-  resolvedBy     User?                      @relation("OperationalIncidentResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  team           Team?                         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  acknowledgedBy User?                         @relation("OperationalIncidentAcknowledgedBy", fields: [acknowledgedByUserId], references: [id], onDelete: SetNull)
+  resolvedBy     User?                         @relation("OperationalIncidentResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
   events         OperationalIncidentEvent[]
   slaCycles      OperationalIncidentSlaCycle[]
 
@@ -9464,23 +9494,23 @@ model WorkerLease {
   state      WorkerLeaseState
 
   /// When this instance first registered.
-  startedAtUtc DateTime @default(now()) @map("started_at_utc") @db.Timestamptz(6)
+  startedAtUtc   DateTime  @default(now()) @map("started_at_utc") @db.Timestamptz(6)
   /// Last successful heartbeat. Preserved through DRAINING and STOPPED so a
   /// reader can always say WHEN, not merely THAT.
-  lastSeenAtUtc DateTime @default(now()) @map("last_seen_at_utc") @db.Timestamptz(6)
+  lastSeenAtUtc  DateTime  @default(now()) @map("last_seen_at_utc") @db.Timestamptz(6)
   /// Set only by a clean shutdown. Its ABSENCE is what makes a stale lease
   /// a crash rather than a scale-down.
-  stoppedAtUtc DateTime? @map("stopped_at_utc") @db.Timestamptz(6)
+  stoppedAtUtc   DateTime? @map("stopped_at_utc") @db.Timestamptz(6)
   /// Bounded, operator-safe. e.g. "SIGTERM".
-  shutdownReason String? @map("shutdown_reason") @db.VarChar(80)
+  shutdownReason String?   @map("shutdown_reason") @db.VarChar(80)
 
   /// Immutable build identity, from the canonical release-revision variable.
   /// NULL means unknown — never an empty string, never a placeholder.
-  buildRevision String? @map("build_revision") @db.VarChar(64)
+  buildRevision            String?  @map("build_revision") @db.VarChar(64)
   /// Queue names this instance subscribes to. Names only.
-  queueSubscriptions String[] @map("queue_subscriptions")
+  queueSubscriptions       String[] @map("queue_subscriptions")
   /// The interval this instance reports on, so a reader can judge the age.
-  heartbeatIntervalSeconds Int? @map("heartbeat_interval_seconds")
+  heartbeatIntervalSeconds Int?     @map("heartbeat_interval_seconds")
 
   processedCount Int? @map("processed_count")
   failedCount    Int? @map("failed_count")
@@ -10731,7 +10761,6 @@ model OrganizationDomain {
 /**
  * PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — GOVERNANCE MEMBERSHIP
  * HAS A LIFECYCLE.
- *
  * The finding: ordinary revocation was a physical DELETE
  * (`removeOrganizationMembership`). The provenance grants were closed first,
  * so the *grant* trail survived — but the membership row did not, which means
@@ -10739,17 +10768,14 @@ model OrganizationDomain {
  * them, and why?" from the membership itself. It also meant there was no
  * SUSPENDED state at all: an administrator who wanted to pause someone's
  * governance access had only the irreversible option.
- *
  * The lifecycle mirrors the one `TeamMember` has carried since Phase 17, on
  * purpose — two membership concepts in one product should not have two
  * different vocabularies for the same three facts.
- *
- *   ACTIVE     the only state that grants Organization authority.
- *   SUSPENDED  reversible pause. Access is refused; history is intact.
- *   REVOKED    terminal. Access is refused; the row REMAINS so the removal is
- *              attributable. Physical deletion survives only for account
- *              closure/erasure, which is a different obligation.
- *
+ * ACTIVE     the only state that grants Organization authority.
+ * SUSPENDED  reversible pause. Access is refused; history is intact.
+ * REVOKED    terminal. Access is refused; the row REMAINS so the removal is
+ * attributable. Physical deletion survives only for account
+ * closure/erasure, which is a different obligation.
  * PENDING is deliberately ABSENT. An invitation that has not been accepted is
  * `OrganizationInvite`'s business, and duplicating it here would create the
  * second authority this whole exercise exists to remove.
@@ -10762,19 +10788,25 @@ model OrganizationMembership {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  /** The ONLY field that decides whether this membership grants anything. */
-  status              OrganizationMembershipStatus @default(ACTIVE)
-  statusChangedAtUtc  DateTime?                    @map("status_changed_at_utc") @db.Timestamptz(6)
-  suspendedAtUtc      DateTime?                    @map("suspended_at_utc") @db.Timestamptz(6)
-  suspendedByUserId   String?                      @map("suspended_by_user_id") @db.Uuid
-  suspensionReason    String?                      @map("suspension_reason") @db.VarChar(400)
-  revokedAtUtc        DateTime?                    @map("revoked_at_utc") @db.Timestamptz(6)
-  revokedByUserId     String?                      @map("revoked_by_user_id") @db.Uuid
-  revocationReason    String?                      @map("revocation_reason") @db.VarChar(400)
-  /** Which authority last moved this membership: MANUAL, SCIM, SYSTEM… */
-  statusSource        String?                      @map("status_source") @db.VarChar(32)
-  /** Contract-bounded membership, where the agreement needs one. */
-  validUntilUtc       DateTime?                    @map("valid_until_utc") @db.Timestamptz(6)
+  /**
+   * The ONLY field that decides whether this membership grants anything.
+   */
+  status             OrganizationMembershipStatus @default(ACTIVE)
+  statusChangedAtUtc DateTime?                    @map("status_changed_at_utc") @db.Timestamptz(6)
+  suspendedAtUtc     DateTime?                    @map("suspended_at_utc") @db.Timestamptz(6)
+  suspendedByUserId  String?                      @map("suspended_by_user_id") @db.Uuid
+  suspensionReason   String?                      @map("suspension_reason") @db.VarChar(400)
+  revokedAtUtc       DateTime?                    @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId    String?                      @map("revoked_by_user_id") @db.Uuid
+  revocationReason   String?                      @map("revocation_reason") @db.VarChar(400)
+  /**
+   * Which authority last moved this membership: MANUAL, SCIM, SYSTEM…
+   */
+  statusSource       String?                      @map("status_source") @db.VarChar(32)
+  /**
+   * Contract-bounded membership, where the agreement needs one.
+   */
+  validUntilUtc      DateTime?                    @map("valid_until_utc") @db.Timestamptz(6)
   /**
    * Monotonic generation. Every transition increments it inside the same
    * guarded UPDATE that changes the status, and every transition names the
@@ -10782,7 +10814,7 @@ model OrganizationMembership {
    * generation updates zero rows — which is what makes concurrent
    * suspend/restore deterministic instead of last-writer-wins.
    */
-  statusGeneration    Int                          @default(0) @map("status_generation")
+  statusGeneration   Int                          @default(0) @map("status_generation")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -11621,13 +11653,11 @@ model QcSample {
 /**
  * PHASE 12 CORRECTIVE PASS §2 (INV-001) — THE ROLE/FEDERATION FACET OF AN
  * INVITATION. NOT A SECOND LIFECYCLE.
- *
  * The finding asked whether an external-review invitation being TWO rows is
  * two legitimate bounded aggregates or one duplicated authority. Tracing every
  * reader and writer answered it: this row has no identity of its own. It is
  * created by `issueInvitation` with `id` set to the GRANT's id, so it is 1:1
  * by construction, and nothing ever creates one without a grant.
- *
  * What made it a DUPLICATE AUTHORITY was a set of lifecycle columns that a
  * "model catch-up" migration added here and that no writer has ever
  * populated: `grant_state` (NOT NULL DEFAULT 'PENDING'), `raw_token`,
@@ -11637,7 +11667,6 @@ model QcSample {
  * external-access CSV export read them from HERE, so a compliance export
  * reported every grant as `grantState=PENDING` with no expiry and no
  * revocation, whatever the grant actually said.
- *
  * DECISION: `ExternalReviewGrant` is the sole authority for identity,
  * recipient, workspace, token hash, token version, issue time, expiry,
  * revocation, rotation, acceptance and invitation status. This row owns ONLY
@@ -11646,7 +11675,6 @@ model QcSample {
  * duplicate columns are dropped by
  * `20271122000000_external_review_invitation_authority_contract`, which
  * refuses to drop them if any row ever carried a non-default value.
- *
  * `raw_token` was also a plaintext-token column. Nothing wrote it; removing
  * it removes the possibility.
  */
@@ -11681,7 +11709,7 @@ model ExternalReviewerRoleAssignment {
    * relation so the ORM knows it and the FK the contract migration adds is
    * expressed in the datamodel rather than living only in raw SQL.
    */
-  grant      ExternalReviewGrant  @relation(fields: [id], references: [id], onDelete: Cascade)
+  grant ExternalReviewGrant @relation(fields: [id], references: [id], onDelete: Cascade)
 
   deliveries ExternalReviewInvitationDelivery[]
   activities ExternalReviewActivity[]
@@ -11720,7 +11748,6 @@ model ExternalReviewInvitationDelivery {
 
   /**
    * PHASE 12 CORRECTIVE PASS §3 (NEW-004) — THE DURABLE LOGICAL INTENT.
-   *
    * The §1.1 fix keyed the intent on `(team, grant, attempt)` and derived the
    * provider idempotency key from the row id. That collapsed ordinary repeats,
    * which was the point — but it made `attempt` carry two incompatible
@@ -11729,29 +11756,26 @@ model ExternalReviewInvitationDelivery {
    * values. Renumbering a business-visible counter is a rewrite of history,
    * and the migration described itself as "expand-only, rewrites no history",
    * which was not true.
-   *
    * The two meanings are now separate columns:
-   *
-   *   contentVersion  WHICH generation of the invitation link this message
-   *                   carried — the grant's `token_version` at send time. A
-   *                   rotation changes the content, so it MUST be a new
-   *                   message; without this, a rotated link would collapse
-   *                   onto the superseded message's key and the reviewer
-   *                   would be left holding a dead link and no successor.
-   *   resendSeq       0 for the original send of a given content version, and
-   *                   N for the Nth deliberate operator resend of it.
-   *   attempt         unchanged in meaning: how many times THIS intent has
-   *                   been physically attempted. Historical values are left
-   *                   exactly as they were.
-   *
+   * contentVersion  WHICH generation of the invitation link this message
+   * carried — the grant's `token_version` at send time. A
+   * rotation changes the content, so it MUST be a new
+   * message; without this, a rotated link would collapse
+   * onto the superseded message's key and the reviewer
+   * would be left holding a dead link and no successor.
+   * resendSeq       0 for the original send of a given content version, and
+   * N for the Nth deliberate operator resend of it.
+   * attempt         unchanged in meaning: how many times THIS intent has
+   * been physically attempted. Historical values are left
+   * exactly as they were.
    * `intentKey` is the durable identity derived from those, and it — not the
    * row's surrogate id — is what the provider idempotency key is minted from.
    * A retry finds the same intent and therefore presents the same key; a
    * resend or a rotation is a different intent and presents a different one.
    */
-  contentVersion    Int       @default(1) @map("content_version")
-  resendSeq         Int       @default(0) @map("resend_seq")
-  intentKey         String?   @map("intent_key") @db.VarChar(200)
+  contentVersion Int     @default(1) @map("content_version")
+  resendSeq      Int     @default(0) @map("resend_seq")
+  intentKey      String? @map("intent_key") @db.VarChar(200)
 
   grant ExternalReviewerRoleAssignment @relation(fields: [grantId], references: [id], onDelete: Cascade)
 
@@ -13728,17 +13752,16 @@ model EvidenceUploadSession {
 }
 
 model ExternalReviewGrant {
-  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teamId                 String    @map("team_id") @db.Uuid
-  scopeKind              String    @map("scope_kind") @db.VarChar(24)
-  evidenceId             String?   @map("evidence_id") @db.Uuid
-  caseId                 String?   @map("case_id") @db.Uuid
-  packageId              String?   @map("package_id") @db.Uuid
-  tokenHash              String    @unique(map: "external_review_grants_token_hash_uk") @map("token_hash") @db.VarChar(128)
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teamId     String  @map("team_id") @db.Uuid
+  scopeKind  String  @map("scope_kind") @db.VarChar(24)
+  evidenceId String? @map("evidence_id") @db.Uuid
+  caseId     String? @map("case_id") @db.Uuid
+  packageId  String? @map("package_id") @db.Uuid
+  tokenHash  String  @unique(map: "external_review_grants_token_hash_uk") @map("token_hash") @db.VarChar(128)
 
   /**
    * PHASE 12 CORRECTIVE PASS §2/§3 (INV-001 + NEW-004) — WHICH TOKEN THIS IS.
-   *
    * Rotation overwrites `token_hash` in place, which is correct for
    * authentication — the predecessor stops working the instant the row
    * changes. But it left NOTHING durable saying that the CONTENT of the
@@ -13746,7 +13769,6 @@ model ExternalReviewGrant {
    * message carrying the superseded link and a message carrying its successor
    * are different messages to a human, and must not collapse onto one
    * provider idempotency key.
-   *
    * Starts at 1 and increments on every rotation. It is not a secret and it
    * is not a credential: it names WHICH generation of the link a delivery
    * carried, and nothing about the link itself.
