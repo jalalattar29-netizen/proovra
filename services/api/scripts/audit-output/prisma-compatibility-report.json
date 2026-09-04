@@ -1,7 +1,7 @@
 {
-  "generatedAtUtc": "2026-08-27T18:47:52.808Z",
-  "modelsParsed": 277,
-  "issuesCount": 111,
+  "generatedAtUtc": "2026-09-04T10:27:03.298Z",
+  "modelsParsed": 279,
+  "issuesCount": 112,
   "issues": [
     {
       "migration": "20260131235343_init",
@@ -882,6 +882,14 @@
       "model": "EvidenceCreditLedgerEntry",
       "column": "cancel_at_period_end",
       "detail": "Migration ADDs column evidence_credit_ledger_entries.cancel_at_period_end but Prisma model EvidenceCreditLedgerEntry no longer references it."
+    },
+    {
+      "migration": "20280115000000_worker_lease_and_heartbeat_retention",
+      "kind": "MIGRATION_ADDS_UNUSED_COLUMN",
+      "table": "worker_leases",
+      "model": "WorkerLease",
+      "column": "queue_subscriptions",
+      "detail": "Migration ADDs column worker_leases.queue_subscriptions but Prisma model WorkerLease no longer references it."
     },
     {
       "migration": "email_password_auth",

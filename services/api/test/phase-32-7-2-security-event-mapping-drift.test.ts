@@ -1201,6 +1201,15 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // index, enum or mapping of it is read or altered, which is what this
       // allowlist is about.
       "20280115000000_worker_lease_and_heartbeat_retention",
+      // PHASE 3 (2026-09-04) — one partial unique index making a single ACTIVE
+      // break-glass grant per (organization, emergency user) an invariant the
+      // database holds, after four concurrent activations were measured
+      // producing four overlapping ACTIVE grants. It creates no table, column,
+      // type or enum, and touches `security_events` in no way at all: no
+      // column, index, enum or mapping of it is read or altered, which is what
+      // this allowlist is about. Permitted by exact name, like every entry
+      // above, so the allowlist never becomes a pattern.
+      "20280120000000_break_glass_single_active_grant",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

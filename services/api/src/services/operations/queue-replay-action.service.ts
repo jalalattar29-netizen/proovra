@@ -12,7 +12,9 @@
  *   * `forbidden` jobs hard-refuse with `replay_forbidden`.
  *   * `requires_step_up` jobs are gated at the route layer (this
  *     service is the post-step-up handler; it assumes the gate has
- *     passed).
+ *     passed). The route derives the category from the REAL job via
+ *     `resolveJobKind()` below — never from a caller-supplied hint,
+ *     which the caller could simply omit to skip the gate.
  *   * Duplicate replays are prevented by checking the job's `attemptsMade`
  *     against a "last operator replay" marker we leave in `data`.
  *     We do NOT mutate the job payload — instead we annotate via the
@@ -54,6 +56,26 @@ export type ReplayActionResult =
         | "unknown_job_kind";
       message: string;
     };
+
+/**
+ * The real job kind for a queued job, read from the queue itself.
+ *
+ * This exists so the step-up gate can be decided from the job that is
+ * actually about to be replayed. Returns `null` when the queue or the job
+ * cannot be resolved; the caller should then fall through to the action
+ * itself, which owns the canonical typed refusals (`queue_unknown`,
+ * `job_not_found`) and must remain the single authority for them.
+ */
+export async function resolveJobKind(
+  queueName: string,
+  jobId: string,
+): Promise<string | null> {
+  const q = getQueueHandle(queueName);
+  if (!q) return null;
+  const job = (await q.getJob(jobId)) as Job | null;
+  if (!job) return null;
+  return typeof job.name === "string" && job.name.length > 0 ? job.name : null;
+}
 
 export async function retryFailedJob(input: {
   queueName: string;

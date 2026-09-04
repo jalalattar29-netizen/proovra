@@ -34,25 +34,59 @@
 --
 -- FORWARD-ONLY. No column added, altered or dropped; no row read or written.
 
-DO $$
-DECLARE
-  conflicts INTEGER;
-BEGIN
-  SELECT COUNT(*) INTO conflicts
-    FROM (
-      SELECT organization_id, emergency_user_id
-        FROM emergency_access_grants
-       WHERE status = 'ACTIVE'
-       GROUP BY organization_id, emergency_user_id
-      HAVING COUNT(*) > 1
-    ) AS overlapping;
+-- PRECONDITION 1 — CONFLICT CHECK
+-- ---------------------------------------------------------------------------
+-- Runs only when the columns it reads are present, so a table missing one
+-- fails with the COLUMN GUARD's message below rather than a raw
+-- "column does not exist". It is kept in its own block, ahead of the guard,
+-- because the safety gate reads the guard out of a bounded window preceding
+-- the CREATE INDEX and this block's operator guidance is long enough to push
+-- the guard out of range.
 
-  IF conflicts > 0 THEN
+DO $$
+BEGIN
+  -- NESTED, not `AND`-ed: PostgreSQL plans a whole boolean expression before
+  -- evaluating it, so an `AND` here resolved the inner query's column
+  -- references even when the guard was false and failed with a raw
+  -- "column does not exist". A nested IF never plans the inner statement.
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'emergency_access_grants'
+       AND column_name = 'emergency_user_id'
+  ) THEN
+  IF EXISTS (
+    SELECT 1 FROM emergency_access_grants WHERE status = 'ACTIVE'
+     GROUP BY organization_id, emergency_user_id HAVING COUNT(*) > 1
+  ) THEN
     RAISE EXCEPTION
-      'Cannot enforce one ACTIVE break-glass grant per (organization, emergency user): % overlapping group(s) exist.',
-      conflicts
+      'Cannot enforce one ACTIVE break-glass grant per (organization, emergency user): overlapping ACTIVE grants exist.'
       USING HINT =
         'Review the overlapping ACTIVE grants and revoke the redundant ones through the staff console, then re-run this migration. Do not merge them automatically.';
+  END IF;
+  END IF;
+END
+$$;
+
+-- PRECONDITION 2 — COLUMN GUARD
+-- ---------------------------------------------------------------------------
+-- Immediately before the CREATE, naming every indexed column literally.
+
+DO $$
+DECLARE
+  missing TEXT;
+BEGIN
+  missing := NULLIF(concat_ws(', ',
+    CASE WHEN NOT EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'emergency_access_grants' AND column_name = 'organization_id')
+      THEN 'organization_id' END,
+    CASE WHEN NOT EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'emergency_access_grants' AND column_name = 'emergency_user_id')
+      THEN 'emergency_user_id' END,
+    CASE WHEN NOT EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'emergency_access_grants' AND column_name = 'status')
+      THEN 'status' END), '');
+  IF missing IS NOT NULL THEN
+    RAISE EXCEPTION 'emergency_access_grants is missing column(s) %.', missing;
   END IF;
 END
 $$;

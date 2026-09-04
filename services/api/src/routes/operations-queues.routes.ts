@@ -43,6 +43,7 @@ import {
 import {
   cancelJob,
   replayFailedJob,
+  resolveJobKind,
   retryFailedJob,
 } from "../services/operations/queue-replay-action.service.js";
 import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
@@ -62,6 +63,42 @@ import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
  */
 
 const KnownQueueName = z.enum(KNOWN_QUEUE_NAMES as [string, ...string[]]);
+
+/**
+ * Applies the replay safety matrix's step-up requirement to a queue job.
+ *
+ * The category is derived from the job that is actually about to be
+ * replayed — never from anything the caller supplied — so a caller cannot
+ * skip the gate by omitting or misstating a hint.
+ *
+ * Returns `true` when the reply has already been sent (a step-up challenge
+ * was issued) and the handler must stop. When the queue or job cannot be
+ * resolved it returns `false`, leaving the action service to answer with its
+ * canonical `queue_unknown` / `job_not_found` refusal.
+ */
+async function gateReplayCategory(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  userId: string,
+  teamId: string,
+  params: { queueName: string; jobId: string },
+): Promise<boolean> {
+  const actualJobName = await resolveJobKind(params.queueName, params.jobId);
+  if (!actualJobName) return false;
+  if (getJobReplayCategory(params.queueName, actualJobName) !== "requires_step_up") {
+    return false;
+  }
+  const stepUp = await requireStepUpForSensitiveAction({
+    req,
+    reply,
+    teamId,
+    userId,
+    purpose: "QUEUE_JOB_REPLAY",
+    resourceKind: "queue_job",
+    resourceId: `${params.queueName}:${params.jobId}`,
+  });
+  return stepUp.sent;
+}
 
 export async function operationsQueuesRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------
@@ -181,8 +218,19 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
-      // Retry is allowed for `safe` and `requires_step_up` jobs.
-      // The category gate runs INSIDE the action service.
+      /*
+       * Retry is allowed for `safe` and `requires_step_up` jobs, but a
+       * `requires_step_up` kind must still pass step-up.
+       *
+       * This used to read "the category gate runs INSIDE the action service".
+       * It does not: the service only bumps a metric for that category, so
+       * retrying a signing-bearing job asked for no second factor at all.
+       * Retry and replay call the same BullMQ `job.retry()`, so they carry
+       * the same risk and take the same gate.
+       */
+      if (await gateReplayCategory(req, reply, ctx.userId, body.teamId, params)) {
+        return;
+      }
       const result = await retryFailedJob({
         queueName: params.queueName,
         jobId: params.jobId,
@@ -219,30 +267,36 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           reason: z.string().min(1).max(240),
-          /** Caller-provided hint; we re-derive the category server-side. */
+          /**
+           * Caller-provided hint, accepted for compatibility and used for
+           * nothing security-bearing: the step-up category is derived from
+           * the real job below. Disagreement between this and the actual
+           * job kind cannot weaken the gate.
+           */
           expectedJobName: z.string().max(100).optional(),
         })
         .parse(req.body ?? {});
       const ctx = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!ctx) return;
 
-      // If the caller knows the job name, we can pre-gate without an
-      // extra round-trip. Otherwise the action service does the gate
-      // after pulling the job.
-      if (body.expectedJobName) {
-        const cat = getJobReplayCategory(params.queueName, body.expectedJobName);
-        if (cat === "requires_step_up") {
-          const stepUp = await requireStepUpForSensitiveAction({
-            req,
-            reply,
-            teamId: body.teamId,
-            userId: ctx.userId,
-            purpose: "QUEUE_JOB_REPLAY",
-            resourceKind: "queue_job",
-            resourceId: `${params.queueName}:${params.jobId}`,
-          });
-          if (stepUp.sent) return;
-        }
+      /*
+       * The step-up category is derived from the REAL job, never from
+       * `expectedJobName`.
+       *
+       * That hint used to be the only trigger for the gate, so a caller who
+       * simply omitted it replayed a signing-bearing job with no step-up at
+       * all — and the action service, which the comment here claimed would
+       * "do the gate after pulling the job", only bumps a metric for that
+       * category. The browser always sends the hint, so the bypass was
+       * invisible from the UI and reachable by any direct API call.
+       *
+       * `resolveJobKind` returning null means the queue or job could not be
+       * resolved; we fall through so the action service can answer with its
+       * canonical `queue_unknown` / `job_not_found` refusal rather than
+       * duplicating that logic here.
+       */
+      if (await gateReplayCategory(req, reply, ctx.userId, body.teamId, params)) {
+        return;
       }
 
       const result = await replayFailedJob({

@@ -496,7 +496,12 @@ const OPS: Op[] = [
   { name: "POST sessions/:id/revoke", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/revoke`, payload: { teamId: TEAM, reason: "OPERATOR_REVOKED" }, service: "revokeActiveSession", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "POST sessions/user/:userId/revoke-all", method: "POST", url: `/v1/admin/identity/sessions/user/${SUBJECT}/revoke-all`, payload: { teamId: TEAM, reason: "MEMBER_SUSPENDED" }, service: "revokeAllSessionsForUserAdmin", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "GET timeline", method: "GET", url: `/v1/admin/identity/timeline?teamId=${TEAM}`, service: "securityEvent.findMany", perm: "identity.org_policy.read", gate: "member", ok: 200 },
-  { name: "POST sessions/:id/score", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/score`, payload: { teamId: TEAM }, service: "detectAndScoreSession", perm: "identity.org_policy.read", gate: "member", ok: 200 },
+  // Phase 3: this route MUTATES — it re-evaluates and rewrites the session's
+  // risk score — so it takes a write permission. It previously fell through to
+  // the read default, `identity.org_policy.read`, which let a read-only member
+  // change a session's risk score and, through it, what the quarantine surface
+  // shows an operator.
+  { name: "POST sessions/:id/score", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/score`, payload: { teamId: TEAM }, service: "detectAndScoreSession", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "GET quarantined-sessions", method: "GET", url: `/v1/admin/identity/quarantined-sessions?teamId=${TEAM}`, service: "listQuarantinedSessions", perm: "identity.org_policy.read", gate: "member", ok: 200 },
   { name: "POST sessions/:id/quarantine", method: "POST", url: `/v1/admin/identity/sessions/${SESSION}/quarantine`, payload: { teamId: TEAM, reason: "MANUAL_OPERATOR" }, service: "quarantineSession", perm: "identity.contributor_session.revoke", gate: "member", ok: 200 },
   { name: "POST sessions/:id/release", method: "POST", url: `/v1/admin/identity/sessions/${SESSION_QUAR}/release`, payload: { teamId: TEAM, note: "investigated" }, service: "releaseQuarantine", perm: "identity.contributor_session.revoke", gate: "member", ok: 204 },

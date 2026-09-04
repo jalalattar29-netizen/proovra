@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 257,
-    "classifiedMigrations": 257,
+    "filesystemMigrations": 258,
+    "classifiedMigrations": 258,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 257,
+    "productionSnapshotUnknown": 258,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 257,
-    "classifiedMigrations": 257,
+    "filesystemMigrations": 258,
+    "classifiedMigrations": 258,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 257,
+    "productionSnapshotUnknown": 258,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 40,
+      "EXPAND": 41,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 49,
+      "SAFE_TO_APPLY_NOW": 50,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 257
+    "ProductionMigrationStateUnknown": 258
   },
   "gateFailures": [],
   "migrations": [
@@ -20141,8 +20141,69 @@
       "evidence": "WORKER LIVENESS LEASE + HEARTBEAT RETENTION INDEX. Creates one new table, `worker_leases`, one enum, `WorkerLeaseState`, its own index, and one guarded index on the existing `worker_telemetry_snapshots`. No existing column is added, altered or dropped; no existing row is read, written or deleted.  EXPAND-ONLY AND SAFE BEFORE CODE DEPLOYMENT: an empty lease table changes no behaviour for a deployment still running the previous image, because nothing in that image reads it. The reader that does treats an empty table as NOT_MEASURED — \"no worker has ever registered\" — which is the honest answer during the window between migrating and deploying, and is not a claim that the fleet is unhealthy.  WHY IT IS NEEDED: `worker_telemetry_snapshots` is append-only, one row per worker per heartbeat interval, with no retention. At the shipped 60s interval that is 1,440 rows per worker per day, forever. Liveness was derived by scanning the newest 200 of those rows and deduplicating them in memory, which additionally drops instances out of a large fleet and cannot represent a clean shutdown at all — so a drained worker and a killed worker were indistinguishable for the length of the stale threshold.  WHY IT CARRIES NO BACKFILL: a lease is current state, not history. Every running worker writes its own row on its next heartbeat (one interval, at most 60s), and a synthesised row would be a claim about a process this migration has not heard from. The honest intermediate state is NOT_MEASURED, which is what an empty table produces.  THE GUARDED INDEX: the retention sweep predicate is `heartbeat_at_utc < cutoff`, and every existing index on that table leads with another column, so none can serve a bare age scan. It is created inside a DO block that checks information_schema first, because it indexes a column this migration does not create — the failure class the Phase O gate exists to prevent.  HOLDS NO SECRET: worker id, lifecycle state, timestamps, a build revision string and queue NAMES. No payloads, no URLs, no credentials.  REHEARSED against live PostgreSQL 16: applies on a clean database and on a database already carrying the full migration history, converging on identical schema in both."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280120000000_break_glass_single_active_grant",
       "order": 256,
+      "sqlPresent": true,
+      "byteLength": 4583,
+      "checksumSha256": "4223ea5febc06d13f21d1dcbc21ffd6153f73eabf6a4f65b52391b80dfccc589",
+      "checksumSha256Raw": "4223ea5febc06d13f21d1dcbc21ffd6153f73eabf6a4f65b52391b80dfccc589",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": true,
+      "classification": "EXPAND",
+      "sqlShape": "REPAIR",
+      "sqlShapeEvidence": "alters existing objects only (defaults / nullability / constraints / indexes / type conversion); creates nothing, drops nothing, mutates no pre-existing rows",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "emergency_access_grants_active_org_user_uk"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20271001000000_org_security_policy_phase10"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 2,
+      "guardRaises": 2,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "ONE ACTIVE BREAK-GLASS GRANT PER (ORGANIZATION, EMERGENCY USER). Creates a single partial unique index, `emergency_access_grants_active_org_user_uk`, over columns that already exist. No table, column, type or constraint is added, altered or dropped, and no row is read, written or deleted.  WHY IT IS NEEDED: `activateBreakGlass` created unconditionally. Measured against a live fixture, four simultaneous activations — each carrying its own genuinely approved, single-use step-up challenge — produced FOUR overlapping ACTIVE grants for the same organization and the same emergency user. Every one was individually authorized, so this is not an authorization hole; it is an operational one. The staff console lists live emergency access over a customer's data, and revoking the grant an operator can see leaves three they cannot. Emergency access that survives its own revocation is the exact failure mode break-glass exists to bound.  WHY THE DATABASE AND NOT THE SERVICE: a read-then-create cannot close it. Two callers both read 'none active' and both create. The exclusion has to be an index.  WHY PARTIAL: only ACTIVE rows are exclusive. Revoked and expired grants are history and must accumulate freely — a full unique index would make it impossible to grant emergency access to the same person twice, ever.  SAFE BEFORE CODE DEPLOYMENT: the index only forbids a state the product already treats as invalid, and the previous image never intentionally created overlapping ACTIVE grants. A deployment still running that image continues to work; a concurrent duplicate now fails at the database instead of silently succeeding, and the service translates that collision into a typed BREAK_GLASS_ALREADY_ACTIVE 409 rather than a 500.  BEHAVIOUR ON A DIRTY DATABASE: a database already holding overlapping ACTIVE grants cannot build this index and the deploy stops, by design. Converging live emergency access is an operator decision about who currently holds privilege over customer data, not something a migration should do unattended, so the migration RAISEs and names the conflicting group count rather than skipping silently — a silent skip would leave the invariant unenforced on precisely the database that needed it.  COLUMN GUARD: the index is preceded by an information_schema existence check naming `organization_id`, `emergency_user_id` and `status` literally, because it indexes columns this migration does not create — the failure class the Phase O gate exists to prevent.  HOLDS NO SECRET: an index over two foreign keys and a status string.  REHEARSED against live PostgreSQL 16: applies on a clean database and on a database already carrying the full migration history, converging on an identical partial index in both."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 257,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
