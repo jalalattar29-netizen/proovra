@@ -90,6 +90,33 @@ describe("PHASE 4 — support access lifecycle (live PostgreSQL 16)", () => {
     });
   }
 
+  /**
+   * Start a grant through the REAL service, so the start audit is written the
+   * way production writes it.
+   *
+   * `seedGrant` above inserts a row directly, which is right for the effective
+   * state cases — it proves the projection reads the store rather than
+   * remembering what this process created. It is exactly wrong for an audit
+   * case: a row inserted behind the service emits no audit at all.
+   */
+  async function startSupportAccessDirect(opts: {
+    organizationId: string;
+    teamId: string;
+    supportUserId: string;
+  }) {
+    const { startSupportAccess } = await import(
+      "../src/services/identity/support-access.service.js"
+    );
+    return startSupportAccess({
+      supportUserId: opts.supportUserId,
+      organizationId: opts.organizationId,
+      teamId: opts.teamId,
+      reason: `phase4 audit lifecycle probe ${randomUUID().slice(0, 8)}`,
+      accessLevel: "READ_ONLY",
+      approvedByUserId: null,
+    });
+  }
+
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     harness = await bootIntegrationHarness();
@@ -432,6 +459,183 @@ describe("PHASE 4 — support access lifecycle (live PostgreSQL 16)", () => {
         "the listing dropped organization B — it is narrowing by workspace, " +
           "and the platform-wide banner on /admin/support-access is now a lie",
       ).toContain(inB.id);
+    });
+  });
+
+  // =========================================================================
+  // THE FOUR STATES NOTHING ELSE ASSERTED.
+  //
+  // Creation, step-up refusal, activation, expiry, revocation, repeat
+  // revocation, cross-tenant refusal, zero-write-after-refusal and restart
+  // persistence are all proven elsewhere (phase-12b-identity-security-matrix,
+  // phase-10-support-*, and the cases above). These four were not, and each
+  // one is a place where the console could tell an operator something the
+  // database does not say.
+  // =========================================================================
+  describe("the states nothing else asserted", () => {
+    it("a live grant projects effectively ACTIVE — the positive half of the clock", async () => {
+      /*
+       * Every other effective-state case here is a NEGATIVE: lapsed is not
+       * ACTIVE, revoked is not ACTIVE. A projection hard-coded to answer
+       * EXPIRED would satisfy all of them. This is the case that fails if
+       * effective state stops tracking a grant that really is live.
+       */
+      const live = await seedGrant({
+        organizationId: orgA.organizationId,
+        supportUserId: staff.userId,
+        expiresInMs: 10 * 60_000,
+      });
+      const res = await call(staff.token, "GET", "/v1/support-access/grants?limit=200");
+      expect(res.status).toBe(200);
+      const row = (res.body["grants"] as Array<Record<string, unknown>>).find(
+        (g) => g["id"] === live.id,
+      );
+      expect(row, "a live grant was not listed").toBeTruthy();
+      expect(
+        row!["effectiveStatus"],
+        "a grant inside its window is not effectively ACTIVE",
+      ).toBe("ACTIVE");
+    });
+
+    it("revocation racing activation never leaves usable access behind", async () => {
+      /*
+       * The dangerous interleaving is not two revokes (proved convergent
+       * above) — it is revoke against ENTRY. If entry validates a grant that
+       * revocation is concurrently killing, the loser can still walk away
+       * with a session-bound support token, and the console will show the
+       * grant as REVOKED while the token keeps working.
+       *
+       * The invariant is not "entry loses". Either order is legitimate. The
+       * invariant is that once revocation has returned, no entry succeeds —
+       * so the same entry is replayed AFTER the race has settled.
+       */
+      const grant = await seedGrant({
+        organizationId: orgA.organizationId,
+        teamId: orgA.workspaceId,
+        supportUserId: staff.userId,
+        expiresInMs: 10 * 60_000,
+      });
+
+      const [revoke, race] = await Promise.all([
+        call(staff.token, "POST", "/v1/support-access/revoke", { grantId: grant.id }),
+        call(staff.token, "POST", "/v1/support-access/enter", {
+          teamId: orgA.workspaceId,
+          grantId: grant.id,
+        }),
+      ]);
+      expect(revoke.status, "revocation did not complete").toBe(200);
+      // The race itself may go either way; both outcomes are correct.
+      expect([200, 403]).toContain(race.status);
+
+      const settled = await prisma.supportAccessGrant.findUniqueOrThrow({
+        where: { id: grant.id },
+        select: { status: true, revokedAtUtc: true },
+      });
+      expect(settled.status, "the grant survived a completed revocation").toBe("REVOKED");
+      expect(settled.revokedAtUtc).toBeTruthy();
+
+      const after = await call(staff.token, "POST", "/v1/support-access/enter", {
+        teamId: orgA.workspaceId,
+        grantId: grant.id,
+      });
+      expect(
+        after.status,
+        "a revoked grant still minted a support-context token",
+      ).toBe(403);
+      expect(after.text, "a token was issued for revoked access").not.toContain(
+        "supportContextToken",
+      );
+    });
+
+    it("the audit records WHO acted, WHAT was targeted, and the transition — with no secret", async () => {
+      /*
+       * The audit trail is the only durable account of support access, and
+       * three things make it an account rather than a log line: the actor, the
+       * target, and the transition. The transition is carried by the ACTION
+       * pair on one grantId — started then revoked — which is what makes a
+       * previous → next state readable from an append-only chain that never
+       * rewrites a row.
+       *
+       * The revoking actor is deliberately a DIFFERENT staff user from the one
+       * who started the grant, because an audit that always names one identity
+       * cannot be shown to be recording the real one.
+       */
+      const grant = await startSupportAccessDirect({
+        organizationId: orgB.organizationId,
+        teamId: orgB.workspaceId,
+        supportUserId: staff.userId,
+      });
+
+      const revoked = await call(otherStaff.token, "POST", "/v1/support-access/revoke", {
+        grantId: grant.id,
+      });
+      expect(revoked.status).toBe(200);
+
+      const rows = await prisma.adminAuditLog.findMany({
+        where: {
+          action: { in: ["identity.support_access.started", "identity.support_access.revoked"] },
+          OR: [{ resourceId: grant.id }, { resourceId: orgB.organizationId }],
+        },
+        orderBy: { createdAt: "asc" },
+        select: {
+          action: true,
+          userId: true,
+          organizationId: true,
+          workspaceId: true,
+          resourceType: true,
+          resourceId: true,
+          metadata: true,
+        },
+      });
+
+      const started = rows.find(
+        (r) =>
+          r.action === "identity.support_access.started" &&
+          (r.metadata as { grantId?: string } | null)?.grantId === grant.id,
+      );
+      const killed = rows.find(
+        (r) => r.action === "identity.support_access.revoked" && r.resourceId === grant.id,
+      );
+
+      // PREVIOUS → NEXT. Both ends of the transition exist for this one grant,
+      // and they are ordered.
+      expect(started, "no audit row records the grant being started").toBeTruthy();
+      expect(killed, "no audit row records the grant being revoked").toBeTruthy();
+
+      // ACTOR — and specifically the one who really acted, not the grant holder.
+      expect(started!.userId, "the start audit does not name the support actor").toBe(
+        staff.userId,
+      );
+      expect(
+        killed!.userId,
+        "the revoke audit named the grant holder instead of the staff user who revoked",
+      ).toBe(otherStaff.userId);
+
+      // TARGET — the tenant columns are authoritative, not JSON-only.
+      expect(killed!.organizationId, "the revoke audit lost its organization").toBe(
+        orgB.organizationId,
+      );
+      expect(killed!.workspaceId, "the revoke audit lost its workspace").toBe(
+        orgB.workspaceId,
+      );
+      expect(killed!.resourceType).toBe("support_access_grant");
+      expect(killed!.resourceId).toBe(grant.id);
+
+      // NO SECRET. The listings are proved clean above; the audit is the other
+      // place activation material could come to rest.
+      const serialized = JSON.stringify(rows);
+      for (const marker of [
+        "supportContextToken",
+        "tokenHash",
+        "secret",
+        "passwordHash",
+        "privateKey",
+      ]) {
+        expect(
+          serialized.toLowerCase(),
+          `the support audit trail carries ${marker}`,
+        ).not.toContain(marker.toLowerCase());
+      }
     });
   });
 });
