@@ -18,6 +18,7 @@ import {
   deriveSettingsUiContext,
   type SettingsUiContextInput,
 } from "../lib/settings/settingsUiContext";
+import { resolveSettingsNavigation } from "../lib/settings/settingsNavigation";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string): string => readFileSync(resolve(APP_ROOT, rel), "utf8");
@@ -450,5 +451,34 @@ test("profile/preferences/privacy routes are registered as universal ACCOUNT rou
     assert.match(entry, /requiredCapabilities: \[\]/, `${id} must be capability-free`);
     assert.match(entry, /requiredActiveSpace: "NONE"/, `${id} must load without a workspace`);
     assert.match(entry, /sidebarEligible: false/, `${id} is not a sidebar pillar`);
+  }
+});
+
+// ===========================================================================
+// AI & ASSISTANCE — reachable from a personal workspace
+// ===========================================================================
+test("Settings offers AI & assistance to a personal workspace, not only an org", () => {
+  /*
+   * The entry was gated `isOrg && SETTINGS_MANAGE`, so a personal FREE or PRO
+   * account had no way to open it at all — while `AiSection` resolves two
+   * modes written specifically for personal accounts, `personal-assistance`
+   * and `personal-not-included`. Both were unreachable code behind an org-only
+   * nav entry, which is why the surface was reported as shipped and could not
+   * be found in the product.
+   */
+  for (const plan of ["FREE", "PRO"]) {
+    const nav = resolveSettingsNavigation({
+      activeSpace: { type: "PERSONAL", id: "p-1", displayName: "Personal Space" },
+      isPlatformAdmin: false,
+      capabilities: {},
+      accountPlan: plan,
+      personalSpace: { id: "p-1" },
+      organizations: [],
+    });
+    const labels = nav.groups.flatMap((g) => g.items.map((i) => i.label));
+    assert.ok(
+      labels.includes("AI & assistance"),
+      `${plan} personal workspace must reach AI & assistance; got ${labels.join(", ") || "(none)"}`,
+    );
   }
 });

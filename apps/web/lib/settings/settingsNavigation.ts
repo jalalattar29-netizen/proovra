@@ -173,7 +173,29 @@ export function resolveSettingsNavigation(
   // the plan, and a link to pricing. That is a line on the Plan summary, not a
   // destination. It stays for collaborative workspaces, which do have
   // workspace-wide settings to change.
-  if (isOrg && has(input, "SETTINGS_MANAGE")) {
+  /*
+   * PERSONAL SPACES REACH THIS TOO — the destination always handled them.
+   *
+   * The gate was `isOrg && SETTINGS_MANAGE`, so a personal FREE or PRO account
+   * had no way to open Settings → AI & assistance at all. But `AiSection`
+   * resolves FOUR modes, and two of them exist only for personal accounts:
+   * `personal-assistance` (usage against the plan's allowance, the master
+   * control, the launched personal features) and `personal-not-included` (the
+   * honest no-AI-on-this-plan surface). Both were unreachable code behind an
+   * org-only entry.
+   *
+   * The comment above explains why the pane USED to be org-only: as "General"
+   * it carried workspace-wide defaults a personal space does not have. That
+   * reasoning stopped applying when the pane became AI & assistance — AI
+   * policy is exactly the thing a personal workspace does have, and the
+   * component was already written for it.
+   *
+   * A personal space needs no SETTINGS_MANAGE check: the account owns it, and
+   * the AI policy write is enforced server-side by
+   * `intelligence.policy.manage` regardless of what this rail offers.
+   */
+  const isPersonalSpace = input.activeSpace?.type === "PERSONAL";
+  if (isPersonalSpace || (isOrg && has(input, "SETTINGS_MANAGE"))) {
     // CONTEXT AUTHORITY (2026-09-03) — "General" is now called what it is.
     //
     // The label said General and the pane's own subtitle said "Workspace
