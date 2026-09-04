@@ -53,6 +53,7 @@ import {
   resolveRouteAccess,
   type RouteAccessResult,
 } from "../../lib/navigation/routeAccessResolver";
+import { routeIconFor } from "../../lib/navigation/routeIcons";
 
 type IndexedItem = {
   route: RouteDefinition;
@@ -318,6 +319,7 @@ export function CommandPalette() {
               // operators see Workspace · Governance · Outputs ·
               // System grouping at a glance.
               const opGroup = operationalGroupDescriptor(item.route.id);
+              const ResultIcon = routeIconFor(item.route.id);
               return (
                 <li
                   key={item.route.id}
@@ -354,6 +356,38 @@ export function CommandPalette() {
                     gap: 10,
                   }}
                 >
+                  {/*
+                    EVERY ROW LEADS WITH ITS DESTINATION'S OWN GLYPH.
+
+                    Twenty rows of title-over-description read as an
+                    undifferentiated wall: Cases, Reports and Retention all
+                    looked identical until you read them. The glyph is the
+                    thing the eye can sort on before the words are read, and
+                    it is the SAME glyph the sidebar puts on that destination,
+                    so a route found by search looks like the route found by
+                    navigating — see lib/navigation/routeIcons.ts.
+
+                    Decorative: the title beside it already names the
+                    destination, so it is hidden from assistive technology
+                    rather than announced twice. Fixed 18px box and
+                    `flex: 0 0 auto` so a two-line row does not stretch it and
+                    every title starts on the same x.
+                  */}
+                  <span
+                    aria-hidden="true"
+                    data-command-palette-result-icon={item.route.id}
+                    style={{
+                      flex: "0 0 auto",
+                      width: 18,
+                      height: 18,
+                      display: "grid",
+                      placeItems: "center",
+                      marginTop: 1,
+                      color: isHighlighted ? "#4338ca" : "#64748b",
+                    }}
+                  >
+                    <ResultIcon size={17} strokeWidth={1.75} />
+                  </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{

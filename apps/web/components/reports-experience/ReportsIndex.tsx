@@ -1196,12 +1196,26 @@ function ReportsEmptyState({
       ? "No reports match your search."
       : "No reports match this filter.";
   const body = !filtered
-    ? "Reports are generated from signed evidence. Capture or upload evidence to make a report available."
+    ? "Reports are generated from signed evidence. Capture or upload evidence to create your first report."
     : "Adjust the filter or the search to widen the query.";
 
   return (
+    /*
+      ONE EMPTY SURFACE, NOT THREE.
+
+      This wrapper carried `cases-empty` — a class from the CASES stylesheet
+      that paints its own 1px border, 14px radius and 32px padding — and then
+      put a `framed` `EmptyState` inside it, which draws a second dashed
+      frame of its own. Rendered inside the section's card that made three
+      nested boxes for one sentence, which is what read as a rectangle inside
+      a rectangle.
+
+      The wrapper now carries only the data attributes end-to-end probes read;
+      `EmptyState framed` is the single canonical empty surface and draws the
+      one border. Same primitive Teams and every other empty state uses — no
+      new component, and no borrowed stylesheet from a different feature.
+    */
     <div
-      className="cases-empty"
       data-reports-empty={filter}
       data-reports-empty-kind={filtered ? "no_match" : "no_data"}
     >

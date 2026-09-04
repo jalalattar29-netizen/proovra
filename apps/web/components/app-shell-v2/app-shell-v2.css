@@ -1120,13 +1120,42 @@
   flex: 0 0 22px;
 }
 
+/*
+  THE LABELS WERE CENTRED BECAUSE THIS IS A <button>.
+
+  Both triggers put their two lines in this column, and both read as text
+  floating in the middle of a wide pill rather than a label attached to the
+  workspace it names. Nothing here asked for that: `text-align: center` is
+  the USER-AGENT default on `<button>`, and it inherits straight through to
+  the strong and the span. Measured in the browser, the button's computed
+  `text-align` was `center` and the column's was too.
+
+  `text-align: start` is the whole fix, and it is logical rather than `left`
+  so the Arabic build still reads from its own leading edge.
+
+  `flex: 0 1 auto` replaces `1 1 auto`: the column has no business growing
+  past its content inside a shrink-wrapping inline-flex trigger. It keeps
+  the shrink factor, which is load-bearing — the `max-width` on the buttons
+  bounds a long organization name, and it is this column shrinking below its
+  content that lets the ellipsis below actually appear.
+
+  DO NOT add `align-items: flex-start` here. It looks like the natural way
+  to say "left", and it silently breaks truncation: under `stretch` each
+  line is as wide as the column (156px for a capped trigger) so
+  `text-overflow: ellipsis` has something to clip against, while under
+  `flex-start` each line sizes to its own max-content — measured at 317px
+  for a long name inside a 220px button, spilling out of the trigger with no
+  ellipsis at all. Stretch plus `text-align: start` gives left-aligned text
+  AND a graceful truncation; flex-start gives left-aligned overflow.
+*/
 .app-topbar-v2-workspace-copy,
 .app-topbar-v2-user-copy {
   display: flex;
   flex-direction: column;
+  text-align: start;
   gap: 0;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   line-height: 1.15;
 }
 
@@ -1166,7 +1195,9 @@
 .app-topbar-v2-user {
   height: 36px;
   min-height: 36px;
-  padding: 2px 10px 2px 3px !important;
+  /* Trailing padding trimmed with the stretch fix above — 10px against a 3px
+     leading edge was sized for a column that no longer grows. */
+  padding: 2px 8px 2px 3px !important;
   gap: 8px !important;
   border-radius: 999px !important;
   background: transparent !important;
@@ -1585,10 +1616,33 @@
      because the tab body and the empty state deliberately no longer render a
      duplicate. The topbar instance is the one inside the header's right zone;
      page bodies keep their button. */
-  .app-header-zone-right .app-header-primary-action,
-.app-topbar-v2-runtime,
-.app-topbar-v2-language,
-.app-header-zone-right .app-header-divider {
+  /* EVERY SELECTOR HERE IS PREFIXED, AND THE PREFIX IS LOAD-BEARING.
+
+     These four were written unprefixed and had stopped working. The header's
+     touch-floor block at the end of this file sets `display: inline-flex` on
+     `.app-topbar-v2-runtime`, on `.app-topbar-v2-language`, and on every
+     button and link inside `.app-account-toolbar` — it needs a flex box to
+     centre an icon in a 44px target. It is later in the file at equal
+     specificity for the two pills, and higher for New Case
+     (`.app-account-toolbar :is(button, a[href], ...)` scores above
+     `.app-header-zone-right .app-header-primary-action`), so a sizing floor
+     was quietly un-hiding three controls this block had deliberately hidden.
+
+     Measured at 768x900 before this prefix: the right zone demanded 657px of
+     a 753px header, the grid's centre track was squeezed to `0px`, and the
+     search button — which lives in that track — painted from 48 to 92,
+     across the navigation hamburger on one side and under New Case on the
+     other. Two controls overlapping the only route to the navigation and the
+     palette is the exact failure the 419px block further down was written to
+     prevent; it had simply reappeared 350px earlier.
+
+     The prefix restores this block's intent without weakening the touch
+     floor and without an `!important`: a hidden control has no target size
+     to protect. */
+  .app-account-toolbar .app-header-zone-right .app-header-primary-action,
+  .app-account-toolbar .app-topbar-v2-runtime,
+  .app-account-toolbar .app-topbar-v2-language,
+  .app-account-toolbar .app-header-zone-right .app-header-divider {
     display: none;
   }
 
@@ -1892,3 +1946,201 @@
 /* A decorative divider is not a control and must not be stretched by the rule
    above; it is a <span> so it is unaffected, but saying so here stops the
    selector being "simplified" into `*` later. */
+
+/* SIDEBAR SHORT-VIEWPORT DENSITY */
+/* ---------------------------------------------------------------------------
+   NAVIGATION THAT FITS THE SCREEN IT IS ON.
+
+   Measured, not guessed. On a 1440x768 laptop the rail needed 687px of
+   navigation and had 538px to put it in — 149px of overflow, so eleven
+   destinations became a scrolling list on a screen with room for all of them.
+   At 900px tall it still overflowed by 26px: just enough to produce a
+   scrollbar and clip the last entry, which is the worst of both worlds, since
+   nothing about the list suggests there is more below it.
+
+   The overflow was never one big thing. It was 179px of fixed chrome (a 72px
+   brand block, a storage widget and a support link) sized for a tall monitor,
+   plus 26px between each group and 44px per row, all held constant no matter
+   how much vertical space actually existed.
+
+   So the rail gets denser as the viewport gets shorter, in two tiers. Nothing
+   here is conditional on plan, workspace kind, or role — the browser window is
+   the only input, and every context therefore gets the same treatment at the
+   same height.
+
+   WHAT IS DELIBERATELY NOT DONE
+   -----------------------------
+   Type does not shrink. Labels stay at 13.5px and group titles at 10.5px at
+   every height, because an unreadable sidebar that does not scroll is not an
+   improvement on a readable one that does.
+
+   Row height is reduced ONLY under `pointer: fine`. The 44px floor exists
+   because the verification matrix caught these rows two pixels under it, and
+   it is a floor for a thumb, not for a cursor. On any touch or coarse-pointer
+   device the earlier `(pointer: coarse), (max-width: 900px)` block still
+   applies and rows stay 44px — those users keep the scroll, which is the
+   correct trade.
+
+   And no row is hidden. Reachability is decided by `resolveRouteAccess`; a
+   destination never disappears because a window is short.
+   --------------------------------------------------------------------------- */
+
+/* TIER 1 — laptop heights (<= 900px). Closes the 26px near-miss with room to
+   spare, using rhythm rather than size: the 26px group gap was tuned for a
+   tall display and 16px still reads as a section break, especially with the
+   group titles and dividers already separating them. */
+@media (pointer: fine) and (max-height: 900px) {
+  .app-sidebar-v2-inner {
+    padding: 8px 0;
+  }
+
+  .app-sidebar-v2-brand {
+    height: 60px;
+    min-height: 60px;
+    margin-bottom: 4px;
+  }
+
+  .app-sidebar-v2-scroll {
+    gap: 16px;
+    padding: 4px 0 4px;
+  }
+
+  .app-sidebar-v2-group-title {
+    padding: 2px 18px 5px;
+  }
+
+  .app-sidebar-v2-link {
+    height: 40px;
+    min-height: 40px;
+  }
+
+  /* The hairline between groups reserves 1px of rule and 12px beneath it,
+     on top of the group gap. It only PAINTS in the collapsed rail, but it
+     holds its space in both states (releasing it on hover would make the
+     whole list jump), so it is real height at every width. 8px still reads
+     as a break beside a 16px gap. */
+  .app-sidebar-v2-group + .app-sidebar-v2-group::before {
+    margin-bottom: 8px;
+  }
+}
+
+/* TIER 2 — short laptops (<= 820px), where tier 1 alone is not enough. The
+   brand block gives up the space it was holding for a wordmark that is 46px
+   tall in a 72px box, and the storage widget drops its third line: the label,
+   the percentage and the bar all survive, so the fact it reports is intact —
+   the byte counts underneath it are the part also shown on Billing. */
+@media (pointer: fine) and (max-height: 820px) {
+  .app-sidebar-v2-brand {
+    height: 52px;
+    min-height: 52px;
+    padding: 8px 12px;
+  }
+
+  .app-sidebar-v2-brand-mark {
+    width: 40px;
+    height: 40px;
+  }
+
+  .app-sidebar-v2-brand-logo {
+    height: 34px;
+    max-height: 34px;
+  }
+
+  .app-sidebar-v2-scroll {
+    gap: 12px;
+  }
+
+  .app-sidebar-v2-link {
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .app-sidebar-v2-storage {
+    margin-top: 6px;
+    padding: 8px 14px;
+  }
+
+  .app-sidebar-v2-storage-detail {
+    display: none;
+  }
+
+  .app-sidebar-v2-help {
+    height: 40px;
+    min-height: 40px;
+    margin-top: 6px;
+  }
+
+  /* The rail's own top and bottom breathing room, which at this height is
+     space the list needs more than the edges do. */
+  .app-sidebar-v2-inner {
+    padding: 6px 0;
+  }
+
+  .app-sidebar-v2-scroll {
+    padding: 2px 0 2px;
+  }
+
+  .app-sidebar-v2-group + .app-sidebar-v2-group::before {
+    margin-bottom: 6px;
+  }
+}
+
+/* TIER 3 — 720p and smaller (<= 740px), where the fixed chrome is simply too
+   large a share of the screen. 179px of brand + storage + support is a quarter
+   of a 720p viewport, and the storage meter is the one part of it that is a
+   status readout rather than a way to get somewhere: the same figure is on
+   Billing, which is one row up in this very list. Navigation keeps the space.
+   The support link stays — it is where somebody goes when something is wrong,
+   which is not the moment to make them hunt. */
+@media (pointer: fine) and (max-height: 740px) {
+  .app-sidebar-v2-storage {
+    display: none;
+  }
+}
+
+/* HEADER TRIGGERS — NARROW-VIEWPORT COMPACTION */
+/* ---------------------------------------------------------------------------
+   WHERE THE TWO TRIGGERS STOP FITTING, THEY GIVE UP THEIR SECOND LINE.
+
+   Measured at 768x900, signed in to an organization workspace: the right-hand
+   zone is `min-width: max-content` and demanded 657px starting at x=82, while
+   the search button occupies 48-92. The zone therefore began INSIDE it, and
+   "New Case" rendered underneath the search icon — an overlap of about ten
+   pixels, visible as a clipped "New Cas" label.
+
+   The existing narrow treatment starts at 419px, which is far too late: the
+   header is already overflowing at 768, a common laptop and tablet width.
+
+   What gives, and why that part:
+
+     - the SECONDARY line goes. "Organization • Owner" and "Account" are
+       context about a workspace and an account the primary line already names,
+       and both are the first thing inside the menu the trigger opens. At
+       768px that line was also the WIDER of the two, so it — not the name —
+       was setting the trigger's width.
+     - the NAME stays, truncating rather than disappearing, for the reason the
+       419px block already gives: the persistent tenant chip exists so the
+       operating workspace is unmistakable before custody-sensitive actions.
+
+   The caps come down with it, so a long organization name cannot re-open the
+   same overlap; `text-overflow: ellipsis` is already on both lines and does
+   the rest.
+
+   Not touched here: the runtime pill, the language button, the bell and New
+   Case. They are other components' business, and the ten pixels this reclaims
+   many times over came from the two controls this change is about.
+   --------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .app-topbar-v2-workspace-button {
+    max-width: 168px;
+  }
+
+  .app-topbar-v2-user {
+    max-width: 168px;
+  }
+
+  .app-topbar-v2-workspace-copy [data-context-chip-scope-line],
+  .app-topbar-v2-user-copy span {
+    display: none;
+  }
+}

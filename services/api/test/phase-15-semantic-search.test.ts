@@ -72,6 +72,14 @@ const SIDEBAR_SRC = resolve(
   WEB_ROOT,
   "components/app-shell-v2/AppSidebarV2.tsx",
 );
+/*
+ * The sidebar's per-route metadata (which glyph each destination wears)
+ * moved out of the component into this shared module on 2026-09-04, so the
+ * command palette could render the SAME icon for the same destination
+ * instead of growing a second copy of the map. The route ids the sidebar is
+ * keyed by therefore live here now.
+ */
+const ROUTE_ICONS_SRC = resolve(WEB_ROOT, "lib/navigation/routeIcons.ts");
 const ROUTE_REGISTRY_SRC = resolve(WEB_ROOT, "lib/navigation/routeRegistry.ts");
 const PHASE_15_POLICY_DOC = resolve(
   DOCS_ROOT,
@@ -416,8 +424,14 @@ describe("Phase 15 frontend — /search page surface", () => {
     // And the canonical /search href is still registered.
     const registry = readUtf8(ROUTE_REGISTRY_SRC);
     expect(registry).toMatch(/href:\s*["']\/search["']/);
-    // Sidebar still references the workspace.search route id.
-    const sidebar = readUtf8(SIDEBAR_SRC);
+    // The sidebar's own route metadata still references the
+    // workspace.search route id. It is read across the component and the
+    // shared icon authority it now delegates to, because the id can
+    // legitimately live in either: what this test is pinning is that the
+    // sidebar's Search entry is still the /search route, not which file
+    // happens to hold its metadata.
+    const sidebar =
+      readUtf8(SIDEBAR_SRC) + readUtf8(ROUTE_ICONS_SRC);
     expect(sidebar).toMatch(/workspace\.search/);
   });
 

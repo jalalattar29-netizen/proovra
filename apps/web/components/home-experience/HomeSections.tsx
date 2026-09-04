@@ -1290,15 +1290,24 @@ function trustRows(
       label: "OpenTimestamps (OTS)",
       value: `${trust.otsAnchored} anchored${trust.otsPending ? ` · ${trust.otsPending} pending` : ""}${trust.otsFailed ? ` · ${trust.otsFailed} failed` : ""}${trust.otsNone ? ` · ${trust.otsNone} not anchored yet` : ""}`,
       /*
-        ANCHORED IS NOT "DONE" THE WAY STAMPED IS.
+        ANCHORED IS SUCCESS. (Product decision, 2026-09-04.)
 
-        An OpenTimestamps attestation is submitted to a calendar and becomes
-        provable only once Bitcoin confirms it, so "anchored" is work in
-        flight rather than a finished guarantee — it reads as attention, not
-        as success. "not anchored yet" is the one that has run out of road.
+        This row previously painted "anchored" with the attention tone, on the
+        reasoning that an OpenTimestamps attestation is submitted to a calendar
+        and becomes provable only once Bitcoin confirms it — so "anchored" was
+        treated as work in flight rather than a finished guarantee.
+
+        That reading is superseded. The distinction it was drawing already has
+        its own segment: `pending` is the one still waiting on confirmation,
+        and it keeps the attention tone. Once a record IS anchored the work
+        succeeded, and painting the good news amber sat it in the same colour
+        as the thing an operator has to chase.
+
+        Only this segment changes. `pending` stays attention, `failed` and
+        "not anchored yet" stay error, and the TSA row is untouched.
       */
       segments: [
-        { text: `${trust.otsAnchored} anchored`, tone: "warn" as const },
+        { text: `${trust.otsAnchored} anchored`, tone: "ok" as const },
         ...(trust.otsPending ? [{ text: `${trust.otsPending} pending`, tone: "warn" as const }] : []),
         ...(trust.otsFailed ? [{ text: `${trust.otsFailed} failed`, tone: "danger" as const }] : []),
         ...(trust.otsNone

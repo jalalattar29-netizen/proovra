@@ -275,47 +275,64 @@ export default function CaptureLocationMapPanel(
               gap: 8,
             }}
           >
+            {/*
+              CANONICAL ACTIONS, ON A MAP.
+
+              These were the last two controls still wearing the old language:
+              dark translucent pills (`rgba(14,22,26,0.56)` and a teal
+              `rgba(15,42,36,0.78)`), 800-weight uppercase at 11px with 0.08em
+              tracking, behind a backdrop blur. Nothing else in the product
+              shouts like that any more.
+
+              They sit over map tiles, so they cannot be transparent the way a
+              secondary action elsewhere can — an opaque surface and one soft
+              shadow are what keep them readable over both a pale street map
+              and dark satellite imagery. That is the only reason a shadow
+              appears here at all.
+
+              Hierarchy: copying is the quieter of the two, so it is a neutral
+              surface with navy text; opening the map leaves the product, and
+              takes the canonical action accent.
+            */}
             <button
               type="button"
               onClick={handleCopyCoordinates}
+              data-map-action="copy-coordinates"
               style={{
-                borderRadius: 999,
-                border: "1px solid rgba(212, 219, 221, 0.2)",
-                background: "rgba(14,22,26,0.56)",
-                color: "#eff4f5",
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid var(--border, #e2e8f0)",
+                background: "var(--card, #ffffff)",
+                color: "var(--ink-primary, #0f172a)",
+                fontSize: 12.5,
+                fontWeight: 600,
+                padding: "7px 12px",
                 cursor: "pointer",
-                backdropFilter: "blur(10px)",
+                boxShadow: "0 1px 3px rgba(15,23,42,0.18)",
               }}
             >
-              Copy Coordinates
+              Copy coordinates
             </button>
 
             <a
               href={display.externalMapUrl}
               target="_blank"
               rel="noreferrer"
+              data-map-action="open-in-map"
               style={{
-                borderRadius: 999,
-                border: "1px solid rgba(103, 199, 190, 0.34)",
-                background: "rgba(15,42,36,0.78)",
-                color: "#f4fbfb",
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid var(--accent-600, #6d28d9)",
+                background: "var(--card, #ffffff)",
+                color: "var(--accent-600, #6d28d9)",
+                fontSize: 12.5,
+                fontWeight: 600,
+                padding: "7px 12px",
                 textDecoration: "none",
-                backdropFilter: "blur(10px)",
                 display: "inline-flex",
                 alignItems: "center",
+                boxShadow: "0 1px 3px rgba(15,23,42,0.18)",
               }}
             >
-              Open In Map
+              Open in map
             </a>
           </div>
         </div>

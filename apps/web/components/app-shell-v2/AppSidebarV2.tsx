@@ -43,6 +43,7 @@ import {
 } from "../../lib/useGlobalRuntimeState";
 import { usePlatformContext } from "../../lib/platform-context";
 import { ROUTE_REGISTRY, type RouteDefinition } from "../../lib/navigation/routeRegistry";
+import { routeIconFor } from "../../lib/navigation/routeIcons";
 import {
   resolveRouteAccess,
   type RouteAccessResult,
@@ -93,56 +94,14 @@ import { SidebarStorageWidget } from "./SidebarStorageWidget";
  *   - does NOT derive role/persona/platform-admin locally
  */
 
-type SidebarIcon = ForwardRefExoticComponent<
-  Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
->;
-
 // =============================================================================
-// Static per-registry-id metadata: icon + runtime badge key.
+// Static per-registry-id metadata: runtime badge key.
+//
+// The icon half of this block moved to lib/navigation/routeIcons.ts. It was a
+// component-private map, so the command palette — which indexes the same
+// registry — had no icons at all and could not get them without copying it.
+// Same glyphs, same route ids, now read by both surfaces.
 // =============================================================================
-
-const ICON_BY_ROUTE_ID: Record<string, SidebarIcon> = {
-  // Semantic distinctness — each visible sidebar entry maps to a
-  // distinct Lucide glyph. Route IDs are the canonical values from
-  // routeRegistry.ts (verified against the rendered DOM
-  // `data-sidebar-nav-id`). The workspace-scoped Teams route uses
-  // `workspace.collaboration_teams` — the sidebar renders it; `admin.teams`
-  // / `governance.hub` are separate registry entries that aren't currently
-  // sidebar-eligible. (The former `workspace.trust` Trust Hub sidebar entry
-  // was removed 2026-07-15 when the authenticated Trust Hub was deleted.)
-  "workspace.home": Home,
-  "workspace.capture": Camera,
-  "workspace.evidence": FolderArchive,
-  "workspace.cases": BriefcaseBusiness,
-  "workspace.reports": FileText,
-  "workspace.search": Search,
-  // Operations Center — the single sidebar entry for /inbox.
-  "account.notifications": Inbox,
-  "workspace.notification_deliveries": Bell,
-  "workspace.integrations": Plug,
-  "workspace.collaboration_teams": UsersRound,
-  "review.queue": ListTodo,
-  "review.sla": GaugeCircle,
-  "governance.hub": ShieldCheck,
-  "governance.retention": ClipboardList,
-  "workspace.operations": Radio,
-  "platform.observability": Activity,
-  "platform.runbooks": BookOpen,
-  "platform.security_center": ShieldAlert,
-  "admin.teams": UsersRound,
-  "account.billing": CreditCard,
-  "account.settings": Settings,
-  "platform.admin": Key,
-  "workspace.tools": LayoutGrid,
-  "workspace.intake_links": Link2,
-  "workspace.destruction": Trash2,
-  // Final Closure Remediation Parts A + E — newly sidebar-eligible
-  // routes get explicit icons so they don't fall back to the generic
-  // Gauge default.
-  "workspace.evidence_requests": Inbox,
-  "platform.queue_ops": Layers,
-  "platform.reliability": HeartPulse,
-};
 
 const BADGE_KEY_BY_ROUTE_ID: Record<string, string> = {
   "review.queue": "escalations_open",
@@ -333,7 +292,7 @@ function SidebarLink({
 }) {
   const route = item.route;
   const access = item.access;
-  const Icon = ICON_BY_ROUTE_ID[route.id] ?? Gauge;
+  const Icon = routeIconFor(route.id);
 
   // Denied-but-visible items render with a structured degradation
   // chip. The link still points at the route — the destination
