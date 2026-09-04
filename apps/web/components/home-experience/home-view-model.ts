@@ -38,8 +38,15 @@
 // Plan helpers
 // ============================================================================
 
+/*
+ * `representationFor` is the accessor over `HOME_CONDITION_REPRESENTATION`, and
+ * it is the only thing this file needs. The record itself was imported here
+ * too, from a draft that read it directly, and then never referenced — the
+ * exhaustive mapping is enforced where it is DECLARED (a Record over a closed
+ * union) and asserted by the coverage test that imports it, not by this file
+ * holding a second reference to it.
+ */
 import {
-  HOME_CONDITION_REPRESENTATION,
   PLATFORM_ADVISORY_PRIORITY,
   UNRECOGNISED_SOURCE_PRIORITY,
   representationFor,
