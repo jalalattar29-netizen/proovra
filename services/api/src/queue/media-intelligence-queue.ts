@@ -121,35 +121,56 @@ export async function replayMediaIntelligenceDlq(
   options: { maxJobs?: number } = {},
 ): Promise<{
   ok: true;
-  attempted: number;
+  /** Failed jobs the queue returned within the limit. */
+  discovered: number;
+  /** Of those, the ones still in `failed` when we re-checked. */
+  eligible: number;
   retried: number;
   skipped: number;
+  limit: number;
 } | {
   ok: false;
   reason: string;
 }> {
-  const maxJobs = Math.max(1, Math.min(options.maxJobs ?? 50, 200));
+  const limit = Math.max(1, Math.min(options.maxJobs ?? 50, 200));
   const queue = getQueue();
   if (!queue) return { ok: false, reason: "queue_unavailable" };
   try {
-    const failed = await queue.getFailed(0, maxJobs - 1);
+    const failed = await queue.getFailed(0, limit - 1);
     let retried = 0;
     let skipped = 0;
+    let eligible = 0;
+
     for (const job of failed) {
+      // RE-CHECK IMMEDIATELY BEFORE RETRYING.
+      //
+      // `getFailed` gave us a snapshot. Between that read and this line another
+      // operator's replay, or the worker itself, may have moved the job — and
+      // retrying a job that is no longer failed is how one click becomes two
+      // runs of the same work. Asking the job for its CURRENT state closes the
+      // window to a single job rather than the whole batch.
+      let state: string | null = null;
+      try {
+        state = await job.getState();
+      } catch {
+        state = null;
+      }
+      if (state !== "failed") {
+        skipped += 1;
+        continue;
+      }
+      eligible += 1;
       try {
         await job.retry();
         retried += 1;
       } catch {
+        // Lost the race to another replay, or the job moved under us.
         skipped += 1;
       }
     }
+
     bump("media_intelligence_enqueue_total", retried);
-    return {
-      ok: true,
-      attempted: failed.length,
-      retried,
-      skipped,
-    };
+    return { ok: true, discovered: failed.length, eligible, retried, skipped, limit };
   } catch (err) {
     return {
       ok: false,

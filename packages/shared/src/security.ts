@@ -337,6 +337,10 @@ export const SECURITY_EVENT_TYPES = [
   "signer_retired",
   "signer_revoked",
   "signer_signature_failure",
+  // A platform operator requeued the media-intelligence dead-letter queue.
+  // The queue is global, so this records a fleet-wide action and the count it
+  // actually changed — not the workspace the operator happened to stand in.
+  "media_intelligence_dlq_replayed",
   "custody_attestation_signed",
   "custody_attestation_verified",
   "custody_attestation_backfill_started",

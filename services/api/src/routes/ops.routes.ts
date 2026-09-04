@@ -49,6 +49,8 @@ import {
 } from "../services/operations/assignable-operators.service.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
+import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   cronSecretMatches,
   readCronSecretFromEnvs,
@@ -3180,7 +3182,11 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { runId } = RetryRunParams.parse(req.params);
       const body = RetryRunBody.parse(req.body ?? {});
-      const actor = await requireDomainActionOnOpsSurface(req, reply, body.teamId, "intelligence.run");
+      // Same correction as the DLQ replay below: `retryMediaIntelligenceJob`
+      // takes only a job id and re-queues it from the global queue, with no
+      // check that the job belongs to the workspace whose permission was used
+      // to authorize the call. Platform authority for a platform action.
+      const actor = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!actor) return;
       const { retryMediaIntelligenceJob } = await import(
         "../queue/media-intelligence-queue.js"
@@ -3260,7 +3266,21 @@ export async function opsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = ReplayDlqBody.parse(req.body ?? {});
-      const actor = await requireDomainActionOnOpsSurface(req, reply, body.teamId, "intelligence.run");
+      // PLATFORM AUTHORITY, because the action is platform-wide.
+      //
+      // This used to be `requireDomainActionOnOpsSurface(…, "intelligence.run")`
+      // — a WORKSPACE permission held by the OWNER, ADMIN and REVIEWER of any
+      // workspace. The action it guarded is `queue.getFailed()` on the single
+      // global media-intelligence queue with no tenant predicate: an org owner
+      // of one workspace could requeue every tenant's dead-lettered jobs. It
+      // was proven at runtime — org-owner received a 200.
+      //
+      // The scope is not a mistake to be filtered away: the DLQ is one global
+      // queue and this page is platform-scoped (PLATFORM_TELEMETRY_VIEW,
+      // "platform-global metrics"). So the fix is to make the AUTHORITY match
+      // the blast radius, using the same guard the sibling platform-operations
+      // families already use, and to say so in the dialog.
+      const actor = await requirePlatformOpsActor(req, reply, body.teamId);
       if (!actor) return;
       const { replayMediaIntelligenceDlq } = await import(
         "../queue/media-intelligence-queue.js"
@@ -3273,10 +3293,28 @@ export async function opsRoutes(app: FastifyInstance) {
           error: { code: "queue_unavailable", detail: result.reason },
         });
       }
+      safeEmitSecurityEvent({
+        teamId: body.teamId,
+        eventType: "media_intelligence_dlq_replayed",
+        severity: "WARNING",
+        details: {
+          actorUserId: actor.userId,
+          scope: "platform_global",
+          discovered: result.discovered,
+          retried: result.retried,
+          skipped: result.skipped,
+          limit: result.limit,
+        },
+      });
       return reply.code(200).send({
-        attempted: result.attempted,
+        scope: "platform_global",
+        discovered: result.discovered,
+        eligible: result.eligible,
         retried: result.retried,
         skipped: result.skipped,
+        limit: result.limit,
+        // Kept for existing consumers; equal to `eligible`.
+        attempted: result.eligible,
       });
     },
   );

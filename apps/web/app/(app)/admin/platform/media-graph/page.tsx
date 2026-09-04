@@ -334,7 +334,7 @@ useEffect(() => {
     // A requeue runs the job's side effects again. Named before it runs.
     const ok = await confirm({
       title: "Requeue this media-intelligence job?",
-      description: `Job ${trimmed} in the active workspace is placed back on its queue and runs again from the start. If it had already completed elsewhere, its work is repeated.`,
+      description: `Job ${trimmed} is placed back on its queue and runs again from the start. This queue is platform-wide, so the job may belong to any workspace on this deployment. If it had already completed elsewhere, its work is repeated.`,
       confirmLabel: "Requeue job",
       tone: "warning",
       testId: "media-graph-retry",
@@ -377,7 +377,7 @@ useEffect(() => {
     const ok = await confirm({
       title: "Replay the media-intelligence dead-letter queue?",
       description:
-        "Up to 50 dead-lettered media-intelligence jobs for the active workspace are placed back on their queues and run again. Jobs the replay-safety matrix refuses are skipped and reported; jobs that run again repeat their side effects.",
+        "This queue is PLATFORM-WIDE. Up to 50 dead-lettered media-intelligence jobs are placed back on their queues and run again — across every workspace on this deployment, not only the one you are standing in. Jobs the replay-safety matrix refuses are skipped and reported; jobs that run again repeat their side effects.",
       confirmLabel: "Replay up to 50 jobs",
       tone: "warning",
       testId: "media-graph-replay-dlq",
