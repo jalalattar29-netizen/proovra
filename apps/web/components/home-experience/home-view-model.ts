@@ -38,6 +38,14 @@
 // Plan helpers
 // ============================================================================
 
+import {
+  HOME_CONDITION_REPRESENTATION,
+  PLATFORM_ADVISORY_PRIORITY,
+  UNRECOGNISED_SOURCE_PRIORITY,
+  representationFor,
+  type HomeOperationsSourceId,
+} from "./operations-condition-map";
+
 export type HomePlan = "FREE" | "PAYG" | "PRO" | "TEAM" | null;
 
 /** Which kind of workspace the user is currently in. */
@@ -412,7 +420,20 @@ export type WorkspacePriority = {
     | "publish_verification"
     | "reports_ready"
     | "storage_pressure"
-    | "create_intake_link";
+    | "create_intake_link"
+    /*
+     * Operational conditions, one key per registry source id.
+     *
+     * Templated rather than enumerated so the SOURCE registry stays the single
+     * list; what is exhaustively checked is the REPRESENTATION
+     * (`HOME_CONDITION_REPRESENTATION` is a Record over the closed source-id
+     * union, so a new id without a representation does not compile).
+     */
+    | `ops:${HomeOperationsSourceId}`
+    /** Every PLATFORM_INTERNAL condition, collapsed into one advisory row. */
+    | "platform_service_degraded"
+    /** Version skew only: the server named a source this build does not know. */
+    | "operations_condition_unrecognised";
   /** critical > warning > info — drives ranking and the chip. */
   severity: "critical" | "warning" | "info";
   /** evidence / matter / report / package / verification / intake / trust / storage. */
@@ -1924,6 +1945,100 @@ function buildChecklist(args: {
  * critical > warning > info, ties broken by affected count. Zero-count
  * rules never emit; zero data emits nothing (the UI shows all-clear).
  */
+/**
+ * Fold the workspace's open operational conditions into the priority list.
+ *
+ * DEDUPE IS SEMANTIC, NOT TEXTUAL. A condition whose representation is MERGE
+ * names the Home priority that already states the same fact, by key. Where that
+ * priority is present the condition adds nothing — the Home row is derived from
+ * an uncapped aggregate and already carries the real count and the right
+ * action, whereas the condition is a bounded scan of the same subject. Where it
+ * is ABSENT the condition is still not invented as a row: its absence means the
+ * aggregate said zero, and two sources disagreeing is not a reason to show the
+ * quieter one twice. Either way, nothing is matched on a display string.
+ *
+ * PLATFORM_INTERNAL conditions collapse into one advisory row however many
+ * there are, because they are the same platform fault seen from one workspace.
+ *
+ * An unrecognised source id produces the version-skew row — never silence.
+ */
+function mergeOperationalConditions(
+  derived: WorkspacePriority[],
+  groups: ReadonlyArray<HomeOperationsConditionGroup> | null,
+): WorkspacePriority[] {
+  if (!groups || groups.length === 0) return derived;
+
+  const out = [...derived];
+  const present = new Set(derived.map((p) => p.key));
+  let platformConditions = 0;
+  let unrecognised = 0;
+
+  for (const group of groups) {
+    if (!group || typeof group.sourceId !== "string") continue;
+    if (group.statusPosture && group.statusPosture !== "OPEN") continue;
+
+    const representation = representationFor(group.sourceId);
+    if (!representation) {
+      unrecognised += 1;
+      continue;
+    }
+
+    if (representation.kind === "MERGE") {
+      // Accounted for by an existing row (or by an aggregate that said zero).
+      continue;
+    }
+    if (representation.kind === "PLATFORM") {
+      platformConditions += group.conditionCount || 1;
+      continue;
+    }
+
+    const key = `ops:${group.sourceId}` as WorkspacePriority["key"];
+    if (present.has(key)) continue;
+    present.add(key);
+    out.push({
+      key,
+      severity: representation.severity,
+      domains: [...representation.domains],
+      // The condition count is the real one the projection carries; the record
+      // count is used where the source counts records rather than conditions.
+      count: group.affectedRecordCount ?? group.conditionCount ?? 1,
+      label: representation.label,
+      whyItMatters: representation.whyItMatters,
+      recommendedAction: representation.recommendedAction,
+      actionLabel: representation.actionLabel,
+      href: representation.href,
+      derivedFrom: [`ops/summary.groups.${group.sourceId}`],
+    });
+  }
+
+  if (platformConditions > 0) {
+    out.push({
+      ...PLATFORM_ADVISORY_PRIORITY,
+      key: PLATFORM_ADVISORY_PRIORITY.key as WorkspacePriority["key"],
+      domains: [...PLATFORM_ADVISORY_PRIORITY.domains],
+      count: platformConditions,
+      derivedFrom: ["ops/summary.groups[audience=PLATFORM_INTERNAL]"],
+    });
+  }
+  if (unrecognised > 0) {
+    out.push({
+      ...UNRECOGNISED_SOURCE_PRIORITY,
+      key: UNRECOGNISED_SOURCE_PRIORITY.key as WorkspacePriority["key"],
+      domains: [...UNRECOGNISED_SOURCE_PRIORITY.domains],
+      count: unrecognised,
+      derivedFrom: ["ops/summary.groups[sourceId not in HOME_CONDITION_REPRESENTATION]"],
+    });
+  }
+
+  // Same ordering rule the rest of Home uses: severity first, order preserved
+  // within a severity so derived rows keep precedence over condition rows.
+  const rank = { critical: 0, warning: 1, info: 2 } as const;
+  return out
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => rank[a.p.severity] - rank[b.p.severity] || a.i - b.i)
+    .map((x) => x.p);
+}
+
 function buildWorkspacePriorities(args: {
   /** SERVER-projected `planFeatures.intakeIncluded` (fail-closed). */
   intakeIncluded: boolean;
@@ -3388,6 +3503,25 @@ export type HomeOperationsSummaryInput = {
   mayAssertAllClear: boolean;
   /** `GET /v1/ops/summary` has always sent this; Home simply never read it. */
   clearRefusalReason?: HomeClearRefusalReason | null;
+  /**
+   * The open conditions, grouped by their canonical `sourceId`.
+   *
+   * This is what lets Home say WHAT is unresolved rather than merely that
+   * something is. The endpoint has always projected it; Home read the counts
+   * beside it and ignored the groups themselves.
+   */
+  groups?: ReadonlyArray<HomeOperationsConditionGroup> | null;
+};
+
+/** One group of open conditions sharing a source, as `/v1/ops/summary` projects it. */
+export type HomeOperationsConditionGroup = {
+  /** The stable registry id. The ONLY thing keyed on — never the title. */
+  sourceId: string;
+  conditionCount: number;
+  /** Records behind the group where the source counts records; null otherwise. */
+  affectedRecordCount?: number | null;
+  severity?: string | null;
+  statusPosture?: string | null;
 };
 
 export type NormalizeInputs = {
@@ -3691,7 +3825,7 @@ export function normalizeHomeViewModel(
 
   // Phase HOME-INTELLIGENCE — ranked active-user priorities (cross-
   // domain signals) + overall health verdict.
-  const workspacePriorities = buildWorkspacePriorities({
+  const derivedPriorities = buildWorkspacePriorities({
     intakeIncluded: features.intakeIncluded,
     trust: trustState,
     pipeline,
@@ -3706,6 +3840,24 @@ export function normalizeHomeViewModel(
     reportsReady: reportProduction.reportsReady,
     storage,
   });
+  /*
+   * OPERATIONAL CONDITIONS BECOME PRIORITIES TOO.
+   *
+   * `mayAssertAllClear` is refused by ANY unresolved condition, from any of
+   * the 37 registered sources, while the list above is derived from trust,
+   * pipeline, submissions, collection, report, matter and storage signals.
+   * Everything in that gap used to be invisible here — which is how a
+   * workspace ended up with a refused all-clear beside an empty list.
+   *
+   * The mapping decides what each source means to a customer; this merges its
+   * output into the SAME priority model, so ordering, severity, styling and
+   * actions are the ones every other row already uses. There is no second
+   * renderer.
+   */
+  const workspacePriorities = mergeOperationalConditions(
+    derivedPriorities,
+    inputs.operationsSummary?.groups ?? null,
+  );
   const workspaceHealthOverall: HomeViewModel["workspaceHealthOverall"] =
     workspaceHealth.some((m) => m.tone === "danger")
       ? "action_required"
