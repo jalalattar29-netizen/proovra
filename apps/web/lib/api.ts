@@ -224,7 +224,96 @@ async function fetchWithAuthRetry(
   return second;
 }
 
+/**
+ * ONE READ IN FLIGHT PER URL.
+ *
+ * A single page mount can ask several independent components the same
+ * question at the same instant. Measured on /home in an organization
+ * workspace: 17 distinct endpoints, but `/v1/billing/overview` requested by
+ * three components, and `/v1/ops/incidents` and
+ * `/v1/reviewer-ops/escalations` by two each — all within a few milliseconds
+ * of one another, because none of them knows the others exist. Each extra
+ * copy costs a full round trip and a repeat of the same server work, and on
+ * a slow connection those are paid in series with everything else the page
+ * is waiting for.
+ *
+ * So identical GETs that OVERLAP IN TIME share one request. The narrowness
+ * is the point:
+ *
+ *   - It is not a cache. The entry is dropped the moment the request
+ *     settles, so a later read always goes to the server and nothing here
+ *     can ever serve a stale answer. Two sequential reads still make two
+ *     requests, which is what a caller re-reading after a write expects.
+ *   - GET only, and only without a body. A POST/PATCH/DELETE is a side
+ *     effect; two of them are two intentions and must never be merged.
+ *   - Not when the caller passed an `AbortSignal`. A shared request aborted
+ *     by whichever caller unmounted first would fail the others, and the
+ *     bug that produces is invisible and intermittent.
+ *   - The key includes the auth options, so an authenticated read and an
+ *     anonymous one of the same path stay separate requests.
+ *
+ * Every caller after the first gets a structured clone, so no two
+ * components end up holding the same mutable object.
+ */
+const inFlightReads = new Map<string, Promise<unknown>>();
+
+function readKeyFor(
+  url: string,
+  init: RequestInit,
+  opts: ApiFetchOpts | undefined,
+): string | null {
+  /* Browser only. This module is already a per-browser singleton (it holds
+     the in-memory token in a module variable), but a shared map keyed without
+     the caller identity would be a cross-request leak in any server runtime,
+     so the sharing is switched off where there is no single user to share
+     between rather than left to depend on where the module happens to load. */
+  if (typeof window === "undefined") return null;
+
+  const method = (init.method ?? "GET").toUpperCase();
+  if (method !== "GET") return null;
+  if (init.body != null) return null;
+  if (init.signal) return null;
+  return `${url}|auth:${opts?.auth !== false}|retry:${opts?.retryAuthOnce !== false}`;
+}
+
+function cloneResult(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  try {
+    return structuredClone(value);
+  } catch {
+    /* A payload that cannot be cloned is returned as-is rather than
+       dropped — sharing a reference is a far smaller problem than failing
+       the read. */
+    return value;
+  }
+}
+
 export async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  opts?: ApiFetchOpts
+) {
+  const key = readKeyFor(
+    `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`,
+    init,
+    opts,
+  );
+
+  if (!key) return runApiFetch(path, init, opts);
+
+  const existing = inFlightReads.get(key);
+  if (existing) return cloneResult(await existing);
+
+  const pending = runApiFetch(path, init, opts);
+  inFlightReads.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    inFlightReads.delete(key);
+  }
+}
+
+async function runApiFetch(
   path: string,
   init: RequestInit = {},
   opts?: ApiFetchOpts

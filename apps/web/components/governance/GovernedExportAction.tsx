@@ -174,10 +174,50 @@ export function GovernedExportAction({
     );
   }
   if (loading) {
+    /*
+     * THE WHITE SLAB ON FIRST LOAD.
+     *
+     * This state used to render `panelStyle` unconditionally: a block-level
+     * div with `background: #fff`, a hairline border and 0.75rem of padding,
+     * stretched to the full width of whatever row it sat in. On the Reports
+     * index that is two of them per row over twenty-one rows, so opening the
+     * page painted forty-two large white rectangles where the download
+     * buttons were about to be, until `/v1/governance/export-eligibility`
+     * came back and each collapsed into a small button. That is the flash.
+     *
+     * A compact caller has told us its resolved form is JUST the button, so
+     * the honest placeholder is that same button, inert. The footprint is
+     * identical before and after the fetch, so nothing reflows and there is
+     * no white surface to flash — the row simply starts with its action
+     * disabled and enables it once eligibility is known.
+     *
+     * It cannot leak an unauthorised export: `disabled` is hard-coded true
+     * and the click handler is a no-op, so the only path to `onAction` is
+     * still the ALLOWED branch below.
+     *
+     * A non-compact caller keeps the panel. Its resolved form IS a panel
+     * carrying the verdict and its next step, so a panel-shaped placeholder
+     * is the stable footprint there.
+     */
+    if (compactWhenAllowed) {
+      return (
+        <div
+          data-governed-export-loading
+          data-governed-export-loading-form="compact"
+          data-governed-export-action={actionLabel}
+          aria-busy="true"
+        >
+          {renderAction({ disabled: true, onClick: () => {} })}
+        </div>
+      );
+    }
+
     return (
       <div
         data-governed-export-loading
+        data-governed-export-loading-form="panel"
         data-governed-export-action={actionLabel}
+        aria-busy="true"
         style={panelStyle}
       >
         Checking eligibility for {actionLabel}…

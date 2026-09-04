@@ -79,11 +79,11 @@
       "reviewedAtUtc": "2026-08-17"
     },
     {
-      "site": "apps/web/lib/api.ts:242",
+      "site": "apps/web/lib/api.ts:331",
       "verdict": "PLUMBING",
       "originBinding": "url — same wrapper",
-      "evidence": "apps/web/lib/api.ts — apiFetch's own call into the retry wrapper. | Re-anchored :170 -> :181 on 2026-08-17 (NEW-032 nested-code branch), then :181 -> :242 on 2026-08-17. The site READ at :242 is still res = await fetchWithAuthRetry(url, init, finalOpts), with url composed from API_BASE and the normalized path at :233. PLUMBING for the same reason as before: the PATH is supplied by apiFetch's callers and is already counted at each of them, so crediting a route here would double-count every request the web app makes.",
-      "reviewedAtUtc": "2026-08-17"
+      "evidence": "apps/web/lib/api.ts — apiFetch's own call into the retry wrapper. | Re-anchored :170 -> :181 on 2026-08-17 (NEW-032 nested-code branch), then :181 -> :242 on 2026-08-17. The site READ at :242 is still res = await fetchWithAuthRetry(url, init, finalOpts), with url composed from API_BASE and the normalized path at :233. PLUMBING for the same reason as before: the PATH is supplied by apiFetch's callers and is already counted at each of them, so crediting a route here would double-count every request the web app makes. | Re-anchored :242 -> :331 on 2026-09-04. The single-flight read dedupe added above apiFetch moved this line and renamed its enclosing function: apiFetch is now a thin wrapper that shares one in-flight request per identical GET, and the body that composes the URL and calls the retry wrapper is runApiFetch. The site READ at :331 is the same statement — res = await fetchWithAuthRetry(url, init, finalOpts) — over the same url composed from API_BASE and the normalized path immediately above it. No new call, no new origin: PLUMBING for the same reason as before, since the PATH is supplied by apiFetch's callers and is already counted at each of them.",
+      "reviewedAtUtc": "2026-09-04"
     },
     {
       "site": "scripts/e2e-web-smoke.mjs:7",
