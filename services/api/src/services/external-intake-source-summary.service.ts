@@ -55,6 +55,21 @@ export type ExternalIntakeSourceSummary = {
     createdAt: string;
     createdByUserId: string;
     recipientLabel: string | null;
+    /*
+     * DELIBERATELY NOT PROJECTED: recipientEmail / recipientPhone.
+     *
+     * Both columns exist on WorkflowIntakeLink and both are the workspace's
+     * own outbound contact detail, so surfacing them to a reviewer who can
+     * already read the record is arguable. But the omission here is not an
+     * oversight — the summary service test names both
+     * fields as forbidden in this projection, which makes it a recorded
+     * privacy decision rather than a gap.
+     *
+     * `recipientLabel` is the projected, human-readable stand-in and is what
+     * the evidence card renders as the delivery destination. Widening this to
+     * the raw address is a product decision for whoever owns that contract,
+     * and it is one line here plus the two assertions that guard it.
+     */
     revokedAtUtc: string | null;
   };
 
@@ -64,6 +79,8 @@ export type ExternalIntakeSourceSummary = {
     status: string;
     submitterDisplayName: string | null;
     submitterEmail: string | null;
+    /** Submitter-PROVIDED, like the two above. Masked for anonymous modes. */
+    submitterPhone: string | null;
     pseudonym: string | null;
     openedAtUtc: string | null;
     uploadStartedAtUtc: string | null;
@@ -139,6 +156,7 @@ export function buildSummary(
       status: session.status,
       submitterDisplayName: isAnonymous ? null : session.submitterDisplayName,
       submitterEmail: isAnonymous ? null : session.submitterEmail,
+      submitterPhone: isAnonymous ? null : session.submitterPhone,
       pseudonym:
         link.intakeMode === "EXTERNAL_PSEUDONYMOUS" ? session.pseudonym : null,
       openedAtUtc: session.openedAtUtc?.toISOString() ?? null,

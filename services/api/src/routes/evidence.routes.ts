@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { getSecret } from "../config/runtime-secrets.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
 // single source of truth the single-record case-attach route uses).
 import { evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
@@ -7576,6 +7577,31 @@ return {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const body = ReviewerWorkflowUpdateBody.parse(req.body);
       const evidence = await getEvidenceWithReadAccess(userId, id);
+
+      /*
+       * READING THE RECORD IS NOT AUTHORITY TO TRIAGE IT.
+       *
+       * This route gated on `getEvidenceWithReadAccess` alone, so anyone who
+       * could SEE the record could move its reviewer status. Proven against a
+       * live workspace: a VIEWER changed a record from IN_REVIEW back to
+       * NOT_STARTED and the change persisted — while the verdict endpoint next
+       * to it correctly answered 403 for the same user. One half of the
+       * reviewer workflow was gated and the other was not.
+       *
+       * It now requires the same permission the decision endpoint does. A
+       * personal workspace has no team row and therefore no membership to
+       * check; there, read access already means sole ownership, and the
+       * canonical primitive is only consulted when a workspace exists to be a
+       * member of.
+       */
+      if (evidence.teamId) {
+        const authorized = await authorizeOrFail(req, reply, {
+          teamId: evidence.teamId,
+          permission: "evidence_request.review",
+          antiEnumeration: true,
+        });
+        if (!authorized) return reply;
+      }
 
       if (body.assignedToUserId) {
         // Track 1B closure — access can flow through ANY linked case.

@@ -52,7 +52,11 @@ import type {
   WorkflowReviewReasonCode,
   WorkflowReviewStage,
 } from "@prisma/client";
-import { mapDbStatusToReviewStage, type ReviewStage } from "@proovra/shared";
+import {
+  mapDbStatusToReviewStage,
+  mapReviewStageToDbStatus,
+  type ReviewStage,
+} from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { notifyReviewNeedsMoreInfo } from "../review-operations/review-notifications.service.js";
@@ -329,9 +333,12 @@ export type RecordReviewDecisionResult = {
 };
 
 function stageToDbStatus(stage: ReviewStage): EvidenceReviewWorkflowStatus {
-  // Same cast contract as the Phase 13 lifecycle service — the DB enum
-  // unions legacy + Phase 13 stage values.
-  return stage as unknown as EvidenceReviewWorkflowStatus;
+  // NOT a cast. Nine of the ten stage names are also enum members and one is
+  // not: the stage is NEEDS_MORE_INFO and the column stores NEEDS_INFO —
+  // so the blanket cast that used to live here handed Postgres a value its
+  // enum does not contain and turned a valid request-more-info decision into a
+  // 500. The mapping is canonical and shared with its inverse.
+  return mapReviewStageToDbStatus(stage) as EvidenceReviewWorkflowStatus;
 }
 
 export async function recordReviewDecision(

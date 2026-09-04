@@ -62,6 +62,7 @@ type Summary = {
     status: string;
     submitterDisplayName: string | null;
     submitterEmail: string | null;
+    submitterPhone: string | null;
     pseudonym: string | null;
     openedAtUtc: string | null;
     uploadStartedAtUtc: string | null;
@@ -163,6 +164,11 @@ export default function ExternalIntakeSourceCard({
   }, [currentStatus]);
 
   const [savedFlashStatus, setSavedFlashStatus] = useState<string | null>(null);
+  /** The verdict awaiting its required written reason, and that reason. */
+  const [pendingDecision, setPendingDecision] = useState<
+    (typeof REVIEWER_DECISION_ACTIONS)[number]["decision"] | null
+  >(null);
+  const [pendingReason, setPendingReason] = useState("");
 
   /** Refresh the workflow projection after any server-side change. */
   async function reloadReview() {
@@ -180,6 +186,34 @@ export default function ExternalIntakeSourceCard({
    * decision log in the same transaction. The workspace is derived from the
    * record server-side, so no tenant id is sent.
    */
+  /**
+   * Which verdicts the server refuses without a written reason.
+   *
+   * `recordReviewDecision` requires a non-empty rationale for every decision
+   * except APPROVE — `if (rationale.length === 0 && input.decision !== "APPROVE")
+   * throw rationale_required` — and answers 422. This card sent `note: null`
+   * for all three buttons, so two of them could never succeed and the reviewer
+   * was told "Please review your input and try again", which describes an
+   * input they were never asked for.
+   */
+  const DECISION_REQUIRES_REASON: ReadonlySet<string> = new Set([
+    "REQUEST_MORE_INFO",
+    "REJECT_INSUFFICIENT",
+  ]);
+
+  const REASON_PROMPT: Record<string, string> = {
+    REQUEST_MORE_INFO: "What additional context is needed?",
+    REJECT_INSUFFICIENT: "Why is this submission insufficient?",
+  };
+
+  /**
+   * PHASE 12 POINT 4 PASS C1 — record a reviewer VERDICT.
+   *
+   * The browser names the DECISION, never the resulting status: the server
+   * appends the immutable decision row and derives `workflow.status` from the
+   * decision log in the same transaction. The workspace is derived from the
+   * record server-side, so no tenant id is sent.
+   */
   async function recordDecision(
     decision: (typeof REVIEWER_DECISION_ACTIONS)[number]["decision"],
     note?: string,
@@ -187,6 +221,33 @@ export default function ExternalIntakeSourceCard({
     setReviewBusy(true);
     setReviewError(null);
     try {
+      /*
+       * THE DECISION ENDPOINT NEEDS A WORKFLOW ROW TO EXIST.
+       *
+       * It derives the authorization subject from the persisted workflow
+       * (`findUnique({ where: { evidenceId } })` → 404 when absent), which is
+       * the right contract — the workspace must come from the record, not from
+       * the caller. But an external-intake record that nobody has triaged yet
+       * has no workflow row, so all three verdict buttons answered 404 on a
+       * freshly submitted piece of evidence: exactly the case this card exists
+       * for.
+       *
+       * The routing PATCH upserts that row, so a verdict on an untriaged
+       * record opens the workflow at IN_REVIEW first. That is not a
+       * side-effect invented here — it is the state a reviewer is in by
+       * definition at the moment they record a verdict, and it is the same
+       * transition the "In review" button performs.
+       */
+      if (!review?.workflow?.id) {
+        await apiFetch(
+          `/v1/evidence/${encodeURIComponent(evidenceId)}/reviewer-workflow`,
+          {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ status: "IN_REVIEW", note: null }),
+          },
+        );
+      }
       await apiFetch(
         `/v1/review-operations/evidence/${encodeURIComponent(evidenceId)}/decision`,
         {
@@ -207,6 +268,29 @@ export default function ExternalIntakeSourceCard({
     } finally {
       setReviewBusy(false);
     }
+  }
+
+  /** Start (or cancel) the reason a verdict requires before it can be sent. */
+  function beginDecision(
+    decision: (typeof REVIEWER_DECISION_ACTIONS)[number]["decision"],
+  ) {
+    if (!DECISION_REQUIRES_REASON.has(decision)) {
+      void recordDecision(decision);
+      return;
+    }
+    setReviewError(null);
+    setPendingDecision(decision);
+    setPendingReason("");
+  }
+
+  async function submitPendingDecision() {
+    if (!pendingDecision) return;
+    const reason = pendingReason.trim();
+    if (reason.length === 0) return;
+    const decision = pendingDecision;
+    setPendingDecision(null);
+    setPendingReason("");
+    await recordDecision(decision, reason);
   }
 
   async function patchReviewStatus(nextStatus: string, note?: string) {
@@ -247,14 +331,41 @@ export default function ExternalIntakeSourceCard({
   // email, phone, or alias, and rendering "Contributor: Not provided"
   // creates confusion ("was something supposed to be collected?
   // did the upload fail?"). When null we hide the entire row.
-  const contributorIdentity: string | null = (() => {
+  /*
+   * WHO SUBMITTED — only what the submitter actually provided.
+   *
+   * Most intake workflows collect nothing, and rendering "Contributor: not
+   * provided" invites the reader to wonder whether something failed. When
+   * there is nothing, the row is absent.
+   *
+   * The link's recipient fields are deliberately NOT considered here. An
+   * address a request was sent to is not evidence of who used the link.
+   */
+  const submitterProvided: string | null = (() => {
     if (summary.session.pseudonym) return `Pseudonym: ${summary.session.pseudonym}`;
     if (!summary.isAnonymous) {
-      if (summary.session.submitterEmail) return summary.session.submitterEmail;
-      if (summary.session.submitterDisplayName)
-        return summary.session.submitterDisplayName;
+      const parts = [
+        summary.session.submitterDisplayName,
+        summary.session.submitterEmail,
+        summary.session.submitterPhone,
+      ].filter((v): v is string => !!v && v.trim().length > 0);
+      if (parts.length > 0) return parts.join(" · ");
     }
     return null;
+  })();
+
+  /*
+   * WHO IT WAS SENT TO — delivery metadata, labelled as such.
+   *
+   * Stored on the intake link when it was created and never projected before,
+   * so a reviewer could not see who the request had been addressed to. It says
+   * where the request went; it says nothing about who answered it.
+   */
+  const recipientAddressed: string | null = (() => {
+    const parts = [
+      summary.link.recipientLabel,
+    ].filter((v): v is string => !!v && v.trim().length > 0);
+    return parts.length > 0 ? parts.join(" · ") : null;
   })();
 
   return (
@@ -278,8 +389,16 @@ export default function ExternalIntakeSourceCard({
             ? formatUserDateTime(summary.session.submittedAtUtc)
             : "—"}
         </Detail>
-        {contributorIdentity ? (
-          <Detail label="Contributor">{contributorIdentity}</Detail>
+        {recipientAddressed ? (
+          <Detail label="Intake sent to">
+            {recipientAddressed}
+            <span className="evd-hint">
+              Delivery address on the intake link. Not proof of who submitted.
+            </span>
+          </Detail>
+        ) : null}
+        {submitterProvided ? (
+          <Detail label="Submitter provided">{submitterProvided}</Detail>
         ) : null}
         <Detail label="Upload Agreement">
           {summary.session.consentAcceptedAtUtc
@@ -289,9 +408,23 @@ export default function ExternalIntakeSourceCard({
                 : "")
             : "Not recorded"}
         </Detail>
+        {summary.session.openedAtUtc ? (
+          <Detail label="Link opened">
+            {formatUserDateTime(summary.session.openedAtUtc)}
+          </Detail>
+        ) : null}
         <Detail label="Session status">{summary.session.status}</Detail>
         <Detail label="Link status">
           {summary.link.status} (used {summary.link.usedCount}/{summary.link.maxUses})
+          <span className="evd-hint">
+            Expires {formatUserDateTime(summary.link.expiresAtUtc)}
+          </span>
+        </Detail>
+        {/* Identifiers a reviewer needs to correlate this record with the
+            intake surface and with support requests. */}
+        <Detail label="Intake reference">
+          <span className="evd-mono">{summary.link.id}</span>
+          <span className="evd-hint">Session {summary.session.id}</span>
         </Detail>
         {summary.caseId ? (
           <Detail label="Case / matter">{summary.caseId}</Detail>
@@ -306,14 +439,6 @@ export default function ExternalIntakeSourceCard({
             data-evidence-reviewer-current-status={currentStatus}
           >
             {currentStatusLabel}
-            {savedFlashStatus && savedFlashStatus === currentStatus ? (
-              <span
-                className="evd-flash"
-                data-evidence-reviewer-saved-flash="true"
-              >
-                Saved
-              </span>
-            ) : null}
           </h4>
         </header>
         {reviewError ? <div className="evd-error">{reviewError}</div> : null}
@@ -359,7 +484,7 @@ export default function ExternalIntakeSourceCard({
                     : "app-secondary-action"
                 }
                 disabled={reviewBusy}
-                onClick={() => recordDecision(action.decision)}
+                onClick={() => beginDecision(action.decision)}
                 data-evidence-reviewer-decision-btn={action.decision}
                 data-evidence-reviewer-decision-active={
                   satisfied ? "true" : "false"
@@ -371,6 +496,82 @@ export default function ExternalIntakeSourceCard({
             );
           })}
         </div>
+
+        {/*
+          THE REASON THE SERVER REQUIRES, ASKED FOR.
+
+          Two of the three verdicts are refused without a written rationale.
+          The reviewer is asked here, inline, rather than being sent an invalid
+          request and told to "review your input" — and the confirm button
+          stays disabled until there is something to send, so the 422 is now
+          unreachable from this surface.
+        */}
+        {pendingDecision ? (
+          <div
+            className="evd-stack"
+            data-evidence-reviewer-reason-for={pendingDecision}
+          >
+            <label className="evd-field__label" htmlFor="intake-decision-reason">
+              {REASON_PROMPT[pendingDecision]}
+            </label>
+            <textarea
+              id="intake-decision-reason"
+              className="evd-input"
+              rows={2}
+              maxLength={2000}
+              autoFocus
+              value={pendingReason}
+              onChange={(e) => setPendingReason(e.target.value)}
+              placeholder="Recorded with the decision. Internal to this workspace."
+              data-evidence-reviewer-reason-input="true"
+            />
+            <div className="evd-actions">
+              <button
+                type="button"
+                className="app-primary-action"
+                disabled={reviewBusy || pendingReason.trim().length === 0}
+                onClick={() => void submitPendingDecision()}
+                data-evidence-reviewer-reason-submit="true"
+              >
+                Record decision
+              </button>
+              <button
+                type="button"
+                className="app-secondary-action"
+                disabled={reviewBusy}
+                onClick={() => {
+                  setPendingDecision(null);
+                  setPendingReason("");
+                }}
+                data-evidence-reviewer-reason-cancel="true"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/*
+          SAVED, ON ITS OWN LINE.
+
+          This sat inside the `<h4>` immediately after the status label, and
+          `.evd-flash` is a padded block — so the confirmation rendered glued
+          to the words "In review" and pushed the heading wider as it appeared
+          and narrower as it left. It now belongs to the controls it confirms,
+          in a row whose height is reserved whether or not the flash is
+          showing, so nothing moves.
+        */}
+        <div className="evd-saved-slot" aria-live="polite">
+          {savedFlashStatus ? (
+            <span
+              className="evd-flash evd-flash--inline"
+              data-evidence-reviewer-saved-flash="true"
+            >
+              Saved
+            </span>
+          ) : null}
+        </div>
+
         <p
           className="evd-muted"
           data-evidence-reviewer-disclaimer="true"

@@ -1180,7 +1180,9 @@ export {
   isAllowedReviewStageTransition,
   isTerminalReviewStage,
   listAllowedReviewStageTransitions,
+  REVIEW_STAGE_TO_DB_STATUS,
   mapDbStatusToReviewStage,
+  mapReviewStageToDbStatus,
   reviewStageSatisfiesGovernanceGate,
 } from "./review-operations.js";
 

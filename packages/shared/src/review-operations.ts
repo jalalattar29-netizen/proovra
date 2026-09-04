@@ -81,6 +81,43 @@ const LEGACY_DB_STATUS_MAP: Record<string, ReviewStage> = {
   REOPENED: "REOPENED",
 };
 
+/**
+ * The INVERSE of `LEGACY_DB_STATUS_MAP`, which did not exist.
+ *
+ * Both services that write a stage back to the workflow row did it with a
+ * blanket `stage as unknown as EvidenceReviewWorkflowStatus` cast, commented
+ * "the DB enum unions legacy + Phase 13 stage values". That is true for nine
+ * of the ten stages and false for one: the stage is `NEEDS_MORE_INFO` and the
+ * Prisma enum member is `NEEDS_INFO`.
+ *
+ * So recording a REQUEST_MORE_INFO decision derived stage NEEDS_MORE_INFO,
+ * cast it unchecked, and handed Postgres a value its enum does not contain —
+ * a 500 on a valid, fully-authorized request. The cast could not catch it
+ * because a cast is precisely the instruction not to check.
+ *
+ * Stated as a real mapping, keyed by stage, so the one asymmetry lives beside
+ * the map that introduced it and a future stage cannot be added without a
+ * decision about its stored value.
+ */
+export const REVIEW_STAGE_TO_DB_STATUS: Record<ReviewStage, string> = {
+  QUEUED: "QUEUED",
+  ASSIGNED: "ASSIGNED",
+  IN_REVIEW: "IN_REVIEW",
+  // The one that is not an identity.
+  NEEDS_MORE_INFO: "NEEDS_INFO",
+  RESPONSE_RECEIVED: "RESPONSE_RECEIVED",
+  APPROVED_INTERNAL: "APPROVED_INTERNAL",
+  REJECTED_INSUFFICIENT: "REJECTED_INSUFFICIENT",
+  ESCALATED: "ESCALATED",
+  REOPENED: "REOPENED",
+  CLOSED: "CLOSED",
+};
+
+/** Stage -> the value actually stored in `EvidenceReviewWorkflow.status`. */
+export function mapReviewStageToDbStatus(stage: ReviewStage): string {
+  return REVIEW_STAGE_TO_DB_STATUS[stage];
+}
+
 export function mapDbStatusToReviewStage(
   dbStatus: string | null | undefined,
 ): ReviewStage {

@@ -5224,3 +5224,39 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
  * Deliberately NOT `app-primary-action`: purple belongs to the record's
  * primary OUTPUT (Download Report PDF) below, and sharing it would claim equal
  * standing for copying a link. */
+
+/* ---------------------------------------------------------------------------
+   EXTERNAL INTAKE — the save confirmation, and the two provenance affordances.
+
+   `.evd-flash` is a padded block, and it used to be rendered INSIDE the
+   reviewer-status `<h4>`, immediately after the label. So "Saved" appeared
+   welded to the words "In review", and the heading grew wider when it arrived
+   and narrower when it left — a layout shift on every save.
+
+   It now sits in its own row beneath the controls it confirms. The row keeps
+   its height whether or not the flash is showing, so nothing below it moves.
+   --------------------------------------------------------------------------- */
+.evd-saved-slot {
+  /* Reserved: one flash-height row, present in both states. */
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.evd-flash--inline {
+  /* Compact enough to read as a confirmation rather than a banner. */
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+/* A quiet second line inside a detail value — the delivery caveat, an expiry,
+   a session id. Same muted ink the rest of the card uses; no new colour. */
+.evd-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--content-ink-muted, #64748B);
+}

@@ -278,7 +278,17 @@ describe("canonical recordReviewDecision — decision success", () => {
     {
       decision: "REQUEST_INFO",
       rationale: "Need the original capture context.",
-      projected: "NEEDS_MORE_INFO",
+      /*
+       * NEEDS_INFO, not NEEDS_MORE_INFO.
+       *
+       * This row asserted the STAGE name, and the stage name is not the value
+       * the column stores: EvidenceReviewWorkflowStatus has NEEDS_INFO. The
+       * service reached the column through a blanket cast, so the fake prisma
+       * here accepted the stage string and this assertion locked it in —
+       * while a real Postgres rejected it and turned a valid
+       * request-more-info decision into a 500.
+       */
+      projected: "NEEDS_INFO",
     },
   ] as const;
   for (const row of outcomes) {

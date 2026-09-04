@@ -26,6 +26,7 @@ import {
   decisionTargetStage,
   isAllowedReviewStageTransition,
   mapDbStatusToReviewStage,
+  mapReviewStageToDbStatus,
   reviewStageSatisfiesGovernanceGate,
   type ReviewDecisionType,
   type ReviewSlaStatus,
@@ -74,9 +75,12 @@ export class ReviewOperationError extends Error {
 // -----------------------------------------------------------------------------
 
 function stageToDbStatus(stage: ReviewStage): EvidenceReviewWorkflowStatus {
-  // All Phase 13 stages exist in the DB enum after the Phase 13
-  // migration. The cast is safe because the enum unions both sets.
-  return stage as unknown as EvidenceReviewWorkflowStatus;
+  // NOT a cast. Nine of the ten stage names are also enum members and one is
+  // not: the stage is NEEDS_MORE_INFO and the column stores NEEDS_INFO —
+  // so the blanket cast that used to live here handed Postgres a value its
+  // enum does not contain and turned a valid request-more-info decision into a
+  // 500. The mapping is canonical and shared with its inverse.
+  return mapReviewStageToDbStatus(stage) as EvidenceReviewWorkflowStatus;
 }
 
 function slaStatusToDb(s: ReviewSlaStatus): EvidenceReviewSlaStatus {
