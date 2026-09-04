@@ -190,13 +190,43 @@ describe("PLATFORM ADMIN — commercial request status transitions (live Postgre
     userId: string | null;
     outcome: string | null;
     metadata: Record<string, unknown>;
+    // PHASE 5 — the identity and transition contract, read back from the row
+    // rather than from the handler that wrote it.
+    actorType: string | null;
+    actorDisplay: string | null;
+    actorAuthority: string | null;
+    targetDisplay: string | null;
+    previousState: string | null;
+    requestedState: string | null;
+    resultingState: string | null;
+    reasonCode: string | null;
+    eventVersion: number | null;
+    requestId: string | null;
   };
 
-  async function auditRows(action: string, resourceId: string, outcome: "success" | "denied") {
+  async function auditRows(
+    action: string,
+    resourceId: string,
+    outcome: "success" | "denied" | "no_op",
+  ) {
     const rows = await prisma.adminAuditLog.findMany({
       where: { action, resourceId, outcome },
       orderBy: { createdAt: "asc" },
-      select: { userId: true, outcome: true, metadata: true },
+      select: {
+        userId: true,
+        outcome: true,
+        metadata: true,
+        actorType: true,
+        actorDisplay: true,
+        actorAuthority: true,
+        targetDisplay: true,
+        previousState: true,
+        requestedState: true,
+        resultingState: true,
+        reasonCode: true,
+        eventVersion: true,
+        requestId: true,
+      },
     });
     return rows as AuditRow[];
   }
@@ -210,7 +240,7 @@ describe("PLATFORM ADMIN — commercial request status transitions (live Postgre
   async function waitForAudit(
     action: string,
     resourceId: string,
-    outcome: "success" | "denied",
+    outcome: "success" | "denied" | "no_op",
     minCount = 1,
   ): Promise<AuditRow[]> {
     const deadline = Date.now() + 5_000;
@@ -748,6 +778,152 @@ describe("PLATFORM ADMIN — commercial request status transitions (live Postgre
       expect(success[0].metadata.nextStatus).toBe("REJECTED");
       expect(success[0].metadata.previousFollowUpStatus).toBe("ACTIVE");
       expect(success[0].metadata.nextFollowUpStatus).toBe("STOPPED");
+    });
+  });
+
+  // =========================================================================
+  // PHASE 5 — WHO ACTED, ON WHAT, FROM WHERE TO WHERE (family A).
+  //
+  // The transition semantics above are already proven. What was never read
+  // back is the ATTRIBUTION on the rows those transitions write: the audit
+  // said an update happened and could not say who did it, to which account,
+  // or what the record looked like before and after.
+  //
+  // Each field is checked against a DIFFERENT source, because that is the only
+  // way to catch a facade that fabricates a plausible value — the actor
+  // against the seeded operator, the target against the seeded record, the
+  // previous state against storage read before the call, and the resulting
+  // state against storage re-read after it.
+  // =========================================================================
+  describe("PHASE 5 — attribution on the commercial transition", () => {
+    it("a successful transition names the operator, the account, and both real states", async () => {
+      const row = await seedContact("NEW");
+      const beforeDb = await readContact(row.id);
+
+      const res = await patchContact(row.id, { status: "REVIEWED" });
+      expect(res.statusCode).toBe(200);
+
+      const afterDb = await readContact(row.id);
+      const [audit] = await waitForAudit(CONTACT_SALES_ACTION, row.id, "success");
+
+      // ACTOR — the authenticated executor, not the target and not a label.
+      expect(audit.actorType, "an operator action was not recorded as HUMAN").toBe("HUMAN");
+      expect(audit.userId, "the audit names a different user than the caller").toBe(
+        platformAdmin.userId,
+      );
+      expect(audit.actorDisplay, "no contemporaneous actor label was captured").toBeTruthy();
+      expect(
+        audit.actorDisplay,
+        "the raw identifier was stored where a display label belongs",
+      ).not.toBe(platformAdmin.userId);
+      expect(audit.actorAuthority, "the authority used was not recorded").toBe("PLATFORM_ADMIN");
+
+      // TARGET — the account an operator would recognise, from the seeded row.
+      expect(audit.targetDisplay).toBe(beforeDb.organization);
+
+      // STATE — three fields, three sources.
+      expect(audit.previousState, "previous state did not come from storage").toBe(
+        beforeDb.status,
+      );
+      expect(audit.requestedState).toBe("REVIEWED");
+      expect(
+        audit.resultingState,
+        "resulting state did not come from storage re-read after the write",
+      ).toBe(afterDb.status);
+      expect(audit.reasonCode).toBe("OPERATOR_TRANSITION");
+      expect(audit.eventVersion).toBe(2);
+      expect(
+        audit.requestId ?? audit.metadata.correlationId,
+        "the operation is not correlatable",
+      ).toBeTruthy();
+    });
+
+    it("a REFUSED transition records what was asked for and NO resulting state", async () => {
+      /*
+       * The dangerous shape is a refusal that records the current status as
+       * its resulting state: it reads as a successful no-op, so an operator
+       * reviewing the log sees a request that was turned down as one that
+       * deliberately changed nothing.
+       */
+      const row = await seedContact("NEW");
+      const res = await patchContact(row.id, { status: "QUALIFIED" });
+      expect(res.statusCode).toBe(409);
+
+      const [audit] = await waitForAudit(CONTACT_SALES_ACTION, row.id, "denied");
+      expect(audit.previousState).toBe("NEW");
+      expect(audit.requestedState).toBe("QUALIFIED");
+      expect(
+        audit.resultingState,
+        "a refused transition claimed a resulting state — storage did not change",
+      ).toBeNull();
+      expect(audit.reasonCode).toBe("transition_not_allowed");
+      expect(audit.actorType).toBe("HUMAN");
+      expect(audit.userId).toBe(platformAdmin.userId);
+
+      expect((await readContact(row.id)).status).toBe("NEW");
+    });
+
+    it("an edit that moves no status says so in the STATE, not by faking an outcome", async () => {
+      /*
+       * PHASE 5 §4, and the distinction is deliberate.
+       *
+       * A notes-only PATCH really does change the row, so it is a success —
+       * calling it `no_op` would tell an operator looking for "who edited this
+       * note" that nothing happened. What must be visible is that no
+       * TRANSITION occurred, and that is carried by the state fields:
+       * `requestedState` null, and previous equal to resulting.
+       *
+       * `no_op` is reserved for a request that changed nothing at all, which
+       * on this route is a 409 refusal rather than a 200.
+       */
+      const row = await seedContact("REVIEWED");
+      const res = await patchContact(row.id, { notes: "left a voicemail" });
+      expect(res.statusCode).toBe(200);
+
+      const [audit] = await waitForAudit(CONTACT_SALES_ACTION, row.id, "success");
+      expect(audit.previousState).toBe("REVIEWED");
+      expect(
+        audit.requestedState,
+        "no transition was requested, so none may be recorded as requested",
+      ).toBeNull();
+      expect(audit.resultingState).toBe("REVIEWED");
+      expect(
+        audit.previousState,
+        "an edit with no transition must read as unchanged, not as a move",
+      ).toBe(audit.resultingState);
+      expect(audit.reasonCode).toBe("NO_STATUS_CHANGE");
+    });
+
+    it("concurrent transitions leave exactly one success and one truthful refusal", async () => {
+      /*
+       * PHASE 5 §5, over the compare-and-set the transition proof already
+       * established. The attribution claim is the new part: the loser must not
+       * be recorded as a second success, and the winner's audit must still
+       * carry the real before and after.
+       */
+      const row = await seedContact("NEW");
+      const [a, b] = await Promise.all([
+        patchContact(row.id, { status: "REVIEWED", expectedStatus: "NEW" }),
+        patchContact(row.id, { status: "CONTACTED", expectedStatus: "NEW" }),
+      ]);
+      expect([a.statusCode, b.statusCode].sort(), "both concurrent transitions were accepted").toEqual([
+        200, 409,
+      ]);
+
+      const successes = await waitForAudit(CONTACT_SALES_ACTION, row.id, "success");
+      expect(
+        successes,
+        "one persisted transition produced more than one success row",
+      ).toHaveLength(1);
+      const afterDb = await readContact(row.id);
+      expect(successes[0].resultingState).toBe(afterDb.status);
+      expect(successes[0].previousState).toBe("NEW");
+
+      const denials = await waitForAudit(CONTACT_SALES_ACTION, row.id, "denied");
+      expect(denials.length, "the losing request left no record").toBeGreaterThanOrEqual(1);
+      for (const d of denials) {
+        expect(d.resultingState, "the losing request claimed a result").toBeNull();
+      }
     });
   });
 });

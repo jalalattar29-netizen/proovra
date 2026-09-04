@@ -73,7 +73,10 @@ async function loadCustomerOrg(
 ) {
   const org = await tx.organization.findUnique({
     where: { id: organizationId },
-    select: { id: true, kind: true, status: true },
+    // PHASE 5 — `name` is selected so the lifecycle audit can name the customer
+    // it suspended. An audit row that says an organization went dark and
+    // identifies it only by UUID is one an operator cannot act on at 3am.
+    select: { id: true, kind: true, status: true, name: true },
   });
   if (!org) {
     throw lifecycleError(404, "ORG_NOT_FOUND", "Organization not found");
@@ -253,6 +256,11 @@ export async function suspendOrganization(input: {
       scimTokensSuspended,
       invitesExpired,
       apiCredentialsSuspended,
+      // PHASE 5 §2 — the status read from storage INSIDE the transaction,
+      // before the update. Carried out so the audit's previous state is the
+      // one the write actually raced against, not one re-read afterwards.
+      previousStatus: org.status,
+      organizationName: org.name,
     };
   });
 
@@ -270,14 +278,28 @@ export async function suspendOrganization(input: {
     }
   }
 
+  // PHASE 5 §2 — the resulting state is READ BACK from storage, not assumed to
+  // be "SUSPENDED" because that is what the code just asked for. The write is
+  // committed by now; if anything moved it since, the audit says what the
+  // database says.
+  const persisted = await prisma.organization
+    .findUnique({ where: { id: organizationId }, select: { status: true } })
+    .catch(() => null);
+
   await emitTenantAudit({
     action: "identity.organization_suspended",
     outcome: "success",
     sourceApp: "API",
     actorUserId,
+    actorAuthority: "PLATFORM_ADMIN",
     organizationId,
     resourceType: "organization",
     resourceId: organizationId,
+    targetDisplay: result.organizationName,
+    previousState: result.previousStatus,
+    requestedState: "SUSPENDED",
+    resultingState: persisted?.status ?? null,
+    reasonCode: "OPERATOR_SUSPENDED_ORGANIZATION",
     metadata: {
       sessionsRevokedForUsers,
       ssoConnectionsSuspended: result.ssoConnectionsSuspended,
@@ -421,19 +443,39 @@ export async function resumeOrganization(input: {
       scimTokensRestored,
       apiCredentialsRestored,
       governanceMembershipsRestored,
+      previousStatus: org.status,
+      organizationName: org.name,
     };
   });
+
+  const persisted = await prisma.organization
+    .findUnique({ where: { id: organizationId }, select: { status: true } })
+    .catch(() => null);
+
+  const {
+    previousStatus,
+    organizationName,
+    ...counts
+  } = result;
 
   await emitTenantAudit({
     action: "identity.organization_resumed",
     outcome: "success",
     sourceApp: "API",
     actorUserId,
+    actorAuthority: "PLATFORM_ADMIN",
     organizationId,
     resourceType: "organization",
     resourceId: organizationId,
-    metadata: { ...result },
+    targetDisplay: organizationName,
+    // PHASE 5 §2 — previous from inside the transaction, resulting re-read
+    // from storage afterwards. Neither is the constant the code intended.
+    previousState: previousStatus,
+    requestedState: "ACTIVE",
+    resultingState: persisted?.status ?? null,
+    reasonCode: "OPERATOR_RESUMED_ORGANIZATION",
+    metadata: { ...counts },
   }).catch(() => null);
 
-  return { organizationId, ...result };
+  return { organizationId, ...counts };
 }

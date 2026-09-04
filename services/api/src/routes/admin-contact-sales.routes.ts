@@ -232,8 +232,22 @@ export async function adminContactSalesRoutes(app: FastifyInstance) {
           outcome: "denied",
           sourceApp: "API",
           actorUserId: userId ?? null,
+          actorAuthority: "PLATFORM_ADMIN",
           resourceType: "contact_sales_request",
           resourceId: existing.id,
+          targetDisplay: existing.organization,
+          // PHASE 5 §2 — a refusal records what was ASKED FOR and leaves
+          // `resultingState` null, because storage did not change. Writing the
+          // current status into `resultingState` here would make a refused
+          // transition read as a successful no-op.
+          previousState: from,
+          requestedState:
+            typeof extra["to"] === "string"
+              ? (extra["to"] as string)
+              : typeof body.data.status === "string"
+                ? body.data.status
+                : null,
+          reasonCode: code,
           correlationId: req.id,
           metadata: { reason: code, ...extra },
         });
@@ -295,12 +309,36 @@ export async function adminContactSalesRoutes(app: FastifyInstance) {
       });
 
       await emitPlatformAudit({
+        // PHASE 5 §4 — this stays `success`, and the distinction is carried by
+        // the STATE fields rather than by the outcome.
+        //
+        // A notes-or-priority-only PATCH really does change the row: the
+        // compare-and-set updated it. Calling that `no_op` would tell an
+        // operator looking for "who edited this note" that nothing happened.
+        // `no_op` is for a request that changed nothing AT ALL, which on this
+        // route is already a 409 refusal rather than a 200.
+        //
+        // What the row says instead is that no TRANSITION occurred:
+        // `requestedState` is null and `previousState` equals `resultingState`.
         action: "ADMIN_CONTACT_SALES_UPDATE",
         outcome: "success",
         sourceApp: "API",
         actorUserId: userId ?? null,
+        actorAuthority: "PLATFORM_ADMIN",
         resourceType: "contact_sales_request",
         resourceId: existing.id,
+        // Named by who asked, not by an id an operator would have to resolve.
+        targetDisplay: existing.organization,
+        // PHASE 5 §2 — the three states come from three DIFFERENT sources, and
+        // that is the point. `from` is the status read from storage BEFORE the
+        // compare-and-set; `to` is what the request asked for; `updated.status`
+        // is re-read from storage AFTER it. Deriving the resulting state from
+        // the request intent would make a lost compare-and-set indistinguishable
+        // from a winning one.
+        previousState: from,
+        requestedState: to,
+        resultingState: updated.status,
+        reasonCode: to !== null ? "OPERATOR_TRANSITION" : "NO_STATUS_CHANGE",
         correlationId: req.id,
         metadata: {
           ipAddress: req.ip ?? null,

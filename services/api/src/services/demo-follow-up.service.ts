@@ -278,6 +278,11 @@ export async function sendDemoFollowUpById(params: {
     select: {
       id: true,
       status: true,
+      // PHASE 5 — the caller audits this send, and an audit row whose target
+      // is only a UUID is one an operator cannot act on. `organization` is the
+      // account name; `workEmail` is deliberately NOT selected, because the
+      // audit trail is append-only and must not accumulate addresses.
+      organization: true,
       followUpStep: true,
       followUpStatus: true,
       nextFollowUpAt: true,

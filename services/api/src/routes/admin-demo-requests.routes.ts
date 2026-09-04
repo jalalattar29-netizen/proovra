@@ -442,6 +442,8 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
           notes: true,
           reviewedAt: true,
           reviewedByUserId: true,
+          organization: true,
+          fullName: true,
           contactedAt: true,
           contactedByUserId: true,
           firstRespondedAt: true,
@@ -479,8 +481,19 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
           outcome: "denied",
           sourceApp: "API",
           actorUserId: req.user?.sub ?? null,
+          actorAuthority: "PLATFORM_ADMIN",
           resourceType: "demo_request",
           resourceId: existing.id,
+          targetDisplay: existing.organization ?? existing.fullName ?? null,
+          // PHASE 5 §2 — what was asked for, and NO resulting state. Storage
+          // did not change, and recording the current status as the result
+          // would make a refusal read as a deliberate no-op.
+          previousState: from,
+          requestedState:
+            typeof extra["to"] === "string"
+              ? (extra["to"] as string)
+              : (parsed.data.status ?? null),
+          reasonCode: code,
           correlationId: req.id,
           metadata: { demoRequestId: existing.id, reason: code, ...extra },
         }).catch(() => null);
@@ -596,6 +609,8 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
           notes: true,
           reviewedAt: true,
           reviewedByUserId: true,
+          organization: true,
+          fullName: true,
           contactedAt: true,
           contactedByUserId: true,
           firstRespondedAt: true,
@@ -611,8 +626,21 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         outcome: "success",
         sourceApp: "API",
         actorUserId: req.user?.sub ?? null,
+        actorAuthority: "PLATFORM_ADMIN",
         resourceType: "demo_request",
         resourceId: updated.id,
+        targetDisplay: updated.organization ?? updated.fullName ?? null,
+        // PHASE 5 §2 — `existing.status` is storage BEFORE, `updated.status` is
+        // storage re-read AFTER. Neither is derived from the request body: a
+        // resulting state taken from intent cannot tell a winning
+        // compare-and-set from a losing one.
+        previousState: existing.status,
+        requestedState: parsed.data.status ?? null,
+        resultingState: updated.status,
+        reasonCode:
+          parsed.data.status && parsed.data.status !== existing.status
+            ? "OPERATOR_TRANSITION"
+            : "NO_STATUS_CHANGE",
         correlationId: req.id,
         metadata: {
           demoRequestId: updated.id,
@@ -767,12 +795,36 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
         });
 
         void emitPlatformAudit({
+          /*
+           * PHASE 5 §3 (family A) — ACCEPTED BY A PROVIDER IS NOT DELIVERED.
+           *
+           * This row is written only after `sendDemoFollowUpById` has an
+           * ACKNOWLEDGED provider outcome — an earlier phase already closed
+           * the worse defect, where the step advanced regardless and a
+           * prospect was recorded as having received a follow-up they never
+           * got. But an acknowledgement is the provider saying it accepted
+           * the message, not the recipient having received it, and this is
+           * the row an operator reads when a prospect says they heard
+           * nothing.
+           *
+           * The state fields say exactly that: the follow-up step really did
+           * advance in storage (`resultingState`), and the reason names the
+           * boundary the system can actually attest to. Confirmed delivery,
+           * if it is ever known, arrives later from the provider webhook and
+           * is a different event.
+           */
           action: "admin.demo_requests.follow_up_send",
           outcome: "success",
           sourceApp: "API",
           actorUserId: req.user?.sub ?? null,
+          actorAuthority: "PLATFORM_ADMIN",
           resourceType: "demo_request",
           resourceId: item.id,
+          targetDisplay: item.organization ?? null,
+          previousState: `STEP_${Math.max((item.followUpStep ?? 1) - 1, 0)}`,
+          requestedState: `STEP_${item.followUpStep ?? 0}`,
+          resultingState: `STEP_${item.followUpStep ?? 0}`,
+          reasonCode: "PROVIDER_ACKNOWLEDGED_NOT_CONFIRMED_DELIVERED",
           correlationId: req.id,
           metadata: {
             demoRequestId: item.id,
@@ -828,13 +880,35 @@ export async function adminDemoRequestsRoutes(app: FastifyInstance) {
       });
 
       void emitPlatformAudit({
+        /*
+         * PHASE 5 §4 — a batch where SOME sends failed is neither a success
+         * nor an error, and calling it one of the two loses the fact an
+         * operator needs. `error` on a run that delivered nine of ten reads as
+         * a total failure; `success` on the same run hides the one that did
+         * not go out. `partial` is the canonical word for exactly this.
+         *
+         * The service actor is also renamed to the `worker:` prefix the actor
+         * derivation understands, so an internally-triggered run is typed
+         * WORKER rather than falling through to SERVICE.
+         */
         action: "admin.demo_requests.follow_up_run",
-        outcome: result.failed > 0 ? "error" : "success",
+        outcome:
+          result.failed > 0
+            ? result.sent > 0
+              ? "partial"
+              : "error"
+            : "success",
         sourceApp: internalCall ? "SYSTEM" : "API",
         actorUserId,
-        serviceActor: internalCall ? "admin_demo_requests_follow_up_worker" : null,
+        actorAuthority: internalCall ? null : "PLATFORM_ADMIN",
+        serviceActor: internalCall ? "worker:demo-follow-up" : null,
+        actorDisplay: internalCall ? "Demo follow-up worker" : null,
         resourceType: "demo_request",
         resourceId: null,
+        targetDisplay: "Due demo follow-ups",
+        requestedState: `PROCESS_UP_TO_${parsed.data.limit}`,
+        resultingState: `SENT_${result.sent}_FAILED_${result.failed}`,
+        reasonCode: internalCall ? "SCHEDULED_RUN" : "OPERATOR_TRIGGERED_RUN",
         correlationId: req.id,
         metadata: {
           processed: result.processed,
