@@ -41,6 +41,23 @@ const ListQuerySchema = z.object({
   outcome: z.string().trim().max(32).optional(),
   source: z.string().trim().max(64).optional(),
   search: z.string().trim().max(128).optional(),
+  // PHASE 5 §11 — the investigation filters the page could not ask for.
+  //
+  // "Which of these were people and which were jobs" and "what did THIS
+  // operator do" are the first two questions of an incident review, and
+  // neither had a parameter: an operator could narrow by action or category
+  // and then read UUIDs. Both are DB-side, like every other filter here, so
+  // the screen and the export can never disagree about what was matched.
+  actorType: z
+    .enum(["HUMAN", "SERVICE", "WORKER", "SYSTEM", "SUPPORT_CONTEXT", "UNKNOWN_LEGACY"])
+    .optional(),
+  actorUserId: z.string().trim().uuid().optional(),
+  workspaceId: z.string().trim().uuid().optional(),
+  organizationId: z.string().trim().uuid().optional(),
+  requestId: z.string().trim().max(64).optional(),
+  /** Inclusive UTC bounds. */
+  from: z.string().trim().datetime({ offset: true }).optional(),
+  until: z.string().trim().datetime({ offset: true }).optional(),
 });
 
 function readUserAgent(req: {
@@ -233,6 +250,13 @@ export async function adminAuditRoutes(app: FastifyInstance) {
         outcome: query.outcome ?? null,
         source: query.source ?? null,
         search: query.search ?? null,
+        actorType: query.actorType ?? null,
+        actorUserId: query.actorUserId ?? null,
+        workspaceId: query.workspaceId ?? null,
+        organizationId: query.organizationId ?? null,
+        requestId: query.requestId ?? null,
+        occurredFromUtc: query.from ? new Date(query.from) : null,
+        occurredUntilUtc: query.until ? new Date(query.until) : null,
       };
 
       const { items: rawItems } = await listAdminAuditLogs({

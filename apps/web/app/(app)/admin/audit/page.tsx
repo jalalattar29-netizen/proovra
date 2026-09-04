@@ -16,6 +16,14 @@ import { useToast } from "../../../../components/ui";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { useTenantGuard } from "../../../../lib/platform-context";
 import { formatUtcAuditDateTime } from "../../../../lib/date";
+import {
+  presentAction,
+  presentActor,
+  presentOutcome,
+  presentTarget,
+  presentTransition,
+  presentMetadata,
+} from "../../../../lib/audit/auditPresentation";
 
 /**
  * ONE PAGE OF THE LOG, AND THE CURSOR TO THE NEXT.
@@ -45,6 +53,17 @@ type AuditRow = {
   resourceType?: string | null;
   resourceId?: string | null;
   requestId?: string | null;
+  // PHASE 5 — the identity and transition contract, as the API now returns it.
+  actorType?: string | null;
+  actorDisplay?: string | null;
+  actorAuthority?: string | null;
+  targetDisplay?: string | null;
+  previousState?: string | null;
+  requestedState?: string | null;
+  resultingState?: string | null;
+  reasonCode?: string | null;
+  organizationId?: string | null;
+  workspaceId?: string | null;
   metadata: unknown;
   ipAddress: string | null;
   createdAt: string;
@@ -67,14 +86,6 @@ function formatTimestamp(value: string) {
   return formatUtcAuditDateTime(value);
 }
 
-function prettyMetadataJson(metadata: unknown): string {
-  try {
-    return JSON.stringify(metadata, null, 2);
-  } catch {
-    return String(metadata);
-  }
-}
-
 function severityTone(severity?: string | null): BadgeTone {
   const value = (severity ?? "").toLowerCase();
   if (value === "critical" || value === "high") return "risk";
@@ -82,11 +93,19 @@ function severityTone(severity?: string | null): BadgeTone {
   return "info";
 }
 
-function outcomeTone(outcome?: string | null): BadgeTone {
-  const value = (outcome ?? "").toLowerCase();
-  if (value === "failed" || value === "error" || value === "denied") return "risk";
-  if (value === "warning" || value === "partial") return "pending";
-  return "verified";
+/**
+ * PHASE 5 §10 — outcome tone comes from the canonical presenter now.
+ *
+ * The previous local version ended `return "verified"`, so every value it did
+ * not recognise — including the empty string of a row with no outcome at all —
+ * was painted as a success. `presentOutcome` distinguishes "not recorded" from
+ * every real outcome, and this only translates its tone to the Badge palette.
+ */
+function badgeToneForOutcome(tone: string): BadgeTone {
+  if (tone === "danger") return "risk";
+  if (tone === "warning") return "pending";
+  if (tone === "success") return "verified";
+  return "info";
 }
 
 function dash(value: string | null | undefined): string {
@@ -102,12 +121,25 @@ function dash(value: string | null | undefined): string {
  * scans by; this carries what they investigate with.
  */
 function AuditEntryDetails({ entry }: { entry: AuditRow }) {
+  const actor = presentActor(entry);
+  const target = presentTarget(entry);
+  const transition = presentTransition(entry);
+  const meta = presentMetadata(entry.metadata);
   const facts: Array<[string, string]> = [
+    ["Actor", `${actor.name} · ${actor.kind}`],
+    ["Acting as", dash(entry.actorAuthority)],
+    ["Actor reference", dash(actor.reference)],
+    ["Target", `${target.name}${target.reference ? ` · ${target.reference}` : ""}`],
+    ["Scope", target.scope],
+    ["State", transition ? transition.text : "—"],
+    ["Reason", dash(entry.reasonCode)],
     ["Request ID", dash(entry.requestId)],
     ["Resource", `${dash(entry.resourceType)} · ${dash(entry.resourceId)}`],
     ["Source", dash(entry.source)],
     ["Category", dash(entry.category)],
-    ["IP address", dash(entry.ipAddress)],
+    // The API masks this on the way out — a legacy row that stored a full
+    // address is reduced before it is serialized, not here.
+    ["Client address", dash(entry.ipAddress)],
     ["Public / system", entry.isPublic ? "yes" : "no"],
     ["Anchored", entry.anchoredAt ? formatTimestamp(entry.anchoredAt) : "not anchored"],
   ];
@@ -136,25 +168,56 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
         <div style={{ fontSize: 11, color: INK_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
           Metadata
         </div>
-        <pre
-          style={{
-            fontSize: 11,
-            color: INK_SECONDARY,
-            lineHeight: 1.5,
-            marginTop: 4,
-            marginBottom: 0,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
-            fontFamily: "ui-monospace, monospace",
-            background: "var(--surface-card, #ffffff)",
-            border: `1px solid ${BORDER_DEFAULT}`,
-            borderRadius: 10,
-            padding: 12,
-          }}
-        >
-          {prettyMetadataJson(entry.metadata)}
-        </pre>
+        {/*
+          PHASE 5 §12 — this was `JSON.stringify(entry.metadata)`.
+
+          The writer strips known secrets, so it was not a live leak; it was a
+          standing invitation to become one. Metadata is free-form and written
+          from 232 call sites, and the next caller to put a provider payload,
+          a stack trace or an internal path in it would have had that reach the
+          screen with nobody deciding it should. An allowlist inverts the
+          default: a new key is invisible until someone names it.
+
+          What is withheld is COUNTED rather than hidden, so an operator can
+          see that the row carries more and ask for it deliberately.
+        */}
+        {meta.entries.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: INK_MUTED, marginTop: 4 }}>
+            No recognised context fields on this record.
+          </div>
+        ) : (
+          <dl
+            data-admin-audit-metadata={entry.id}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: "8px 16px",
+              margin: "4px 0 0",
+              fontSize: 12.5,
+              background: "var(--surface-card, #ffffff)",
+              border: `1px solid ${BORDER_DEFAULT}`,
+              borderRadius: 10,
+              padding: 12,
+            }}
+          >
+            {meta.entries.map(([label, value]) => (
+              <div key={label} style={{ minWidth: 0 }}>
+                <dt style={{ fontSize: 11, color: INK_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  {label}
+                </dt>
+                <dd style={{ margin: "2px 0 0", color: INK_PRIMARY, overflowWrap: "anywhere" }}>
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {meta.withheldCount > 0 ? (
+          <div style={{ fontSize: 11.5, color: INK_MUTED, marginTop: 6 }}>
+            {meta.withheldCount} further field
+            {meta.withheldCount === 1 ? " is" : "s are"} recorded on this event and not shown here.
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -429,7 +492,26 @@ export default function AdminAuditPage() {
         header: "Action",
         render: (entry) => (
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 620, overflowWrap: "anywhere" }}>{entry.action}</div>
+            {/*
+              PHASE 5 §10 — operator language first, canonical code second.
+              The raw code is not hidden: it is what an engineer greps for and
+              what the API filter accepts, so it stays on the row rather than
+              being replaced by a friendlier name that means something subtly
+              different.
+            */}
+            <div style={{ fontWeight: 620, overflowWrap: "anywhere" }}>
+              {presentAction(entry.action)}
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: INK_MUTED,
+                fontFamily: "var(--font-mono, ui-monospace, monospace)",
+                overflowWrap: "anywhere",
+              }}
+            >
+              {entry.action}
+            </div>
             <div style={{ fontSize: 12, color: INK_MUTED, overflowWrap: "anywhere" }}>
               {dash(entry.category)}
               {entry.source ? ` · ${entry.source}` : ""}
@@ -445,16 +527,56 @@ export default function AdminAuditPage() {
       {
         key: "outcome",
         header: "Outcome",
-        render: (entry) => <Badge tone={outcomeTone(entry.outcome)}>{entry.outcome ?? "success"}</Badge>,
+        // PHASE 5 §10 — this rendered `entry.outcome ?? "success"`, so a row
+        // that recorded NO outcome was shown as having succeeded. Absence is
+        // now said as absence.
+        render: (entry) => {
+          const o = presentOutcome(entry.outcome);
+          return <Badge tone={badgeToneForOutcome(o.tone)}>{o.label}</Badge>;
+        },
       },
       {
         key: "actor",
         header: "Actor",
-        render: (entry) => (
-          <span style={{ fontSize: 12.5, color: INK_SECONDARY, overflowWrap: "anywhere" }}>
-            {entry.userId ?? "public/system"}
-          </span>
-        ),
+        // PHASE 5 §10 — this printed a bare UUID, or the literal string
+        // "public/system" for everything without one. Three lines now: who,
+        // what kind of thing they were, and a short stable reference.
+        render: (entry) => {
+          const actor = presentActor(entry);
+          return (
+            <span style={{ display: "grid", gap: 1, fontSize: 12.5 }}>
+              <span
+                style={{
+                  color: actor.unknown ? INK_MUTED : INK_PRIMARY,
+                  fontStyle: actor.unknown ? "italic" : "normal",
+                }}
+              >
+                {actor.name}
+              </span>
+              <span style={{ color: INK_SECONDARY, fontSize: 11.5 }}>{actor.kind}</span>
+              {actor.reference ? (
+                <span style={{ color: INK_MUTED, fontSize: 11 }}>{actor.reference}</span>
+              ) : null}
+            </span>
+          );
+        },
+      },
+      {
+        key: "target",
+        header: "Target",
+        render: (entry) => {
+          const target = presentTarget(entry);
+          const transition = presentTransition(entry);
+          return (
+            <span style={{ display: "grid", gap: 1, fontSize: 12.5 }}>
+              <span style={{ color: INK_PRIMARY }}>{target.name}</span>
+              <span style={{ color: INK_SECONDARY, fontSize: 11.5 }}>{target.scope}</span>
+              {transition ? (
+                <span style={{ color: INK_MUTED, fontSize: 11 }}>{transition.text}</span>
+              ) : null}
+            </span>
+          );
+        },
       },
     ],
     [],
@@ -822,10 +944,21 @@ export default function AdminAuditPage() {
                 <Badge tone={severityTone("medium")}>Medium</Badge>
                 <Badge tone={severityTone("high")}>High</Badge>
               </div>
+              {/*
+                The legend showed Success / Warning / Failed — two of which are
+                not outcomes this system records. It now teaches the actual
+                vocabulary, including the three that separate an accepted
+                request from work that finished.
+              */}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                <Badge tone={outcomeTone("success")}>Success</Badge>
-                <Badge tone={outcomeTone("warning")}>Warning</Badge>
-                <Badge tone={outcomeTone("failed")}>Failed</Badge>
+                {["success", "completed", "queued", "denied", "error", "no_op"].map((value) => {
+                  const o = presentOutcome(value);
+                  return (
+                    <Badge key={value} tone={badgeToneForOutcome(o.tone)}>
+                      {o.label}
+                    </Badge>
+                  );
+                })}
               </div>
             </div>
           </div>

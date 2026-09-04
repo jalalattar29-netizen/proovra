@@ -287,7 +287,7 @@ describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
   // =========================================================================
   describe("the identity fields are sealed by the chain, not merely stored", () => {
     it("the chain verifies with V4 rows present", async () => {
-      const result = await verifyAdminAuditChain({ limit: 500 });
+      const result = await verifyAdminAuditChain({ tailLimit: 500 });
       expect(result.valid, "the chain does not verify with V4 rows in it").toBe(true);
     });
 
@@ -327,7 +327,7 @@ describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
           data: { [column]: column === "actorType" ? "WORKER" : "TAMPERED" },
         });
 
-        const after = await verifyAdminAuditChain({ limit: 500 });
+        const after = await verifyAdminAuditChain({ tailLimit: 500 });
         expect(
           after.valid,
           `${column} can be rewritten without breaking the chain — it looks authoritative and is not`,
@@ -338,7 +338,7 @@ describe("PHASE 5 — audit identity contract (live PostgreSQL 16)", () => {
           where: { id: row.id },
           data: { [column]: row[column] },
         });
-        expect((await verifyAdminAuditChain({ limit: 500 })).valid).toBe(true);
+        expect((await verifyAdminAuditChain({ tailLimit: 500 })).valid).toBe(true);
       });
     }
   });

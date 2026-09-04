@@ -640,6 +640,22 @@ export async function listAdminAuditLogs(params: {
    */
   source?: string | null;
   search?: string | null;
+  /**
+   * PHASE 5 §11 — investigation filters, all applied DATABASE-side.
+   *
+   * The alternative — narrowing a fetched page in the route — was already
+   * tried once on this endpoint for `source` and had to be corrected: the
+   * operator narrowed the view, the backend ignored it, and an export "with
+   * filters" carried a different set than the screen. Every filter here goes
+   * into the same `where` the list and the export both build.
+   */
+  actorType?: string | null;
+  actorUserId?: string | null;
+  workspaceId?: string | null;
+  organizationId?: string | null;
+  requestId?: string | null;
+  occurredFromUtc?: Date | null;
+  occurredUntilUtc?: Date | null;
   db?: PrismaClient;
 }): Promise<{
   items: Array<{
@@ -653,7 +669,18 @@ export async function listAdminAuditLogs(params: {
     outcome: string | null;
     resourceType: string | null;
     resourceId: string | null;
+    organizationId: string | null;
+    workspaceId: string | null;
     requestId: string | null;
+    actorType: string;
+    actorDisplay: string | null;
+    actorAuthority: string | null;
+    targetDisplay: string | null;
+    previousState: string | null;
+    requestedState: string | null;
+    resultingState: string | null;
+    reasonCode: string | null;
+    eventVersion: number | null;
     metadata: Prisma.JsonValue;
     ipAddress: string | null;
     userAgent: string | null;
@@ -686,6 +713,20 @@ export async function listAdminAuditLogs(params: {
     // an unmatched value simply yields an empty page rather than an error.
     ...(params.source && params.source.trim()
       ? { source: params.source.trim().slice(0, 64) }
+      : {}),
+    // PHASE 5 §11 — actor, tenant, correlation and time, DB-side.
+    ...(params.actorType ? { actorType: params.actorType } : {}),
+    ...(params.actorUserId ? { userId: params.actorUserId } : {}),
+    ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
+    ...(params.organizationId ? { organizationId: params.organizationId } : {}),
+    ...(params.requestId ? { requestId: params.requestId.trim().slice(0, 64) } : {}),
+    ...(params.occurredFromUtc || params.occurredUntilUtc
+      ? {
+          createdAt: {
+            ...(params.occurredFromUtc ? { gte: params.occurredFromUtc } : {}),
+            ...(params.occurredUntilUtc ? { lte: params.occurredUntilUtc } : {}),
+          },
+        }
       : {}),
     ...(params.search
       ? {
@@ -736,6 +777,15 @@ export async function listAdminAuditLogs(params: {
       organizationId: true,
       workspaceId: true,
       requestId: true,
+      actorType: true,
+      actorDisplay: true,
+      actorAuthority: true,
+      targetDisplay: true,
+      previousState: true,
+      requestedState: true,
+      resultingState: true,
+      reasonCode: true,
+      eventVersion: true,
       metadata: true,
       ipAddress: true,
       userAgent: true,
@@ -759,10 +809,30 @@ export async function listAdminAuditLogs(params: {
       outcome: r.outcome,
       resourceType: r.resourceType,
       resourceId: r.resourceId,
+      organizationId: r.organizationId,
+      workspaceId: r.workspaceId,
       requestId: r.requestId,
+      // PHASE 5 — the identity and transition contract reaches the reader.
+      // A field the console cannot see is a field that does not exist for the
+      // operator it was written for.
+      actorType: r.actorType ?? "UNKNOWN_LEGACY",
+      actorDisplay: r.actorDisplay,
+      actorAuthority: r.actorAuthority,
+      targetDisplay: r.targetDisplay,
+      previousState: r.previousState,
+      requestedState: r.requestedState,
+      resultingState: r.resultingState,
+      reasonCode: r.reasonCode,
+      eventVersion: r.eventVersion,
       metadata: r.metadata,
-      ipAddress: r.ipAddress,
-      userAgent: r.userAgent,
+      // PHASE 5 §12 — rows written before the writer adopted the canonical
+      // maskers hold complete raw addresses and complete raw client strings.
+      // They are masked HERE rather than by an UPDATE: rewriting historical
+      // audit rows would invalidate hashes that legitimately cover the values
+      // those rows were written with. Masking is idempotent, so a row already
+      // stored safely passes through unchanged.
+      ipAddress: r.ipAddress ? maskIpPreview(r.ipAddress) : null,
+      userAgent: r.userAgent ? summariseUserAgent(r.userAgent) : null,
       hash: r.hash,
       prevHash: r.prevHash,
       chainVersion: r.chainVersion,
