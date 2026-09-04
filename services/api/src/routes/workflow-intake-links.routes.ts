@@ -75,11 +75,31 @@ import {
 
 // Intake-links-e2e — explicit delivery method. Default is MANUAL so any
 // existing caller that omits the field gets the legacy "create only, no
-// send" behaviour. EMAIL / SMS / WHATSAPP trigger an immediate send via
+// send" behaviour. EMAIL / SMS trigger an immediate send via
 // the matching channel using `sendIntakeLinkViaEmail` /
 // `sendIntakeLinkViaSms`. The page UI gates which recipient field is
 // required; the backend re-validates here so an API caller cannot bypass.
-export const DELIVERY_METHODS = ["MANUAL", "EMAIL", "SMS", "WHATSAPP"] as const;
+/*
+ * THE DELIVERY METHODS AN INTAKE LINK CAN BE CREATED WITH.
+ *
+ * WhatsApp was retired as a product option. It is gone from here, so a create
+ * that names it is refused as invalid input rather than accepted into a path
+ * that no longer exists — the failure lands at the boundary, in the caller's
+ * own words, instead of somewhere further in.
+ *
+ * HISTORICAL ROWS ARE NOT TOUCHED. `CommunicationChannel` still has WHATSAPP
+ * (it is also the MFA and verified-contact-factor channel, which this change
+ * has nothing to do with), a delivery recorded before the retirement still
+ * says WhatsApp, and every read path still renders it truthfully. Retiring an
+ * option is a statement about what may be created next, not a licence to
+ * rewrite what already happened.
+ *
+ * MANUAL is "Copy link": the link is created and nothing is sent. It is a
+ * stored delivery method — the row has to record that no message was
+ * attempted — and the copy button on top of it is a local UI action. Both are
+ * true and neither is a transport.
+ */
+export const DELIVERY_METHODS = ["MANUAL", "EMAIL", "SMS"] as const;
 export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
 
 const CreateBody = z
@@ -171,14 +191,14 @@ const CreateBody = z
       });
     }
     if (
-      (data.deliveryMethod === "SMS" || data.deliveryMethod === "WHATSAPP") &&
+      data.deliveryMethod === "SMS" &&
       !data.recipientPhone
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["recipientPhone"],
         message:
-          "recipientPhone is required when deliveryMethod is SMS or WHATSAPP",
+          "recipientPhone is required when deliveryMethod is SMS",
       });
     }
     if (data.deliveryMethod !== "MANUAL" && !data.intakeUrlBase) {
@@ -186,7 +206,7 @@ const CreateBody = z
         code: z.ZodIssueCode.custom,
         path: ["intakeUrlBase"],
         message:
-          "intakeUrlBase is required when deliveryMethod is EMAIL / SMS / WHATSAPP",
+          "intakeUrlBase is required when deliveryMethod is EMAIL / SMS",
       });
     }
   });
@@ -438,12 +458,12 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         type DeliveryResult =
           | { method: "MANUAL"; status: "skipped" }
           | {
-              method: "EMAIL" | "SMS" | "WHATSAPP";
+              method: "EMAIL" | "SMS";
               status: "sent";
               communicationMessageId: string;
             }
           | {
-              method: "EMAIL" | "SMS" | "WHATSAPP";
+              method: "EMAIL" | "SMS";
               status: "failed";
               reason: string;
               communicationMessageId?: string;
@@ -476,20 +496,20 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
               intakeLinkId: result.link.id,
               rawToken: result.rawToken,
               intakeUrl,
-              channel: body.deliveryMethod as "EMAIL" | "SMS" | "WHATSAPP",
+              channel: body.deliveryMethod as "EMAIL" | "SMS",
               actorUserId: ok.userId,
               workspaceName,
               idempotencyKey,
             });
           if (dispatched.ok) {
             delivery = {
-              method: body.deliveryMethod as "EMAIL" | "SMS" | "WHATSAPP",
+              method: body.deliveryMethod as "EMAIL" | "SMS",
               status: "sent",
               communicationMessageId: dispatched.communicationMessageId,
             };
           } else {
             delivery = {
-              method: body.deliveryMethod as "EMAIL" | "SMS" | "WHATSAPP",
+              method: body.deliveryMethod as "EMAIL" | "SMS",
               status: "failed",
               reason: dispatched.reason,
               communicationMessageId: dispatched.communicationMessageId,
@@ -784,32 +804,16 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         (smsFromNumber.length > 0 ||
           Boolean(process.env.TWILIO_MESSAGING_SERVICE_SID));
 
-      const whatsappFromNumber = (
-        process.env.TWILIO_WHATSAPP_NUMBER ?? ""
-      ).trim();
-      // WhatsApp intake delivery is only "configured" when BOTH the
-      // from-number AND an approved Content Template SID are set.
-      // Production WhatsApp Business sends require a template (Meta
-      // rule), so a from-number alone would still hit errorCode 63016.
-      const whatsappTemplateSid = (
-        process.env.TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID ?? ""
-      ).trim();
-      const whatsappTemplateLanguage =
-        (process.env.TWILIO_WHATSAPP_TEMPLATE_LANGUAGE ?? "").trim() || "en";
-      const whatsappHasTwilio =
-        Boolean(process.env.TWILIO_ACCOUNT_SID) &&
-        whatsappFromNumber.length > 0;
-      const whatsappTemplateConfigured = whatsappTemplateSid.length > 0;
-      const whatsappConfigured =
-        whatsappHasTwilio && whatsappTemplateConfigured;
-      // Operator-facing reason so the UI can show "Setup required —
-      // add a Twilio Content Template SID" instead of silently
-      // disabling the WhatsApp option.
-      const whatsappUnconfiguredReason: string | null = whatsappConfigured
-        ? null
-        : !whatsappHasTwilio
-          ? "twilio_unconfigured"
-          : "intake_template_unconfigured";
+      /*
+       * WhatsApp is gone from this preview because it is gone as an option.
+       * The block that stood here reported whether a Twilio Content Template
+       * SID was configured so the modal could say "Setup required" instead of
+       * silently disabling the choice — a useful thing to say about a channel
+       * a user can pick, and a misleading one about a channel that no longer
+       * appears. Its env vars are left unread rather than deleted from the
+       * deployment: a retired product option is not a reason to break an
+       * operator's existing configuration.
+       */
 
       // Reuse the existing phone masker so the operator sees the
       // same shape they're used to elsewhere in the app.
@@ -828,22 +832,6 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         sms: {
           configured: smsConfigured,
           fromNumberPreview: fromNumberPreview(smsFromNumber),
-        },
-        whatsapp: {
-          configured: whatsappConfigured,
-          fromNumberPreview: fromNumberPreview(whatsappFromNumber),
-          displayName: "PROOVRA",
-          // Template configuration is exposed so the create modal
-          // can render an actionable setup-required affordance
-          // instead of pretending WhatsApp will work. The SID
-          // itself is safe to surface (it identifies a public
-          // template name, not a secret).
-          template: {
-            configured: whatsappTemplateConfigured,
-            sid: whatsappTemplateConfigured ? whatsappTemplateSid : null,
-            language: whatsappTemplateLanguage,
-          },
-          unconfiguredReason: whatsappUnconfiguredReason,
         },
       });
     },
@@ -1067,11 +1055,12 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return sendFeatureDisabled(reply);
       }
       const { id } = ParamsId.parse(req.params);
-      // Intake-links-e2e (Phase 4) — EMAIL is now a first-class
-      // resend channel alongside SMS/WHATSAPP.
+      // Resend, on the two channels that remain. A request naming the
+      // retired one is refused here rather than reaching a provider path that
+      // no longer exists.
       const body = z
         .object({
-          channel: z.enum(["SMS", "WHATSAPP", "EMAIL"]).default("SMS"),
+          channel: z.enum(["SMS", "EMAIL"]).default("SMS"),
           rawToken: z.string().min(8).max(512),
           intakeUrl: z.string().url().max(1000),
           // Phase 5 idempotency nonce — same role as create. A
@@ -1160,8 +1149,7 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
               : sendResult.reason === "link_missing_phone" ||
                   sendResult.reason === "link_missing_email"
                 ? 400
-                : sendResult.reason === "provider_unconfigured" ||
-                    sendResult.reason === "whatsapp_template_unconfigured"
+                : sendResult.reason === "provider_unconfigured"
                   ? 503
                   : sendResult.reason === "max_attempts_exceeded"
                     ? 429

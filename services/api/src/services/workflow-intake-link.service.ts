@@ -28,12 +28,9 @@ import type {
 import {
   INTAKE_SENDER_DISPLAY_MODES,
   type IntakeSenderDisplayMode,
-  type IntakeWhatsappTemplateMode,
-  INTAKE_WHATSAPP_TEMPLATE_MODES,
   isExternalWorkflowIntakeMode,
   renderIntakeEmailMessage,
   renderIntakeSmsMessage,
-  renderIntakeWhatsappMessage,
   resolveIntakeSenderDisplay,
   sanitizeIntakeMessagePreview,
   validateCustomSenderDisplayName,
@@ -511,8 +508,15 @@ export async function unarchiveWorkflowIntakeLink(
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
-// Phase 18 — Operator-initiated SMS / WhatsApp delivery of an intake
-// link. The link itself is created via the existing path; this helper
+// Phase 18 — Operator-initiated SMS delivery of an intake link.
+//
+// WhatsApp was retired as a product option, and with it the Twilio Content
+// Template machinery this function carried for it: an approved template SID,
+// a template-mode switch, a URL-format switch and a language setting, all of
+// which existed only because Meta refuses a free-form business-initiated
+// message. None of that has a caller now. It is removed rather than left
+// unreachable, because dead transport code reads as a supported option to the
+// next person and comes back to life the first time somebody "re-enables" it. The link itself is created via the existing path; this helper
 // is a thin wrapper that:
 //
 //   - refuses to send if the link is revoked or expired
@@ -530,7 +534,7 @@ export type SendIntakeLinkViaSmsInput = {
   intakeLinkId: string;
   rawToken: string;
   intakeUrl: string;
-  channel: "SMS" | "WHATSAPP";
+  channel: "SMS";
   actorUserId: string;
   workspaceName: string;
 };
@@ -544,7 +548,6 @@ export type SendIntakeLinkViaSmsResult =
         | "link_revoked"
         | "link_expired"
         | "link_missing_phone"
-        | "whatsapp_template_unconfigured"
         | "delivery_failed_or_skipped";
     };
 
@@ -572,20 +575,6 @@ export async function sendIntakeLinkViaSms(
     return { ok: false, reason: "link_expired" };
   }
   if (!link.recipientPhone) return { ok: false, reason: "link_missing_phone" };
-
-  // WhatsApp production delivery requires an approved Twilio Content
-  // Template (Meta business-initiated rule). Refuse the send before
-  // the dispatcher even creates a row when the template SID is
-  // missing — a free-form WhatsApp Body would land with errorCode
-  // 63016 and silently consume the operator's send budget. The
-  // sender-identity endpoint surfaces this to the UI so WhatsApp is
-  // disabled with a setup-required reason before the user clicks.
-  if (input.channel === "WHATSAPP") {
-    const templateSid = readIntakeWhatsappTemplateSid();
-    if (!templateSid) {
-      return { ok: false, reason: "whatsapp_template_unconfigured" };
-    }
-  }
 
   // Dynamic import avoids a circular dependency: communication.service
   // does not import workflow-intake-link.service, but workflow-intake-
@@ -618,35 +607,13 @@ export async function sendIntakeLinkViaSms(
     locale: "en" as const,
   };
 
-  const body =
-    input.channel === "WHATSAPP"
-      ? renderIntakeWhatsappMessage(
-          renderInput,
-          resolveWhatsappTemplateMode(),
-        )
-      : renderIntakeSmsMessage(renderInput);
+  const body = renderIntakeSmsMessage(renderInput);
 
   // Sanitized preview is stored on the CommunicationMessage row so a
   // DB exfiltration cannot recover the raw token. The provider call
-  // below still gets the real `body` (SMS) OR the template variables
-  // (WhatsApp), but the persisted preview is always redacted.
+  // below still gets the real `body`, but the persisted preview is
+  // always redacted.
   const sanitizedPreview = sanitizeIntakeMessagePreview(body);
-
-  // Build the WhatsApp Content Template payload when applicable.
-  // SMS remains body-only — Twilio rejects ContentSid+Body in the
-  // same request, and our provider skips `Body` when `template` is
-  // present, so we only attach `template` to WhatsApp sends.
-  const template =
-    input.channel === "WHATSAPP"
-      ? buildIntakeWhatsappTemplatePayload({
-          senderDisplay: senderIdentity.display,
-          workflowTemplateSlug: link.workflowTemplateSlug,
-          workflowTemplateSnapshot: link.workflowTemplateSnapshot,
-          intakeUrl: input.intakeUrl,
-          rawToken: input.rawToken,
-          expiresAtUtc: link.expiresAtUtc,
-        })
-      : undefined;
 
   const result = await enqueueOutboundMessage(
     {
@@ -659,7 +626,6 @@ export async function sendIntakeLinkViaSms(
       sender: "PROOVRA",
       related: { intakeLinkId: link.id },
       createdByUserId: input.actorUserId,
-      template,
     },
     client,
   );
@@ -673,116 +639,19 @@ export async function sendIntakeLinkViaSms(
   return { ok: false, reason: "delivery_failed_or_skipped" };
 }
 
-// WHATSAPP_INTAKE_TEMPLATE_MODE env switch — see shared
-// INTAKE_WHATSAPP_TEMPLATE_MODES. Default `"plain"` reuses the SMS
-// body shape so we never accidentally ship a free-form template
-// through a WABA-strict sender. Operators enable `"rich"` after
-// their WhatsApp Business profile is approved for free-form
-// outbound or is inside the 24h session window.
-function resolveWhatsappTemplateMode(): IntakeWhatsappTemplateMode {
-  const raw = (process.env.WHATSAPP_INTAKE_TEMPLATE_MODE ?? "")
-    .trim()
-    .toLowerCase();
-  if (
-    (INTAKE_WHATSAPP_TEMPLATE_MODES as readonly string[]).includes(raw)
-  ) {
-    return raw as IntakeWhatsappTemplateMode;
-  }
-  return "plain";
-}
-
-/**
- * Read the Twilio Content Template SID for intake-link WhatsApp
- * delivery. Single source of truth so both the send path and the
- * sender-identity preview endpoint return the same answer.
- */
-export function readIntakeWhatsappTemplateSid(): string | null {
-  const raw = (process.env.TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID ?? "").trim();
-  return raw.length > 0 ? raw : null;
-}
-
-/**
- * Variable 4 in the Twilio Content Template can be either:
- *   - "token" — the template's button URL is configured as
- *     `https://app.proovra.com/intake/{{4}}` so variable 4 must be
- *     ONLY the token (the path suffix), never the full URL. This is
- *     the safer default because it pins the domain inside Twilio
- *     where Meta has already approved it.
- *   - "url"   — the template's button URL is configured as `{{4}}`
- *     directly, so variable 4 carries the full URL.
+/*
+ * The WhatsApp Content Template helpers stood here: a template-mode switch, a
+ * SID reader, a URL-format switch, a label helper and the payload builder —
+ * about a hundred lines that existed solely because Meta refuses a free-form
+ * business-initiated message. WhatsApp is retired as an intake delivery
+ * option, so none of it has a caller.
  *
- * Operator chooses via TWILIO_WHATSAPP_TEMPLATE_URL_FORMAT. The
- * shapes are mutually exclusive — passing a full URL when the
- * template wants a token produces a malformed link
- * (`https://app.proovra.com/intake/https://...`).
+ * Removed rather than left unreachable. Dead transport code reads as a
+ * supported option to whoever finds it next, and comes back to life the first
+ * time somebody re-enables the channel without re-deciding whether it should
+ * exist. The env vars it read are untouched in any deployment that set them.
  */
-export type IntakeWhatsappTemplateUrlFormat = "token" | "url";
 
-function resolveIntakeWhatsappTemplateUrlFormat(): IntakeWhatsappTemplateUrlFormat {
-  const raw = (process.env.TWILIO_WHATSAPP_TEMPLATE_URL_FORMAT ?? "")
-    .trim()
-    .toLowerCase();
-  return raw === "url" ? "url" : "token";
-}
-
-function workflowTemplateLabel(
-  slug: string,
-  snapshot: unknown,
-): string {
-  if (snapshot && typeof snapshot === "object" && "name" in snapshot) {
-    const name = (snapshot as { name?: unknown }).name;
-    if (typeof name === "string" && name.trim().length > 0) {
-      return name.trim().slice(0, 60);
-    }
-  }
-  // Slug → label fallback: turn "general-evidence-record" into
-  // "General evidence record". Capped at 60 chars so the WhatsApp
-  // template renders cleanly (most templates target ~60 char headers).
-  return slug
-    .split("-")
-    .map((part, i) =>
-      i === 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part,
-    )
-    .join(" ")
-    .slice(0, 60);
-}
-
-/**
- * Build the {1,2,3,4} ContentVariables payload for the intake-link
- * WhatsApp template.
- *
- *   {1} sender display name (e.g. "Acme Legal via PROOVRA")
- *   {2} request type label (e.g. "Insurance claim documents")
- *   {3} expiration date in the recipient-readable shape
- *   {4} link token OR full URL — depends on the template's button URL
- *       configuration (see resolveIntakeWhatsappTemplateUrlFormat).
- */
-export function buildIntakeWhatsappTemplatePayload(input: {
-  senderDisplay: string;
-  workflowTemplateSlug: string;
-  workflowTemplateSnapshot: unknown;
-  intakeUrl: string;
-  rawToken: string;
-  expiresAtUtc: Date;
-}): { contentSid: string; variables: Record<string, string>; language: string } | undefined {
-  const contentSid = readIntakeWhatsappTemplateSid();
-  if (!contentSid) return undefined;
-  const language =
-    (process.env.TWILIO_WHATSAPP_TEMPLATE_LANGUAGE ?? "").trim() || "en";
-  const urlFormat = resolveIntakeWhatsappTemplateUrlFormat();
-  const var4 = urlFormat === "url" ? input.intakeUrl : input.rawToken;
-  const expirationLabel = input.expiresAtUtc.toISOString().slice(0, 10);
-  const variables: Record<string, string> = {
-    "1": input.senderDisplay.slice(0, 80),
-    "2": workflowTemplateLabel(
-      input.workflowTemplateSlug,
-      input.workflowTemplateSnapshot,
-    ),
-    "3": expirationLabel,
-    "4": var4,
-  };
-  return { contentSid, variables, language };
-}
 
 // -----------------------------------------------------------------------------
 // Intake-links-e2e (Phase 3) — Operator-initiated EMAIL delivery of an

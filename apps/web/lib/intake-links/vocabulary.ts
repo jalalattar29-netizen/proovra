@@ -390,6 +390,17 @@ export const KPI_ORDER: ReadonlyArray<IntakeKpiKey> = [
 // DELIVERY CHANNEL
 // =============================================================================
 
+/**
+ * Every channel value a stored row can HOLD — which is not the same set as
+ * the channels an operator may choose.
+ *
+ * WHATSAPP stays here on purpose. It was retired as an option (see
+ * DELIVERY_CHANNELS, which no longer offers it), but a delivery recorded
+ * before that still says WhatsApp, and a row whose channel we refuse to name
+ * renders as "Copy link" — quietly telling the operator that a message they
+ * watched go out was never sent. Retiring an option is a statement about what
+ * may be created next, not about what already happened.
+ */
 export const CHANNEL_WIRE_VALUES = [
   "EMAIL",
   "SMS",

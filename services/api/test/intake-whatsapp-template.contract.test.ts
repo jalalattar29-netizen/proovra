@@ -1,238 +1,150 @@
 /**
- * Production WhatsApp template delivery — source-contract.
+ * WHATSAPP IS RETIRED AS AN INTAKE DELIVERY OPTION.
  *
- * After the providerMessageId fix landed, intake-link WhatsApp rows
- * picked up real Twilio SIDs but stayed QUEUED with no errorCode —
- * Meta rejects free-form Body sent outside the 24h customer window
- * (errorCode 63016, "template required"). This contract pins the
- * production fix:
+ * This file used to pin the Twilio Content Template machinery that made
+ * WhatsApp intake delivery work: an approved template SID, a template-mode
+ * switch, a URL-format switch, four positional variables, and a
+ * sender-identity block that told the operator which of those was missing.
+ * All of it existed because Meta refuses a free-form business-initiated
+ * message.
  *
- *   1. New env: TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID +
- *      TWILIO_WHATSAPP_TEMPLATE_LANGUAGE; config layer surfaces both.
- *   2. Twilio provider sends WhatsApp via ContentSid + ContentVariables
- *      + ContentLanguage when a template is supplied. SMS NEVER uses
- *      the template payload — body-only.
- *   3. sendIntakeLinkViaSms (WhatsApp branch) builds the template
- *      payload with {1..4} variables and refuses with
- *      `whatsapp_template_unconfigured` when the SID is missing.
- *   4. Variable 4 honours TWILIO_WHATSAPP_TEMPLATE_URL_FORMAT —
- *      defaults to "token" (template button URL pins the domain).
- *   5. Sender-identity endpoint surfaces template state so the
- *      operator UI can disable WhatsApp with a setup-required
- *      reason instead of silently letting the send fail.
- *   6. Dispatcher + send route map the new reason to HTTP 503 so
- *      the UI distinguishes "needs setup" from "transient error".
- *   7. providerMessageId still stores the real Twilio SID
- *      (Content API response shape is identical — `sid` field).
+ * The option is gone. The file stays, and now pins the opposite: that
+ * WhatsApp cannot be chosen, cannot be sent, and left no dead selectable
+ * value behind — while a delivery that ALREADY happened on WhatsApp is still
+ * readable and still says WhatsApp.
+ *
+ * Those two halves are the whole decision. Retiring a product option is a
+ * statement about what may be created next; it is not a licence to rewrite
+ * what already happened, and a historical row relabelled "SMS" would be the
+ * product lying about a message the operator watched go out.
+ *
+ * The supported channels are now exactly: Email, SMS, Copy link.
  */
 
-import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
-import { describe, it } from "vitest";
-import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const __filename = fileURLToPath(import.meta.url);
-const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
-const TWILIO = resolve(
-  REPO_ROOT,
-  "services/api/src/services/communications/twilio-provider.ts",
-);
-const PROVIDER = resolve(
-  REPO_ROOT,
-  "services/api/src/services/communications/provider.ts",
-);
-const COMM_SERVICE = resolve(
-  REPO_ROOT,
-  "services/api/src/services/communications/communication.service.ts",
-);
-const LINK_SERVICE = resolve(
-  REPO_ROOT,
-  "services/api/src/services/workflow-intake-link.service.ts",
-);
-const DISPATCHER = resolve(
-  REPO_ROOT,
+import { describe, expect, it } from "vitest";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const read = (rel: string) => readFileSync(resolve(ROOT, rel), "utf8");
+
+const ROUTES = read("services/api/src/routes/workflow-intake-links.routes.ts");
+const LINK_SERVICE = read("services/api/src/services/workflow-intake-link.service.ts");
+const DISPATCHER = read(
   "services/api/src/services/intake-link-delivery-dispatcher.service.ts",
 );
-const ROUTES = resolve(
-  REPO_ROOT,
-  "services/api/src/routes/workflow-intake-links.routes.ts",
-);
+const CATALOG = read("apps/web/lib/intake-links/catalog.ts");
+const VOCABULARY = read("apps/web/lib/intake-links/vocabulary.ts");
+const SCHEMA = read("services/api/prisma/schema.prisma");
 
-function read(p: string): string {
-  return readFileSync(p, "utf8");
-}
-
-describe("Pin 1 — env + config", () => {
-  it("TwilioProviderConfig declares whatsappIntakeTemplateSid + whatsappTemplateLanguage", () => {
-    const src = read(TWILIO);
-    assert.match(src, /whatsappIntakeTemplateSid:\s*string \| null;/);
-    assert.match(src, /whatsappTemplateLanguage:\s*string;/);
-  });
-
-  it("readTwilioConfigFromEnv reads TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID + TWILIO_WHATSAPP_TEMPLATE_LANGUAGE (default 'en')", () => {
-    const src = read(TWILIO);
-    assert.match(src, /process\.env\.TWILIO_WHATSAPP_INTAKE_TEMPLATE_SID/);
-    assert.match(
-      src,
-      /process\.env\.TWILIO_WHATSAPP_TEMPLATE_LANGUAGE[\s\S]{0,80}\|\| "en"/,
+// ===========================================================================
+// The option is gone from everything that can create a delivery
+// ===========================================================================
+describe("WhatsApp cannot be chosen", () => {
+  it("is not a delivery method a link can be created with", () => {
+    expect(ROUTES).toContain(
+      'export const DELIVERY_METHODS = ["MANUAL", "EMAIL", "SMS"] as const;',
     );
+    // The zod enum is built from that tuple, so a create naming WhatsApp is
+    // refused at the boundary in the caller's own words rather than failing
+    // somewhere further in.
+    expect(ROUTES).toContain("deliveryMethod: z.enum(DELIVERY_METHODS)");
   });
 
-  it("ProviderSendInput exposes an optional template payload (contentSid + variables + language)", () => {
-    const src = read(PROVIDER);
-    assert.match(src, /template\?: \{[\s\S]{0,400}contentSid: string;/);
-    assert.match(src, /variables: Record<string, string>;/);
-    assert.match(src, /language\?: string;/);
+  it("is not a channel the resend route accepts", () => {
+    expect(ROUTES).toContain('channel: z.enum(["SMS", "EMAIL"]).default("SMS")');
+    expect(ROUTES).not.toContain('z.enum(["SMS", "WHATSAPP", "EMAIL"])');
   });
-});
 
-describe("Pin 2 — Twilio provider uses Content API for WhatsApp", () => {
-  it("WhatsApp + template ⇒ ContentSid + ContentVariables + ContentLanguage (no Body)", () => {
-    const src = read(TWILIO);
-    assert.match(
-      src,
-      /useTemplate =\s*\n?\s*channel === "WHATSAPP" && Boolean\(input\.template\?\.contentSid\)/,
+  it("is not a channel the dispatcher or the send service knows", () => {
+    expect(DISPATCHER).toContain(
+      'export type IntakeDeliveryChannel = "EMAIL" | "SMS";',
     );
-    assert.match(src, /params\.set\("ContentSid", input\.template\.contentSid\)/);
-    assert.match(
-      src,
-      /params\.set\(\s*\n?\s*"ContentVariables",\s*\n?\s*JSON\.stringify\(input\.template\.variables\)/,
-    );
-    assert.match(src, /params\.set\("ContentLanguage", lang\)/);
+    expect(LINK_SERVICE).toContain('channel: "SMS";');
   });
 
-  it("SMS path is unchanged — Body is still set, template is ignored on SMS", () => {
-    const src = read(TWILIO);
-    // The `else` branch of the template gate sets Body; pin that the
-    // gate's guard requires channel===WHATSAPP, so SMS always falls
-    // through to params.set("Body", input.body).
-    assert.match(
-      src,
-      /} else \{\s*\n?\s*params\.set\("Body", input\.body\);/,
-    );
-  });
-
-  it("Twilio response parser still returns the real SID for ContentSid sends (so providerMessageId remains correct)", () => {
-    const src = read(TWILIO);
-    // Twilio's Content API response shape is identical to Messages.json
-    // (sid + status). The success branch must still read body.sid.
-    assert.match(src, /body\["sid"\]/);
-    assert.match(src, /providerMessageId: sid/);
-  });
-});
-
-describe("Pin 3 — intake link service builds + gates the template", () => {
-  it("WhatsApp send refuses with whatsapp_template_unconfigured when SID is missing", () => {
-    const src = read(LINK_SERVICE);
-    assert.match(
-      src,
-      /if \(input\.channel === "WHATSAPP"\) \{\s*\n?\s*const templateSid = readIntakeWhatsappTemplateSid\(\);[\s\S]{0,300}reason: "whatsapp_template_unconfigured"/,
-    );
-  });
-
-  it("WhatsApp send passes the template payload through enqueueOutboundMessage; SMS doesn't", () => {
-    const src = read(LINK_SERVICE);
-    // The `template` field on the enqueue input is only set for the
-    // WhatsApp branch (a ternary on input.channel).
-    assert.match(
-      src,
-      /const template =\s*\n?\s*input\.channel === "WHATSAPP"\s*\n?\s*\? buildIntakeWhatsappTemplatePayload\(/,
-    );
-    assert.match(src, /:\s*undefined;/);
-    assert.match(src, /template,\s*\n?\s*\}/);
-  });
-
-  it("buildIntakeWhatsappTemplatePayload populates all 4 positional variables", () => {
-    const src = read(LINK_SERVICE);
-    const fnIdx = src.indexOf("export function buildIntakeWhatsappTemplatePayload");
-    assert.ok(fnIdx > 0);
-    const body = src.slice(fnIdx, fnIdx + 1500);
-    // Every variable index 1..4 must be set in the variables object.
-    for (const key of ['"1":', '"2":', '"3":', '"4":']) {
-      assert.ok(
-        body.includes(key),
-        `WhatsApp template variables missing ${key}`,
-      );
+  it("left no template machinery behind", () => {
+    /*
+     * Removed rather than left unreachable. Dead transport code reads as a
+     * supported option to whoever finds it next, and comes back to life the
+     * first time somebody "re-enables" the channel without re-deciding
+     * whether it should exist.
+     */
+    for (const symbol of [
+      "buildIntakeWhatsappTemplatePayload",
+      "readIntakeWhatsappTemplateSid",
+      "resolveWhatsappTemplateMode",
+      "resolveIntakeWhatsappTemplateUrlFormat",
+      "whatsapp_template_unconfigured",
+    ]) {
+      expect(LINK_SERVICE, `${symbol} is still reachable`).not.toContain(symbol);
     }
+    expect(DISPATCHER).not.toContain("whatsapp_template_unconfigured");
   });
 
-  it("the new failure reason is declared on SendIntakeLinkViaSmsResult", () => {
-    const src = read(LINK_SERVICE);
-    assert.match(src, /\| "whatsapp_template_unconfigured"/);
+  it("is not described by the sender-identity preview", () => {
+    // Telling an operator "Setup required" about a channel they cannot pick
+    // is a worse answer than not mentioning it.
+    const handler = ROUTES.slice(
+      ROUTES.indexOf('"/v1/workflow/intake-links/sender-identity"'),
+      ROUTES.indexOf('"/v1/workflow/intake-links/:id/submissions"'),
+    );
+    expect(handler).not.toContain("whatsapp: {");
+    expect(handler).not.toContain("whatsappConfigured");
+  });
+
+  it("is not an offered channel in the UI catalog", () => {
+    expect(CATALOG).not.toContain('value: "WHATSAPP"');
+    expect(CATALOG).not.toContain('icon: "whatsapp"');
+    expect(CATALOG).not.toContain('transportKey: "whatsapp"');
+    expect(CATALOG).toContain(
+      'export type DeliveryChannelWire = "MANUAL" | "EMAIL" | "SMS";',
+    );
+  });
+
+  it("leaves exactly Email, SMS and Copy link", () => {
+    for (const v of ['value: "EMAIL"', 'value: "SMS"', 'value: "MANUAL"']) {
+      expect(CATALOG).toContain(v);
+    }
+    expect(CATALOG).toContain('label: "Copy link"');
+    // Copy link is MANUAL: a stored delivery method that records that nothing
+    // was sent, with a local copy action on top. It is not a transport, which
+    // is why it has no transport key.
+    expect(CATALOG).toContain("transportKey: null");
   });
 });
 
-describe("Pin 4 — variable 4 honours TWILIO_WHATSAPP_TEMPLATE_URL_FORMAT", () => {
-  it("resolver defaults to 'token' (template URL pins the domain via {{4}} suffix)", () => {
-    const src = read(LINK_SERVICE);
-    assert.match(
-      src,
-      /function resolveIntakeWhatsappTemplateUrlFormat\(\):\s*IntakeWhatsappTemplateUrlFormat \{/,
+// ===========================================================================
+// What already happened is still readable
+// ===========================================================================
+describe("historical WhatsApp deliveries stay readable", () => {
+  it("keeps the persisted enum value", () => {
+    /*
+     * `CommunicationChannel` is shared: it is also the MFA and
+     * verified-contact-factor channel, which this change has nothing to do
+     * with. Dropping the value would break those AND orphan every row that
+     * already holds it. An enum value is not the same thing as a product
+     * option.
+     */
+    const channel = SCHEMA.slice(
+      SCHEMA.indexOf("enum CommunicationChannel {"),
+      SCHEMA.indexOf("}", SCHEMA.indexOf("enum CommunicationChannel {")),
     );
-    assert.match(src, /process\.env\.TWILIO_WHATSAPP_TEMPLATE_URL_FORMAT/);
-    assert.match(src, /raw === "url" \? "url" : "token"/);
+    expect(channel).toContain("WHATSAPP");
   });
 
-  it("var4 is rawToken when format is 'token', full URL when format is 'url'", () => {
-    const src = read(LINK_SERVICE);
-    assert.match(
-      src,
-      /const var4 = urlFormat === "url" \? input\.intakeUrl : input\.rawToken;/,
-    );
-  });
-});
-
-describe("Pin 5 — sender-identity endpoint surfaces template status", () => {
-  it("WhatsApp.configured requires BOTH a from-number AND a template SID", () => {
-    const src = read(ROUTES);
-    assert.match(
-      src,
-      /const whatsappConfigured =\s*\n?\s*whatsappHasTwilio && whatsappTemplateConfigured;/,
-    );
+  it("keeps the read vocabulary that names it", () => {
+    // A row whose channel we refuse to name renders as "Copy link" — quietly
+    // telling the operator that a message they watched go out was never sent.
+    expect(VOCABULARY).toContain('"WHATSAPP",');
+    expect(VOCABULARY).toContain('WHATSAPP: "WhatsApp"');
   });
 
-  it("response carries an explicit `template` block with configured + sid + language", () => {
-    const src = read(ROUTES);
-    assert.match(
-      src,
-      /template: \{\s*\n?\s*configured: whatsappTemplateConfigured,\s*\n?\s*sid: whatsappTemplateConfigured \? whatsappTemplateSid : null,\s*\n?\s*language: whatsappTemplateLanguage,\s*\n?\s*\}/,
-    );
-  });
-
-  it("unconfiguredReason distinguishes 'twilio_unconfigured' from 'intake_template_unconfigured'", () => {
-    const src = read(ROUTES);
-    assert.match(src, /"intake_template_unconfigured"/);
-    assert.match(src, /"twilio_unconfigured"/);
-  });
-});
-
-describe("Pin 6 — dispatcher + route map the new reason correctly", () => {
-  it("dispatcher's union type allows whatsapp_template_unconfigured", () => {
-    const src = read(DISPATCHER);
-    assert.match(src, /\| "whatsapp_template_unconfigured"/);
-  });
-
-  it("send route maps provider_unconfigured + whatsapp_template_unconfigured to HTTP 503", () => {
-    const src = read(ROUTES);
-    assert.match(
-      src,
-      /sendResult\.reason === "provider_unconfigured" \|\|\s*\n?\s*sendResult\.reason === "whatsapp_template_unconfigured"\s*\n?\s*\? 503/,
-    );
-  });
-});
-
-describe("Pin 7 — enqueueOutboundMessage threads template through", () => {
-  it("EnqueueOutboundMessageInput accepts the optional template field", () => {
-    const src = read(COMM_SERVICE);
-    assert.match(
-      src,
-      /template\?: \{\s*\n?\s*contentSid: string;\s*\n?\s*variables: Record<string, string>;\s*\n?\s*language\?: string;\s*\n?\s*\};/,
-    );
-  });
-
-  it("sendInput passes input.template to the provider so the Twilio call receives it", () => {
-    const src = read(COMM_SERVICE);
-    assert.match(src, /template: input\.template,/);
+  it("does not rewrite any historical channel", () => {
+    // No migration, no backfill, no UPDATE. The record says what happened.
+    expect(ROUTES).not.toMatch(/WHATSAPP[\s\S]{0,80}=>[\s\S]{0,20}"SMS"/);
+    expect(LINK_SERVICE).not.toMatch(/WHATSAPP[\s\S]{0,80}=>[\s\S]{0,20}"SMS"/);
   });
 });

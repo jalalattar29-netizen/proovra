@@ -72,14 +72,23 @@ describe("the disclosure authority", () => {
     expect(PERMISSIONS).toContain("workflow.intake_recipient_contact.reveal");
   });
 
-  it("is held by the roles that administer intake, and by nobody else", () => {
-    for (const role of ["OWNER", "ADMIN"] as const) {
+  it("is held by the roles that OPERATE intake, and by nobody else", () => {
+    /*
+     * It was first granted to OWNER and ADMIN only, on the reasoning that a
+     * disclosure is an administrative act. That was wrong about who runs
+     * intake: the people who create the links and chase the recipients are
+     * canonical REVIEWER — which is what DB role MEMBER maps to — and
+     * withholding the address from them protected nobody. It pushed the
+     * number into a spreadsheet outside the product, where no policy reaches
+     * it at all.
+     */
+    for (const role of ["OWNER", "ADMIN", "REVIEWER"] as const) {
       expect(
         roleHasPermission(role, "workflow.intake_recipient_contact.reveal"),
         `${role} should hold the reveal authority`,
       ).toBe(true);
     }
-    for (const role of ["REVIEWER", "CONTRIBUTOR", "VIEWER"] as const) {
+    for (const role of ["CONTRIBUTOR", "VIEWER"] as const) {
       expect(
         roleHasPermission(role, "workflow.intake_recipient_contact.reveal"),
         `${role} must NOT hold the reveal authority`,
@@ -87,13 +96,35 @@ describe("the disclosure authority", () => {
     }
   });
 
-  it("is not implied by reading the record", () => {
+  it("tracks the intake authority exactly, in both directions", () => {
     /*
-     * The whole finding in one assertion. Every role that can read evidence
-     * could previously read the recipient's address off the intake-link API,
-     * because the projection was gated on nothing more than `evidence.read`.
+     * The rule, stated as an equivalence rather than a list: whoever may
+     * create and revoke an intake link may see who it was sent to, and
+     * whoever may not, may not. Written this way, a future edit to either
+     * side shows up here instead of silently moving the boundary.
      */
-    for (const role of ["REVIEWER", "CONTRIBUTOR", "VIEWER"] as const) {
+    for (const role of [
+      "OWNER",
+      "ADMIN",
+      "REVIEWER",
+      "CONTRIBUTOR",
+      "VIEWER",
+    ] as const) {
+      expect(
+        roleHasPermission(role, "workflow.intake_recipient_contact.reveal"),
+        `${role} disagrees with its own intake authority`,
+      ).toBe(roleHasPermission(role, "workflow.intake_link.create"));
+    }
+  });
+
+  it("is still not implied by reading the record", () => {
+    /*
+     * The original finding, and the half that did not move. VIEWER and
+     * CONTRIBUTOR can both read evidence; neither can operate intake, and
+     * read access to a record is still not a reason to receive a third
+     * party's contact details.
+     */
+    for (const role of ["CONTRIBUTOR", "VIEWER"] as const) {
       expect(roleHasPermission(role, "evidence.read")).toBe(true);
       expect(
         roleHasPermission(role, "workflow.intake_recipient_contact.reveal"),
@@ -101,16 +132,16 @@ describe("the disclosure authority", () => {
     }
   });
 
-  it("is not implied by being allowed to create an intake link", () => {
-    /*
-     * The previous fix gated the reveal on `workflow.intake_link.create`.
-     * REVIEWER holds it — and DB role MEMBER maps to REVIEWER — so an
-     * ordinary team member was an authorized reader of the contact details.
-     */
+  it("reaches an ordinary team MEMBER, because that is a REVIEWER", () => {
+    // The mapping that made the first grant wrong is the one that makes this
+    // one right: an operational member is exactly who needs the address.
     expect(mapTeamRoleToCanonical("MEMBER")).toBe("REVIEWER");
-    expect(roleHasPermission("REVIEWER", "workflow.intake_link.create")).toBe(true);
     expect(
       roleHasPermission("REVIEWER", "workflow.intake_recipient_contact.reveal"),
+    ).toBe(true);
+    expect(mapTeamRoleToCanonical("VIEWER")).toBe("VIEWER");
+    expect(
+      roleHasPermission("VIEWER", "workflow.intake_recipient_contact.reveal"),
     ).toBe(false);
   });
 

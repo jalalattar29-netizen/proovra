@@ -10,7 +10,7 @@
  *   - request purpose  → `workflowTemplateSlug`, resolved by
  *     `loadEffectiveWorkflowTemplate` against the seeded IntakeTemplate
  *     registry (`services/api/src/services/capture-intake-templates.ts`)
- *   - delivery channel → `deliveryMethod` ∈ MANUAL | EMAIL | SMS | WHATSAPP
+ *   - delivery channel → `deliveryMethod` ∈ MANUAL | EMAIL | SMS
  *   - accepted kinds   → `allowedAcceptedKinds` ∈ PHOTO | VIDEO | AUDIO | DOCUMENT
  *   - limits           → the Zod bounds on `maxFileCountPerSession` and the
  *     `expiresAtUtc` the UI computes from a duration
@@ -141,25 +141,49 @@ export function findRequestPurpose(
 //
 // Mirrors the backend `DELIVERY_METHODS` enum exactly. `requires` is the
 // CONDITIONAL VALIDATION MATRIX, re-stated on the server by the CreateBody
-// `superRefine`: EMAIL demands `recipientEmail`, SMS/WHATSAPP demand
+// `superRefine`: EMAIL demands `recipientEmail`, SMS demands
 // `recipientPhone`, MANUAL demands neither. The wizard renders exactly the
 // field the selected channel requires and nothing else.
 
-export type DeliveryChannelWire = "MANUAL" | "EMAIL" | "SMS" | "WHATSAPP";
+/**
+ * What may be SENT on. A historical row can still carry "WHATSAPP" — see
+ * `ChannelWireValue`, which is the READ vocabulary and keeps it.
+ */
+export type DeliveryChannelWire = "MANUAL" | "EMAIL" | "SMS";
 
 export type DeliveryChannel = {
   value: DeliveryChannelWire;
   label: string;
   description: string;
-  icon: "link" | "mail" | "sms" | "whatsapp";
+  /**
+   * The icon for an OFFERED channel. Narrower than the icon component's own
+   * union, which still draws a WhatsApp mark for a historical delivery row —
+   * what may be offered and what may be rendered are different questions.
+   */
+  icon: "link" | "mail" | "sms";
   /** The recipient field the API requires for this channel. */
   requires: "none" | "email" | "phone";
   /** Whether a message is composed and sent for this channel. */
   sendsMessage: boolean;
   /** Key into the sender-transport envelope; MANUAL needs no provider. */
-  transportKey: "email" | "sms" | "whatsapp" | null;
+  transportKey: "email" | "sms" | null;
 };
 
+/**
+ * THE CHANNELS AN OPERATOR CAN CHOOSE.
+ *
+ * Three: Email, SMS, and Copy link. WhatsApp was retired — it is gone from
+ * here, which is what removes the control, the icon and the label from every
+ * surface that renders this list rather than each of them having to remember.
+ *
+ * "Copy link" is MANUAL: the link is created and nothing is sent. It is a
+ * real stored delivery method (the row records that no message was attempted)
+ * and the copy button on top of it is a local action; it is not a transport,
+ * which is why its `transportKey` is null.
+ *
+ * A historical WhatsApp delivery still renders truthfully wherever one exists
+ * — see CHANNEL_LABEL, which deliberately keeps the label this list drops.
+ */
 export const DELIVERY_CHANNELS: ReadonlyArray<DeliveryChannel> = [
   {
     value: "SMS",
@@ -178,15 +202,6 @@ export const DELIVERY_CHANNELS: ReadonlyArray<DeliveryChannel> = [
     requires: "email",
     sendsMessage: true,
     transportKey: "email",
-  },
-  {
-    value: "WHATSAPP",
-    label: "WhatsApp",
-    description: "PROOVRA sends the approved WhatsApp request template.",
-    icon: "whatsapp",
-    requires: "phone",
-    sendsMessage: true,
-    transportKey: "whatsapp",
   },
   {
     value: "MANUAL",

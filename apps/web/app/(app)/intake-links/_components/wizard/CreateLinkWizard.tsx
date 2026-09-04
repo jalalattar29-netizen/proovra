@@ -155,9 +155,7 @@ export function CreateLinkWizard({
       ? "SMS"
       : transport.email?.configured
         ? "EMAIL"
-        : transport.whatsapp?.configured
-          ? "WHATSAPP"
-          : "MANUAL";
+        : "MANUAL";
     if (next !== state.channel) {
       setState((prev) => ({ ...prev, channel: next }));
     }

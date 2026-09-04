@@ -29,7 +29,7 @@ import type { SenderTransportInfo } from "../../_lib/types";
 export const PLACEHOLDER_INTAKE_URL =
   "https://app.proovra.com/intake/[secure-link]";
 
-export type PreviewChannel = "EMAIL" | "SMS" | "WHATSAPP";
+export type PreviewChannel = "EMAIL" | "SMS";
 
 export function resolvePreviewSender(input: {
   senderMode: IntakeSenderDisplayMode;

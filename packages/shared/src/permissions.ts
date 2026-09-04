@@ -53,13 +53,23 @@ export const PERMISSIONS = [
    * masked form is provenance and everyone who can read the record gets it;
    * the raw value is a disclosure, and this is the authority for it.
    *
-   * It is deliberately NOT `workflow.intake_link.create`. That is a mutation
-   * capability held by canonical REVIEWER — which is what the DB role MEMBER
-   * maps to — so gating disclosure on it would have handed every ordinary
-   * team member the stored contact details, and would have silently changed
-   * who may see them the next time somebody adjusted who may create links.
-   * Administration and disclosure are separate questions and now have
-   * separate answers.
+   * It is its own permission rather than an alias for
+   * `workflow.intake_link.create`, because administration and disclosure are
+   * separate questions and a change to one must not silently move the other.
+   *
+   * WHO HOLDS IT is a different matter, and the first answer was wrong. It was
+   * granted to OWNER and ADMIN only, on the reasoning that a disclosure is an
+   * administrative act. But the people who RUN intake are the people who
+   * create the links, chase the recipients and phone them when a submission
+   * stalls — canonical REVIEWER, which is what the DB role MEMBER maps to.
+   * Withholding the address from them did not protect the recipient; it
+   * protected nothing, and pushed the number into a spreadsheet outside the
+   * product where no policy reaches it at all.
+   *
+   * So it now follows the operational intake authority exactly: whoever may
+   * create and revoke intake links may see who they were sent to. CONTRIBUTOR
+   * and VIEWER hold neither of those and hold this neither — read access to a
+   * record is still not a reason to receive a third party's contact details.
    */
   "workflow.intake_recipient_contact.reveal",
 
@@ -322,9 +332,9 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "workflow.intake_link.create",
     "workflow.intake_link.revoke",
     "workflow.external_submission.read",
-    // Disclosure of a third party's stored contact detail is an
-    // administrative act. REVIEWER may create the link and may read the
-    // record; neither of those is a reason to hand out the address.
+    // Granted here and to REVIEWER — the roles that operate intake. Not to
+    // CONTRIBUTOR or VIEWER, who cannot create or revoke a link and have no
+    // operational reason to hold a recipient's address.
     "workflow.intake_recipient_contact.reveal",
     "evidence_request.create",
     "evidence_request.assign",
@@ -425,6 +435,11 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "workflow.intake_link.create",
     "workflow.intake_link.revoke",
     "workflow.external_submission.read",
+    // Held because this role RUNS intake: it creates the links and chases the
+    // recipients. The three capabilities move together on purpose — a reviewer
+    // who may send a request and revoke it, but may not see who it went to,
+    // cannot do the job the first two describe.
+    "workflow.intake_recipient_contact.reveal",
     "evidence_request.create",
     "evidence_request.assign",
     "evidence_request.review",

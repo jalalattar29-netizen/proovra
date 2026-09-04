@@ -90,18 +90,25 @@ test("the request catalog is plain language and hides no enum names", () => {
 });
 
 test("the delivery catalog mirrors the backend enum exactly", () => {
+  // The backend's DELIVERY_METHODS is the same three after WhatsApp's
+  // retirement, which is the point of this assertion: a channel the UI offers
+  // and the API refuses is a create that fails after the operator has filled
+  // the form in.
   assert.deepEqual(
     DELIVERY_CHANNELS.map((c) => c.value).sort(),
-    ["EMAIL", "MANUAL", "SMS", "WHATSAPP"],
+    ["EMAIL", "MANUAL", "SMS"],
   );
 });
 
 test("the conditional-validation matrix is the one the API enforces", () => {
+  // Three channels: Email, SMS, and Copy link. WhatsApp was retired as an
+  // option, so it is not in the union this matrix is keyed by — and being
+  // keyed by the union is what makes the matrix complete rather than a list
+  // somebody has to remember to extend.
   const expected: Record<DeliveryChannelWire, "none" | "email" | "phone"> = {
     MANUAL: "none",
     EMAIL: "email",
     SMS: "phone",
-    WHATSAPP: "phone",
   };
   for (const [channel, requires] of Object.entries(expected)) {
     assert.equal(
@@ -115,8 +122,28 @@ test("the conditional-validation matrix is the one the API enforces", () => {
 test("only SMS carries the carrier opt-out statement", () => {
   assert.equal(channelCarriesOptOut("SMS"), true);
   assert.equal(channelCarriesOptOut("EMAIL"), false);
-  assert.equal(channelCarriesOptOut("WHATSAPP"), false);
   assert.equal(channelCarriesOptOut("MANUAL"), false);
+});
+
+test("WhatsApp is not an offered channel", () => {
+  /*
+   * Retired as a product option. The check is on the CATALOG rather than on
+   * a rendered control, because the catalog is what every surface renders
+   * from — a value left here would come back as an icon, a label and a
+   * selectable radio in three places at once.
+   *
+   * The stored vocabulary deliberately still knows the word: a delivery
+   * recorded before the retirement has to keep saying WhatsApp. That is
+   * asserted in intake-links-vocabulary.test.ts.
+   */
+  assert.deepEqual(
+    DELIVERY_CHANNELS.map((c) => c.value),
+    ["SMS", "EMAIL", "MANUAL"],
+  );
+  assert.ok(
+    !DELIVERY_CHANNELS.some((c) => /whatsapp/i.test(JSON.stringify(c))),
+    "no WhatsApp label, icon or transport key may remain in the catalog",
+  );
 });
 
 test("accepted file types keep backend values and gain human labels", () => {
@@ -218,7 +245,6 @@ test("each channel demands exactly the recipient field it needs", () => {
   const cases: Array<[DeliveryChannelWire, "recipientEmail" | "recipientPhone" | null]> = [
     ["EMAIL", "recipientEmail"],
     ["SMS", "recipientPhone"],
-    ["WHATSAPP", "recipientPhone"],
     ["MANUAL", null],
   ];
   for (const [channel, field] of cases) {

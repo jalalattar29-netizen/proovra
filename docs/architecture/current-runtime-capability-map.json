@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "4793f9656c9021ae61adca25c49db02ca148d3e73b42c501e1c38f5cf15ccbc6",
-  "consumerInventoryHash": "9337b5c6de3356f6f58150fb1eec7f484bef542eb1458b1b2fdf924d3bcdf09d",
+  "consumerInventoryHash": "be513a2a812a82fac722d97c17fc86eac04b6777e48cdca8da441af479599aa3",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1126,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8328,
+      "METHOD_ON_VALUE": 8324,
       "UNRESOLVED_IDENTIFIER": 1047
     },
     "MutationFixpointRounds": 9,
@@ -13443,7 +13443,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:304",
+      "productConsumer": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:302",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -39598,8 +39598,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/intake-link-delivery-dispatcher.service.ts#communicationMessage.update@256",
-      "terminalLocation": "services/api/src/services/intake-link-delivery-dispatcher.service.ts:256",
+      "writerId": "services/api/src/services/intake-link-delivery-dispatcher.service.ts#communicationMessage.update@263",
+      "terminalLocation": "services/api/src/services/intake-link-delivery-dispatcher.service.ts:263",
       "file": "services/api/src/services/intake-link-delivery-dispatcher.service.ts",
       "enclosingDeclaration": "dispatchIntakeLinkDelivery",
       "kind": "DATABASE",
@@ -39632,8 +39632,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/intake-link-delivery-dispatcher.service.ts#communicationMessage.update@279",
-      "terminalLocation": "services/api/src/services/intake-link-delivery-dispatcher.service.ts:279",
+      "writerId": "services/api/src/services/intake-link-delivery-dispatcher.service.ts#communicationMessage.update@286",
+      "terminalLocation": "services/api/src/services/intake-link-delivery-dispatcher.service.ts:286",
       "file": "services/api/src/services/intake-link-delivery-dispatcher.service.ts",
       "enclosingDeclaration": "dispatchIntakeLinkDelivery",
       "kind": "DATABASE",
@@ -72716,8 +72716,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.create@922",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:922",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.create@791",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:791",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72750,8 +72750,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@981",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:981",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@850",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:850",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72784,8 +72784,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@997",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:997",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@866",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:866",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72818,8 +72818,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.create@266",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:266",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.create@263",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:263",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "createWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -72856,8 +72856,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@440",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:440",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@437",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:437",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "revokeWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -72889,8 +72889,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@480",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:480",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@477",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:477",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "archiveWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -72922,8 +72922,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@498",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:498",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@495",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:495",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "unarchiveWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -110876,7 +110876,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:562",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:582",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110951,7 +110951,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:620",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:640",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -111019,7 +111019,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id/submissions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:859",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:847",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -111085,7 +111085,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/sender-identity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:754",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:774",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150479,7 +150479,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:300",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:320",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150492,7 +150492,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx",
-          "line": 304,
+          "line": 302,
           "caller": "CreateLinkWizard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150502,7 +150502,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:304 (CreateLinkWizard, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:302 (CreateLinkWizard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150569,7 +150569,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:955",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:943",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150636,7 +150636,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/recipient-contact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:673",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:693",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150701,7 +150701,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:881",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:869",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150768,7 +150768,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/send",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1062",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1050",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150843,7 +150843,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1007",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:995",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",

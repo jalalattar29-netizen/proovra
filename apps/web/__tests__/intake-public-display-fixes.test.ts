@@ -135,14 +135,32 @@ test("submit failure renders the requestId as a quotable Support ID", () => {
 // "defaults to a channel the deployment can actually deliver on",
 // "falls all the way back to copy-link when no provider is configured").
 
-test("the delivery catalog contains all 4 channels (the order is not a UX invariant)", () => {
+test("the delivery catalog contains the three offered channels", () => {
+  // Email, SMS and Copy link. The order is not a UX invariant; the SET is.
   const src = read(CATALOG);
-  for (const v of ['"EMAIL"', '"SMS"', '"WHATSAPP"', '"MANUAL"']) {
+  for (const v of ['"EMAIL"', '"SMS"', '"MANUAL"']) {
     assert.ok(
       src.includes(`value: ${v}`),
       `delivery catalog missing value ${v}`,
     );
   }
+  // Retired, and gone from the catalog entirely — label, icon and transport
+  // key included, since each of those is a way for the option to come back.
+  // No selectable entry, and no icon key that could produce one. The word
+  // survives only in the comments explaining why historical rows still render
+  // it, which is the distinction worth keeping legible.
+  assert.ok(
+    !/value: "WHATSAPP"/.test(src),
+    "WhatsApp must not be a selectable delivery channel",
+  );
+  assert.ok(
+    !/icon: "whatsapp"/.test(src),
+    "no WhatsApp icon may remain on an offered channel",
+  );
+  assert.ok(
+    !/transportKey: "whatsapp"/.test(src),
+    "no WhatsApp transport may remain",
+  );
 });
 
 test("MANUAL reads as the short 'Copy link' — never the older verbose labels", () => {

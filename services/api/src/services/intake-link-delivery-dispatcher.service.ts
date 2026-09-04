@@ -68,7 +68,15 @@ import {
 /** Cap on retries for a single (linkId, channel, idempotencyKey) tuple. */
 export const MAX_INTAKE_DELIVERY_ATTEMPTS = 3;
 
-export type IntakeDeliveryChannel = "EMAIL" | "SMS" | "WHATSAPP";
+/**
+ * The channels an intake link can be DELIVERED on.
+ *
+ * WhatsApp was retired as a product option and is gone from the send path. It
+ * survives in the persisted `CommunicationChannel` enum and in every read and
+ * label path, so a delivery recorded before the retirement still reads as
+ * WhatsApp — retiring an option says what may happen next, not what happened.
+ */
+export type IntakeDeliveryChannel = "EMAIL" | "SMS";
 
 export type DispatchIntakeDeliveryInput = {
   teamId: string;
@@ -109,7 +117,6 @@ export type DispatchIntakeDeliveryResult =
         | "link_missing_email"
         | "link_missing_phone"
         | "provider_unconfigured"
-        | "whatsapp_template_unconfigured"
         | "delivery_failed"
         | "delivery_failed_or_skipped"
         | "max_attempts_exceeded";

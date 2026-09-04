@@ -47,23 +47,18 @@ describe("Send functions — security + sender identity wiring", () => {
     assert.match(src, /renderIntakeEmailMessage\(\{/);
   });
 
-  it("SMS/WhatsApp send dispatches on channel — WHATSAPP routes through renderIntakeWhatsappMessage", () => {
+  it("the phone send has one body renderer, because it has one channel", () => {
+    /*
+     * This asserted a two-way dispatch on channel, and the WhatsApp half of
+     * it — a Content Template mode read from WHATSAPP_INTAKE_TEMPLATE_MODE,
+     * a template payload, a URL-format switch. WhatsApp was retired as an
+     * intake delivery option, so there is one renderer and no branch.
+     * intake-whatsapp-template.contract.test.ts pins the retirement itself.
+     */
     const src = read(SERVICE);
-    assert.match(
-      src,
-      /input\.channel === "WHATSAPP"\s*\n?\s*\?\s*renderIntakeWhatsappMessage/,
-    );
-    assert.match(src, /renderIntakeSmsMessage\(renderInput\)/);
-  });
-
-  it("WhatsApp template mode comes from the WHATSAPP_INTAKE_TEMPLATE_MODE env, default `plain`", () => {
-    const src = read(SERVICE);
-    assert.match(
-      src,
-      /function resolveWhatsappTemplateMode\(\): IntakeWhatsappTemplateMode/,
-    );
-    assert.match(src, /process\.env\.WHATSAPP_INTAKE_TEMPLATE_MODE/);
-    assert.match(src, /return "plain";/);
+    assert.match(src, /const body = renderIntakeSmsMessage\(renderInput\);/);
+    assert.doesNotMatch(src, /renderIntakeWhatsappMessage/);
+    assert.doesNotMatch(src, /WHATSAPP_INTAKE_TEMPLATE_MODE/);
   });
 
   it("Both send functions read sender identity columns from the link row + resolve via shared", () => {
@@ -153,28 +148,33 @@ describe("Create flow — sender identity validation + persistence", () => {
 });
 
 describe("GET /sender-identity — safe shape only", () => {
-  it("Endpoint is registered and returns email/sms/whatsapp envelopes", () => {
+  it("Endpoint is registered and returns email/sms envelopes", () => {
     const src = read(ROUTES);
     assert.match(
       src,
       /"\/v1\/workflow\/intake-links\/sender-identity"/,
     );
-    // Body literal must enumerate the three channels.
     const epIdx = src.indexOf(
       '"/v1/workflow/intake-links/sender-identity"',
     );
     assert.ok(epIdx > 0);
-    // Window bumped to 4000 chars to accommodate the WhatsApp
-    // template-config block added in the production-template fix.
-    // The `email:` / `sms:` / `whatsapp:` keys all live in the
-    // single reply.send body — anywhere inside it is fine.
     const slice = src.slice(epIdx, epIdx + 4000);
-    for (const channel of ["email:", "sms:", "whatsapp:"]) {
+    for (const channel of ["email:", "sms:"]) {
       assert.ok(
         slice.includes(channel),
         `sender-identity endpoint missing "${channel}" envelope`,
       );
     }
+    /*
+     * And NOT a WhatsApp envelope. This preview exists to tell an operator
+     * which transports are configured before they pick one; describing a
+     * channel they cannot pick — "Setup required: add a Content Template
+     * SID" — is a worse answer than not mentioning it.
+     */
+    assert.ok(
+      !slice.includes("whatsapp:"),
+      "sender-identity must not describe a retired channel",
+    );
   });
 
   it("Endpoint reads env vars but NEVER returns API keys / SIDs / messaging-service SIDs", () => {

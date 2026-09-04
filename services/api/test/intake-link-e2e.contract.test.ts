@@ -8,7 +8,7 @@
  *
  *   - CreateBody Zod schema accepts deliveryMethod + intakeUrlBase
  *     with the superRefine guards (EMAIL → recipientEmail,
- *     SMS/WHATSAPP → recipientPhone, non-MANUAL → intakeUrlBase).
+ *     SMS → recipientPhone, non-MANUAL → intakeUrlBase).
  *   - The DELIVERY_METHODS tuple is the canonical export and matches
  *     the frontend's literal type.
  *   - The create handler appends both audit events
@@ -53,7 +53,10 @@ test("DELIVERY_METHODS tuple is exported and matches the frontend enum", () => {
   const src = read(ROUTES);
   assert.match(
     src,
-    /export const DELIVERY_METHODS = \["MANUAL", "EMAIL", "SMS", "WHATSAPP"\] as const;/,
+    // Three channels: Email, SMS, Copy link. WhatsApp was retired as an
+    // option — see intake-whatsapp-template.contract.test.ts, which pins the
+    // retirement and the historical read compatibility together.
+    /export const DELIVERY_METHODS = \["MANUAL", "EMAIL", "SMS"\] as const;/,
   );
   assert.match(
     src,
@@ -77,13 +80,13 @@ test("CreateBody — superRefine enforces channel → recipient field dependenci
     src,
     /data\.deliveryMethod === "EMAIL" && !data\.recipientEmail/,
   );
-  // SMS/WHATSAPP requires recipientPhone. The literal wraps across
+  // SMS requires recipientPhone. The literal wraps across
   // three lines in the route file (parenthesised disjunction on one
   // line, then `&&` and `!data.recipientPhone` on the next two), so
   // we match across whitespace.
   assert.match(
     src,
-    /\(data\.deliveryMethod === "SMS" \|\| data\.deliveryMethod === "WHATSAPP"\)[\s\S]{0,40}!data\.recipientPhone/,
+    /data\.deliveryMethod === "SMS"[\s\S]{0,40}!data\.recipientPhone/,
   );
   // Non-MANUAL requires intakeUrlBase so the backend can compose the
   // public link the contributor opens.
@@ -156,11 +159,11 @@ test("Create handler — return envelope includes link, rawToken, warning, deliv
   assert.match(slice, /delivery,/);
 });
 
-test("Resend handler (POST /:id/send) — accepts EMAIL channel alongside SMS/WHATSAPP", () => {
+test("Resend handler (POST /:id/send) — accepts EMAIL alongside SMS", () => {
   const src = read(ROUTES);
   assert.match(
     src,
-    /channel: z\.enum\(\["SMS", "WHATSAPP", "EMAIL"\]\)\.default\("SMS"\)/,
+    /channel: z\.enum\(\["SMS", "EMAIL"\]\)\.default\("SMS"\)/,
   );
   // Intake-links-e2e Phase 5 — the resend handler no longer calls
   // the channel helpers directly. It dispatches through the
@@ -187,11 +190,12 @@ test("Resend handler — maps link_missing_email to HTTP 400, provider_unconfigu
     /sendResult\.reason === "link_missing_phone" \|\|\s*\n?\s*sendResult\.reason === "link_missing_email"/,
   );
   // WA template fix — the 503 branch now also matches
-  // whatsapp_template_unconfigured (Meta requires an approved
+  // The template-unconfigured reason went with the retired channel; a
+  // missing provider is now the only 503 on this path. (Was:
   // Content Template; missing SID is operator-correctable, hence 503).
   assert.match(
     src,
-    /sendResult\.reason === "provider_unconfigured" \|\|\s*\n?\s*sendResult\.reason === "whatsapp_template_unconfigured"\s*\n?\s*\?\s*503/,
+    /sendResult\.reason === "provider_unconfigured"\s*\n?\s*\?\s*503/,
   );
 });
 
