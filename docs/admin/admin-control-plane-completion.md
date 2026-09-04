@@ -309,7 +309,7 @@
 | `/admin` | 856 | 0c/0t/10s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
-| `/admin/audit` | 914 | 3c/1t/2s |  |
+| `/admin/audit` | 1047 | 3c/1t/2s |  |
 | `/admin/billing` | 727 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 780 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 652 | 5c/0t/0s |  |

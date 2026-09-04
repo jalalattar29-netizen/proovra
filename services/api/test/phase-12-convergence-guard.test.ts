@@ -511,7 +511,7 @@ describe("Phase 12 Point 4 — resurrection gate (runtime)", () => {
     expect(/\bcaseId\s*:/.test(stripNestedObject(cArgs, "caseLinks"))).toBe(false);
   });
 
-  it("no audit writer below chainVersion 3 (NewAuditWritesBelowV3 = 0)", () => {
+  it("no audit writer below chainVersion 4 (NewAuditWritesBelowV4 = 0)", () => {
     const writers: Array<{ file: string; version: string }> = [];
     for (const p of runtimeTsFiles()) {
       const code = codeOnly(readFileSync(p, "utf8"));
@@ -522,13 +522,24 @@ describe("Phase 12 Point 4 — resurrection gate (runtime)", () => {
         writers.push({ file: relOf(p), version: v ? v[1]! : "MISSING" });
       }
     }
-    // Every writer must exist AND declare 3 — an unversioned writer is as bad
-    // as a V1/V2 one, because verification would then have to guess.
+    /*
+     * Every writer must exist AND declare the CURRENT version — an unversioned
+     * writer is as bad as an old one, because verification would then have to
+     * guess. Phase 5 advances the pin to 4, which seals the identity and
+     * transition columns.
+     *
+     * This guard is why the pin is a single constant: the worker keeps a synced
+     * copy of the chain library, and Phase 12 Point 3 records what happened
+     * when the two drifted — the worker had no V3 variant, so every
+     * worker-originated row was a new V2 write with unbound tenant columns
+     * while the API believed the whole chain was V3.
+     */
+    const CURRENT_CHAIN_VERSION = "4";
     expect(writers.length, "there must be at least one audit writer").toBeGreaterThan(0);
-    const bad = writers.filter((w) => w.version !== "3");
+    const bad = writers.filter((w) => w.version !== CURRENT_CHAIN_VERSION);
     expect(
       bad,
-      "audit writers not pinned to chainVersion 3:\n" +
+      `audit writers not pinned to chainVersion ${CURRENT_CHAIN_VERSION}:\n` +
         bad.map((b) => b.file + " -> " + b.version).join("\n"),
     ).toEqual([]);
   });

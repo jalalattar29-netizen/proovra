@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "4793f9656c9021ae61adca25c49db02ca148d3e73b42c501e1c38f5cf15ccbc6",
-  "consumerInventoryHash": "be513a2a812a82fac722d97c17fc86eac04b6777e48cdca8da441af479599aa3",
+  "consumerInventoryHash": "9e5902baf436429574d4f320548111c63e630b2c85cfa0a80b31626fe96afe44",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1126,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 8324,
-      "UNRESOLVED_IDENTIFIER": 1047
+      "METHOD_ON_VALUE": 8326,
+      "UNRESOLVED_IDENTIFIER": 1050
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -179,12 +179,12 @@
         "tagged": 10
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 398,
-        "tagged": 398
+        "primary": 400,
+        "tagged": 400
       },
       "WORKSPACE_AUTHORIZED": {
-        "primary": 373,
-        "tagged": 373
+        "primary": 371,
+        "tagged": 371
       },
       "ORGANIZATION_AUTHORIZED": {
         "primary": 105,
@@ -939,7 +939,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:275",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:338",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -951,7 +951,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log/export",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:329",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:392",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -963,7 +963,7 @@
       "method": "GET",
       "route": "/v1/admin/audit-log/verify",
       "registeringFile": "services/api/src/routes/admin-audit.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:362",
+      "productConsumer": "apps/web/app/(app)/admin/audit/page.tsx:425",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -2393,7 +2393,7 @@
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
       "productConsumer": "apps/mobile/app/(stack)/capture.tsx:144",
       "machineConsumer": null,
-      "authorization": "MULTI_GATE",
+      "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
@@ -2595,7 +2595,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/external-intake-summary",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:133",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:130",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -2703,7 +2703,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/reviewer-workflow",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:156",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:153",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2753,7 +2753,7 @@
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
       "productConsumer": "apps/web/app/(app)/evidence/page.tsx:443",
       "machineConsumer": null,
-      "authorization": "MULTI_GATE",
+      "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
@@ -2835,7 +2835,7 @@
       "method": "GET",
       "route": "/v1/external-intake/:token",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:316",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:300",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -6519,7 +6519,7 @@
       "method": "GET",
       "route": "/v1/workflow/intake-links",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/_lib/useServerSearch.ts:87",
+      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:153",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6927,7 +6927,7 @@
       "method": "PATCH",
       "route": "/v1/evidence/:id/reviewer-workflow",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:276",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:273",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -6951,7 +6951,7 @@
       "method": "PATCH",
       "route": "/v1/external-intake/:token/sessions/:sid/parts/:partId",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:659",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:618",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9387,7 +9387,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/consent",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:487",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:446",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9399,7 +9399,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/identity",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:459",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:418",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9411,7 +9411,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/parts",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:570",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:529",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9423,7 +9423,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/submit",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:738",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:697",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -13443,7 +13443,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:302",
+      "productConsumer": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:304",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13455,7 +13455,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/archive",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:371",
+      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:366",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13467,7 +13467,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/recipient-contact",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:464",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:446",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13479,7 +13479,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/revoke",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:326",
+      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:321",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13503,7 +13503,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/unarchive",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:366",
+      "productConsumer": "apps/web/app/(app)/intake-links/page.tsx:361",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -17255,8 +17255,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.update@5082",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5082",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.update@5035",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5035",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17288,8 +17288,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5090",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5090",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5043",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5043",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17321,8 +17321,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@10612",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10612",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@10555",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:10555",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17354,8 +17354,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@11916",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:11916",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@11859",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:11859",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17387,8 +17387,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12282",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12282",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12225",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12225",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17420,8 +17420,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5031",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5031",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@4984",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:4984",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17453,8 +17453,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5321",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5321",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5274",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5274",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17486,8 +17486,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5897",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5897",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5850",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5850",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17519,8 +17519,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6009",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6009",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5962",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5962",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17552,8 +17552,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@5819",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5819",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@5772",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5772",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17585,8 +17585,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@8171",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8171",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@8114",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8114",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17618,8 +17618,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7172",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7172",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7115",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7115",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17651,8 +17651,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7248",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7248",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7191",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7191",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17684,8 +17684,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7327",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7327",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@7270",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7270",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17717,8 +17717,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@6999",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6999",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@6942",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6942",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17750,8 +17750,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7055",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7055",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@6998",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6998",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17783,8 +17783,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7110",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7110",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7053",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7053",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17816,8 +17816,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidencePart.create@5562",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5562",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidencePart.create@5515",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5515",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17849,8 +17849,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@6841",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6841",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@6784",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6784",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17882,8 +17882,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@6897",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6897",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@6840",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6840",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17915,8 +17915,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@6952",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6952",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@6895",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6895",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17948,8 +17948,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@5824",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5824",
+      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@5777",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5777",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -17981,8 +17981,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@12286",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12286",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@12229",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12229",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -33914,8 +33914,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@312",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:312",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@251",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:251",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "createOrLoadExternalEvidence",
       "kind": "DATABASE",
@@ -33947,8 +33947,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@349",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:349",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@288",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:288",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "createOrLoadExternalEvidence",
       "kind": "DATABASE",
@@ -33980,8 +33980,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@824",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:824",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@761",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:761",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "submitExternalIntake",
       "kind": "DATABASE",
@@ -34013,8 +34013,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@860",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:860",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidence.update@797",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:797",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "submitExternalIntake",
       "kind": "DATABASE",
@@ -34046,8 +34046,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidencePart.create@503",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:503",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidencePart.create@442",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:442",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "addExternalEvidencePart",
       "kind": "DATABASE",
@@ -34079,8 +34079,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidencePart.update@602",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:602",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#evidencePart.update@539",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:539",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "updateExternalEvidencePartMapping",
       "kind": "DATABASE",
@@ -34112,8 +34112,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#workflowIntakeSession.update@382",
-      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:382",
+      "writerId": "services/api/src/services/external-intake-orchestration.service.ts#workflowIntakeSession.update@321",
+      "terminalLocation": "services/api/src/services/external-intake-orchestration.service.ts:321",
       "file": "services/api/src/services/external-intake-orchestration.service.ts",
       "enclosingDeclaration": "createOrLoadExternalEvidence",
       "kind": "DATABASE",
@@ -39598,8 +39598,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/intake-link-delivery-dispatcher.service.ts#communicationMessage.update@263",
-      "terminalLocation": "services/api/src/services/intake-link-delivery-dispatcher.service.ts:263",
+      "writerId": "services/api/src/services/intake-link-delivery-dispatcher.service.ts#communicationMessage.update@256",
+      "terminalLocation": "services/api/src/services/intake-link-delivery-dispatcher.service.ts:256",
       "file": "services/api/src/services/intake-link-delivery-dispatcher.service.ts",
       "enclosingDeclaration": "dispatchIntakeLinkDelivery",
       "kind": "DATABASE",
@@ -39632,8 +39632,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/intake-link-delivery-dispatcher.service.ts#communicationMessage.update@286",
-      "terminalLocation": "services/api/src/services/intake-link-delivery-dispatcher.service.ts:286",
+      "writerId": "services/api/src/services/intake-link-delivery-dispatcher.service.ts#communicationMessage.update@279",
+      "terminalLocation": "services/api/src/services/intake-link-delivery-dispatcher.service.ts:279",
       "file": "services/api/src/services/intake-link-delivery-dispatcher.service.ts",
       "enclosingDeclaration": "dispatchIntakeLinkDelivery",
       "kind": "DATABASE",
@@ -43430,7 +43430,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -43445,7 +43444,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -43620,7 +43618,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -44287,7 +44284,6 @@
         "GET /v1/coding/schemas/:id",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -44302,7 +44298,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -44477,7 +44472,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -45141,7 +45135,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -45156,7 +45149,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -45331,7 +45323,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -45999,7 +45990,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -46014,7 +46004,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -46189,7 +46178,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -46854,7 +46842,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -46869,7 +46856,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -47044,7 +47030,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -47708,7 +47693,6 @@
         "GET /v1/coding/schemas/:id",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -47723,7 +47707,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -47898,7 +47881,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -48561,7 +48543,6 @@
         "GET /v1/coding/schemas/:id",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -48576,7 +48557,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -48751,7 +48731,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -49414,7 +49393,6 @@
         "GET /v1/coding/schemas/:id",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -49429,7 +49407,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -49604,7 +49581,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -50268,7 +50244,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -50283,7 +50258,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -50458,7 +50432,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -51126,7 +51099,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -51141,7 +51113,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -51316,7 +51287,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -52495,7 +52465,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -52510,7 +52479,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -52685,7 +52653,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -53350,7 +53317,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -53365,7 +53331,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -53540,7 +53505,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -54205,7 +54169,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -54220,7 +54183,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -54395,7 +54357,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -55060,7 +55021,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -55075,7 +55035,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -55250,7 +55209,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -55915,7 +55873,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -55930,7 +55887,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -56105,7 +56061,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -56770,7 +56725,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -56785,7 +56739,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -56960,7 +56913,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -57628,7 +57580,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -57643,7 +57594,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -57818,7 +57768,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -58486,7 +58435,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -58501,7 +58449,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -58676,7 +58623,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -59341,7 +59287,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -59356,7 +59301,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -59531,7 +59475,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -60199,7 +60142,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -60214,7 +60156,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -60389,7 +60330,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -61054,7 +60994,6 @@
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
         "GET /v1/dashboard/command-center",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -61069,7 +61008,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -61244,7 +61182,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -64056,8 +63993,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/platform-audit-log.service.ts#adminAuditLog.create@270",
-      "terminalLocation": "services/api/src/services/platform-audit-log.service.ts:270",
+      "writerId": "services/api/src/services/platform-audit-log.service.ts#adminAuditLog.create@347",
+      "terminalLocation": "services/api/src/services/platform-audit-log.service.ts:347",
       "file": "services/api/src/services/platform-audit-log.service.ts",
       "enclosingDeclaration": "appendPlatformAuditLog",
       "kind": "DATABASE",
@@ -64187,7 +64124,6 @@
         "GET /v1/evidence/:id/review-workspace",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -64366,7 +64302,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -68480,8 +68415,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/search/evidence-indexing.service.ts#evidenceSearchDocument.deleteMany@572",
-      "terminalLocation": "services/api/src/services/search/evidence-indexing.service.ts:572",
+      "writerId": "services/api/src/services/search/evidence-indexing.service.ts#evidenceSearchDocument.deleteMany@562",
+      "terminalLocation": "services/api/src/services/search/evidence-indexing.service.ts:562",
       "file": "services/api/src/services/search/evidence-indexing.service.ts",
       "enclosingDeclaration": "tryDeleteByKey",
       "kind": "DATABASE",
@@ -68519,8 +68454,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/search/evidence-indexing.service.ts#evidenceSearchDocument.upsert@155",
-      "terminalLocation": "services/api/src/services/search/evidence-indexing.service.ts:155",
+      "writerId": "services/api/src/services/search/evidence-indexing.service.ts#evidenceSearchDocument.upsert@154",
+      "terminalLocation": "services/api/src/services/search/evidence-indexing.service.ts:154",
       "file": "services/api/src/services/search/evidence-indexing.service.ts",
       "enclosingDeclaration": "upsertSearchDocument",
       "kind": "DATABASE",
@@ -68558,8 +68493,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/search/evidence-search.service.ts#evidenceRelationship.create@897",
-      "terminalLocation": "services/api/src/services/search/evidence-search.service.ts:897",
+      "writerId": "services/api/src/services/search/evidence-search.service.ts#evidenceRelationship.create@879",
+      "terminalLocation": "services/api/src/services/search/evidence-search.service.ts:879",
       "file": "services/api/src/services/search/evidence-search.service.ts",
       "enclosingDeclaration": "createRelationship",
       "kind": "DATABASE",
@@ -70073,7 +70008,6 @@
         "GET /v1/coding/schemas/:id",
         "GET /v1/communications/health",
         "GET /v1/communications/messages",
-        "GET /v1/evidence",
         "GET /v1/evidence-requests",
         "GET /v1/evidence-requests/:id",
         "GET /v1/evidence-requests/:id/deliveries",
@@ -70088,7 +70022,6 @@
         "GET /v1/evidence/:id/report/latest",
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
-        "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
         "GET /v1/exchange/packages",
         "GET /v1/exchange/packages/:packageId/deliveries",
@@ -70263,7 +70196,6 @@
         "GET /v1/redaction/workspace/summary",
         "GET /v1/reliability/summary",
         "GET /v1/reliability/upload-sessions",
-        "GET /v1/reports/artifacts",
         "GET /v1/review-operations/queue",
         "GET /v1/review-operations/queue-counts",
         "GET /v1/review/queue",
@@ -72716,8 +72648,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.create@791",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:791",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.create@859",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:859",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72750,8 +72682,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@850",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:850",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@918",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:918",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72784,8 +72716,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@866",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:866",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#communicationMessage.update@934",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:934",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "sendIntakeLinkViaEmail",
       "kind": "DATABASE",
@@ -72818,8 +72750,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.create@263",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:263",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.create@261",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:261",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "createWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -72856,8 +72788,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@437",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:437",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@377",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:377",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "revokeWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -72889,8 +72821,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@477",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:477",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@417",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:417",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "archiveWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -72922,8 +72854,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@495",
-      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:495",
+      "writerId": "services/api/src/services/workflow-intake-link.service.ts#workflowIntakeLink.update@435",
+      "terminalLocation": "services/api/src/services/workflow-intake-link.service.ts:435",
       "file": "services/api/src/services/workflow-intake-link.service.ts",
       "enclosingDeclaration": "unarchiveWorkflowIntakeLink",
       "kind": "DATABASE",
@@ -76468,8 +76400,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/platform-audit-append.ts#adminAuditLog.create@85",
-      "terminalLocation": "services/worker/src/platform-audit-append.ts:85",
+      "writerId": "services/worker/src/platform-audit-append.ts#adminAuditLog.create@163",
+      "terminalLocation": "services/worker/src/platform-audit-append.ts:163",
       "file": "services/worker/src/platform-audit-append.ts",
       "enclosingDeclaration": "appendWorkerAuditLog",
       "kind": "DATABASE",
@@ -77270,8 +77202,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidence_ocr_text.$executeRawUnsafe@568",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:568",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidence_ocr_text.$executeRawUnsafe@558",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:558",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "processSearchIndexingJob",
       "kind": "RAW_SQL",
@@ -77301,8 +77233,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidence_transcript_segments.$executeRawUnsafe@578",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:578",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidence_transcript_segments.$executeRawUnsafe@568",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:568",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "processSearchIndexingJob",
       "kind": "RAW_SQL",
@@ -77332,8 +77264,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSearchDocument.deleteMany@428",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:428",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSearchDocument.deleteMany@418",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:418",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "deleteIndexRow",
       "kind": "DATABASE",
@@ -77363,8 +77295,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSearchDocument.upsert@342",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:342",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSearchDocument.upsert@332",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:332",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "persistProjection",
       "kind": "DATABASE",
@@ -77394,8 +77326,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSemanticChunk.update@887",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:887",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSemanticChunk.update@877",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:877",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "backfillSemanticEmbeddings",
       "kind": "DATABASE",
@@ -77913,7 +77845,8 @@
         "adminAuditLog",
         "case",
         "evidenceLegalHold",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -77969,7 +77902,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "caseAccess"
+        "caseAccess",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -77994,7 +77928,7 @@
       "method": "DELETE",
       "path": "/v1/cases/:id/assignments/:assignmentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:959",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:958",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78032,7 +77966,8 @@
         "case",
         "caseAccess",
         "caseAssignment",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -78057,7 +77992,7 @@
       "method": "DELETE",
       "path": "/v1/cases/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1061",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1060",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78096,7 +78031,8 @@
         "caseAccess",
         "caseAssignment",
         "caseComment",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -78122,7 +78058,7 @@
       "method": "DELETE",
       "path": "/v1/cases/:id/evidence-links/:linkId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1169",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1168",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78153,7 +78089,8 @@
         "caseAssignment",
         "caseEvidenceLink",
         "evidence",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -78230,7 +78167,8 @@
         "case",
         "caseEvidenceLink",
         "evidence",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -78262,7 +78200,7 @@
       "method": "DELETE",
       "path": "/v1/cases/:id/legacy-evidence-link/:evidenceId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1137",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1136",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78352,7 +78290,8 @@
         "collaborationTeam",
         "collaborationTeamComment",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -78414,7 +78353,8 @@
         "adminAuditLog",
         "collaborationTeam",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -78534,7 +78474,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6206",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6159",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78573,7 +78513,8 @@
         "custodyEvent",
         "evidence",
         "evidenceLegalHold",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -78601,7 +78542,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7303",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7246",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78663,7 +78604,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6931",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6874",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78725,7 +78666,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7089",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7032",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78787,7 +78728,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7935",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7878",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -78950,7 +78891,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -79344,7 +79286,8 @@
       "modelsRead": [
         "adminAuditLog",
         "savedSearchView",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -79395,7 +79338,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -79536,7 +79480,8 @@
         "organization",
         "organizationMembership",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -79903,7 +79848,8 @@
         "savedSearchView",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -79962,7 +79908,8 @@
       "modelsRead": [
         "adminAuditLog",
         "savedSearchView",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -80079,7 +80026,8 @@
         "evidenceLegalHold",
         "subscription",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -80148,7 +80096,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -80198,7 +80147,8 @@
       "modelsRead": [
         "adminAuditLog",
         "caseAccess",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -80258,7 +80208,8 @@
       "modelsRead": [
         "adminAuditLog",
         "teamInvite",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -80318,7 +80269,8 @@
         "case",
         "evidence",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -80855,7 +80807,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11315",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11258",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -80903,6 +80855,7 @@
         "evidencePart",
         "report",
         "signingKey",
+        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
@@ -81186,7 +81139,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:185",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:202",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81199,7 +81152,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 275,
+          "line": 338,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81209,7 +81162,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:275 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:338 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81222,7 +81175,8 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -81242,7 +81196,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log/export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:286",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:310",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81255,7 +81209,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 329,
+          "line": 392,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81265,7 +81219,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:329 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:392 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81280,7 +81234,8 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -81300,7 +81255,7 @@
       "method": "GET",
       "path": "/v1/admin/audit-log/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:383",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:407",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -81313,7 +81268,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/audit/page.tsx",
-          "line": 362,
+          "line": 425,
           "caller": "AdminAuditPage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -81323,7 +81278,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:362 (AdminAuditPage, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/audit/page.tsx:425 (AdminAuditPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -81336,7 +81291,8 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -81792,7 +81748,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "demoRequest"
+        "demoRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -81857,7 +81814,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "demoRequest"
+        "demoRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -83770,6 +83728,7 @@
         "subscription",
         "team",
         "teamMember",
+        "user",
         "verificationPackage",
         "workspaceAiPolicy",
         "workspaceStorageAddon"
@@ -83843,7 +83802,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -84367,7 +84327,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -84574,7 +84535,8 @@
         "operationalIncident",
         "operationalIncidentEvent",
         "ssoCallbackAttempt",
-        "ssoConnection"
+        "ssoConnection",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -84730,7 +84692,8 @@
         "operationalIncident",
         "operationalIncidentEvent",
         "ssoCallbackAttempt",
-        "ssoConnection"
+        "ssoConnection",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -84903,7 +84866,8 @@
         "ssoConnection",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -85257,7 +85221,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -85300,7 +85265,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -85354,7 +85320,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -85397,7 +85364,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -85837,6 +85805,7 @@
       "modelsRead": [
         "adminAuditLog",
         "subscription",
+        "user",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
@@ -86336,7 +86305,8 @@
         "adminAuditLog",
         "case",
         "evidence",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -86402,7 +86372,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -86424,7 +86395,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/assignment-candidates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:670",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:669",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86527,7 +86498,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "evidence"
+        "evidence",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -86548,7 +86520,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/discussion-threads",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:411",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:410",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86608,7 +86580,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/evidence-requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:530",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:529",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86705,7 +86677,8 @@
         "adminAuditLog",
         "case",
         "evidence",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -86775,7 +86748,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/linkable-evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:787",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:786",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86844,7 +86817,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/matter-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:331",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:330",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -86941,7 +86914,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/risk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:350",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:349",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -87038,7 +87011,8 @@
         "caseSiuProfile",
         "evidence",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -87160,7 +87134,8 @@
         "adminAuditLog",
         "case",
         "caseSiuExport",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -87270,7 +87245,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -87291,7 +87267,7 @@
       "method": "GET",
       "path": "/v1/cases/:id/workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:244",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:243",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -87353,7 +87329,7 @@
       "method": "GET",
       "path": "/v1/cases/matter-queue",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:303",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:302",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireWorkspaceMember -> services/api/src/routes/workflow.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -87426,7 +87402,7 @@
       "method": "GET",
       "path": "/v1/cases/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:227",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:226",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireWorkspaceMember -> services/api/src/routes/workflow.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -88828,14 +88804,12 @@
       "method": "GET",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6250",
-      "authorizationClass": "MULTI_GATE",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6203",
+      "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
-        "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
-        "CAPABILITY_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -88927,36 +88901,32 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "WORKSPACE_AUTHORIZED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "MULTI_GATE",
-      "authorizationAuthority": "MULTI_GATE",
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "authenticatedSession",
+        "adminAuditLog",
         "case",
         "evidence",
-        "revokedSession",
-        "supportAccessGrant",
-        "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
-        "securityEvent"
+        "adminAuditLog"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/routes/evidence.routes.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/routes/evidence.routes.ts)",
         "services/api/src/routes/evidence.routes.ts: case.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.findMany — no tenant or self predicate"
       ],
-      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
@@ -89339,7 +89309,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -89405,7 +89376,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -89471,7 +89443,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -89495,7 +89468,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9330",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9273",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89577,7 +89550,8 @@
         "evidenceAnchor",
         "evidenceLegalHold",
         "evidencePart",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -89602,7 +89576,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7971",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7914",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89669,7 +89643,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7126",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7069",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89728,7 +89702,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10027",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9970",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89806,7 +89780,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11098",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11041",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89836,7 +89810,8 @@
         "caseEvidenceLink",
         "evidence",
         "evidenceCertification",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -89859,7 +89834,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6810",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6753",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89918,7 +89893,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7343",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7286",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -89981,7 +89956,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7427",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7370",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90044,7 +90019,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7784",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7727",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -90057,7 +90032,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 133,
+          "line": 130,
           "caller": "ExternalIntakeSourceCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90067,7 +90042,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:133 (ExternalIntakeSourceCard, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:130 (ExternalIntakeSourceCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90088,7 +90063,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -90187,7 +90163,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6968",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6911",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90306,7 +90282,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10523",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10466",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90362,7 +90338,8 @@
         "custodyEvent",
         "evidence",
         "evidencePart",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -90388,7 +90365,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5663",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5616",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90427,7 +90404,8 @@
         "caseEvidenceLink",
         "evidence",
         "evidencePart",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -90450,7 +90428,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7838",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7781",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90501,7 +90479,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10241",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10184",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90613,7 +90591,8 @@
         "custodyEvent",
         "evidence",
         "report",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -90639,7 +90618,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8225",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8168",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90732,7 +90711,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7630",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7573",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90743,7 +90722,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 156,
+          "line": 153,
           "caller": "ExternalIntakeSourceCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90751,7 +90730,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 209,
+          "line": 206,
           "caller": "reloadReview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90761,7 +90740,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:156 (ExternalIntakeSourceCard, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:209 (reloadReview, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:153 (ExternalIntakeSourceCard, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:206 (reloadReview, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90800,7 +90779,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7815",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7758",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90861,7 +90840,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/technical-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5244",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5197",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90918,7 +90897,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10749",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10692",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90982,6 +90961,7 @@
         "custodyEvent",
         "evidence",
         "teamMember",
+        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
@@ -91009,14 +90989,12 @@
       "method": "GET",
       "path": "/v1/evidence/library-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6412",
-      "authorizationClass": "MULTI_GATE",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6360",
+      "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
-        "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
-        "CAPABILITY_GATED",
         "AUTHENTICATED"
       ],
       "productConsumers": [
@@ -91036,32 +91014,25 @@
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
-      "primarySecurityFamily": "WORKSPACE_AUTHORIZED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
       "secondarySecurityFamilies": [],
-      "authenticationAuthority": "MULTI_GATE",
-      "authorizationAuthority": "MULTI_GATE",
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "authenticatedSession",
         "case",
         "evidence",
-        "revokedSession",
-        "supportAccessGrant",
-        "team",
         "teamMember"
       ],
-      "modelsWritten": [
-        "securityEvent"
-      ],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/routes/evidence.routes.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/routes/evidence.routes.ts)",
         "services/api/src/routes/evidence.routes.ts: case.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/routes/evidence.routes.ts: evidence.count — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.count — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.count — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.count — no tenant or self predicate",
@@ -91071,8 +91042,8 @@
         "services/api/src/routes/evidence.routes.ts: evidence.count — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: evidence.count — no tenant or self predicate"
       ],
-      "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
-      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
@@ -91498,7 +91469,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 316,
+          "line": 300,
           "caller": "ExternalIntakePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -91508,7 +91479,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:316 (ExternalIntakePage, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:300 (ExternalIntakePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -91620,7 +91591,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -91685,7 +91657,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -94402,7 +94375,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -94522,7 +94496,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -94587,7 +94562,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -94652,7 +94628,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -94717,7 +94694,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -94782,7 +94760,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -95155,7 +95134,8 @@
         "riskSignal",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -95271,7 +95251,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -95930,7 +95911,8 @@
       "modelsRead": [
         "adminAuditLog",
         "mfaAdminDigestPreference",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -97609,7 +97591,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -97853,7 +97836,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -97919,7 +97903,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -98544,7 +98529,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -98608,7 +98594,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -98741,7 +98728,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -98814,7 +98802,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -100079,7 +100068,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -100799,7 +100789,8 @@
       "modelsRead": [
         "adminAuditLog",
         "operationalIncident",
-        "securityEvent"
+        "securityEvent",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -103981,7 +103972,8 @@
         "analyticsEvent",
         "apiCredential",
         "entitlement",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -105443,7 +105435,7 @@
       "method": "GET",
       "path": "/v1/reports/artifacts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1202",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1201",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireWorkspaceMember -> services/api/src/routes/workflow.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -105484,28 +105476,19 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
-        "authenticatedSession",
         "evidence",
         "report",
-        "revokedSession",
-        "supportAccessGrant",
         "team",
         "teamMember",
         "verificationPackage"
       ],
-      "modelsWritten": [
-        "adminAuditLog",
-        "securityEvent"
-      ],
+      "modelsWritten": [],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/routes/case-workspace.routes.ts: teamMember.findUnique paired with a lifecycle-status predicate (services/api/src/routes/case-workspace.routes.ts)",
         "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/reports/reports-aggregator.service.ts: verificationPackage.count — no tenant or self predicate",
@@ -105514,7 +105497,8 @@
         "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
         "services/api/src/services/reports/reports-aggregator.service.ts: evidence.findMany — no tenant or self predicate",
         "services/api/src/services/reports/reports-aggregator.service.ts: evidence.count — no tenant or self predicate",
-        "services/api/src/services/reports/reports-aggregator.service.ts: report.findMany — no tenant or self predicate"
+        "services/api/src/services/reports/reports-aggregator.service.ts: report.findMany — no tenant or self predicate",
+        "services/api/src/services/reports/reports-aggregator.service.ts: verificationPackage.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -105969,7 +105953,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -106032,7 +106017,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -106220,7 +106206,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -106286,6 +106273,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workflowReviewDecision"
       ],
       "modelsWritten": [
@@ -106364,7 +106352,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -106614,7 +106603,8 @@
         "savedSearchView",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -106677,6 +106667,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -106741,7 +106732,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -106815,7 +106807,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -108119,7 +108112,8 @@
       "modelsRead": [
         "adminAuditLog",
         "evidenceSearchDocument",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -108896,7 +108890,8 @@
         "adminAuditLog",
         "case",
         "team",
-        "teamInvite"
+        "teamInvite",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -109199,7 +109194,8 @@
         "adminAuditLog",
         "case",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -109361,7 +109357,8 @@
       "modelsRead": [
         "adminAuditLog",
         "teamInvite",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -110489,7 +110486,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -110556,7 +110554,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -110617,7 +110616,8 @@
         "adminAuditLog",
         "analyticsEvent",
         "apiCredential",
-        "evidence"
+        "evidence",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -110876,7 +110876,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:596",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:556",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110888,9 +110888,9 @@
       ],
       "productConsumers": [
         {
-          "file": "apps/web/app/(app)/intake-links/_lib/useServerSearch.ts",
-          "line": 87,
-          "caller": "fetchIntakeLinkList",
+          "file": "apps/web/app/(app)/intake-links/page.tsx",
+          "line": 153,
+          "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -110907,7 +110907,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/_lib/useServerSearch.ts:87 (fetchIntakeLinkList, WEB); apps/web/components/home-experience/useHomeData.ts:145 (useHomeData, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:153 (IntakeLinksManagement, WEB); apps/web/components/home-experience/useHomeData.ts:145 (useHomeData, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -110951,7 +110951,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:654",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:609",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -111019,7 +111019,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/:id/submissions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:861",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:848",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -111085,7 +111085,7 @@
       "method": "GET",
       "path": "/v1/workflow/intake-links/sender-identity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:788",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:743",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -111169,7 +111169,7 @@
         },
         {
           "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 193,
+          "line": 199,
           "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -111179,7 +111179,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/capture/_hooks/useWorkflowTemplates.ts:77 (useWorkflowTemplates, WEB); apps/web/app/(app)/intake-links/page.tsx:193 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/capture/_hooks/useWorkflowTemplates.ts:77 (useWorkflowTemplates, WEB); apps/web/app/(app)/intake-links/page.tsx:199 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -111807,7 +111807,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "contactSalesRequest"
+        "contactSalesRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -111865,7 +111866,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "demoRequest"
+        "demoRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -111928,7 +111930,8 @@
         "organization",
         "riskSignal",
         "stepUpChallenge",
-        "team"
+        "team",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -112177,7 +112180,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -112319,7 +112323,8 @@
         "collaborationTeam",
         "collaborationTeamAccessReviewItem",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -112463,7 +112468,8 @@
         "collaborationTeam",
         "collaborationTeamComment",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -112526,7 +112532,8 @@
         "collaborationTeam",
         "collaborationTeamGuest",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -112668,7 +112675,8 @@
         "adminAuditLog",
         "collaborationTeam",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -112747,7 +112755,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7223",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7166",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112800,7 +112808,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6875",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6818",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112862,7 +112870,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/label",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5277",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5230",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112899,7 +112907,8 @@
         "adminAuditLog",
         "evidence",
         "evidencePart",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -112924,7 +112933,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7033",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6976",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112986,7 +112995,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7889",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7832",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -113042,7 +113051,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7642",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7585",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -113055,7 +113064,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 276,
+          "line": 273,
           "caller": "recordDecision",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113063,7 +113072,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 334,
+          "line": 331,
           "caller": "patchReviewStatus",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113081,7 +113090,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:276 (recordDecision, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:334 (patchReviewStatus, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:441 (saveWorkflow, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:273 (recordDecision, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:331 (patchReviewStatus, WEB); apps/web/app/(app)/evidence/[id]/page.tsx:441 (saveWorkflow, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113104,7 +113113,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -113198,7 +113208,7 @@
       "method": "PATCH",
       "path": "/v1/external-intake/:token/sessions/:sid/parts/:partId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:894",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:873",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -113209,7 +113219,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 659,
+          "line": 618,
           "caller": "setPartStep",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113219,7 +113229,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:659 (setPartStep, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:618 (setPartStep, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113391,7 +113401,8 @@
       "modelsRead": [
         "adminAuditLog",
         "mfaAdminDigestPreference",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -113680,7 +113691,8 @@
       "modelsRead": [
         "adminAuditLog",
         "savedSearchView",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -114029,7 +114041,8 @@
       "modelsRead": [
         "adminAuditLog",
         "savedSearchView",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -114103,7 +114116,8 @@
         "organizationSecurityPolicy",
         "riskSignal",
         "stepUpChallenge",
-        "team"
+        "team",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -114226,7 +114240,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -114283,7 +114298,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -114350,7 +114366,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -114761,7 +114778,7 @@
       "method": "POST",
       "path": "/v1/admin/audit-log",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:91",
+      "registrationEvidence": "services/api/src/routes/admin-audit.routes.ts:108",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -114788,7 +114805,8 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -114845,7 +114863,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "demoRequest"
+        "demoRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -114911,7 +114930,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "demoRequest"
+        "demoRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -114977,7 +114997,8 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
-        "demoRequest"
+        "demoRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -115212,7 +115233,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -115283,7 +115305,8 @@
         "stepUpChallenge",
         "team",
         "teamMember",
-        "trustedDevice"
+        "trustedDevice",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -115361,7 +115384,8 @@
         "stepUpChallenge",
         "team",
         "teamMember",
-        "trustedDevice"
+        "trustedDevice",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -115433,7 +115457,8 @@
         "ssoConnection",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -115850,7 +115875,8 @@
         "operationalIncidentEvent",
         "revokedSession",
         "teamMember",
-        "trustedDevice"
+        "trustedDevice",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -115925,7 +115951,8 @@
       "modelsRead": [
         "adminAuditLog",
         "authenticatedSession",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -115985,7 +116012,8 @@
         "adminAuditLog",
         "authenticatedSession",
         "revokedSession",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -116185,7 +116213,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -116248,7 +116277,8 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -116304,7 +116334,8 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -116360,7 +116391,8 @@
       "tenantBindingAuthority": "requirePlatformAdmin",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -116423,7 +116455,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -116500,7 +116533,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -116580,6 +116614,7 @@
         "subscription",
         "team",
         "teamMember",
+        "user",
         "verificationPackage",
         "workspaceAiPolicy",
         "workspaceStorageAddon"
@@ -116668,6 +116703,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "verificationPackage",
         "workspaceAiPolicy"
       ],
@@ -116750,6 +116786,7 @@
         "subscription",
         "team",
         "teamMember",
+        "user",
         "verificationPackage",
         "workspaceAiPolicy",
         "workspaceStorageAddon"
@@ -116833,6 +116870,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workspaceAiPolicy"
       ],
       "modelsWritten": [
@@ -116908,6 +116946,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "verificationPackage",
         "workspaceAiPolicy"
       ],
@@ -116986,7 +117025,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -117062,6 +117102,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "verificationPackage",
         "workspaceAiPolicy"
       ],
@@ -117134,7 +117175,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -117712,7 +117754,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog"
@@ -118694,7 +118737,8 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
-        "evidence"
+        "evidence",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -118747,7 +118791,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -118800,7 +118845,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -120533,7 +120579,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -120556,7 +120603,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:931",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:930",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -120594,7 +120641,8 @@
         "case",
         "caseAccess",
         "caseAssignment",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -120622,7 +120670,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:992",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:991",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -120660,7 +120708,8 @@
         "case",
         "caseAccess",
         "caseAssignment",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -120686,7 +120735,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/comments/:commentId/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1019",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1018",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -120725,7 +120774,8 @@
         "caseAccess",
         "caseAssignment",
         "caseComment",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -120796,7 +120846,8 @@
         "case",
         "caseEvidenceLink",
         "evidence",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -120826,7 +120877,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/evidence-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1100",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:1099",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -120857,7 +120908,8 @@
         "caseAssignment",
         "caseEvidenceLink",
         "evidence",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -120963,7 +121015,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -121028,7 +121081,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -121190,7 +121244,8 @@
         "adminAuditLog",
         "case",
         "caseSiuProfile",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -121244,7 +121299,8 @@
         "case",
         "caseSiuFollowUp",
         "caseSiuProfile",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -121297,7 +121353,8 @@
         "adminAuditLog",
         "case",
         "caseSiuProfile",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -121364,7 +121421,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -121390,7 +121448,7 @@
       "method": "POST",
       "path": "/v1/cases/:id/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:893",
+      "registrationEvidence": "services/api/src/routes/case-workspace.routes.ts:892",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -121436,7 +121494,8 @@
         "case",
         "caseAccess",
         "caseAssignment",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -121502,7 +121561,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -121822,6 +121882,7 @@
         "subscription",
         "team",
         "teamMember",
+        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
@@ -122093,7 +122154,8 @@
         "adminAuditLog",
         "collaborationTeam",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -122161,7 +122223,8 @@
         "adminAuditLog",
         "collaborationTeam",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -122225,7 +122288,8 @@
         "adminAuditLog",
         "collaborationTeam",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -122371,7 +122435,8 @@
         "collaborationTeamComment",
         "collaborationTeamMember",
         "collaborationTeamNotificationPreference",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -122447,6 +122512,7 @@
         "subscription",
         "team",
         "teamMember",
+        "user",
         "verificationPackage"
       ],
       "modelsWritten": [
@@ -122522,7 +122588,8 @@
         "collaborationTeam",
         "collaborationTeamInvite",
         "collaborationTeamMember",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -123820,7 +123887,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -123896,7 +123964,7 @@
       "method": "POST",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:4792",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:4745",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124934,7 +125002,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -125009,7 +125078,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -125033,7 +125103,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8046",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7989",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125105,7 +125175,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7159",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7102",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125167,7 +125237,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6162",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6115",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125206,7 +125276,8 @@
         "custodyEvent",
         "evidence",
         "evidenceLegalHold",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -125234,7 +125305,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11194",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11137",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125263,7 +125334,8 @@
         "custodyEvent",
         "evidence",
         "evidenceCertification",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -125288,7 +125360,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11133",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11076",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125317,7 +125389,8 @@
         "custodyEvent",
         "evidence",
         "evidenceCertification",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -125342,7 +125415,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11257",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11200",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125371,7 +125444,8 @@
         "custodyEvent",
         "evidence",
         "evidenceCertification",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -125396,7 +125470,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6835",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6778",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125457,7 +125531,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9488",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9431",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125596,7 +125670,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6993",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6936",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125657,7 +125731,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5855",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5808",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125694,7 +125768,8 @@
         "adminAuditLog",
         "custodyEvent",
         "evidence",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -125720,7 +125795,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5380",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5333",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125766,7 +125841,8 @@
         "evidence",
         "evidencePart",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -125791,7 +125867,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7852",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7795",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125856,7 +125932,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10127",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10070",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125904,6 +125980,7 @@
         "report",
         "reportGenerationRequest",
         "teamMember",
+        "user",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -125935,7 +126012,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6225",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6178",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -125982,7 +126059,8 @@
         "custodyEvent",
         "evidence",
         "evidenceLegalHold",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -126010,7 +126088,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6181",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6134",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -126057,7 +126135,8 @@
         "custodyEvent",
         "evidence",
         "evidenceLegalHold",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -126085,7 +126164,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unlock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5968",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5921",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -126121,7 +126200,8 @@
       "modelsRead": [
         "adminAuditLog",
         "evidence",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -126146,7 +126226,7 @@
       "method": "POST",
       "path": "/v1/evidence/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6565",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6508",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -126186,7 +126266,8 @@
         "custodyEvent",
         "evidence",
         "evidenceLegalHold",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -126223,7 +126304,7 @@
       "method": "POST",
       "path": "/v1/evidence/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5774",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5727",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -126275,7 +126356,8 @@
       "modelsRead": [
         "adminAuditLog",
         "custodyEvent",
-        "evidence"
+        "evidence",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -126337,7 +126419,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -127183,7 +127266,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/consent",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:650",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:646",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127194,7 +127277,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 487,
+          "line": 446,
           "caller": "acceptConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127204,7 +127287,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:487 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:446 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127238,7 +127321,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/identity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:607",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:603",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127249,7 +127332,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 459,
+          "line": 418,
           "caller": "acceptConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127259,7 +127342,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:459 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:418 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127293,7 +127376,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:702",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:694",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127304,7 +127387,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 570,
+          "line": 529,
           "caller": "stageFile",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127314,7 +127397,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:570 (stageFile, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:529 (stageFile, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127401,7 +127484,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/submit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:957",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:932",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127412,7 +127495,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 738,
+          "line": 697,
           "caller": "onSubmit",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127422,7 +127505,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:738 (onSubmit, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:697 (onSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127514,7 +127597,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1119",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1094",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -127645,7 +127728,8 @@
         "stepUpChallenge",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -127702,7 +127786,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -130751,7 +130836,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -130820,7 +130906,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -130889,7 +130976,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -130950,7 +131038,8 @@
       "modelsRead": [
         "adminAuditLog",
         "custodyEvent",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -131015,7 +131104,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -131084,7 +131174,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -131144,7 +131235,8 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
-        "mfaFactor"
+        "mfaFactor",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -131201,6 +131293,7 @@
         "adminAuditLog",
         "mfaFactor",
         "teamMember",
+        "user",
         "verificationAttempt"
       ],
       "modelsWritten": [
@@ -131267,6 +131360,7 @@
         "adminAuditLog",
         "mfaFactor",
         "teamMember",
+        "user",
         "verificationAttempt"
       ],
       "modelsWritten": [
@@ -131336,7 +131430,8 @@
       "modelsRead": [
         "adminAuditLog",
         "teamMember",
-        "trustedDevice"
+        "trustedDevice",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -131404,7 +131499,8 @@
         "supportAccessGrant",
         "team",
         "teamMember",
-        "trustedDevice"
+        "trustedDevice",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -131660,7 +131756,8 @@
         "stepUpChallenge",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -131871,6 +131968,7 @@
         "mfaFactor",
         "stepUpChallenge",
         "teamMember",
+        "user",
         "verificationAttempt"
       ],
       "modelsWritten": [
@@ -131936,6 +132034,7 @@
         "adminAuditLog",
         "team",
         "teamMember",
+        "user",
         "verificationAttempt"
       ],
       "modelsWritten": [
@@ -132244,7 +132343,8 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "accountClosureRequest",
-        "adminAuditLog"
+        "adminAuditLog",
+        "user"
       ],
       "modelsWritten": [
         "accountClosureRequest",
@@ -133367,7 +133467,8 @@
       "modelsRead": [
         "adminAuditLog",
         "mfaRecoveryRequest",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -133432,7 +133533,8 @@
       "modelsRead": [
         "adminAuditLog",
         "mfaRecoveryRequest",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -133769,7 +133871,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "mfaRecoveryRequest"
+        "mfaRecoveryRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -133877,7 +133980,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "mfaRecoveryRequest"
+        "mfaRecoveryRequest",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -136296,7 +136400,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -136355,7 +136460,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -136568,8 +136674,8 @@
         "governanceReconciliationRun",
         "report",
         "teamMember",
-        "verificationPackage",
-        "workflowIntakeSession"
+        "user",
+        "verificationPackage"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -136648,7 +136754,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -138042,7 +138149,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -139305,7 +139413,8 @@
       "modelsRead": [
         "adminAuditLog",
         "operationalIncident",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -139368,7 +139477,8 @@
       "modelsRead": [
         "adminAuditLog",
         "operationalIncident",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -139433,6 +139543,7 @@
         "report",
         "reportGenerationRequest",
         "teamMember",
+        "user",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -139500,7 +139611,8 @@
       "modelsRead": [
         "adminAuditLog",
         "operationalIncident",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -139563,7 +139675,8 @@
       "modelsRead": [
         "adminAuditLog",
         "operationalIncident",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -139852,7 +139965,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -140912,7 +141026,8 @@
         "adminAuditLog",
         "organization",
         "organizationClosureRequest",
-        "organizationMembership"
+        "organizationMembership",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -141500,7 +141615,8 @@
       "modelsRead": [
         "adminAuditLog",
         "organization",
-        "organizationMembership"
+        "organizationMembership",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -141564,7 +141680,8 @@
       "modelsRead": [
         "adminAuditLog",
         "organization",
-        "organizationMembership"
+        "organizationMembership",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -141758,7 +141875,8 @@
         "organization",
         "organizationMembership",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -141827,7 +141945,8 @@
         "organization",
         "organizationMembership",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -144662,7 +144781,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 285,
+          "line": 282,
           "caller": "recordDecision",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144672,7 +144791,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:184 (decide, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:285 (recordDecision, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/EvidenceReviewActionsPanel.tsx:184 (decide, WEB); apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:282 (recordDecision, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145133,7 +145252,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -145215,7 +145335,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -145278,7 +145399,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -145348,6 +145470,7 @@
         "team",
         "teamMember",
         "trustedDevice",
+        "user",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -145425,6 +145548,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -145493,7 +145617,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -145860,7 +145985,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -146231,7 +146357,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -146399,7 +146526,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -146468,6 +146596,7 @@
         "supportAccessGrant",
         "team",
         "teamMember",
+        "user",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
@@ -146618,7 +146747,8 @@
         "revokedSession",
         "supportAccessGrant",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -147709,8 +147839,7 @@
         "evidenceExtractedText",
         "evidenceWorkflowInstanceEvidence",
         "governanceReconciliationRun",
-        "teamMember",
-        "workflowIntakeSession"
+        "teamMember"
       ],
       "modelsWritten": [
         "evidenceSearchDocument",
@@ -147770,8 +147899,7 @@
         "evidenceEntity",
         "evidenceExtractedText",
         "evidenceWorkflowInstanceEvidence",
-        "teamMember",
-        "workflowIntakeSession"
+        "teamMember"
       ],
       "modelsWritten": [
         "evidenceSearchDocument",
@@ -147928,7 +148056,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -148507,7 +148636,8 @@
       "modelsRead": [
         "adminAuditLog",
         "case",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -148637,6 +148767,7 @@
       "modelsRead": [
         "adminAuditLog",
         "team",
+        "user",
         "workspaceClosureRequest"
       ],
       "modelsWritten": [
@@ -148774,6 +148905,7 @@
         "adminAuditLog",
         "team",
         "teamMember",
+        "user",
         "workspaceClosureRequest"
       ],
       "modelsWritten": [
@@ -150479,10 +150611,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:334",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:294",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150492,7 +150624,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx",
-          "line": 302,
+          "line": 304,
           "caller": "CreateLinkWizard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150502,7 +150634,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:302 (CreateLinkWizard, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:304 (CreateLinkWizard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150569,10 +150701,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:957",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:944",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150582,7 +150714,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 371,
+          "line": 366,
           "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150592,7 +150724,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:371 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:366 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150636,7 +150768,7 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/recipient-contact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:707",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:662",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150649,7 +150781,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx",
-          "line": 464,
+          "line": 446,
           "caller": "revealRecipient",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150659,7 +150791,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:464 (revealRecipient, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:446 (revealRecipient, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150701,10 +150833,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:883",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:870",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150714,7 +150846,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 326,
+          "line": 321,
           "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150724,7 +150856,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:326 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:321 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150768,10 +150900,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/send",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1064",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1051",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150843,10 +150975,10 @@
       "method": "POST",
       "path": "/v1/workflow/intake-links/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:1009",
+      "registrationEvidence": "services/api/src/routes/workflow-intake-links.routes.ts:996",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "requireIntakeWorkflowActor -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "requireAdmin -> services/api/src/routes/workflow-intake-links.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
       ],
       "gates": [
@@ -150856,7 +150988,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/intake-links/page.tsx",
-          "line": 366,
+          "line": 361,
           "caller": "IntakeLinksManagement",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150866,7 +150998,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:366 (IntakeLinksManagement, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/intake-links/page.tsx:361 (IntakeLinksManagement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -151051,7 +151183,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -151104,7 +151237,8 @@
         "adminAuditLog",
         "evidenceWorkflowInstance",
         "evidenceWorkflowStepInstance",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -151156,7 +151290,8 @@
         "adminAuditLog",
         "evidenceWorkflowInstance",
         "evidenceWorkflowStepInstance",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -151213,7 +151348,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -151266,7 +151402,8 @@
         "adminAuditLog",
         "evidenceWorkflowInstance",
         "evidenceWorkflowStepInstance",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -151382,7 +151519,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -151434,7 +151572,8 @@
         "adminAuditLog",
         "evidenceWorkflowInstance",
         "evidenceWorkflowStepInstance",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -151712,7 +151851,8 @@
         "adminAuditLog",
         "case",
         "caseSiuProfile",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -151861,7 +152001,8 @@
         "riskSignal",
         "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
@@ -152129,7 +152270,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
-        "organizationMembership"
+        "organizationMembership",
+        "user"
       ],
       "modelsWritten": [
         "adminAuditLog",

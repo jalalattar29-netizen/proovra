@@ -85,7 +85,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 320,
+    "AuditFilesInventoried": 323,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -138,7 +138,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 192
+    "ProductBehaviorTestsInventoried": 194
   },
   "reportRoles": {
     "counts": {
@@ -157,14 +157,14 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 192,
+    "PRODUCT_BEHAVIOR_TEST": 194,
     "CONTINUATION_CHECKPOINT": 1,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
     "GENERATED_LEDGER_RENDERING": 2,
     "CANONICAL_LEDGER_SOURCE": 1,
     "CURRENT_GENERATED_REPORT": 1,
-    "DOMAIN_AUTHORITY": 48,
+    "DOMAIN_AUTHORITY": 49,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
     "HISTORY_TREE_MARKER": 1,
     "HISTORICAL_REPORT": 23,
@@ -433,6 +433,21 @@
     },
     {
       "path": "apps/web/__tests__/phase13-governance-platform-ui.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/phase5-audit-presentation.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -2372,6 +2387,21 @@
       "packageScripts": [
         "services/api/package.json:db:p6-reconcile"
       ],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/scripts/p5-seed-audit-fixture.ts",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
       "ciConsumers": [],
       "sourceOfTruthFor": [],
       "disposition": "RETAINED"
@@ -4945,6 +4975,21 @@
     },
     {
       "path": "services/api/test/phase4-closure-scope-and-audience.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/phase5-audit-identity-contract.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

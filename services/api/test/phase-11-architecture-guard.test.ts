@@ -153,11 +153,21 @@ describe("Phase 11 — final adoption metrics (machine-enforced)", () => {
     expect(pricing).toContain("buildBillingHref");
   });
 
-  it("V3 is the ONLY current write format (new V1/V2 writes = 0)", () => {
+  it("V4 is the ONLY current write format (new V1/V2/V3 writes = 0)", () => {
+    /*
+     * PHASE 5 — the pin advances from V3 to V4, and the exclusion list grows
+     * with it. The guard was never about the number: it is that the writer
+     * emits the CURRENT format and cannot silently fall back to an older one,
+     * because a chain whose newest rows are hashed by an older algorithm binds
+     * fewer fields than the reader believes it does.
+     *
+     * V4 seals the identity and transition columns. Verification of historical
+     * V1/V2/V3 rows is unchanged.
+     */
     const writer = API_SRC.find((f) => f.rel.endsWith("platform-audit-log.service.ts"))!;
-    const create = writer.body.slice(writer.body.indexOf("adminAuditLog.create"), writer.body.indexOf("adminAuditLog.create") + 700);
-    expect(create).toMatch(/chainVersion:\s*3/);
-    expect(create).not.toMatch(/chainVersion:\s*[12]\b/);
+    const create = writer.body.slice(writer.body.indexOf("adminAuditLog.create"), writer.body.indexOf("adminAuditLog.create") + 1200);
+    expect(create).toMatch(/chainVersion:\s*4/);
+    expect(create).not.toMatch(/chainVersion:\s*[123]\b/);
   });
 
   it("no skipped non-live Phase-11 test is counted as passing (skip markers = 0)", () => {
