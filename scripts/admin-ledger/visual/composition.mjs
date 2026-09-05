@@ -147,6 +147,24 @@ for (const route of routes) {
     ).length;
     const rows = main.querySelectorAll("tbody tr").length;
 
+    /* TONE INFLATION: A WARNING COLOUR ON MOST OF THE ROWS.
+       /admin/adoption rendered an amber "Never used" badge on 15 of its 17
+       capabilities, so a page reporting ordinary adoption read as fifteen
+       cautions. A tone that applies to most of a table has stopped
+       distinguishing anything, which is the same defect as the Control
+       Center's coloured zeros. Measured as the share of DATA ROWS carrying a
+       pending or risk badge; a page where that exceeds 60% is either an
+       emergency or is inflating. */
+    const dataRows = Array.from(main.querySelectorAll("tbody tr")).filter(
+      (tr) => !tr.querySelector("td[colspan]"),
+    );
+    const alarmedRows = dataRows.filter((tr) =>
+      tr.querySelector(
+        '[data-tone="pending"], [data-tone="risk"], [data-ui-badge][data-tone="pending"]',
+      ),
+    ).length;
+    const alarmShare = dataRows.length > 0 ? alarmedRows / dataRows.length : 0;
+
     return {
       probeBorder,
       duplicatePrimary,
@@ -154,6 +172,9 @@ for (const route of routes) {
       zeroDenominator,
       secondsInList,
       tallRows,
+      alarmedRows,
+      dataRows: dataRows.length,
+      alarmShare: Math.round(alarmShare * 100),
       rows,
       cells: cells.length,
       flatCells: cellPads.filter((p) => p === "0px").length,
@@ -207,6 +228,24 @@ for (const route of routes) {
   if (result.secondsInList > 0) {
     bad.push(`${result.secondsInList} list cells carrying a seconds-precision stamp`);
   }
+  /* TONE INFLATION IS AN ADVISORY, NOT A FAILURE, BECAUSE THIS CANNOT TELL A
+     FAILURE LIST FROM AN INFLATED ONE.
+     Four routes exceed 60%, and three of them are RIGHT to:
+
+       /admin/platform/queues        15/15 — the table IS the failed-job list
+       /admin/evidence-ops/records    5/5  — the cohort IS failed records
+       /admin/identity/timeline       8/12 — fixture severities, genuinely HIGH
+       /admin/security                8/12 — fixture posture findings
+
+     The one that was wrong was /admin/adoption, where 15 of 17 ordinary
+     capabilities carried amber for "never used" — a fact about adoption, not
+     a caution — and that is fixed. A check that failed the build here would
+     force a table of failures to stop looking like one, so it reports and
+     leaves the judgement where it belongs. */
+  const advisory =
+    result.dataRows >= 5 && result.alarmShare > 60
+      ? `  [advisory] ${result.alarmedRows}/${result.dataRows} rows carry a warning tone (${result.alarmShare}%)`
+      : "";
   if (result.tallRows > 0) {
     bad.push(`${result.tallRows}/${result.rows} data rows over four lines tall`);
   }
@@ -218,6 +257,7 @@ for (const route of routes) {
       `td=${String(result.cells).padStart(3)} ` +
       `field=${String(result.fields).padStart(2)}` +
       note +
+      advisory +
       (bad.length ? "\n        " + bad.join("; ") : ""),
   );
   if (scriptErrors.length) {

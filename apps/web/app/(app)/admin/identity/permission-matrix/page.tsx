@@ -458,32 +458,58 @@ export default function PermissionMatrixPage() {
                   data-role-matrix-role={r.role}
                 >
                   {r.allowed.length === 0 ? (
+                    /* "NO MATCHES" AND "NONE" ARE DIFFERENT ANSWERS.
+                       This said "No permissions match the current filter" on
+                       every empty role — including with NO filter applied, as
+                       EXTERNAL_CONTRIBUTOR and PUBLIC_VERIFIER render by
+                       default. An operator reading that concludes their filter
+                       is hiding something, when the role genuinely grants
+                       nothing. This is the exact distinction the phase's state
+                       vocabulary separates, on a page about authorization. */
                     <p className="adm-help">
-                      No permissions match the current filter for this role.
+                      {filter || roleFilter || outcomeFilter
+                        ? "No permissions match the current filter for this role."
+                        : "This role grants no permissions."}
                     </p>
                   ) : (
-                    <ul
-                      style={{
-                        margin: 0,
-                        paddingInlineStart: 16,
-                        maxHeight: 180,
-                        overflowY: "auto",
-                      }}
-                    >
-                      {r.allowed.map((p) => (
-                        <li
-                          key={p.permission}
-                          style={{
-                            fontFamily:
-                              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                            fontSize: 11,
-                            color: "var(--ink-secondary)",
-                          }}
-                        >
-                          {p.permission}
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul
+                        /* The list is a SCROLL REGION, so it must be reachable
+                           and announced as one. Without a tabindex a keyboard
+                           operator cannot scroll it at all, and the 81
+                           permissions below the fold are unreachable. */
+                        tabIndex={0}
+                        role="group"
+                        aria-label={`${r.role} permissions`}
+                        className="adm-mono"
+                        style={{
+                          margin: 0,
+                          paddingInlineStart: 16,
+                          maxHeight: 180,
+                          overflowY: "auto",
+                          fontSize: 11,
+                          color: "var(--ink-secondary)",
+                        }}
+                      >
+                        {r.allowed.map((p) => (
+                          <li key={p.permission}>{p.permission}</li>
+                        ))}
+                      </ul>
+                      {/* THE CARD SAID 93 AND SHOWED 12.
+                          The list is capped at 180px and scrolls, and an
+                          overlay scrollbar is invisible until you already
+                          know to scroll — so a card headed "93 of 93
+                          permissions" displayed twelve of them with nothing
+                          saying so. On a page whose entire purpose is "what
+                          does this role actually grant", that is the one
+                          thing it must not get wrong. */}
+                      {r.allowed.length > 10 ? (
+                        <p className="adm-note">
+                          Showing the first of {r.allowed.length} — the list
+                          scrolls.
+                        </p>
+                      ) : null}
+                    </>
                   )}
                 </Card>
               ))}

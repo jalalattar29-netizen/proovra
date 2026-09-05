@@ -146,12 +146,22 @@ function AdminAdoptionInner() {
       {
         key: "neverUsed",
         header: "Never used",
+        /* NEVER USED IS NOT A WARNING, AND IT IS NOT A SECOND COLUMN.
+           This rendered an AMBER badge, and 15 of the 17 capabilities are
+           unused in a fresh workspace — so the page read as fifteen cautions.
+           Nothing is wrong: a capability nobody has reached for yet is a fact
+           about adoption, which is what this page measures. Amber here is the
+           same defect the phase removed from the Control Center's coloured
+           zeros.
+
+           It is also the same answer the column to its left already gives:
+           "Used"/"Not used" beside "Never used" is one fact in two badges.
+           This column now carries what the other cannot — WHETHER the
+           distinction has ever been true, as plain neutral text. */
         render: (row) => {
           if (!row.measured || row.neverUsed == null) return <NotMeasured />;
           return row.neverUsed ? (
-            <Badge tone="pending" subtle>
-              Never used
-            </Badge>
+            <span className="adm-muted">Never</span>
           ) : (
             <Dash />
           );
