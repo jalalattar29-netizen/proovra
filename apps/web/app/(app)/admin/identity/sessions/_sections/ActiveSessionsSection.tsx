@@ -82,6 +82,7 @@ import {
 } from "../../../security/_sections/section-state";
 import { SessionTimelineDrawer } from "./SessionTimelineDrawer";
 import { formatCellDateTime } from "../../../../../../lib/date";
+import { shortId } from "../../_sections/identity-admin-shared";
 
 type ActiveSession = {
   id: string;
@@ -379,8 +380,8 @@ export function ActiveSessionsSection() {
       key: "user",
       header: "Member",
       render: (s) => (
-        <code style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
-          {s.userId.slice(0, 12)}…
+        <code className="adm-mono" title={s.userId}>
+          {shortId(s.userId)}
         </code>
       ),
     },
@@ -454,8 +455,8 @@ export function ActiveSessionsSection() {
       key: "user",
       header: "Member",
       render: (q) => (
-        <code style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
-          {q.userId.slice(0, 12)}…
+        <code className="adm-mono" title={q.userId}>
+          {shortId(q.userId)}
         </code>
       ),
     },

@@ -164,7 +164,25 @@ export type RowResult = {
   message: string;
 };
 
-/** Short, non-identifying display form for an opaque id. */
+/**
+ * A SHORT FORM THAT STILL TELLS TWO IDS APART.
+ *
+ * This took the first eight characters. A UUID's entropy is at its END, and
+ * these are allocated sequentially, so on /admin/identity/runtime all
+ * twenty-five session rows rendered the identical string:
+ *
+ *   0adf0000-000…   0adf0000-000…   0adf0000-000…   (x25)
+ *
+ * A truncation that truncates away the distinguishing part is worse than no
+ * truncation at all: the column looks like data and carries none, and an
+ * operator picking a session to quarantine cannot tell which row they are
+ * acting on.
+ *
+ * Head AND tail. The head keeps the value recognisable as this platform's id
+ * shape; the tail is what differs. Short values are returned whole rather
+ * than padded with an ellipsis that hides nothing.
+ */
 export function shortId(id: string): string {
-  return `${id.slice(0, 8)}…`;
+  if (id.length <= 12) return id;
+  return `${id.slice(0, 6)}…${id.slice(-6)}`;
 }

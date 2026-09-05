@@ -37,6 +37,7 @@ import {
   sectionMuted,
   type SectionState,
 } from "../../../security/_sections/section-state";
+import { shortId } from "../../_sections/identity-admin-shared";
 
 type ImpactRow = {
   userId: string;
@@ -143,8 +144,8 @@ export function SessionPolicyImpactSection() {
       key: "user",
       header: "Member",
       render: (r) => (
-        <code style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
-          {r.userId.slice(0, 12)}…
+        <code className="adm-mono" title={r.userId}>
+          {shortId(r.userId)}
         </code>
       ),
     },

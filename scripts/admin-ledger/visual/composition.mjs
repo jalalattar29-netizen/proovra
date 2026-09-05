@@ -196,6 +196,60 @@ async function measure(page) {
           )),
     ).length;
 
+    /* A COLUMN WHERE EVERY ROW SAYS THE SAME THING.
+       /admin/identity/runtime rendered `0adf0000-000…` in its User column on
+       all twenty-five session rows: `shortId` took a UUID's FIRST eight
+       characters, and these ids are allocated sequentially so the entropy is
+       at the end. A truncation that truncates away the distinguishing part is
+       worse than none — the column looks like data and carries none, and an
+       operator picking a session to quarantine cannot tell which row they are
+       acting on.
+       Only flagged with 5+ rows, and only when the repeated value is
+       non-trivial: a column of "—" or of one repeated status is a legitimate
+       answer about the data, not a rendering fault. */
+    const deadColumns = (() => {
+      const bodyRows = Array.from(main.querySelectorAll("tbody tr")).filter(
+        (tr) => !tr.querySelector("td[colspan]"),
+      );
+      if (bodyRows.length < 5) return 0;
+      const width = bodyRows[0].querySelectorAll("td").length;
+      let dead = 0;
+      for (let c = 0; c < width; c += 1) {
+        const values = bodyRows.map(
+          (tr) => (tr.querySelectorAll("td")[c]?.textContent ?? "").trim(),
+        );
+        const first = values[0];
+        // A truncated identifier is the case this exists for: it ends in an
+        // ellipsis and repeats. A short repeated word is data, not a defect.
+        if (!first || first.length < 8) continue;
+        if (!/[…]/.test(first)) continue;
+        if (!values.every((v) => v === first)) continue;
+
+        /* IS THE TRUNCATION HIDING A DIFFERENCE, OR ARE THE VALUES THE SAME?
+           After the `shortId` fix, /admin/identity/runtime still showed one
+           string on all 25 rows — because all 25 ARE one user's sessions.
+           That is honest data, and failing on it would push the page toward
+           inventing a distinction that does not exist.
+           The full value lives in each cell's `title`, so the two cases are
+           separable: identical DISPLAY over differing FULL values is the
+           defect; identical display over identical full values is the truth. */
+        const fulls = bodyRows.map((tr) => {
+          const td = tr.querySelectorAll("td")[c];
+          return (
+            td?.getAttribute("title") ??
+            td?.querySelector("[title]")?.getAttribute("title") ??
+            ""
+          );
+        });
+        const distinctFulls = new Set(fulls.filter(Boolean)).size;
+        if (distinctFulls > 1) dead += 1;
+        // No titles at all is also a finding: nothing on the page carries the
+        // value the truncation removed, so it cannot be recovered or copied.
+        else if (distinctFulls === 0) dead += 1;
+      }
+      return dead;
+    })();
+
     /* A ROW RENDERED FOUR LINES TALL. Two stacked badges saying the same
        thing twice, or a phrase wrapping mid-word in a narrow column.
        MEASURED PER ROW, NOT PER CELL: a `<td>`'s height IS its row's height,
@@ -281,6 +335,7 @@ async function measure(page) {
       colouredZeros,
       secondsInList,
       tallRows,
+      deadColumns,
       alarmedRows,
       silentDisabled,
       rawIso,
@@ -374,6 +429,11 @@ async function report(route, result, bad) {
   if (result.silentDisabled > 0) {
     bad.push(
       `${result.silentDisabled}/${result.disabledControls} disabled controls give no reason`,
+    );
+  }
+  if (result.deadColumns > 0) {
+    bad.push(
+      `${result.deadColumns} truncated column(s) identical on every row`,
     );
   }
   if (result.tallRows > 0) {

@@ -40,6 +40,7 @@ import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
 import { formatCellDateTime } from "../../../../../lib/date";
+import { shortId } from "../_sections/identity-admin-shared";
 
 type SessionRow = {
   id: string;
@@ -518,14 +519,8 @@ const load = useCallback(() => {
       key: "user",
       header: "User",
       render: (q) => (
-        <code
-          style={{
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-            fontSize: 12,
-          }}
-        >
-          {q.userId.slice(0, 12)}…
+        <code className="adm-mono" title={q.userId}>
+          {shortId(q.userId)}
         </code>
       ),
     },
@@ -559,14 +554,8 @@ const load = useCallback(() => {
       key: "user",
       header: "User",
       render: (s) => (
-        <code
-          style={{
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-            fontSize: 12,
-          }}
-        >
-          {s.userId.slice(0, 12)}…
+        <code className="adm-mono" title={s.userId}>
+          {shortId(s.userId)}
         </code>
       ),
     },

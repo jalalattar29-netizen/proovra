@@ -56,6 +56,7 @@ import {
   type SectionState,
 } from "../../../security/_sections/section-state";
 import { formatCellDateTime } from "../../../../../../lib/date";
+import { shortId } from "../../_sections/identity-admin-shared";
 
 type TrustedDevice = {
   id: string;
@@ -218,8 +219,8 @@ export function TrustedDevicesSection() {
       key: "user",
       header: "Member",
       render: (d) => (
-        <code style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
-          {d.userId.slice(0, 12)}…
+        <code className="adm-mono" title={d.userId}>
+          {shortId(d.userId)}
         </code>
       ),
     },
