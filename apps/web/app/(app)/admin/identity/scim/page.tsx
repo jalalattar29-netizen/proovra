@@ -268,14 +268,44 @@ export default function ScimPage() {
    * should not build four history entries to Back out of. Back leaves the
    * page, forward-and-back within it is what the tabs themselves are for —
    * and the URL is still shareable, which was the point.
+   *
+   * =========================================================================
+   * LOCAL STATE RENDERS; THE URL IS SEEDED FROM AND SYNCED TO
+   * =========================================================================
+   * The first version of this derived `tab` DIRECTLY from `useSearchParams()`
+   * with no local state, which is tidier and was wrong: it makes the component
+   * unable to change view unless the ROUTER works. Four render tests in
+   * admin-mutations-identity broke immediately — they mount the page, click
+   * "Sync replay", and assert the panel fetches `/v1/scim/sync-failures`. With
+   * a stubbed router `replace()` is a no-op, the search params never change,
+   * and the tab silently stayed on Tokens. The tests were right: a tab that
+   * only works when navigation works is a tab that fails closed, and a
+   * stubbed router in a test is the cheap version of a navigation that is
+   * merely slow.
+   *
+   * So the state is local — it always responds — and the URL is a seed on
+   * mount and a side effect on change. Sharing and reload keep working; the
+   * rendering no longer depends on them.
    */
   const router = useRouter();
   const params = useSearchParams();
   const fromUrl = params.get("tab");
-  const tab: TabKey =
-    fromUrl && fromUrl in TAB_LABELS ? (fromUrl as TabKey) : "tokens";
+  const [tab, setTabState] = useState<TabKey>(() =>
+    fromUrl && fromUrl in TAB_LABELS ? (fromUrl as TabKey) : "tokens",
+  );
+
+  /* A URL that changes under us — Back, Forward, or a pasted link into the
+     same mounted page — moves the tab. Guarded so it cannot fight the click
+     that is already in flight. */
+  useEffect(() => {
+    const next =
+      fromUrl && fromUrl in TAB_LABELS ? (fromUrl as TabKey) : "tokens";
+    setTabState((current) => (current === next ? current : next));
+  }, [fromUrl]);
+
   const setTab = useCallback(
     (next: TabKey) => {
+      setTabState(next);
       const qs = new URLSearchParams(params.toString());
       if (next === "tokens") qs.delete("tab");
       else qs.set("tab", next);
