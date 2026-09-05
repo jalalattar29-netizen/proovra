@@ -47,6 +47,7 @@ import {
 import { Card } from "../../../../../components/ui/Card";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
+import { formatUserDateTime } from "../../../../../lib/date";
 
 
 // ---------------------------------------------------------------------------
@@ -225,7 +226,11 @@ function OperationsReadinessContent() {
           <KnownLimitationsSection limitations={posture.knownLimitations} />
           <RunbooksSection />
           <p className="adm-help" style={{ fontSize: 11 }}>
-            Generated {posture.generatedAtUtc}
+            {/* This printed the raw ISO string with milliseconds and a Z —
+                `2026-09-05T15:28:59.807Z` — on a page an operator reads to
+                decide whether the platform is ready to launch. Every other
+                timestamp in the console goes through the shared formatter. */}
+            Generated {formatUserDateTime(posture.generatedAtUtc)}
           </p>
         </>
       )}
@@ -356,15 +361,34 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
               </a>
             </p>
           ) : null}
+          {/* THREE LABEL-TO-VALUE TREATMENTS IN ONE CARD.
+              Every other posture fact in this card is a badge; these two were
+              bare 15px text, so "Unknown" and "Not run" read as HEADINGS
+              rather than as the states they are — the two states on the card
+              that most need to look like states. A verified date is a fact and
+              stays plain; the ABSENCE of one is a posture and takes the
+              neutral badge its peers use. */}
           <Row label="Backups last verified">
-            <span data-testid="db-backup-last-verified">
-              {backup.databaseBackupLastVerifiedAtUtc ?? "Unknown"}
-            </span>
+            {backup.databaseBackupLastVerifiedAtUtc ? (
+              <span data-testid="db-backup-last-verified">
+                {formatUserDateTime(backup.databaseBackupLastVerifiedAtUtc)}
+              </span>
+            ) : (
+              <PostureBadge tone={NEUTRAL} testId="db-backup-last-verified">
+                Unknown
+              </PostureBadge>
+            )}
           </Row>
           <Row label="Restore test">
-            <span data-testid="db-restore-tested">
-              {backup.databaseRestoreTestedAtUtc ?? "Not run"}
-            </span>
+            {backup.databaseRestoreTestedAtUtc ? (
+              <span data-testid="db-restore-tested">
+                {formatUserDateTime(backup.databaseRestoreTestedAtUtc)}
+              </span>
+            ) : (
+              <PostureBadge tone={NEUTRAL} testId="db-restore-tested">
+                Not run
+              </PostureBadge>
+            )}
           </Row>
           <Row label="Launch readiness">
             {backup.databaseBackupLaunchActionRequired ? (

@@ -48,15 +48,33 @@ await signIn(page);
 let failures = 0;
 
 for (const route of routes) {
-  errors.length = 0;
-  await page.goto(`${WEB}${concrete(route)}`, {
-    waitUntil: "networkidle",
-    timeout: 90_000,
-  });
-  await strip(page);
-  await page.waitForTimeout(1200);
+  /* ONE RETRY ON A MISSING STYLESHEET.
+     Over a 47-route sweep the dev server occasionally resets a chunk fetch
+     (`net::ERR_CONNECTION_RESET`), and the CSS chunk failing to load makes
+     the probe element resolve to no border — which reads exactly like "this
+     page lost its stylesheet". It reported /admin/dashboard and
+     /admin/executive as broken on two different runs, and both were clean on
+     an immediate re-probe. A page that has genuinely lost its stylesheet
+     loses it twice; a chunk reset does not. */
+  let result = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    errors.length = 0;
+    await page.goto(`${WEB}${concrete(route)}`, {
+      waitUntil: "networkidle",
+      timeout: 90_000,
+    });
+    await strip(page);
+    await page.waitForTimeout(1200);
+    result = await measure(page);
+    if (result.probeBorder !== "0px") break;
+  }
 
-  const result = await page.evaluate(() => {
+  const bad = [];
+  await report(route, result, bad);
+}
+
+async function measure(page) {
+  return page.evaluate(() => {
     /* The console's stylesheet is loaded by the admin LAYOUT, so `.adm-card`
        only exists under /admin. A Security Center page is on the product's
        shared `app-*` primitives instead, and probing it for `.adm-card` would
@@ -173,6 +191,28 @@ for (const route of routes) {
        enough. A pager's Previous on page one is exempt — its own position
        text is the reason, and it is the one disabled control in the console
        whose cause is already on screen. */
+    /* A RAW ISO TIMESTAMP RENDERED TO A HUMAN.
+       /admin/platform/readiness printed `Generated 2026-09-05T15:28:59.807Z`
+       on the page an operator reads to decide whether the platform is ready
+       to launch. Every other timestamp in the console goes through the shared
+       formatter; a machine string with milliseconds and a Z is what the API
+       returned, not what a person reads. Deliberately excludes anything
+       inside a `<code>`, `<pre>` or `.adm-mono` — a raw value shown AS a raw
+       value (an audit payload, a manifest field) is correct. */
+    const rawIso = (() => {
+      const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+      let n = 0;
+      let node;
+      while ((node = walker.nextNode())) {
+        if (!/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(node.nodeValue ?? "")) continue;
+        const el = node.parentElement;
+        if (!el) continue;
+        if (el.closest("code, pre, .adm-mono, [data-mono], input, textarea")) continue;
+        n += 1;
+      }
+      return n;
+    })();
+
     const PAGER = /^(next|previous|prev|older|newer)$/i;
     const disabledControls = Array.from(
       main.querySelectorAll("button[disabled], [aria-disabled='true']"),
@@ -196,6 +236,7 @@ for (const route of routes) {
       tallRows,
       alarmedRows,
       silentDisabled,
+      rawIso,
       disabledControls: disabledControls.length,
       dataRows: dataRows.length,
       alarmShare: Math.round(alarmShare * 100),
@@ -215,9 +256,11 @@ for (const route of routes) {
       ).length,
     };
   });
+}
 
-  const bad = [];
-  if (result.probeBorder === "0px") bad.push("STYLESHEET NOT APPLIED");
+/** Turn a measurement into findings and a printed line. */
+async function report(route, result, bad) {
+  if (result.probeBorder === "0px") bad.push("STYLESHEET NOT APPLIED (twice)");
   if (result.cells > 0 && result.flatCells > 0)
     bad.push(`${result.flatCells}/${result.cells} cells with no padding`);
   if (result.cells > 0 && result.ruleless === result.cells)
@@ -270,6 +313,9 @@ for (const route of routes) {
     result.dataRows >= 5 && result.alarmShare > 60
       ? `  [advisory] ${result.alarmedRows}/${result.dataRows} rows carry a warning tone (${result.alarmShare}%)`
       : "";
+  if (result.rawIso > 0) {
+    bad.push(`${result.rawIso} raw ISO timestamp(s) rendered as prose`);
+  }
   if (result.silentDisabled > 0) {
     bad.push(
       `${result.silentDisabled}/${result.disabledControls} disabled controls give no reason`,
