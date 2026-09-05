@@ -186,6 +186,26 @@ test.describe("PHASE 5 — Admin audit and history surfaces", () => {
       /Person|Background worker|Automated service|Support access|System|Historical record/,
     );
 
+    /*
+     * And no ACTOR CELL renders a full identifier as its visible value, which
+     * is exactly what the column used to do.
+     *
+     * Scoped to the actor cells rather than the whole page on purpose: a full
+     * id is legitimate in the details panel, where an operator has asked for
+     * the technical reference. It is never legitimate as the thing standing in
+     * for a person's name. The presenter emits short forms like "User …a1b2c3".
+     */
+    const actorCells = page.locator("table td:nth-child(6), table td:nth-child(7)");
+    const cellCount = await actorCells.count();
+    expect(cellCount, "the audit table rendered no rows to check").toBeGreaterThan(0);
+    for (let i = 0; i < Math.min(cellCount, 25); i += 1) {
+      const text = await actorCells.nth(i).innerText();
+      expect(
+        BARE_UUID.test(text),
+        `an actor cell renders a bare identifier where a name belongs: ${text}`,
+      ).toBe(false);
+    }
+
     // The seeded representative rows, reachable through the server filter.
     const search = page.locator('input[type="search"], input[placeholder*="earch"]').first();
     if ((await search.count()) > 0) {

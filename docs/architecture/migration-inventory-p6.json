@@ -12,19 +12,19 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 260,
+    "filesystemMigrations": 261,
     "classifiedMigrations": 259,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 260,
+    "productionSnapshotUnknown": 261,
     "holds": false
   },
   "metrics": {
-    "filesystemMigrations": 260,
+    "filesystemMigrations": 261,
     "classifiedMigrations": 259,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 260,
+    "productionSnapshotUnknown": 261,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
@@ -32,7 +32,7 @@
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4,
-      "UNCLASSIFIED": 1
+      "UNCLASSIFIED": 2
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
@@ -40,23 +40,26 @@
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1,
-      "UNKNOWN": 1
+      "UNKNOWN": 2
     },
-    "MigrationInventoryUnknown": 1,
-    "UnclassifiedMigrations": 1,
+    "MigrationInventoryUnknown": 2,
+    "UnclassifiedMigrations": 2,
     "UnknownDependencies": 0,
-    "UnknownReleaseWave": 1,
+    "UnknownReleaseWave": 2,
     "ConditionlessContractDrops": 0,
     "MigrationInventoryDuplicates": 0,
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 260
+    "ProductionMigrationStateUnknown": 261
   },
   "gateFailures": [
     "UNCLASSIFIED: 20280125000000_intake_customer_id has no curated classification",
     "UNKNOWN_RELEASE_WAVE: 20280125000000_intake_customer_id",
-    "NO_EVIDENCE: 20280125000000_intake_customer_id carries no classification evidence"
+    "NO_EVIDENCE: 20280125000000_intake_customer_id carries no classification evidence",
+    "UNCLASSIFIED: 20280210000000_intake_identity_search has no curated classification",
+    "UNKNOWN_RELEASE_WAVE: 20280210000000_intake_identity_search",
+    "NO_EVIDENCE: 20280210000000_intake_identity_search carries no classification evidence"
   ],
   "migrations": [
     {
@@ -20277,8 +20280,78 @@
       "evidence": null
     },
     {
-      "name": "20280210000000_admin_audit_identity_contract",
+      "name": "20280210000000_intake_identity_search",
       "order": 258,
+      "sqlPresent": true,
+      "byteLength": 2134,
+      "checksumSha256": "499e8aa7993f9da77009448168cfb46e76e85c0e14a342da13aad985b9b8ad58",
+      "checksumSha256Raw": "499e8aa7993f9da77009448168cfb46e76e85c0e14a342da13aad985b9b8ad58",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": null,
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): workflow_intake_links",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "workflow_intake_links"
+        ],
+        "addedColumns": [
+          "recipient_phone_e164"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "workflow_intake_links_team_id_recipient_email_idx",
+          "workflow_intake_links_team_id_recipient_phone_e164_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "workflow_intake_links"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "workflow_intake_links"
+      ],
+      "dependencies": [
+        "20260516180000_add_workflow_intake_links_phase4"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": null,
+      "requiresBackfill": null,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": null,
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": null
+    },
+    {
+      "name": "20280215000000_admin_audit_identity_contract",
+      "order": 259,
       "sqlPresent": true,
       "byteLength": 2614,
       "checksumSha256": "cea367f927325dacaaf3bd7b0c0e5aa3819855607407c5a7b737c03682cce19c",
@@ -20351,7 +20424,7 @@
     },
     {
       "name": "email_password_auth",
-      "order": 259,
+      "order": 260,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
