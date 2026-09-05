@@ -47,6 +47,9 @@ const OPS_ROUTES = readApi("src/routes/ops.routes.ts");
 const COMMAND_CENTER = readApi(
   "src/services/dashboard/command-center.service.ts",
 );
+const RECONCILIATION = readApi(
+  "src/services/operations/operations-reconciliation.service.ts",
+);
 const CC_TYPES = readWeb("components/command-center/types.ts");
 const CC_TSX = readWeb("components/command-center/CommandCenter.tsx");
 
@@ -588,9 +591,21 @@ describe("Phase 32.8C FINAL-2 — envelope changes", () => {
     );
   });
 
-  it("runIncidents lazy-runs generator + correlator + workflow + causality", () => {
-    expect(COMMAND_CENTER).toMatch(/generateWorkflowsForWorkspace\(\{\s*teamId\s*\}\)\.catch\(/);
-    expect(COMMAND_CENTER).toMatch(/detectCausalityForWorkspace\(\{\s*teamId\s*\}\)\.catch\(/);
+  it("runIncidents READS workflows and causality — the sweep builds them", () => {
+    /*
+     * These ran inline on every Home navigation, which made opening a page the
+     * trigger for rebuilding derived intelligence. Measured on the local
+     * fixture, the workflow generator alone accounted for 15 UPDATEs and 15
+     * INSERTs of the 36 writes one command-center GET performed.
+     *
+     * They run in the scheduled sweep now, immediately after the discovery
+     * they derive from, under the per-workspace lock that already exists.
+     * Home reads the result.
+     */
+    expect(COMMAND_CENTER).not.toMatch(/await\s+generateWorkflowsForWorkspace\(/);
+    expect(COMMAND_CENTER).not.toMatch(/await\s+detectCausalityForWorkspace\(/);
+    expect(COMMAND_CENTER).toMatch(/listWorkspaceWorkflows\(/);
+    expect(COMMAND_CENTER).toMatch(/listWorkspaceCausalityChains\(/);
   });
 
   it("envelope frontend types.ts mirrors the additions", () => {
@@ -717,12 +732,40 @@ describe("Phase 32.8C FINAL-2 — no-regression invariants", () => {
     expect(WF_SVC).not.toMatch(/queue\.add/);
   });
 
-  it("page-load incidents->workflows->causality chain wraps every step in .catch", () => {
-    const idx = COMMAND_CENTER.indexOf("Phase 32.8C FINAL-2 — generate workflows");
-    expect(idx).toBeGreaterThanOrEqual(0);
-    const block = COMMAND_CENTER.slice(idx, idx + 1000);
-    expect(block).toMatch(/generateWorkflowsForWorkspace[\s\S]{0,100}\.catch/);
-    expect(block).toMatch(/detectCausalityForWorkspace[\s\S]{0,100}\.catch/);
+  it("the incidents->workflows->causality chain still isolates every step", () => {
+    /*
+     * THE GUARANTEE MOVED WITH THE WORK, AND IT IS THE SAME GUARANTEE.
+     *
+     * One failing generator must not take the others down, nor the run that
+     * carries them. On the read path that was expressed as `.catch(() => {})`
+     * per call; in the sweep it is a `try`/`catch` per generator, which also
+     * lets each one report what it built instead of vanishing into an empty
+     * handler.
+     *
+     * ORDER IS PART OF THE CONTRACT: workflows are generated from the
+     * incidents discovery just recorded, and causality links what exists after
+     * both. Asserting the order is why this reads positions rather than mere
+     * presence.
+     */
+    const discovery = RECONCILIATION.indexOf("generateIncidentsForWorkspace(");
+    const correlate = RECONCILIATION.indexOf("await correlateWorkspaceIncidents(");
+    const workflows = RECONCILIATION.indexOf("await generateWorkflowsForWorkspace(");
+    const causality = RECONCILIATION.indexOf("await detectCausalityForWorkspace(");
+    for (const [name, at] of [
+      ["discovery", discovery],
+      ["correlation", correlate],
+      ["workflows", workflows],
+      ["causality", causality],
+    ] as const) {
+      expect(at, `${name} must run in the sweep`).toBeGreaterThanOrEqual(0);
+    }
+    expect(discovery).toBeLessThan(correlate);
+    expect(correlate).toBeLessThan(workflows);
+    expect(workflows).toBeLessThan(causality);
+
+    // Each isolated on its own, so one failure cannot take the chain.
+    const chain = RECONCILIATION.slice(correlate - 200, causality + 400);
+    expect((chain.match(/} catch \{/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 
   it("frontend renders read-only chips for workflow actions — no inline forms", () => {

@@ -27,6 +27,18 @@ import {
 } from "@proovra/shared-runtime";
 
 import { generateIncidentsForWorkspace } from "../dashboard/incident-generator.service.js";
+/*
+ * The derived-intelligence generators. They live in the dashboard folder
+ * because that is what consumes them; they run HERE because this is the one
+ * scheduled, locked, per-workspace sweep — see the body below.
+ */
+import { log as logInfo } from "../../utils/logger.js";
+import { correlateWorkspaceIncidents } from "../dashboard/incident-correlation.service.js";
+import { generateWorkflowsForWorkspace } from "../dashboard/workflow-generator.service.js";
+import { detectCausalityForWorkspace } from "../dashboard/causality.service.js";
+import { recordOrgHealthSnapshotForWorkspace } from "../dashboard/org-health.service.js";
+import { computeReviewerCapacityForWorkspace } from "../dashboard/reviewer-capacity.service.js";
+import { projectOperationalGraphForWorkspace } from "../dashboard/operational-graph.service.js";
 import { requiredSourceIds } from "./operations-source-registry.js";
 
 /**
@@ -50,6 +62,100 @@ export async function reconcileWorkspaceOperations(input: {
       const discovery = await generateIncidentsForWorkspace({
         teamId: input.workspaceId,
       });
+
+      /*
+       * THE DERIVED INTELLIGENCE, BUILT WHERE THE DISCOVERY IS.
+       *
+       * These three used to run inline on `GET /v1/dashboard/command-center`,
+       * which meant opening Home rebuilt them — 36 database WRITES on a read,
+       * and the single slowest request on the page. They had no other caller,
+       * so Home was in effect their scheduler: a workspace nobody opened never
+       * got them, and two people opening Home at once built them twice.
+       *
+       * They belong here for the same reason discovery does. This body already
+       * holds the durable per-workspace lock, already runs on a timer, and
+       * already records its outcome on a run row — so the work is bounded,
+       * de-duplicated across replicas, and observable when it fails. Adding a
+       * second scheduler for three functions that derive FROM the incidents
+       * this very body just discovered would be the wrong shape twice over.
+       *
+       * ORDER IS DELIBERATE. Correlations group the incidents discovery just
+       * recorded; workflows are generated from active incidents and
+       * correlations; causality links what exists after both. Running them
+       * before discovery would derive from the previous sweep's picture.
+       *
+       * Each is wrapped on its own. A failure in one is recorded and the other
+       * two still run — the same per-source isolation the discovery body
+       * applies — and none of them can fail the run, because the run's
+       * readiness is about DISCOVERY: a workspace whose sources were all
+       * scanned has a complete operational picture whether or not a derived
+       * chain could be built on top of it. Reporting PARTIAL for a failed
+       * causality pass would tell an operator their conditions might be
+       * incomplete when they are not.
+       */
+      const derived = {
+        correlations: null as number | null,
+        workflows: null as number | null,
+        causality: null as number | null,
+        healthSnapshot: false,
+        reviewerCapacity: false,
+        operationalGraph: false,
+      };
+      try {
+        derived.correlations = (
+          await correlateWorkspaceIncidents({ teamId: input.workspaceId })
+        ).persisted;
+      } catch {
+        // null, not 0. "It did not run" and "it ran and built nothing" are
+        // different facts and the log below keeps them apart.
+      }
+      try {
+        derived.workflows = (
+          await generateWorkflowsForWorkspace({ teamId: input.workspaceId })
+        ).persisted;
+      } catch {
+        /* see above */
+      }
+      try {
+        derived.causality = (
+          await detectCausalityForWorkspace({ teamId: input.workspaceId })
+        ).chainsPersisted;
+      } catch {
+        /* see above */
+      }
+      /*
+       * One health sample per sweep. It used to be one per Home navigation,
+       * which made the sampling rate a function of how often somebody looked
+       * at the dashboard — the one thing a health trend must not depend on.
+       */
+      try {
+        await recordOrgHealthSnapshotForWorkspace({ teamId: input.workspaceId });
+        derived.healthSnapshot = true;
+      } catch {
+        /* see above */
+      }
+      /*
+       * The last two projections that were being rebuilt by whoever opened
+       * Home. Both persist, so both belong on the timer with the rest.
+       */
+      try {
+        await computeReviewerCapacityForWorkspace({ teamId: input.workspaceId });
+        derived.reviewerCapacity = true;
+      } catch {
+        /* see above */
+      }
+      try {
+        await projectOperationalGraphForWorkspace({ teamId: input.workspaceId });
+        derived.operationalGraph = true;
+      } catch {
+        /* see above */
+      }
+      logInfo("operations.reconcile.derived_intelligence", {
+        workspaceId: input.workspaceId,
+        trigger: input.trigger,
+        ...derived,
+      });
+
       return {
         recorded: discovery.recorded,
         sources: {

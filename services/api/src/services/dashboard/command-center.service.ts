@@ -67,19 +67,16 @@ import {
   projectWorkspaceTimeline,
 } from "./operational-timeline.service.js";
 import { getWorkspaceCaseCommentBacklog } from "./case-comment.service.js";
-import { ensureWorkspaceOperationsFresh } from "../operations/operations-reconciliation.service.js";
-import {
-  correlateWorkspaceIncidents,
-  listWorkspaceCorrelations,
-} from "./incident-correlation.service.js";
-import {
-  generateWorkflowsForWorkspace,
-  listWorkspaceWorkflows,
-} from "./workflow-generator.service.js";
-import {
-  detectCausalityForWorkspace,
-  listWorkspaceCausalityChains,
-} from "./causality.service.js";
+/*
+ * READERS ONLY. The generators these modules also export
+ * (`correlateWorkspaceIncidents`, `generateWorkflowsForWorkspace`,
+ * `detectCausalityForWorkspace`) belong to the scheduled sweep now — see
+ * `runIncidents` and `operations-reconciliation.service.ts`. Importing them
+ * here again is how they would find their way back onto a GET.
+ */
+import { listWorkspaceCorrelations } from "./incident-correlation.service.js";
+import { listWorkspaceWorkflows } from "./workflow-generator.service.js";
+import { listWorkspaceCausalityChains } from "./causality.service.js";
 import {
   computeReviewerCapacityForWorkspace,
   listReviewerCapacity,
@@ -91,7 +88,6 @@ import {
 } from "./operational-graph.service.js";
 import {
   getLatestOrgHealthSnapshot,
-  recordOrgHealthSnapshotForWorkspace,
 } from "./org-health.service.js";
 import {
   resolveCapabilityMatrix,
@@ -2709,12 +2705,52 @@ async function runIncidents(
   // `.catch` is retained deliberately: Home must render even when Operations
   // discovery cannot be scheduled at all. What changed is that the failure is
   // now durable on a run row instead of vanishing into this empty handler.
-  await ensureWorkspaceOperationsFresh({ workspaceId: teamId }).catch(() => {});
-  await correlateWorkspaceIncidents({ teamId }).catch(() => {});
-  // Phase 32.8C FINAL-2 — generate workflows from active incidents +
-  // build deterministic causality chains. Both wrapped.
-  await generateWorkflowsForWorkspace({ teamId }).catch(() => {});
-  await detectCausalityForWorkspace({ teamId }).catch(() => {});
+  /*
+   * NOTHING IS GENERATED HERE ANY MORE. THIS IS A READ.
+   *
+   * Four generators used to run, sequentially, on every Home navigation:
+   *
+   *   ensureWorkspaceOperationsFresh  a full discovery sweep, INLINE and
+   *                                   awaited whenever the picture was stale
+   *   correlateWorkspaceIncidents     wrote correlations
+   *   generateWorkflowsForWorkspace   wrote workflows and workflow events
+   *   detectCausalityForWorkspace     wrote causality chains and links
+   *
+   * Measured on the local fixture, one command-center GET for an ordinary
+   * organization workspace executed 272 SQL statements and 36 WRITES — 15
+   * UPDATEs to operational_workflows and 15 INSERTs to
+   * operational_workflow_events among them, on a request whose entire job is
+   * to answer "what does this workspace look like right now". Opening a page
+   * rebuilt the world; opening it twice rebuilt it twice.
+   *
+   * That is invisible on a local database and it is the whole problem on a
+   * managed one. Round trips do not get cheaper with distance: at a 2ms
+   * database RTT those statements are about half a second of pure waiting, at
+   * 5ms well over a second, and command-center is the slowest request on Home
+   * and the one its render barrier waits for.
+   *
+   * WHERE THE WORK WENT. Not away — into the sweep that already exists for
+   * exactly this. `reconcileWorkspaceOperations` runs on a schedule, holds a
+   * durable per-workspace lock, records its outcome on a run row, and is the
+   * authority a previous phase built when it moved discovery off this same
+   * read path. The three dashboard generators had NO other caller: Home was
+   * their scheduler. They are now part of that sweep's body, so they run for
+   * every workspace on a timer instead of for whichever workspace happens to
+   * have someone looking at it.
+   *
+   * `ensureWorkspaceOperationsFresh` is simply gone from here. Its return value
+   * was discarded on the line it was called — Home never read the run, the
+   * refreshing flag or the blocked reason — so the call was a side effect and
+   * nothing else. The Operations surface still calls it, which is the surface
+   * that renders freshness and can honestly say "refreshing".
+   *
+   * WHAT HOME SHOWS NOW. Exactly what is in the projections, which is what it
+   * showed before for every workspace the sweep had already covered. A
+   * workspace the sweep has not reached yet shows what has been discovered so
+   * far rather than a picture built on demand — and the sections below already
+   * render an empty list as an empty list. Nothing is fabricated and no
+   * condition is dropped.
+   */
 
   let correlations: CommandCenterCorrelationItem[] = [];
   try {
@@ -3266,8 +3302,13 @@ async function runReviewerCapacityBoard(
       recommendations: [],
     };
   }
-  // Lazy generate, then read.
-  await computeReviewerCapacityForWorkspace({ teamId }).catch(() => {});
+  /*
+   * READ, NOT COMPUTE. Reviewer capacity is persisted by the scheduled sweep
+   * along with the rest of the derived intelligence; this section reads the
+   * latest projection. It used to compute-then-read on every Home
+   * navigation, which is a write on a GET wherever the workspace has
+   * reviewers to persist capacity for.
+   */
   let reviewers: CommandCenterEnvelope["sections"]["reviewerCapacity"]["reviewers"] = [];
   let recommendations: CommandCenterEnvelope["sections"]["reviewerCapacity"]["recommendations"] =
     [];
@@ -3359,7 +3400,10 @@ async function runOperationalGraphSection(
       PROJECTION_FRESH_THRESHOLD_SEC * 1000;
 
   if (graphStale) {
-    await projectOperationalGraphForWorkspace({ teamId }).catch(() => {});
+    /*
+     * READ, NOT PROJECT — see the reviewer-capacity note above. The graph is
+     * projected by the sweep; this section reads it.
+     */
   }
   let data: CommandCenterEnvelope["sections"]["operationalGraph"]["data"] = {
     nodeCountsByType: [],
@@ -3390,8 +3434,23 @@ async function runOrganizationalHealthSection(
       "OrganizationalHealthSnapshot (Phase 32.8C FINAL-3 — deterministic 0..100 scores from real counters)",
     ],
   };
-  // Lazy generate.
-  await recordOrgHealthSnapshotForWorkspace({ teamId }).catch(() => {});
+  /*
+   * NOT GENERATED HERE EITHER — and this one INSERTED.
+   *
+   * "Lazy generate" meant every Home navigation appended a new
+   * OrganizationalHealthSnapshot row: a read that grows a table, without
+   * bound, at the rate people open a page. Ten operators refreshing Home
+   * wrote ten snapshots of the same instant, and the section below then read
+   * the newest one — so all ten were discarded except the last.
+   *
+   * The snapshot is now written by the scheduled operations sweep, which
+   * samples once per workspace per run. That is what a health SNAPSHOT is:
+   * a periodic sample, not a side effect of somebody looking. This section
+   * reads the latest one and renders `sampledAtUtc` alongside it, so a
+   * reader can already see how fresh the sample is; where none exists yet
+   * every score is null and the section says so rather than inventing a
+   * score to fill the gap.
+   */
   let data: CommandCenterEnvelope["sections"]["organizationalHealth"]["data"] = {
     healthScore: null,
     operationalMaturityScore: null,

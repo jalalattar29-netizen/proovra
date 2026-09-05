@@ -51,6 +51,9 @@ const OPS_ROUTES = readApi("src/routes/ops.routes.ts");
 const COMMAND_CENTER = readApi(
   "src/services/dashboard/command-center.service.ts",
 );
+const RECONCILIATION = readApi(
+  "src/services/operations/operations-reconciliation.service.ts",
+);
 const CC_TYPES = readWeb("components/command-center/types.ts");
 const CC_TSX = readWeb("components/command-center/CommandCenter.tsx");
 
@@ -431,7 +434,7 @@ describe("Phase 32.8C control plane — envelope changes", () => {
     );
   });
 
-  it("runIncidents ENSURES a fresh reconciliation rather than generating inline", () => {
+  it("runIncidents neither generates NOR ensures — it reads", () => {
     // WORKSPACE-SCOPE CONVERGENCE (§7.3) — this contract INVERTED, deliberately.
     //
     // It used to pin `generateIncidentsForWorkspace({ teamId }).catch(...)`:
@@ -444,18 +447,77 @@ describe("Phase 32.8C control plane — envelope changes", () => {
     // Home ensures freshness and reads; it does not discover. The negative
     // assertion is the load-bearing half: it is what stops the inline sweep
     // being reintroduced by someone restoring "the missing generator call".
-    expect(COMMAND_CENTER).toMatch(
-      /ensureWorkspaceOperationsFresh\(\{\s*workspaceId:\s*teamId\s*\}\)\.catch\(/,
-    );
-    // Forbids the CALL, not the name: the comment above the replacement
-    // explains what was removed and why, and a rule that made the explanation
-    // unwritable would push the reasoning out of the file it belongs in.
-    expect(COMMAND_CENTER).not.toMatch(/await\s+generateIncidentsForWorkspace\(/);
-    // Correlation is a projection over conditions that already exist, not a
-    // discovery sweep, so it stays where it was.
-    expect(COMMAND_CENTER).toMatch(
-      /correlateWorkspaceIncidents\(\{\s*teamId\s*\}\)\.catch\(/,
-    );
+    /*
+     * THIS CONTRACT INVERTED A SECOND TIME, AND FOR THE SAME REASON.
+     *
+     * The first inversion moved DISCOVERY off the read path and left an
+     * "ensure" behind: Home would ask for a fresh run if the picture was
+     * stale. But `ensureWorkspaceOperationsFresh` awaits
+     * `reconcileWorkspaceOperations` when the run is stale, never-run or
+     * stalled — so on those paths Home was still running the sweep inline and
+     * waiting for it, which is what the first inversion set out to stop. Home
+     * also discarded the return value on the line it called it, so it was a
+     * side effect and nothing more.
+     *
+     * Correlation stayed here on the reasoning that "a projection over
+     * conditions that already exist" is not a discovery sweep. True, and it
+     * still WROTE: measured on the local fixture, one command-center GET
+     * performed 36 database writes, 30 of them from the workflow generator
+     * that correlation feeds. A read that writes is the thing being removed,
+     * whether or not it also scans.
+     *
+     * All of it now runs in the scheduled sweep. The negative assertions are
+     * the load-bearing half — they are what stops any of it being restored by
+     * someone reinstating "the missing generator call".
+     */
+    for (const call of [
+      "ensureWorkspaceOperationsFresh",
+      "generateIncidentsForWorkspace",
+      "correlateWorkspaceIncidents",
+      "generateWorkflowsForWorkspace",
+      "detectCausalityForWorkspace",
+      "recordOrgHealthSnapshotForWorkspace",
+      "computeReviewerCapacityForWorkspace",
+      "projectOperationalGraphForWorkspace",
+    ]) {
+      expect(
+        COMMAND_CENTER,
+        `${call} must not be invoked on the command-center read path`,
+      ).not.toMatch(new RegExp(`await\\s+${call}\\(`));
+    }
+
+    // The readers remain: Home shows what the sweep built.
+    expect(COMMAND_CENTER).toMatch(/listWorkspaceCorrelations\(/);
+    expect(COMMAND_CENTER).toMatch(/listWorkspaceWorkflows\(/);
+    expect(COMMAND_CENTER).toMatch(/listWorkspaceCausalityChains\(/);
+  });
+
+  it("the work did not disappear — the scheduled sweep runs every generator", () => {
+    /*
+     * Moving work off a read path is only correct if something still does it.
+     * The sweep already held a durable per-workspace lock and already ran on a
+     * timer, so it is where these belong; a second scheduler for them would be
+     * a second thing to keep alive.
+     */
+    for (const call of [
+      "correlateWorkspaceIncidents",
+      "generateWorkflowsForWorkspace",
+      "detectCausalityForWorkspace",
+      "recordOrgHealthSnapshotForWorkspace",
+      "computeReviewerCapacityForWorkspace",
+      "projectOperationalGraphForWorkspace",
+    ]) {
+      expect(
+        RECONCILIATION,
+        `${call} must run in the scheduled sweep`,
+      ).toMatch(new RegExp(`await ${call}\\(`));
+    }
+    // Each one wrapped on its own: one failing generator must not take the
+    // others, nor the discovery run, down with it.
+    expect(
+      (RECONCILIATION.match(/} catch \{/g) ?? []).length,
+      "every generator is individually wrapped",
+    ).toBeGreaterThanOrEqual(6);
   });
 
   it("runIncidents selects the assignment + acknowledgment fields", () => {

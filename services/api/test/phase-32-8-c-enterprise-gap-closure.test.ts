@@ -584,16 +584,28 @@ describe("Phase 32.8C FINAL-3 — dashboard envelope wiring", () => {
     expect(COMMAND_CENTER).toMatch(/async function runOrganizationalHealthSection\(/);
   });
 
-  it("each new section lazy-generates then reads (failures wrapped)", () => {
-    expect(COMMAND_CENTER).toMatch(
-      /computeReviewerCapacityForWorkspace\(\{\s*teamId\s*\}\)\.catch\(/,
-    );
-    expect(COMMAND_CENTER).toMatch(
-      /projectOperationalGraphForWorkspace\(\{\s*teamId\s*\}\)\.catch\(/,
-    );
-    expect(COMMAND_CENTER).toMatch(
-      /recordOrgHealthSnapshotForWorkspace\(\{\s*teamId\s*\}\)\.catch\(/,
-    );
+  it("each section READS its projection — it no longer generates one", () => {
+    /*
+     * "Lazy-generate then read" is a write on a GET. `recordOrgHealthSnapshot`
+     * was the plainest case: it INSERTED a row every time anyone opened Home,
+     * so the sampling rate of a health TREND was a function of how often
+     * somebody looked at the dashboard, and ten operators refreshing wrote ten
+     * snapshots of the same instant for the section to then read the newest of.
+     *
+     * All three are produced by the scheduled sweep now. These sections read
+     * the latest projection and render its absence honestly — which they
+     * already had to do, because a workspace whose projection had never been
+     * built has always been possible.
+     */
+    for (const call of [
+      "computeReviewerCapacityForWorkspace",
+      "projectOperationalGraphForWorkspace",
+      "recordOrgHealthSnapshotForWorkspace",
+    ]) {
+      expect(COMMAND_CENTER).not.toMatch(new RegExp(`await\\s+${call}\\(`));
+    }
+    expect(COMMAND_CENTER).toMatch(/listReviewerCapacity\(/);
+    expect(COMMAND_CENTER).toMatch(/getLatestOrgHealthSnapshot\(/);
   });
 
   it("personal workspaces get reviewerCapacity status=not_applicable, not unavailable", () => {
