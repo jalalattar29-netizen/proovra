@@ -46,7 +46,7 @@ import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { usePlatformContext } from "../../../../lib/platform-context";
 import { PlatformSecurityEvents } from "./_sections/PlatformSecurityEvents";
 import { apiFetch } from "../../../../lib/api";
-import { formatUserDateTime } from "../../../../lib/date";
+import { formatRelativeTime, formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { hasRunbook, resolveRunbookSlug } from "../../../../lib/runbooks/slugs.generated";
 import { ResultCount } from "../../../../components/ui/ResultCount";
@@ -216,15 +216,19 @@ export default function AdminOperationsPage() {
         render: (r) => (
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 620 }}>{r.title}</div>
+            {/* RECENCY IS THE FACT AN OPERATOR IS TRIAGING FOR, so it reads
+                "last 3m ago" rather than "last 05 Sept 2026, 16:21:53
+                Europe/Berlin" — which wrapped to two lines and made every
+                condition row three lines tall while still requiring the
+                operator to subtract. The exact instant is on the hover, so
+                nothing is lost. */}
             <div
-              style={{
-                fontSize: 12,
-                color: "var(--ink-muted)",
-                marginTop: 2,
-              }}
+              className="adm-help"
+              style={{ marginTop: 2 }}
+              title={`Last seen ${formatUserDateTime(r.lastSeenAtUtc)}`}
             >
               {r.category} · seen {r.occurrenceCount}× · last{" "}
-              {formatUserDateTime(r.lastSeenAtUtc)}
+              {formatRelativeTime(r.lastSeenAtUtc)}
             </div>
           </div>
         ),

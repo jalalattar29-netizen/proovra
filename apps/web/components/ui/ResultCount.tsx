@@ -127,6 +127,34 @@ export function ResultCount({
     complete,
   });
 
+  /**
+   * DON'T SAY IT TWICE.
+   *
+   * A list that is empty for the ordinary reason already says so, in its own
+   * empty state, in a sentence written for that list. This component then
+   * added "No entitlements yet" underneath — /admin/costs showed the pair
+   * stacked, and so did every other all-empty admin list.
+   *
+   * It is suppressed ONLY for the plain empty case. Every other zero is
+   * information the empty state cannot carry:
+   *
+   *   filtered  "No customers match these filters" is the one thing that
+   *             distinguishes a filter that found nothing from no data.
+   *   loading   the count is the only thing that says a read is in flight
+   *             over an as-yet-empty table.
+   *   failed    "Count unavailable" is the difference between a list that
+   *             is empty and one that could not be read.
+   *   action    a continuation control lives in this row and must render.
+   */
+  const redundantEmpty =
+    shown === 0 &&
+    (total === undefined || total === 0) &&
+    !filtered &&
+    !loading &&
+    !failed &&
+    action == null;
+  if (redundantEmpty) return null;
+
   return (
     <div
       style={{ ...rowStyle, ...style }}

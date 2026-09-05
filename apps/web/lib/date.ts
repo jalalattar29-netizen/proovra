@@ -108,3 +108,38 @@ export function formatCellDateTime(iso: string | null | undefined): string {
     return iso;
   }
 }
+
+/**
+ * HOW LONG AGO, FOR A ROW AN OPERATOR IS TRIAGING.
+ *
+ * An incident's "last seen" is the one timestamp whose RECENCY is the fact —
+ * "3m ago" answers the operator's question and "05 Sept 2026, 16:21:53
+ * Europe/Berlin" makes them subtract. /admin/operations printed the latter
+ * under every condition's title, where it wrapped to two lines.
+ *
+ * Absolute precision is not lost, it moves: every call site pairs this with
+ * the full stamp in a `title`, so hovering still gives the exact instant, and
+ * the audit surfaces that need the seconds on the page keep using
+ * `formatUtcAuditDateTime`.
+ *
+ * Two identical copies of this function already existed — one in
+ * `NotificationBell.tsx`, one in `CasesIndex.tsx`. This is the third caller,
+ * and rather than write it again it lives here with the other formatters.
+ * Those two are outside this phase's surface and are left alone deliberately;
+ * they are now the duplicates rather than the definition.
+ */
+export function formatRelativeTime(value?: string | Date | null): string {
+  if (value === null || value === undefined || value === "") return NOT_AVAILABLE;
+  const t = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  if (Number.isNaN(t)) return NOT_AVAILABLE;
+  const minutes = Math.floor((Date.now() - t) / 60_000);
+  // A clock skew or a future-dated row must not render "-4m ago".
+  if (minutes < 0) return "just now";
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return formatUserDate(value);
+}

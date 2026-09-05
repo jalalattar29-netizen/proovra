@@ -39,7 +39,7 @@ import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { LifecycleRequestQueue } from "./_sections/LifecycleRequestQueue";
 import { apiFetch } from "../../../../lib/api";
-import { formatUserDateTime } from "../../../../lib/date";
+import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 // PHASE 6 §7 — carry the list state onto the detail URL so the return link
 // can put the operator back on the page they filtered, not on page one of
@@ -180,8 +180,13 @@ export default function AdminPeoplePage() {
       render: (r) => (
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 620 }}>{dash(r.email)}</div>
-          <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
-            {dash(r.name)} · joined {formatUserDateTime(r.createdAt)}
+          {/* A DATE, NOT A STAMP TO THE SECOND. This read
+              `joined 05 Sept 2026, 11:19:54 Europe/Berlin` under every
+              address, wrapped to two lines, and made every row in the roster
+              three lines tall. LAST LOGIN keeps its full precision, because
+              there the seconds are the point. */}
+          <div className="adm-help" style={{ marginTop: 2 }}>
+            {dash(r.name)} · joined {formatUserDate(r.createdAt)}
           </div>
         </div>
       ),
@@ -366,7 +371,7 @@ export default function AdminPeoplePage() {
           value={subscriptionStatus}
           onChange={setSubscriptionStatus}
           options={[
-            { value: "", label: "Any" },
+            { value: "", label: "Any subscription" },
             { value: "ACTIVE", label: "Active" },
             { value: "TRIALING", label: "Trialing" },
             { value: "PAST_DUE", label: "Past due" },
@@ -379,7 +384,7 @@ export default function AdminPeoplePage() {
           value={pendingCancellation ? "true" : ""}
           onChange={(v) => setPendingCancellation(v === "true")}
           options={[
-            { value: "", label: "Any" },
+            { value: "", label: "Any cancellation state" },
             { value: "true", label: "Pending cancellation" },
           ]}
         />

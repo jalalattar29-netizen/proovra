@@ -1024,7 +1024,24 @@ describe("Queues — the replay dialog IS the confirmation", () => {
   it("Close sends nothing", async () => {
     await mountQueuesSelected();
     const dialog = await openReplayDialog();
-    await click(within(dialog).getByRole("button", { name: "Close" }));
+    /* PHASE 7 — the dialog moved onto the shared `AdmOverlay`, and its close
+       control's accessible name went from the bare word "Close" to "Close
+       replay job". That is the point of the shared component: a page can have
+       more than one dismissible surface, and three controls all announced as
+       "Close" tell a screen-reader operator nothing about what they close.
+       The BEHAVIOUR under test — closing sends no request — is unchanged. */
+    await click(within(dialog).getByRole("button", { name: "Close replay job" }));
+    expect(screen.queryByTestId("replay-dialog")).toBeNull();
+    expect(posts("/v1/operations/queues/")).toHaveLength(0);
+  });
+
+  it("Escape closes the dialog and sends nothing", async () => {
+    /* New with `AdmOverlay`: the hand-rolled dialog had no Escape handler at
+       all, so the only way out was to find the close control. */
+    await mountQueuesSelected();
+    await openReplayDialog();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await settle();
     expect(screen.queryByTestId("replay-dialog")).toBeNull();
     expect(posts("/v1/operations/queues/")).toHaveLength(0);
   });

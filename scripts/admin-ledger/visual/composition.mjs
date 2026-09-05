@@ -123,7 +123,14 @@ for (const route of routes) {
     const secondsInList = Array.from(main.querySelectorAll("tbody td")).filter(
       (td) =>
         /\d{1,2}:\d{2}:\d{2}/.test(td.textContent ?? "") &&
-        td.querySelector("strong, b, [style*='650'], [style*='700']"),
+        /* ANY bold weight, not the two this happened to be written with.
+           /admin/users used `fontWeight: 620` and was therefore reported as
+           clean while printing `joined 05 Sept 2026, 11:19:54 Europe/Berlin`
+           under every address. */
+        (td.querySelector("strong, b") ||
+          Array.from(td.querySelectorAll("*")).some(
+            (el) => (parseInt(getComputedStyle(el).fontWeight, 10) || 400) >= 600,
+          )),
     ).length;
 
     /* A ROW RENDERED FOUR LINES TALL. Two stacked badges saying the same
