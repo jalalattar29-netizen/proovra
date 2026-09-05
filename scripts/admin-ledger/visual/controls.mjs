@@ -92,7 +92,18 @@ for (const route of routes) {
       return true;
     })
     .catch(() => false);
-  if (filterChanged) await page.waitForTimeout(1100);
+  /* WAIT FOR THE REFETCH, NOT FOR A GUESS.
+     A flat 1100ms lost the race on `/admin/security`, whose severity filter
+     re-requests the security-event aggregate: the probe measured the section's
+     LOADING state, so it saw zero table rows and zero counts and then reported
+     the route clean because a page with no rows owes no count. Every
+     conclusion was true of a page that was not on screen. networkidle with a
+     ceiling, then a floor for the render that follows the last response —
+     the same shape `visit()` uses, and for the same reason. */
+  if (filterChanged) {
+    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+    await page.waitForTimeout(1100);
+  }
 
   const r = await page.evaluate(() => {
     const main = document.querySelector("main") ?? document.body;

@@ -292,9 +292,27 @@ describe("active sessions — server cursor pagination", () => {
     expect(pagerButton("previous").disabled).toBe(true);
   });
 
-  it("the quarantine table has its own honest count over its own page", async () => {
+  /**
+   * PHASE 7 — THE EMPTY QUARANTINE TABLE SAID IT TWICE.
+   *
+   * This asserted the count row read "No held sessions yet". It did, directly
+   * beneath the table's own empty state — "Nothing is on hold / No session in
+   * this workspace is currently quarantined. Held sessions appear here with
+   * the reason and the auto-release time." — which is the same fact, written
+   * for this list, with the explanation the count line cannot carry.
+   *
+   * `ResultCount` suppresses the sentence for the plain empty case, and used
+   * to be prevented from doing so here only because a pager was passed in the
+   * same row. So the assertion becomes the two halves that matter: the empty
+   * state is what answers the reader, and the count row does not repeat it.
+   */
+  it("an empty quarantine table answers once, in its empty state", async () => {
     await mount();
+    expect(screen.getByText("Nothing is on hold")).toBeTruthy();
     const held = screen.getByTestId("admin-quarantine-count");
-    expect(held.textContent).toContain("No held sessions yet");
+    expect(held.textContent).not.toContain("No held sessions yet");
+    // And it states no count, so a sweep counting `[data-result-count]` nodes
+    // is not told this list reported one.
+    expect(held.getAttribute("data-result-count")).toBeNull();
   });
 });

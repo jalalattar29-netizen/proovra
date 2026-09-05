@@ -147,6 +147,22 @@ export function CursorPager({
 }: CursorPagerProps) {
   const canNext = hasMore && nextCursor !== null && !loading;
   const canPrevious = pager.hasPrevious && !loading;
+
+  /**
+   * A PAGER WITH NOWHERE TO GO IS NOT A CONTROL.
+   *
+   * On `/admin/security` both MFA activity tables are empty on a fresh
+   * workspace, and each rendered "Previous · Page 1 · Next" beneath its own
+   * explained empty state — two disabled buttons and a page number for a list
+   * with no pages. The reader has to read three controls to learn what the
+   * empty state already said.
+   *
+   * It comes back the moment paging means something: `hasPrevious` keeps it
+   * for a reader who paged forward into an empty page, so nobody is ever
+   * stranded past the end of a list with no way back.
+   */
+  if (!canNext && !pager.hasPrevious && !loading && pager.page === 1) return null;
+
   return (
     <div
       style={{ ...rowStyle, ...style }}

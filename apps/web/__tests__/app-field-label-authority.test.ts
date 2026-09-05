@@ -117,6 +117,10 @@ function webComponents(): Array<[string, string]> {
  * pretending to visit this one.
  */
 const EXPECTED_CONSUMERS = [
+  // PHASE 7 — the reliability page's filter labels were page-local inline
+  // styles with their own ink; they now name the one authority like every
+  // other field label in the product.
+  "app/(app)/admin/platform/reliability/page.tsx",
   // The platform-admin evidence-credit grant. Its three fields carry the
   // canonical label, and the contrast of that label ON THE ADMIN SHELL is
   // asserted below rather than assumed — see the dark-surface test.
@@ -220,23 +224,40 @@ test("the admin shell needs no dark-surface treatment of its own", () => {
   assert.doesNotMatch(body, /color/);
 
   /*
+   * PHASE 7 + MAIN — TWO PASSES REACHED THE SAME CONCLUSION HERE, AND THIS
+   * KEEPS BOTH HALVES OF IT.
+   *
    * This used to assert that NO admin surface rendered the class at all.
+   * That was true when it was written and was offered as supporting
+   * evidence, but it is not the requirement — it is a stronger claim that
+   * happened to hold, and it made adding a labelled field to any admin page
+   * fail a test about a deleted CSS variant. Two pages then did the right
+   * thing and tripped it: the evidence-credit grant renders three of them
+   * under /admin/users/:id, and /admin/platform/reliability replaced its
+   * page-local inline label ink with the canonical class.
    *
-   * That was true when it was written and was offered as supporting evidence,
-   * but it is not the requirement — it is a stronger claim that happened to
-   * hold, and it made adding a labelled field to any admin page fail a test
-   * about a deleted CSS variant. The evidence-credit grant now renders three
-   * of them under `/admin/users/:id`.
+   * What actually makes an admin consumer safe is the assertion ABOVE — the
+   * shell supplies no dark ground for a label to disappear into. Measured in
+   * Chrome against the admin user detail page: ink rgb(52, 64, 84) on
+   * rgba(255, 255, 255, 0.92), which is 10.46:1 against the 4.5:1 WCAG AA
+   * needs for small text.
    *
-   * So the claim is re-established the way it should have been in the first
-   * place: an admin consumer is fine PROVIDED the shell still supplies no dark
-   * ground for it to disappear into, which the assertions above prove. The
-   * rendered result was measured in Chrome against the admin user detail page:
-   * ink rgb(52, 64, 84) on rgba(255, 255, 255, 0.92) — 10.46:1, against the
-   * 4.5:1 WCAG AA needs for small text.
-   *
-   * An admin-scoped override of the label ink is still forbidden — by the
-   * override-layer test above, which already rejects any selector that
-   * restates the tier, whatever it is scoped to.
+   * So the check becomes the thing that must stay true rather than an
+   * absence that happened to be true: an admin consumer MAY render the
+   * class, and may not carry a scoped variant that re-creates the deleted
+   * modifier locally. A scoped override of the label INK is separately
+   * forbidden by the override-layer test above, which rejects any selector
+   * restating the tier whatever it is scoped to.
    */
+  const adminConsumers = webComponents().filter(
+    ([path, src]) =>
+      path.startsWith("app/(app)/admin/") && src.includes("app-field-label"),
+  );
+  for (const [path, src] of adminConsumers) {
+    assert.doesNotMatch(
+      src,
+      /app-field-label--[a-z]+/,
+      `${path} must use the canonical label, not a scoped variant of it`,
+    );
+  }
 });

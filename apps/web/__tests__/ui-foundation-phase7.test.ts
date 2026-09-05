@@ -28,6 +28,7 @@ const appRoot = resolve(__dirname, "..");
 const read = (rel: string) => readFileSync(resolve(appRoot, rel), "utf8");
 
 const GLOBALS = read("app/globals.css");
+const TOKENS = read("lib/design-tokens/tokens.css");
 const UI = (name: string) => read(`components/ui/${name}`);
 
 // ---------------------------------------------------------------------------
@@ -255,10 +256,34 @@ test("all legacy CSS var names remain defined", () => {
 // 3. New PROOVRA design-language tokens
 // ---------------------------------------------------------------------------
 
+/**
+ * THE STATUS TOKENS MOVED, AND THAT IS THE POINT.
+ *
+ * This asserted all nine names were declared in `app/globals.css`. Six of them
+ * were — twice: `globals.css` imports `lib/design-tokens/tokens.css` and then
+ * re-declared the same twenty-four `--status-*` custom properties beneath it,
+ * so the later declaration won and the token file that every component
+ * documents as the authority was dead for those names. Worse, the two copies
+ * DISAGREED: `Badge.tsx`'s pending fallback was `#EA580C` at 3.20:1 while the
+ * value actually rendering was `#78350F` at 8.15:1.
+ *
+ * So the assertion is now the invariant that was established rather than the
+ * arrangement that was replaced: every status token is declared in the token
+ * file, and NONE of them is re-declared in globals.css. The second half is
+ * what stops the duplicate coming back — a name defined in one place cannot
+ * quietly disagree with itself.
+ */
 test("enterprise violet accent + semantic status tokens exist", () => {
-  const required = [
-    "--enterprise-accent",
-    "--enterprise-gradient",
+  // The accent pair is still globals' own — it is a brand treatment, not a
+  // status, and nothing else declares it.
+  for (const name of ["--enterprise-accent", "--enterprise-gradient"]) {
+    assert.ok(
+      new RegExp(`${name}:`).test(GLOBALS),
+      `${name} must be defined in globals.css`,
+    );
+  }
+
+  const statusTokens = [
     "--status-verified-bg",
     "--status-verified-fg",
     "--status-pending-bg",
@@ -267,8 +292,16 @@ test("enterprise violet accent + semantic status tokens exist", () => {
     "--status-governance-bg",
     "--status-info-bg",
   ];
-  for (const name of required) {
-    assert.ok(new RegExp(`${name}:`).test(GLOBALS), `${name} must be defined`);
+  for (const name of statusTokens) {
+    assert.ok(
+      new RegExp(`${name}:`).test(TOKENS),
+      `${name} must be defined in lib/design-tokens/tokens.css`,
+    );
+    assert.ok(
+      !new RegExp(`^\\s*${name}:`, "m").test(GLOBALS),
+      `${name} must NOT be re-declared in globals.css — tokens.css owns it, ` +
+        `and a second declaration beneath the import silently wins`,
+    );
   }
 });
 

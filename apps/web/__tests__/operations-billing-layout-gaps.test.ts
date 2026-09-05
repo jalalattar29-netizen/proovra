@@ -110,9 +110,15 @@ test("an account metric is the accent; the words around it are not", () => {
     "the figures carry the product's usage accent",
   );
   assert.match(BILL_CSS, /\.bill-lead__used \{[^}]*color: var\(--accent-600/);
+  // PHASE 7 — this pinned `--text-muted`, which no longer exists. It was one
+  // of two muted-ink ALIASES pointing at a value that failed AA against the
+  // card surface; all sixty consumers were migrated to `--silver-ink` (or
+  // `--ink-primary` where the text was not secondary) and both aliases were
+  // deleted. The role asserted here is unchanged: the total is quieter than
+  // the figure measured against it.
   assert.match(
     BILL_CSS,
-    /\.bill-lead__of \{[^}]*color: var\(--text-muted/,
+    /\.bill-lead__of \{[^}]*color: var\(--silver-ink/,
     "the total is the thing measured against, not a second metric",
   );
 });
@@ -148,11 +154,28 @@ test("Billing invents no colour of its own for these numbers", () => {
     const at = BILL_CSS.indexOf(`${selector} {`);
     assert.ok(at > -1, `${selector} must exist`);
     const rule = BILL_CSS.slice(at, BILL_CSS.indexOf("}", at));
+    /*
+      PHASE 7 — THIS REQUIRED THE FALLBACK IT WAS TRYING TO ALLOW.
+      The rule was written as "a hex may only appear as a token fallback",
+      which the pattern `var(--x, #hex)` enforced by MANDATING that shape — so
+      a declaration with no hex at all failed it. `--silver-ink` has no
+      fallback (the phase removed 374 of them: a fallback is a second value
+      for the same name, and when the two disagree the fallback is what ships
+      wherever the token is missing), and this test read that as the defect.
+
+      What it protects is unchanged and now said directly: the value must be a
+      token reference, and no bare hex may stand as the colour.
+    */
     for (const line of rule.split("\n").filter((l) => /^\s*color:/.test(l))) {
       assert.match(
         line,
-        /var\(--[a-z0-9-]+, ?#[0-9a-f]{3,8}\)/i,
-        `a hex may only appear as a token fallback: ${line.trim()}`,
+        /color:\s*var\(--[a-z0-9-]+/i,
+        `the colour must come from a token: ${line.trim()}`,
+      );
+      assert.doesNotMatch(
+        line,
+        /color:\s*#[0-9a-f]{3,8}/i,
+        `a bare hex may not be the colour: ${line.trim()}`,
       );
     }
   }

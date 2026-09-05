@@ -35,6 +35,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  FILE_SECURITY_SCAN_STATUSES,
+  SECURITY_EVENT_SEVERITIES,
+} from "@proovra/shared";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
@@ -97,12 +101,47 @@ type EventsPage = {
   hasMore: boolean;
 };
 
+/**
+ * THE FILTER OFFERED A SEVERITY THAT DOES NOT EXIST.
+ *
+ * This list was written by hand and opened with "Critical". A security event's
+ * severity domain is `SECURITY_EVENT_SEVERITIES` — INFO, WARNING, HIGH — and
+ * `GET /v1/security/events` validates `severity` against exactly that zod
+ * enum. So choosing Critical sent a value the route refuses, the read came
+ * back 400, and the section rendered "Some details need attention before we
+ * can continue. / Try again": a form-validation sentence, on a list, for a
+ * choice the page itself had offered. Nothing the reader could do would make
+ * it work, and nothing on screen said why.
+ *
+ * Derived from the canonical constant now, so a severity added or removed in
+ * `packages/shared` cannot leave a dead option behind here. The labels stay
+ * sentence-case for the control; the values are the enum verbatim.
+ */
 const SEVERITY_OPTIONS = [
   { value: "all", label: "All severities" },
-  { value: "CRITICAL", label: "Critical" },
-  { value: "HIGH", label: "High" },
-  { value: "WARNING", label: "Warning" },
-  { value: "INFO", label: "Info" },
+  // Highest first: an operator scanning a severity filter is looking for the
+  // worst thing, and the enum is declared ascending.
+  ...[...SECURITY_EVENT_SEVERITIES].reverse().map((value) => ({
+    value,
+    label: value.charAt(0) + value.slice(1).toLowerCase(),
+  })),
+];
+
+/**
+ * AND THE SCAN FILTER OFFERED A STATUS THAT DOES NOT EXIST EITHER.
+ *
+ * It listed "Infected". `FILE_SECURITY_SCAN_STATUSES` says SUSPICIOUS, and
+ * `GET /v1/security/scans` validates against that enum — so the one result an
+ * operator opens this page to find was also the one choice that returned 400.
+ * The posture strip two elements above it was already labelling the same
+ * number "SCANS SUSPICIOUS", so the page disagreed with itself in view.
+ */
+const SCAN_STATUS_OPTIONS = [
+  { value: "all", label: "All scan results" },
+  ...FILE_SECURITY_SCAN_STATUSES.map((value) => ({
+    value,
+    label: value.charAt(0) + value.slice(1).toLowerCase(),
+  })),
 ];
 
 /** One screen of events; the whole reason the table is paged. */
@@ -117,9 +156,22 @@ function severityTone(severity: string): BadgeTone {
   return "info";
 }
 
+/**
+ * A SUSPICIOUS SCAN WAS THE ONE RESULT WEARING NO COLOUR.
+ *
+ * This tested for "INFECTED", which is not a status this platform has:
+ * `FILE_SECURITY_SCAN_STATUSES` is PENDING, CLEAN, SUSPICIOUS, FAILED,
+ * SKIPPED. So the single result an operator must act on fell through to
+ * `neutral` — grey, in a strip where zero-value counters are also grey, and in
+ * a table where CLEAN is green and FAILED is red. The strip's own label read
+ * "SCANS SUSPICIOUS" while its number could never alarm.
+ *
+ * "INFECTED" is kept as a synonym rather than dropped: it costs one clause and
+ * it means a scanner or an older row using that word still reads as risk.
+ */
 function scanTone(status: string): BadgeTone {
   const v = status.toUpperCase();
-  if (v === "INFECTED" || v === "FAILED") return "risk";
+  if (v === "SUSPICIOUS" || v === "INFECTED" || v === "FAILED") return "risk";
   if (v === "PENDING" || v === "RUNNING") return "pending";
   if (v === "CLEAN") return "verified";
   return "neutral";
@@ -369,12 +421,20 @@ export function WorkspaceSecurityPostureSection() {
       header: "Context",
       render: (r) => {
         const keys = Object.keys(r.details ?? {}).filter((k) => k !== "redacted");
-        return (
-          <span style={sectionMuted}>
-            {keys.length === 0 ? "no additional context" : keys.join(", ")}
-            {r.details?.redacted ? " · some fields withheld" : ""}
-          </span>
-        );
+        const redacted = Boolean(r.details?.redacted);
+        // "no additional context · some fields withheld" said both that there
+        // was nothing and that something had been hidden, in one cell, on
+        // every row. Two clauses that contradict each other is worse than
+        // either alone; one of them is the whole truth in each case.
+        const text =
+          keys.length === 0
+            ? redacted
+              ? "context withheld"
+              : "no additional context"
+            : redacted
+              ? `${keys.join(", ")} · some fields withheld`
+              : keys.join(", ");
+        return <span style={sectionMuted}>{text}</span>;
       },
     },
     {
@@ -387,6 +447,25 @@ export function WorkspaceSecurityPostureSection() {
 
   const scanTerms = Object.entries(summary.scanCounts ?? {});
   const eventTerms = Object.entries(summary.eventCounts ?? {});
+
+  /**
+   * SIX ZEROS ARE NOT SIX MEASUREMENTS.
+   *
+   * With malware scanning off, this strip read "MALWARE SCANNING not enabled ·
+   * WINDOW last 30 days · SCANS PENDING 0 · SCANS CLEAN 0 · SCANS SUSPICIOUS 0
+   * · SCANS FAILED 0 · SCANS SKIPPED 0" — five counters whose value is the
+   * absence of a scanner, sitting in the same row and the same type as the
+   * event counts, which ARE measured. Read quickly, five zeros next to
+   * "SUSPICIOUS" and "FAILED" say "we scanned and found nothing", which is the
+   * opposite of the truth.
+   *
+   * The counters come back only when there is something to count. A workspace
+   * that scanned and then had scanning turned off keeps its history: any
+   * non-zero count means these are real numbers about real scans, so the
+   * suppression tests the counts and not just the flag.
+   */
+  const scansMeasured = scanTerms.some(([, value]) => Number(value) > 0);
+  const scansAreData = summary.malwareScanningEnabled || scansMeasured;
 
   return (
     <PageSection
@@ -418,14 +497,18 @@ export function WorkspaceSecurityPostureSection() {
           value={summary.malwareScanningEnabled ? "enabled" : "not enabled"}
         />
         <PostureTerm label="Window" value={`last ${summary.sinceDays} days`} />
-        {scanTerms.map(([key, value]) => (
-          <PostureTerm
-            key={`scan-${key}`}
-            label={`Scans ${key.toLowerCase()}`}
-            value={value}
-            tone={scanTone(key)}
-          />
-        ))}
+        {scansAreData ? (
+          scanTerms.map(([key, value]) => (
+            <PostureTerm
+              key={`scan-${key}`}
+              label={`Scans ${key.toLowerCase()}`}
+              value={value}
+              tone={scanTone(key)}
+            />
+          ))
+        ) : (
+          <PostureTerm label="Scans" value="none — scanning not enabled" />
+        )}
         {eventTerms.map(([key, value]) => (
           <PostureTerm
             key={`event-${key}`}
@@ -455,14 +538,7 @@ export function WorkspaceSecurityPostureSection() {
           label="Scan result"
           value={scanStatus}
           onChange={setScanStatus}
-          options={[
-            { value: "all", label: "All scan results" },
-            { value: "PENDING", label: "Pending" },
-            { value: "CLEAN", label: "Clean" },
-            { value: "INFECTED", label: "Infected" },
-            { value: "FAILED", label: "Failed" },
-            { value: "SKIPPED", label: "Skipped" },
-          ]}
+          options={SCAN_STATUS_OPTIONS}
         />
       </FilterBar>
 
@@ -486,7 +562,11 @@ export function WorkspaceSecurityPostureSection() {
             emptyState={
               <EmptyState variant="inline"
                 title="No security events in this window"
-                purpose="No security events match the current filters for this workspace. This is a real empty result from the server, not a permission problem."
+                purpose={
+                  severity !== "all"
+                    ? "No security event in this window has that severity. Clear the severity filter to see the rest. This is a real empty result from the server, not a permission problem."
+                    : `No security event has been recorded for this workspace in the last ${summary.sinceDays} days. This is a real empty result from the server, not a permission problem.`
+                }
               />
             }
           />
@@ -520,9 +600,21 @@ export function WorkspaceSecurityPostureSection() {
         loading={scansBusy}
         ariaLabel="Workspace file security scans"
         emptyState={
-          <EmptyState variant="inline"
+          /* DO NOT BLAME A FILTER THAT IS NOT APPLIED. This said "No file
+             security scans match the current filter" with the filter on "All
+             scan results", sending the reader to clear a filter that was
+             already clear — while the actual reason was two terms up the
+             strip. */
+          <EmptyState
+            variant="inline"
             title="No scans recorded"
-            purpose="No file security scans match the current filter for this workspace."
+            purpose={
+              scanStatus !== "all"
+                ? "No file security scan in this window has that result. Clear the scan-result filter to see the rest."
+                : summary.malwareScanningEnabled
+                  ? `No file in this workspace has been scanned in the last ${summary.sinceDays} days.`
+                  : "Malware scanning is not enabled for this workspace, so no file scan has been recorded."
+            }
           />
         }
       />

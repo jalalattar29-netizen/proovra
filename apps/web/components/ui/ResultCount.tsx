@@ -144,20 +144,27 @@ export function ResultCount({
    *             over an as-yet-empty table.
    *   failed    "Count unavailable" is the difference between a list that
    *             is empty and one that could not be read.
-   *   action    a continuation control lives in this row and must render.
+   * An `action` is the one case that does not suppress the ROW — a
+   * continuation control has to render somewhere — but it does not rescue the
+   * SENTENCE either. `/admin/security`'s MFA activity tables showed "No MFA
+   * events recorded / Nothing has happened to a second factor in this
+   * workspace yet" in the empty state and "No MFA events yet" directly under
+   * it, purely because a pager was passed in the same row. The row survives
+   * for the control; the duplicate sentence does not.
    */
-  const redundantEmpty =
+  const plainEmpty =
     shown === 0 &&
     (total === undefined || total === 0) &&
     !filtered &&
     !loading &&
-    !failed &&
-    action == null;
-  if (redundantEmpty) return null;
+    !failed;
+  if (plainEmpty && action == null) return null;
+
+  const sentence = plainEmpty ? null : text;
 
   return (
     <div
-      style={{ ...rowStyle, ...style }}
+      style={{ ...rowStyle, ...(sentence ? null : { marginTop: 0 }), ...style }}
       data-testid={testId}
       /* Addressable. This carried nothing but an OPTIONAL test id, so on a
          page that did not pass one the count was unfindable by anything but
@@ -165,13 +172,18 @@ export function ResultCount({
          assert that a table states its count, and §14's "every list states
          how many" could only be checked by reading. The attribute is what
          makes the claim measurable. */
-      data-result-count=""
+      /* Present only when a count is actually STATED. `scripts/admin-ledger/
+         visual/controls.mjs` counts these nodes to assert "every list says how
+         many", and a row rendering only a continuation control states nothing
+         — an attribute on it would satisfy the measurement while answering
+         none of the question. */
+      data-result-count={sentence ? "" : undefined}
       /* The sentence changes when a filter changes, and it is the only thing
          on the page that says a filter found nothing. Announcing it politely
          is what tells a screen-reader operator their filter did something. */
       role="status"
     >
-      <span>{text}</span>
+      {sentence ? <span>{sentence}</span> : null}
       {action ?? null}
     </div>
   );

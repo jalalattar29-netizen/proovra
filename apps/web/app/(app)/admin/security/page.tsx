@@ -70,12 +70,23 @@ export default function AdminSecurityPage() {
         tenant attribution and the ability to act. What remains here is what this
         page has always actually been: WORKSPACE security administration.
       */}
+      {/*
+        SAY THE ONE THING THE SHELL DOES NOT ALREADY SAY.
+        This card used to open "Every section on this page acts on the workspace
+        you are currently in", which is what `AdminTenantScopeNotice` states in
+        an amber banner 100px above it — two full-width boxes, stacked, with the
+        same content, on a page whose whole problem was scope ambiguity. And
+        "none is selected yet" was a third statement of it: every section below
+        already renders `NoWorkspaceSelected` with its own reason.
+
+        What is left is the only fact neither of those carries — where the
+        platform half of this page went, which a reader who remembers the old
+        incident feed here specifically needs.
+      */}
       <Card padding="compact" style={{ marginBottom: 4 }}>
         <p style={{ margin: 0, fontSize: 12.5, color: "var(--ink-muted)" }}>
-          Every section on this page acts on the workspace you are currently in
-          {teamId ? "" : " — none is selected yet"}. Platform-wide security events
-          and operational incidents live in{" "}
-          <a href="/admin/operations">Operations</a>.
+          Looking for platform-wide security events or operational incidents?
+          They live in <a href="/admin/operations">Operations</a>.
         </p>
       </Card>
 
