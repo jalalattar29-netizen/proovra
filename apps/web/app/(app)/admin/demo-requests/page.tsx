@@ -639,31 +639,26 @@ export default function AdminDemoRequestsPage() {
     label: string;
     value: number;
     note: string;
-    tone: BadgeTone;
   }[] = [
     {
       label: "New",
       value: summary.NEW,
       note: "Fresh inbound requests",
-      tone: "info",
     },
     {
       label: "Active Follow-up",
       value: activeFollowUps,
       note: "Requests still in automated follow-up",
-      tone: "pending",
     },
     {
       label: "Enterprise Track",
       value: enterpriseCount,
       note: "High-touch enterprise pipeline",
-      tone: "governance",
     },
     {
       label: "Spam Flagged",
       value: spamCount,
       note: "Requests currently marked as spam",
-      tone: "risk",
     },
   ];
 
@@ -731,9 +726,18 @@ export default function AdminDemoRequestsPage() {
               >
                 {new Intl.NumberFormat().format(tile.value)}
               </span>
-              <Badge tone={tile.tone} dot>
-                {tile.label}
-              </Badge>
+              {/* THE BADGE SAID THE EYEBROW AGAIN.
+                  Each card printed its label twice, eight pixels apart —
+                  "NEW" above, "New" in a coloured capsule beside the number —
+                  on all four cards. And the capsule tinted a COUNT by its
+                  category rather than by anything measured, so "SPAM FLAGGED
+                  0" wore red: a zero in the colour of the thing it counts,
+                  which is the fault the posture strip on /admin/security
+                  documents at length.
+
+                  What is left is the shape every other summary card in the
+                  console uses — eyebrow, number, note — so a reader moving
+                  between /admin/operations and here meets one card, not two. */}
             </div>
             <div style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-muted)" }}>
               {tile.note}
@@ -755,34 +759,39 @@ export default function AdminDemoRequestsPage() {
           title="Inbound Requests"
           description="Filter and review inbound requests by status, priority, lead track, follow-up state, spam state, and general search."
         >
+          {/* THE RESET APPEARS ONCE THERE IS SOMETHING TO RESET.
+              "Clear Filters" was in the actions slot, so it rendered on a
+              page where nothing was filtered — a control that usually does
+              nothing, beside a Search button that always does something. It
+              now uses `FilterBar`'s `filtered`/`onReset`, the same rule as
+              every other console filter bar. Search STAYS an explicit
+              action: this bar carries a free-text query, and re-requesting on
+              every keystroke is a different and worse behaviour. */}
           <FilterBar
+            filtered={Boolean(
+              statusFilter ||
+                priorityFilter ||
+                spamFilter ||
+                leadTrackFilter ||
+                followUpStatusFilter ||
+                search.trim(),
+            )}
+            resetLabel="Clear filters"
+            onReset={() => {
+              setStatusFilter("");
+              setPriorityFilter("");
+              setSpamFilter("");
+              setLeadTrackFilter("");
+              setFollowUpStatusFilter("");
+              setSearch("");
+              // Pass the cleared value explicitly: setSearch is asynchronous, so
+              // reading it back here would still send the OLD query.
+              void loadList("");
+            }}
             actions={
-              <>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => void loadList()}
-                >
-                  Search
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setStatusFilter("");
-                    setPriorityFilter("");
-                    setSpamFilter("");
-                    setLeadTrackFilter("");
-                    setFollowUpStatusFilter("");
-                    setSearch("");
-                    // Pass the cleared value explicitly: setSearch is asynchronous, so
-                    // reading it back here would still send the OLD query.
-                    void loadList("");
-                  }}
-                >
-                  Clear Filters
-                </Button>
-              </>
+              <Button variant="primary" size="sm" onClick={() => void loadList()}>
+                Search
+              </Button>
             }
             >
             <FilterBar.Search
@@ -968,13 +977,26 @@ export default function AdminDemoRequestsPage() {
                         <Badge tone={priorityTone(item.priority)}>
                           {item.priority}
                         </Badge>
-                        <Badge tone={item.isSpam ? "risk" : "verified"} dot>
-                          {item.isSpam
-                            ? `Spam ${item.spamScore}`
-                            : `Clean ${item.spamScore}`}
+                        {/* THE VERDICT IS THE FACT; THE SCORE IS THE EVIDENCE.
+                            These read "Clean 0" and "ACTIVE · S0" — a bare
+                            number beside a word that is not a count of it,
+                            and a letter-and-digit that means nothing to
+                            anyone who has not read the follow-up code. The
+                            badge states what it decided; the number that
+                            justifies it is on the hover, and the detail pane
+                            still prints it in full. */}
+                        <Badge
+                          tone={item.isSpam ? "risk" : "verified"}
+                          dot
+                          title={`Spam score ${item.spamScore}`}
+                        >
+                          {item.isSpam ? "Spam" : "Clean"}
                         </Badge>
-                        <Badge tone={followUpTone(item.followUpStatus)}>
-                          {item.followUpStatus} · S{item.followUpStep}
+                        <Badge
+                          tone={followUpTone(item.followUpStatus)}
+                          title={`Follow-up step ${item.followUpStep}`}
+                        >
+                          {item.followUpStatus} · step {item.followUpStep}
                         </Badge>
                         {item.routingTarget ? (
                           <Badge tone={routeTone(item.routingTarget)}>

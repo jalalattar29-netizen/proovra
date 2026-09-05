@@ -432,19 +432,46 @@ export default function AdminWorkspaceDetailPage() {
                       marginBottom: 12,
                     }}
                   >
+                    {/* THE HEADING IS WHAT A SCANNER READS.
+                        With no stored row this section announced "Enterprise
+                        contract", showed a green ACTIVE badge, and only then —
+                        four fields later — admitted "It is not a contract".
+                        The reader's first impression was the opposite of the
+                        page's own conclusion, which is the same fault as
+                        /admin/platform/queues reporting 15 healthy above its
+                        own table saying 15 missing. The qualification now
+                        arrives with the claim. */}
                     Enterprise contract
+                    {detail.commercial.enterpriseContract.legacyDerived
+                      ? " — no stored row"
+                      : ""}
                   </div>
                   <FieldGrid>
                     <Field label="Status">
                       <Badge
                         tone={
-                          detail.commercial.enterpriseContract.status === "ACTIVE"
-                            ? "verified"
-                            : "risk"
+                          // A derived status is not a contract status. Green
+                          // asserts a fact this section does not have.
+                          detail.commercial.enterpriseContract.legacyDerived
+                            ? "neutral"
+                            : detail.commercial.enterpriseContract.status === "ACTIVE"
+                              ? "verified"
+                              : "risk"
                         }
                       >
                         {detail.commercial.enterpriseContract.status}
                       </Badge>
+                      {detail.commercial.enterpriseContract.legacyDerived ? (
+                        <div
+                          style={{
+                            marginTop: 4,
+                            fontSize: 11.5,
+                            color: "var(--ink-muted)",
+                          }}
+                        >
+                          derived, not stored
+                        </div>
+                      ) : null}
                     </Field>
                     <Field label="Contracted seats">
                       {detail.commercial.enterpriseContract.seatCount ?? "Contract-managed"}
