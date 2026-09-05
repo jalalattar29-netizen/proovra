@@ -450,7 +450,19 @@ export function WorkspacePrioritiesCard({
   // operations surface can produce: it is indistinguishable from good news
   // and it is not news at all.
   const mayAssertAllClear = operations ? operations.mayAssertAllClear : false;
-  const operationsUnavailable = operations != null && !operations.available;
+  /*
+   * STILL LOADING IS NOT UNAVAILABLE.
+   *
+   * Home publishes each read as it lands, so this card can render before the
+   * Operations summary has arrived. `available: false` is a CLAIM — that the
+   * summary cannot be had — and it is only true once the read has finished.
+   * Rendering it early told an operator their operational status could not be
+   * loaded about a workspace that was perfectly healthy, which is why the
+   * first attempt at progressive publishing was reverted.
+   */
+  const operationsLoading = operations?.loadState === "loading";
+  const operationsUnavailable =
+    operations != null && !operations.available && !operationsLoading;
 
   /*
    * NINE REASONS, ONE SENTENCE — AND IT NAMED THE WRONG ONE.
@@ -545,7 +557,34 @@ export function WorkspacePrioritiesCard({
             clearer title for individuals and journalists alike. */}
         <h2 style={homeCardTitleStyle}>What needs attention</h2>
       </header>
-      {top.length === 0 && !mayAssertAllClear ? (
+      {top.length === 0 && operationsLoading ? (
+        /*
+         * The one state this card could not previously express. It says
+         * nothing about the workspace — no count, no verdict, no "all clear"
+         * and no refusal — because nothing is known yet. It keeps the card's
+         * height so the page does not jump when the answer arrives.
+         */
+        <div style={allClearStyle} data-priorities-loading aria-busy="true">
+          <span
+            style={iconBlockStyle(HOME_TINTS.warn, 34)}
+            aria-hidden="true"
+          />
+          <div>
+            <div
+              style={{
+                fontSize: 13.5,
+                fontWeight: 650,
+                color: HOME_COLORS.slate,
+              }}
+            >
+              Checking…
+            </div>
+            <div style={{ fontSize: 12, color: HOME_COLORS.slate }}>
+              Reading this workspace's operational status.
+            </div>
+          </div>
+        </div>
+      ) : top.length === 0 && !mayAssertAllClear ? (
         <div
           style={allClearStyle}
           data-priorities-unknown

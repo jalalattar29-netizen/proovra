@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 193fc0fc86ee06c5e50238f8297d772ded96031e9a9441cd1bc103053681e1ab |
+| engineHash    | ac3be547ac58977fbda5994a0a92907c98bec281b9ea7e8617c48e94c18447d3 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1126  |
+| registeredRoutes              | 1127  |
 | developmentOnlyRoutes         | 1     |
 | productConsumerRoutes         | 897   |
 | machineOnlyConsumerRoutes     | 4     |
-| noConsumerRoutes              | 225   |
+| noConsumerRoutes              | 226   |
 | dispositionedNonProductRoutes | 228   |
-| undisposedRoutes              | 0     |
+| undisposedRoutes              | 1     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 20    |
 
@@ -123,7 +123,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | AmbiguousReportRoles                       | 0     |
 | Phase0ChangedPathsFromManualDeclaration    | 0     |
 | UndeclaredPhase0ChangedPaths               | 0     |
-| Phase0ChangedPathClassificationMissing     | 0     |
+| Phase0ChangedPathClassificationMissing     | 1     |
 | ManualPhase0ChangeInventories              | 0     |
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
@@ -202,9 +202,11 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 - INSTRUMENT: DynamicUnresolvedConsumers = 1
 - INSTRUMENT: ClassificationConflicts = 1
+- CHANGED PATH WITH NO CLASSIFICATION: apps/web/tsconfig.json
 
 ### Product closure
 
 - INSTRUMENT: DynamicUnresolvedConsumers = 1
 - INSTRUMENT: ClassificationConflicts = 1
-- CHECKPOINT: 1 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1
+- CHECKPOINT: 5 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1125, facts say 1126 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1126, facts say 1127 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1 | SCALAR_DISAGREES_WITH_FACTS: ReleaseBlockingClosure: checkpoint says PASS, facts say OPEN
+- ArchitectureBacklog: UndisposedRoutes = 1 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)

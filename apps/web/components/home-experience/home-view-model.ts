@@ -637,8 +637,19 @@ export type HomeOperationsSummary = {
    * False when the summary could not be loaded, or when the caller has no
    * Operations capability in this workspace. Both are honest absences and
    * neither may be rendered as "no issues".
+   *
+   * READ `loadState` FIRST. `available: false` is a CLAIM — that the summary
+   * cannot be had — and it is only true once the read has finished. While the
+   * request is in flight this is also false, because there is nothing to
+   * report yet, and a surface that renders it as a claim says something untrue
+   * about a workspace that is perfectly healthy.
    */
   available: boolean;
+  /**
+   * "loading" until this slice's response settles; then "ready" or "failed".
+   * The one field a UI must consult before it says anything at all.
+   */
+  loadState: HomeSliceLoadState;
   /** Unresolved conditions (OPEN + ACKNOWLEDGED). */
   open: number;
   critical: number;
@@ -3574,7 +3585,46 @@ export type NormalizeInputs = {
   recordsByType?: HomeRecordsByTypeInput | null;
   /** Injected for deterministic day-bucketing in tests. */
   nowMs?: number;
+  /**
+   * The slices whose response has NOT settled yet.
+   *
+   * Absent means "everything has settled" — the shape a caller that still
+   * awaits all reads at once produces, so this is additive and no existing
+   * caller changes meaning. When present, a surface that would otherwise
+   * report an absence must render a loading state instead: "not yet" is not
+   * "not available".
+   */
+  loadingSlices?: ReadonlySet<HomeSliceKey>;
 };
+
+/**
+ * WHICH HOME READS ARE STILL IN FLIGHT.
+ *
+ * THE BUG THIS TYPE EXISTS TO PREVENT. Home's reads used to settle together
+ * behind one `Promise.all`, so a slice was either present or absent and
+ * "absent" could only mean failed. When an earlier pass published slices
+ * progressively, that assumption became a lie: Operations rendered
+ * "Operations status unavailable" for the two hundred milliseconds before its
+ * response arrived — a false claim about a healthy workspace, shown to the
+ * person whose job is to trust it. The pass was correctly reverted.
+ *
+ * Progressive publishing is only safe once the view model can say NOT YET.
+ * These three values are the same vocabulary `HomeDataState` already uses,
+ * so a reader does not have to learn a second one.
+ */
+export type HomeSliceLoadState = "loading" | "ready" | "failed";
+
+export type HomeSliceKey =
+  | "commandCenter"
+  | "trustSummary"
+  | "billing"
+  | "reports"
+  | "intakeLinks"
+  | "inbox"
+  | "communications"
+  | "evidenceList"
+  | "recordsByType"
+  | "operationsSummary";
 
 export function normalizeHomeViewModel(
   inputs: NormalizeInputs,
@@ -3721,9 +3771,12 @@ export function normalizeHomeViewModel(
   // canonical `GET /v1/ops/summary`; null means it could not be loaded or the
   // caller holds no Operations capability here. Either way Home reports an
   // honest absence rather than substituting a number it derived itself.
+  const operationsLoading =
+    inputs.loadingSlices?.has("operationsSummary") === true;
   const operations: HomeOperationsSummary = inputs.operationsSummary
     ? {
         available: true,
+        loadState: "ready",
         open: inputs.operationsSummary.open,
         critical: inputs.operationsSummary.critical,
         high: inputs.operationsSummary.high,
@@ -3737,6 +3790,12 @@ export function normalizeHomeViewModel(
       }
     : {
         available: false,
+        /*
+         * The distinction the previous attempt did not have. A slice still in
+         * flight is not an absent one, and the UI renders a skeleton for the
+         * first and a refusal for the second.
+         */
+        loadState: operationsLoading ? "loading" : "failed",
         open: 0,
         critical: 0,
         high: 0,

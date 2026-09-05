@@ -99,9 +99,19 @@ describe("Home's own reads are one wave", () => {
      * the await list would be the same code and the same behaviour; creating
      * them one `await` at a time would not.
      */
+    /*
+     * THE PROPERTY IS UNCHANGED; THE SHAPE IS NOT.
+     *
+     * The gather used to be one `await Promise.all([...])` destructured into
+     * ten names. Home now publishes each response as it lands, so the ten
+     * promises are handed to `track(...)` instead — created first, exactly as
+     * before, then awaited together so the caller still knows when the run is
+     * over. What this test protects is that no read WAITS for another to be
+     * created, and that is what the window below still measures.
+     */
     const gather = body.slice(
-      body.indexOf("] = await Promise.all(["),
-      body.indexOf("const orgsInput"),
+      body.indexOf("await Promise.all(["),
+      body.indexOf("// `orgs` is intentionally read via `orgsRef`"),
     );
     for (const promise of [
       "ccPromise",
@@ -122,7 +132,7 @@ describe("Home's own reads are one wave", () => {
   it("nothing in the hook awaits one read before starting the next", () => {
     const reload = body.slice(
       body.indexOf("const reload = useCallback"),
-      body.indexOf("] = await Promise.all(["),
+      body.indexOf("await Promise.all(["),
     );
     expect(
       reload,

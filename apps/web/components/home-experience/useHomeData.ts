@@ -47,6 +47,7 @@ import {
   type HomeReportsInput,
   type HomeTrustSummaryInput,
   type HomeRecordsByTypeInput,
+  type HomeSliceKey,
   type HomeViewModel,
 } from "./home-view-model";
 
@@ -88,6 +89,13 @@ export function useHomeData(): HomeData {
     status: "loading",
     viewModel: null,
   });
+
+  /*
+   * Which reload is current. Incremented at the start of every run so a
+   * response from a superseded one — a previous workspace, or a refresh that
+   * has already been replaced — is discarded rather than published.
+   */
+  const runIdRef = useRef(0);
 
   const reload = useCallback(async () => {
     // KEEP-PREVIOUS-DATA — only show the full-page skeleton on the FIRST
@@ -197,61 +205,156 @@ export function useHomeData(): HomeData {
       { method: "GET" },
     ).catch(() => null);
 
-    const [
-      cc,
-      trustSummary,
-      billing,
-      reports,
-      intakeLinks,
-      inbox,
-      communications,
-      evidenceList,
-      recordsByType,
-      operationsSummary,
-    ] = await Promise.all([
-      ccPromise,
-      trustPromise,
-      billingPromise,
-      reportsPromise,
-      intakeLinksPromise,
-      inboxPromise,
-      communicationsPromise,
-      evidenceListPromise,
-      recordsByTypePromise,
-      operationsSummaryPromise,
+    /*
+     * NO BARRIER.
+     *
+     * These ten reads start together and used to be awaited together, so the
+     * page rendered nothing until the SLOWEST of them returned. Measured on
+     * the local fixture in an organization workspace, every read but one had
+     * settled by 925ms and the barrier held until 1173ms — a quarter of
+     * Home's data phase spent waiting for one endpoint with everything else
+     * already in hand.
+     *
+     * Each response now publishes as it lands. The slices still in flight
+     * travel with the view model as `loadingSlices`, which is what makes this
+     * safe: an earlier attempt at progressive publishing was reverted because
+     * a slice that had not arrived rendered as UNAVAILABLE, and telling an
+     * operator their Operations status could not be loaded — about a healthy
+     * workspace, for the moment before it arrives — is worse than making them
+     * wait. The view model can now say "not yet", so it does.
+     *
+     * ONE REQUEST EACH. This is not a per-field effect: the promises are the
+     * same ten already created above, and each is subscribed to exactly once.
+     */
+    const settled: {
+      cc: HomeCommandCenterInput | null;
+      trustSummary: HomeTrustSummaryInput | null;
+      billing: HomeBillingInput | null;
+      reports: HomeReportsInput | null;
+      intakeLinks: HomeIntakeLinksInput | null;
+      inbox: HomeInboxInput | null;
+      communications: HomeCommunicationsInput | null;
+      evidenceList: HomeEvidenceListInput | null;
+      recordsByType: HomeRecordsByTypeInput | null;
+      operationsSummary: HomeOperationsSummaryInput | null;
+    } = {
+      cc: null,
+      trustSummary: null,
+      billing: null,
+      reports: null,
+      intakeLinks: null,
+      inbox: null,
+      communications: null,
+      evidenceList: null,
+      recordsByType: null,
+      operationsSummary: null,
+    };
+
+    const pending = new Set<HomeSliceKey>([
+      "commandCenter",
+      "trustSummary",
+      "billing",
+      "reports",
+      "intakeLinks",
+      "inbox",
+      "communications",
+      "evidenceList",
+      "recordsByType",
+      "operationsSummary",
     ]);
 
-    const orgsInput: HomeOrgsInput = orgsRef.current.map((o) => ({
-      id: o.id,
-      name: o.name,
-      displayName: o.displayName,
-      memberCount: o.memberCount ?? 0,
-      role: o.role,
-      membershipStatus: o.membershipStatus,
-    }));
+    /*
+     * A STALE RUN MUST NOT PUBLISH.
+     *
+     * Switching workspace starts a new run while the old one still has
+     * responses in flight. Without this, a slow read from the PREVIOUS
+     * workspace would land after the switch and overwrite the new one's data
+     * — cross-workspace contamination on a page whose entire job is to be
+     * about one workspace.
+     */
+    const runId = ++runIdRef.current;
 
-    const viewModel = normalizeHomeViewModel({
-      plan: plan as HomePlan,
-      planFeatures,
-      workspaceId: workspaceId ?? null,
-      workspaceName: activeSpace?.displayName ?? null,
-      activeSpaceType,
-      commandCenter: cc,
-      trustSummary,
-      billing,
-      reports,
-      intakeLinks,
-      inbox,
-      communications,
-      orgs: orgsInput,
-      evidenceList,
-      recordsByType,
-      // PHASE 4C — CONSUMED, never derived. null means unavailable, and the
-      // view model renders that honestly rather than substituting the feed.
-      operationsSummary,
-    });
+    const publish = () => {
+      if (runId !== runIdRef.current) return;
+      const orgsInput: HomeOrgsInput = orgsRef.current.map((o) => ({
+        id: o.id,
+        name: o.name,
+        displayName: o.displayName,
+        memberCount: o.memberCount ?? 0,
+        role: o.role,
+        membershipStatus: o.membershipStatus,
+      }));
 
-    setState({ status: "ready", viewModel });
+      const viewModel = normalizeHomeViewModel({
+        plan: plan as HomePlan,
+        planFeatures,
+        workspaceId: workspaceId ?? null,
+        workspaceName: activeSpace?.displayName ?? null,
+        activeSpaceType,
+        commandCenter: settled.cc,
+        trustSummary: settled.trustSummary,
+        billing: settled.billing,
+        reports: settled.reports,
+        intakeLinks: settled.intakeLinks,
+        inbox: settled.inbox,
+        communications: settled.communications,
+        orgs: orgsInput,
+        evidenceList: settled.evidenceList,
+        recordsByType: settled.recordsByType,
+        // PHASE 4C — CONSUMED, never derived. null means unavailable, and the
+        // view model renders that honestly rather than substituting the feed.
+        operationsSummary: settled.operationsSummary,
+        loadingSlices: new Set(pending),
+      });
+
+      setState({ status: "ready", viewModel });
+    };
+
+    const track = <K extends HomeSliceKey, V>(
+      key: K,
+      promise: Promise<V>,
+      assign: (value: V) => void,
+    ): Promise<void> =>
+      promise.then((value) => {
+        if (runId !== runIdRef.current) return;
+        assign(value);
+        pending.delete(key);
+        publish();
+      });
+
+    await Promise.all([
+      track("commandCenter", ccPromise, (v) => {
+        settled.cc = v;
+      }),
+      track("trustSummary", trustPromise, (v) => {
+        settled.trustSummary = v;
+      }),
+      track("billing", billingPromise, (v) => {
+        settled.billing = v;
+      }),
+      track("reports", reportsPromise, (v) => {
+        settled.reports = v;
+      }),
+      track("intakeLinks", intakeLinksPromise, (v) => {
+        settled.intakeLinks = v;
+      }),
+      track("inbox", inboxPromise, (v) => {
+        settled.inbox = v;
+      }),
+      track("communications", communicationsPromise, (v) => {
+        settled.communications = v;
+      }),
+      track("evidenceList", evidenceListPromise, (v) => {
+        settled.evidenceList = v;
+      }),
+      track("recordsByType", recordsByTypePromise, (v) => {
+        settled.recordsByType = v;
+      }),
+      track("operationsSummary", operationsSummaryPromise, (v) => {
+        settled.operationsSummary = v;
+      }),
+    ]);
+
     // `orgs` is intentionally read via `orgsRef` (not a dep) so this
     // callback stays referentially stable across renders.
   }, [workspaceId, activeSpaceType, activeSpace?.displayName, plan, planFeatures]);

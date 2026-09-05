@@ -13,7 +13,7 @@
   artefact that backs it.
 -->
 
-**47 routes** · 47 completed · 0 pending · 1083 API routes traced
+**47 routes** · 47 completed · 0 pending · 1084 API routes traced
 
 ## Status
 
