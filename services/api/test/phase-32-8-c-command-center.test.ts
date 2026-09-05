@@ -144,8 +144,27 @@ describe("Phase 32.8C — service layer composition", () => {
       expect(idx, `runner ${name} not found`).toBeGreaterThan(-1);
       const next = SERVICE.indexOf("\n}\n", idx);
       const body = SERVICE.slice(idx, next > idx ? next : idx + 6000);
-      expect(body, `runner ${name} missing try`).toMatch(/try\s*\{/);
-      expect(body, `runner ${name} missing catch`).toMatch(/catch\s*[({]/);
+      /*
+       * TOLERANCE, not one spelling of it.
+       *
+       * The requirement is that a section survives one of its sources being
+       * unavailable. `try`/`catch` around an awaited read is one way to get
+       * that. `Promise.allSettled` is another, and a stronger one: every
+       * probe fails alone, where a `try` block abandons the rest of itself
+       * at the first failure.
+       *
+       * This asserted the `catch` KEYWORD, so converting a runner from eight
+       * sequential awaits to one settled batch — which made it more tolerant,
+       * not less — failed the guard. Either form satisfies it now; a runner
+       * with neither still does not.
+       */
+      const tolerant =
+        (/try\s*\{/.test(body) && /catch\s*[({]/.test(body)) ||
+        /Promise\.allSettled\(/.test(body);
+      expect(
+        tolerant,
+        `runner ${name} is not partial-failure tolerant: neither try/catch nor Promise.allSettled`,
+      ).toBe(true);
     }
   });
 

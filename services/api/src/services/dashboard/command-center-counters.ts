@@ -41,6 +41,8 @@
  * defensible: a page cannot show two different nows.
  */
 
+import type { DestructionReviewStatus } from "@proovra/shared";
+
 import { prisma } from "../../db.js";
 
 /** The statuses the product treats as "open work in the queue". */
@@ -210,24 +212,235 @@ export type EvidenceCounters = {
   signedWithoutReport: number;
   /** REPORTED with no verification package. Asked by two. */
   reportedWithoutPackage: number;
+  /**
+   * Evidence created inside a window, against ONE clock.
+   *
+   * Three windows, six statements: "created in the last 24h" was asked twice
+   * and "the last 7 days" twice, by engines that could not know about each
+   * other. Worse than the duplication, each took its own `new Date()`, so
+   * Operational Intelligence and Queue Telemetry could report the same window
+   * over boundaries milliseconds apart and disagree about the present.
+   *
+   * The window keys are fixed rather than arbitrary because a caller that can
+   * ask for any cutoff can re-introduce exactly that skew.
+   */
+  createdSince: Readonly<Record<EvidenceWindow, number>>;
+  /**
+   * Evidence whose verification package metadata is marked blocked.
+   *
+   * Governance Posture and Audit Readiness each ran the SAME 500-row scan for
+   * this and reported it under two labels. One scan now answers both, which
+   * also means the two sections can no longer disagree about it.
+   */
+  blockedExports: number;
+};
+
+/** The windows the page actually asks about. */
+export type EvidenceWindow = "24h" | "7d" | "30d";
+
+const WINDOW_MS: Readonly<Record<EvidenceWindow, number>> = {
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
 };
 
 export type EvidencePopulationFragment = Record<string, unknown>;
 
 export async function loadEvidenceCounters(
   population: EvidencePopulationFragment,
+  now: Date = new Date(),
 ): Promise<EvidenceCounters> {
-  const [signedWithoutReport, reportedWithoutPackage] = await Promise.all([
-    prisma.evidence.count({
-      where: { AND: [population], status: "SIGNED", reports: { none: {} } } as never,
-    }),
-    prisma.evidence.count({
-      where: {
-        AND: [population],
-        status: "REPORTED",
-        verificationPackages: { none: {} },
-      } as never,
-    }),
+  const windows = Object.keys(WINDOW_MS) as EvidenceWindow[];
+  const [signedWithoutReport, reportedWithoutPackage, blockedSample, ...windowed] =
+    await Promise.all([
+      prisma.evidence.count({
+        where: { AND: [population], status: "SIGNED", reports: { none: {} } } as never,
+      }),
+      prisma.evidence.count({
+        where: {
+          AND: [population],
+          status: "REPORTED",
+          verificationPackages: { none: {} },
+        } as never,
+      }),
+      /*
+       * "Blocked" lives in a JSON column, so it cannot be counted in SQL
+       * without teaching the database the shape of that document. The sample
+       * bound and the predicate are exactly the ones both callers used — this
+       * is the same scan, run once instead of twice, not a new one.
+       */
+      prisma.evidence.findMany({
+        where: {
+          AND: [population],
+          status: { in: ["SIGNED", "REPORTED"] },
+        } as never,
+        take: 500,
+        select: { verificationPackageMetadata: true },
+      }),
+      ...windows.map((w) =>
+        prisma.evidence.count({
+          where: {
+            AND: [population],
+            createdAt: { gte: new Date(now.getTime() - WINDOW_MS[w]) },
+          } as never,
+        }),
+      ),
+    ]);
+
+  let blockedExports = 0;
+  for (const row of blockedSample) {
+    const meta = row.verificationPackageMetadata as Record<string, unknown> | null;
+    if (meta && meta.blocked === true) blockedExports += 1;
+  }
+
+  const createdSince = {} as Record<EvidenceWindow, number>;
+  windows.forEach((w, i) => {
+    createdSince[w] = windowed[i] as number;
+  });
+
+  return {
+    signedWithoutReport,
+    reportedWithoutPackage,
+    createdSince,
+    blockedExports,
+  };
+}
+
+// ===========================================================================
+// OPERATIONS COUNTERS
+// ===========================================================================
+
+/**
+ * The three operational tables MORE THAN ONE ENGINE COUNTS.
+ *
+ * Same shape of finding as the review queue, one layer out. Measured on one
+ * organization-workspace request:
+ *
+ *   * `operational_incidents` — the open-incident count by category was
+ *     issued three times, differing only in the category. Pipeline Detail
+ *     asked for REPORT and PACKAGE, Audit Readiness asked for PACKAGE again.
+ *   * `destruction_reviews` — "pending" (PROPOSED + PENDING_APPROVAL) was
+ *     counted three times, by Governance Posture, Audit Readiness and Queue
+ *     Congestion, and "PROPOSED" once more beside it.
+ *   * `review_escalations` — the open count, twice.
+ *
+ * Each is answered here by ONE `GROUP BY`, which is strictly more information
+ * than the counts it replaces: a grouping over status or category returns
+ * every bucket, so a later engine asking about a different one costs nothing.
+ *
+ * As with the review queue this is request-scoped, not cached, and it answers
+ * only the questions that were already being asked — an engine wanting a
+ * predicate that is not a plain status or category still asks for itself.
+ */
+/**
+ * A DESTRUCTION REVIEW STILL WAITING FOR A HUMAN.
+ *
+ * A DEFECT FOUND WHILE CONSOLIDATING, NOT INTRODUCED BY IT
+ * ---------------------------------------------------------------------------
+ * The three engines that count this queue asked for
+ * `status in ('PROPOSED', 'PENDING_APPROVAL')`. Neither value exists. The
+ * canonical vocabulary is `DESTRUCTION_REVIEW_STATUSES` in
+ * `@proovra/shared` — PENDING, UNDER_REVIEW, APPROVED, DENIED, DEFERRED,
+ * RESTORED, EXECUTED, CANCELLED — and the only status any writer has ever
+ * persisted on creation is PENDING.
+ *
+ * So "Pending destruction reviews" and "Retention candidates" were not
+ * approximately right or occasionally stale. They were STRUCTURALLY ZERO: a
+ * workspace with a hundred reviews awaiting a decision was told it had none,
+ * on the Home dashboard, in the governance section. `status` is a
+ * `VARCHAR(16)` rather than a database enum, so nothing rejected the
+ * impossible value and nothing ever failed.
+ *
+ * PENDING and UNDER_REVIEW are the two non-terminal states in which a review
+ * is waiting on a person. DEFERRED is deliberately excluded: a deferred review
+ * is waiting on a DATE, and surfacing it as queue depth would tell an operator
+ * to act on something they have already decided to postpone.
+ *
+ * `command-center-destruction-status-vocabulary.test.ts` fails if any of
+ * these leaves the canonical list, which is the only reason the original was
+ * able to be wrong for as long as it was.
+ */
+export const DESTRUCTION_REVIEW_AWAITING_DECISION = [
+  "PENDING",
+  "UNDER_REVIEW",
+] as const satisfies readonly DestructionReviewStatus[];
+
+/**
+ * Newly proposed and not yet picked up — the "retention candidates" figure.
+ * PENDING is what `createDestructionReview` writes; nothing writes anything
+ * else at creation.
+ */
+export const DESTRUCTION_REVIEW_PROPOSED = [
+  "PENDING",
+] as const satisfies readonly DestructionReviewStatus[];
+
+export type OperationsCounters = {
+  /** Open (OPEN + ACKNOWLEDGED) incidents for this workspace, by category. */
+  openIncidentsByCategory: Readonly<Record<string, number>>;
+  /** Destruction reviews for this workspace, by status. */
+  destructionReviewsByStatus: Readonly<Record<string, number>>;
+  /** Review escalations for this workspace, by status. */
+  escalationsByStatus: Readonly<Record<string, number>>;
+  /** Sum over the given categories; 0 for a category with no open incidents. */
+  openIncidents(categories: readonly string[]): number;
+  /** Sum over the given destruction-review statuses. */
+  destructionReviews(statuses: readonly string[]): number;
+  /** Sum over the given escalation statuses. */
+  escalations(statuses: readonly string[]): number;
+};
+
+/**
+ * The incident scope every caller used: this workspace's incidents PLUS the
+ * platform-wide ones (`teamId: null`) that affect it. Written once here
+ * because a snapshot that quietly narrowed the scope would under-report, and
+ * an engine reading it would have no way to notice.
+ */
+const incidentScopeFor = (teamId: string) => ({
+  OR: [{ teamId }, { teamId: null }],
+});
+
+export async function loadOperationsCounters(
+  teamId: string,
+): Promise<OperationsCounters> {
+  const [incidents, destruction, escalations] = await Promise.all([
+    prisma.operationalIncident
+      .groupBy({
+        by: ["category"],
+        where: {
+          ...incidentScopeFor(teamId),
+          status: { in: ["OPEN", "ACKNOWLEDGED"] },
+        },
+        _count: { _all: true },
+      })
+      .catch(() => []),
+    prisma.destructionReview
+      .groupBy({ by: ["status"], where: { teamId }, _count: { _all: true } })
+      .catch(() => []),
+    prisma.reviewEscalation
+      .groupBy({ by: ["status"], where: { teamId }, _count: { _all: true } })
+      .catch(() => []),
   ]);
-  return { signedWithoutReport, reportedWithoutPackage };
+
+  const tally = (rows: { _count: { _all: number } }[], key: string) => {
+    const out: Record<string, number> = {};
+    for (const r of rows) {
+      out[String((r as Record<string, unknown>)[key])] = r._count._all;
+    }
+    return out;
+  };
+
+  const openIncidentsByCategory = tally(incidents as never, "category");
+  const destructionReviewsByStatus = tally(destruction as never, "status");
+  const escalationsByStatus = tally(escalations as never, "status");
+  const sum = (table: Record<string, number>, keys: readonly string[]) =>
+    keys.reduce((n, k) => n + (table[k] ?? 0), 0);
+
+  return {
+    openIncidentsByCategory,
+    destructionReviewsByStatus,
+    escalationsByStatus,
+    openIncidents: (categories) => sum(openIncidentsByCategory, categories),
+    destructionReviews: (statuses) => sum(destructionReviewsByStatus, statuses),
+    escalations: (statuses) => sum(escalationsByStatus, statuses),
+  };
 }

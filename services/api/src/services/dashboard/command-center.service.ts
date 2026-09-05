@@ -25,11 +25,15 @@
 
 import { prisma } from "../../db.js";
 import {
+  DESTRUCTION_REVIEW_AWAITING_DECISION,
+  DESTRUCTION_REVIEW_PROPOSED,
   loadEvidenceCounters,
+  loadOperationsCounters,
   loadReviewQueueCounters,
   OPEN_REVIEW_STATUSES,
   reviewQueueWindow,
   type EvidenceCounters,
+  type OperationsCounters,
   type ReviewQueueCounters,
 } from "./command-center-counters.js";
 import {
@@ -1386,6 +1390,26 @@ async function runOperationalPressure(
 // Section: Case operations
 // ---------------------------------------------------------------------------
 
+/**
+ * Do not ask a question whose answer is already known.
+ *
+ * Prisma compiles `{ in: [] }` into `WHERE 1=0` and issues it: a full round
+ * trip to a database that is guaranteed to return no rows. Measured on one
+ * organization-workspace request, sixteen of 167 statements were of this shape
+ * — ten percent of the traffic spent confirming emptiness the caller had
+ * already established when it built the empty list.
+ *
+ * This is not a cache and not an optimisation of the query. The caller HAS the
+ * list; when it is empty the result is `[]` by the definition of `IN`, and
+ * that is what is returned.
+ */
+function whenAnyOf<T>(
+  ids: readonly string[],
+  run: () => Promise<T[]>,
+): Promise<T[]> {
+  return ids.length === 0 ? Promise.resolve([]) : run();
+}
+
 async function runCaseOperations(
   teamId: string,
   scope: WorkspaceScope,
@@ -1393,61 +1417,81 @@ async function runCaseOperations(
 ): Promise<CommandCenterEnvelope["sections"]["caseOperations"]> {
   try {
     const now = new Date();
-    const activeCasesCount = await prisma.case.count({ where: { AND: [pop.cases] } });
-    const evidenceWithCase = await prisma.caseEvidenceLink.groupBy({
-      by: ["caseId"],
-      where: { evidence: { teamId } },
-      _count: { _all: true },
-      orderBy: { caseId: "asc" },
-      take: 1000,
-    });
+
+    /*
+     * FIVE INDEPENDENT READS, ONE BARRIER.
+     *
+     * These were five sequential awaits. Only the arithmetic below joins them
+     * — `casesWithEvidenceGapsCount` subtracts the second from the first —
+     * and arithmetic on two results does not require the two queries to run
+     * one after the other.
+     */
+    const [
+      activeCasesCount,
+      evidenceWithCase,
+      unlinkedEvidenceCount,
+      unreviewedEvidenceCount,
+      recentCases,
+    ] = await Promise.all([
+      prisma.case.count({ where: { AND: [pop.cases] } }),
+      prisma.caseEvidenceLink.groupBy({
+        by: ["caseId"],
+        where: { evidence: { teamId } },
+        _count: { _all: true },
+        orderBy: { caseId: "asc" },
+        take: 1000,
+      }),
+      prisma.evidence.count({
+        where: { AND: [pop.evidence], caseLinks: { none: {} } },
+      }),
+      scope === "SHARED"
+        ? prisma.evidence.count({
+            where: {
+              AND: [pop.evidence],
+              status: { in: ["UPLOADED", "SIGNED"] },
+              reviewWorkflow: null,
+            },
+          })
+        : Promise.resolve(0),
+      // Top cases by overdue review pressure + recent activity.
+      prisma.case.findMany({
+        where: { AND: [pop.cases] },
+        orderBy: { updatedAt: "desc" },
+        take: TOP_CASES_LIMIT,
+        select: {
+          id: true,
+          name: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
     const casesWithEvidenceCount = evidenceWithCase.length;
     const casesWithEvidenceGapsCount = Math.max(
       0,
       activeCasesCount - casesWithEvidenceCount,
     );
-    const unlinkedEvidenceCount = await prisma.evidence.count({
-      where: { AND: [pop.evidence], caseLinks: { none: {} } },
-    });
-
-    let unreviewedEvidenceCount = 0;
-    if (scope === "SHARED") {
-      unreviewedEvidenceCount = await prisma.evidence.count({
-        where: {
-          AND: [pop.evidence],
-          status: { in: ["UPLOADED", "SIGNED"] },
-          reviewWorkflow: null,
-        },
-      });
-    }
-
-    // Top cases by overdue review pressure + recent activity.
-    const recentCases = await prisma.case.findMany({
-      where: { AND: [pop.cases] },
-      orderBy: { updatedAt: "desc" },
-      take: TOP_CASES_LIMIT,
-      select: {
-        id: true,
-        name: true,
-        updatedAt: true,
-      },
-    });
     const caseIds = recentCases.map((c) => c.id);
     const [evidenceCounts, holdsByCase, reviewByCase, unreviewedByCase] = await Promise.all([
-      prisma.caseEvidenceLink.groupBy({
-        by: ["caseId"],
-        where: { caseId: { in: caseIds } },
-        _count: { _all: true },
-      }),
+      // A workspace with no cases has no per-case counts; asking anyway is
+      // four round trips to be told what the empty list already said.
+      whenAnyOf(caseIds, () =>
+        prisma.caseEvidenceLink.groupBy({
+          by: ["caseId"],
+          where: { caseId: { in: caseIds } },
+          _count: { _all: true },
+        }),
+      ),
       // P12.3 canonical-only (scope=CASE).
-      prisma.evidenceLegalHold
-        .findMany({
-          where: { caseId: { in: caseIds }, scope: "CASE", status: "ACTIVE" },
-          select: { caseId: true },
-          take: caseIds.length * 4,
-        })
-        .catch(() => []),
-      scope === "SHARED"
+      whenAnyOf(caseIds, () =>
+        prisma.evidenceLegalHold
+          .findMany({
+            where: { caseId: { in: caseIds }, scope: "CASE", status: "ACTIVE" },
+            select: { caseId: true },
+            take: caseIds.length * 4,
+          })
+          .catch(() => []),
+      ),
+      scope === "SHARED" && caseIds.length > 0
         ? prisma.evidenceReviewWorkflow.findMany({
             where: {
               teamId,
@@ -1472,7 +1516,7 @@ async function runCaseOperations(
             take: 500,
           })
         : Promise.resolve([]),
-      scope === "SHARED"
+      scope === "SHARED" && caseIds.length > 0
         ? prisma.caseEvidenceLink.groupBy({
             by: ["caseId"],
             where: {
@@ -1799,6 +1843,8 @@ async function runReviewerOrchestration(
 async function runPipelineDetail(
   teamId: string,
   pop: WorkspacePopulation,
+  opsCounters: OperationsCounters,
+  evidenceCounters: EvidenceCounters,
 ): Promise<CommandCenterEnvelope["sections"]["pipelineDetail"]> {
   try {
     const stuckCutoff = new Date(
@@ -1900,43 +1946,18 @@ async function runPipelineDetail(
     const reportsQueued = Math.max(0, signed - reportsReady);
     const packagesQueued = Math.max(0, reported - packagesReady);
 
-    // Failed report / package counts from open operational incidents.
-    const [failedReports, failedPackages, blockedPackages] = await Promise.all([
-      prisma.operationalIncident.count({
-        where: {
-          OR: [{ teamId }, { teamId: null }],
-          status: { in: ["OPEN", "ACKNOWLEDGED"] },
-          category: "REPORT",
-        },
-      }),
-      prisma.operationalIncident.count({
-        where: {
-          OR: [{ teamId }, { teamId: null }],
-          status: { in: ["OPEN", "ACKNOWLEDGED"] },
-          category: "PACKAGE",
-        },
-      }),
-      // Blocked packages — counted via JSON metadata flag.
-      prisma.evidence
-        .findMany({
-          where: {
-            AND: [pop.evidence],
-            status: { in: ["SIGNED", "REPORTED"] },
-          },
-          take: 500,
-          select: { verificationPackageMetadata: true },
-        })
-        .then((rows) =>
-          rows.reduce((n, r) => {
-            const meta = r.verificationPackageMetadata as Record<
-              string,
-              unknown
-            > | null;
-            return meta && meta.blocked === true ? n + 1 : n;
-          }, 0),
-        )
-        .catch(() => 0),
-    ]);
+    // Failed report / package counts from open operational incidents — from
+    // the request snapshot, where one GROUP BY answers every category.
+    const failedReports = opsCounters.openIncidents(["REPORT"]);
+    const failedPackages = opsCounters.openIncidents(["PACKAGE"]);
+    /*
+     * Blocked packages — a JSON metadata flag, so it needs a 500-row scan
+     * rather than a count. THREE engines ran that same scan: this one,
+     * Governance Posture and Audit Readiness, each reducing the identical rows
+     * to the identical number under a different label. One scan in the request
+     * snapshot answers all three, and they can no longer disagree.
+     */
+    const blockedPackages = evidenceCounters.blockedExports;
 
     return {
       status: "ok",
@@ -2000,117 +2021,135 @@ async function runGovernancePosture(
   teamId: string,
   scope: WorkspaceScope,
   pop: WorkspacePopulation,
+  evidenceCounters: EvidenceCounters,
+  opsCounters: OperationsCounters,
 ): Promise<CommandCenterEnvelope["sections"]["governancePosture"]> {
   if (scope === "SINGLE_OCCUPANT") {
     return { status: "not_applicable", data: null };
   }
+
+  /*
+   * EIGHT INDEPENDENT PROBES, ONE ROUND TRIP DEEP.
+   *
+   * These were eight sequential `await`s, each in its own `try`, because
+   * per-subsystem fault tolerance is the requirement: retention policy
+   * conflicts living in an optional module must not take governance down with
+   * them, and a missing destruction-review table must degrade rather than
+   * fail. `try { await } catch` is the obvious way to express that, and it
+   * also serialises everything — the request waited for eight round trips in
+   * a row for eight facts that have nothing to do with each other.
+   *
+   * The tolerance is unchanged and so is its shape: each probe still fails
+   * alone, and each still contributes to `anyOk` / `anyFailed` exactly as it
+   * did — the three that used to mark the section DEGRADED still do, and the
+   * five best-effort ones still stay silent. What changed is that they are
+   * awaited together.
+   *
+   * The two destruction-review counts were previously in ONE try block, so a
+   * failure of the first also zeroed the second. They are separate probes now,
+   * which can only produce more truth, not less.
+   */
+  type Probe<T> = {
+    run: () => Promise<T>;
+    /** Whether a failure of this probe degrades the whole section. */
+    degrades: boolean;
+    fallback: T;
+  };
+  const probe = <T,>(run: () => Promise<T>, degrades: boolean, fallback: T): Probe<T> => ({
+    run,
+    degrades,
+    fallback,
+  });
+
+  const probes = {
+    activeLegalHoldsCount: probe(
+      () => prisma.evidenceLegalHold.count({ where: { teamId, status: "ACTIVE" } }),
+      true,
+      0,
+    ),
+    activeCaseLegalHoldsCount: probe(
+      // P12.3 canonical-only (scope='CASE').
+      () =>
+        prisma.evidenceLegalHold.count({
+          where: { scope: "CASE", teamId, status: "ACTIVE" },
+        }),
+      false,
+      0,
+    ),
+    // Both from the request snapshot: one GROUP BY status covers the pending
+    // pair and the proposed subset, and Audit Readiness and Queue Congestion
+    // read the same rows rather than counting them again.
+    pendingDestructionReviewsCount: probe(
+      async () => opsCounters.destructionReviews(DESTRUCTION_REVIEW_AWAITING_DECISION),
+      true,
+      0,
+    ),
+    retentionCandidatesCount: probe(
+      async () => opsCounters.destructionReviews(DESTRUCTION_REVIEW_PROPOSED),
+      true,
+      0,
+    ),
+    activePoliciesCount: probe(
+      () => prisma.evidenceRetentionPolicy.count({ where: { teamId, status: "ACTIVE" } }),
+      true,
+      0,
+    ),
+    policyConflictsCount: probe(
+      async () => {
+        const { countActivePolicyConflicts } = await import(
+          "../governance-lifecycle/retention-engine.service.js"
+        );
+        return countActivePolicyConflicts(teamId);
+      },
+      false,
+      0,
+    ),
+    // From the request snapshot. Audit Readiness ran the identical 500-row
+    // scan for the identical figure; one scan now answers both, and the two
+    // sections can no longer report different numbers for the same thing.
+    blockedExportsCount: probe(async () => evidenceCounters.blockedExports, false, 0),
+    recentLifecycleEventsCount: probe(
+      () =>
+        prisma.evidenceLifecycleEvent.count({
+          where: {
+            teamId,
+            createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+          },
+        }),
+      false,
+      0,
+    ),
+  } as const;
+
+  const keys = Object.keys(probes) as (keyof typeof probes)[];
+  const settled = await Promise.allSettled(keys.map((k) => probes[k].run()));
+
   let anyOk = false;
   let anyFailed = false;
-  let activeLegalHoldsCount = 0;
-  let activeCaseLegalHoldsCount = 0;
-  let retentionCandidatesCount = 0;
-  let pendingDestructionReviewsCount = 0;
-  let activePoliciesCount = 0;
-  let policyConflictsCount = 0;
-  let blockedExportsCount = 0;
-  let recentLifecycleEventsCount = 0;
-
-  try {
-    activeLegalHoldsCount = await prisma.evidenceLegalHold.count({
-      where: { teamId, status: "ACTIVE" },
-    });
-    anyOk = true;
-  } catch {
-    anyFailed = true;
-  }
-
-  try {
-    activeCaseLegalHoldsCount = await prisma.evidenceLegalHold.count({
-      // P12.3 canonical-only (scope='CASE').
-      where: { scope: "CASE", teamId, status: "ACTIVE" },
-    });
-    anyOk = true;
-  } catch {
-    /* optional subsystem */
-  }
-
-  try {
-    pendingDestructionReviewsCount = await prisma.destructionReview.count({
-      where: {
-        teamId,
-        status: { in: ["PROPOSED", "PENDING_APPROVAL"] },
-      },
-    });
-    retentionCandidatesCount = await prisma.destructionReview.count({
-      where: { teamId, status: "PROPOSED" },
-    });
-    anyOk = true;
-  } catch {
-    anyFailed = true;
-  }
-
-  try {
-    activePoliciesCount = await prisma.evidenceRetentionPolicy.count({
-      where: { teamId, status: "ACTIVE" },
-    });
-    anyOk = true;
-  } catch {
-    anyFailed = true;
-  }
-
-  try {
-    const { countActivePolicyConflicts } = await import(
-      "../governance-lifecycle/retention-engine.service.js"
-    );
-    policyConflictsCount = await countActivePolicyConflicts(teamId);
-    anyOk = true;
-  } catch {
-    /* best-effort */
-  }
-
-  try {
-    const sample = await prisma.evidence.findMany({
-      where: {
-        AND: [pop.evidence],
-        status: { in: ["SIGNED", "REPORTED"] },
-      },
-      take: 500,
-      select: { verificationPackageMetadata: true },
-    });
-    for (const row of sample) {
-      const meta = row.verificationPackageMetadata as Record<
-        string,
-        unknown
-      > | null;
-      if (meta && meta.blocked === true) blockedExportsCount += 1;
+  const data = {} as Record<keyof typeof probes, number>;
+  keys.forEach((k, i) => {
+    const r = settled[i];
+    if (r.status === "fulfilled") {
+      data[k] = r.value;
+      anyOk = true;
+    } else {
+      data[k] = probes[k].fallback;
+      if (probes[k].degrades) anyFailed = true;
     }
-    anyOk = true;
-  } catch {
-    /* best-effort */
-  }
-
-  try {
-    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    recentLifecycleEventsCount = await prisma.evidenceLifecycleEvent.count({
-      where: { teamId, createdAt: { gte: since7d } },
-    });
-    anyOk = true;
-  } catch {
-    /* best-effort */
-  }
+  });
 
   return {
     status: !anyOk ? "unavailable" : anyFailed ? "degraded" : "ok",
     data: anyOk
       ? {
-          activeLegalHoldsCount,
-          activeCaseLegalHoldsCount,
-          retentionCandidatesCount,
-          pendingDestructionReviewsCount,
-          activePoliciesCount,
-          policyConflictsCount,
-          blockedExportsCount,
-          recentLifecycleEventsCount,
+          activeLegalHoldsCount: data.activeLegalHoldsCount,
+          activeCaseLegalHoldsCount: data.activeCaseLegalHoldsCount,
+          retentionCandidatesCount: data.retentionCandidatesCount,
+          pendingDestructionReviewsCount: data.pendingDestructionReviewsCount,
+          activePoliciesCount: data.activePoliciesCount,
+          policyConflictsCount: data.policyConflictsCount,
+          blockedExportsCount: data.blockedExportsCount,
+          recentLifecycleEventsCount: data.recentLifecycleEventsCount,
         }
       : null,
   };
@@ -2123,25 +2162,28 @@ async function runGovernancePosture(
 async function runOrganizationalIntelligence(
   teamId: string,
   pop: WorkspacePopulation,
+  evidenceCounters: EvidenceCounters,
 ): Promise<CommandCenterEnvelope["sections"]["organizationalIntelligence"]> {
   try {
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Only the 7d cutoff is still computed here; the 24h one moved to the
+    // request snapshot along with the counts that used it.
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
+    /*
+     * The two "evidence created in the last N" figures come from the request
+     * snapshot. They were counted here AND in queue telemetry, each against
+     * its own `new Date()` — so two sections of one page could measure "the
+     * last 24 hours" from instants milliseconds apart and disagree.
+     */
+    const evidenceCreatedLast24h = evidenceCounters.createdSince["24h"];
+    const evidenceCreatedLast7d = evidenceCounters.createdSince["7d"];
+
     const [
-      evidenceCreatedLast24h,
-      evidenceCreatedLast7d,
       evidenceFinalizedLast7d,
       reportsGeneratedLast7d,
       packagesGeneratedLast7d,
       activityLast7d,
     ] = await Promise.all([
-      prisma.evidence.count({
-        where: { AND: [pop.evidence], createdAt: { gte: since24h } },
-      }),
-      prisma.evidence.count({
-        where: { AND: [pop.evidence], createdAt: { gte: since7d } },
-      }),
       prisma.evidence.count({
         where: {
           AND: [pop.evidence],
@@ -2186,6 +2228,18 @@ async function runOrganizationalIntelligence(
 // Section: Operational timeline (union of real events)
 // ---------------------------------------------------------------------------
 
+/**
+ * Read one settled source, re-throwing its failure INSIDE the caller's try.
+ *
+ * The point of settling first is to start every query at once; the point of
+ * re-throwing here is that each timeline source keeps handling its own
+ * failure exactly where it did before.
+ */
+function settledRows<T>(r: PromiseSettledResult<T>): T {
+  if (r.status === "rejected") throw r.reason;
+  return r.value;
+}
+
 async function runTimeline(
   teamId: string,
   pop: WorkspacePopulation,
@@ -2195,9 +2249,22 @@ async function runTimeline(
   let anyFailed = false;
   const since14d = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-  // Evidence finalized (status changed to SIGNED/REPORTED — proxied by updatedAt)
-  try {
-    const rows = await prisma.evidence.findMany({
+  /*
+   * SEVEN SOURCES, ONE BARRIER.
+   *
+   * The timeline is a union of seven independent reads, each previously
+   * awaited inside its own try/catch so that one unavailable source
+   * degrades the section instead of emptying it. That per-source tolerance
+   * is the requirement and is unchanged — but `try { await } catch` also
+   * serialised them, so the section paid seven round trips end to end for
+   * seven queries that never look at each other.
+   *
+   * They are started together and settled once. Every block below still
+   * catches its own failure, still sets `anyOk` / `anyFailed` the same way,
+   * and still pushes in the same order.
+   */
+  const sources = await Promise.allSettled([
+    prisma.evidence.findMany({
       where: {
         AND: [pop.evidence],
         status: { in: ["SIGNED", "REPORTED"] },
@@ -2217,7 +2284,106 @@ async function runTimeline(
         status: true,
         updatedAt: true,
       },
-    });
+    }),
+    prisma.report.findMany({
+      where: {
+        evidence: { teamId },
+        generatedAtUtc: { gte: since14d },
+      },
+      orderBy: { generatedAtUtc: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        evidenceId: true,
+        version: true,
+        generatedAtUtc: true,
+        // Phase HOME-PROOF — entity title (with filename fallback) for
+        // a rich activity label ("Report v2 generated — Water damage
+        // record"), so distinct reports never collapse into an
+        // anonymous "×N" row.
+        evidence: {
+          select: { title: true, displayFileName: true, originalFileName: true },
+        },
+      },
+    }),
+    prisma.verificationPackage.findMany({
+      where: {
+        evidence: { teamId },
+        generatedAtUtc: { gte: since14d },
+      },
+      orderBy: { generatedAtUtc: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        evidenceId: true,
+        version: true,
+        generatedAtUtc: true,
+        evidence: {
+          select: { title: true, displayFileName: true, originalFileName: true },
+        },
+      },
+    }),
+    prisma.evidence.findMany({
+      where: {
+        AND: [pop.evidence],
+        publicVerifyState: "PUBLISHED",
+        publicVerifyPublishedAtUtc: { gte: since14d },
+      },
+      orderBy: { publicVerifyPublishedAtUtc: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        title: true,
+        publicVerifyPublishedAtUtc: true,
+      },
+    }),
+    prisma.evidenceLifecycleEvent.findMany({
+      where: { teamId, createdAt: { gte: since14d } },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        eventType: true,
+        summary: true,
+        toState: true,
+        evidenceId: true,
+        createdAt: true,
+      },
+    }),
+    prisma.reviewEscalation.findMany({
+      where: { teamId, createdAt: { gte: since14d } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        severity: true,
+        reason: true,
+        workflowId: true,
+        createdAt: true,
+      },
+    }),
+    prisma.operationalIncident.findMany({
+      where: {
+        OR: [{ teamId }, { teamId: null }],
+        firstSeenAtUtc: { gte: since14d },
+      },
+      orderBy: { firstSeenAtUtc: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        severity: true,
+        runbookSlug: true,
+        firstSeenAtUtc: true,
+      },
+    }),
+  ]);
+
+
+  // Evidence finalized (status changed to SIGNED/REPORTED — proxied by updatedAt)
+  try {
+    const rows = settledRows(sources[0]);
     anyOk = true;
     for (const r of rows) {
       const entityName =
@@ -2243,27 +2409,7 @@ async function runTimeline(
 
   // Reports generated
   try {
-    const rows = await prisma.report.findMany({
-      where: {
-        evidence: { teamId },
-        generatedAtUtc: { gte: since14d },
-      },
-      orderBy: { generatedAtUtc: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        evidenceId: true,
-        version: true,
-        generatedAtUtc: true,
-        // Phase HOME-PROOF — entity title (with filename fallback) for
-        // a rich activity label ("Report v2 generated — Water damage
-        // record"), so distinct reports never collapse into an
-        // anonymous "×N" row.
-        evidence: {
-          select: { title: true, displayFileName: true, originalFileName: true },
-        },
-      },
-    });
+    const rows = settledRows(sources[1]);
     anyOk = true;
     for (const r of rows) {
       const name =
@@ -2291,23 +2437,7 @@ async function runTimeline(
 
   // Verification packages
   try {
-    const rows = await prisma.verificationPackage.findMany({
-      where: {
-        evidence: { teamId },
-        generatedAtUtc: { gte: since14d },
-      },
-      orderBy: { generatedAtUtc: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        evidenceId: true,
-        version: true,
-        generatedAtUtc: true,
-        evidence: {
-          select: { title: true, displayFileName: true, originalFileName: true },
-        },
-      },
-    });
+    const rows = settledRows(sources[2]);
     anyOk = true;
     for (const r of rows) {
       const name =
@@ -2339,20 +2469,7 @@ async function runTimeline(
   // projected it. Minimal read-only projection over the existing
   // Evidence columns — no new tables, no writes.
   try {
-    const rows = await prisma.evidence.findMany({
-      where: {
-        AND: [pop.evidence],
-        publicVerifyState: "PUBLISHED",
-        publicVerifyPublishedAtUtc: { gte: since14d },
-      },
-      orderBy: { publicVerifyPublishedAtUtc: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        publicVerifyPublishedAtUtc: true,
-      },
-    });
+    const rows = settledRows(sources[3]);
     anyOk = true;
     for (const r of rows) {
       if (!r.publicVerifyPublishedAtUtc) continue;
@@ -2374,19 +2491,7 @@ async function runTimeline(
 
   // Lifecycle events
   try {
-    const rows = await prisma.evidenceLifecycleEvent.findMany({
-      where: { teamId, createdAt: { gte: since14d } },
-      orderBy: { createdAt: "desc" },
-      take: 12,
-      select: {
-        id: true,
-        eventType: true,
-        summary: true,
-        toState: true,
-        evidenceId: true,
-        createdAt: true,
-      },
-    });
+    const rows = settledRows(sources[4]);
     anyOk = true;
     for (const r of rows) {
       const isHold = r.eventType.startsWith("hold_");
@@ -2413,18 +2518,7 @@ async function runTimeline(
 
   // Escalations
   try {
-    const rows = await prisma.reviewEscalation.findMany({
-      where: { teamId, createdAt: { gte: since14d } },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        severity: true,
-        reason: true,
-        workflowId: true,
-        createdAt: true,
-      },
-    });
+    const rows = settledRows(sources[5]);
     anyOk = true;
     for (const r of rows) {
       items.push({
@@ -2447,22 +2541,7 @@ async function runTimeline(
 
   // Incidents
   try {
-    const rows = await prisma.operationalIncident.findMany({
-      where: {
-        OR: [{ teamId }, { teamId: null }],
-        firstSeenAtUtc: { gte: since14d },
-      },
-      orderBy: { firstSeenAtUtc: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        severity: true,
-        runbookSlug: true,
-        firstSeenAtUtc: true,
-      },
-    });
+    const rows = settledRows(sources[6]);
     anyOk = true;
     for (const r of rows) {
       items.push({
@@ -2503,13 +2582,42 @@ async function runAuditReadiness(
   scope: WorkspaceScope,
   pop: WorkspacePopulation,
   reviewCounters: ReviewQueueCounters,
+  evidenceCounters: EvidenceCounters,
+  opsCounters: OperationsCounters,
 ): Promise<CommandCenterEnvelope["sections"]["auditReadiness"]> {
   try {
     const unsignedAgeCutoff = new Date(
       Date.now() - UNSIGNED_EVIDENCE_AGE_DAYS * 24 * 60 * 60 * 1000,
     );
-    const counters: AuditReadinessCounter[] = [];
 
+    /*
+     * FIVE COUNTS, ONE BARRIER.
+     *
+     * Each counter was awaited and then pushed, so the section paid five round
+     * trips in a row to build a list whose entries never look at each other.
+     * Sequential `await` was just how the list reads on the page.
+     *
+     * Two of the five are gone entirely: "signed evidence without report"
+     * already exists in the request's evidence snapshot, and blocked exports
+     * came from a 500-row scan this engine and Governance Posture were each
+     * running separately.
+     *
+     * ORDER IS PRESERVED. These render in the order they are pushed, so the
+     * results are placed back in the original sequence rather than in
+     * completion order.
+     */
+    const shared = scope === "SHARED";
+    /*
+     * Only ONE of these five counters still needs the database. Failed
+     * packages, pending destruction reviews and open escalations all come from
+     * the request's operations snapshot, where Pipeline Detail, Governance
+     * Posture and Queue Congestion were each asking the same questions.
+     */
+    const failedPackages = opsCounters.openIncidents(["PACKAGE"]);
+    const pendingGovReviews = shared
+      ? opsCounters.destructionReviews(DESTRUCTION_REVIEW_AWAITING_DECISION)
+      : 0;
+    const unresolvedEscalations = shared ? opsCounters.escalations(["OPEN"]) : 0;
     const unsignedOld = await prisma.evidence.count({
       where: {
         AND: [pop.evidence],
@@ -2517,91 +2625,59 @@ async function runAuditReadiness(
         createdAt: { lt: unsignedAgeCutoff },
       },
     });
-    counters.push({
-      key: "unsigned_evidence_old",
-      label: "Unsigned evidence > 7 days",
-      value: unsignedOld,
-      severity: unsignedOld > 0 ? "warning" : "info",
-    });
 
-    const missingReports = await prisma.evidence.count({
-      where: { AND: [pop.evidence], status: "SIGNED", reports: { none: {} } },
-    });
-    counters.push({
-      key: "missing_reports",
-      label: "Signed evidence without report",
-      value: missingReports,
-      severity: missingReports > 0 ? "warning" : "info",
-    });
+    const missingReports = evidenceCounters.signedWithoutReport;
+    const blockedExportsCount = evidenceCounters.blockedExports;
 
-    const failedPackages = await prisma.operationalIncident.count({
-      where: {
-        OR: [{ teamId }, { teamId: null }],
-        status: { in: ["OPEN", "ACKNOWLEDGED"] },
-        category: "PACKAGE",
+    const counters: AuditReadinessCounter[] = [
+      {
+        key: "unsigned_evidence_old",
+        label: "Unsigned evidence > 7 days",
+        value: unsignedOld,
+        severity: unsignedOld > 0 ? "warning" : "info",
       },
-    });
-    counters.push({
-      key: "failed_packages",
-      label: "Failed package generations",
-      value: failedPackages,
-      severity: failedPackages > 0 ? "high" : "info",
-    });
+      {
+        key: "missing_reports",
+        label: "Signed evidence without report",
+        value: missingReports,
+        severity: missingReports > 0 ? "warning" : "info",
+      },
+      {
+        key: "failed_packages",
+        label: "Failed package generations",
+        value: failedPackages,
+        severity: failedPackages > 0 ? "high" : "info",
+      },
+    ];
 
-    if (scope === "SHARED") {
-      const pendingGovReviews = await prisma.destructionReview
-        .count({
-          where: {
-            teamId,
-            status: { in: ["PROPOSED", "PENDING_APPROVAL"] },
-          },
-        })
-        .catch(() => 0);
-      counters.push({
-        key: "pending_governance_reviews",
-        label: "Pending destruction reviews",
-        value: pendingGovReviews,
-        severity: pendingGovReviews > 0 ? "warning" : "info",
-      });
-
-      const unresolvedEscalations = await prisma.reviewEscalation
-        .count({ where: { teamId, status: "OPEN" } })
-        .catch(() => 0);
-      counters.push({
-        key: "unresolved_escalations",
-        label: "Unresolved reviewer escalations",
-        value: unresolvedEscalations,
-        severity: unresolvedEscalations > 0 ? "high" : "info",
-      });
-
-      // From the request snapshot; the same two statuses, exactly counted.
-      const pendingReviewerSignoff = reviewCounters.inStatus(["IN_REVIEW", "NEEDS_INFO"]);
-      counters.push({
-        key: "evidence_pending_reviewer_signoff",
-        label: "Evidence pending reviewer signoff",
-        value: pendingReviewerSignoff,
-        severity: pendingReviewerSignoff > 0 ? "warning" : "info",
-      });
+    if (shared) {
+      const pendingReviewerSignoff = reviewCounters.inStatus([
+        "IN_REVIEW",
+        "NEEDS_INFO",
+      ]);
+      counters.push(
+        {
+          key: "pending_governance_reviews",
+          label: "Pending destruction reviews",
+          value: pendingGovReviews,
+          severity: pendingGovReviews > 0 ? "warning" : "info",
+        },
+        {
+          key: "unresolved_escalations",
+          label: "Unresolved reviewer escalations",
+          value: unresolvedEscalations,
+          severity: unresolvedEscalations > 0 ? "high" : "info",
+        },
+        {
+          // From the request snapshot; the same two statuses, exactly counted.
+          key: "evidence_pending_reviewer_signoff",
+          label: "Evidence pending reviewer signoff",
+          value: pendingReviewerSignoff,
+          severity: pendingReviewerSignoff > 0 ? "warning" : "info",
+        },
+      );
     }
 
-    // Blocked exports
-    let blockedExportsCount = 0;
-    try {
-      const sample = await prisma.evidence.findMany({
-        where: { AND: [pop.evidence], status: { in: ["SIGNED", "REPORTED"] } },
-        take: 500,
-        select: { verificationPackageMetadata: true },
-      });
-      for (const row of sample) {
-        const meta = row.verificationPackageMetadata as Record<
-          string,
-          unknown
-        > | null;
-        if (meta && meta.blocked === true) blockedExportsCount += 1;
-      }
-    } catch {
-      /* best-effort */
-    }
     counters.push({
       key: "blocked_exports",
       label: "Exports blocked by governance",
@@ -2909,9 +2985,10 @@ export async function buildCommandCenter(input: {
    * round trips; `detectWorkspaceScope` above already establishes the same
    * shape of dependency.
    */
-  const [counters, evidenceCounters] = await Promise.all([
+  const [counters, evidenceCounters, opsCounters] = await Promise.all([
     loadReviewQueueCounters(input.teamId, reviewQueueWindow()),
     loadEvidenceCounters(pop.evidence as never),
+    loadOperationsCounters(input.teamId),
   ]);
 
   /*
@@ -2968,11 +3045,11 @@ export async function buildCommandCenter(input: {
     runOperationalPressure(input.teamId, scope, input.role),
     runCaseOperations(input.teamId, scope, pop),
     runReviewerOrchestration(input.teamId, scope, counters),
-    runPipelineDetail(input.teamId, pop),
-    runGovernancePosture(input.teamId, scope, pop),
-    runOrganizationalIntelligence(input.teamId, pop),
+    runPipelineDetail(input.teamId, pop, opsCounters, evidenceCounters),
+    runGovernancePosture(input.teamId, scope, pop, evidenceCounters, opsCounters),
+    runOrganizationalIntelligence(input.teamId, pop, evidenceCounters),
     runTimeline(input.teamId, pop),
-    runAuditReadiness(input.teamId, scope, pop, counters),
+    runAuditReadiness(input.teamId, scope, pop, counters, evidenceCounters, opsCounters),
     runRecentEvidence(input.teamId, pop),
     runIncidents(input.teamId),
     runLegacyPipelineSummary(input.teamId, pop),
@@ -2980,7 +3057,7 @@ export async function buildCommandCenter(input: {
 
     // Phase 32.8C intelligence engines (partial-failure tolerant).
     runInvestigationIntelligence(input.teamId, scope, pop),
-    runQueueCongestion(input.teamId, scope, pop, counters, evidenceCounters),
+    runQueueCongestion(input.teamId, scope, pop, counters, evidenceCounters, opsCounters),
     runCustodyIntegrityAnomalies(input.teamId, pop),
     runAccessSecurityAnomalies(input.teamId),
     runWorkloadEngine(input.teamId, scope),
@@ -3017,6 +3094,7 @@ export async function buildCommandCenter(input: {
       saturationScore: workloadEngineResult.saturationScore,
       bottlenecks: workloadEngineResult.bottlenecks,
     }, pop,
+    evidenceCounters,
   );
 
   // Phase 32.8C FINAL-3 — reviewer capacity / operational graph /
@@ -3936,6 +4014,7 @@ async function runQueueCongestion(
   pop: WorkspacePopulation,
   counters: ReviewQueueCounters,
   evidenceCounters: EvidenceCounters,
+  opsCounters: OperationsCounters,
 ): Promise<{ meta: SectionMeta; items: QueueCongestionItem[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -4005,26 +4084,22 @@ async function runQueueCongestion(
     });
 
     if (scope === "SHARED") {
-      const destructionPending = await prisma.destructionReview
-        .count({
-          where: {
-            teamId,
-            status: { in: ["PROPOSED", "PENDING_APPROVAL"] },
-          },
-        })
-        .catch(() => 0);
+      // Both depths come from the request snapshot. Governance Posture and
+      // Audit Readiness were counting the same two queues, so a page could
+      // show one depth in the queue list and a different one in the counters.
+      const destructionPending = opsCounters.destructionReviews(
+        DESTRUCTION_REVIEW_AWAITING_DECISION,
+      );
       items.push({
         queueId: "destruction_review_queue",
         label: "Destruction reviews pending",
         depth: destructionPending,
         oldestAgeMs: null,
         severity: destructionPending >= 5 ? "warning" : "info",
-        source: "DestructionReview(status in PROPOSED|PENDING_APPROVAL)",
+        source: "DestructionReview(status in PENDING|UNDER_REVIEW)",
       });
 
-      const openEscalations = await prisma.reviewEscalation.count({
-        where: { teamId, status: "OPEN" },
-      });
+      const openEscalations = opsCounters.escalations(["OPEN"]);
       items.push({
         queueId: "escalation_queue",
         label: "Open escalations",
@@ -6470,6 +6545,7 @@ async function runOrgIntelligenceV2(
   pressure: CommandCenterEnvelope["sections"]["operationalPressure"],
   workload: CommandCenterEnvelope["sections"]["workloadEngine"],
   pop: WorkspacePopulation,
+  evidenceCounters: EvidenceCounters,
 ): Promise<{ meta: SectionMeta; data: OrgIntelligenceV2 }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -6482,16 +6558,15 @@ async function runOrgIntelligenceV2(
     ],
   };
   try {
-    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const evidence30d = await prisma.evidence.count({
-      where: { AND: [pop.evidence], createdAt: { gte: since30d } },
-    });
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const [last24h, last7d] = await Promise.all([
-      prisma.evidence.count({ where: { AND: [pop.evidence], createdAt: { gte: since24h } } }),
-      prisma.evidence.count({ where: { AND: [pop.evidence], createdAt: { gte: since7d } } }),
-    ]);
+    /*
+     * All three windows come from the request snapshot. This engine issued a
+     * 30d count, then awaited a second batch for 24h and 7d — three round
+     * trips, two of them duplicating Organizational Intelligence, and each
+     * against its own clock.
+     */
+    const evidence30d = evidenceCounters.createdSince["30d"];
+    const last24h = evidenceCounters.createdSince["24h"];
+    const last7d = evidenceCounters.createdSince["7d"];
 
     // Bottleneck domains — group pressure items by affectedDomain.
     const domainCounts = new Map<OperationalDomain, number>();
