@@ -47,10 +47,11 @@ import {
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import {
   AdmInline,
+  AdmOverlay,
 } from "../../../../../components/admin/AdminSurfaces";
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
-import { TOKENS, badgeStyle, formatDateTime } from "../../identity/ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
 
 type ValidationOutcome = "passed" | "warning" | "failed" | "unsupported";
 
@@ -353,15 +354,11 @@ function ReadinessSummary({
         <div>
           <div className="apf-muted">S3 Object Lock platform mode</div>
           <div style={{ marginTop: 4 }}>
-            <span
-              style={badgeStyle(
-                last.objectLockMode === "verified"
-                  ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
-                  : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
-              )}
-            >
+            <Badge tone={last.objectLockMode === "verified"
+                  ? "verified"
+                  : "pending"}>
               {last.objectLockMode}
-            </span>
+            </Badge>
           </div>
         </div>
         <div>
@@ -373,7 +370,7 @@ function ReadinessSummary({
                   {last.lastBackupReport.outcome ?? "unknown"}
                 </Badge>
                 <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
-                  {formatDateTime(last.lastBackupReport.generatedAtUtc)}
+                  {formatCellDateTime(last.lastBackupReport.generatedAtUtc)}
                 </div>
               </>
             ) : (
@@ -390,7 +387,7 @@ function ReadinessSummary({
                   {last.lastRestoreReport.outcome ?? "unknown"}
                 </Badge>
                 <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
-                  {formatDateTime(last.lastRestoreReport.generatedAtUtc)}
+                  {formatCellDateTime(last.lastRestoreReport.generatedAtUtc)}
                 </div>
               </>
             ) : (
@@ -429,7 +426,7 @@ function UnsupportedDomainsPanel({
       className="adm-card"
       style={{
         marginTop: 12,
-        background: TOKENS.surfaceMuted,
+        background: "var(--surface-muted)",
       }}
       data-testid="unsupported-domains"
     >
@@ -469,7 +466,7 @@ function RecentReportsTable({
       className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="recent-reports"
     >
-      <div style={{ padding: 12, borderBottom: `1px solid ${TOKENS.border}` }}>
+      <div style={{ padding: 12, borderBottom: `1px solid var(--border-default)` }}>
         <strong style={{ fontSize: 14 }}>Recent reports</strong>
       </div>
       {reports.length === 0 ? (
@@ -494,7 +491,7 @@ function RecentReportsTable({
                   <td>{r.kind}</td>
                   <td>
                     <span className="apf-muted">
-                      {formatDateTime(r.generatedAtUtc)}
+                      {formatCellDateTime(r.generatedAtUtc)}
                     </span>
                   </td>
                   <td>
@@ -544,41 +541,18 @@ function ReportDrawer({
   onClose: () => void;
 }) {
   return (
-    <div
-      role="dialog"
-      aria-label="Recovery report"
-      data-testid="report-drawer"
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        height: "100vh",
-        width: "min(640px, 100vw)",
-        background: TOKENS.surface,
-        borderInlineStart: `1px solid ${TOKENS.border}`,
-        boxShadow: "0 0 40px rgba(15,23,42,0.1)",
-        zIndex: 50,
-        overflowY: "auto",
-        padding: 20,
-      }}
+    <AdmOverlay
+      shape="drawer"
+      title="Recovery report"
+      subtitle="What the validation run read, what it verified, and what it could not."
+      onClose={onClose}
+      testId="report-drawer"
     >
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h2 style={{ fontSize: 16, margin: 0 }}>{report.kind}</h2>
-        <button type="button" className="apf-control" onClick={onClose}>
-          Close
-        </button>
-      </header>
-      <p className="adm-help" style={{ marginTop: 8 }}>
+            <p className="adm-help" style={{ marginTop: 8 }}>
         Report id <code style={{ fontFamily: "monospace" }}>{report.reportId}</code>
         <br />
-        Started {formatDateTime(report.startedAtUtc)} · finished{" "}
-        {formatDateTime(report.finishedAtUtc)}
+        Started {formatCellDateTime(report.startedAtUtc)} · finished{" "}
+        {formatCellDateTime(report.finishedAtUtc)}
       </p>
       <div style={{ marginTop: 12 }}>
         <Badge tone={outcomeBadge(report.overallOutcome)}>
@@ -632,6 +606,6 @@ function ReportDrawer({
           </ul>
         </section>
       ) : null}
-    </div>
+    </AdmOverlay>
   );
 }

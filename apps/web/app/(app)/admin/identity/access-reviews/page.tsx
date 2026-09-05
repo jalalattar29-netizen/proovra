@@ -45,7 +45,8 @@ import { Card } from "../../../../../components/ui/Card";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
-import { statusBadgeStyle, formatDateTime } from "../ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
+import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 
 type AccessReview = {
   id: string;
@@ -106,6 +107,26 @@ const STATUS_OPTIONS = [
   "COMPLETED_NO_ACTION",
   "CANCELLED",
 ];
+
+/**
+ * THIS PAGE'S OWN STATUS VOCABULARY, MAPPED EXPLICITLY.
+ *
+ * It used to colour the chip with `statusTone(status.split("_")[0])`, which is
+ * a guess dressed as a lookup: `IN_PROGRESS` split to `IN`, matched nothing,
+ * and fell through to the default. Naming the seven values costs three lines
+ * and cannot silently mis-colour an eighth.
+ *
+ * Every COMPLETED_* outcome is `verified` because what completed is the
+ * REVIEW. `COMPLETED_REVOKED` is a review that did its job and withdrew
+ * access; painting it as a danger would report a successful control as a
+ * failure.
+ */
+function reviewStatusTone(status: string): BadgeTone {
+  if (status.startsWith("COMPLETED_")) return "verified";
+  if (status === "PENDING" || status === "IN_PROGRESS") return "pending";
+  if (status === "CANCELLED") return "neutral";
+  return "info";
+}
 
 export default function AccessReviewsPage() {
   const teamId = useTeamId();
@@ -285,9 +306,9 @@ export default function AccessReviewsPage() {
       key: "status",
       header: "Status",
       render: (r) => (
-        <span style={statusBadgeStyle(r.status.split("_")[0] ?? r.status)}>
+        <Badge tone={reviewStatusTone(r.status)}>
           {r.status.toLowerCase().replace(/_/g, " ")}
-        </span>
+        </Badge>
       ),
     },
     {
@@ -311,14 +332,14 @@ export default function AccessReviewsPage() {
       header: "Initiated",
       nowrap: true,
       render: (r) => (
-        <span className="adm-help">{formatDateTime(r.initiatedAtUtc)}</span>
+        <span className="adm-help">{formatCellDateTime(r.initiatedAtUtc)}</span>
       ),
     },
     {
       key: "due",
       header: "Due",
       nowrap: true,
-      render: (r) => <span className="adm-help">{formatDateTime(r.dueAtUtc)}</span>,
+      render: (r) => <span className="adm-help">{formatCellDateTime(r.dueAtUtc)}</span>,
     },
     {
       key: "note",

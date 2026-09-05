@@ -2277,3 +2277,23 @@ body.is-admin-console .app-sidebar-v2-help {
 .adm-choice__note { font-size: 0.75rem; line-height: 1.5; color: var(--ink-secondary); }
 .adm-choice:has(> input:disabled) { cursor: not-allowed; }
 .adm-choice:has(> input:disabled) .adm-choice__label { color: var(--ink-muted); }
+
+/* A LINK INSIDE CONSOLE CONTENT.
+   Not the table row link (`.adm-hit-link` gives that its 44px target without
+   growing the row) and not a button. This is a link in a list or a sentence:
+   the accent, underlined on hover, with a visible focus ring. Pages had been
+   writing `style={{ color: "var(--accent-600)", fontWeight: 600 }}` inline,
+   which cannot carry either state. */
+.adm-link {
+  color: var(--accent-600);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.adm-link:hover { text-decoration: underline; }
+
+.adm-link:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

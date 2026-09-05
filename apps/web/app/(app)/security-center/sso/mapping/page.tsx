@@ -32,20 +32,10 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
+import { Badge } from "../../../../../components/ui/Badge";
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
-import {
-  badgeStyle,
-  inputStyle,
-  mutedStyle,
-  sectionTitleStyle,
-  selectStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  TOKENS,
-} from "../../../admin/identity/ui-tokens";
 
 type SamlMappingFieldDescriptor = {
   key: string;
@@ -304,9 +294,9 @@ function SamlMappingContent() {
 
   const connectionSelect = (
     <div>
-      <label style={{ ...mutedStyle, marginRight: 8 }}>Connection</label>
+      <label className="app-field-help" style={{ marginRight: 8 }}>Connection</label>
       <select
-        style={selectStyle}
+        className="app-select"
         value={connectionId ?? ""}
         onChange={(e) => setConnectionId(e.target.value || null)}
       >
@@ -382,7 +372,7 @@ function SamlMappingContent() {
 
       {!schema || !current ? (
         connectionId ? (
-          <p style={{ ...mutedStyle, marginTop: 16 }}>Loading mapping…</p>
+          <p className="app-field-help" style={{ marginTop: 16 }}>Loading mapping…</p>
         ) : (
           <EmptyState
             framed
@@ -393,7 +383,7 @@ function SamlMappingContent() {
       ) : (
         <>
           <Card variant="admin">
-            <h3 style={{ ...sectionTitleStyle, marginTop: 0 }}>Attribute fields</h3>
+            <h3 className="app-subhead" style={{ marginTop: 0 }}>Attribute fields</h3>
             <div style={{ display: "grid", gap: 16 }}>
               {schema.fields
                 .filter((f) => f.kind !== "group_role_map")
@@ -416,8 +406,8 @@ function SamlMappingContent() {
           </Card>
 
           <Card variant="admin">
-            <h3 style={{ ...sectionTitleStyle, marginTop: 0 }}>Group → Role mapping</h3>
-            <p style={{ ...mutedStyle, marginTop: 0 }}>
+            <h3 className="app-subhead" style={{ marginTop: 0 }}>Group → Role mapping</h3>
+            <p className="app-field-help" style={{ marginTop: 0 }}>
               Per-group role override. The first matching group wins; if no
               group claim matches, the default role is used. Adding
               OWNER/ADMIN mappings requires step-up at save time.
@@ -429,21 +419,18 @@ function SamlMappingContent() {
           </Card>
 
           <Card variant="admin">
-            <h3 style={{ ...sectionTitleStyle, marginTop: 0 }}>Sample assertion (optional)</h3>
-            <p style={{ ...mutedStyle, marginTop: 0 }}>
+            <h3 className="app-subhead" style={{ marginTop: 0 }}>Sample assertion (optional)</h3>
+            <p className="app-field-help" style={{ marginTop: 0 }}>
               Paste a JSON object of attribute → value pairs from a real IdP
               assertion. The preview will resolve email / role using the
               current mapping. Sample is never persisted.
             </p>
             <textarea
-              style={{
-                ...inputStyle,
-                fontFamily:
+              className="app-input" style={{ fontFamily:
                   "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                 fontSize: 12,
                 minHeight: 80,
-                resize: "vertical",
-              }}
+                resize: "vertical" }}
               value={sampleRaw}
               onChange={(e) => setSampleRaw(e.target.value)}
               placeholder='{"email": "ops@acme.com", "groups": "platform-admins"}'
@@ -481,7 +468,7 @@ function SamlMappingContent() {
                   ? "Save (requires step-up)"
                   : "Save mapping"}
             </Button>
-            <span style={{ ...mutedStyle, marginLeft: "auto" }}>
+            <span className="app-field-help" style={{ marginLeft: "auto" }}>
               {preview
                 ? preview.privilegeAffecting
                   ? "⚠ Privilege-affecting change detected"
@@ -526,23 +513,15 @@ function FieldEditor({
           {descriptor.label}
         </label>
         {descriptor.privilegeAffecting ? (
-          <span
-            style={badgeStyle({
-              bg: "#fef3c7",
-              fg: "#78350f",
-              border: "#fde68a",
-            })}
-          >
-            PRIV
-          </span>
+          <Badge tone="pending">PRIV</Badge>
         ) : null}
       </div>
-      <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 6 }}>
+      <p className="app-field-help" style={{ marginTop: 0, marginBottom: 6 }}>
         {descriptor.description}
       </p>
       {descriptor.kind === "enum" && descriptor.enumValues ? (
         <select
-          style={selectStyle}
+          className="app-select"
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value || null)}
         >
@@ -555,7 +534,7 @@ function FieldEditor({
         </select>
       ) : (
         <input
-          style={inputStyle}
+          className="app-input"
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value || null)}
           placeholder={descriptor.suggestions[0] ?? ""}
@@ -598,27 +577,27 @@ function GroupRoleMapEditor({
           purpose="Add a mapping to grant a role based on an IdP group claim. Without a mapping, the default role applies to every user."
         />
       ) : (
-        <table style={tableStyle}>
+        <table className="app-table">
           <thead>
             <tr>
-              <th style={thStyle}>Group claim value</th>
-              <th style={thStyle}>Role</th>
-              <th style={thStyle}>Actions</th>
+              <th >Group claim value</th>
+              <th >Role</th>
+              <th >Actions</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((e, i) => (
               <tr key={i}>
-                <td style={tdStyle}>
+                <td >
                   <input
-                    style={inputStyle}
+                    className="app-input"
                     value={e.group}
                     onChange={(ev) => update(i, { group: ev.target.value })}
                   />
                 </td>
-                <td style={tdStyle}>
+                <td >
                   <select
-                    style={selectStyle}
+                    className="app-select"
                     value={e.role}
                     onChange={(ev) =>
                       update(i, {
@@ -632,7 +611,7 @@ function GroupRoleMapEditor({
                     <option value="VIEWER">VIEWER</option>
                   </select>
                 </td>
-                <td style={tdStyle}>
+                <td >
                   <Button
                     variant="ghost"
                     size="sm"
@@ -661,67 +640,56 @@ function GroupRoleMapEditor({
 function PreviewPanel({ preview }: { preview: SamlMappingPreview }) {
   return (
     <Card variant="summary">
-      <h3 style={{ ...sectionTitleStyle, marginTop: 0 }}>Preview</h3>
+      <h3 className="app-subhead" style={{ marginTop: 0 }}>Preview</h3>
       {preview.warnings.length > 0 ? (
         <ul style={{ margin: "0 0 12px", padding: "0 0 0 18px" }}>
           {preview.warnings.map((w) => (
             <li key={w.code} style={{ marginBottom: 6 }}>
-              <span
-                style={badgeStyle({
-                  bg:
-                    w.code === "GROUP_ROLE_INCLUDES_OWNER_OR_ADMIN" ||
-                    w.code === "EXTERNAL_ID_OVERRIDE_RISKY"
-                      ? "#fef2f2"
-                      : "#fef3c7",
-                  fg:
-                    w.code === "GROUP_ROLE_INCLUDES_OWNER_OR_ADMIN" ||
-                    w.code === "EXTERNAL_ID_OVERRIDE_RISKY"
-                      ? "#991b1b"
-                      : "#78350f",
-                  border:
-                    w.code === "GROUP_ROLE_INCLUDES_OWNER_OR_ADMIN" ||
-                    w.code === "EXTERNAL_ID_OVERRIDE_RISKY"
-                      ? "#fecaca"
-                      : "#fde68a",
-                })}
+              <Badge
+                tone={
+                  w.code === "GROUP_ROLE_INCLUDES_OWNER_OR_ADMIN" ||
+                  w.code === "EXTERNAL_ID_OVERRIDE_RISKY"
+                    ? "risk"
+                    : "pending"
+                }
               >
                 {w.code}
-              </span>{" "}
+              </Badge>{" "}
               <span style={{ fontSize: 13 }}>{w.message}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p style={{ ...mutedStyle, marginTop: 0 }}>
+        <p className="app-field-help" style={{ marginTop: 0 }}>
           No warnings. Mapping change is operationally safe.
         </p>
       )}
 
-      <h4 style={{ ...sectionTitleStyle, marginTop: 16 }}>Diff</h4>
+      <h4 className="app-subhead" style={{ marginTop: 16 }}>Diff</h4>
       {preview.changes.length === 0 ? (
-        <p style={mutedStyle}>No changes vs. current mapping.</p>
+        <p className="app-field-help">No changes vs. current mapping.</p>
       ) : (
-        <table style={tableStyle}>
+        <table className="app-table">
           <thead>
             <tr>
-              <th style={thStyle}>Field</th>
-              <th style={thStyle}>Before</th>
-              <th style={thStyle}>After</th>
+              <th >Field</th>
+              <th >Before</th>
+              <th >After</th>
             </tr>
           </thead>
           <tbody>
             {preview.changes.map((c) => (
               <tr key={c.field}>
-                <td style={tdStyle}>
+                <td >
                   <code style={{ fontFamily: "monospace", fontSize: 12 }}>
                     {c.field}
                   </code>
                 </td>
-                <td style={tdStyle}>
+                <td >
                   <span style={{ fontSize: 12 }}>{c.before ?? "—"}</span>
                 </td>
-                <td style={tdStyle}>
-                  <span style={{ fontSize: 12, color: TOKENS.ink }}>
+                <td >
+                  <span style={{ fontSize: 12, color: "var(--ink-primary)" }}>
                     {c.after ?? "—"}
                   </span>
                 </td>
@@ -733,39 +701,39 @@ function PreviewPanel({ preview }: { preview: SamlMappingPreview }) {
 
       {preview.sampleResolution ? (
         <>
-          <h4 style={{ ...sectionTitleStyle, marginTop: 16 }}>
+          <h4 className="app-subhead" style={{ marginTop: 16 }}>
             Sample resolution
           </h4>
-          <table style={tableStyle}>
+          <table className="app-table">
             <tbody>
               <tr>
-                <td style={tdStyle}>email</td>
-                <td style={tdStyle}>
+                <td >email</td>
+                <td >
                   {preview.sampleResolution.email ?? "—"}
                 </td>
               </tr>
               <tr>
-                <td style={tdStyle}>name</td>
-                <td style={tdStyle}>
+                <td >name</td>
+                <td >
                   {preview.sampleResolution.name ?? "—"}
                 </td>
               </tr>
               <tr>
-                <td style={tdStyle}>externalId</td>
-                <td style={tdStyle}>
+                <td >externalId</td>
+                <td >
                   {preview.sampleResolution.externalId ?? "—"}
                 </td>
               </tr>
               <tr>
-                <td style={tdStyle}>resolved role</td>
-                <td style={tdStyle}>
+                <td >resolved role</td>
+                <td >
                   <strong>{preview.sampleResolution.role}</strong>
                   {preview.sampleResolution.matchedGroup ? (
-                    <span style={{ ...mutedStyle, marginLeft: 8 }}>
+                    <span className="app-field-help" style={{ marginLeft: 8 }}>
                       (via group {preview.sampleResolution.matchedGroup})
                     </span>
                   ) : (
-                    <span style={{ ...mutedStyle, marginLeft: 8 }}>
+                    <span className="app-field-help" style={{ marginLeft: 8 }}>
                       (default fallback)
                     </span>
                   )}

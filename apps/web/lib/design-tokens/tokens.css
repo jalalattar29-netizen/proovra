@@ -411,6 +411,66 @@
   --status-ok-fg: var(--success-standard);
   --status-warn-fg: var(--orange-ink);
 
+  /* ------------------------------------------------------------------
+   * THE BADGE TONE PALETTE — THE SEVENTH DUPLICATE, MOVED HOME
+   *
+   * The product's status chip palette existed in THREE places at once, and
+   * this file was not one of them:
+   *
+   *   1. globals.css `:root`      24 hex declarations  <-- what rendered
+   *   2. components/ui/Badge.tsx  24 `var(--x, #hex)` fallbacks
+   *   3. components/ui/StatusBadge.tsx  the same six pairs as bare hex
+   *
+   * Exactly the shadowing this file's header already describes for radius,
+   * shadow and surface-muted: globals.css imports this file and then
+   * re-declares, so globals.css won and the other two were dead.
+   *
+   * DEAD AND DISAGREEING, WHICH IS THE PART THAT MATTERS. Badge's fallback
+   * for PENDING's foreground was #EA580C; the value that actually rendered
+   * was globals.css's #78350F. On the #FEF3C7 ground those measure 3.20:1
+   * and 8.15:1 — one fails WCAG AA for the 11px label a badge carries and
+   * the other passes comfortably. Nothing was broken, because the failing
+   * one was never reached; but the file that looked like the definition
+   * held the failing value, so deleting the globals block "to remove a
+   * duplicate" would have silently dropped every pending chip in the
+   * product to 3.20:1.
+   *
+   * The values below are the ones that were RENDERING. This is a move, not
+   * a re-colour: verified 7.29:1, pending 8.15:1, risk 7.60:1, neutral
+   * 6.92:1, governance 6.92:1, info 8.01:1 — all AA or better as declared.
+   * `solid` is the dot, which is decoration beside a text label and is not
+   * held to a text ratio.
+   * ------------------------------------------------------------------ */
+  --status-verified-bg: #ECFDF5;
+  --status-verified-fg: #065F46;
+  --status-verified-border: #A7F3D0;
+  --status-verified-solid: #10B981;
+
+  --status-pending-bg: #FEF3C7;
+  --status-pending-fg: #78350F;
+  --status-pending-border: #FDE68A;
+  --status-pending-solid: #F59E0B;
+
+  --status-risk-bg: #FEF2F2;
+  --status-risk-fg: #991B1B;
+  --status-risk-border: #FECACA;
+  --status-risk-solid: #DC2626;
+
+  --status-neutral-bg: #F1F5F9;
+  --status-neutral-fg: #475569;
+  --status-neutral-border: #CBD5E1;
+  --status-neutral-solid: #64748B;
+
+  --status-governance-bg: #EEEBFF;
+  --status-governance-fg: #4634C9;
+  --status-governance-border: #D6CFFB;
+  --status-governance-solid: #7C3AED;
+
+  --status-info-bg: #EFF6FF;
+  --status-info-fg: #1E40AF;
+  --status-info-border: #BFDBFE;
+  --status-info-solid: #2563EB;
+
 
   /* ------------------------------------------------------------------
    * LAYOUT

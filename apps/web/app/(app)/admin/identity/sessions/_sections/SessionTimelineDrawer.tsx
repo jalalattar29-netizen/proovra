@@ -36,7 +36,7 @@ import {
   classifyError,
   type SectionState,
 } from "../../../security/_sections/section-state";
-import { formatDateTime } from "../../ui-tokens";
+import { formatCellDateTime } from "../../../../../../lib/date";
 
 type IdentityTimelineEvent = {
   id: string;
@@ -156,21 +156,21 @@ export function SessionTimelineDrawer({
               items={[
                 {
                   label: "Signed in",
-                  value: formatDateTime(state.data.session.issuedAtUtc),
+                  value: formatCellDateTime(state.data.session.issuedAtUtc),
                 },
                 {
                   label: "Expires",
-                  value: formatDateTime(state.data.session.expiresAtUtc),
+                  value: formatCellDateTime(state.data.session.expiresAtUtc),
                 },
                 {
                   label: "Last seen",
-                  value: formatDateTime(state.data.session.lastSeenAtUtc),
+                  value: formatCellDateTime(state.data.session.lastSeenAtUtc),
                 },
                 ...(state.data.session.revokedAtUtc
                   ? [
                       {
                         label: "Revoked",
-                        value: `${formatDateTime(
+                        value: `${formatCellDateTime(
                           state.data.session.revokedAtUtc,
                         )} (${
                           state.data.session.revocationReason ?? "unspecified"
@@ -226,7 +226,7 @@ export function SessionTimelineDrawer({
                     </div>
                     <div className="adm-timeline__summary">{e.summary}</div>
                     <div className="adm-timeline__when">
-                      {formatDateTime(e.occurredAtUtc)}
+                      {formatCellDateTime(e.occurredAtUtc)}
                     </div>
                   </li>
                 ))}

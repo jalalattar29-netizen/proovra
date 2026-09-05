@@ -55,7 +55,7 @@ import {
   sectionMuted,
   type SectionState,
 } from "../../../security/_sections/section-state";
-import { formatDateTime } from "../../ui-tokens";
+import { formatCellDateTime } from "../../../../../../lib/date";
 
 type TrustedDevice = {
   id: string;
@@ -246,13 +246,13 @@ export function TrustedDevicesSection() {
       key: "until",
       header: "Trusted until",
       nowrap: true,
-      render: (d) => <span style={sectionMuted}>{formatDateTime(d.trustedUntilUtc)}</span>,
+      render: (d) => <span style={sectionMuted}>{formatCellDateTime(d.trustedUntilUtc)}</span>,
     },
     {
       key: "seen",
       header: "Last seen",
       nowrap: true,
-      render: (d) => <span style={sectionMuted}>{formatDateTime(d.lastSeenAtUtc)}</span>,
+      render: (d) => <span style={sectionMuted}>{formatCellDateTime(d.lastSeenAtUtc)}</span>,
     },
   ];
 

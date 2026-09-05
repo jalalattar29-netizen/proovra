@@ -43,7 +43,10 @@ import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
-import { TOKENS, badgeStyle, formatDateTime } from "../../identity/ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
+import {
+  AdmOverlay,
+} from "../../../../../components/admin/AdminSurfaces";
 
 // ============================================================================
 // Types (mirror the backend response shapes)
@@ -282,12 +285,12 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
   }
   const palette =
     status.mode === "verified"
-      ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
+      ? "verified"
       : status.mode === "claimed-but-unsupported"
-        ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
+        ? "risk"
         : status.mode === "skipped"
-          ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
-          : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" };
+          ? "pending"
+          : "neutral";
   return (
     <section
       className="adm-card" style={{ marginTop: 16 }}
@@ -295,9 +298,9 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
     >
       <h2 className="apf-section-title">S3 Object Lock platform status</h2>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <span style={badgeStyle(palette)} data-testid="object-lock-badge">
+        <Badge tone={palette} data-testid="object-lock-badge">
           {status.mode}
-        </span>
+        </Badge>
         {status.mode === "verified" ? (
           <span className="apf-muted">
             Bucket {status.bucket}
@@ -320,7 +323,7 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
         )}
       </div>
       <p className="adm-help" style={{ marginTop: 8 }}>
-        Checked {formatDateTime(status.checkedAtUtc)}.
+        Checked {formatCellDateTime(status.checkedAtUtc)}.
       </p>
     </section>
   );
@@ -384,7 +387,7 @@ function ExportListTable({
                   key={it.exportId}
                   style={
                     isSelected
-                      ? { background: TOKENS.surfaceMuted }
+                      ? { background: "var(--surface-muted)" }
                       : undefined
                   }
                 >
@@ -394,7 +397,7 @@ function ExportListTable({
                   <td>v{it.exportVersion}</td>
                   <td>
                     <span className="apf-muted">
-                      {formatDateTime(it.generatedAtUtc)}
+                      {formatCellDateTime(it.generatedAtUtc)}
                     </span>
                   </td>
                   <td>
@@ -527,38 +530,14 @@ function ExportDrawer({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-label="Export details"
-      data-testid="export-drawer"
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        height: "100vh",
-        width: "min(640px, 100vw)",
-        background: TOKENS.surface,
-        borderInlineStart: `1px solid ${TOKENS.border}`,
-        boxShadow: "0 0 40px rgba(15,23,42,0.1)",
-        zIndex: 50,
-        overflowY: "auto",
-        padding: 20,
-      }}
+    <AdmOverlay
+      shape="drawer"
+      title="Export detail"
+      subtitle="The manifest this export was produced from, and the checks that were run against it."
+      onClose={onClose}
+      testId="export-drawer"
     >
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 12,
-        }}
-      >
-        <h2 style={{ fontSize: 16, margin: 0 }}>Export detail</h2>
-        <button type="button" className="apf-control" onClick={onClose}>
-          Close
-        </button>
-      </header>
-
+      
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
 
       {!envelope ? (
@@ -592,7 +571,7 @@ function ExportDrawer({
                   <tr>
                     <td>generatedAtUtc</td>
                     <td>
-                      {formatDateTime(envelope.manifest.generatedAtUtc)}
+                      {formatCellDateTime(envelope.manifest.generatedAtUtc)}
                     </td>
                   </tr>
                   <tr>
@@ -638,7 +617,7 @@ function ExportDrawer({
                   <tr>
                     <td>signed at</td>
                     <td>
-                      {formatDateTime(
+                      {formatCellDateTime(
                         envelope.manifest.signing.artifactSignedAtUtc,
                       )}
                     </td>
@@ -684,8 +663,8 @@ function ExportDrawer({
             <h2 className="apf-section-title">Canonical manifest JSON</h2>
             <pre
               style={{
-                background: TOKENS.surfaceMuted,
-                border: `1px solid ${TOKENS.border}`,
+                background: "var(--surface-muted)",
+                border: `1px solid var(--border-default)`,
                 borderRadius: 6,
                 padding: 10,
                 fontSize: 11,
@@ -706,7 +685,7 @@ function ExportDrawer({
           </section>
         </>
       )}
-    </div>
+    </AdmOverlay>
   );
 }
 
@@ -717,19 +696,19 @@ function ReproducibilityResultPanel({
 }) {
   const palette =
     report.outcome === "match"
-      ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
+      ? "verified"
       : report.outcome === "artifact_missing"
-        ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
+        ? "risk"
         : report.outcome === "artifact_drift"
-          ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
+          ? "risk"
           : report.outcome === "retention_drift"
-            ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
-            : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" };
+            ? "pending"
+            : "neutral";
   return (
     <div>
-      <span style={badgeStyle(palette)} data-testid="verify-outcome">
+      <Badge tone={palette} data-testid="verify-outcome">
         {report.outcome}
-      </span>
+      </Badge>
       <p style={{ marginTop: 8, fontSize: 13 }}>{report.summary}</p>
       {report.checks.length > 0 ? (
         <div className="apf-table-wrap">
@@ -776,7 +755,7 @@ function ReproducibilityResultPanel({
         </div>
       ) : null}
       <p className="adm-help" style={{ marginTop: 6 }}>
-        Verified {formatDateTime(report.verifiedAtUtc)}.
+        Verified {formatCellDateTime(report.verifiedAtUtc)}.
       </p>
     </div>
   );

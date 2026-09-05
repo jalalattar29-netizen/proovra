@@ -61,7 +61,7 @@ import {
 } from "../../../../../components/admin/AdminSurfaces";
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
-import { TOKENS, badgeStyle, formatDateTime } from "../../identity/ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
 
 // ============================================================================
 // Types
@@ -840,7 +840,7 @@ function SignerDetailDrawer({
             {signer.activatedAtUtc ? (
               <tr>
                 <td>activatedAtUtc</td>
-                <td>{formatDateTime(signer.activatedAtUtc)}</td>
+                <td>{formatCellDateTime(signer.activatedAtUtc)}</td>
               </tr>
             ) : null}
           </tbody>
@@ -860,21 +860,17 @@ function SignerDetailDrawer({
         </button>
         {health ? (
           <div style={{ marginTop: 8 }}>
-            <span
-              style={badgeStyle(
-                health.health === "healthy"
-                  ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
+            <Badge tone={health.health === "healthy"
+                  ? "verified"
                   : health.health === "unreachable" ||
                       health.health === "key_disabled"
-                    ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
-                    : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
-              )}
-            >
+                    ? "risk"
+                    : "pending"}>
               {health.health}
-            </span>
+            </Badge>
             <p className="adm-help" style={{ marginTop: 6 }}>
               {health.reason ? `Reason: ${health.reason}. ` : ""}
-              Checked {formatDateTime(health.checkedAtUtc)}.
+              Checked {formatCellDateTime(health.checkedAtUtc)}.
             </p>
             {health.recommendedAction ? (
               <p style={{ fontSize: 12 }}>
@@ -897,15 +893,11 @@ function SignerDetailDrawer({
         </button>
         {preview ? (
           <div style={{ marginTop: 8 }}>
-            <span
-              style={badgeStyle(
-                preview.compatibility === "compatible"
-                  ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
-                  : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
-              )}
-            >
+            <Badge tone={preview.compatibility === "compatible"
+                  ? "verified"
+                  : "pending"}>
               {preview.compatibility}
-            </span>
+            </Badge>
             <ul style={{ marginTop: 8, fontSize: 12, paddingInlineStart: 18 }}>
               {preview.warnings.map((w) => (
                 <li key={w}>
@@ -979,7 +971,7 @@ function SignerDetailDrawer({
                   <tr key={e.id}>
                     <td>
                       <span className="apf-muted">
-                        {formatDateTime(e.occurredAtUtc)}
+                        {formatCellDateTime(e.occurredAtUtc)}
                       </span>
                     </td>
                     <td>
@@ -1042,7 +1034,7 @@ function CustodyAttestationsPanel({
       <div
         style={{
           padding: 12,
-          borderBottom: `1px solid ${TOKENS.border}`,
+          borderBottom: `1px solid var(--border-default)`,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -1122,7 +1114,7 @@ function CustodyAttestationsPanel({
                   </td>
                   <td>
                     <span className="apf-muted">
-                      {formatDateTime(a.signedAtUtc)}
+                      {formatCellDateTime(a.signedAtUtc)}
                     </span>
                   </td>
                   <td>
@@ -1148,22 +1140,18 @@ function CustodyAttestationsPanel({
         <div
           style={{
             padding: 12,
-            borderTop: `1px solid ${TOKENS.border}`,
-            background: TOKENS.surfaceMuted,
+            borderTop: `1px solid var(--border-default)`,
+            background: "var(--surface-muted)",
           }}
           data-testid="verify-result"
         >
-          <span
-            style={badgeStyle(
-              verifyResult.outcome === "verified"
-                ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
+          <Badge tone={verifyResult.outcome === "verified"
+                ? "verified"
                 : verifyResult.outcome === "missing_attestation"
-                  ? { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" }
-                  : { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" },
-            )}
-          >
+                  ? "neutral"
+                  : "risk"}>
             {verifyResult.outcome}
-          </span>
+          </Badge>
           <p style={{ marginTop: 6, fontSize: 13 }}>{verifyResult.summary}</p>
           {verifyResult.attestation ? (
             <p className="adm-help" style={{ fontSize: 11 }}>

@@ -50,7 +50,8 @@ import {
 } from "../../../../../components/admin/AdminSurfaces";
 import { ManagedMembershipSection } from "./_sections/ManagedMembershipSection";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
-import { TOKENS, successBoxStyle, badgeStyle, statusBadgeStyle, formatDateTime } from "../ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
+import { statusTone } from "../../../../../components/ui/StatusBadge";
 
 // ============================================================================
 // PHASE 12B — denial classification.
@@ -613,7 +614,7 @@ function TokensTab({ teamId }: { teamId: string }) {
     {
       key: "status",
       header: "Status",
-      render: (t) => <span style={statusBadgeStyle(t.status)}>{t.status}</span>,
+      render: (t) => <Badge tone={statusTone(t.status)}>{t.status}</Badge>,
     },
     {
       key: "scopes",
@@ -626,13 +627,13 @@ function TokensTab({ teamId }: { teamId: string }) {
       key: "lastused",
       header: "Last used",
       nowrap: true,
-      render: (t) => <span className="adm-help">{formatDateTime(t.lastUsedAtUtc)}</span>,
+      render: (t) => <span className="adm-help">{formatCellDateTime(t.lastUsedAtUtc)}</span>,
     },
     {
       key: "created",
       header: "Created",
       nowrap: true,
-      render: (t) => <span className="adm-help">{formatDateTime(t.createdAt)}</span>,
+      render: (t) => <span className="adm-help">{formatCellDateTime(t.createdAt)}</span>,
     },
   ];
 
@@ -670,7 +671,7 @@ function TokensTab({ teamId }: { teamId: string }) {
       {denial ? <ScimDenialPanel denial={denial} /> : null}
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {revealedToken ? (
-        <div style={successBoxStyle}>
+        <Card variant="status" tone="verified" padding="compact">
           <strong>Token issued.</strong> Copy now — this is the only time it
           will be shown:{" "}
           <code style={{ fontFamily: "monospace" }}>{revealedToken}</code>
@@ -679,7 +680,7 @@ function TokensTab({ teamId }: { teamId: string }) {
           >
             Dismiss
           </Button>
-        </div>
+        </Card>
       ) : null}
 
       {denial || canProvision ? null : (
@@ -781,7 +782,7 @@ function TokensTab({ teamId }: { teamId: string }) {
               flexDirection: "column",
               gap: 4,
               fontSize: 12,
-              color: TOKENS.inkMuted,
+              color: "var(--ink-secondary)",
               maxWidth: 360,
             }}
           >
@@ -823,9 +824,9 @@ function TokensTab({ teamId }: { teamId: string }) {
                       fontSize: 11,
                       borderRadius: 999,
                       border: "1px solid",
-                      background: active ? TOKENS.accent : TOKENS.surface,
-                      color: active ? TOKENS.accentInk : "var(--ink-secondary)",
-                      borderColor: active ? TOKENS.accent : "var(--border-standard)",
+                      background: active ? "var(--accent-500)" : "var(--surface-card)",
+                      color: active ? "var(--ink-inverse)" : "var(--ink-secondary)",
+                      borderColor: active ? "var(--accent-500)" : "var(--border-standard)",
                       cursor: "pointer",
                     }}
                   >
@@ -1013,13 +1014,13 @@ function DriftTab({ teamId }: { teamId: string }) {
       {denial ? <ScimDenialPanel denial={denial} /> : null}
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {result ? (
-        <div style={successBoxStyle}>
+        <Card variant="status" tone="verified" padding="compact">
           <strong>Reconciliation complete.</strong> Applied{" "}
           {result.appliedCount}, skipped {result.skippedCount}.{" "}
           {result.details.some((d) => d.outcome === "FAILED")
             ? "Some rows failed — see audit center for details."
             : null}
-        </div>
+        </Card>
       ) : null}
 
       {denial ? null : report ? (
@@ -1058,7 +1059,7 @@ function DriftTab({ teamId }: { teamId: string }) {
             <div>
               <div className="adm-help">Preview generated</div>
               <div style={{ fontSize: 13, fontWeight: 500 }}>
-                {formatDateTime(report.generatedAtUtc)}
+                {formatCellDateTime(report.generatedAtUtc)}
               </div>
             </div>
             <div style={{ marginInlineStart: "auto" }}>
@@ -1276,7 +1277,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
       key: "occurred",
       header: "Occurred",
       nowrap: true,
-      render: (f) => <span className="adm-help">{formatDateTime(f.occurredAtUtc)}</span>,
+      render: (f) => <span className="adm-help">{formatCellDateTime(f.occurredAtUtc)}</span>,
     },
     {
       key: "type",
@@ -1289,17 +1290,13 @@ function ReplayTab({ teamId }: { teamId: string }) {
       key: "severity",
       header: "Severity",
       render: (f) => (
-        <span
-          style={badgeStyle(
-            f.severity === "HIGH"
-              ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
+        <Badge tone={f.severity === "HIGH"
+              ? "risk"
               : f.severity === "WARNING"
-                ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
-                : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" },
-          )}
-        >
+                ? "pending"
+                : "neutral"}>
           {f.severity}
-        </span>
+        </Badge>
       ),
     },
     {

@@ -46,8 +46,14 @@ for (const route of routes) {
   await page.waitForTimeout(1200);
 
   const result = await page.evaluate(() => {
-    const probe = document.createElement("div");
-    probe.className = "adm-card";
+    /* The console's stylesheet is loaded by the admin LAYOUT, so `.adm-card`
+       only exists under /admin. A Security Center page is on the product's
+       shared `app-*` primitives instead, and probing it for `.adm-card` would
+       report a missing stylesheet on a page that is styled correctly. Probe
+       whichever system the route is supposed to be on. */
+    const admin = location.pathname.startsWith("/admin");
+    const probe = document.createElement(admin ? "div" : "input");
+    probe.className = admin ? "adm-card" : "app-input";
     document.body.appendChild(probe);
     const probeBorder = getComputedStyle(probe).borderTopWidth;
     probe.remove();

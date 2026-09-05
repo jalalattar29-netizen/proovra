@@ -214,33 +214,8 @@ const labelStyle = {
   color: "var(--ink-primary)",
 } as const;
 
-const mutedStyle = {
-  fontSize: 12.5,
-  lineHeight: 1.55,
-  color: "var(--ink-secondary)",
-} as const;
 
-const errorBoxStyle = {
-  marginTop: 14,
-  padding: "12px 14px",
-  background: "var(--status-risk-bg)",
-  color: "var(--status-risk-fg)",
-  border: "1px solid var(--status-risk-border)",
-  borderRadius: 10,
-  fontSize: 13,
-  lineHeight: 1.5,
-} as const;
 
-const successBoxStyle = {
-  marginTop: 14,
-  padding: "12px 14px",
-  background: "var(--status-verified-bg)",
-  color: "var(--status-verified-fg)",
-  border: "1px solid var(--status-verified-border)",
-  borderRadius: 10,
-  fontSize: 13,
-  lineHeight: 1.55,
-} as const;
 
 const fieldGridStyle = {
   display: "grid",
@@ -533,17 +508,17 @@ function ProvisionPanel({
       </div>
 
       {error ? (
-        <div style={errorBoxStyle} data-testid="provision-error">
+        <Card variant="status" tone="risk" padding="compact" data-testid="provision-error">
           {error}
-        </div>
+        </Card>
       ) : null}
 
       {result ? (
         isProvisioned(result) ? (
-          <div style={successBoxStyle} data-testid="provision-success-created">
+          <Card variant="status" tone="verified" padding="compact" data-testid="provision-success-created">
             <strong>Enterprise workspace created.</strong> The owner{" "}
             <span className="adm-mono">{ownerEmail.trim()}</span> can sign in now.
-            <div style={{ marginTop: 8, ...mutedStyle }}>
+            <div className="adm-help" style={{ marginTop: 8 }}>
               Organization id:{" "}
               <span className="adm-mono">{result.organizationId}</span>
               <br />
@@ -552,9 +527,9 @@ function ProvisionPanel({
               Owner user id:{" "}
               <span className="adm-mono">{result.ownerUserId}</span>
             </div>
-          </div>
+          </Card>
         ) : (
-          <div style={successBoxStyle} data-testid="provision-success-pending">
+          <Card variant="status" tone="verified" padding="compact" data-testid="provision-success-pending">
             <strong>Owner invited.</strong>{" "}
             {result.ownerInviteDelivery?.status === "SENT"
               ? "The invitation email was sent to the owner automatically."
@@ -569,7 +544,7 @@ function ProvisionPanel({
               <div
                 data-testid="provision-invite-delivery"
                 data-delivery-status={result.ownerInviteDelivery.status}
-                style={{ marginTop: 6, ...mutedStyle }}
+                className="adm-help" style={{ marginTop: 6 }}
               >
                 Email delivery: {result.ownerInviteDelivery.status.toLowerCase()}
               </div>
@@ -600,7 +575,7 @@ function ProvisionPanel({
                 {copied ? "Copied" : "Copy invite URL"}
               </Button>
             </div>
-          </div>
+          </Card>
         )
       ) : null}
 
@@ -764,22 +739,22 @@ function GrantPlanPanel({
       </div>
 
       {error ? (
-        <div style={errorBoxStyle} data-testid="grant-error">
+        <Card variant="status" tone="risk" padding="compact" data-testid="grant-error">
           {error}
-        </div>
+        </Card>
       ) : null}
 
       {result ? (
-        <div style={successBoxStyle} data-testid="grant-success">
+        <Card variant="status" tone="verified" padding="compact" data-testid="grant-success">
           <strong>ENTERPRISE granted.</strong> Updated{" "}
           {result.workspacesUpdated} workspace
           {result.workspacesUpdated === 1 ? "" : "s"} with{" "}
           {result.seats} seat{result.seats === 1 ? "" : "s"}.
-          <div style={{ marginTop: 8, ...mutedStyle }}>
+          <div className="adm-help" style={{ marginTop: 8 }}>
             Organization id:{" "}
             <span className="adm-mono">{result.organizationId}</span>
           </div>
-        </div>
+        </Card>
       ) : null}
 
       <StepUpModal control={stepUp} />

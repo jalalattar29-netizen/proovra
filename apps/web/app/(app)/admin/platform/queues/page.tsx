@@ -46,10 +46,11 @@ import {
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import {
   AdmInline,
+  AdmOverlay,
 } from "../../../../../components/admin/AdminSurfaces";
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
-import { TOKENS, badgeStyle, formatDateTime } from "../../identity/ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
 
 type QueueInventoryItem = {
   queueName: string;
@@ -415,9 +416,9 @@ function QueueOverviewCards({
               cursor: "pointer",
               textAlign: "left",
               border: isSelected
-                ? `2px solid ${TOKENS.accent}`
-                : `1px solid ${TOKENS.border}`,
-              background: TOKENS.surface,
+                ? `2px solid var(--accent-500)`
+                : `1px solid var(--border-default)`,
+              background: "var(--surface-card)",
               padding: 12,
             }}
           >
@@ -450,7 +451,7 @@ function QueueOverviewCards({
               </span>
               <span
                 style={{
-                  color: q.counts.failed > 0 ? "var(--danger-strong)" : TOKENS.inkMuted,
+                  color: q.counts.failed > 0 ? "var(--danger-strong)" : "var(--ink-secondary)",
                 }}
               >
                 <strong>{q.counts.failed}</strong> failed
@@ -514,15 +515,11 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
                   </code>
                 </td>
                 <td>
-                  <span
-                    style={badgeStyle(
-                      w.status === "missing"
-                        ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
-                        : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
-                    )}
-                  >
+                  <Badge tone={w.status === "missing"
+                        ? "risk"
+                        : "pending"}>
                     {w.status}
-                  </span>
+                  </Badge>
                 </td>
                 <td>{w.stalledCount}</td>
                 <td>
@@ -576,7 +573,7 @@ function FailedJobsPanel({
       <div
         style={{
           padding: 12,
-          borderBottom: `1px solid ${TOKENS.border}`,
+          borderBottom: `1px solid var(--border-default)`,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -627,7 +624,7 @@ function FailedJobsPanel({
                     </td>
                     <td>
                       <span className="apf-muted">
-                        {formatDateTime(j.failedAtUtc)}
+                        {formatCellDateTime(j.failedAtUtc)}
                       </span>
                     </td>
                     <td>
@@ -639,7 +636,7 @@ function FailedJobsPanel({
                         style={{
                           fontSize: 11,
                           fontFamily: "monospace",
-                          color: TOKENS.inkMuted,
+                          color: "var(--ink-secondary)",
                         }}
                       >
                         {j.failureReason}
@@ -701,43 +698,19 @@ function ReplayDialog({
   busy: boolean;
 }) {
   return (
-    <div
-      role="dialog"
-      aria-label="Replay job"
-      data-testid="replay-dialog"
-      style={{
-        position: "fixed",
-        right: 20,
-        bottom: 20,
-        width: 420,
-        background: TOKENS.surface,
-        border: `1px solid ${TOKENS.borderStrong}`,
-        borderRadius: 8,
-        boxShadow: "0 8px 24px rgba(15,23,42,0.15)",
-        padding: 16,
-        zIndex: 60,
-      }}
-    >
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <strong style={{ fontSize: 14 }}>Replay job</strong>
-        <button type="button" className="apf-control" onClick={onCancel}>
-          Close
-        </button>
-      </header>
-      <p className="adm-help" style={{ marginTop: 8 }}>
-        <code style={{ fontFamily: "monospace", fontSize: 11 }}>
-          {target.jobName} · {target.jobId.slice(0, 24)}
-        </code>
-        <span style={{ marginInlineStart: 8 }}>
+    <AdmOverlay
+      shape="dialog"
+      title="Replay job"
+      subtitle={
+        <>
+          <span className="adm-mono">{target.jobName}</span>{" "}
+          <span className="adm-mono">{target.jobId.slice(0, 24)}</span>{" "}
           <Badge tone={categoryBadge(target.category)}>{target.category}</Badge>
-        </span>
-      </p>
+        </>
+      }
+      onClose={onCancel}
+      testId="replay-dialog"
+    >
       {/* What each button does to THIS job, before the operator picks one.
           The dialog is the confirmation for both actions: it names the job,
           demands a reason, and is the only way either request is sent. */}
@@ -786,6 +759,6 @@ function ReplayDialog({
           executes.
         </p>
       ) : null}
-    </div>
+    </AdmOverlay>
   );
 }

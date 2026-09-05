@@ -49,7 +49,7 @@ import { MembersSection, type MemberProjection } from "./_sections/MembersSectio
 import { ServiceAccountsSection } from "./_sections/ServiceAccountsSection";
 import { ExternalMappingsSection } from "./_sections/ExternalMappingsSection";
 import { SessionGovernanceSection } from "./_sections/SessionGovernanceSection";
-import { TOKENS } from "./ui-tokens";
+
 
 type Surface = {
   href: string;
@@ -239,7 +239,7 @@ function AdminIdentityConsoleInner() {
               data-admin-identity-card={s.canonicalPath}
               style={{
                 textDecoration: "none",
-                color: TOKENS.ink,
+                color: "var(--ink-primary)",
                 display: "block",
               }}
             >
@@ -262,7 +262,7 @@ function AdminIdentityConsoleInner() {
         <ul
           style={{
             fontSize: 12,
-            color: TOKENS.inkSubtle,
+            color: "var(--ink-muted)",
             margin: 0,
             paddingInlineStart: 18,
             lineHeight: 1.6,

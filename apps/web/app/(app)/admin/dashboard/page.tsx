@@ -8,6 +8,7 @@ import { Badge } from "../../../../components/ui/Badge";
 import {
   AdmInline,
   AdmKpi,
+  AdmSkeleton,
 } from "../../../../components/admin/AdminSurfaces";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
@@ -503,17 +504,14 @@ export default function AdminDashboardPage() {
           >
             {Array.from({ length: 8 }).map((_, i) => (
               <Card key={i} padding="comfortable" data-testid="admin-loading-tile">
-                <div
-                  aria-hidden="true"
-                  style={{
-                    height: 76,
-                    borderRadius: 10,
-                    background:
-                      "linear-gradient(90deg, var(--surface-muted) 25%, var(--border-default) 37%, var(--surface-muted) 63%)",
-                    backgroundSize: "400% 100%",
-                    animation: "pf-indeterminate-shimmer 1.4s ease infinite",
-                  }}
-                />
+                {/* The console's own skeleton, which is shaped like the KPI
+                    that replaces it and stops animating under
+                    prefers-reduced-motion. This tile had written the shimmer
+                    gradient out by hand, so it was the one skeleton in the
+                    console that kept moving for a person who had asked
+                    everything else to stop. */}
+                <AdmSkeleton shape="value" />
+                <AdmSkeleton shape="line" />
               </Card>
             ))}
           </div>

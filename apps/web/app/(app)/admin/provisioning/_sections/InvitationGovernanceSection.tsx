@@ -69,10 +69,6 @@ type Phase =
   | { kind: "error"; detail: string }
   | { kind: "ready"; invites: PendingInvite[]; totalPending: number };
 
-const monoStyle = {
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-  fontSize: 12,
-} as const;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -464,7 +460,7 @@ export function InvitationGovernanceSection({
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <input
                   readOnly
-                  className="adm-input" style={{ ...monoStyle, maxWidth: 480 }}
+                  className="adm-input" data-mono style={{ maxWidth: 480 }}
                   value={freshAcceptUrl.url}
                   onFocus={(e) => e.currentTarget.select()}
                 />

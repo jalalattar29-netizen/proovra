@@ -89,3 +89,22 @@ export function formatUtcDate(value?: string | Date | null): string {
   const parts = formatTimestampParts(value, "UTC");
   return parts ? parts.date : NOT_AVAILABLE;
 }
+
+/**
+ * A timestamp for a TABLE CELL: the viewer-timezone stamp, or an em dash.
+ *
+ * `formatUserDateTime` answers "Not available" for a missing value, which is
+ * the right answer in a fact list and the wrong one in a column of forty rows
+ * — thirteen characters of prose repeated down a cell that is trying to be
+ * scannable. Twelve admin surfaces had their own copy of this three-line
+ * wrapper, in `admin/identity/ui-tokens.ts`, alongside the console's second
+ * design system; the formatter had nothing to do with styling and outlived it.
+ */
+export function formatCellDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    return formatUserDateTime(iso);
+  } catch {
+    return iso;
+  }
+}

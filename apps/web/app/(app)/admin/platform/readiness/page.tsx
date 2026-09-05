@@ -47,7 +47,7 @@ import {
 import { Card } from "../../../../../components/ui/Card";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
-import { TOKENS } from "../../identity/ui-tokens";
+
 
 // ---------------------------------------------------------------------------
 // Response shape — matches
@@ -584,7 +584,7 @@ function RunbooksSection() {
             <li key={r.slug} style={{ marginBottom: 10 }}>
               <Link
                 href={`/admin/platform/runbooks/${r.slug}`}
-                style={{ color: TOKENS.link ?? "var(--info)", fontWeight: 600 }}
+                className="adm-link"
               >
                 {r.label}
               </Link>

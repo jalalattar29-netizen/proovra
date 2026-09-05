@@ -1962,3 +1962,89 @@ textarea.app-form-input {
     block-size: 18px;
   }
 }
+
+/* ==========================================================================
+ * FIELDS, AND A SECTION LABEL
+ *
+ * The product had `.app-field-label` and `.app-field-help` but no style for
+ * the CONTROL between them, so every page that needed a text field or a
+ * dropdown reached for an inline style object. Two Security Center surfaces
+ * were importing the ADMIN console's `identity/ui-tokens.ts` across the app to
+ * get one — a page in one product area consuming another area's private
+ * design module, which is how that module came to have consumers nobody could
+ * find.
+ *
+ * These are the missing shared definitions. Unlike an inline style they can
+ * carry the states a control needs: hover, focus, disabled, invalid.
+ * ========================================================================== */
+
+.app-input,
+.app-select,
+.app-textarea {
+  min-block-size: 44px;
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-standard);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--ink-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.app-textarea {
+  min-block-size: 88px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* A dropdown is content-sized: a status filter stretched to 100% of a flex row
+   is how a console ends up with a 640px "All statuses". */
+.app-select { inline-size: auto; padding-inline-end: 8px; }
+
+.app-input::placeholder,
+.app-textarea::placeholder { color: var(--ink-muted); }
+
+.app-input:hover,
+.app-select:hover,
+.app-textarea:hover { border-color: var(--border-strong); }
+
+.app-input:focus-visible,
+.app-select:focus-visible,
+.app-textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent-500);
+  box-shadow: var(--focus-ring);
+}
+
+.app-input:disabled,
+.app-select:disabled,
+.app-textarea:disabled {
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.app-input[aria-invalid="true"],
+.app-select[aria-invalid="true"],
+.app-textarea[aria-invalid="true"] { border-color: var(--danger-500); }
+
+/* An identifier, a key or a JSON body typed into a field must not mirror. */
+.app-input[data-mono],
+.app-textarea[data-mono] {
+  font-family: var(--font-mono);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* The label above a GROUP of fields or a block of content, as distinct from
+   `.app-field-label`, which names one control. */
+.app-subhead {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+}

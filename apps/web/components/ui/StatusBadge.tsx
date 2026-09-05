@@ -23,12 +23,25 @@ import type { CSSProperties } from "react";
 
 type Tone = "success" | "warning" | "danger" | "neutral" | "info";
 
-const TONE_PALETTE: Record<Tone, { bg: string; fg: string; border: string }> = {
-  success: { bg: "#ecfdf5", fg: "#065f46", border: "#a7f3d0" },
-  warning: { bg: "#fef3c7", fg: "#78350f", border: "#fde68a" },
-  danger: { bg: "#fef2f2", fg: "#991b1b", border: "#fecaca" },
-  neutral: { bg: "#f1f5f9", fg: "#475569", border: "#cbd5e1" },
-  info: { bg: "#eff6ff", fg: "#1e40af", border: "#bfdbfe" },
+/**
+ * The same six pairs `Badge` uses, named rather than repeated.
+ *
+ * These were bare hex — a fourth copy of the product's status palette, beside
+ * the one in `Badge.tsx` (as undeclared `var()` fallbacks), the one in
+ * `admin/identity/ui-tokens.ts` and the one in `tokens.css`. Four copies of
+ * six colours agree only for as long as nobody edits one of them.
+ *
+ * `warning`'s foreground moves with that consolidation: it was #78350F here
+ * and #EA580C in `Badge`, for the same amber ground. Neither survives; both
+ * are now `--status-pending-fg`, which is `--orange-ink` and measures 4.65:1
+ * on that ground.
+ */
+const TONE_TOKEN: Record<Tone, "verified" | "pending" | "risk" | "neutral" | "info"> = {
+  success: "verified",
+  warning: "pending",
+  danger: "risk",
+  neutral: "neutral",
+  info: "info",
 };
 
 /**
@@ -88,7 +101,22 @@ const STATUS_TO_TONE: Record<string, Tone> = {
   FAILED: "danger",
   REVOKED: "danger",
 
+  /* PHASE 7 — the upload-reliability lifecycle, which /admin/platform/
+     reliability had been colouring from a page-local copy of this map. Its
+     three terminal-bad states were not here, so routing that page through the
+     canonical map without adding them would have quietly repainted two
+     failures and one abandonment as informational blue.
+
+     STALLED and REVIEW_REQUIRED are DANGER because an operator has to act on
+     them: a stalled upload is not progressing and a review-required one is
+     holding evidence. ABANDONED is NEUTRAL — it is a finished, deliberate
+     outcome, not a fault. The in-flight steps stay on the default `info`,
+     which is what "this is moving through the pipeline" means. */
+  STALLED: "danger",
+  REVIEW_REQUIRED: "danger",
+
   // neutral / terminal-passive family
+  ABANDONED: "neutral",
   ARCHIVED: "neutral",
   CANCELLED: "neutral",
   DESTROYED: "neutral",
@@ -103,8 +131,27 @@ const STATUS_TO_TONE: Record<string, Tone> = {
 };
 
 function paletteFor(status: string): { bg: string; fg: string; border: string } {
-  const tone = STATUS_TO_TONE[status] ?? "info";
-  return TONE_PALETTE[tone];
+  const key = TONE_TOKEN[STATUS_TO_TONE[status] ?? "info"];
+  return {
+    bg: `var(--status-${key}-bg)`,
+    fg: `var(--status-${key}-fg)`,
+    border: `var(--status-${key}-border)`,
+  };
+}
+
+/**
+ * The tone a raw status string carries, in `Badge`'s vocabulary.
+ *
+ * `STATUS_TO_TONE` above is the widest status map in the product; `Badge` is
+ * the component that renders one. This is the join, so a caller with a status
+ * STRING can use the canonical component instead of a hand-styled `<span>` —
+ * which is what thirteen admin call sites were doing through
+ * `statusBadgeStyle`.
+ */
+export function statusTone(
+  status: string,
+): "verified" | "pending" | "risk" | "neutral" | "info" {
+  return TONE_TOKEN[STATUS_TO_TONE[status] ?? "info"];
 }
 
 /**

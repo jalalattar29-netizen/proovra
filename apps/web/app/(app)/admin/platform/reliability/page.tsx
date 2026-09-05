@@ -34,6 +34,8 @@ import {
 } from "../../../../../components/ui/PageShell";
 import "../admin-platform.css";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+import { Badge } from "../../../../../components/ui/Badge";
+import { statusTone } from "../../../../../components/ui/StatusBadge";
 
 type Counts = Record<string, number>;
 
@@ -319,7 +321,7 @@ useEffect(() => {
                         {s.failureReason ? ` · ${s.failureReason}` : ""}
                       </div>
                     </div>
-                    <span style={statusBadgeStyle(s.status)}>{s.status}</span>
+                    <Badge tone={statusTone(s.status)}>{s.status}</Badge>
                     {!s.isTerminal && s.status !== "REVIEW_REQUIRED" ? (
                       <button
                         type="button"
@@ -418,46 +420,3 @@ function formatBytes(n: number): string {
 
 const listStyle: React.CSSProperties = { listStyle: "none", padding: 0, margin: 0 };
 
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "4px 10px",
-    fontSize: 12,
-    fontWeight: 600,
-    borderRadius: 999,
-    border: "1px solid",
-  };
-  if (status === "COMPLETED") {
-    return {
-      ...base,
-      background: "var(--success-subtle-bg)",
-      borderColor: "var(--success-border)",
-      color: "var(--success-strong)",
-    };
-  }
-  if (
-    status === "FAILED" ||
-    status === "STALLED" ||
-    status === "REVIEW_REQUIRED"
-  ) {
-    return {
-      ...base,
-      background: "var(--danger-subtle-bg)",
-      borderColor: "var(--danger-border)",
-      color: "var(--danger-strong)",
-    };
-  }
-  if (status === "ABANDONED") {
-    return {
-      ...base,
-      background: "var(--surface-muted)",
-      borderColor: "var(--border-standard)",
-      color: "var(--ink-secondary)",
-    };
-  }
-  return {
-    ...base,
-    background: "var(--info-subtle-bg)",
-    borderColor: "var(--info-border)",
-    color: "var(--info)",
-  };
-}

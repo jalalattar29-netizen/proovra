@@ -205,10 +205,3 @@ export const sectionLabelStyle = {
  * bold label above a description, and centring floats the radio beside the
  * second line. Rows with a single line of text override it.
  */
-export const choiceRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  alignItems: "flex-start",
-  minHeight: 44,
-  paddingBlock: 2,
-};

@@ -36,12 +36,7 @@ import {
   type DataTableColumn,
 } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
-import {
-  formatDateTime,
-  mutedStyle,
-  sectionTitleStyle,
-  TOKENS,
-} from "../../../admin/identity/ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
 
 type SsoConnectionHealthStatus =
   | "HEALTHY"
@@ -238,7 +233,7 @@ function SsoHealthContent() {
               }}
             >
               <div>
-                <div style={mutedStyle}>Overall status</div>
+                <div className="app-field-help">Overall status</div>
                 <div style={{ marginTop: 4 }}>
                   <Badge tone={healthTone(snapshot.overallStatus)}>
                     {snapshot.overallStatus}
@@ -246,15 +241,15 @@ function SsoHealthContent() {
                 </div>
               </div>
               <div>
-                <div style={mutedStyle}>Connections</div>
+                <div className="app-field-help">Connections</div>
                 <div style={{ fontSize: 20, fontWeight: 700 }}>
                   {snapshot.connections.length}
                 </div>
               </div>
               <div>
-                <div style={mutedStyle}>Generated</div>
+                <div className="app-field-help">Generated</div>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>
-                  {formatDateTime(snapshot.generatedAtUtc)}
+                  {formatCellDateTime(snapshot.generatedAtUtc)}
                 </div>
               </div>
             </div>
@@ -268,7 +263,7 @@ function SsoHealthContent() {
               action={
                 <a
                   href="/security-center/sso"
-                  style={{ color: TOKENS.link, textDecoration: "none" }}
+                  style={{ color: "var(--accent-600)", textDecoration: "none" }}
                 >
                   <Button variant="secondary" size="sm">
                     Configure SSO →
@@ -291,7 +286,7 @@ function SsoHealthContent() {
                   <div>
                     <h3 style={{ margin: 0, fontSize: 15 }}>
                       {c.provider}{" "}
-                      <span style={{ ...mutedStyle, fontWeight: 400 }}>
+                      <span className="app-field-help" style={{ fontWeight: 400 }}>
                         ({c.connectionId.slice(0, 8)}…)
                       </span>
                     </h3>
@@ -306,17 +301,17 @@ function SsoHealthContent() {
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ ...mutedStyle, fontSize: 11 }}>
+                    <div className="app-field-help" style={{ fontSize: 11 }}>
                       Last success
                     </div>
                     <div style={{ fontSize: 12 }}>
-                      {formatDateTime(c.lastSuccessAtUtc)}
+                      {formatCellDateTime(c.lastSuccessAtUtc)}
                     </div>
-                    <div style={{ ...mutedStyle, fontSize: 11, marginTop: 4 }}>
+                    <div className="app-field-help" style={{ fontSize: 11, marginTop: 4 }}>
                       Last failure
                     </div>
                     <div style={{ fontSize: 12 }}>
-                      {formatDateTime(c.lastFailureAtUtc)}
+                      {formatCellDateTime(c.lastFailureAtUtc)}
                     </div>
                   </div>
                 </div>
@@ -338,7 +333,7 @@ function SsoHealthContent() {
                 ) : null}
 
                 <div style={{ marginTop: 12 }}>
-                  <h4 style={sectionTitleStyle}>Attempt counts</h4>
+                  <h4 className="app-subhead">Attempt counts</h4>
                   <DataTable
                     ariaLabel="Attempt counts"
                     columns={attemptColumns}
@@ -362,7 +357,7 @@ function SsoHealthContent() {
 
                 {c.failureBreakdown.length > 0 ? (
                   <div style={{ marginTop: 12 }}>
-                    <h4 style={sectionTitleStyle}>Failure breakdown</h4>
+                    <h4 className="app-subhead">Failure breakdown</h4>
                     <DataTable
                       ariaLabel="Failure breakdown"
                       columns={failureColumns}
@@ -377,7 +372,7 @@ function SsoHealthContent() {
         </>
       ) : loading ? (
         <PageSection>
-          <p style={{ ...mutedStyle, marginTop: 16 }}>Loading SSO health…</p>
+          <p className="app-field-help" style={{ marginTop: 16 }}>Loading SSO health…</p>
         </PageSection>
       ) : null}
     </PageShell>

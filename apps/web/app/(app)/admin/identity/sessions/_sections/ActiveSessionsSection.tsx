@@ -81,7 +81,7 @@ import {
   type SectionState,
 } from "../../../security/_sections/section-state";
 import { SessionTimelineDrawer } from "./SessionTimelineDrawer";
-import { formatDateTime } from "../../ui-tokens";
+import { formatCellDateTime } from "../../../../../../lib/date";
 
 type ActiveSession = {
   id: string;
@@ -411,13 +411,13 @@ export function ActiveSessionsSection() {
       key: "lastseen",
       header: "Last seen",
       nowrap: true,
-      render: (s) => <span style={sectionMuted}>{formatDateTime(s.lastSeenAtUtc)}</span>,
+      render: (s) => <span style={sectionMuted}>{formatCellDateTime(s.lastSeenAtUtc)}</span>,
     },
     {
       key: "expires",
       header: "Expires",
       nowrap: true,
-      render: (s) => <span style={sectionMuted}>{formatDateTime(s.expiresAtUtc)}</span>,
+      render: (s) => <span style={sectionMuted}>{formatCellDateTime(s.expiresAtUtc)}</span>,
     },
     {
       key: "device",
@@ -469,7 +469,7 @@ export function ActiveSessionsSection() {
       header: "Held since",
       nowrap: true,
       render: (q) => (
-        <span style={sectionMuted}>{formatDateTime(q.quarantinedAtUtc)}</span>
+        <span style={sectionMuted}>{formatCellDateTime(q.quarantinedAtUtc)}</span>
       ),
     },
     {
@@ -478,7 +478,7 @@ export function ActiveSessionsSection() {
       nowrap: true,
       render: (q) => (
         <span style={sectionMuted}>
-          {q.quarantineReleaseAtUtc ? formatDateTime(q.quarantineReleaseAtUtc) : "manual"}
+          {q.quarantineReleaseAtUtc ? formatCellDateTime(q.quarantineReleaseAtUtc) : "manual"}
         </span>
       ),
     },

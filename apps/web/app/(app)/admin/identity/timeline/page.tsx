@@ -27,7 +27,22 @@ import { presentActor } from "../../../../../lib/audit/auditPresentation";
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
-import { statusBadgeStyle, formatDateTime } from "../ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
+import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
+
+/**
+ * A SEVERITY IS NOT A STATUS, AND THE STATUS MAP MUST NOT DECIDE IT.
+ *
+ * This column carries INFO / WARNING / HIGH. Routing those through the
+ * product's status→tone map would find no entry for any of them and fall
+ * through to the default informational blue, so a HIGH-severity identity
+ * event — a revoke, a quarantine — would look exactly like a sign-in.
+ */
+const SEVERITY_TONE: Record<TimelineEvent["severity"], BadgeTone> = {
+  HIGH: "risk",
+  WARNING: "pending",
+  INFO: "info",
+};
 
 type TimelineEvent = {
   id: string;
@@ -216,14 +231,14 @@ export default function IdentityTimelinePage() {
       header: "When",
       nowrap: true,
       render: (e) => (
-        <span className="adm-help">{formatDateTime(e.occurredAtUtc)}</span>
+        <span className="adm-help">{formatCellDateTime(e.occurredAtUtc)}</span>
       ),
     },
     {
       key: "severity",
       header: "Severity",
       render: (e) => (
-        <span style={statusBadgeStyle(e.severity)}>{e.severity}</span>
+        <Badge tone={SEVERITY_TONE[e.severity]}>{e.severity}</Badge>
       ),
     },
     {

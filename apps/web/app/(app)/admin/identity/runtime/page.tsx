@@ -39,7 +39,7 @@ import {
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
-import { mutedStyle, errorBoxStyle, formatDateTime } from "../ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
 
 type SessionRow = {
   id: string;
@@ -541,7 +541,7 @@ const load = useCallback(() => {
       header: "Quarantined",
       nowrap: true,
       render: (q) => (
-        <span className="adm-help">{formatDateTime(q.quarantinedAtUtc)}</span>
+        <span className="adm-help">{formatCellDateTime(q.quarantinedAtUtc)}</span>
       ),
     },
     {
@@ -549,7 +549,7 @@ const load = useCallback(() => {
       header: "Auto-release",
       nowrap: true,
       render: (q) => (
-        <span className="adm-help">{formatDateTime(q.quarantineReleaseAtUtc)}</span>
+        <span className="adm-help">{formatCellDateTime(q.quarantineReleaseAtUtc)}</span>
       ),
     },
   ];
@@ -584,7 +584,7 @@ const load = useCallback(() => {
       header: "Last seen",
       nowrap: true,
       render: (s) => (
-        <span className="adm-help">{formatDateTime(s.lastSeenAtUtc)}</span>
+        <span className="adm-help">{formatCellDateTime(s.lastSeenAtUtc)}</span>
       ),
     },
     {
@@ -644,18 +644,7 @@ const load = useCallback(() => {
       }
               >
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
-      {notice ? (
-        <div
-          style={{
-            ...errorBoxStyle,
-            background: "var(--success-subtle-bg)",
-            color: "var(--success-strong)",
-            borderColor: "var(--success-border)",
-          }}
-        >
-          {notice}
-        </div>
-      ) : null}
+      {notice ? <AdmInline state="done">{notice}</AdmInline> : null}
 
       {/*
         THE RE-SCORE RESULT, SHOWN RATHER THAN SUMMARISED AWAY.
@@ -681,7 +670,7 @@ const load = useCallback(() => {
               </strong>
             </span>
             <span className="adm-help" style={{ fontSize: 12 }}>
-              evaluated {formatDateTime(scoreResult.evaluatedAtUtc)}
+              evaluated {formatCellDateTime(scoreResult.evaluatedAtUtc)}
             </span>
           </div>
           {scoreResult.signals && scoreResult.signals.length > 0 ? (
@@ -717,7 +706,7 @@ const load = useCallback(() => {
           >
         <Card padding="comfortable">
           {reconcile === null ? (
-            <p style={{ margin: 0, ...mutedStyle }}>
+            <p className="adm-help" style={{ margin: 0 }}>
               Not run in this session. The scheduled sweep also does this
               automatically — running it here only makes it happen now.
             </p>
@@ -734,7 +723,7 @@ const load = useCallback(() => {
               <Badge tone="neutral">
                 scope: {reconcile.scope === "workspace" ? "this workspace" : "platform"}
               </Badge>
-              <Badge tone="neutral">ran {formatDateTime(reconcile.ranAt)}</Badge>
+              <Badge tone="neutral">ran {formatCellDateTime(reconcile.ranAt)}</Badge>
             </div>
           )}
         </Card>

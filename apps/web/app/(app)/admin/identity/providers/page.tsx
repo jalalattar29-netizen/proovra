@@ -33,7 +33,9 @@ import { FederationReadinessSection } from "./_sections/FederationReadinessSecti
 import {
   AdmInline,
 } from "../../../../../components/admin/AdminSurfaces";
-import { TOKENS, successBoxStyle, statusBadgeStyle, formatDateTime } from "../ui-tokens";
+import { formatCellDateTime } from "../../../../../lib/date";
+import { Badge } from "../../../../../components/ui/Badge";
+import { statusTone } from "../../../../../components/ui/StatusBadge";
 
 type SsoProvider =
   | "GENERIC_OIDC"
@@ -415,7 +417,7 @@ export default function ProvidersPage() {
             >
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {revealedSecret ? (
-        <div style={successBoxStyle}>
+        <Card variant="status" tone="verified" padding="compact">
           <strong>Client secret created.</strong> Copy now — this is the
           only time it will be shown:{" "}
           <code style={{ fontFamily: "monospace" }}>{revealedSecret}</code>
@@ -424,7 +426,7 @@ export default function ProvidersPage() {
           >
             Dismiss
           </Button>
-        </div>
+        </Card>
       ) : null}
 
       <PageSection
@@ -507,7 +509,7 @@ export default function ProvidersPage() {
                     ) : null}
                   </td>
                   <td>
-                    <span style={statusBadgeStyle(p.status)}>{p.status}</span>
+                    <Badge tone={statusTone(p.status)}>{p.status}</Badge>
                   </td>
                   <td>
                     <span className="adm-help">
@@ -525,7 +527,7 @@ export default function ProvidersPage() {
                   </td>
                   <td>
                     <span className="adm-help">
-                      {formatDateTime(p.lastUsedAtUtc)}
+                      {formatCellDateTime(p.lastUsedAtUtc)}
                     </span>
                   </td>
                   <td>
@@ -775,8 +777,8 @@ function PolicyPanel({
   return (
     <div
       style={{
-        background: TOKENS.surfaceMuted,
-        borderTop: `1px solid ${TOKENS.border}`,
+        background: "var(--surface-muted)",
+        borderTop: `1px solid var(--border-default)`,
         padding: 16,
         display: "flex",
         flexDirection: "column",
@@ -944,7 +946,7 @@ function Field({
         flexDirection: "column",
         gap: 4,
         fontSize: 12,
-        color: TOKENS.inkMuted,
+        color: "var(--ink-secondary)",
       }}
     >
       <span>{label}</span>

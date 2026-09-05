@@ -49,7 +49,9 @@ import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
-import { TOKENS, statusBadgeStyle } from "../ui-tokens";
+
+import { Badge } from "../../../../../components/ui/Badge";
+import { statusTone } from "../../../../../components/ui/StatusBadge";
 
 type Outcome = "ALLOW" | "DENY" | "STEP_UP_REQUIRED" | "NOT_APPLICABLE";
 
@@ -317,9 +319,9 @@ export default function PermissionMatrixPage() {
       key: "outcome",
       header: "Outcome",
       render: (r) => (
-        <span style={statusBadgeStyle(r.outcome)}>
+        <Badge tone={statusTone(r.outcome)}>
           {r.outcome.toLowerCase().replace("_", " ")}
-        </span>
+        </Badge>
       ),
     },
     {
@@ -468,7 +470,7 @@ export default function PermissionMatrixPage() {
                             fontFamily:
                               "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
                             fontSize: 11,
-                            color: TOKENS.inkMuted,
+                            color: "var(--ink-secondary)",
                           }}
                         >
                           {p.permission}
@@ -725,7 +727,7 @@ function KV({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <span style={{ fontSize: 11, color: TOKENS.inkSubtle, textTransform: "uppercase" }}>
+      <span style={{ fontSize: 11, color: "var(--ink-muted)", textTransform: "uppercase" }}>
         {k}
       </span>
       <span

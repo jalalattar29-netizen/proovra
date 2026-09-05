@@ -42,6 +42,7 @@ import {
   PageShell,
   PageHeader,
 } from "../../../../../components/ui/PageShell";
+import { Button } from "../../../../../components/ui/Button";
 import "../admin-platform.css";
 type MetricsSnapshot = {
   uptimeSeconds: number;
@@ -477,20 +478,18 @@ useEffect(() => {
                 onChange={(e) => setRetryRunId(e.target.value)}
                 className="apf-control"
               />
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => {
                   void runRetry();
                 }}
                 disabled={actionResult.kind === "pending" || !teamId}
-                style={primaryButtonStyle(
-                  actionResult.kind === "pending" || !teamId,
-                )}
               >
                 {actionResult.kind === "pending" && actionResult.label === "Retry"
                   ? "Retrying…"
                   : "Retry"}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -505,21 +504,19 @@ useEffect(() => {
               </div>
             </div>
             <div style={actionControlStyle}>
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => {
                   void runReplayDlq();
                 }}
                 disabled={actionResult.kind === "pending" || !teamId}
-                style={primaryButtonStyle(
-                  actionResult.kind === "pending" || !teamId,
-                )}
               >
                 {actionResult.kind === "pending" &&
                 actionResult.label === "Replay DLQ"
                   ? "Replaying…"
                   : "Replay DLQ"}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -683,25 +680,6 @@ const actionControlStyle: React.CSSProperties = {
 };
 
 
-function primaryButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    // 44px touch floor (matrix measured 32px), matching the shared
-    // identity/ui-tokens button raise.
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-    fontSize: 12,
-    fontWeight: 600,
-    padding: "6px 14px",
-    borderRadius: 6,
-    border: "1px solid var(--ink-primary)",
-    background: disabled ? "var(--ink-muted)" : "var(--ink-primary)",
-    color: "var(--surface-card)",
-    cursor: disabled ? "not-allowed" : "pointer",
-    whiteSpace: "nowrap",
-  };
-}
 
 const actionResultSuccessStyle: React.CSSProperties = {
   padding: "8px 12px",

@@ -215,40 +215,23 @@ textarea {
 
   /* Structure + neutral surfaces (navy / pearl / lavender) */
 
-  /* Semantic STATUS tokens — color + text pairs (never color-only).
-     verified = restrained green, pending = amber, risk/destructive = red,
-     neutral/draft = slate, governance = violet. Backgrounds are the
-     light 050 tints; -fg is the accessible on-tint text; -border is the
-     hairline. These align with StatusBadge's TONE_PALETTE. */
-  --status-verified-bg: #ecfdf5;
-  --status-verified-fg: #065f46;
-  --status-verified-border: #a7f3d0;
-  --status-verified-solid: #10b981;
+  /* THE 24 STATUS TOKENS THAT USED TO BE DECLARED HERE NOW LIVE IN
+     lib/design-tokens/tokens.css, WHICH THIS FILE IMPORTS ABOVE.
 
-  --status-pending-bg: #fef3c7;
-  --status-pending-fg: #78350f;
-  --status-pending-border: #fde68a;
-  --status-pending-solid: #f59e0b;
+     They were the seventh instance of the shadowing this file has already
+     been cleaned of once: tokens.css is imported at the top, so anything
+     re-declared in this `:root` wins, and the product's status palette was
+     therefore owned by globals.css while every comment in the codebase
+     pointed at tokens.css.
 
-  --status-risk-bg: #fef2f2;
-  --status-risk-fg: #991b1b;
-  --status-risk-border: #fecaca;
-  --status-risk-solid: #dc2626;
-
-  --status-neutral-bg: #f1f5f9;
-  --status-neutral-fg: #475569;
-  --status-neutral-border: #cbd5e1;
-  --status-neutral-solid: #64748b;
-
-  --status-governance-bg: #eeebff;
-  --status-governance-fg: #4634c9;
-  --status-governance-border: #d6cffb;
-  --status-governance-solid: #7C3AED;
-
-  --status-info-bg: #eff6ff;
-  --status-info-fg: #1e40af;
-  --status-info-border: #bfdbfe;
-  --status-info-solid: #2563eb;
+     It mattered here more than for a radius. `components/ui/Badge.tsx`
+     carried its own copy as `var(--status-x, #hex)` fallbacks, and for
+     PENDING's foreground that copy said #EA580C where this block said
+     #78350F — 3.20:1 against 8.15:1 on the shared #FEF3C7 ground. The
+     fallback was unreachable, so nothing was broken; but it meant deleting
+     this block on its own would have dropped every pending chip in the
+     product below WCAG AA. The fallbacks are gone too, and tokens.css now
+     declares the values that were actually rendering. */
 
   --color-bg: var(--page-bg);
   --color-card: var(--surface);
