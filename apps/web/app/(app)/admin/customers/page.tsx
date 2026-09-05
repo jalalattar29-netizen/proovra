@@ -27,7 +27,7 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { Button } from "../../../../components/ui/Button";
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
-import { formatUserDateTime } from "../../../../lib/date";
+import { formatUserDate } from "../../../../lib/date";
 // PHASE 6 §7 — carry the list state onto the detail URL so the return link
 // can put the operator back on the page they filtered, not on page one of
 // everything. Only the OWNING collection does this: a link from Billing to
@@ -90,6 +90,21 @@ const HEALTH_TONE: Record<
   ATTENTION: "pending",
   BLOCKED: "risk",
   UNKNOWN: "neutral",
+};
+
+/**
+ * WHAT AN ONBOARDING VERDICT MEANS, BESIDE THE VERDICT.
+ *
+ * The column rendered a red "BLOCKED" and nothing else, on every row. A
+ * verdict about a checklist, with the checklist withheld, tells an operator to
+ * worry and gives them nowhere to go — and "BLOCKED" beside a customer's name
+ * reads as a platform fault rather than as a step the customer has not taken.
+ */
+const ONBOARDING_REASON: Record<OnboardingHealth, string | null> = {
+  HEALTHY: null,
+  ATTENTION: "Onboarding started; at least one step is incomplete.",
+  BLOCKED: "Onboarding cannot proceed — no verified domain or no owner.",
+  UNKNOWN: "No onboarding record for this organization.",
 };
 
 const LIFECYCLE_TONE: Record<
@@ -198,14 +213,24 @@ export default function AdminOrganizationsPage() {
         render: (row) => (
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 650 }}>{dash(row.name)}</div>
-            <div
-              style={{
-                fontSize: 12,
-                color: "var(--ink-muted)",
-                marginTop: 2,
-              }}
-            >
-              Created {formatUserDateTime(row.createdAt)}
+            {/* THE IDENTITY LINE, NOT A TIMESTAMP TO THE SECOND.
+                This read `Created 05 Sept 2026, 11:19:54 Europe/Berlin` under
+                every organization name — eleven characters of seconds and a
+                timezone, in a directory an operator SCANS. Nobody picks a
+                customer out of a roster by the second they were created, and
+                the precise stamp is on the detail page for anyone who needs
+                it. What an operator does look for here is who owns the
+                account, so the OWNER takes this line: it was in a 103px
+                column of its own where an email address could not fit and
+                "Not measured" wrapped to two lines. */}
+            <div className="adm-help" style={{ marginTop: 2 }}>
+              {row.ownerEmail ? (
+                <span className="adm-mono">{row.ownerEmail}</span>
+              ) : (
+                <span style={{ color: "var(--ink-muted)" }}>Owner not recorded</span>
+              )}
+              {" · created "}
+              {formatUserDate(row.createdAt)}
             </div>
           </div>
         ),
@@ -271,17 +296,22 @@ export default function AdminOrganizationsPage() {
         key: "seats",
         header: "Seats",
         align: "right",
-        render: (row) => `${row.seats.used} / ${row.seats.included}`,
-      },
-      {
-        key: "ownerEmail",
-        header: "Owner",
+        /* `5 / 0` IS NOT A RATIO, IT IS TWO FACTS THAT DISAGREE.
+           This rendered `used / included` unconditionally, so a plan with no
+           seat allocation showed "5 / 0" — five seats used out of zero — which
+           an operator reads as a billing fault rather than as "this plan does
+           not allocate seats". When there is no allocation, only the fact that
+           exists is stated. */
         render: (row) =>
-          row.ownerEmail ? (
-            row.ownerEmail
+          row.seats.included > 0 ? (
+            `${row.seats.used} / ${row.seats.included}`
           ) : (
-            <span style={{ color: "var(--ink-muted)" }}>
-              Not measured
+            <span title="This plan does not allocate seats.">
+              {row.seats.used}
+              {/* Its own line, deliberately: the caveat wrapped mid-phrase
+                  inside a right-aligned 60px column when it followed the
+                  number inline. */}
+              <div className="adm-help">no cap</div>
             </span>
           ),
       },
@@ -294,24 +324,47 @@ export default function AdminOrganizationsPage() {
       {
         key: "identity",
         header: "SSO / SCIM",
-        render: (row) => (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <Badge tone={row.ssoConfigured ? "verified" : "neutral"} subtle>
-              {row.ssoConfigured ? "SSO" : "No SSO"}
+        /* ONE CELL, ONE ANSWER.
+           Two stacked "No SSO" / "No SCIM" badges made every unconfigured
+           row two lines tall to say the same thing twice. The common cases —
+           neither, or both — now read as one phrase, and only the MIXED case
+           needs to name which. */
+        render: (row) => {
+          const { ssoConfigured: sso, scimConfigured: scim } = row;
+          if (sso && scim) return <Badge tone="verified">SSO + SCIM</Badge>;
+          if (!sso && !scim) {
+            return (
+              <Badge tone="neutral" subtle>
+                Neither
+              </Badge>
+            );
+          }
+          return (
+            <Badge tone="pending" subtle>
+              {sso ? "SSO only" : "SCIM only"}
             </Badge>
-            <Badge tone={row.scimConfigured ? "verified" : "neutral"} subtle>
-              {row.scimConfigured ? "SCIM" : "No SCIM"}
-            </Badge>
-          </div>
-        ),
+          );
+        },
       },
       {
         key: "onboardingStatus",
         header: "Health",
+        /* A RED BADGE READING "BLOCKED" WITH NOTHING SAYING WHAT IS BLOCKED.
+           An onboarding status is a verdict about a checklist, and the verdict
+           alone tells an operator to worry without telling them what to do.
+           The reason is what makes it actionable, and it was already on the
+           row — it simply was not rendered. */
         render: (row) => (
-          <Badge tone={HEALTH_TONE[row.onboardingStatus]} dot>
-            {row.onboardingStatus}
-          </Badge>
+          <div style={{ minWidth: 0 }}>
+            <Badge tone={HEALTH_TONE[row.onboardingStatus]} dot>
+              {row.onboardingStatus}
+            </Badge>
+            {ONBOARDING_REASON[row.onboardingStatus] ? (
+              <div className="adm-help" style={{ marginTop: 4 }}>
+                {ONBOARDING_REASON[row.onboardingStatus]}
+              </div>
+            ) : null}
+          </div>
         ),
       },
     ],

@@ -718,8 +718,13 @@ function TokensTab({ teamId }: { teamId: string }) {
                 title="No SCIM directory connected"
                 purpose="Issue a scope-bounded SCIM v2 provisioning token so your identity provider can create, update, and deactivate users automatically."
                 action={
+                  /* SECONDARY: the section head above already carries "New
+                     token" as its filled action, and two identical filled
+                     buttons on one screen make an operator decide which is
+                     the real one. The empty state still offers the way
+                     forward. */
                   <Button
-                    variant="enterprise"
+                    variant="secondary"
                     disabled={!canProvision}
                     title={
                       canProvision

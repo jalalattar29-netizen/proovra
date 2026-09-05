@@ -378,11 +378,22 @@ export default function AccessReviewsPage() {
             </Link>
           }
           primaryAction={
+            /* DISABLED WITH THE REASON, when the surface has been refused.
+               A filled primary that cannot succeed is worse than no button:
+               the operator presses it, gets a second refusal, and now has two
+               messages and no idea which one to act on. It stays visible —
+               removing it would leave the header looking like the page has no
+               action at all — and says why it cannot be used. */
             <Button
               variant="enterprise"
               data-access-review-regenerate
               loading={regenBusy}
-              disabled={regenBusy}
+              disabled={regenBusy || failure !== null}
+              title={
+                failure
+                  ? failure.message
+                  : undefined
+              }
               onClick={() => void regenerate()}
             >
               Regenerate queue
@@ -435,8 +446,23 @@ export default function AccessReviewsPage() {
         </Card>
       ) : null}
 
+      {/* A REFUSED SURFACE STOPS HERE.
+          This rendered the refusal FOUR TIMES — the card above, the table's
+          empty row repeating it verbatim, "Count unavailable" beneath, and a
+          filled "Regenerate queue" in the header — and left the status filter
+          and the decision-note field live. Every one of those controls acts on
+          a queue the server has just refused to return, so the page invited an
+          operator to filter nothing, write a note nobody will read, and press
+          a button that cannot succeed.
+
+          The refusal is stated once, by the card above, and everything that
+          depends on the data it refused is not rendered. */}
+      {failure ? null : (
       <PageSection>
-        <FilterBar>
+        <FilterBar
+          filtered={statusFilter !== ""}
+          onReset={() => setStatusFilter("")}
+        >
           <FilterBar.Select
             label="Status"
             showLabel
@@ -476,17 +502,14 @@ export default function AccessReviewsPage() {
             loading={reviews === null}
             ariaLabel="Access reviews"
             emptyState={
-              failure ? (
-                <EmptyState variant="inline"
-                  title="Access reviews unavailable"
-                  purpose={failure.message}
-                />
-              ) : (
-                <EmptyState variant="inline"
-                  title="Nothing to certify"
-                  purpose="No access reviews match this filter. Regenerate the queue to re-scan for stale access, unused service accounts and expiring temporary access."
-                />
-              )
+              /* No `failure` branch: the table is not rendered at all when the
+                 read was refused, so this only ever describes a genuine
+                 emptiness. */
+              <EmptyState
+                variant="inline"
+                title="Nothing to certify"
+                purpose="No access reviews match this filter. Regenerate the queue to re-scan for stale access, unused service accounts and expiring temporary access."
+              />
             }
             rowActions={(r) =>
               r.status === "PENDING" || r.status === "IN_PROGRESS" ? (
@@ -523,11 +546,11 @@ export default function AccessReviewsPage() {
             noun="access review"
             filtered={statusFilter !== ""}
             loading={reviews === null}
-            failed={failure !== null}
             data-testid="admin-access-reviews-count"
           />
         </div>
       </PageSection>
+      )}
     </PageShell>
   );
 }

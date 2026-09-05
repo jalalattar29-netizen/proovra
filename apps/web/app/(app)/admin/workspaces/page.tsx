@@ -16,7 +16,7 @@ import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../lib/api";
-import { formatUserDateTime } from "../../../../lib/date";
+import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 // PHASE 6 §7 — carry the list state onto the detail URL so the return link
 // can put the operator back on the page they filtered, not on page one of
@@ -159,8 +159,14 @@ export default function AdminWorkspacesPage() {
         render: (r) => (
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 650 }}>{r.name}</div>
-            <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
-              Created {formatUserDateTime(r.createdAt)}
+            {/* A DATE, NOT A TIMESTAMP TO THE SECOND.
+                This read `Created 05 Sept 2026, 13:54:05 Europe/Berlin` under
+                every workspace name, wrapping to two lines and making each row
+                three lines tall — in a table an operator SCANS. Nobody finds a
+                workspace by the second it was created; the precise stamp is on
+                the workspace detail page. */}
+            <div className="adm-help" style={{ marginTop: 2 }}>
+              Created {formatUserDate(r.createdAt)}
             </div>
           </div>
         ),
@@ -221,15 +227,15 @@ export default function AdminWorkspacesPage() {
       {
         key: "plan",
         header: "Stored plan",
+        /* ONE PHRASE, NOT TWO STACKED BADGES.
+           A plan and its subscription status are one fact about billing, and
+           rendering them as two badges wrapped to two lines on every row. The
+           status is the one that can be wrong, so it carries the tone; the
+           plan is the noun it qualifies. */
         render: (r) => (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <Badge tone="info" subtle>
-              {r.raw.billingPlan}
-            </Badge>
-            <Badge tone={BILLING_TONE[r.raw.billingStatus] ?? "neutral"} subtle>
-              {r.raw.billingStatus}
-            </Badge>
-          </div>
+          <Badge tone={BILLING_TONE[r.raw.billingStatus] ?? "neutral"} subtle>
+            {r.raw.billingPlan} · {r.raw.billingStatus.toLowerCase()}
+          </Badge>
         ),
       },
       {

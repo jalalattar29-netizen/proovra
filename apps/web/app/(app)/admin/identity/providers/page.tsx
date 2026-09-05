@@ -452,8 +452,14 @@ export default function ProvidersPage() {
             title="No SSO provider configured"
             purpose="Connect an identity provider (Okta, Entra ID, Google Workspace, or generic OIDC/SAML) to enable single sign-on and just-in-time provisioning for this workspace."
             action={
+              /* SECONDARY, because the page header already carries this exact
+                 action as its primary — and two identical filled buttons on
+                 one screen make an operator decide which one is the real one.
+                 The empty state still offers the way forward; the header stays
+                 the standing action, which is what the rest of the family
+                 does. */
               <Button
-                variant="enterprise"
+                variant="secondary"
                 onClick={() => {
                   setShowCreate(true);
                   setRevealedSecret(null);

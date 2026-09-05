@@ -26,6 +26,17 @@ if (routes.length === 0) {
   process.exit(2);
 }
 
+/** The fixture rows the capture harness uses for the dynamic segments. */
+const PARAMS = {
+  "/admin/customers/:id": "0adf0000-0000-4000-8000-0000000000a1",
+  "/admin/workspaces/:id": "0adf0000-0000-4000-8000-0000000000b1",
+  "/admin/users/:id": "0adf0000-0000-4000-8000-000000000002",
+  "/admin/demo-requests/:id": "0adf0000-0000-4000-8000-0000000000e1",
+  "/admin/contact-sales/:id": "0adf0000-0000-4000-8000-0000000000e2",
+  "/admin/platform/runbooks/:slug": "tsa-timestamp-failure",
+};
+const concrete = (r) => (PARAMS[r] ? r.replace(/:(\w+)$/, PARAMS[r]) : r);
+
 const { browser, page } = await open({ width: 1440, height: 900 });
 const errors = [];
 page.on("console", (m) => {
@@ -38,7 +49,7 @@ let failures = 0;
 
 for (const route of routes) {
   errors.length = 0;
-  await page.goto(`${WEB}${route}`, {
+  await page.goto(`${WEB}${concrete(route)}`, {
     waitUntil: "networkidle",
     timeout: 90_000,
   });
@@ -51,6 +62,7 @@ for (const route of routes) {
        shared `app-*` primitives instead, and probing it for `.adm-card` would
        report a missing stylesheet on a page that is styled correctly. Probe
        whichever system the route is supposed to be on. */
+    const main = document.querySelector("main") ?? document.body;
     const admin = location.pathname.startsWith("/admin");
     const probe = document.createElement(admin ? "div" : "input");
     probe.className = admin ? "adm-card" : "app-input";
@@ -75,8 +87,67 @@ for (const route of routes) {
     const fieldBorders = fields.map((f) => getComputedStyle(f).borderTopStyle);
     const fieldHeights = fields.map((f) => Math.round(f.getBoundingClientRect().height));
 
+    /* ===================================================================
+     * THE SHAPES THE COMPOSITION REVIEW KEPT FINDING BY EYE
+     * ===================================================================
+     * Each of these was found by opening a screenshot, and each turned out to
+     * be a PATTERN rather than a one-off. Looking at 47 pages one at a time
+     * finds the first instance of a shape; measuring finds all of them.
+     * =================================================================== */
+
+    /* TWO PRIMARY ACTIONS ON ONE SCREEN. /admin/identity/providers rendered
+       "New connection" as a filled enterprise button in the page header AND
+       again as a filled enterprise button in the empty state — so an operator
+       had to decide which of two identical buttons was the real one. */
+    const filled = Array.from(
+      main.querySelectorAll(
+        '[data-variant="primary"], [data-variant="enterprise"], .ui-button[data-variant="primary"]',
+      ),
+    ).filter((b) => b.getBoundingClientRect().height > 0);
+    const filledLabels = filled.map((b) => (b.textContent ?? "").trim());
+    const duplicatePrimary = filledLabels.filter(
+      (l, i) => l && filledLabels.indexOf(l) !== i,
+    ).length;
+
+    /* A RATIO OVER ZERO. `5 / 0` seats, `0 of 0` connections ready — two
+       facts that disagree, rendered as though they were one measurement. An
+       operator reads it as a fault rather than as "there is no denominator". */
+    const zeroDenominator = (
+      (main.textContent ?? "").match(/\b\d+\s*(?:\/|of)\s*0\b/g) ?? []
+    ).length;
+
+    /* A FULL TIMESTAMP AS A SUB-LINE IN A SCANNABLE LIST. Correct on an audit
+       row; noise under every name in a directory, where it also wraps and
+       makes each row three lines tall. Detected as a seconds-precision stamp
+       inside a table cell that also holds a bold name. */
+    const secondsInList = Array.from(main.querySelectorAll("tbody td")).filter(
+      (td) =>
+        /\d{1,2}:\d{2}:\d{2}/.test(td.textContent ?? "") &&
+        td.querySelector("strong, b, [style*='650'], [style*='700']"),
+    ).length;
+
+    /* A ROW RENDERED FOUR LINES TALL. Two stacked badges saying the same
+       thing twice, or a phrase wrapping mid-word in a narrow column.
+       MEASURED PER ROW, NOT PER CELL: a `<td>`'s height IS its row's height,
+       so the first version of this counted every cell in a tall row and
+       reported "18 tall cells" for a two-row table with nine columns. The
+       threshold is absolute — 100px is four lines of 13px text with padding,
+       which no data row needs. */
+    const tallRows = Array.from(main.querySelectorAll("tbody tr")).filter(
+      (tr) =>
+        !tr.querySelector("td[colspan]") &&
+        tr.getBoundingClientRect().height > 100,
+    ).length;
+    const rows = main.querySelectorAll("tbody tr").length;
+
     return {
       probeBorder,
+      duplicatePrimary,
+      filledPrimaries: filled.length,
+      zeroDenominator,
+      secondsInList,
+      tallRows,
+      rows,
       cells: cells.length,
       flatCells: cellPads.filter((p) => p === "0px").length,
       ruleless: cellRules.filter((s) => s === "none").length,
@@ -104,18 +175,46 @@ for (const route of routes) {
   if (result.shortFields > 0)
     bad.push(`${result.shortFields} fields under 44px`);
   if (result.overflow > 0) bad.push(`overflow ${result.overflow}px`);
-  if (errors.length) bad.push(`${errors.length} console errors`);
+
+  /* A SCRIPT ERROR IS A DEFECT. A 402 IS THE PAGE DOING ITS JOB.
+     `/admin/identity/access-reviews` logs "Failed to load resource: the
+     server responded with a status of 402" because the fixture workspace's
+     plan does not carry the surface — and the page then renders the refusal
+     that 402 means. Counting the browser's network log as a page defect
+     reported the ONE route that exercises PLAN_GATED as the only unclean
+     route in the console. A refusal the page handles is separated from an
+     error it did not. */
+  const REFUSAL_STATUS = /Failed to load resource.*\b(400|402|403|404|409)\b/;
+  const refusals = errors.filter((e) => REFUSAL_STATUS.test(e));
+  const scriptErrors = errors.filter((e) => !REFUSAL_STATUS.test(e));
+  if (scriptErrors.length) bad.push(`${scriptErrors.length} console errors`);
+  const note = refusals.length
+    ? `  (${refusals.length} handled refusal response${refusals.length > 1 ? "s" : ""})`
+    : "";
+  if (result.duplicatePrimary > 0) {
+    bad.push(`${result.duplicatePrimary} duplicate primary action(s)`);
+  }
+  if (result.zeroDenominator > 0) {
+    bad.push(`${result.zeroDenominator} ratio(s) over a zero denominator`);
+  }
+  if (result.secondsInList > 0) {
+    bad.push(`${result.secondsInList} list cells carrying a seconds-precision stamp`);
+  }
+  if (result.tallRows > 0) {
+    bad.push(`${result.tallRows}/${result.rows} data rows over four lines tall`);
+  }
 
   if (bad.length) failures += 1;
   console.log(
     `${bad.length ? "FAIL" : "ok  "}  ${route.padEnd(44)} ` +
       `h=${String(result.height).padStart(5)} ` +
       `td=${String(result.cells).padStart(3)} ` +
-      `field=${String(result.fields).padStart(2)} ` +
+      `field=${String(result.fields).padStart(2)}` +
+      note +
       (bad.length ? "\n        " + bad.join("; ") : ""),
   );
-  if (errors.length) {
-    for (const e of errors.slice(0, 3)) console.log("        ! " + e.slice(0, 160));
+  if (scriptErrors.length) {
+    for (const e of scriptErrors.slice(0, 3)) console.log("        ! " + e.slice(0, 160));
   }
 }
 

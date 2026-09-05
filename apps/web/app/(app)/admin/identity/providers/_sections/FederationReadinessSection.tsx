@@ -173,9 +173,19 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
         <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div>
             <div className="adm-help">Connections ready to sign in</div>
+            {/* `0 of 0` IS NOT A READINESS FIGURE.
+                This rendered `ready of total` unconditionally, so a workspace
+                with no identity provider read "0 of 0" in 22px bold — which
+                looks like a failing ratio rather than an absence. There is no
+                readiness to report until there is something to be ready. */}
             <div style={{ fontSize: 22, fontWeight: 700 }}>
-              {readiness.connections.length - notReady.length} of{" "}
-              {readiness.connections.length}
+              {readiness.connections.length === 0 ? (
+                <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink-secondary)" }}>
+                  None configured
+                </span>
+              ) : (
+                `${readiness.connections.length - notReady.length} of ${readiness.connections.length}`
+              )}
             </div>
           </div>
           <div>
