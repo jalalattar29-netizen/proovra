@@ -10,8 +10,8 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
+| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 6fb1a57af1480d1002a9387fe8fed5fbe8634176dc90f35519cfa6d0c70da361 |
+| engineHash    | 193fc0fc86ee06c5e50238f8297d772ded96031e9a9441cd1bc103053681e1ab |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -45,11 +45,11 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | counter                                        | value |
 | ---------------------------------------------- | ----- |
 | DynamicUnresolvedRouteRegistrations            | 0     |
-| DynamicUnresolvedConsumers                     | 0     |
+| DynamicUnresolvedConsumers                     | 1     |
 | UnreviewedOriginConsumers                      | 0     |
 | AmbiguousConsumerSites                         | 0     |
 | UnmatchedConsumerCalls                         | 0     |
-| ClassificationConflicts                        | 0     |
+| ClassificationConflicts                        | 1     |
 | WrongOriginConsumers                           | 0     |
 | AuthorizationUnresolved                        | 0     |
 | TenantBindingUnresolved                        | 0     |
@@ -200,8 +200,11 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-_(none — the instrument is sound)_
+- INSTRUMENT: DynamicUnresolvedConsumers = 1
+- INSTRUMENT: ClassificationConflicts = 1
 
 ### Product closure
 
-_(none)_
+- INSTRUMENT: DynamicUnresolvedConsumers = 1
+- INSTRUMENT: ClassificationConflicts = 1
+- CHECKPOINT: 1 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ClassificationConflicts: checkpoint says 0, facts say 1

@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "350df28cd1b3592fbce302d87d8037fa4ec1ea078f008fcbdfae86936dbafd59",
   "routeInventoryHash": "4793f9656c9021ae61adca25c49db02ca148d3e73b42c501e1c38f5cf15ccbc6",
-  "consumerInventoryHash": "007a81dc9b5292ada913aa912319ba5e41e4aecff497d8ffcb6d5733c232396c",
+  "consumerInventoryHash": "08cf4b49ea93563d2a84d5adaa3c582fb305bd5a48f1edcff25bb38710df0180",
   "dispositionsHash": "0e0f44b9277fd14f6421fc16b47bd940a006321dfaae6485be1b926f1e5434dc",
   "totals": {
     "RegisteredRoutes": 1126,
@@ -21,11 +21,11 @@
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 20,
     "DynamicUnresolvedRouteRegistrations": 0,
-    "DynamicUnresolvedConsumers": 0,
+    "DynamicUnresolvedConsumers": 1,
     "UnreviewedOriginConsumers": 0,
     "AmbiguousConsumerSites": 0,
     "UnmatchedConsumerCalls": 0,
-    "ClassificationConflicts": 0,
+    "ClassificationConflicts": 1,
     "WrongOriginConsumers": 0,
     "byDisposition": {
       "MACHINE_CONSUMER": 3,
@@ -1527,7 +1527,7 @@
       "method": "GET",
       "route": "/v1/auth/email/availability",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/web/app/register/page.tsx:380",
+      "productConsumer": "apps/web/app/register/page.tsx:359",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -2835,7 +2835,7 @@
       "method": "GET",
       "route": "/v1/external-intake/:token",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:316",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:324",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -6951,7 +6951,7 @@
       "method": "PATCH",
       "route": "/v1/external-intake/:token/sessions/:sid/parts/:partId",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:659",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:667",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -7647,7 +7647,7 @@
       "method": "POST",
       "route": "/v1/auth/email/login",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/web/app/login/page.tsx:600",
+      "productConsumer": "apps/web/app/login/page.tsx:663",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7659,7 +7659,7 @@
       "method": "POST",
       "route": "/v1/auth/email/register",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/web/app/register/page.tsx:830",
+      "productConsumer": "apps/web/app/register/page.tsx:809",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -9387,7 +9387,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/consent",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:487",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:495",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9399,7 +9399,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/identity",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:459",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:467",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9411,7 +9411,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/parts",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:570",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:578",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -9423,7 +9423,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/submit",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/web/app/intake/[token]/page.tsx:738",
+      "productConsumer": "apps/web/app/intake/[token]/page.tsx:746",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -13774,8 +13774,23 @@
       "evidenceLevel": "UNPROVEN"
     }
   ],
-  "problems": [],
-  "dynamicUnresolvedConsumers": [],
+  "problems": [
+    {
+      "kind": "STALE_DYNAMIC_RESOLUTION",
+      "site": "apps/web/app/intake/[token]/page.tsx:624",
+      "why": "the analyzer now resolves this call site (or it has moved); the exemption is dead and must be removed"
+    }
+  ],
+  "dynamicUnresolvedConsumers": [
+    {
+      "file": "apps/web/app/intake/[token]/page.tsx",
+      "line": 632,
+      "caller": "stageFile",
+      "requestPrimitive": "fetch",
+      "reason": "unsupported expression kind PropertyAccessExpression",
+      "text": "fetch(res.upload.putUrl, { method: \"PUT\", body: file, headers: { \"content-type\": file.type || \"application"
+    }
+  ],
   "unreviewedOriginConsumers": [],
   "ambiguousConsumerSites": [],
   "unmatchedConsumerCalls": [],
@@ -31292,8 +31307,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.create@406",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:406",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.create@436",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:436",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "createEmailVerificationToken",
       "kind": "DATABASE",
@@ -31326,8 +31341,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.update@447",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:447",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.update@477",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:477",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "consumeEmailVerificationToken",
       "kind": "DATABASE",
@@ -31359,8 +31374,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.updateMany@399",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:399",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.updateMany@429",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:429",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "createEmailVerificationToken",
       "kind": "DATABASE",
@@ -31393,8 +31408,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#entitlement.create@145",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:145",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#entitlement.create@164",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:164",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "registerWithEmailPassword",
       "kind": "DATABASE",
@@ -31426,8 +31441,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#passwordResetToken.create@296",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:296",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#passwordResetToken.create@326",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:326",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "createPasswordResetTokenForEmail",
       "kind": "DATABASE",
@@ -31459,8 +31474,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#passwordResetToken.update@363",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:363",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#passwordResetToken.update@393",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:393",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "resetPasswordWithToken",
       "kind": "DATABASE",
@@ -31492,8 +31507,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.create@114",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:114",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.create@133",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:133",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "registerWithEmailPassword",
       "kind": "DATABASE",
@@ -31525,8 +31540,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@172",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:172",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@191",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:191",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "registerWithEmailPassword",
       "kind": "DATABASE",
@@ -31558,8 +31573,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@272",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:272",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@302",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:302",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "changePasswordForUser",
       "kind": "DATABASE",
@@ -31591,8 +31606,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@348",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:348",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@378",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:378",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "resetPasswordWithToken",
       "kind": "DATABASE",
@@ -31624,8 +31639,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@451",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:451",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@481",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:481",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "consumeEmailVerificationToken",
       "kind": "DATABASE",
@@ -84434,7 +84449,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 380,
+          "line": 359,
           "caller": "RegisterPageContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -84444,7 +84459,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/register/page.tsx:380 (RegisterPageContent, WEB)",
+      "dispositionEvidence": "apps/web/app/register/page.tsx:359 (RegisterPageContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -84473,7 +84488,7 @@
       "method": "GET",
       "path": "/v1/auth/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1567",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1604",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -84532,7 +84547,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 379,
+          "line": 400,
           "caller": "handleAuth",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -84682,7 +84697,7 @@
       "method": "GET",
       "path": "/v1/auth/session-light",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1613",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1650",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -91555,7 +91570,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 316,
+          "line": 324,
           "caller": "ExternalIntakePage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -91565,7 +91580,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:316 (ExternalIntakePage, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:324 (ExternalIntakePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113315,7 +113330,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 659,
+          "line": 667,
           "caller": "setPartStep",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113325,7 +113340,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:659 (setPartStep, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:667 (setPartStep, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117375,7 +117390,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 583,
+          "line": 630,
           "caller": "startApple",
           "class": "WEB",
           "primitive": "handleAuth",
@@ -117383,7 +117398,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 743,
+          "line": 722,
           "caller": "startApple",
           "class": "WEB",
           "primitive": "handleAuth",
@@ -117393,7 +117408,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/auth.tsx:111 (handleApple, MOBILE); apps/mobile/app/(tabs)/settings.tsx:228 (SettingsScreen, MOBILE); apps/web/app/login/page.tsx:583 (startApple, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/auth.tsx:111 (handleApple, MOBILE); apps/mobile/app/(tabs)/settings.tsx:228 (SettingsScreen, MOBILE); apps/web/app/login/page.tsx:630 (startApple, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117465,7 +117480,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 600,
+          "line": 663,
           "caller": "onEmailLogin",
           "class": "WEB",
           "primitive": "handleAuth",
@@ -117475,7 +117490,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/login/page.tsx:600 (onEmailLogin, WEB)",
+      "dispositionEvidence": "apps/web/app/login/page.tsx:663 (onEmailLogin, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117529,7 +117544,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 830,
+          "line": 809,
           "caller": "onEmailRegister",
           "class": "WEB",
           "primitive": "handleAuth",
@@ -117539,7 +117554,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/register/page.tsx:830 (onEmailRegister, WEB)",
+      "dispositionEvidence": "apps/web/app/register/page.tsx:809 (onEmailRegister, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117592,7 +117607,7 @@
       "method": "POST",
       "path": "/v1/auth/email/resend-verification",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1266",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1303",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -117609,7 +117624,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 934,
+          "line": 1045,
           "caller": "LoginPageContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -117617,7 +117632,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 761,
+          "line": 740,
           "caller": "onResendVerification",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -117627,7 +117642,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/auth/verify-email/page.tsx:160 (onResend, WEB); apps/web/app/login/page.tsx:934 (LoginPageContent, WEB); apps/web/app/register/page.tsx:761 (onResendVerification, WEB)",
+      "dispositionEvidence": "apps/web/app/auth/verify-email/page.tsx:160 (onResend, WEB); apps/web/app/login/page.tsx:1045 (LoginPageContent, WEB); apps/web/app/register/page.tsx:740 (onResendVerification, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -117661,7 +117676,7 @@
       "method": "POST",
       "path": "/v1/auth/email/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1193",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1230",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -117816,7 +117831,7 @@
       "method": "POST",
       "path": "/v1/auth/logout",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1526",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1563",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -117869,7 +117884,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1313",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1350",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -117939,7 +117954,7 @@
       "method": "POST",
       "path": "/v1/auth/password-reset/confirm",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1157",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1194",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -117993,7 +118008,7 @@
       "method": "POST",
       "path": "/v1/auth/password-reset/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1070",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1107",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -126419,7 +126434,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 388,
+          "line": 409,
           "caller": "handleAuth",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -126427,7 +126442,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 561,
+          "line": 540,
           "caller": "handleAuth",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -126437,7 +126452,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/auth/verify-email/page.tsx:129 (VerifyEmailPageContent, WEB); apps/web/app/login/page.tsx:388 (handleAuth, WEB); apps/web/app/register/page.tsx:561 (handleAuth, WEB)",
+      "dispositionEvidence": "apps/web/app/auth/verify-email/page.tsx:129 (VerifyEmailPageContent, WEB); apps/web/app/login/page.tsx:409 (handleAuth, WEB); apps/web/app/register/page.tsx:540 (handleAuth, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127373,7 +127388,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 487,
+          "line": 495,
           "caller": "acceptConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127383,7 +127398,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:487 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:495 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127428,7 +127443,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 459,
+          "line": 467,
           "caller": "acceptConsent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127438,7 +127453,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:459 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:467 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127483,7 +127498,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 570,
+          "line": 578,
           "caller": "stageFile",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127493,7 +127508,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:570 (stageFile, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:578 (stageFile, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127591,7 +127606,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/intake/[token]/page.tsx",
-          "line": 738,
+          "line": 746,
           "caller": "onSubmit",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127601,7 +127616,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:738 (onSubmit, WEB)",
+      "dispositionEvidence": "apps/web/app/intake/[token]/page.tsx:746 (onSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150628,7 +150643,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 266,
+          "line": 286,
           "caller": "recordRequiredLegalAcceptances",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -150636,7 +150651,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 439,
+          "line": 418,
           "caller": "recordRequiredLegalAcceptances",
           "class": "WEB",
           "primitive": "apiFetch",
