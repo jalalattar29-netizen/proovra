@@ -1,4 +1,5 @@
 "use client";
+import { clearLocaleCookies } from "./i18n";
 
 export type ConsentCategory =
   | "necessary"
@@ -257,6 +258,11 @@ export function clearNonEssentialStorage(
         PREFERENCE_STORAGE_KEYS,
         PREFERENCE_STORAGE_KEY_PREFIXES,
       );
+      // The locale is ALSO mirrored into a cookie, so the server can render
+      // the correct text direction in the HTML rather than leaving an Arabic
+      // operator a left-to-right first frame. A mirror of a withdrawn
+      // preference is still that preference, so it expires here too.
+      clearLocaleCookies();
     }
 
     if (options.analytics) {

@@ -1,7 +1,15 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { type Locale, type LocaleMode, resolveInitialLocale, translations } from "../lib/i18n";
+import {
+  clearLocaleCookies,
+  directionFor,
+  resolveInitialLocale,
+  translations,
+  writeLocaleCookies,
+  type Locale,
+  type LocaleMode,
+} from "../lib/i18n";
 import { apiFetch, setApiToken } from "../lib/api";
 import { initSentry } from "../lib/sentry";
 import { ToastProvider } from "../components/ui";
@@ -134,20 +142,29 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    const isRTL = locale === "ar";
     document.documentElement.lang = locale;
-    document.documentElement.dir = isRTL ? "rtl" : "ltr";
+    document.documentElement.dir = directionFor(locale);
 
     // Locale + locale-mode are functional preferences. Only persist when
     // the user has granted preferences consent; otherwise behaviour stays
     // in-memory for the current session.
-    if (!hasPreferencesConsent()) return;
+    if (!hasPreferencesConsent()) {
+      // If consent was withdrawn, the mirror must go with the stored keys —
+      // otherwise the server would keep rendering a preference the user has
+      // asked us to forget.
+      clearLocaleCookies();
+      return;
+    }
     try {
       localStorage.setItem("proovra-locale", locale);
       localStorage.setItem("proovra-locale-mode", mode);
     } catch {
       // ignore
     }
+    // The COOKIE is what lets the root layout render the correct `dir` in the
+    // HTML it sends. Without it the server can only guess LTR and the first
+    // frame of every page is the console laid out the wrong way round.
+    writeLocaleCookies(locale, mode);
   }, [locale, mode]);
 
   const localeValue = useMemo<LocaleContextValue>(() => {

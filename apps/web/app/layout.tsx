@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 import { FONT_STRATEGY, headerFont, jakarta, notoArabic } from "./fonts";
 import "./globals.css";
 import { Providers } from "./providers";
 import CookieConsentInit from "./CookieConsentInit";
 import PrivacyPreferencesLauncher from "../components/privacy/PrivacyPreferencesLauncher";
 import { apiBaseUrl } from "../lib/api";
+import { directionFor, localeFromCookies } from "../lib/i18n";
 
 /**
  * The API's ORIGIN, from the one authority that knows it.
@@ -70,15 +72,38 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+/**
+ * PHASE 7 — THE DOCUMENT SHIPS WITH THE RIGHT DIRECTION ON IT.
+ *
+ * This element was `<html lang="en" dir="ltr">` unconditionally, and a client
+ * effect in `providers.tsx` corrected it after hydration. `dir` drives every
+ * logical property in the stylesheet, so for an Arabic operator the first
+ * frame of every page — a cold load of an Admin URL included — was the entire
+ * console laid out left-to-right, and then it mirrored: the sidebar crossed
+ * the viewport, every table's columns reversed, every card's border-inline
+ * rule moved side.
+ *
+ * The server cannot read `localStorage`, which is why the preference could
+ * only be applied after hydration. It can read a COOKIE, so the locale is now
+ * mirrored into one (same preferences-consent gate, same value, expired with
+ * the stored keys when consent is withdrawn) and this renders from it.
+ *
+ * `force-dynamic` above is what makes this possible at all: a prerendered
+ * document is HTML produced at build time, with no request and therefore no
+ * cookie to read.
+ */
+export default async function RootLayout({
   children,
 }: {
   children: ReactNode;
 }) {
+  const jar = await cookies();
+  const { locale } = localeFromCookies((name) => jar.get(name)?.value);
+
   return (
     <html
-      lang="en"
-      dir="ltr"
+      lang={locale}
+      dir={directionFor(locale)}
       className={`${jakarta.variable} ${headerFont.variable} ${notoArabic.variable}`}
       // Which font strategy produced those variables. Rendered so a run can
       // ASSERT it rather than infer it from whether a request was blocked.
@@ -130,7 +155,7 @@ export default function RootLayout({
         ) : null}
       </head>
 
-<body className="antialiased" style={{ fontFamily: "var(--font-jakarta)" }}>
+      <body className="antialiased" style={{ fontFamily: "var(--font-jakarta)" }}>
         <CookieConsentInit />
         <Providers>{children}</Providers>
         <PrivacyPreferencesLauncher />
