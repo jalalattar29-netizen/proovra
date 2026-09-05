@@ -12,23 +12,23 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 261,
-    "classifiedMigrations": 259,
+    "filesystemMigrations": 262,
+    "classifiedMigrations": 260,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 261,
+    "productionSnapshotUnknown": 262,
     "holds": false
   },
   "metrics": {
-    "filesystemMigrations": 261,
-    "classifiedMigrations": 259,
+    "filesystemMigrations": 262,
+    "classifiedMigrations": 260,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 261,
+    "productionSnapshotUnknown": 262,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 42,
+      "EXPAND": 43,
       "BACKFILL": 18,
       "CONTRACT_DROP": 10,
       "REPAIR": 4,
@@ -36,7 +36,7 @@
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 51,
+      "SAFE_TO_APPLY_NOW": 52,
       "WAIT_FOR_BACKFILL_READINESS": 12,
       "CONTRACT_DROP_LATER": 10,
       "WAIT_FOR_RUNTIME_CUTOVER": 1,
@@ -51,7 +51,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 261
+    "ProductionMigrationStateUnknown": 262
   },
   "gateFailures": [
     "UNCLASSIFIED: 20280125000000_intake_customer_id has no curated classification",
@@ -20423,8 +20423,75 @@
       "evidence": "THE ADMIN AUDIT IDENTITY AND TRANSITION CONTRACT. Adds nine nullable columns to admin_audit_logs — actor_type, actor_display, actor_authority, target_display, previous_state, requested_state, resulting_state, reason_code, event_version — and one index on (actor_type, created_at). No existing column is altered or dropped, no existing row is read, written or deleted.  WHY IT IS NEEDED: user_id alone could not answer \"who acted\". It is NULL for every automated event, so a scheduled worker and an unattributed action were the same row shape; it recorded no authority, so an action taken as platform staff looked like one taken as a workspace member; and it resolved through a live join, so a record stopped being readable exactly when it matters most — after the account is renamed, anonymised or deleted. Nor could the row answer \"what changed\": one outcome column with three values and no state fields, so a refused request and a successful one differed by a word, and neither said what was asked for or what storage now holds.  EXPAND-ONLY AND SAFE BEFORE CODE DEPLOYMENT: every column is nullable and no backfill runs. A deployment still on the previous image writes NULL into all nine and continues unchanged; the reader presents a NULL actor_type as UNKNOWN_LEGACY, which is the honest answer for a row written before the contract existed, and is not a claim about who acted.  WHY NO BACKFILL: an audit trail is append-only. Historical rows do not carry the identity these columns record, and inventing plausible values would be fabricating an account of who did what — the one thing this table exists not to do. Their hashes also legitimately cover the values they were written with, so an UPDATE would invalidate them.  EVENT_VERSION DEFAULTS TO 1: existing rows describe themselves as the pre-contract shape without an UPDATE touching a single one. New rows are written as 2.  HASHING: these columns are bound into chain V4 (services/api/src/lib/admin-audit-chain.ts). V1-V3 rows are never rehashed and still verify with the algorithm of their own chain_version; the chain links across versions through prev_hash, exactly as it already does for V1→V2→V3. An attribution field that verification did not cover would be worse than an absent one — it would look authoritative and remain editable.  THE INDEX: separating operator actions from automated ones is the first question asked of an audit trail during an incident, and actor_type is created BY THIS MIGRATION, so the index needs no information_schema guard — it cannot reference a column that does not exist.  HOLDS NO SECRET: a safe display label, an authority name, state names and a reason code. The display label is a display name, or a MASKED email when the account has none; the raw address is never copied into the trail.  REHEARSED against live PostgreSQL 16: applies on a clean database (260 migrations, from zero) and on a database already carrying the previous schema with 25 historical rows, converging on identical schema in both. Row conservation proven 25 → 25, every historical row keeping NULL identity, event_version 1 and its original hash."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280301000000_evidence_credit_admin_grant",
       "order": 260,
+      "sqlPresent": true,
+      "byteLength": 2663,
+      "checksumSha256": "bc0a8666aea6f7f0ac6192ab1cd9ea337e14a8f1f3892c2ea01ffc2cf06f88ec",
+      "checksumSha256Raw": "bc0a8666aea6f7f0ac6192ab1cd9ea337e14a8f1f3892c2ea01ffc2cf06f88ec",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence_credit_ledger_entries"
+        ],
+        "addedColumns": [
+          "grant_ref"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [
+          "evidencecreditentrytype"
+        ],
+        "createdIndexes": [
+          "evidence_credit_ledger_grant_ref_key"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20271227000000_billing_commercial_correctness"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": null,
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "THE PLATFORM-ADMIN EVIDENCE CREDIT GRANT. Adds one value to the `EvidenceCreditEntryType` enum (`ADMIN_GRANT`), one nullable column to `evidence_credit_ledger_entries` (`grant_ref`), and one partial UNIQUE index on that column. No existing column is altered or dropped, no existing row is read, written or deleted. WHY IT IS NEEDED: the evidence-credit wallet had exactly one way to gain credits — a completed Stripe or PayPal payment — so support remediation, goodwill and controlled internal testing had no mechanism at all. The workaround for that is always the same: write a PURCHASE row. That places a payment that never happened into the one table whose purpose is to prove where every credit came from, and the customer's own billing history reads that table. ADMIN_GRANT is the truthful fourth movement; it carries no provider and no provider_ref because there is no payment to identify. EXPAND-ONLY AND SAFE BEFORE CODE DEPLOYMENT: the column is nullable with no default and no backfill; an enum GAINS a value, which no existing row or reader is affected by. A deployment still on the previous image never writes ADMIN_GRANT and never reads grant_ref, and continues unchanged. WHY NO BACKFILL: the ledger is append-only and no historical row is a grant — every credit that has ever entered a wallet arrived through a provider payment, and relabelling one would be inventing a support decision nobody made. THE INDEX PREDICATE IS `grant_ref IS NOT NULL`, NOT `entry_type = 'ADMIN_GRANT'`: PostgreSQL refuses to use a newly added enum value inside the transaction that added it, so naming ADMIN_GRANT in the predicate would fail this migration on a fresh database. Only grant rows carry a grant_ref, so the two predicates select the same rows. It is the idempotency guarantee at the database — the same shape as the existing partial unique index on PURCHASE (provider, provider_ref) — so a retried grant cannot double-credit a wallet even when two requests race. HOLDS NO SECRET: grant_ref is `<targetUserId>:<operator reference>`, minted server-side. The reason and the acting admin are recorded in the platform audit trail, not here. REHEARSED against live PostgreSQL 16: applies on a database migrated from zero and on one already carrying the previous schema with existing ledger rows, converging on identical schema in both, with every historical row keeping its entry type, delta, balance_after and a NULL grant_ref."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 261,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

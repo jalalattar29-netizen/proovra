@@ -422,6 +422,13 @@ export type BillingAccountProjection = {
   wallet?: {
     availableCredits: number;
     purchasedCredits: number;
+    /**
+     * Credits granted by platform staff — support remediation, goodwill,
+     * internal correction. Reported SEPARATELY from purchases: no payment
+     * occurred, and a surface that added them together would tell somebody
+     * they had paid for something they had not.
+     */
+    grantedCredits: number;
     consumedCredits: number;
     hasLedgerHistory: boolean;
     unitPriceCents?: number;
@@ -1419,6 +1426,7 @@ export async function buildBillingAccountProjection(input: {
           wallet: {
             availableCredits: wallet.availableCredits,
             purchasedCredits: wallet.purchasedCredits,
+            grantedCredits: wallet.grantedCredits,
             consumedCredits: wallet.consumedCredits,
             hasLedgerHistory: wallet.hasLedgerHistory,
             creditsPerPurchase: EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase,

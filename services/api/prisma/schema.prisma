@@ -2144,6 +2144,9 @@ model EvidenceCreditLedgerEntry {
   /// Provider payment identity for a PURCHASE. Never a raw provider payload.
   provider     PaymentProvider?
   providerRef  String?                 @map("provider_ref") @db.VarChar(191)
+  /// Reference for an ADMIN_GRANT: `<targetUserId>:<idempotencyKey>`. UNIQUE
+  /// where present — the retry guard, at the database.
+  grantRef     String?                 @unique @map("grant_ref") @db.VarChar(191)
   /// Wallet balance immediately after this entry was applied.
   balanceAfter Int                     @map("balance_after")
   createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -2159,6 +2162,9 @@ enum EvidenceCreditEntryType {
   PURCHASE
   CONSUMPTION
   REVERSAL
+  /// Platform-admin / support grant. No payment occurred, so the row carries
+  /// no provider and no provider_ref — it carries a grant_ref instead.
+  ADMIN_GRANT
 }
 
 model Subscription {

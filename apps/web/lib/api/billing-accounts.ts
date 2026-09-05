@@ -219,6 +219,8 @@ export type BillingAccountProjection = {
   wallet?: {
     availableCredits: number;
     purchasedCredits: number;
+    /** Granted by platform staff, not bought. Never added to purchases. */
+    grantedCredits: number;
     consumedCredits: number;
     hasLedgerHistory: boolean;
     unitPriceCents?: number;

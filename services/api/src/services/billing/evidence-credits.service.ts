@@ -69,8 +69,16 @@ function isUniqueViolation(err: unknown): boolean {
 export type EvidenceCreditWallet = {
   /** Unspent purchased credits. The value the admission decision reads. */
   availableCredits: number;
-  /** Lifetime credits purchased (sum of PURCHASE entries). */
+  /** Lifetime credits PURCHASED (sum of PURCHASE entries). */
   purchasedCredits: number;
+  /**
+   * Lifetime credits GRANTED by platform staff (sum of ADMIN_GRANT entries).
+   *
+   * Separate from `purchasedCredits` because the customer-facing surfaces read
+   * these numbers, and describing a support remediation as a purchase would
+   * tell somebody they had paid for something they had not.
+   */
+  grantedCredits: number;
   /** Lifetime credits spent on completions (absolute sum of CONSUMPTION). */
   consumedCredits: number;
   /**
@@ -106,11 +114,14 @@ export async function readEvidenceCreditWallet(
   ]);
 
   let purchased = 0;
+  let granted = 0;
   let consumed = 0;
   for (const row of grouped) {
     const sum = row._sum.creditsDelta ?? 0;
     if (row.entryType === prismaPkg.EvidenceCreditEntryType.CONSUMPTION) {
       consumed += Math.abs(sum);
+    } else if (row.entryType === prismaPkg.EvidenceCreditEntryType.ADMIN_GRANT) {
+      granted += sum;
     } else {
       // PURCHASE and REVERSAL both add credits back to the wallet.
       purchased += sum;
@@ -120,9 +131,163 @@ export async function readEvidenceCreditWallet(
   return {
     availableCredits: Math.max(0, entitlement?.credits ?? 0),
     purchasedCredits: purchased,
+    grantedCredits: granted,
     consumedCredits: consumed,
     hasLedgerHistory: grouped.length > 0,
   };
+}
+
+/**
+ * WHERE A CREDIT CAME FROM.
+ *
+ * The wallet has exactly two ways to gain credits and they are not the same
+ * fact. A PURCHASE is identified by the provider payment behind it; an
+ * ADMIN_GRANT has no payment, so it is identified by the grant reference the
+ * operator's request carried. Modelling them as one shape with optional
+ * provider fields is how a support remediation ends up in a customer's payment
+ * history claiming a charge that never existed.
+ */
+export type EvidenceCreditGrantSource =
+  | {
+      kind: "PURCHASE";
+      provider: prismaPkg.PaymentProvider;
+      /** The provider's payment/session id. Never a raw provider payload. */
+      providerRef: string;
+    }
+  | {
+      kind: "ADMIN_GRANT";
+      /** `<targetUserId>:<idempotencyKey>`, minted by the route. UNIQUE. */
+      grantRef: string;
+    };
+
+/**
+ * THE credit-increment implementation. Both public grants come through here.
+ *
+ * Kept as one function deliberately: `entitlements.credits` has exactly two
+ * writers in this repository — this one and
+ * `consumeEvidenceCreditForCompletion` — and adding an admin path that wrote
+ * its own increment would make that two-and-a-half, with the balance and the
+ * ledger free to disagree in the new half.
+ *
+ * The transaction is the guarantee: the prior-entry check, the increment and
+ * the ledger row commit together or not at all, and `balance_after` is read
+ * from the UPDATE's own result rather than computed by the caller.
+ */
+async function applyCreditGrant(params: {
+  userId: string;
+  credits: number;
+  source: EvidenceCreditGrantSource;
+}): Promise<{ granted: boolean; balanceAfter: number }> {
+  const credits = Math.max(0, Math.floor(params.credits));
+  if (credits === 0) {
+    const wallet = await readEvidenceCreditWallet(params.userId);
+    return { granted: false, balanceAfter: wallet.availableCredits };
+  }
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // The idempotency read, against whichever identity this source carries.
+      const existing =
+        params.source.kind === "PURCHASE"
+          ? await tx.evidenceCreditLedgerEntry.findFirst({
+              where: {
+                entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
+                provider: params.source.provider,
+                providerRef: params.source.providerRef,
+              },
+              select: { balanceAfter: true },
+            })
+          : await tx.evidenceCreditLedgerEntry.findUnique({
+              where: { grantRef: params.source.grantRef },
+              select: { balanceAfter: true },
+            });
+      if (existing) {
+        return { granted: false, balanceAfter: existing.balanceAfter };
+      }
+
+      const entitlement = await tx.entitlement.findFirst({
+        where: { userId: params.userId, active: true },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      if (!entitlement) {
+        // `ensureEntitlement` runs before every grant call site; a missing row
+        // here means the account was removed mid-flight. Fail closed rather
+        // than creating an entitlement from a grant.
+        throw new DomainError("No active entitlement for credit grant", {
+          httpStatus: 409,
+          publicCode: "ENTITLEMENT_NOT_FOUND",
+          publicMessage: "This account cannot receive evidence credits.",
+          reportability: "OPERATIONAL_WARNING",
+          severity: "warning",
+        });
+      }
+
+      const updated = await tx.entitlement.update({
+        where: { id: entitlement.id },
+        data: { credits: { increment: credits } },
+        select: { credits: true },
+      });
+
+      await tx.evidenceCreditLedgerEntry.create({
+        data: {
+          userId: params.userId,
+          creditsDelta: credits,
+          balanceAfter: updated.credits,
+          ...(params.source.kind === "PURCHASE"
+            ? {
+                entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
+                provider: params.source.provider,
+                providerRef: params.source.providerRef,
+              }
+            : {
+                entryType: prismaPkg.EvidenceCreditEntryType.ADMIN_GRANT,
+                grantRef: params.source.grantRef,
+              }),
+        },
+      });
+
+      return { granted: true, balanceAfter: updated.credits };
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      // A concurrent delivery of the same payment, or a concurrent retry of
+      // the same grant, won the race. Either way the credit exists once.
+      const wallet = await readEvidenceCreditWallet(params.userId);
+      return { granted: false, balanceAfter: wallet.availableCredits };
+    }
+    throw err;
+  }
+}
+
+/**
+ * GRANT CREDITS ON A PLATFORM-ADMIN / SUPPORT DECISION.
+ *
+ * For support remediation, goodwill and controlled internal testing — the
+ * cases that previously had no mechanism at all, which is how "write a
+ * PURCHASE row" becomes the workaround and a customer's billing history comes
+ * to describe a payment nobody made.
+ *
+ * It grants CREDITS and nothing else. The plan is untouched, no limit moves,
+ * and the credit is spent by exactly the same admission and settlement path a
+ * bought one is: allowance first, then one credit at completion, on Capture,
+ * on Personal External Intake and on any other personal creation surface.
+ *
+ * AUTHORIZATION IS THE ROUTE'S. This service performs no authorization check
+ * of its own — `requirePlatformAdmin` is the boundary — and it is not exported
+ * to any non-admin surface.
+ */
+export async function grantEvidenceCreditsByPlatformAdmin(params: {
+  userId: string;
+  credits: number;
+  /** `<targetUserId>:<idempotencyKey>`. Minted by the route, never a client string alone. */
+  grantRef: string;
+}): Promise<{ granted: boolean; balanceAfter: number }> {
+  return applyCreditGrant({
+    userId: params.userId,
+    credits: params.credits,
+    source: { kind: "ADMIN_GRANT", grantRef: params.grantRef },
+  });
 }
 
 /**
@@ -142,71 +307,15 @@ export async function grantEvidenceCredits(params: {
   provider: prismaPkg.PaymentProvider;
   providerRef: string;
 }): Promise<{ granted: boolean; balanceAfter: number }> {
-  const credits = Math.max(0, Math.floor(params.credits));
-  if (credits === 0) {
-    const wallet = await readEvidenceCreditWallet(params.userId);
-    return { granted: false, balanceAfter: wallet.availableCredits };
-  }
-
-  try {
-    return await prisma.$transaction(async (tx) => {
-      const existing = await tx.evidenceCreditLedgerEntry.findFirst({
-        where: {
-          entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
-          provider: params.provider,
-          providerRef: params.providerRef,
-        },
-        select: { balanceAfter: true },
-      });
-      if (existing) {
-        return { granted: false, balanceAfter: existing.balanceAfter };
-      }
-
-      const entitlement = await tx.entitlement.findFirst({
-        where: { userId: params.userId, active: true },
-        orderBy: { createdAt: "desc" },
-        select: { id: true },
-      });
-      if (!entitlement) {
-        // `ensureEntitlement` runs before every grant call site; a missing row
-        // here means the account was removed mid-flight. Fail closed rather
-        // than creating an entitlement from a webhook.
-        throw new DomainError("No active entitlement for credit grant", {
-          httpStatus: 409,
-          publicCode: "ENTITLEMENT_NOT_FOUND",
-          publicMessage: "This account cannot receive evidence credits.",
-          reportability: "OPERATIONAL_WARNING",
-          severity: "warning",
-        });
-      }
-
-      const updated = await tx.entitlement.update({
-        where: { id: entitlement.id },
-        data: { credits: { increment: credits } },
-        select: { credits: true },
-      });
-
-      await tx.evidenceCreditLedgerEntry.create({
-        data: {
-          userId: params.userId,
-          entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
-          creditsDelta: credits,
-          provider: params.provider,
-          providerRef: params.providerRef,
-          balanceAfter: updated.credits,
-        },
-      });
-
-      return { granted: true, balanceAfter: updated.credits };
-    });
-  } catch (err) {
-    if (isUniqueViolation(err)) {
-      // Concurrent delivery of the same provider payment won the race.
-      const wallet = await readEvidenceCreditWallet(params.userId);
-      return { granted: false, balanceAfter: wallet.availableCredits };
-    }
-    throw err;
-  }
+  return applyCreditGrant({
+    userId: params.userId,
+    credits: params.credits,
+    source: {
+      kind: "PURCHASE",
+      provider: params.provider,
+      providerRef: params.providerRef,
+    },
+  });
 }
 
 /**
