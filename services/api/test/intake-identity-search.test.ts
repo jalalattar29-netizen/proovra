@@ -146,7 +146,7 @@ describe("the four identifiers are independently matchable", () => {
 });
 
 describe("reaching the same four facts from an evidence row", () => {
-  it("uses the snapshot for the Customer ID and the relation for the rest", () => {
+  it("asks for the Customer ID on BOTH the snapshot and the link", () => {
     const arms = evidenceIntakeIdentityArms("CUST-SEARCH-849271", {
       matchRecipientContact: false,
     });
@@ -156,8 +156,21 @@ describe("reaching the same four facts from an evidence row", () => {
     // And the name through the 1:1 session relation.
     expect(body).toContain("workflowIntakeSession");
     expect(body).toContain("recipientLabel");
-    // The customerId arm is NOT also asked of the link: same rows, slower.
-    expect(body).not.toContain('"customerId"');
+    /*
+     * AND the link's own Customer ID.
+     *
+     * This asserted the opposite — that asking the link too was "the same
+     * rows, slower". It is not the same rows. `intakeCustomerId` is a
+     * SNAPSHOT taken at submission, and its column arrived with migration
+     * 20280125000000, so every record submitted before that migration reached
+     * production has it NULL no matter what its link says. Matching only the
+     * snapshot left those records permanently unfindable by the identifier
+     * their own organisation uses for them.
+     *
+     * The snapshot stays authoritative for provenance. Search accepts either.
+     */
+    expect(body).toContain('"customerId"');
+    expect(body).toContain("intakeLink");
   });
 
   it("scopes the contact arms to the workspaces that may see them", () => {

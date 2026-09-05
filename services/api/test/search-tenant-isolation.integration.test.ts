@@ -22,6 +22,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { SEARCH_PROJECTION_VERSION } from "@proovra/shared";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -112,6 +113,7 @@ describe("Search tenant isolation + display names (live PostgreSQL 16)", () => {
       claimRef: null,
       matterRef: null,
       sourceUpdatedAtUtc: new Date(),
+      projectionVersion: SEARCH_PROJECTION_VERSION,
     });
     expect(res.ok, `indexing ${input.title} failed`).toBe(true);
     return sourceId;
@@ -280,6 +282,7 @@ describe("Search tenant isolation + display names (live PostgreSQL 16)", () => {
       claimRef: null,
       matterRef: null,
       sourceUpdatedAtUtc: new Date(),
+      projectionVersion: SEARCH_PROJECTION_VERSION,
     });
 
     const after = await search(A.ownerToken, A.teamId, MARK);

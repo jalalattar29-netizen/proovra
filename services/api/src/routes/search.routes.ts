@@ -959,184 +959,63 @@ export async function searchRoutes(app: FastifyInstance) {
           error: (o, m) => req.log.error(o as object, m ?? ""),
         },
         body: async () => {
-          const { indexEvidence } = await import(
-            "../services/search/evidence-indexing.service.js"
+          /*
+           * ONE REINDEX, NOT TWO.
+           *
+           * This endpoint used to carry its own copy of the orphan queries
+           * and its own indexing loops — a second implementation of the job
+           * `reindex.service.ts` already does. They drifted, as duplicated
+           * work does: when the reindex learned to refresh documents written
+           * by an older build of the projection, this route did not, so the
+           * one entry point an operator actually reaches kept reporting
+           * "0 orphans, complete" over an index full of stale documents.
+           *
+           * The lock is still taken HERE, because this route needs the run
+           * row to answer 202 while another run is under way. So it calls the
+           * body directly rather than the locked entry point, which would
+           * deadlock against the slot this request is already holding.
+           */
+          const { runWorkspaceReindexBodyUnderLock } = await import(
+            "../services/search/reindex.service.js"
           );
-          const { indexCase } = await import(
-            "../services/search/case-indexing.service.js"
-          );
-          // Phase SEARCH-REMEDIATION-2 — extend reconcile to cover the
-          // remaining workspace entities: reports, packages, and notes.
-          const { indexReport, indexPackage, indexNote } = await import(
-            "../services/search/artifact-indexing.service.js"
-          );
-
-          // Find orphaned evidence — every INDEXABLE row (active +
-          // archived + locked + trash) that has no matching search
-          // document. Search-inclusion-audit (trash decision): only
-          // lifecycle DESTROYED / PENDING_DESTRUCTION are excluded;
-          // soft-deleted (deletedAt IS NOT NULL) records belong in
-          // the index with an "in_trash" tag.
-          // The eligibility clause is emitted from the shared authority, so the
-          // scan that FINDS outstanding work and the count that REPORTS it can
-          // never describe different populations.
-          const orphanEvidence = await prisma.$queryRawUnsafe<
-            Array<{ id: string }>
-          >(
-            `SELECT e.id::text AS id
-             FROM evidence e
-             LEFT JOIN evidence_search_documents esd
-               ON esd.team_id = e.team_id
-              AND esd.document_type = 'EVIDENCE'
-              AND esd.source_id = e.id
-             WHERE ${searchIndexableLifecycleSql("e.lifecycle_state")}
-               AND e.team_id = $1::uuid
-               AND esd.id IS NULL
-             LIMIT $2`,
-            body.teamId,
-            limit,
-          );
-
-          const orphanCases = await prisma.$queryRaw<
-            Array<{ id: string }>
-          >`SELECT c.id::text AS id
-             FROM cases c
-             LEFT JOIN evidence_search_documents esd
-               ON esd.team_id = c.team_id
-              AND esd.document_type = 'CASE'
-              AND esd.source_id = c.id
-             WHERE c.team_id = ${body.teamId}::uuid
-               AND esd.id IS NULL
-             LIMIT ${limit}`;
-
-          const orphanReports = await prisma.$queryRaw<
-            Array<{ id: string }>
-          >`SELECT r.id::text AS id
-             FROM reports r
-             JOIN evidence e ON e.id = r.evidence_id
-             LEFT JOIN evidence_search_documents esd
-               ON esd.team_id = e.team_id
-              AND esd.document_type = 'REPORT'
-              AND esd.source_id = r.id
-             WHERE e.deleted_at IS NULL
-               AND e.team_id = ${body.teamId}::uuid
-               AND esd.id IS NULL
-             LIMIT ${limit}`;
-
-          const orphanPackages = await prisma.$queryRaw<
-            Array<{ id: string }>
-          >`SELECT p.id::text AS id
-             FROM verification_packages p
-             JOIN evidence e ON e.id = p.evidence_id
-             LEFT JOIN evidence_search_documents esd
-               ON esd.team_id = e.team_id
-              AND esd.document_type = 'PACKAGE'
-              AND esd.source_id = p.id
-             WHERE e.deleted_at IS NULL
-               AND e.team_id = ${body.teamId}::uuid
-               AND esd.id IS NULL
-             LIMIT ${limit}`;
-
-          const orphanNotes = await prisma.$queryRaw<
-            Array<{ id: string }>
-          >`SELECT cc.id::text AS id
-             FROM case_comments cc
-             LEFT JOIN evidence_search_documents esd
-               ON esd.team_id = cc.team_id
-              AND esd.document_type = 'NOTE'
-              AND esd.source_id = cc.id
-             WHERE cc.team_id = ${body.teamId}::uuid
-               AND esd.id IS NULL
-             LIMIT ${limit}`;
-
-          let evidenceIndexed = 0;
-          let evidenceFailed = 0;
-          for (const row of orphanEvidence) {
-            const r = await indexEvidence({ teamId: body.teamId, evidenceId: row.id });
-            if (r.ok) evidenceIndexed += 1;
-            else evidenceFailed += 1;
-          }
-          let caseIndexed = 0;
-          let caseFailed = 0;
-          for (const row of orphanCases) {
-            const r = await indexCase({ teamId: body.teamId, caseId: row.id });
-            if (r.ok) caseIndexed += 1;
-            else caseFailed += 1;
-          }
-          let reportIndexed = 0;
-          let reportFailed = 0;
-          for (const row of orphanReports) {
-            const r = await indexReport({ reportId: row.id });
-            if (r.ok) reportIndexed += 1;
-            else reportFailed += 1;
-          }
-          let packageIndexed = 0;
-          let packageFailed = 0;
-          for (const row of orphanPackages) {
-            const r = await indexPackage({ packageId: row.id });
-            if (r.ok) packageIndexed += 1;
-            else packageFailed += 1;
-          }
-          let noteIndexed = 0;
-          let noteFailed = 0;
-          for (const row of orphanNotes) {
-            const r = await indexNote({ noteId: row.id });
-            if (r.ok) noteIndexed += 1;
-            else noteFailed += 1;
-          }
-
+          const result = await runWorkspaceReindexBodyUnderLock({
+            teamId: body.teamId,
+            includeCases: true,
+            log: {
+              info: (o, m) => req.log.info(o as object, m ?? ""),
+              warn: (o, m) => req.log.warn(o as object, m ?? ""),
+              error: (o, m) => req.log.error(o as object, m ?? ""),
+            },
+          });
 
           detail = {
             teamId: body.teamId,
-            evidence: {
-              orphans: orphanEvidence.length,
-              indexed: evidenceIndexed,
-              failed: evidenceFailed,
-            },
-            cases: {
-              orphans: orphanCases.length,
-              indexed: caseIndexed,
-              failed: caseFailed,
-            },
-            reports: {
-              orphans: orphanReports.length,
-              indexed: reportIndexed,
-              failed: reportFailed,
-            },
-            packages: {
-              orphans: orphanPackages.length,
-              indexed: packageIndexed,
-              failed: packageFailed,
-            },
-            notes: {
-              orphans: orphanNotes.length,
-              indexed: noteIndexed,
-              failed: noteFailed,
-            },
-              };
+            evidence: result.evidence,
+            cases: result.cases,
+            reports: result.reports,
+            packages: result.packages,
+            notes: result.notes,
+          };
+
+          const buckets = [
+            result.evidence,
+            result.cases,
+            result.reports,
+            result.packages,
+            result.notes,
+          ];
+          const sum = (pick: (b: (typeof buckets)[number]) => number) =>
+            buckets.reduce((n, b) => n + pick(b), 0);
 
           return {
-            scanned:
-              orphanEvidence.length +
-              orphanCases.length +
-              orphanReports.length +
-              orphanPackages.length +
-              orphanNotes.length,
-            indexed:
-              evidenceIndexed +
-              caseIndexed +
-              reportIndexed +
-              packageIndexed +
-              noteIndexed,
-            // The endpoint reconciles missing documents; removing ineligible
-            // ones is the worker sweep's responsibility.
+            // "Scanned" is every document this run had to touch: the records
+            // with no document AND the documents an older projection wrote.
+            scanned: sum((b) => b.orphans) + sum((b) => b.stale),
+            indexed: sum((b) => b.indexed),
+            // The endpoint reconciles missing and stale documents; removing
+            // ineligible ones is the worker sweep's responsibility.
             removed: 0,
-            failed:
-              evidenceFailed +
-              caseFailed +
-              reportFailed +
-              packageFailed +
-              noteFailed,
+            failed: sum((b) => b.failed),
           };
         },
       });

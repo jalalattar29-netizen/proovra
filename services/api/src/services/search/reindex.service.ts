@@ -44,7 +44,10 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { indexEvidence } from "./evidence-indexing.service.js";
 import { indexCase } from "./case-indexing.service.js";
-import { searchIndexableLifecycleSql } from "@proovra/shared";
+import {
+  SEARCH_PROJECTION_VERSION,
+  searchIndexableLifecycleSql,
+} from "@proovra/shared";
 // The ONE durable reconciliation authority. Claiming the slot HERE — rather
 // than at each caller — is what makes it impossible to reach the scan/index
 // lifecycle without the lock: the CLI, the internal endpoint and any future
@@ -99,7 +102,16 @@ export type WorkspaceReindexResult = {
 };
 
 export type ReindexBucket = {
+  /** Source rows with NO document at all. */
   orphans: number;
+  /**
+   * Documents that EXIST but were written by an older build of the
+   * projection, and so cannot answer questions the current builder would
+   * allow. Counted apart from orphans because they are a different failure:
+   * an orphan is a record search has never seen, a stale document is one
+   * search answers WRONGLY, which is worse and looks like success.
+   */
+  stale: number;
   indexed: number;
   skipped: number;
   failed: number;
@@ -112,7 +124,7 @@ const NULL_LOGGER: ReindexLogger = {
 };
 
 function emptyBucket(): ReindexBucket {
-  return { orphans: 0, indexed: 0, skipped: 0, failed: 0 };
+  return { orphans: 0, stale: 0, indexed: 0, skipped: 0, failed: 0 };
 }
 
 /**
@@ -191,6 +203,28 @@ export async function runWorkspaceReindex(
   return emptyResult(input.teamId);
 }
 
+/**
+ * THE REINDEX BODY, for a caller that already holds the run slot.
+ *
+ * `runWorkspaceReindex` above takes the durable per-workspace lock and then
+ * runs this. `POST /v1/search/reconcile` takes the SAME lock itself — it
+ * needs the run row for its 202-while-running answer — so it cannot call the
+ * locked entry point without deadlocking against itself, and it had therefore
+ * grown its own copy of the queries instead.
+ *
+ * That copy is why fixing the reindex did not fix the endpoint: two
+ * implementations of one job, and the one an operator actually reaches was
+ * the one that was not maintained. This export is what makes them one again.
+ *
+ * DO NOT call this without holding the slot.
+ */
+export async function runWorkspaceReindexBodyUnderLock(
+  input: WorkspaceReindexInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<WorkspaceReindexResult> {
+  return runWorkspaceReindexUnlocked(input, client);
+}
+
 async function runWorkspaceReindexUnlocked(
   input: WorkspaceReindexInput,
   client: PrismaClient = defaultPrisma,
@@ -233,25 +267,54 @@ async function runWorkspaceReindexUnlocked(
   // -------------------------------------------------------------------------
   // The eligibility clause is EMITTED from the shared authority, not typed
   // out here. Typed out, it was one of three copies that had to agree forever.
-  const orphanEvidence = await client.$queryRawUnsafe<Array<{ id: string }>>(
+  /*
+   * ORPHANS **AND** STALE DOCUMENTS.
+   *
+   * This selected only `esd.id IS NULL` — evidence with no document — so a
+   * record that already had one was never revisited by ANY path: not this
+   * sweep, not `POST /v1/search/reconcile`, not the cron, not the backfill
+   * CLI. When the projection began indexing External Intake identity, every
+   * document written before that change became permanently unable to answer
+   * a Customer ID or phone query, and every subsequent reindex reported
+   * success while changing nothing.
+   *
+   * That was proven rather than reasoned: a document with the identity
+   * stripped from its body failed all four identity probes, a full workspace
+   * reconcile reported 14 documents indexed, and the stripped body came back
+   * byte-for-byte identical. The only way to repair one record was to delete
+   * its document and reconcile again — by hand, one at a time.
+   *
+   * `projection_version` makes the second case visible, and it is repaired
+   * by the SAME indexer, in the same bounded batch, under the same lock.
+   * Orphans come first: a record search cannot see at all is a worse state
+   * than one it can see incompletely, and under a batch limit the worse state
+   * should be fixed first.
+   */
+  const staleOrMissing = await client.$queryRawUnsafe<
+    Array<{ id: string; stale: boolean }>
+  >(
     `
-    SELECT e.id::text AS id
+    SELECT e.id::text AS id,
+           (esd.id IS NOT NULL) AS stale
       FROM evidence e
       LEFT JOIN evidence_search_documents esd
-        ON esd.team_id      = e.team_id
+        ON esd.team_id       = e.team_id
        AND esd.document_type = 'EVIDENCE'
-       AND esd.source_id    = e.id
+       AND esd.source_id     = e.id
      WHERE ${searchIndexableLifecycleSql("e.lifecycle_state")}
        AND e.team_id = $1::uuid
-       AND esd.id IS NULL
-     LIMIT $2`,
+       AND (esd.id IS NULL OR esd.projection_version < $2)
+     ORDER BY (esd.id IS NOT NULL) ASC, e.id ASC
+     LIMIT $3`,
     teamId,
+    SEARCH_PROJECTION_VERSION,
     limit,
   );
-  evidence.orphans = orphanEvidence.length;
+  evidence.orphans = staleOrMissing.filter((r) => !r.stale).length;
+  evidence.stale = staleOrMissing.filter((r) => r.stale).length;
 
   if (!dryRun) {
-    for (const row of orphanEvidence) {
+    for (const row of staleOrMissing) {
       const r = await indexEvidence(
         { teamId, evidenceId: row.id },
         client,

@@ -1,34 +1,34 @@
 {
-  "generatedAtUtc": "2026-09-04T10:27:03.296Z",
-  "migrationCount": 258,
+  "generatedAtUtc": "2026-09-05T11:08:54.762Z",
+  "migrationCount": 263,
   "summary": {
-    "CRITICAL": 217,
-    "HIGH": 551,
-    "MEDIUM": 334,
+    "CRITICAL": 220,
+    "HIGH": 553,
+    "MEDIUM": 336,
     "LOW": 0,
     "findingsByKind": {
       "CREATE_INDEX_NO_IF_NOT_EXISTS": 280,
       "ALTER_TABLE_DROP_COLUMN": 12,
       "DROP_INDEX": 10,
-      "ALTER_TYPE": 108,
-      "ENUM_ADD_VALUE": 108,
+      "ALTER_TYPE": 109,
+      "ENUM_ADD_VALUE": 109,
       "ADD_COLUMN_NO_IF_NOT_EXISTS": 55,
       "ALTER_COLUMN_TYPE": 191,
       "CREATE_TABLE_IF_NOT_EXISTS": 126,
       "ALTER_COLUMN_SET_DEFAULT": 32,
       "ALTER_TABLE_RENAME": 1,
-      "INDEX_COLUMN_RISK": 54,
+      "INDEX_COLUMN_RISK": 57,
       "SET_NOT_NULL_WITH_READINESS": 69,
       "SET_NOT_NULL_NO_READINESS": 8,
-      "CREATE_INDEX_GUARDED": 42,
+      "CREATE_INDEX_GUARDED": 44,
       "DROP_TABLE": 5,
       "DROP_TYPE": 1
     }
   },
   "verdicts": {
-    "SAFE": 125,
-    "RISKY": 64,
-    "UNSAFE": 69
+    "SAFE": 128,
+    "RISKY": 65,
+    "UNSAFE": 70
   },
   "inventory": [
     {
@@ -11639,13 +11639,45 @@
       "migration": "20280120000000_break_glass_single_active_grant",
       "timestamp": "20280120000000",
       "slug": "break_glass_single_active_grant",
-      "verdict": "UNSAFE",
-      "rationale": "Critical pattern present.",
+      "verdict": "RISKY",
+      "rationale": "Idempotency / re-run gap detected.",
       "tables": [],
       "totalColumnsAdded": 0,
       "findingsByRisk": {
-        "CRITICAL": 1,
+        "CRITICAL": 0,
         "HIGH": 1,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 94,
+          "detail": "Index emergency_access_grants_active_org_user_uk ON emergency_access_grants(organization_id,emergency_user_id) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {organization_id,emergency_user_id}."
+        },
+        {
+          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "risk": "HIGH",
+          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
+          "lineHint": 94
+        }
+      ]
+    },
+    {
+      "migration": "20280125000000_intake_customer_id",
+      "timestamp": "20280125000000",
+      "slug": "intake_customer_id",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "evidence",
+        "workflow_intake_links"
+      ],
+      "totalColumnsAdded": 2,
+      "findingsByRisk": {
+        "CRITICAL": 2,
+        "HIGH": 0,
         "MEDIUM": 0,
         "LOW": 0
       },
@@ -11653,14 +11685,119 @@
         {
           "kind": "INDEX_COLUMN_RISK",
           "risk": "CRITICAL",
-          "lineHint": 97,
-          "detail": "Index emergency_access_grants_active_org_user_uk ON emergency_access_grants(organization_id,emergency_user_id) references column(s) {organization_id,emergency_user_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+          "lineHint": 24,
+          "detail": "Index workflow_intake_links_team_id_customer_id_idx ON workflow_intake_links(team_id,customer_id) references column(s) {team_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
         },
         {
-          "kind": "CREATE_INDEX_NO_IF_NOT_EXISTS",
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 27,
+          "detail": "Index evidence_team_id_intake_customer_id_idx ON evidence(team_id,intake_customer_id) references column(s) {team_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        }
+      ]
+    },
+    {
+      "migration": "20280210000000_intake_identity_search",
+      "timestamp": "20280210000000",
+      "slug": "intake_identity_search",
+      "verdict": "UNSAFE",
+      "rationale": "Critical pattern present.",
+      "tables": [
+        "workflow_intake_links"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 2,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 40,
+          "detail": "Index workflow_intake_links_team_id_recipient_email_idx ON workflow_intake_links(team_id,recipient_email) references column(s) {team_id,recipient_email} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        },
+        {
+          "kind": "INDEX_COLUMN_RISK",
+          "risk": "CRITICAL",
+          "lineHint": 42,
+          "detail": "Index workflow_intake_links_team_id_recipient_phone_e164_idx ON workflow_intake_links(team_id,recipient_phone_e164) references column(s) {team_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'."
+        }
+      ]
+    },
+    {
+      "migration": "20280215000000_admin_audit_identity_contract",
+      "timestamp": "20280215000000",
+      "slug": "admin_audit_identity_contract",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "admin_audit_logs"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": []
+    },
+    {
+      "migration": "20280301000000_evidence_credit_admin_grant",
+      "timestamp": "20280301000000",
+      "slug": "evidence_credit_admin_grant",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence_credit_ledger_entries"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 2,
+        "MEDIUM": 0,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "ALTER_TYPE",
           "risk": "HIGH",
-          "detail": "CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.",
-          "lineHint": 97
+          "detail": "ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.",
+          "lineHint": 15
+        },
+        {
+          "kind": "ENUM_ADD_VALUE",
+          "risk": "HIGH",
+          "detail": "ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.",
+          "lineHint": 15
+        }
+      ]
+    },
+    {
+      "migration": "20280401000000_search_projection_version",
+      "timestamp": "20280401000000",
+      "slug": "search_projection_version",
+      "verdict": "SAFE",
+      "rationale": "No dangerous patterns detected.",
+      "tables": [
+        "evidence_search_documents"
+      ],
+      "totalColumnsAdded": 1,
+      "findingsByRisk": {
+        "CRITICAL": 0,
+        "HIGH": 0,
+        "MEDIUM": 1,
+        "LOW": 0
+      },
+      "findings": [
+        {
+          "kind": "CREATE_INDEX_GUARDED",
+          "risk": "MEDIUM",
+          "lineHint": 35,
+          "detail": "Index evidence_search_documents_team_id_projection_version_idx ON evidence_search_documents(team_id,projection_version) references columns not added by this migration, but a DO/information_schema guard precedes the CREATE for every missing column {team_id}."
         }
       ]
     },

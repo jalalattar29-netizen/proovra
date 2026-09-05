@@ -117,6 +117,8 @@ type UpsertPayload = {
   claimRef?: string | null;
   matterRef?: string | null;
   sourceUpdatedAtUtc: Date;
+  /** Which build of the projection produced this body. */
+  projectionVersion: number;
 };
 
 async function upsertSearchDocument(
@@ -186,6 +188,7 @@ async function upsertSearchDocument(
         claimRef: input.claimRef ?? null,
         matterRef: input.matterRef ?? null,
         sourceUpdatedAtUtc: input.sourceUpdatedAtUtc,
+        projectionVersion: input.projectionVersion,
         indexedAtUtc: new Date(),
       },
       update: {
@@ -211,6 +214,7 @@ async function upsertSearchDocument(
         claimRef: input.claimRef ?? null,
         matterRef: input.matterRef ?? null,
         sourceUpdatedAtUtc: input.sourceUpdatedAtUtc,
+        projectionVersion: input.projectionVersion,
         indexedAtUtc: new Date(),
       },
     });
@@ -553,6 +557,7 @@ export async function upsertSearchDocumentProjection(
       claimRef: projection.claimRef,
       matterRef: projection.matterRef,
       sourceUpdatedAtUtc: projection.sourceUpdatedAtUtc,
+      projectionVersion: projection.projectionVersion,
     },
     client,
   );

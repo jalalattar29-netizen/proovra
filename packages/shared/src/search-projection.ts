@@ -155,6 +155,48 @@ export function sanitiseSearchTags(
 // Canonical projection shape
 // -----------------------------------------------------------------------------
 
+/**
+ * THE SHAPE THIS BUILDER PRODUCES, AS A NUMBER.
+ *
+ * WHY A DOCUMENT NEEDS TO KNOW WHICH BUILDER WROTE IT
+ * ---------------------------------------------------------------------------
+ * A search document is a CACHE of the projection. When the projection changes
+ * — when a field starts being indexed that was not indexed before — every
+ * document already written is silently wrong: it is not corrupt, not missing,
+ * and not stale by any timestamp, because its source row has not been touched.
+ * It simply cannot answer a question the current builder would let it answer.
+ *
+ * Nothing could see that. The reindex looks for evidence rows with NO document
+ * (`esd.id IS NULL`) and repairs those; a row that already has a document is
+ * never revisited by any path — not the cron sweep, not
+ * `POST /v1/search/reconcile`, not the backfill CLI. So when External Intake
+ * identity (Customer ID, recipient name, address and phone) was added to the
+ * body, every record indexed before that change became permanently unfindable
+ * by those identifiers, and running the backfill again reported success while
+ * changing nothing.
+ *
+ * Proven against a live database rather than argued: a document with the
+ * identity stripped out of its body failed all four identity probes, a full
+ * workspace reconcile reported 14 documents indexed, and the stripped body
+ * came back byte-for-byte identical. Deleting it and reconciling repaired it —
+ * which is the same work, reachable only by hand, one record at a time.
+ *
+ * SO THE DOCUMENT RECORDS WHICH BUILDER WROTE IT.
+ * ---------------------------------------------------------------------------
+ * Bump this when a change to `buildEvidenceProjection` means an existing
+ * document would now be built differently — a new field in the body, a
+ * different normalisation, a corrected predicate. Do NOT bump it for a change
+ * that only affects rows the builder would reject anyway.
+ *
+ * A document whose version is below this one is STALE, and stale documents are
+ * refreshed by the same reindex that fills orphans, through the same indexer,
+ * in the same bounded batches.
+ *
+ * 1 → the original body: title, filenames, extracted text.
+ * 2 → adds External Intake identity and the record's own identifiers.
+ */
+export const SEARCH_PROJECTION_VERSION = 2;
+
 export type SearchDocumentProjection = {
   teamId: string;
   documentType: SearchDocumentType;
@@ -181,6 +223,12 @@ export type SearchDocumentProjection = {
   claimRef: string | null;
   matterRef: string | null;
   sourceUpdatedAtUtc: Date;
+  /**
+   * The builder that produced this body. Written to the row so a later
+   * reindex can tell a current document from one that predates a projection
+   * change without re-deriving every document to find out.
+   */
+  projectionVersion: number;
 };
 
 export type ProjectionResult =
@@ -430,6 +478,7 @@ export function buildEvidenceProjection(
     claimRef: null,
     matterRef: null,
     sourceUpdatedAtUtc: evidence.updatedAt,
+    projectionVersion: SEARCH_PROJECTION_VERSION,
   };
   return { ok: true, projection };
 }
@@ -527,6 +576,7 @@ export function buildWorkflowInstanceProjection(
     claimRef: instance.claimRef ?? null,
     matterRef: instance.matterRef ?? null,
     sourceUpdatedAtUtc: instance.updatedAt,
+    projectionVersion: SEARCH_PROJECTION_VERSION,
   };
   return { ok: true, projection };
 }

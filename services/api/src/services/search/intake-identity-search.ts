@@ -169,6 +169,26 @@ export function evidenceIntakeIdentityArms(
   const arms: Prisma.EvidenceWhereInput[] = [
     // The snapshot on the row itself, indexed as (teamId, intakeCustomerId).
     { intakeCustomerId: { contains: trimmed, mode: "insensitive" } },
+    /*
+     * AND the link it came from.
+     *
+     * The snapshot is taken once, at submission, and its column was added by
+     * migration 20280125000000 — so every record submitted before that
+     * migration reached production has `intakeCustomerId` NULL no matter what
+     * its link says. Matching only the snapshot made those records
+     * permanently unfindable by the identifier their own organisation uses
+     * for them, with nothing on screen to indicate why.
+     *
+     * The snapshot stays authoritative for PROVENANCE — what the record was
+     * associated with at the time it arrived — and this is search, where an
+     * operator may hold either the historical value or the current one.
+     * Either finds the record; neither is disclosed by this filter.
+     */
+    {
+      workflowIntakeSession: {
+        intakeLink: { customerId: { contains: trimmed, mode: "insensitive" } },
+      },
+    },
   ];
 
   // The name is not a contact detail: anyone who can read the record can

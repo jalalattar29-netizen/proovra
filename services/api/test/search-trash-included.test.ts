@@ -210,18 +210,27 @@ describe("Reconcile / backfill — orphan query includes trash", () => {
     expect(slice).not.toMatch(/WHERE e\.deleted_at IS NULL/);
   });
 
-  it("/v1/search/reconcile evidence orphan query uses lifecycle filter (NOT deleted_at)", () => {
+  it("/v1/search/reconcile has no orphan query of its own to keep in step", () => {
+    /*
+     * This used to assert that the ROUTE's own copy of the evidence orphan
+     * query carried the lifecycle filter — and its own comment called that
+     * copy "legacy — pre-extraction. It must also be updated."
+     *
+     * It was updated for the trash decision. It was NOT updated when the
+     * reindex learned to refresh documents written by an older build of the
+     * projection, so the one entry point an operator actually reaches kept
+     * reporting "0 orphans, complete" over an index full of stale documents.
+     * Two implementations of one job, and the maintained one was not the one
+     * being called.
+     *
+     * The copy is gone. The route runs the reindex service, so there is
+     * nothing here left to keep in step — which is the stronger guarantee,
+     * and what this now asserts.
+     */
     const src = read(ROUTE_PATH);
-    // The route's reconcile handler has its own copy of the
-    // evidence orphan query (legacy — pre-extraction). It must
-    // also be updated.
-    const idx = src.indexOf("Find orphaned evidence");
-    expect(idx).toBeGreaterThan(0);
-    const slice = src.slice(idx, idx + 1500);
-    expect(slice).toMatch(
-      /searchIndexableLifecycleSql\("e\.lifecycle_state"\)/,
-    );
-    expect(slice).not.toMatch(/WHERE e\.deleted_at IS NULL/);
+    expect(src).not.toMatch(/Find orphaned evidence/);
+    expect(src).not.toMatch(/FROM evidence e\s*\n\s*LEFT JOIN evidence_search_documents/);
+    expect(src).toMatch(/runWorkspaceReindexBodyUnderLock/);
   });
 });
 

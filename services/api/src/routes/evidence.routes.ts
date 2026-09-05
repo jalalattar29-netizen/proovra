@@ -58,6 +58,7 @@ import {
   type TrustDecision,
   type VerificationPackageMetadata,
   type CanonicalOutputContext,
+  parseEvidenceIdNeedle,
 } from "@proovra/shared";
 import {
   type EvidenceAssetKind as PublicEvidenceAssetKind,
@@ -2400,11 +2401,29 @@ function buildEvidenceListSearchFilter(
 ): Prisma.EvidenceWhereInput | null {
   if (!search) return null;
 
-  const exactUuid = z.string().uuid().safeParse(search).success ? search : null;
+  /*
+   * THE RECORD'S OWN IDENTIFIER.
+   *
+   * A full UUID was already accepted. The SHORT reference was not — and the
+   * short reference is the one a person actually has, because it is what
+   * Operations prints: "RFC3161 timestamp missing for record 76b5d6ac". They
+   * read it off the screen, typed it in, and got nothing.
+   *
+   * Both forms now resolve through the one parser, which turns the reference
+   * into a closed id interval rather than a substring match — see
+   * `evidence-record-ref` for why that distinction is load-bearing.
+   */
+  const idNeedle = parseEvidenceIdNeedle(search);
+  const idArms: Prisma.EvidenceWhereInput[] =
+    idNeedle === null
+      ? []
+      : idNeedle.kind === "uuid"
+        ? [{ id: idNeedle.id }]
+        : [{ id: { gte: idNeedle.gte, lte: idNeedle.lte } }];
 
   return {
     OR: [
-      ...(exactUuid ? [{ id: exactUuid }] : []),
+      ...idArms,
       { title: { contains: search, mode: "insensitive" } },
       { displayFileName: { contains: search, mode: "insensitive" } },
       { originalFileName: { contains: search, mode: "insensitive" } },

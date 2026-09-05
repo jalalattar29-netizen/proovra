@@ -34,6 +34,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { SEARCH_PROJECTION_VERSION } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
@@ -497,6 +498,7 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
         documentType: "EVIDENCE" as never,
         title: "indexed",
         sourceUpdatedAtUtc: new Date(),
+        projectionVersion: SEARCH_PROJECTION_VERSION,
         indexedAtUtc: new Date(),
       } as never,
     });

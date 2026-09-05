@@ -32,7 +32,10 @@
  *     ONLY as a length + a hash — never the raw text.
  */
 
-import { intakePhoneE164 } from "./intake-identity-search.js";
+import {
+  intakePhoneDigits,
+  intakePhoneE164,
+} from "./intake-identity-search.js";
 import { createHash } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
@@ -47,6 +50,7 @@ import {
   decodeSearchCursor,
   encodeSearchCursor,
   isAllowedSearchBadge,
+  parseEvidenceIdNeedle,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -226,6 +230,49 @@ export async function executeSearch(
     const e164 = intakePhoneE164(filter.q);
     if (e164 && !filter.q.includes(e164)) {
       where.OR.push({ searchableText: { contains: e164, mode: "insensitive" } });
+    }
+
+    /*
+     * A PARTIAL NUMBER — the last digits off a case file.
+     *
+     * The Evidence list has always accepted this: it matches the indexed
+     * `recipientPhoneE164` column with a `contains` on the digits. This
+     * surface did not, so "1234 5678" found the record in one place and not
+     * the other — the same query, the same workspace, two answers. The stored
+     * body holds the canonical number with no separators, so the digits of
+     * what was typed are what has to be looked for.
+     *
+     * The four-digit floor is the other surface's, not a new one: below it a
+     * partial number stops being a search and starts being a filter that
+     * returns everything.
+     */
+    const digits = intakePhoneDigits(filter.q);
+    if (digits && !filter.q.includes(digits)) {
+      where.OR.push({
+        searchableText: { contains: digits, mode: "insensitive" },
+      });
+    }
+
+    /*
+     * THE RECORD'S OWN IDENTIFIER.
+     *
+     * Neither the UUID nor the short reference Operations prints was matched
+     * here at all — the body holds titles, filenames, intake identity and
+     * extracted text, and never the id. So a person reading "record 76b5d6ac"
+     * off an incident could not find the record it names.
+     *
+     * Matched against `sourceId` rather than by putting the id into the
+     * indexed text: the column is the primary identifier, it is indexed, and
+     * a range on it cannot collide with the middle of some other id the way a
+     * substring of a text body would.
+     */
+    const idNeedle = parseEvidenceIdNeedle(filter.q);
+    if (idNeedle) {
+      where.OR.push(
+        idNeedle.kind === "uuid"
+          ? { sourceId: idNeedle.id }
+          : { sourceId: { gte: idNeedle.gte, lte: idNeedle.lte } },
+      );
     }
   }
 

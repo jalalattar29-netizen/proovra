@@ -704,10 +704,20 @@ _Tables touched_: (none detected)
 **Recommended action:**
 - Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
 
-### `20280120000000_break_glass_single_active_grant`
-- `INDEX_COLUMN_RISK` (line 97) — Index emergency_access_grants_active_org_user_uk ON emergency_access_grants(organization_id,emergency_user_id) references column(s) {organization_id,emergency_user_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+### `20280125000000_intake_customer_id`
+- `INDEX_COLUMN_RISK` (line 24) — Index workflow_intake_links_team_id_customer_id_idx ON workflow_intake_links(team_id,customer_id) references column(s) {team_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 27) — Index evidence_team_id_intake_customer_id_idx ON evidence(team_id,intake_customer_id) references column(s) {team_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
 
-_Tables touched_: (none detected)
+_Tables touched_: `evidence`, `workflow_intake_links`
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20280210000000_intake_identity_search`
+- `INDEX_COLUMN_RISK` (line 40) — Index workflow_intake_links_team_id_recipient_email_idx ON workflow_intake_links(team_id,recipient_email) references column(s) {team_id,recipient_email} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+- `INDEX_COLUMN_RISK` (line 42) — Index workflow_intake_links_team_id_recipient_phone_e164_idx ON workflow_intake_links(team_id,recipient_phone_e164) references column(s) {team_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: `workflow_intake_links`
 
 **Recommended action:**
 - Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
@@ -1292,6 +1302,13 @@ _Tables touched_: `password_reset_tokens`, `users`
 
 ### `20280115000000_worker_lease_and_heartbeat_retention`
 - `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 49) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20280120000000_break_glass_single_active_grant`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 94) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20280301000000_evidence_credit_admin_grant`
+- `ALTER_TYPE` (line 15) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 15) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
 
 ## Prisma compatibility issues
 

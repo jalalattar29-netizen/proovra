@@ -833,12 +833,14 @@ export {
   SEARCH_SUMMARY_MAX_CHARS,
   SEARCH_BODY_MAX_CHARS,
   SEARCH_TAG_MAX_COUNT,
+  SEARCH_PROJECTION_VERSION,
   type SearchDocumentProjection,
   type ProjectionResult,
   type ProjectionFailureReason,
   type EvidenceProjectionInput,
   type WorkflowInstanceProjectionInput,
 } from "./search-projection.js";
+export * from "./evidence-record-ref.js";
 export * from "./search-readiness.js";
 // ONE copilot selection authority: eligibility derived from persisted fields,
 // and a BOUNDED idempotency key. Both the panel and the AI routes read it.
@@ -1283,7 +1285,9 @@ export type {
 } from "./governance-lifecycle.js";
 
 export {
+  DESTRUCTION_REVIEW_AWAITING_DECISION,
   DESTRUCTION_REVIEW_LABELS,
+  DESTRUCTION_REVIEW_PROPOSED,
   DESTRUCTION_REVIEW_REASONS,
   DESTRUCTION_REVIEW_STATUSES,
   DESTRUCTION_REVIEW_TERMINAL_STATUSES,

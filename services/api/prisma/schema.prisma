@@ -7873,6 +7873,19 @@ model EvidenceSearchDocument {
   // Source-row's last update — drives the cursor ordering.
   sourceUpdatedAtUtc DateTime @map("source_updated_at_utc") @db.Timestamptz(6)
   indexedAtUtc       DateTime @default(now()) @map("indexed_at_utc") @db.Timestamptz(6)
+
+  /// Which build of the projection wrote this body.
+  ///
+  /// A document is a CACHE of `buildEvidenceProjection`. When the projection
+  /// starts indexing a field it did not index before, every existing document
+  /// is silently unable to answer questions about that field — its source row
+  /// is untouched, so no timestamp shows it. Version 1 documents predate
+  /// External Intake identity and the record identifiers; the reindex refreshes
+  /// anything below `SEARCH_PROJECTION_VERSION`.
+  ///
+  /// Defaults to 1 so existing rows are correctly reported as stale rather
+  /// than silently adopting the current version.
+  projectionVersion  Int      @default(1) @map("projection_version")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -7907,6 +7920,8 @@ model EvidenceSearchDocument {
   @@index([teamId, exportState])
   @@index([teamId, contributorScoped])
   @@index([teamId, reviewerRestricted])
+  /// Drives the stale sweep: "documents in this workspace below version N".
+  @@index([teamId, projectionVersion])
   @@index([evidenceId])
   @@index([workflowInstanceId])
   @@index([caseId])
