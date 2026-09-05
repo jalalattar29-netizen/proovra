@@ -306,7 +306,7 @@
 
 | Route | Lines | cards/tables/sections | Open findings |
 | --- | --- | --- | --- |
-| `/admin` | 970 | 0c/0t/9s |  |
+| `/admin` | 966 | 0c/0t/9s |  |
 | `/admin/adoption` | 251 | 0c/1t/1s |  |
 | `/admin/alerts` | 290 | 2c/0t/1s |  |
 | `/admin/audit` | 1047 | 3c/1t/2s |  |
@@ -316,22 +316,22 @@
 | `/admin/costs` | 614 | 7c/3t/9s |  |
 | `/admin/customers` | 473 | 0c/1t/0s |  |
 | `/admin/customers/:id` | 1181 | 12c/1t/0s |  |
-| `/admin/dashboard` | 899 | 8c/3t/8s |  |
+| `/admin/dashboard` | 900 | 8c/3t/8s |  |
 | `/admin/demo-requests` | 1321 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 536 | 5c/0t/0s |  |
-| `/admin/evidence-ops` | 748 | 4c/0t/7s |  |
+| `/admin/evidence-ops` | 790 | 4c/0t/7s |  |
 | `/admin/evidence-ops/records` | 596 | 2c/1t/0s |  |
-| `/admin/executive` | 637 | 3c/2t/7s |  |
+| `/admin/executive` | 693 | 3c/2t/7s |  |
 | `/admin/identity` | 296 | 13c/3t/7s |  |
 | `/admin/identity/access-reviews` | 521 | 4c/1t/1s |  |
 | `/admin/identity/permission-matrix` | 755 | 6c/1t/5s |  |
 | `/admin/identity/providers` | 967 | 9c/1t/3s |  |
 | `/admin/identity/runtime` | 910 | 2c/2t/3s |  |
-| `/admin/identity/scim` | 1402 | 7c/4t/0s |  |
+| `/admin/identity/scim` | 1430 | 7c/4t/0s |  |
 | `/admin/identity/sessions` | 56 | 6c/5t/20s |  |
 | `/admin/identity/timeline` | 354 | 0c/1t/1s |  |
 | `/admin/operations` | 517 | 2c/2t/2s |  |
-| `/admin/platform-health` | 378 | 3c/0t/2s |  |
+| `/admin/platform-health` | 571 | 3c/0t/4s |  |
 | `/admin/platform/analytics` | 813 | 0c/0t/9s |  |
 | `/admin/platform/automation` | 670 | 0c/2t/5s |  |
 | `/admin/platform/exports` | 845 | 0c/4t/0s |  |
