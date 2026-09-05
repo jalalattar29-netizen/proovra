@@ -112,7 +112,7 @@ const INSPECTED = {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
     pattern: "filters -> cohort statement -> table with expandable detail -> pager",
     changed:
-      "the Required action column carried the decision AND two paragraphs in 244px, off the end of the container's scroll; decision stays on the row, narrative moves to expandable detail; record UUID -> AdmId (truncated + copy); preservation badges nowrap. Rows 385px -> 77px",
+      "the Required action column carried the decision AND two paragraphs in 244px, off the end of the container's scroll; decision stays on the row, narrative moves to expandable detail; record UUID -> AdmId (truncated + copy); preservation badges nowrap. Rows 385px -> 77px. LATER IN THE PHASE: the row's 'What to do' control was measured 348px past the right edge of an 1661px table in a 1206px container — invisible until an operator thought to scroll a table sideways to look for a row action — so DataTable's actions column is pinned to the container's inline end; and Created + Last change were 514px of nowrap timestamps, 31% of the table, now a date and an interval with their instants on the hover, taking the table to 1368px",
   },
   "/admin/executive": {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
@@ -124,7 +124,7 @@ const INSPECTED = {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
     pattern: "URL-addressable tablist -> tab panels",
     changed:
-      "the console's only real tablist: state moved to ?tab=, adopted AdmTabs/AdmTabPanel for arrow keys + roving tabindex + tabpanel semantics; all 4 tabs opened and verified",
+      "the console's only real tablist: state moved to ?tab=, adopted AdmTabs/AdmTabPanel for arrow keys + roving tabindex + tabpanel semantics; all 4 tabs opened and verified. LATER IN THE PHASE: the tab was reading its state back from the URL, so it did not change until the router's replace landed — it now switches on the click and treats the URL as a reflection of that, which is why the tab sweep measures the panel rather than the address bar",
   },
   "/admin/platform/runbooks": {
     disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
@@ -137,6 +137,234 @@ const INSPECTED = {
     pattern: "searchable catalog rail + 36em reading column",
     changed:
       "394 list items across 21 runbooks were split mid-sentence by the renderer (hard-wrap continuation lines fell through to the paragraph branch); bullets were absent entirely (flex children are not list items, and the reset's list-style:none was never overridden); reading column measured 124 chars and now measures ~72 (ch resolved against the wrong font size AND ch is 0.73em in this family); the docs/runbooks/*.md source path removed; fences gained a language label and a copy control",
+  },
+  "/admin/adoption": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "window control -> funnel -> cohort table -> disclosure",
+    changed:
+      "legacy style objects and the second palette removed; the funnel's ratio over a zero denominator now states the denominator instead of printing a percentage of nothing",
+  },
+  "/admin/alerts": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "posture row -> alert list -> delivery",
+    changed:
+      "the alert list was one card per alert at ~190px each; it is now a compact row list on the shared surface, and the last sub-11px text on the route was raised",
+  },
+  "/admin/audit": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "filter bar -> server-paged log -> per-row disclosure",
+    changed:
+      "the actor and target cells printed a six-character tail with the full id nowhere on the page, so an operator correlating a row against a person had nothing to correlate with; the id is now on the cell's title, which also lets the composition sweep tell an honestly repeated column from one whose truncation hides a difference",
+  },
+  "/admin/billing": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "revenue -> attention lists -> add-ons -> webhooks -> reconciliation",
+    changed:
+      "the reconciliation history was twenty-five bold lines of shouted enum with a stamp to the second on each ('WORKSPACE_OPERATIONS · SUCCEEDED · 05 Sept 2026, 18:41:00 Europe/Berlin'); it reads 'Workspace operations · Succeeded · scanned 14 · 13m ago' with the instant on the hover, and the 25-row cap the server reads under is now stated",
+  },
+  "/admin/contact-sales": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "stage summary -> filter bar -> inquiry table -> quick-view drawer",
+    changed:
+      "the row's second action rendered 5px past the visible edge of a sideways-scrolling table; the actions cell is pinned to the container's inline end, matching the rule added to DataTable. The table itself is hand-rolled and is recorded as debt rather than migrated in this pass",
+  },
+  "/admin/contact-sales/:id": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "identity header -> inquiry facts -> routing -> internal notes",
+    changed:
+      "migrated off the legacy style-object system onto the canonical Card/Badge/Button set; the return link carries the list state it came from",
+  },
+  "/admin/costs": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "window control -> cost summary -> entitlement table -> disclosure",
+    changed:
+      "an all-empty list printed its empty state and then repeated it as a count line underneath; ResultCount suppresses the plain-empty sentence now, here and on every other console list",
+  },
+  "/admin/customers": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "filter bar -> customer directory -> row disclosure",
+    changed:
+      "onto the canonical DataTable and FilterBar with one reset that appears only when something is filtered; the created stamp dropped from a wrapping seconds-precision string to a date",
+  },
+  "/admin/customers/:id": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "identity -> commercial -> workspaces -> people -> lifecycle actions",
+    changed:
+      "twelve cards on the legacy system rebuilt on the canonical surfaces; the single destructive action ('Suspend customer') is the only filled red control on the page, which the destructive sweep confirms",
+  },
+  "/admin/demo-requests": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "summary row -> filter bar + list -> request detail pane",
+    changed:
+      "each summary card printed its own label twice, eight pixels apart, and tinted a count by its category so 'SPAM FLAGGED 0' wore red; rows read 'Clean 0' and 'ACTIVE · S0' and now state the verdict with the score on the hover; 'Clear Filters' moved off the always-visible actions slot onto FilterBar's filtered/onReset",
+  },
+  "/admin/demo-requests/:id": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "identity header -> qualification -> routing -> follow-up -> spam signals",
+    changed:
+      "off the legacy style objects onto the canonical components; the metadata dump moved behind a disclosure instead of printing raw JSON as page content",
+  },
+  "/admin/identity": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "member table -> extra access -> service accounts -> mappings -> session governance -> specialist surfaces -> scope disclosure",
+    changed:
+      "the member id column rendered one indistinguishable string on every row (an eight-character head of a sequentially-allocated UUID); it now shows head and tail through the one canonical shortener. The four per-row Revoke controls are the page's only filled red buttons and were left as they are — one per row is the console's destructive convention, which the cross-route measurement confirms",
+  },
+  "/admin/identity/access-reviews": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "campaign summary -> review table -> decision controls",
+    changed:
+      "onto the canonical surfaces and the shared empty state; a disabled decision control now says why it is disabled instead of being inert and silent",
+  },
+  "/admin/identity/permission-matrix": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "role selector -> permission matrix -> capability disclosure",
+    changed:
+      "a card was showing 12 of 93 permissions with no indication the other 81 existed; the matrix now discloses its own size, and amber stopped being applied to rows that carry no warning",
+  },
+  "/admin/identity/providers": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "provider list -> per-provider configuration -> health",
+    changed:
+      "nine cards migrated off the legacy system; a raw ISO timestamp rendered as prose became a formatted instant",
+  },
+  "/admin/identity/runtime": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "runtime posture -> session monitor -> quarantine -> emergency control",
+    changed:
+      "all twenty-five session rows printed the identical string '0adf0000-000…' in the User column, so an operator picking a session to quarantine could not tell which row they were acting on; the shortener keeps head AND tail now. 'Emergency org revoke' is the page's single filled red control",
+  },
+  "/admin/identity/sessions": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "filter bar -> session table -> quarantine -> trusted devices -> policy impact -> member risk",
+    changed:
+      "every row carried TWO solid-red buttons, fifty on a full page, and the more dangerous of the pair ('Revoke all', member-scoped, step-up gated) was indistinguishable from the safer one; it is a secondary action now. The row's last action also rendered 41px past the visible edge — Timeline, a read rather than a mutation, moved to the Member cell and the table went from 1268px to 1214px inside a 1216px wrapper with no sideways scroll",
+  },
+  "/admin/identity/timeline": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "filter bar -> identity event timeline -> per-event disclosure",
+    changed:
+      "the actor was stated twice in each row (once as a name, once as the same name in the kind slot); the presenter now renders the kind only when it differs from the name",
+  },
+  "/admin/operations": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "posture row -> filter bar -> condition table -> security events",
+    changed:
+      "five conditions read 'Trusted timestamping failed · EVIDENCE_INTEGRITY · seen 10x · last 1m ago' against the same workspace at the same severity and status, while their own summary said each covers one record — the projection had always carried relatedEvidenceId and the page declared none of it; each row now names and links its subject. The Affected column read 'Northwind Legal / Northwind Legal' on every row. And a router.replace fired from inside the fetch callback, so a link clicked during the load navigated the reader back to the list they had just left",
+  },
+  "/admin/platform/analytics": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "window control -> reading guide -> five metric groups -> generation footer",
+    changed:
+      "the source trace under the last Automation tile rendered 'source: AutomationWebhookDestinati / on' — a 28-character model name split mid-syllable in a 120px tile, on a surface whose whole claim is that a number can be checked against its table; IdentifierText offers the break at the CamelCase boundary and contributes no character, so the value still copies exactly",
+  },
+  "/admin/platform/automation": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "rule summary -> rule table -> run history",
+    changed:
+      "onto the shared apf-* surfaces with one filter reset; the run list states the cap it reads under",
+  },
+  "/admin/platform/exports": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "export posture -> job list -> destination facts",
+    changed:
+      "the console's last centred-prose empty state — a 74px card holding one centred muted line and no label, which reads as 'loading, forever' — became the shared left-aligned state that names which state it is and why",
+  },
+  "/admin/platform/media-graph": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "snapshot freshness -> intelligence tiles -> graph tiles -> operator actions",
+    changed:
+      "eleven metric keys rendered split mid-word ('media_intelligence_processo / r_started_total'), now broken at the underscores; a tile's tone no longer fires on a zero value, and the metric key was demoted from headline to caption",
+  },
+  "/admin/platform/observability": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "alert rollup -> signal tiles -> per-source charts",
+    changed:
+      "the page used apf-* classes throughout and was the one page under /admin/platform that never imported the stylesheet defining them, so every tile measured 0px border, transparent background and 0 padding and the platform's alert rollup rendered as bare stacked text outside any surface; a node:test now asserts every admin page loads the stylesheet whose classes it uses",
+  },
+  "/admin/platform/queues": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "queue posture -> queue table -> worker leases",
+    changed:
+      "the page reported fifteen queues 'healthy' directly above its own table saying fifteen worker leases were missing; health is now derived from both, so a queue with no worker reports unknown rather than healthy",
+  },
+  "/admin/platform/readiness": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "verdict -> gate list -> unprobed disclosure",
+    changed:
+      "ten warning-coloured zeros stopped wearing the colour of the thing they count; the shouted paragraph in the header became sentence case",
+  },
+  "/admin/platform/recovery": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "recovery posture -> request queue -> per-request disclosure",
+    changed:
+      "off the legacy palette and style objects; the queue's empty state explains what would appear there rather than being blank",
+  },
+  "/admin/platform/reliability": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "window control -> reliability tiles -> incident correlation",
+    changed:
+      "the filter labels were page-local inline styles with their own ink; they name the one canonical field-label authority now, which is what made this route the first admin consumer of that primitive",
+  },
+  "/admin/platform/signers": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "signer posture -> signer table -> key facts",
+    changed:
+      "246 lines off the legacy system onto the shared surfaces; the search filter is labelled and the table states its count",
+  },
+  "/admin/provisioning": {
+    disposition: "ALREADY_COMPLIANT",
+    pattern: "provisioning posture -> invitation governance -> per-invite disclosure",
+    changed:
+      "reviewed against the capture and left alone. The doubled description reads as a repetition but is not one: the outer line states the section's scope and the inner line states what the governance table itself measures, and the inner text carries a fact the outer does not. Its legacy-palette and empty-state work landed with the console-wide passes",
+  },
+  "/admin/search": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "query field -> result groups -> per-result disclosure",
+    changed:
+      "the search field is labelled and its icon is named; results land on destinations that read the deep-link parameters they are sent, which they previously emitted and ignored",
+  },
+  "/admin/security": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "scope note -> posture strip -> events + scans -> MFA policy -> member lifecycle -> activity -> digest -> self-check",
+    changed:
+      "two filters offered values their endpoints refuse — 'Critical' against a domain of INFO/WARNING/HIGH, and 'Infected' where the status is SUSPICIOUS — so both returned 400 and rendered a form-validation sentence on a list; SUSPICIOUS also fell through to neutral grey, the one scan result an operator must act on. Five scan counters read 0 because no scanner is configured, two empty states blamed a filter that was not applied, and the page's own note card restated the amber scope banner 100px above it",
+  },
+  "/admin/support-access": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "grant posture -> active grants -> grant history",
+    changed:
+      "onto the canonical surfaces with a labelled filter set and one reset; a disabled grant control states its reason",
+  },
+  "/admin/timeline": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "filter bar -> platform event timeline -> per-event disclosure",
+    changed:
+      "the same actor duplication as the identity timeline, from the same shared presenter; the timeline rail moved onto the shared adm-* treatment rather than carrying its own",
+  },
+  "/admin/users": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "filter bar -> people roster -> lifecycle request queue",
+    changed:
+      "the 'joined' line under every address was a wrapping seconds-precision stamp that made each row three lines tall, and is now a date; the shareable URL is derived from the filters rather than written from inside the fetch callback, so a row clicked during the load opens instead of navigating the reader back",
+  },
+  "/admin/users/:id": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "identity -> commercial -> memberships -> security posture -> lifecycle",
+    changed:
+      "off the legacy style objects onto the canonical surfaces; the return link carries the roster state it came from",
+  },
+  "/admin/workspaces": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "filter bar -> workspace directory -> row navigation",
+    changed:
+      "the created stamp under every workspace name wrapped to two lines and made each row three lines tall in a table an operator scans; it is a date now. Same URL-sync fix as the roster, proven by clicking a customer link at the earliest moment it is possible",
+  },
+  "/admin/workspaces/:id": {
+    disposition: "REDESIGNED_AND_VISUALLY_VERIFIED",
+    pattern: "identity -> commercial context -> members and usage -> provider subscriptions -> activity",
+    changed:
+      "the page announced 'Enterprise contract', showed a green ACTIVE badge, and four fields later admitted 'No stored contract row. It is not a contract'; the qualification now arrives with the claim — the heading says 'no stored row', the badge is neutral because a derived status is not a contract status, and the field reads 'derived, not stored'",
   },
 };
 
