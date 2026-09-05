@@ -35,7 +35,6 @@
 
 import { PageShell, PageHeader } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
-import { useTeamId } from "../../../../lib/platform-context";
 
 import { SectionDescription } from "./_sections/section-state";
 
@@ -46,9 +45,16 @@ import { MfaPolicySection } from "./_sections/MfaPolicySection";
 import { MfaSelfCheckSection } from "./_sections/MfaSelfCheckSection";
 import { WorkspaceSecurityPostureSection } from "./_sections/WorkspaceSecurityPostureSection";
 
+/**
+ * NO WORKSPACE READ AT THIS LEVEL ANY MORE.
+ *
+ * This orchestrator held `const teamId = useTeamId()` for one clause of its
+ * note card — "none is selected yet" — and that clause went when the card
+ * stopped restating the shell's amber scope banner. Every section below
+ * resolves its own workspace and renders its own `NoWorkspaceSelected` with
+ * its own reason, so the page itself has nothing left to know about it.
+ */
 export default function AdminSecurityPage() {
-  const teamId = useTeamId();
-
   return (
     <PageShell width="full">
       <PageHeader

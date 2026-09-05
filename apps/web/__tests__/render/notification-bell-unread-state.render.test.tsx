@@ -50,7 +50,10 @@ vi.mock("../../lib/api", () => ({
 }));
 
 let contextGeneration = 0;
-let contextStateName: string = "READY";
+// `const`, because nothing reassigns it — the lint error that came with this
+// file from main, fixed here so the repo-wide gate is clean rather than
+// "clean except one inherited error".
+const contextStateName: string = "READY";
 let activeWorkspaceId: string | null = "ws-1";
 vi.mock("../../lib/platform-context", () => ({
   usePlatformContext: () => ({

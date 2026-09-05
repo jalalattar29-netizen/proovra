@@ -316,8 +316,12 @@ for (const zoom of [1, 2]) {
           );
       const row = { route, width: dev.w, zoom, touch: dev.touch, ...m };
       rows.push(row);
-      const flag = [
-        m.error ? m.error : "",
+      /* An ERROR row states the error and nothing else. Appending the
+         other flags to it printed "NOT READY … · h1=undefined", which
+         invites the reader to treat the undefined as a heading finding. */
+      const flag = m.error
+        ? m.error
+        : [
         m.overflow ? `OVERFLOW ${m.overflow}px` : "",
         m.smallContent ? `${m.smallContent} small(content)` : "",
         m.smallChrome ? `${m.smallChrome} small(chrome)` : "",
