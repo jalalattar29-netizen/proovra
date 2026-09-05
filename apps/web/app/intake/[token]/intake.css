@@ -1,0 +1,577 @@
+/* ===========================================================================
+   THE PUBLIC INTAKE EXPERIENCE.
+
+   WHO IS LOOKING AT THIS. Someone who received a link from a stranger, on a
+   phone, and has a few seconds to decide whether it is safe and what it wants.
+   They are not signed in, they have no account, and they will never see this
+   page again. Everything below is in service of one column, short vertical
+   distances, and nothing competing with "add your file".
+
+   WHY IT IS A STYLESHEET NOW. The page carried thirty-three inline
+   `style={{}}` blocks and not one `className`, so it had its own greys, its
+   own radii, its own idea of a button, and — most visibly — the browser's own
+   blue checkbox on the consent screen. It could not drift back toward the
+   product because it had never been near it.
+
+   It reuses the canonical `app-*` primitives wherever one exists —
+   `.app-checkbox`, `.app-form-input`, `.app-field-label`, `.app-field-error`,
+   `.app-alert` — so the consent control here is the SAME control the
+   authenticated product uses, not a lookalike. What is local is only what is
+   local: the one-column public shell and the upload target.
+   =========================================================================== */
+
+.ipk {
+  --ipk-ink: var(--ink-primary, #172033);
+  --ipk-ink-secondary: var(--ink-secondary, #5f6878);
+  --ipk-ink-muted: #77808f;
+  --ipk-line: rgba(15, 23, 42, 0.1);
+  --ipk-surface: rgba(255, 255, 255, 0.72);
+  --ipk-accent: var(--accent-600, #6d28d9);
+
+  max-width: 660px;
+  margin: 0 auto;
+  /* The bottom is not symmetric: a fixed privacy launcher sits 16px from the
+     bottom-left at 38px tall and was landing on the submit action. The page
+     yields the space rather than a global control moving for one route. */
+  padding: clamp(20px, 5vw, 44px) clamp(16px, 4vw, 24px) 96px;
+  color: var(--ipk-ink);
+  font-family: inherit;
+}
+
+/* -- masthead ------------------------------------------------------------ */
+.ipk-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ipk-ink-secondary);
+}
+.ipk-brand__mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(145deg, #7c3aed, #6d28d9);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.ipk-head {
+  margin-bottom: 22px;
+}
+.ipk-eyebrow {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ipk-accent);
+}
+.ipk-title {
+  /* Scales down on a 320px screen instead of wrapping a workflow name across
+     three lines before the reader has learned anything. */
+  font-size: clamp(21px, 5.5vw, 27px);
+  line-height: 1.22;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  color: var(--ipk-ink);
+}
+.ipk-lede {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: #334155;
+}
+.ipk-meta {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ipk-ink-secondary);
+}
+
+/* -- panels -------------------------------------------------------------- */
+.ipk-panel {
+  border: 1px solid var(--ipk-line);
+  border-radius: 14px;
+  background: var(--ipk-surface);
+  padding: clamp(14px, 3.5vw, 18px);
+  margin-bottom: 14px;
+}
+.ipk-panel--quiet {
+  background: rgba(248, 250, 253, 0.7);
+}
+.ipk-panel__title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  color: var(--ipk-ink);
+}
+.ipk-panel__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #334155;
+}
+.ipk-panel__body + .ipk-panel__body {
+  margin-top: 8px;
+}
+
+.ipk-section-title {
+  margin: 22px 0 8px;
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  color: var(--ipk-ink);
+}
+.ipk-muted {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ipk-ink-secondary);
+}
+
+/* -- the consent acknowledgements ---------------------------------------- */
+/*
+ * A ROW, NOT A CARD.
+ *
+ * Two acknowledgements do not need two bordered boxes; that reads as a form
+ * with sections when it is one decision with two parts. The row gives the
+ * control a 44px-tall hit area on a phone without drawing a container around
+ * a single sentence.
+ *
+ * The control itself is `.app-checkbox` — the product's, not a copy — so the
+ * checked state is the PROOVRA accent with the real checkmark, and the focus
+ * ring is the one every other control uses.
+ */
+.ipk-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 2px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.ipk-ack + .ipk-ack {
+  border-top: 1px solid var(--ipk-line);
+}
+.ipk-ack input {
+  margin-top: 1px;
+}
+.ipk-ack__label {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #263247;
+}
+.ipk-ack__note {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ipk-ink-secondary);
+}
+
+.ipk-field {
+  margin-top: 14px;
+}
+
+/* -- the upload target --------------------------------------------------- */
+/*
+ * THE ONE THING THIS PAGE IS FOR.
+ *
+ * It was a small grey secondary button between two paragraphs,
+ * indistinguishable from "Skip". It is the obvious target now: full width, and
+ * the drop area IS the button, so the desktop drag and the phone tap are one
+ * control rather than two.
+ */
+.ipk-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  min-height: 108px;
+  margin-top: 4px;
+  padding: 18px 16px;
+  border: 1.5px dashed rgba(124, 58, 237, 0.32);
+  border-radius: 14px;
+  background: rgba(242, 236, 254, 0.5);
+  color: var(--ipk-ink);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background-color 0.14s ease;
+}
+.ipk-drop:hover:not(:disabled) {
+  border-color: var(--ipk-accent);
+  background: rgba(242, 236, 254, 0.85);
+}
+.ipk-drop:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+}
+.ipk-drop:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.ipk-drop__title {
+  font-size: 15.5px;
+  font-weight: 680;
+}
+.ipk-drop__hint {
+  font-size: 12.5px;
+  color: var(--ipk-ink-secondary);
+}
+
+/* -- staged files -------------------------------------------------------- */
+.ipk-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--ipk-line);
+  border-radius: 10px;
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.7);
+}
+.ipk-file__name {
+  /* The original filename, never mutated — the stored value stays exact in
+     the part row, the report, the package and the audit. Clamped to two lines
+     so a 200-character name cannot push the submit action off the screen. */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #475569;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-all;
+  margin: 2px 0;
+  line-height: 1.35;
+}
+
+/* -- checklist ----------------------------------------------------------- */
+.ipk-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ipk-badge {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ipk-badge--required {
+  background: #fff1f2;
+  color: #b23442;
+}
+.ipk-badge--optional {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* -- actions ------------------------------------------------------------- */
+/*
+ * Full width on a phone. The submit action was a content-width button under a
+ * long page and read as one more link; 48px clears the tap-target floor with
+ * room for a thumb.
+ */
+.ipk-submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 20px;
+  font-size: 15.5px;
+}
+.ipk-submit-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #475467;
+  text-align: center;
+}
+.ipk-quiet {
+  min-height: 44px;
+  padding: 10px 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: #475467;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* -- outcomes ------------------------------------------------------------ */
+/*
+ * TWO DIFFERENT FAILURES, TWO DIFFERENT TREATMENTS.
+ *
+ * A business refusal — the receiving workspace cannot take another record —
+ * is not a fault. It gets the calm notice: no alarm colour, no support id,
+ * because there is nothing to diagnose and quoting a reference would invite a
+ * ticket about a working system.
+ *
+ * A genuine unexpected failure gets the support id, because that is the only
+ * thing that makes it diagnosable — but SECONDARY, in a subdued line under the
+ * sentence, not as the headline.
+ */
+.ipk-notice {
+  margin: 12px 0 0;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ipk-line);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  line-height: 1.5;
+  color: #334155;
+}
+.ipk-notice__title {
+  margin: 0 0 3px;
+  font-size: 14px;
+  font-weight: 680;
+  color: var(--ipk-ink);
+}
+.ipk-notice__body {
+  margin: 0;
+}
+.ipk-notice--denial {
+  border-color: rgba(168, 102, 18, 0.24);
+  background: #fff9ee;
+  color: #7c4a0c;
+}
+.ipk-notice--denial .ipk-notice__title {
+  color: #7c4a0c;
+}
+.ipk-notice--fault {
+  border-color: rgba(178, 52, 66, 0.22);
+  background: #fff6f6;
+  color: #7f2833;
+}
+.ipk-notice--fault .ipk-notice__title {
+  color: #b23442;
+}
+.ipk-support {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 9px 0 0;
+  font-size: 11.5px;
+  color: var(--ipk-ink-muted);
+}
+.ipk-support code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
+.ipk-support button {
+  border: 1px solid var(--ipk-line);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--ipk-ink-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ipk-support button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28);
+}
+
+/* -- terminal states ----------------------------------------------------- */
+.ipk-outcome {
+  text-align: center;
+  padding: clamp(24px, 7vw, 44px) 0 8px;
+}
+.ipk-outcome__mark {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 16px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+}
+.ipk-outcome__mark--ok {
+  background: #eaf7f1;
+  color: #167a5b;
+}
+.ipk-outcome__mark--stop {
+  background: #fff6e5;
+  color: #a86612;
+}
+.ipk-outcome__title {
+  margin: 0 0 8px;
+  font-size: clamp(20px, 5vw, 24px);
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+.ipk-outcome__body {
+  margin: 0 auto 8px;
+  max-width: 46ch;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #334155;
+}
+.ipk-outcome__note {
+  margin: 0 auto;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ipk-ink-secondary);
+}
+
+/* -- skeleton ------------------------------------------------------------ */
+.ipk-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ipk-skeleton__bar {
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(15, 23, 42, 0.06);
+}
+.ipk-skeleton__bar--title {
+  height: 26px;
+  width: 62%;
+}
+.ipk-skeleton__bar--wide {
+  width: 100%;
+}
+.ipk-skeleton__bar--half {
+  width: 48%;
+}
+.ipk-skeleton__block {
+  height: 108px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.05);
+}
+
+/* -- narrow phones ------------------------------------------------------- */
+@media (max-width: 400px) {
+  .ipk-panel {
+    border-radius: 12px;
+  }
+  .ipk-file {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * WHAT THIS REQUEST NEEDS
+ *
+ * A checklist, not a form: it tells a contributor what is still outstanding
+ * and marks off what they have already attached. The marker is drawn rather
+ * than iconographic so it reads at a glance without a font or an asset, and
+ * the "met" state is carried on the row so the colour lives here instead of
+ * being recomputed inline for every step.
+ * ------------------------------------------------------------------------- */
+.ipk-reqs {
+  margin-top: 14px;
+}
+
+.ipk-reqs__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ipk-req {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-top: 1px solid var(--border-subtle, #eef2f6);
+}
+
+.ipk-req__mark {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong, #cbd5e1);
+  background: transparent;
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.ipk-req[data-intake-requirement-met="true"] .ipk-req__mark {
+  border-color: transparent;
+  background: var(--success-standard, #059669);
+}
+
+.ipk-req__text {
+  min-width: 0;
+}
+
+.ipk-req__head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.ipk-req__title {
+  font-size: 15px;
+}
+
+.ipk-req__desc {
+  display: block;
+  margin-top: 2px;
+}
+
+.ipk-files {
+  list-style: none;
+  padding: 0;
+  margin-top: 16px;
+}
+
+.ipk-file__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ipk-file__kind {
+  font-weight: 600;
+}
+
+/* --- the optional location aside -------------------------------------- */
+.ipk-aside__title {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+
+.ipk-aside__body {
+  margin-bottom: 10px;
+}
+
+.ipk-aside__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ipk-aside__ok {
+  color: var(--success-ink, #065f46);
+}
+
+.ipk-consent-note {
+  margin-top: 8px;
+}

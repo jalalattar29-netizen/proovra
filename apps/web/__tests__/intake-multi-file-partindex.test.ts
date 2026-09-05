@@ -172,9 +172,16 @@ test("local cap-check stops the loop at the limit and surfaces a message", () =>
   // The guard must break the loop and message the user, not silently
   // skip — the contributor needs to know why their 11th-of-10 file
   // wasn't added.
-  assert.match(
+  //
+  // WHERE it says so moved, and that is what this now asserts: reaching a
+  // link's file cap is the contributor's ordinary mistake, so it is answered
+  // beside the picker they just used, not in the page-level banner that also
+  // carries genuine server faults.
+  assert.match(SRC, /setFileError\(/);
+  assert.match(SRC, /This link accepts up to \$\{cap\} files\./);
+  assert.doesNotMatch(
     SRC,
-    /Maximum of \$\{cap\} files for this link\. The remaining selection was not added\./,
+    /if \(cap !== null && nextIndex >= cap\)[\s\S]{0,400}setErrorMessage\(/,
   );
   assert.match(SRC, /break;/);
 });

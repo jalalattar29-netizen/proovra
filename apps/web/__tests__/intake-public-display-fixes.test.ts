@@ -27,6 +27,8 @@ import { dirname, resolve } from "node:path";
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(__filename), "..", "..", "..");
 const PUBLIC_PAGE = resolve(REPO_ROOT, "apps/web/app/intake/[token]/page.tsx");
+/** The public page has a stylesheet now; presentation rules are asserted there. */
+const PUBLIC_CSS = resolve(REPO_ROOT, "apps/web/app/intake/[token]/intake.css");
 const ROUTE = resolve(REPO_ROOT, "apps/web/app/(app)/intake-links");
 const CATALOG = resolve(REPO_ROOT, "apps/web/lib/intake-links/catalog.ts");
 const VOCABULARY = resolve(REPO_ROOT, "apps/web/lib/intake-links/vocabulary.ts");
@@ -56,10 +58,16 @@ test("public page renders the original filename verbatim — never mutates it be
 
 test("filename clamp style is CSS-only — line-clamp + word-break, not a JS substring", () => {
   const src = read(PUBLIC_PAGE);
-  assert.match(src, /fileNameClampStyle/);
-  // Must use the standardised 2-line clamp behavior.
-  assert.match(src, /WebkitLineClamp: 2/);
-  assert.match(src, /wordBreak: "break-all"/);
+  // The clamp is applied by class now that the page has a stylesheet, which
+  // is strictly MORE CSS-only than the inline style object it replaced — so
+  // the rule is asserted where it now lives and the page only has to
+  // reference it.
+  assert.match(src, /className="ipk-file__name"/);
+  const rule = /\.ipk-file__name\s*\{[^}]*\}/.exec(read(PUBLIC_CSS))?.[0] ?? "";
+  assert.match(rule, /-webkit-line-clamp:\s*2/);
+  assert.match(rule, /word-break:\s*break-all/);
+  // And no JS substring may creep back in.
+  assert.doesNotMatch(src, /fileName\.(slice|substring|substr)\(/);
 });
 
 test("primary line shows kind + size — never embeds the filename", () => {
@@ -201,14 +209,23 @@ test("an unconfigured channel cannot be submitted even if it is somehow selected
 // Reveal dialog — hide (not disable) Send buttons when no phone
 // ============================================================================
 
-test("the reveal dialog hides Send-by-SMS / Send-by-WhatsApp when no recipient phone", () => {
+test("the reveal dialog hides a Send action when no recipient exists for it", () => {
   const src = read(CREATED_DIALOG);
   // Presence, not the number. The recipient-contact policy removed the raw
   // column from every projection, and "can I send this?" never needed it —
   // the dialog only has to know a channel exists.
-  assert.match(src, /const canSend = link\.hasRecipientPhone/);
+  //
+  // This assertion used to REQUIRE a WhatsApp send button. WhatsApp was
+  // retired from External Intake — the send endpoint stopped accepting it and
+  // the create wizard stopped offering it — so pinning it here was pinning a
+  // button that could only fail. The rule it was really protecting survives:
+  // an action is HIDDEN, not disabled, when the link has no recipient for it.
+  assert.match(src, /const canSendSms = link\.hasRecipientPhone === true;/);
+  assert.match(src, /const canSendEmail = link\.hasRecipientEmail === true;/);
+  assert.match(src, /const canSend = canSendSms \|\| canSendEmail;/);
   assert.match(
     src,
-    /\{canSend \? \(\s*\n?[\s\S]{0,2000}data-intake-link-send="WHATSAPP"[\s\S]{0,400}\) : null\}/,
+    /\{canSendSms \? \(\s*\n?[\s\S]{0,1200}data-intake-link-send="SMS"[\s\S]{0,400}\) : null\}/,
   );
+  assert.doesNotMatch(src, /data-intake-link-send="WHATSAPP"/);
 });

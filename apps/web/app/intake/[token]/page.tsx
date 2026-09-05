@@ -45,23 +45,85 @@ import { IntakeChecklist } from "../../../components/intake/IntakeChecklist";
  * legacy responses still in flight during deploy.
  */
 /**
- * Append the server's request id when it sent one.
+ * The masthead every public state carries.
  *
- * A contributor who cannot upload can do nothing with "we hit a problem on our
- * side" except try again and give up. With an id they can quote it to the
- * sender, and the sender's operator can find the exact log line — which is the
- * difference between a report that can be diagnosed and one that cannot.
- *
- * Only ever the id. The raw backend message is never shown; that rule is what
- * `friendlyIntakeError` exists to enforce and this does not weaken it.
+ * A person who has just followed a link from a stranger needs to know whose
+ * page this is before they read anything else. It is the same three words on
+ * the consent screen, the upload screen, the error screen and the receipt, so
+ * the flow reads as one place rather than four.
  */
-function withSupportId(
-  copy: string,
-  err: { requestId?: string; details?: { requestId?: string } } | null,
-): string {
-  const id = err?.requestId ?? err?.details?.requestId;
-  if (!id || copy.includes(id)) return copy;
-  return `${copy}\n\nSupport ID: ${id}`;
+function IntakeBrand() {
+  return (
+    <div className="ipk-brand">
+      <span className="ipk-brand__mark" aria-hidden="true">
+        P
+      </span>
+      <span>PROOVRA · Secure intake</span>
+    </div>
+  );
+}
+
+/**
+ * A support id, offered quietly.
+ *
+ * It belongs to an UNEXPECTED failure only — the class of thing nobody can
+ * explain without a log line. It is deliberately the smallest text in the
+ * notice: it is for the operator on the other end of a support conversation,
+ * not for the person reading the page, and making it prominent turns a
+ * transient failure into something that looks like it needs escalating.
+ */
+function SupportReference({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <p className="ipk-support" data-intake-support-id={id}>
+      <span>Support ID</span>
+      <code>{id}</code>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard
+            ?.writeText(id)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false));
+        }}
+      >
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </p>
+  );
+}
+
+/**
+ * Codes that mean "the receiving workspace refused", not "we broke".
+ *
+ * Deliberately a SHORT list of public codes the server chose to send here,
+ * never a status-code heuristic: the distinction is a product decision the API
+ * already made, and re-deriving it in the browser is how the two come to
+ * disagree.
+ */
+const PUBLIC_DENIAL_CODES = new Set([
+  "INTAKE_NOT_ACCEPTING_EVIDENCE",
+  "MAX_FILES_REACHED",
+  "MIME_TYPE_NOT_ALLOWED",
+  "FILE_VALIDATION_BLOCKED",
+  "SESSION_NOT_OPEN_FOR_UPLOAD",
+  "SESSION_TERMINAL",
+  "LINK_ALREADY_SUBMITTED",
+  "LINK_NO_LONGER_AVAILABLE",
+  "LINK_EXPIRED",
+  "LINK_REVOKED",
+  "LINK_EXHAUSTED",
+  "CONSENT_REQUIRED",
+  "CONSENT_INVALID",
+  "SUBMISSION_NOT_READY",
+  "LOCATION_REQUIRED",
+  "INVALID_LOCATION_BODY",
+  "INTAKE_MODE_MISMATCH",
+  "INVALID_INPUT",
+]);
+
+function isPublicDenial(code: string | undefined): boolean {
+  return Boolean(code && PUBLIC_DENIAL_CODES.has(code));
 }
 
 function friendlyIntakeError(err: {
@@ -102,8 +164,13 @@ function friendlyIntakeError(err: {
     // be the answer to conditions that were not faults at all (a file name
     // longer than the column that stores it, for one), and a contributor
     // reading it had no way to tell the difference and no way forward.
+    /*
+     * The notice above it already says "Something went wrong" — repeating it
+     * here spent the reader's attention twice on the same fact and left no
+     * room for the only useful part, which is what to do next.
+     */
     INTERNAL_ERROR:
-      "We hit a problem on our side. Please try again in a moment. If the problem persists, contact the sender.",
+      "We couldn't complete this upload. Your files are still here — please try again.",
     INVALID_INPUT:
       "Something about that file wasn't accepted. Try a different file, or rename it and try again.",
     LINK_EXPIRED:
@@ -160,6 +227,7 @@ function friendlyIntakeError(err: {
   // unmapped code always resolves to a safe, generic recovery line.
   return "We couldn't complete that. Please try again, or contact the sender.";
 }
+import "./intake.css";
 import {
   IntakeCompletionProgress,
   type IntakeCompletion,
@@ -323,6 +391,24 @@ export default function ExternalIntakePage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = use(params);
+
+  /*
+   * WHAT KIND OF FAILURE THIS IS.
+   *
+   * The page had ONE error slot and rendered everything through it with the
+   * same alarming red box, so a workspace that had simply run out of capacity
+   * looked identical to a crash — and the support id was offered for both, so
+   * a person was invited to report an incident that did not exist.
+   *
+   * The server already distinguishes them: a bounded commercial refusal comes
+   * back with its own public code and NO requestId, while a genuine fault
+   * carries one. That is the signal, and it is read rather than guessed.
+   */
+  const [errorIsDenial, setErrorIsDenial] = useState(false);
+  const [errorSupportId, setErrorSupportId] = useState<string | null>(null);
+  /** A contributor mistake that belongs beside the control that caused it. */
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [pseudonymError, setPseudonymError] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<
     | "loading"
@@ -492,9 +578,18 @@ export default function ExternalIntakePage({
     if (requiresPseudonym) {
       const chosen = pseudonym.trim();
       if (!chosen) {
-        setErrorMessage("Please enter a display name to continue.");
+        /*
+         * Beside the field, not in the page banner.
+         *
+         * The field already rendered an error state and nothing ever set it,
+         * so an empty display name was announced at the top of the page in
+         * the same red box a server fault uses — sending the contributor
+         * looking for the problem anywhere except the empty box.
+         */
+        setPseudonymError("Please enter a display name to continue.");
         return;
       }
+      setPseudonymError(null);
       setIdentityBusy(true);
       try {
         await apiFetch(
@@ -507,9 +602,15 @@ export default function ExternalIntakePage({
           { auth: false },
         );
       } catch (err) {
-        setErrorMessage(
-          friendlyIntakeError(err as { code?: string; message?: string }),
-        );
+        const e = err as { code?: string; message?: string };
+        const message = friendlyIntakeError(e);
+        // A refusal of the NAME is answered on the name; anything else is a
+        // page-level condition and keeps the banner.
+        if (e.code === "INVALID_INPUT" || e.code === "PSEUDONYM_REQUIRED") {
+          setPseudonymError(message);
+        } else {
+          setErrorMessage(message);
+        }
         return;
       } finally {
         setIdentityBusy(false);
@@ -694,7 +795,18 @@ export default function ExternalIntakePage({
         requestId?: string;
         details?: { requestId?: string };
       };
-      setErrorMessage(withSupportId(friendlyIntakeError(e), e));
+      /*
+       * The support id is attached ONLY to a genuine fault. A refusal the
+       * platform meant — the workspace is at capacity, the file type is not
+       * accepted — has nothing to diagnose, and a reference under it reads as
+       * "report this", which is exactly the wrong instruction.
+       */
+      const denial = isPublicDenial(e.code);
+      setErrorIsDenial(denial);
+      setErrorSupportId(
+        denial ? null : (e.requestId ?? e.details?.requestId ?? null),
+      );
+      setErrorMessage(friendlyIntakeError(e));
     }
   }
 
@@ -826,9 +938,22 @@ export default function ExternalIntakePage({
   }
 
   if (phase === "loading") {
+    /*
+     * A skeleton in the SHAPE of what is arriving, so the page does not jump
+     * when it does. "Loading secure intake link…" told a person on a phone
+     * nothing except that something was happening, and then the layout
+     * changed completely underneath them.
+     */
     return (
-      <main style={pageStyle}>
-        <h1 style={titleStyle}>Loading secure intake link…</h1>
+      <main className="ipk" data-intake-phase="loading" aria-busy="true">
+        <IntakeBrand />
+        <div className="ipk-skeleton">
+          <div className="ipk-skeleton__bar ipk-skeleton__bar--title" />
+          <div className="ipk-skeleton__bar ipk-skeleton__bar--wide" />
+          <div className="ipk-skeleton__bar ipk-skeleton__bar--half" />
+          <div className="ipk-skeleton__block" />
+        </div>
+        <span className="app-visually-hidden">Opening the secure intake link…</span>
       </main>
     );
   }
@@ -850,41 +975,71 @@ export default function ExternalIntakePage({
               ? "rate-limited"
               : "generic";
     return (
-      <main style={pageStyle} data-intake-error-class={errorClass}>
-        <h1 style={titleStyle}>Secure intake link</h1>
-        <p style={paragraphStyle}>
-          {errorMessage ?? "This link cannot be opened."}
-        </p>
-        {errorClass === "expired-or-revoked" ? (
-          <p style={mutedStyle}>
-            If you still need to submit evidence, contact the workspace that
-            sent you this link — they can issue a new one.
+      <main
+        className="ipk"
+        data-intake-phase="link_unavailable"
+        data-intake-error-class={errorClass}
+      >
+        <IntakeBrand />
+        <div className="ipk-outcome">
+          <div className="ipk-outcome__mark ipk-outcome__mark--stop" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v5M12 16.5v.01" />
+            </svg>
+          </div>
+          <h1 className="ipk-outcome__title">This link can&apos;t be opened</h1>
+          <p className="ipk-outcome__body">
+            {errorMessage ?? "This link cannot be opened."}
           </p>
-        ) : errorClass === "invalid" ? (
-          <p style={mutedStyle}>
-            Check the link you were sent for typos or expired characters. If
-            the problem persists, the workspace that sent the link can issue a
-            new one.
-          </p>
-        ) : errorClass === "rate-limited" ? (
-          <p style={mutedStyle}>
-            For security, this link briefly limits repeated requests. Wait a
-            moment and reload the page.
-          </p>
-        ) : null}
+          {errorClass === "expired-or-revoked" ? (
+            <p className="ipk-outcome__note">
+              If you still need to submit evidence, contact the workspace that
+              sent you this link — they can issue a new one.
+            </p>
+          ) : errorClass === "invalid" ? (
+            <p className="ipk-outcome__note">
+              Check the link you were sent for typos or expired characters. If
+              the problem persists, the workspace that sent the link can issue a
+              new one.
+            </p>
+          ) : errorClass === "rate-limited" ? (
+            <p className="ipk-outcome__note">
+              For security, this link briefly limits repeated requests. Wait a
+              moment and reload the page.
+            </p>
+          ) : null}
+        </div>
       </main>
     );
   }
 
   if (phase === "submitted") {
+    /*
+     * WHAT THIS RECEIPT MAY AND MAY NOT SAY. It confirms the transfer — the
+     * files reached the sender and are recorded. It makes no claim about
+     * authenticity, admissibility or what anyone will conclude from them:
+     * that is the reviewer's judgement, and a submission page promising it
+     * would be the most consequential sentence on the whole flow.
+     */
     return (
-      <main style={pageStyle} data-intake-phase="submitted">
-        <h1 style={titleStyle}>Submission completed</h1>
-        <p style={paragraphStyle}>
-          Thank you. Your evidence has been securely submitted. The workspace
-          that issued this link will review the materials.
-        </p>
-        <p style={mutedStyle}>You may now close this window.</p>
+      <main className="ipk" data-intake-phase="submitted">
+        <IntakeBrand />
+        <div className="ipk-outcome">
+          <div className="ipk-outcome__mark ipk-outcome__mark--ok" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </div>
+          <h1 className="ipk-outcome__title">Submission completed</h1>
+          <p className="ipk-outcome__body">
+            Your files have been sent securely and recorded against this
+            request. The workspace that issued the link will review them.
+          </p>
+          <p className="ipk-outcome__note">
+            Nothing further is needed from you. You can close this window.
+          </p>
+        </div>
       </main>
     );
   }
@@ -899,107 +1054,210 @@ export default function ExternalIntakePage({
     // submission reference; the submission already exists in the
     // workspace's hands.
     return (
-      <main style={pageStyle} data-intake-phase="already_submitted">
-        <h1 style={titleStyle}>Submission completed</h1>
-        <p style={paragraphStyle}>
-          This link has already been used to submit evidence. There is
-          nothing more for you to do here — your earlier submission was
-          received and the workspace can review it.
-        </p>
-        <p style={mutedStyle}>
-          If you need to send additional files, contact the sender for a
-          new upload link.
-        </p>
+      <main className="ipk" data-intake-phase="already_submitted">
+        <IntakeBrand />
+        <div className="ipk-outcome">
+          <div className="ipk-outcome__mark ipk-outcome__mark--ok" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </div>
+          <h1 className="ipk-outcome__title">Already submitted</h1>
+          <p className="ipk-outcome__body">
+            This link has already been used. Your earlier submission was
+            received and the workspace can review it.
+          </p>
+          <p className="ipk-outcome__note">
+            If you need to send more files, contact the sender for a new upload
+            link.
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={pageStyle}>
-      <header style={{ marginBottom: 24 }}>
-        <p style={mutedStyle}>Secure intake — {link.workflowTemplateName}</p>
-        <h1 style={titleStyle}>Upload evidence</h1>
+    <main className="ipk" data-intake-phase={phase}>
+      <IntakeBrand />
+      {/*
+        THE HEADER ANSWERS "WHO WANTS WHAT" BEFORE ANYTHING ELSE.
+
+        It said "Upload evidence" on the consent screen too — a heading for a
+        step the reader had not reached, above a wall of disclosure text. The
+        title is now the phase they are actually on, and the request itself is
+        the line above it, because "which request is this" is the first thing a
+        person who received a link from a stranger needs to know.
+      */}
+      <header className="ipk-head">
+        <p className="ipk-eyebrow">{link.workflowTemplateName}</p>
+        <h1 className="ipk-title">
+          {phase === "consent" ? "Before you upload" : "Upload evidence"}
+        </h1>
         {link.workflowTemplateDescription ? (
-          <p style={paragraphStyle}>{link.workflowTemplateDescription}</p>
+          <p className="ipk-lede">{link.workflowTemplateDescription}</p>
         ) : null}
-        <p style={mutedStyle}>
-          Link expires {formatUserDateTime(link.expiresAtUtc)}.
-          {link.isAnonymous
-            ? " Your identity will not be recorded."
-            : null}
+        <p className="ipk-meta">
+          This link expires {formatUserDateTime(link.expiresAtUtc)}.
+          {link.isAnonymous ? " Your identity will not be recorded." : null}
         </p>
       </header>
 
+      {/*
+        TWO KINDS OF BAD NEWS, TOLD DIFFERENTLY.
+
+        A business refusal — the receiving workspace cannot accept another
+        record — is not a fault and gets no support id: there is nothing to
+        diagnose, and offering a reference invites a ticket about a system that
+        is working exactly as intended. A genuine unexpected failure keeps the
+        support id, because it is the only thing that makes it traceable, and
+        keeps it SECONDARY so it does not read as the headline.
+      */}
       {errorMessage ? (
-        <div style={errorBoxStyle} role="alert">
-          {errorMessage}
+        <div
+          className={`ipk-notice ${
+            errorIsDenial ? "ipk-notice--denial" : "ipk-notice--fault"
+          }`}
+          role="alert"
+          data-intake-error-kind={errorIsDenial ? "denial" : "fault"}
+        >
+          <p className="ipk-notice__title">
+            {errorIsDenial ? "This can't be accepted right now" : "Something went wrong"}
+          </p>
+          <p className="ipk-notice__body">{errorMessage}</p>
+          {!errorIsDenial && errorSupportId ? (
+            <SupportReference id={errorSupportId} />
+          ) : null}
         </div>
       ) : null}
 
       {phase === "consent" ? (
-        <section>
-          <h2 style={sectionTitleStyle}>Consent</h2>
-          <p style={paragraphStyle}>
-            {link.consentDisclosureText ?? DEFAULT_DISCLOSURE}
-          </p>
+        <section data-intake-consent>
+          {/*
+            FOUR THINGS, IN THE ORDER A PERSON ASKS THEM.
+
+            What is being requested; what PROOVRA records about the
+            submission; what you are agreeing to; and only then the action.
+            Previously this was one heading, one undifferentiated block of
+            disclosure text and two bare checkboxes, so the acknowledgement
+            arrived before the reader had learned what they were acknowledging.
+
+            The disclosure text itself is UNCHANGED and still shown in full —
+            it is the legal artefact whose hash is recorded with the consent,
+            and paraphrasing it would break that record.
+          */}
+          <div className="ipk-panel ipk-panel--quiet">
+            <h2 className="ipk-panel__title">What happens with your files</h2>
+            <p className="ipk-panel__body">
+              Files you upload are sent directly to the workspace that issued
+              this link and recorded against this request. PROOVRA stores a
+              fingerprint of each file so it can later be shown that nothing
+              changed after you sent it.
+            </p>
+            <p className="ipk-panel__body ipk-muted">
+              {link.isAnonymous
+                ? "This link is anonymous: your identity is not recorded with the submission."
+                : "Your email address is recorded with the submission so the sender knows who responded."}
+            </p>
+          </div>
+
+          <h2 className="ipk-section-title">The terms you are accepting</h2>
+          <div className="ipk-panel">
+            <p className="ipk-panel__body">
+              {link.consentDisclosureText ?? DEFAULT_DISCLOSURE}
+            </p>
+          </div>
           {requiresPseudonym ? (
-            <label
-              style={{ display: "block", marginTop: 12 }}
-              data-intake-pseudonym-field
-            >
-              <span style={{ display: "block", marginBottom: 4 }}>
+            <div className="ipk-field" data-intake-pseudonym-field>
+              <label className="app-field-label" htmlFor="ipk-pseudonym">
                 Display name
-              </span>
+              </label>
               <input
+                id="ipk-pseudonym"
+                className="app-form-input"
                 type="text"
                 name="pseudonym"
                 maxLength={80}
                 autoComplete="off"
                 value={pseudonym}
                 placeholder="The name shown with your submission"
-                onChange={(e) => setPseudonym(e.target.value)}
-                style={{ width: "100%", padding: 8, boxSizing: "border-box" }}
+                onChange={(e) => {
+                  setPseudonym(e.target.value);
+                  if (pseudonymError) setPseudonymError(null);
+                }}
+                aria-invalid={pseudonymError ? true : undefined}
+                aria-describedby="ipk-pseudonym-help"
               />
-              <span style={{ display: "block", marginTop: 4, fontSize: 12 }}>
-                This is the only identity recorded with your submission. Choose
-                any name you like — your real name is not requested.
-              </span>
-            </label>
+              <p
+                className={pseudonymError ? "app-field-error" : "app-field-help"}
+                id="ipk-pseudonym-help"
+              >
+                {pseudonymError ??
+                  "This is the only identity recorded with your submission. Choose any name you like — your real name is not requested."}
+              </p>
+            </div>
           ) : null}
-          <label style={{ display: "block", marginTop: 12 }}>
-            <input
-              type="checkbox"
-              checked={termsAcknowledged}
-              onChange={(e) => setTermsAcknowledged(e.target.checked)}
-            />
-            <span style={{ marginLeft: 8 }}>
-              I acknowledge the terms above.
-            </span>
-          </label>
-          {!link.isAnonymous ? (
-            <label style={{ display: "block", marginTop: 8 }}>
+
+          <h2 className="ipk-section-title">Your acknowledgement</h2>
+          <div className="ipk-panel">
+            {/*
+              THE CANONICAL CONTROL, not the browser's.
+
+              These were bare unstyled checkbox inputs with no class at all,
+              so the consent screen — the most formal moment in the whole
+              product — rendered the operating system's default blue box.
+              The app-checkbox primitive is the same control the app uses:
+              PROOVRA accent when checked, a real checkmark, and the shared
+              focus ring.
+            */}
+            <label className="ipk-ack">
               <input
+                className="app-checkbox"
                 type="checkbox"
-                checked={identityDisclosed}
-                onChange={(e) => setIdentityDisclosed(e.target.checked)}
+                checked={termsAcknowledged}
+                onChange={(e) => setTermsAcknowledged(e.target.checked)}
+                data-intake-ack="terms"
               />
-              <span style={{ marginLeft: 8 }}>
-                I agree to associate my submission with my email address.
+              <span className="ipk-ack__label">
+                I have read and accept the terms above.
               </span>
             </label>
-          ) : null}
+            {!link.isAnonymous ? (
+              <label className="ipk-ack">
+                <input
+                  className="app-checkbox"
+                  type="checkbox"
+                  checked={identityDisclosed}
+                  onChange={(e) => setIdentityDisclosed(e.target.checked)}
+                  data-intake-ack="identity"
+                />
+                <span className="ipk-ack__label">
+                  My submission may be associated with my email address.
+                  <span className="ipk-ack__note">
+                    The sender needs this to know who responded.
+                  </span>
+                </span>
+              </label>
+            ) : null}
+          </div>
+
           <button
             type="button"
-            style={primaryButtonStyle}
+            className="app-primary-action app-primary-action--lg ipk-submit"
             disabled={
               !termsAcknowledged ||
               identityBusy ||
               (requiresPseudonym && pseudonym.trim().length === 0)
             }
             onClick={acceptConsent}
+            data-intake-consent-continue
           >
-            Accept and continue
+            {identityBusy ? "Continuing…" : "Accept and continue"}
           </button>
+          {!termsAcknowledged ? (
+            <p className="ipk-submit-hint" data-intake-consent-hint>
+              Accept the terms above to continue.
+            </p>
+          ) : null}
         </section>
       ) : null}
 
@@ -1007,28 +1265,15 @@ export default function ExternalIntakePage({
         <section>
           {request ? (
             <>
-              <div
-                style={{
-                  marginBottom: 16,
-                  padding: 16,
-                  background: "#eff6ff",
-                  border: "1px solid #bfdbfe",
-                  borderRadius: 8,
-                }}
-              >
-                <p style={{ ...mutedStyle, marginBottom: 4 }}>
-                  You were asked to provide
-                </p>
-                <h3 style={{ fontSize: 16, fontWeight: 600, margin: "4px 0" }}>
-                  {request.title}
-                </h3>
+              <div className="ipk-panel ipk-panel--quiet">
+                <p className="ipk-eyebrow">You were asked to provide</p>
+                <h3 className="ipk-panel__title">{request.title}</h3>
                 {request.instructions ? (
-                  <p style={paragraphStyle}>{request.instructions}</p>
+                  <p className="ipk-panel__body">{request.instructions}</p>
                 ) : null}
                 {request.dueAtUtc ? (
-                  <p style={mutedStyle}>
-                    Please respond by{" "}
-                    {formatUserDateTime(request.dueAtUtc)}.
+                  <p className="ipk-panel__body ipk-muted">
+                    Please respond by {formatUserDateTime(request.dueAtUtc)}.
                   </p>
                 ) : null}
               </div>
@@ -1044,12 +1289,12 @@ export default function ExternalIntakePage({
               <IntakeCompletionProgress completion={request.completion} />
 
               {/* Phase C3 — operational checklist (primary intake driver). */}
-              <h2 style={sectionTitleStyle}>What this request needs</h2>
+              <h2 className="ipk-section-title">What this request needs</h2>
               <IntakeChecklist deliverables={request.deliverables} />
             </>
           ) : null}
-          <h2 style={sectionTitleStyle}>Files</h2>
-          <p style={paragraphStyle}>
+          <h2 className="ipk-section-title">Files</h2>
+          <p className="ipk-muted">
             Accepted file types:{" "}
             {link.allowedAcceptedKinds.length > 0
               ? link.allowedAcceptedKinds.join(", ")
@@ -1081,8 +1326,14 @@ export default function ExternalIntakePage({
               let nextIndex = parts.length;
               for (const f of files) {
                 if (cap !== null && nextIndex >= cap) {
-                  setErrorMessage(
-                    `Maximum of ${cap} files for this link. The remaining selection was not added.`,
+                  /*
+                   * A LIMIT REACHED IS NOT A SERVER BANNER. The person chose
+                   * more files than the link allows — an ordinary mistake, and
+                   * one that belongs beside the control they used, not at the
+                   * top of the page next to the crash treatment.
+                   */
+                  setFileError(
+                    `This link accepts up to ${cap} files. The rest of your selection was not added.`,
                   );
                   break;
                 }
@@ -1103,16 +1354,39 @@ export default function ExternalIntakePage({
           */}
           <button
             type="button"
-            style={addFilesStyle}
-            onClick={() => fileInputRef.current?.click()}
+            className="ipk-drop"
+            onClick={() => {
+              setFileError(null);
+              fileInputRef.current?.click();
+            }}
             disabled={phase === "submitting"}
             data-intake-add-files-btn="true"
+            aria-describedby={fileError ? "ipk-file-error" : undefined}
           >
-            <span style={{ fontSize: 15, fontWeight: 650 }}>Add files</span>
-            <span style={{ ...mutedStyle, fontSize: 12 }}>
-              You can choose more than one
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 16V4M7 9l5-5 5 5" />
+              <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
+            <span className="ipk-drop__title">Add files</span>
+            <span className="ipk-drop__hint">
+              Tap to choose — you can select more than one
             </span>
           </button>
+          {fileError ? (
+            <p className="app-field-error" id="ipk-file-error" role="alert">
+              {fileError}
+            </p>
+          ) : null}
 
           {/*
             WHAT THIS NEEDS — a checklist, read at a glance.
@@ -1124,11 +1398,9 @@ export default function ExternalIntakePage({
             is still there for anyone who wants it.
           */}
           {expectedSteps.length > 0 ? (
-            <div style={{ marginTop: 14 }}>
-              <p style={{ ...mutedStyle, margin: "0 0 6px" }}>
-                What this request needs
-              </p>
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            <div className="ipk-reqs">
+              <p className="ipk-eyebrow">What this request needs</p>
+              <ul className="ipk-reqs__list">
                 {expectedSteps.map((step) => {
                   const mapped = parts.some(
                     (p) => p.checklistStepId === step.id,
@@ -1136,57 +1408,28 @@ export default function ExternalIntakePage({
                   return (
                     <li
                       key={step.id}
-                      style={{
-                        display: "flex",
-                        gap: 10,
-                        alignItems: "flex-start",
-                        padding: "9px 0",
-                        borderTop: "1px solid #eef2f6",
-                      }}
+                      className="ipk-req"
                       data-intake-requirement={step.required ? "required" : "optional"}
                       data-intake-requirement-met={mapped ? "true" : "false"}
                     >
                       <span
                         aria-hidden="true"
-                        style={{
-                          flex: "0 0 auto",
-                          marginTop: 3,
-                          width: 16,
-                          height: 16,
-                          borderRadius: "50%",
-                          border: mapped ? "none" : "1.5px solid #cbd5e1",
-                          background: mapped ? "#059669" : "transparent",
-                          color: "#fff",
-                          fontSize: 11,
-                          lineHeight: "16px",
-                          textAlign: "center",
-                        }}
+                        className="ipk-req__mark"
                       >
                         {mapped ? "✓" : ""}
                       </span>
-                      <span style={{ minWidth: 0 }}>
-                        <span
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            alignItems: "baseline",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <strong style={{ fontSize: 15 }}>{step.title}</strong>
+                      <span className="ipk-req__text">
+                        <span className="ipk-req__head">
+                          <strong className="ipk-req__title">{step.title}</strong>
                           {step.required ? (
-                            <span style={requiredBadgeStyle}>Required</span>
+                            <span className="ipk-badge ipk-badge--required">Required</span>
                           ) : (
-                            <span style={optionalBadgeStyle}>Optional</span>
+                            <span className="ipk-badge ipk-badge--optional">Optional</span>
                           )}
                         </span>
                         {step.description ? (
                           <span
-                            style={{
-                              ...mutedStyle,
-                              display: "block",
-                              marginTop: 2,
-                            }}
+                            className="ipk-muted ipk-req__desc"
                           >
                             {step.description}
                           </span>
@@ -1200,10 +1443,10 @@ export default function ExternalIntakePage({
           ) : null}
 
           {parts.length > 0 ? (
-            <ul style={{ listStyle: "none", padding: 0, marginTop: 16 }}>
+            <ul className="ipk-files">
               {parts.map((p) => (
-                <li key={p.id} style={partRowStyle}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                <li key={p.id} className="ipk-file">
+                  <div className="ipk-file__main">
                     {/* P0 audit-fix — filename display.
                         Cameras produce timestamp-based filenames like
                         `20260619-202311-CAMERA-1234.HEIC` that wrap
@@ -1215,18 +1458,18 @@ export default function ExternalIntakePage({
                         filename as a compact secondary line with a
                         2-line clamp and a `title` tooltip so the full
                         name is reachable on hover / long-press. */}
-                    <div style={{ fontWeight: 600 }}>
+                    <div className="ipk-file__kind">
                       {humanFileKindLabel(p.mimeType)} ·{" "}
                       {(p.sizeBytes / 1024 / 1024).toFixed(2)} MB
                     </div>
                     <div
-                      style={fileNameClampStyle}
+                      className="ipk-file__name"
                       title={p.fileName}
                       data-intake-part-filename={p.fileName}
                     >
                       {p.fileName}
                     </div>
-                    <div style={mutedStyle}>
+                    <div className="ipk-muted">
                       {p.uploadedAtUtc
                         ? "Uploaded"
                         : p.error
@@ -1236,7 +1479,7 @@ export default function ExternalIntakePage({
                   </div>
                   {expectedSteps.length > 0 ? (
                     <select
-                      style={mappingInputStyle}
+                      className="app-form-input"
                       value={p.checklistStepId ?? ""}
                       onChange={(e) => setPartStep(p.id, e.target.value)}
                     >
@@ -1255,7 +1498,7 @@ export default function ExternalIntakePage({
           ) : null}
 
           {requiredStepsMissing.length > 0 ? (
-            <div style={{ ...mutedStyle, marginTop: 8 }}>
+            <div className="ipk-muted ipk-consent-note">
               Still needed:{" "}
               {requiredStepsMissing.map((s) => s.purposeLabel).join(", ")}
             </div>
@@ -1275,12 +1518,7 @@ export default function ExternalIntakePage({
 
           <button
             type="button"
-            style={{
-              ...primaryButtonStyle,
-              marginTop: 24,
-              opacity: !canSubmit ? 0.6 : 1,
-              cursor: !canSubmit ? "not-allowed" : "pointer",
-            }}
+            className="app-primary-action app-primary-action--lg ipk-submit"
             disabled={!canSubmit}
             onClick={onSubmit}
             data-intake-submit-blocked-by-location={
@@ -1291,7 +1529,7 @@ export default function ExternalIntakePage({
           </button>
           {submitBlockedReason ? (
             <p
-              style={submitHintStyle}
+              className="ipk-submit-hint"
               data-intake-submit-blocked-reason
               role="status"
             >
@@ -1332,7 +1570,7 @@ function LocationCard({
     : "Sharing your location is optional and can help the requester understand where the files were submitted from.";
   return (
     <div
-      style={locationCardStyle}
+      className="ipk-panel"
       data-intake-location-card="true"
       data-intake-location-policy={policy}
       data-intake-location-phase={state.phase}
@@ -1346,13 +1584,13 @@ function LocationCard({
         do. It is a secondary action, and "Skip" is a quiet one beside it,
         because skipping is a normal answer and not a failure.
       */}
-      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{title}</div>
-      <div style={{ ...mutedStyle, marginBottom: 10 }}>{body}</div>
+      <div className="ipk-aside__title">{title}</div>
+      <div className="ipk-muted ipk-aside__body">{body}</div>
       {state.phase === "idle" ? (
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="ipk-aside__actions">
           <button
             type="button"
-            style={secondaryButtonStyle}
+            className="app-secondary-action"
             onClick={onShare}
             data-intake-location-share="true"
           >
@@ -1361,7 +1599,7 @@ function LocationCard({
           {!required ? (
             <button
               type="button"
-              style={quietButtonStyle}
+              className="ipk-quiet"
               onClick={onSkip}
               data-intake-location-skip="true"
             >
@@ -1371,10 +1609,10 @@ function LocationCard({
         </div>
       ) : null}
       {state.phase === "requesting" ? (
-        <div style={mutedStyle}>Waiting for your browser&hellip;</div>
+        <div className="ipk-muted">Waiting for your browser&hellip;</div>
       ) : null}
       {state.phase === "granted" ? (
-        <div style={{ ...mutedStyle, color: "#065f46" }}>
+        <div className="ipk-muted ipk-aside__ok">
           Location captured
           {typeof state.accuracyMeters === "number"
             ? ` (accuracy ${Math.round(state.accuracyMeters)} m).`
@@ -1382,41 +1620,23 @@ function LocationCard({
         </div>
       ) : null}
       {state.phase === "denied" ? (
-        <div style={mutedStyle}>
+        <div className="ipk-muted">
           {required
             ? "Location is required. Allow location in your browser settings, or contact the sender."
             : "Location not shared. You can still submit without it."}
         </div>
       ) : null}
       {state.phase === "unavailable" ? (
-        <div style={mutedStyle}>{state.reason}</div>
+        <div className="ipk-muted">{state.reason}</div>
       ) : null}
     </div>
   );
 }
 
-const locationCardStyle: React.CSSProperties = {
-  marginTop: 18,
-  padding: 14,
-  border: "1px solid #e2e8f0",
-  borderRadius: 10,
-  background: "#f8fafc",
-};
 
-const requiredBadgeStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: "2px 6px",
-  background: "#fef2f2",
-  color: "#991b1b",
-  borderRadius: 999,
-};
-const optionalBadgeStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: "2px 6px",
-  background: "#f1f5f9",
-  color: "#475569",
-  borderRadius: 999,
-};
+
+
+
 
 // Inline styles — Phase 5 deliberately ships a minimal, framework-free UI.
 // A later phase can move this to the design system; for now we avoid any
@@ -1435,167 +1655,30 @@ const optionalBadgeStyle: React.CSSProperties = {
  * itself — so the eye had to travel a screen and a half to find out what to
  * do. clamp() lets the phone be tight without making the desktop cramped.
  */
-const pageStyle: React.CSSProperties = {
-  maxWidth: 640,
-  margin: "0 auto",
-  // The bottom is 88px, not a symmetric pad: a fixed privacy launcher sits
-  // 16px from the bottom-left at 38px tall, and it was landing on top of the
-  // submit action at the end of the page. The page yields the space rather
-  // than the global control moving for one route.
-  padding: "clamp(20px, 5vw, 40px) clamp(16px, 4vw, 24px) 88px",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  color: "#0f172a",
-};
 
-const titleStyle: React.CSSProperties = {
-  // Scales down on a 320px screen instead of wrapping a workflow name across
-  // three lines before the reader has learned anything.
-  fontSize: "clamp(21px, 5.5vw, 26px)",
-  lineHeight: 1.25,
-  fontWeight: 700,
-  margin: "0 0 6px",
-};
 
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 650,
-  marginTop: 24,
-  marginBottom: 8,
-};
 
-const paragraphStyle: React.CSSProperties = {
-  fontSize: 15,
-  lineHeight: 1.5,
-  color: "#334155",
-  margin: "0 0 10px",
-};
+
+
+
+
 
 // P0 audit-fix — filename display clamp. Renders the original
 // filename in monospace, breaks anywhere inside the box, clamps to
 // 2 lines on mobile, NEVER mutates the underlying value (the stored
 // `originalFileName` remains exact in the part row + report + package
 // + audit). Tooltip shows the full name on hover/long-press.
-const fileNameClampStyle: React.CSSProperties = {
-  fontFamily:
-    "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
-  fontSize: 12,
-  color: "#475569",
-  overflow: "hidden",
-  display: "-webkit-box",
-  WebkitBoxOrient: "vertical",
-  WebkitLineClamp: 2,
-  wordBreak: "break-all",
-  marginTop: 2,
-  marginBottom: 2,
-  lineHeight: 1.35,
-};
-const mutedStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#64748b",
-};
+
+
 
 /** Sits directly under the disabled Submit, quiet enough not to read as an
  *  error — nothing has gone wrong, there is simply one step left. */
-const submitHintStyle: React.CSSProperties = {
-  margin: "8px 0 0",
-  fontSize: 13,
-  lineHeight: 1.45,
-  color: "#475467",
-  textAlign: "center",
-};
+
 
 /** The upload target: full width, generous, and visibly a drop zone. */
-const addFilesStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 2,
-  width: "100%",
-  minHeight: 72,
-  marginTop: 4,
-  padding: "14px 16px",
-  border: "1.5px dashed #cbd5e1",
-  borderRadius: 12,
-  background: "#f8fafc",
-  color: "#0f172a",
-  cursor: "pointer",
-  textAlign: "center",
-};
 
-const primaryButtonStyle: React.CSSProperties = {
-  // Full width on a phone: the submit action was a content-width button
-  // floating under a long page and read as one more link. 48px tall clears
-  // the accessible tap-target floor with room for a fat thumb.
-  display: "block",
-  width: "100%",
-  minHeight: 48,
-  marginTop: 20,
-  padding: "13px 20px",
-  fontSize: 16,
-  fontWeight: 650,
-  color: "#fff",
-  background: "#0f172a",
-  border: 0,
-  borderRadius: 10,
-  cursor: "pointer",
-};
+
+
 
 /** A text-weight action. Used where declining is a normal answer and the
  *  control should not compete with the thing the page is actually for. */
-const quietButtonStyle: React.CSSProperties = {
-  minHeight: 44,
-  padding: "10px 4px",
-  border: 0,
-  background: "none",
-  font: "inherit",
-  fontSize: 14,
-  color: "#475467",
-  textDecoration: "underline",
-  cursor: "pointer",
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  display: "inline-block",
-  minHeight: 44,
-  padding: "10px 16px",
-  fontSize: 15,
-  fontWeight: 550,
-  color: "#0f172a",
-  background: "#f1f5f9",
-  border: "1px solid #cbd5e1",
-  borderRadius: 8,
-  cursor: "pointer",
-};
-
-const errorBoxStyle: React.CSSProperties = {
-  margin: "12px 0 0",
-  padding: "10px 12px",
-  background: "#fef2f2",
-  color: "#7f1d1d",
-  border: "1px solid #fecaca",
-  borderLeft: "3px solid #dc2626",
-  borderRadius: 8,
-  fontSize: 14,
-  lineHeight: 1.45,
-};
-
-const partRowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  padding: 12,
-  border: "1px solid #e2e8f0",
-  borderRadius: 8,
-  marginTop: 8,
-};
-
-const mappingInputStyle: React.CSSProperties = {
-  fontSize: 13,
-  padding: "6px 10px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  width: 220,
-};
