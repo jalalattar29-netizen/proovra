@@ -111,9 +111,6 @@ type CostDashboard = {
   notConnectedCategories: NotConnectedCategory[];
 };
 
-const INK_PRIMARY = "var(--ink-primary, #0f172a)";
-const INK_SECONDARY = "var(--ink-secondary, #475569)";
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
 
 function formatMoney(value: number | null | undefined, currency: string) {
   if (value == null || Number.isNaN(value)) return "—";
@@ -162,9 +159,9 @@ function MetricTile({
           fontWeight: 700,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          color: INK_MUTED,
+          color: "var(--ink-muted)",
         }}
-      >
+ >
         {label}
       </div>
       <div
@@ -174,10 +171,10 @@ function MetricTile({
           lineHeight: 1.05,
           fontWeight: 750,
           letterSpacing: "-0.02em",
-          color: accent ?? INK_PRIMARY,
+          color: accent ?? "var(--ink-primary)",
           overflowWrap: "anywhere",
         }}
-      >
+ >
         {value}
       </div>
       <div
@@ -185,9 +182,9 @@ function MetricTile({
           marginTop: 8,
           fontSize: 12.5,
           lineHeight: 1.5,
-          color: INK_SECONDARY,
+          color: "var(--ink-secondary)",
         }}
-      >
+ >
         {sub ?? ""}
       </div>
     </Card>
@@ -278,7 +275,7 @@ function AdminCostsInner() {
       render: (r) => (
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 600 }}>{r.operation}</div>
-          <div style={{ fontSize: 12, color: INK_MUTED, marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
             {r.provider}
           </div>
         </div>
@@ -318,7 +315,7 @@ function AdminCostsInner() {
       header: "Period start",
       nowrap: true,
       render: (r) => (
-        <span style={{ fontSize: 12, color: INK_MUTED }}>
+        <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
           {r.periodStartUtc ? formatTimestamp(r.periodStartUtc) : "—"}
         </span>
       ),
@@ -347,7 +344,7 @@ function AdminCostsInner() {
               gap: 16,
               gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
             }}
-          >
+ >
             {Array.from({ length: 3 }).map((_, i) => (
               <Card key={i} padding="comfortable" data-testid="admin-costs-loading-tile">
                 <div
@@ -355,7 +352,7 @@ function AdminCostsInner() {
                   style={{
                     height: 76,
                     borderRadius: 10,
-                    background: "var(--surface-muted, #f1f4f9)",
+                    background: "var(--surface-muted)",
                   }}
                 />
               </Card>
@@ -378,14 +375,14 @@ function AdminCostsInner() {
           <PageSection
             title="Estimated cost metrics"
             description="Every value is read live from the cost aggregate. Costs are estimated from recorded provider usage — not billed invoice amounts."
-          >
+ >
             <div
               style={{
                 display: "grid",
                 gap: 16,
                 gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
               }}
-            >
+ >
               {metrics.map((m) => (
                 <MetricTile
                   key={m.label}
@@ -396,7 +393,7 @@ function AdminCostsInner() {
                 />
               ))}
             </div>
-            <div style={{ marginTop: 12, fontSize: 12.5, color: INK_MUTED }}>
+            <div style={{ marginTop: 12, fontSize: 12.5, color: "var(--ink-muted)" }}>
               Costs are ESTIMATED (from estimatedCostUsdMicros) and shown in USD.
               Embeddings / semantic spend is reported in EUR below and is a
               different currency — it is never summed into the USD total.
@@ -406,7 +403,7 @@ function AdminCostsInner() {
           <PageSection
             title="Per-provider estimated cost"
             description="Estimated USD cost, units, and operation count per provider over the window (real recorded usage)."
-          >
+ >
             <DataTable
               columns={providerColumns}
               rows={data.perProvider}
@@ -425,7 +422,7 @@ function AdminCostsInner() {
           <PageSection
             title="Top operations by estimated cost"
             description="The most expensive operations across all providers in the window (real recorded usage)."
-          >
+ >
             <DataTable
               columns={operationColumns}
               rows={data.topOperations}
@@ -444,7 +441,7 @@ function AdminCostsInner() {
           <PageSection
             title="Budget posture"
             description="Soft / hard budget limits and state. A budget is flagged at risk when it has a recent alert or is exhausted."
-          >
+ >
             {data.budgets.length === 0 ? (
               <Card variant="empty" padding="none">
                 <EmptyState variant="inline"
@@ -461,7 +458,7 @@ function AdminCostsInner() {
                   gap: 12,
                   gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
                 }}
-              >
+ >
                 {data.budgets.map((b) => (
                   <Card
                     key={b.id}
@@ -472,25 +469,25 @@ function AdminCostsInner() {
                         {b.atRisk ? "At risk" : b.state}
                       </Badge>
                     }
-                  >
+ >
                     <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
-                      <div style={{ color: INK_SECONDARY }}>
+                      <div style={{ color: "var(--ink-secondary)" }}>
                         Scope: {b.scope} · {b.period}
                       </div>
-                      <div style={{ color: INK_PRIMARY }}>
+                      <div style={{ color: "var(--ink-primary)" }}>
                         Soft limit: {formatMoney(b.softLimitUsd, "USD")}
                       </div>
-                      <div style={{ color: INK_PRIMARY }}>
+                      <div style={{ color: "var(--ink-primary)" }}>
                         Hard limit: {formatMoney(b.hardLimitUsd, "USD")}
                       </div>
                       {b.recentAlerts.length > 0 ? (
-                        <div style={{ color: INK_MUTED, fontSize: 12 }}>
+                        <div style={{ color: "var(--ink-muted)", fontSize: 12 }}>
                           {formatCount(b.recentAlerts.length)} recent alert
                           {b.recentAlerts.length === 1 ? "" : "s"} · latest{" "}
                           {b.recentAlerts[0]?.threshold}
                         </div>
                       ) : (
-                        <div style={{ color: INK_MUTED, fontSize: 12 }}>
+                        <div style={{ color: "var(--ink-muted)", fontSize: 12 }}>
                           No alerts in window
                         </div>
                       )}
@@ -504,7 +501,7 @@ function AdminCostsInner() {
           <PageSection
             title="Embeddings / semantic spend (EUR)"
             description="Semantic-index spend is recorded in EUR — a different currency from the USD provider costs above. It is reported separately and never summed into the USD total."
-          >
+ >
             {data.semanticSpend.connected ? (
               <div
                 style={{
@@ -512,7 +509,7 @@ function AdminCostsInner() {
                   gap: 16,
                   gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
                 }}
-              >
+ >
                 <MetricTile
                   label="Semantic spend (EUR)"
                   value={formatMoney(data.semanticSpend.eurSpent, "EUR")}
@@ -545,7 +542,7 @@ function AdminCostsInner() {
           <PageSection
             title="Entitlement consumption"
             description="Consumption per entitlement key for the recorded billing periods (real counters)."
-          >
+ >
             <DataTable
               columns={entitlementColumns}
               rows={data.entitlements}
@@ -573,25 +570,25 @@ function AdminCostsInner() {
           <PageSection
             title="Unmetered cost categories"
             description="These cost categories are not metered by any usage model in this system. They are shown honestly as “Not connected” — never as a fabricated number."
-          >
+ >
             <div
               style={{
                 display: "grid",
                 gap: 12,
                 gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
               }}
-            >
+ >
               {data.notConnectedCategories.map((c) => (
                 <Card
                   key={c.category}
                   padding="comfortable"
                   title={c.category}
                   headerAction={<Badge tone="neutral">Not connected</Badge>}
-                >
-                  <div style={{ fontSize: 13, color: INK_SECONDARY }}>
+ >
+                  <div style={{ fontSize: 13, color: "var(--ink-secondary)" }}>
                     Not connected — no usage recorded for this category.
                   </div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: INK_MUTED }}>
+                  <div style={{ marginTop: 6, fontSize: 12, color: "var(--ink-muted)" }}>
                     {c.reason}
                   </div>
                 </Card>

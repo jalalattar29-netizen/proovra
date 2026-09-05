@@ -72,7 +72,7 @@ type Phase =
 const mutedStyle = {
   fontSize: 12.5,
   lineHeight: 1.55,
-  color: "var(--ink-secondary, #475569)",
+  color: "var(--ink-secondary)",
 } as const;
 
 const monoStyle = {
@@ -82,11 +82,11 @@ const monoStyle = {
 
 const inputStyle = {
   padding: "10px 12px",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.14))",
+  border: "1px solid var(--border-default)",
   borderRadius: 10,
   fontSize: 14,
-  background: "var(--surface-card, #ffffff)",
-  color: "var(--ink-primary, #0f172a)",
+  background: "var(--surface-card)",
+  color: "var(--ink-primary)",
   width: "100%",
   outline: "none",
 } as const;
@@ -364,7 +364,7 @@ export function InvitationGovernanceSection({
       variant="summary"
       padding="comfortable"
       data-section="invitation-governance"
-    >
+ >
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 16, maxWidth: 660 }}>
         Every invitation gets a durable delivery record, so a queued or failed
         email is visible here rather than silently lost. Resending sends a brand
@@ -382,7 +382,7 @@ export function InvitationGovernanceSection({
           maxWidth: 420,
           marginBottom: 16,
         }}
-      >
+ >
         <span>Organization id</span>
         <input
           style={inputStyle}
@@ -392,7 +392,7 @@ export function InvitationGovernanceSection({
           data-testid="invite-governance-org-id"
         />
         {organizationId.trim().length > 0 && !orgIdValid ? (
-          <span style={{ ...mutedStyle, color: "var(--status-risk-fg, #991b1b)" }}>
+          <span style={{ ...mutedStyle, color: "var(--status-risk-fg)" }}>
             That doesn&apos;t look like an organization id.
           </span>
         ) : null}
@@ -413,7 +413,7 @@ export function InvitationGovernanceSection({
           tone="risk"
           padding="comfortable"
           data-testid="invite-governance-denied"
-        >
+ >
           <strong style={{ fontSize: 14 }}>{phase.title}</strong>
           <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
             {phase.detail}
@@ -425,7 +425,7 @@ export function InvitationGovernanceSection({
           tone="risk"
           padding="comfortable"
           data-testid="invite-governance-error"
-        >
+ >
           <strong style={{ fontSize: 14 }}>Invitations didn&apos;t load</strong>
           <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 10 }}>
             {phase.detail}
@@ -445,7 +445,7 @@ export function InvitationGovernanceSection({
               flexWrap: "wrap",
               marginBottom: 10,
             }}
-          >
+ >
             <span style={mutedStyle} data-testid="invite-governance-count">
               {phase.totalPending} pending invitation
               {phase.totalPending === 1 ? "" : "s"}
@@ -458,7 +458,7 @@ export function InvitationGovernanceSection({
                 href={`/organizations/${encodeURIComponent(trimmedOrgId)}`}
                 style={{ textDecoration: "none" }}
                 data-testid="invite-governance-open-org"
-              >
+ >
                 <Button variant="secondary" size="sm">
                   Open this organization
                 </Button>
@@ -473,7 +473,7 @@ export function InvitationGovernanceSection({
               padding="comfortable"
               style={{ marginBottom: 12 }}
               data-testid="invite-fresh-accept-url"
-            >
+ >
               <strong style={{ fontSize: 13 }}>New acceptance link</strong>
               <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 8 }}>
                 Shown once. The previous link for this person no longer works.
@@ -498,7 +498,7 @@ export function InvitationGovernanceSection({
                       setCopied(false);
                     }
                   }}
-                >
+ >
                   {copied ? "Copied" : "Copy link"}
                 </Button>
                 <Button
@@ -508,7 +508,7 @@ export function InvitationGovernanceSection({
                     setFreshAcceptUrl(null);
                     setCopied(false);
                   }}
-                >
+ >
                   Dismiss
                 </Button>
               </div>
@@ -533,7 +533,7 @@ export function InvitationGovernanceSection({
                   size="sm"
                   disabled={busy === i.inviteId}
                   onClick={() => void resend(i)}
-                >
+ >
                   Resend
                 </Button>
                 <Button
@@ -541,7 +541,7 @@ export function InvitationGovernanceSection({
                   size="sm"
                   disabled={busy === i.inviteId}
                   onClick={() => void revoke(i)}
-                >
+ >
                   Revoke
                 </Button>
               </div>

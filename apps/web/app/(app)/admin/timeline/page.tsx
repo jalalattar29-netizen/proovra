@@ -74,7 +74,6 @@ type TimelineResponse = {
   nextCursor: string | null;
 };
 
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
 
 /**
  * 25, not 50. The feed is an append-on-demand list, so a smaller first page
@@ -230,7 +229,7 @@ export default function AdminTimelinePage() {
       header: "Source",
       nowrap: true,
       render: (r) => (
-        <span style={{ fontSize: 12, color: INK_MUTED }}>
+        <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
           {SOURCE_LABELS[r.source] ?? r.source}
         </span>
       ),
@@ -253,13 +252,13 @@ export default function AdminTimelinePage() {
           <span style={{ display: "grid", gap: 1, fontSize: 12 }}>
             <span
               style={{
-                color: actor.unknown ? INK_MUTED : "var(--ink-primary, #0F172A)",
+                color: actor.unknown ? "var(--ink-muted)" : "var(--ink-primary)",
                 fontStyle: actor.unknown ? "italic" : "normal",
               }}
-            >
+ >
               {actor.name}
             </span>
-            <span style={{ color: INK_MUTED, fontSize: 11 }}>{actor.kind}</span>
+            <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{actor.kind}</span>
           </span>
         );
       },
@@ -276,14 +275,14 @@ export default function AdminTimelinePage() {
           <span style={{ display: "grid", gap: 1, fontSize: 12 }}>
             <span
               style={{
-                color: o.unknown ? INK_MUTED : "var(--ink-primary, #0F172A)",
+                color: o.unknown ? "var(--ink-muted)" : "var(--ink-primary)",
                 fontStyle: o.unknown ? "italic" : "normal",
               }}
-            >
+ >
               {o.label}
             </span>
             {transition ? (
-              <span style={{ color: INK_MUTED, fontSize: 11 }}>{transition.text}</span>
+              <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{transition.text}</span>
             ) : null}
           </span>
         );
@@ -294,7 +293,7 @@ export default function AdminTimelinePage() {
       header: "When",
       nowrap: true,
       render: (r) => (
-        <span style={{ fontSize: 12, color: INK_MUTED }}>
+        <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
           {formatTimestamp(r.at)}
         </span>
       ),
@@ -324,7 +323,7 @@ export default function AdminTimelinePage() {
         <PageSection
           title="This is the PLATFORM timeline — not evidence custody"
           description="This feed covers platform operations only. It is deliberately kept SEPARATE from evidence custody timelines: it never reads or displays per-item evidence custody chains, verification ledgers, or chain-of-custody events. For evidence custody, use the evidence detail surfaces."
-        >
+ >
           <FilterBar
             actions={
               <Button variant="secondary" onClick={() => void load()}>
@@ -332,7 +331,7 @@ export default function AdminTimelinePage() {
               </Button>
             }
             style={{ marginBottom: 12 }}
-          >
+ >
             <FilterBar.Select
               label="Source"
               value={sourceFilter}
@@ -374,7 +373,7 @@ export default function AdminTimelinePage() {
                 aria-expanded={Boolean(expanded[rowKey(r, index)])}
                 onClick={() => toggleExpanded(rowKey(r, index))}
                 data-testid="admin-timeline-details-toggle"
-              >
+ >
                 {expanded[rowKey(r, index)] ? "Hide details" : "Details"}
               </Button>
             )}
@@ -389,7 +388,7 @@ export default function AdminTimelinePage() {
                     fontSize: 12.5,
                   }}
                   data-testid="admin-timeline-details"
-                >
+ >
                   {(
                     [
                       ["Organization", dash(r.organizationId)],
@@ -401,11 +400,11 @@ export default function AdminTimelinePage() {
                       <dt
                         style={{
                           fontSize: 11,
-                          color: INK_MUTED,
+                          color: "var(--ink-muted)",
                           textTransform: "uppercase",
                           letterSpacing: "0.06em",
                         }}
-                      >
+ >
                         {label}
                       </dt>
                       <dd style={{ margin: "2px 0 0", overflowWrap: "anywhere" }}>{value}</dd>
@@ -416,11 +415,11 @@ export default function AdminTimelinePage() {
                       <dt
                         style={{
                           fontSize: 11,
-                          color: INK_MUTED,
+                          color: "var(--ink-muted)",
                           textTransform: "uppercase",
                           letterSpacing: "0.06em",
                         }}
-                      >
+ >
                         Open
                       </dt>
                       <dd style={{ margin: "2px 0 0" }}>
@@ -451,7 +450,7 @@ export default function AdminTimelinePage() {
                   onClick={() => void loadMore()}
                   loading={loadingMore}
                   data-testid="admin-timeline-load-more"
-                >
+ >
                   Load older events
                 </Button>
               ) : null

@@ -243,7 +243,7 @@ export function MfaDigestPreferencesSection() {
                 "We couldn't change the digest setting.",
               )
             }
-          >
+ >
             {enabled ? "Turn digest off" : "Turn digest on"}
           </Button>
           {suppressedNow ? (
@@ -260,7 +260,7 @@ export function MfaDigestPreferencesSection() {
                   "We couldn't resume the digest.",
                 )
               }
-            >
+ >
               Resume now
             </Button>
           ) : (
@@ -282,7 +282,7 @@ export function MfaDigestPreferencesSection() {
                   "We couldn't snooze the digest.",
                 )
               }
-            >
+ >
               Snooze {SNOOZE_DAYS} days
             </Button>
           )}
@@ -307,12 +307,12 @@ export function MfaDigestPreferencesSection() {
             disabled={busy !== null}
             onClick={() => void sendTest()}
             data-mfa-digest-send-test
-          >
+ >
             Send test digest
           </Button>
         </div>
       }
-    >
+ >
       {preview ? (
         <Card padding="compact" style={{ marginBottom: 12 }}>
           <p style={{ margin: 0, fontSize: 13 }}>
@@ -340,7 +340,7 @@ export function MfaDigestPreferencesSection() {
           gap: 12,
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
         }}
-      >
+ >
         {renderPref(
           "All workspaces",
           "Applies wherever you do not have a workspace-specific setting.",

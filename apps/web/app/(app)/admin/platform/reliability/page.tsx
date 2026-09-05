@@ -245,7 +245,7 @@ useEffect(() => {
           subtitle={"Internal-only view of upload session health for the ACTIVE WORKSPACE — not a platform-wide total. Stalled, failed, and review-required uploads are NEVER auto-deleted. Operator actions move the session through the canonical state machine without mutating the underlying evidence row, custody chain, or stored bytes."}
         />
       }
-    >
+ >
 
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
 
@@ -289,7 +289,7 @@ useEffect(() => {
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="apf-control"
-              >
+ >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {s} ({summary.counts[s] ?? 0})
@@ -326,7 +326,7 @@ useEffect(() => {
                         className="apf-control"
                         disabled={busyEvidenceId === s.evidenceId}
                         onClick={() => requestReview(s.evidenceId)}
-                      >
+ >
                         Request review
                       </button>
                     ) : null}
@@ -336,7 +336,7 @@ useEffect(() => {
                         className="apf-control"
                         disabled={busyEvidenceId === s.evidenceId}
                         onClick={() => markAbandoned(s.evidenceId)}
-                      >
+ >
                         Mark abandoned
                       </button>
                     ) : null}
@@ -392,9 +392,9 @@ function Stat({
           fontSize: 22,
           fontWeight: 700,
           // The product warning ink, not a literal amber - see `--tone-orange`.
-          color: tone === "warn" ? "var(--orange-500, #EA580C)" : "var(--ink-primary)",
+          color: tone === "warn" ? "var(--orange-500)" : "var(--ink-primary)",
         }}
-      >
+ >
         {value}
       </div>
       <div className="apf-muted">{label}</div>

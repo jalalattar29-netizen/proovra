@@ -272,6 +272,19 @@
   --shadow-dropdown:
     0 12px 40px rgba(15, 23, 42, 0.12),
     0 2px 6px rgba(15, 23, 42, 0.04);
+
+  /* An edge-anchored panel cannot use a directional drop: it is flush with the
+     viewport, so a `0 Ypx` offset throws the shadow off-screen on one side and
+     leaves the edge that faces the page unlit. It needs spread with no offset.
+     Four admin panels had each written this by hand as a literal — three as
+     `0 0 40px rgba(15,23,42,0.1)` and one as `0 8px 24px rgba(15,23,42,0.15)`,
+     which is how one elevation becomes two. */
+  --shadow-drawer: 0 0 40px rgba(15, 23, 42, 0.1);
+
+  /* The ground behind a modal surface. Dark enough to read as "the page is not
+     available", light enough that the operator keeps their place in it. */
+  --scrim: rgba(15, 23, 42, 0.42);
+
   --focus-ring: 0 0 0 3px rgba(107, 91, 255, 0.28);
 
   /* ------------------------------------------------------------------

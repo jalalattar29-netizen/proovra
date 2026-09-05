@@ -168,9 +168,6 @@ type DemoRequestDetails = {
   updatedAt: string;
 };
 
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
-const INK_SECONDARY = "var(--ink-secondary, #475569)";
-const INK_PRIMARY = "var(--ink-primary, #0f172a)";
 
 function formatTimestamp(value?: string | null) {
   if (!value) return "—";
@@ -260,9 +257,9 @@ function MetaBlock({
           fontWeight: 700,
           letterSpacing: "0.12em",
           textTransform: "uppercase",
-          color: INK_MUTED,
+          color: "var(--ink-muted)",
         }}
-      >
+ >
         {label}
       </div>
       <div
@@ -270,10 +267,10 @@ function MetaBlock({
           marginTop: 10,
           fontSize: 13.5,
           lineHeight: 1.7,
-          color: INK_PRIMARY,
+          color: "var(--ink-primary)",
           wordBreak: "break-word",
         }}
-      >
+ >
         {children}
       </div>
     </Card>
@@ -290,13 +287,13 @@ function JsonBlock({ value }: { value: unknown }) {
         wordBreak: "break-word",
         fontSize: 11.5,
         lineHeight: 1.5,
-        color: INK_SECONDARY,
-        background: "var(--surface-muted, #f1f4f9)",
-        border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+        color: "var(--ink-secondary)",
+        background: "var(--surface-muted)",
+        border: "1px solid var(--border-subtle)",
         borderRadius: 10,
         padding: 12,
       }}
-    >
+ >
       {prettyJson(value)}
     </pre>
   );
@@ -688,13 +685,13 @@ export default function AdminDemoRequestsPage() {
               variant="primary"
               onClick={() => void runDueFollowUps()}
               disabled={runningDue}
-            >
+ >
               {runningDue ? "Running..." : "Run Due Follow-ups"}
             </Button>
           }
         />
       }
-    >
+ >
 
       <div
         style={{
@@ -702,7 +699,7 @@ export default function AdminDemoRequestsPage() {
           gap: 16,
           gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
         }}
-      >
+ >
         {summaryTiles.map((tile) => (
           <Card key={tile.label} padding="comfortable" style={{ minWidth: 0 }}>
             <div
@@ -711,9 +708,9 @@ export default function AdminDemoRequestsPage() {
                 fontWeight: 700,
                 letterSpacing: "0.12em",
                 textTransform: "uppercase",
-                color: INK_MUTED,
+                color: "var(--ink-muted)",
               }}
-            >
+ >
               {tile.label}
             </div>
             <div
@@ -723,22 +720,22 @@ export default function AdminDemoRequestsPage() {
                 alignItems: "center",
                 gap: 10,
               }}
-            >
+ >
               <span
                 style={{
                   fontSize: 30,
                   fontWeight: 750,
                   letterSpacing: "-0.02em",
-                  color: INK_PRIMARY,
+                  color: "var(--ink-primary)",
                 }}
-              >
+ >
                 {new Intl.NumberFormat().format(tile.value)}
               </span>
               <Badge tone={tile.tone} dot>
                 {tile.label}
               </Badge>
             </div>
-            <div style={{ marginTop: 8, fontSize: 12.5, color: INK_MUTED }}>
+            <div style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-muted)" }}>
               {tile.note}
             </div>
           </Card>
@@ -753,11 +750,11 @@ export default function AdminDemoRequestsPage() {
           alignItems: "start",
         }}
         className="admin-demo-requests-grid"
-      >
+ >
         <PageSection
           title="Inbound Requests"
           description="Filter and review inbound requests by status, priority, lead track, follow-up state, spam state, and general search."
-        >
+ >
           <FilterBar
             actions={
               <>
@@ -765,7 +762,7 @@ export default function AdminDemoRequestsPage() {
                   variant="primary"
                   size="sm"
                   onClick={() => void loadList()}
-                >
+ >
                   Search
                 </Button>
                 <Button
@@ -782,12 +779,12 @@ export default function AdminDemoRequestsPage() {
                     // reading it back here would still send the OLD query.
                     void loadList("");
                   }}
-                >
+ >
                   Clear Filters
                 </Button>
               </>
             }
-          >
+ >
             <FilterBar.Search
               label="Search requests"
               value={search}
@@ -879,10 +876,10 @@ export default function AdminDemoRequestsPage() {
                   padding="comfortable"
                   style={
                     selectedId === item.id
-                      ? { borderColor: "var(--accent-500, #7C3AED)" }
+                      ? { borderColor: "var(--accent-500)" }
                       : undefined
                   }
-                >
+ >
                   <div
                     style={{
                       display: "flex",
@@ -891,7 +888,7 @@ export default function AdminDemoRequestsPage() {
                       gap: 16,
                       flexWrap: "wrap",
                     }}
-                  >
+ >
                     <div style={{ minWidth: 0, flex: 1 }}>
                       {/* The name IS the control for the inline details, so
                           the affordance is visible and the row stops being a
@@ -916,7 +913,7 @@ export default function AdminDemoRequestsPage() {
                           marginBlock: -12,
                           fontSize: 15,
                           fontWeight: 650,
-                          color: INK_PRIMARY,
+                          color: "var(--ink-primary)",
                           letterSpacing: "-0.01em",
                           textDecoration: "underline",
                           textDecorationColor: "transparent",
@@ -930,7 +927,7 @@ export default function AdminDemoRequestsPage() {
                           e.currentTarget.style.textDecorationColor =
                             "transparent";
                         }}
-                      >
+ >
                         {item.fullName}
                       </button>
 
@@ -938,10 +935,10 @@ export default function AdminDemoRequestsPage() {
                         style={{
                           marginTop: 6,
                           fontSize: 13,
-                          color: INK_SECONDARY,
+                          color: "var(--ink-secondary)",
                           lineHeight: 1.6,
                         }}
-                      >
+ >
                         {item.workEmail} · {item.organization ?? "No organization"} ·{" "}
                         {item.country ?? "No country"}
                       </div>
@@ -950,10 +947,10 @@ export default function AdminDemoRequestsPage() {
                         style={{
                           marginTop: 4,
                           fontSize: 13,
-                          color: INK_SECONDARY,
+                          color: "var(--ink-secondary)",
                           lineHeight: 1.6,
                         }}
-                      >
+ >
                         Workspace size: {item.teamSize ?? "—"} · Source:{" "}
                         {item.source ?? "—"} · Track:{" "}
                         {titleCaseToken(item.leadTrack)}
@@ -966,7 +963,7 @@ export default function AdminDemoRequestsPage() {
                           flexWrap: "wrap",
                           marginTop: 10,
                         }}
-                      >
+ >
                         <Badge tone={statusTone(item.status)}>{item.status}</Badge>
                         <Badge tone={priorityTone(item.priority)}>
                           {item.priority}
@@ -990,10 +987,10 @@ export default function AdminDemoRequestsPage() {
                         style={{
                           marginTop: 8,
                           fontSize: 12.5,
-                          color: INK_MUTED,
+                          color: "var(--ink-muted)",
                           lineHeight: 1.6,
                         }}
-                      >
+ >
                         Next follow-up: {formatTimestamp(item.nextFollowUpAt)} · Last
                         sent: {formatTimestamp(item.lastFollowUpSentAt)}
                       </div>
@@ -1007,8 +1004,8 @@ export default function AdminDemoRequestsPage() {
                         gap: 8,
                         whiteSpace: "nowrap",
                       }}
-                    >
-                      <div style={{ fontSize: 12, color: INK_MUTED }}>
+ >
+                      <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
                         {formatTimestamp(item.createdAt)}
                       </div>
                       {/* A link styled as a button, not a button inside a
@@ -1020,7 +1017,7 @@ export default function AdminDemoRequestsPage() {
                                 params?.toString() ?? null,
                               )}
                         style={buttonSurfaceStyle("secondary", "sm")}
-                      >
+ >
                         Open →
                       </Link>
                     </div>
@@ -1034,7 +1031,7 @@ export default function AdminDemoRequestsPage() {
         <PageSection
           title="Request Details"
           description="Inspect request content, qualification, routing, follow-up state, spam signals, and internal review controls."
-        >
+ >
           {!details ? (
             <EmptyState variant="inline"
               title="No request selected"
@@ -1146,7 +1143,7 @@ export default function AdminDemoRequestsPage() {
                       variant="secondary"
                       onClick={() => void saveRouting()}
                       disabled={routing || !routeTarget}
-                    >
+ >
                       {routing ? "Saving route..." : "Save routing"}
                     </Button>
                   </div>
@@ -1172,13 +1169,13 @@ export default function AdminDemoRequestsPage() {
                     flexWrap: "wrap",
                     marginTop: 14,
                   }}
-                >
+ >
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => void sendFollowUp()}
                     disabled={sendingFollowUp}
-                  >
+ >
                     {sendingFollowUp ? "Sending..." : "Send Next"}
                   </Button>
                   <Button
@@ -1186,7 +1183,7 @@ export default function AdminDemoRequestsPage() {
                     size="sm"
                     onClick={() => void sendFollowUp(1)}
                     disabled={sendingFollowUp}
-                  >
+ >
                     Send Step 1
                   </Button>
                   <Button
@@ -1194,7 +1191,7 @@ export default function AdminDemoRequestsPage() {
                     size="sm"
                     onClick={() => void sendFollowUp(2)}
                     disabled={sendingFollowUp}
-                  >
+ >
                     Send Step 2
                   </Button>
                   <Button
@@ -1202,7 +1199,7 @@ export default function AdminDemoRequestsPage() {
                     size="sm"
                     onClick={() => void sendFollowUp(3)}
                     disabled={sendingFollowUp}
-                  >
+ >
                     Send Step 3
                   </Button>
                 </div>
@@ -1267,7 +1264,7 @@ export default function AdminDemoRequestsPage() {
                       variant="primary"
                       onClick={() => void saveCurrent()}
                       disabled={saving}
-                    >
+ >
                       {saving ? "Saving..." : "Save changes"}
                     </Button>
                     <Button
@@ -1278,7 +1275,7 @@ export default function AdminDemoRequestsPage() {
                         setEditFollowUpStatus(details.followUpStatus);
                         setEditNotes(details.notes ?? "");
                       }}
-                    >
+ >
                       Set Contacted
                     </Button>
                     <Button
@@ -1287,13 +1284,13 @@ export default function AdminDemoRequestsPage() {
                         setEditStatus("QUALIFIED");
                         setEditPriority("HIGH");
                       }}
-                    >
+ >
                       Mark Qualified
                     </Button>
                   </div>
                 </div>
 
-                <div style={{ marginTop: 14, color: INK_SECONDARY }}>
+                <div style={{ marginTop: 14, color: "var(--ink-secondary)" }}>
                   Reviewed at: {formatTimestamp(details.reviewedAt)}
                   <br />
                   Reviewed by: {details.reviewedByUserId ?? "—"}

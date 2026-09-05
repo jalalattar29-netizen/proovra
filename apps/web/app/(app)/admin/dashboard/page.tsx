@@ -149,9 +149,7 @@ const DATE_RANGES: ReadonlyArray<{ key: DateRangeKey; label: string }> = [
 // Presentation helpers (token-driven; no hard-coded pearl palette).
 // ---------------------------------------------------------------------------
 
-const INK_PRIMARY = "var(--ink-primary, #0f172a)";
-const INK_SECONDARY = "var(--ink-secondary, #475569)";
-/* INK_MUTED is gone: MetricTile now renders through AdmKpi, which owns the
+/* "var(--ink-muted)" is gone: MetricTile now renders through AdmKpi, which owns the
    muted ink for its label and its non-value states, and the not-connected
    rows render through AdmInline. Nothing left in this file sets it by hand. */
 
@@ -242,11 +240,11 @@ function StatRow({ label, value, tone }: { label: string; value: number; tone: B
         gap: 12,
         padding: "10px 12px",
         borderRadius: 10,
-        border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-        background: "var(--surface-muted, #f1f4f9)",
+        border: "1px solid var(--border-subtle)",
+        background: "var(--surface-muted)",
       }}
-    >
-      <span style={{ fontSize: 13.5, fontWeight: 600, color: INK_PRIMARY }}>{label}</span>
+ >
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink-primary)" }}>{label}</span>
       <Badge tone={tone}>{formatCount(value) ?? "0"}</Badge>
     </div>
   );
@@ -444,10 +442,10 @@ export default function AdminDashboardPage() {
         gap: 4,
         padding: 4,
         borderRadius: 12,
-        border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-        background: "var(--surface-muted, #f1f4f9)",
+        border: "1px solid var(--border-default)",
+        background: "var(--surface-muted)",
       }}
-    >
+ >
       {DATE_RANGES.map((r) => {
         const active = r.key === dateRange;
         return (
@@ -470,13 +468,13 @@ export default function AdminDashboardPage() {
               padding: "7px 14px",
               fontSize: 13,
               fontWeight: 650,
-              color: active ? INK_PRIMARY : INK_SECONDARY,
-              background: active ? "var(--surface-card, #ffffff)" : "transparent",
+              color: active ? "var(--ink-primary)" : "var(--ink-secondary)",
+              background: active ? "var(--surface-card)" : "transparent",
               boxShadow: active
-                ? "var(--shadow-card, 0 1px 2px rgba(15,23,42,0.04))"
+                ? "var(--shadow-card)"
                 : "none",
             }}
-          >
+ >
             {r.label}
           </button>
         );
@@ -502,7 +500,7 @@ export default function AdminDashboardPage() {
               gap: 16,
               gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
             }}
-          >
+ >
             {Array.from({ length: 8 }).map((_, i) => (
               <Card key={i} padding="comfortable" data-testid="admin-loading-tile">
                 <div
@@ -540,7 +538,7 @@ export default function AdminDashboardPage() {
           <PageSection
             title="Top-line metrics"
             description="Global platform totals. Values not present in the analytics bundle are shown as “Not measured”, never estimated."
-          >
+ >
             <div
               data-testid="admin-metric-grid"
               style={{
@@ -548,7 +546,7 @@ export default function AdminDashboardPage() {
                 gap: 16,
                 gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
               }}
-            >
+ >
               {metrics.map((m) => (
                 <MetricTile
                   key={m.label}
@@ -567,7 +565,7 @@ export default function AdminDashboardPage() {
           <PageSection
             title="Geography"
             description="Country-level traffic recorded in the AnalyticsEvent table for this window."
-          >
+ >
             {bundle.geography.countries.length === 0 ? (
               /* ONE surface, not two. A dashed Card wrapping a framed
                  EmptyState drew two borders and a 40px icon disc across the
@@ -625,7 +623,7 @@ export default function AdminDashboardPage() {
                    content; only a row of peer TILES earns equal height. */
                 alignItems: "start",
               }}
-            >
+ >
               <Card title="Top pages" subtitle="Most-viewed routes in this window." padding="comfortable">
                 {bundle.pages.length === 0 ? (
                   <EmptyState variant="inline"
@@ -675,7 +673,7 @@ export default function AdminDashboardPage() {
                 title="Conversion funnel"
                 subtitle="Progression from page views to reports."
                 padding="comfortable"
-              >
+ >
                 {bundle.funnel.length === 0 ? (
                   <EmptyState variant="inline"
                     compact
@@ -695,12 +693,12 @@ export default function AdminDashboardPage() {
                           gap: 12,
                           padding: "12px 14px",
                           borderRadius: 10,
-                          border: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
-                          background: "var(--surface-muted, #f1f4f9)",
+                          border: "1px solid var(--border-subtle)",
+                          background: "var(--surface-muted)",
                         }}
-                      >
+ >
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 13.5, fontWeight: 650, color: INK_PRIMARY }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 650, color: "var(--ink-primary)" }}>
                             {idx + 1}. {step.label}
                           </div>
                           {/*
@@ -711,9 +709,9 @@ export default function AdminDashboardPage() {
                             measurement.
                           */}
                           <div
-                            style={{ fontSize: 12, color: INK_SECONDARY, marginTop: 2 }}
+                            style={{ fontSize: 12, color: "var(--ink-secondary)", marginTop: 2 }}
                             data-funnel-state={step.measured ? "MEASURED" : "NOT_MEASURED"}
-                          >
+ >
                             {!step.measured
                               ? (step.notMeasuredReason ??
                                 "Not measured — this stage is not instrumented.")
@@ -729,10 +727,10 @@ export default function AdminDashboardPage() {
                             fontSize: 20,
                             fontWeight: 750,
                             letterSpacing: "-0.02em",
-                            color: INK_PRIMARY,
+                            color: "var(--ink-primary)",
                             flexShrink: 0,
                           }}
-                        >
+ >
                           {/* No number, rather than a zero standing in for one. */}
                           {step.measured && typeof step.count === "number"
                             ? (formatCount(step.count) ?? "0")
@@ -752,7 +750,7 @@ export default function AdminDashboardPage() {
           <PageSection
             title="Additional signals"
             description="These signals are not part of the current analytics bundle and are shown as not connected rather than estimated."
-          >
+ >
             <div
               style={{
                 display: "grid",
@@ -762,7 +760,7 @@ export default function AdminDashboardPage() {
                    content; only a row of peer TILES earns equal height. */
                 alignItems: "start",
               }}
-            >
+ >
               <NotConnectedSignal
                 title="Referrers"
                 signal="The analytics source does not record referrer attribution for this dashboard."
@@ -787,12 +785,12 @@ export default function AdminDashboardPage() {
                    content; only a row of peer TILES earns equal height. */
                 alignItems: "start",
               }}
-            >
+ >
               <Card
                 title="Account tier mix"
                 subtitle="People holding an active entitlement on each tier — accounts, not workspaces."
                 padding="comfortable"
-              >
+ >
                 <div style={{ display: "grid", gap: 8 }} data-testid="admin-subscription-mix">
                   {accountTierMix.map((s) => (
                     <StatRow key={s.label} label={s.label} value={s.value} tone={s.tone} />
@@ -812,7 +810,7 @@ export default function AdminDashboardPage() {
                 title="Workspace health"
                 subtitle="Storage and seat pressure across workspaces."
                 padding="comfortable"
-              >
+ >
                 <div style={{ display: "grid", gap: 8 }} data-testid="admin-workspace-health">
                   {workspaceHealth.map((h) => (
                     <StatRow key={h.label} label={h.label} value={h.value} tone={h.tone} />
@@ -828,7 +826,7 @@ export default function AdminDashboardPage() {
           <PageSection
             title="Recent platform activity"
             description="Latest captured product events with route, place, severity and event class."
-          >
+ >
             {bundle.recent.length === 0 ? (
               <Card variant="empty" padding="none">
                 <EmptyState variant="inline"
@@ -847,7 +845,7 @@ export default function AdminDashboardPage() {
                     key: "label",
                     header: "Event",
                     render: (e: RecentEvent) => (
-                      <span style={{ fontWeight: 600, color: INK_PRIMARY }}>
+                      <span style={{ fontWeight: 600, color: "var(--ink-primary)" }}>
                         {e.label ?? e.eventType}
                       </span>
                     ),

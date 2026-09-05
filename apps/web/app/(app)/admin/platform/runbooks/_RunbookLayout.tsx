@@ -57,7 +57,7 @@ export function RunbookSidebar({ activeSlug }: { activeSlug?: string }) {
                     // here"; the left rule in CSS is the visual one. Colour
                     // alone would say it to only some readers.
                     aria-current={r.slug === activeSlug ? "page" : undefined}
-                  >
+ >
                     {r.title}
                     <span className="rb-nav-slug">{r.slug}</span>
                   </Link>

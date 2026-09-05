@@ -25,25 +25,15 @@ import {
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
-import {
-  errorBoxStyle,
-  formatDateTime,
-  ghostButtonStyle,
-  inputStyle,
-  mutedStyle,
-  selectStyle,
-  statusBadgeStyle,
-  successBoxStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  TOKENS,
-} from "../ui-tokens";
+import { formatDateTime, ghostButtonStyle, statusBadgeStyle, successBoxStyle, TOKENS } from "../ui-tokens";
 import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { FederationReadinessSection } from "./_sections/FederationReadinessSection";
+import {
+  AdmInline,
+} from "../../../../../components/admin/AdminSurfaces";
 
 type SsoProvider =
   | "GENERIC_OIDC"
@@ -141,13 +131,13 @@ function DenialPanel({ denial }: { denial: Denial }) {
       padding="comfortable"
       data-testid="providers-denied"
       data-denial-kind={denial.kind}
-    >
+ >
       <strong style={{ fontSize: 14 }}>
         {denial.kind === "entitlement"
           ? "Not included in this plan"
           : "You don't have access to identity providers"}
       </strong>
-      <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
+      <p className="adm-help" style={{ marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
         {denial.detail}
       </p>
     </Card>
@@ -416,14 +406,14 @@ export default function ProvidersPage() {
                 setShowCreate(true);
                 setRevealedSecret(null);
               }}
-            >
+ >
               New connection
             </Button>
           }
         />
       }
-    >
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+ >
+      {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {revealedSecret ? (
         <div style={successBoxStyle}>
           <strong>Client secret created.</strong> Copy now — this is the
@@ -433,7 +423,7 @@ export default function ProvidersPage() {
             type="button"
             style={{ ...ghostButtonStyle, marginInlineStart: 12 }}
             onClick={() => setRevealedSecret(null)}
-          >
+ >
             Dismiss
           </button>
         </div>
@@ -442,17 +432,17 @@ export default function ProvidersPage() {
       <PageSection
         title="Readiness"
         description="Whether each connection can actually sign someone in, which organization domains are DNS-verified, and whether this organization requires directory-managed identity. Every check is computed server-side."
-      >
+ >
         <FederationReadinessSection teamId={teamId} />
       </PageSection>
 
       <PageSection
         title="Connections"
         description="Configuration and lifecycle for each identity provider."
-      >
+ >
         {providers === null ? (
           <Card variant="summary" padding="comfortable" data-testid="providers-loading">
-            <p style={mutedStyle}>Loading identity providers…</p>
+            <p className="adm-help">Loading identity providers…</p>
           </Card>
         ) : denial ? (
           <DenialPanel denial={denial} />
@@ -468,7 +458,7 @@ export default function ProvidersPage() {
                   setShowCreate(true);
                   setRevealedSecret(null);
                 }}
-              >
+ >
                 New connection
               </Button>
             }
@@ -478,69 +468,66 @@ export default function ProvidersPage() {
             style={{
               width: "100%",
               overflowX: "auto",
-              border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-              borderRadius: "var(--radius-card, 14px)",
-              background: "var(--surface-card, #ffffff)",
+              border: "1px solid var(--border-default)",
+              borderRadius: "var(--radius-card)",
+              background: "var(--surface-card)",
             }}
-          >
-          <table style={tableStyle}>
+ >
+          <table className="adm-table">
             <thead>
               <tr>
-                <th style={thStyle}>Provider</th>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>JIT</th>
-                <th style={thStyle}>Domains</th>
-                <th style={thStyle}>Last used</th>
-                <th style={thStyle}>Actions</th>
+                <th>Provider</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>JIT</th>
+                <th>Domains</th>
+                <th>Last used</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {providers.map((p) => (
                 <React.Fragment key={p.id}>
                 <tr>
-                  <td style={tdStyle}>
+                  <td>
                     <span style={{ fontWeight: 600 }}>
                       {PROVIDER_LABELS[p.provider]}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {p.displayName}
                     {p.clientSecretPreview ? (
                       <div
-                        style={{
-                          ...mutedStyle,
-                          fontFamily: "monospace",
-                          fontSize: 11,
-                        }}
-                      >
+                        className="adm-help" style={{ fontFamily: "monospace",
+                          fontSize: 11 }}
+ >
                         secret {p.clientSecretPreview}
                       </div>
                     ) : null}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <span style={statusBadgeStyle(p.status)}>{p.status}</span>
                   </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
+                  <td>
+                    <span className="adm-help">
                       {p.jitDefaultRole ?? "disabled"}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {p.allowedEmailDomains.length === 0 ? (
-                      <span style={mutedStyle}>any</span>
+                      <span className="adm-help">any</span>
                     ) : (
-                      <span style={{ ...mutedStyle, fontSize: 11 }}>
+                      <span className="adm-help" style={{ fontSize: 11 }}>
                         {p.allowedEmailDomains.join(", ")}
                       </span>
                     )}
                   </td>
-                  <td style={tdStyle}>
-                    <span style={mutedStyle}>
+                  <td>
+                    <span className="adm-help">
                       {formatDateTime(p.lastUsedAtUtc)}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       <Button
                         variant="secondary"
@@ -548,7 +535,7 @@ export default function ProvidersPage() {
                         onClick={() =>
                           setExpanded((cur) => (cur === p.id ? null : p.id))
                         }
-                      >
+ >
                         {expanded === p.id ? "Hide policy" : "Signing & policy"}
                       </Button>
                       {p.status === "PENDING" ? (
@@ -557,7 +544,7 @@ export default function ProvidersPage() {
                           size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "ACTIVE")}
-                        >
+ >
                           Activate
                         </Button>
                       ) : null}
@@ -567,7 +554,7 @@ export default function ProvidersPage() {
                           size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "DISABLED")}
-                        >
+ >
                           Disable
                         </Button>
                       ) : null}
@@ -577,7 +564,7 @@ export default function ProvidersPage() {
                           size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "ACTIVE")}
-                        >
+ >
                           Re-activate
                         </Button>
                       ) : null}
@@ -587,7 +574,7 @@ export default function ProvidersPage() {
                           size="sm"
                           disabled={busy === p.id}
                           onClick={() => transition(p.id, "REVOKED")}
-                        >
+ >
                           Revoke
                         </Button>
                       ) : null}
@@ -596,7 +583,7 @@ export default function ProvidersPage() {
                 </tr>
                 {expanded === p.id ? (
                   <tr>
-                    <td style={{ ...tdStyle, padding: 0 }} colSpan={7}>
+                    <td style={{ padding: 0 }} colSpan={7}>
                       <PolicyPanel
                         connection={p}
                         verifiedDomainCount={verifiedDomainCount}
@@ -633,10 +620,10 @@ export default function ProvidersPage() {
               gridTemplateColumns: "1fr 1fr",
               gap: 12,
             }}
-          >
+ >
             <Field label="Provider">
               <select
-                style={selectStyle}
+                className="adm-select"
                 value={createForm.provider}
                 onChange={(e) =>
                   setCreateForm((p) => ({
@@ -644,7 +631,7 @@ export default function ProvidersPage() {
                     provider: e.target.value as SsoProvider,
                   }))
                 }
-              >
+ >
                 {(Object.keys(PROVIDER_LABELS) as SsoProvider[]).map((k) => (
                   <option key={k} value={k}>
                     {PROVIDER_LABELS[k]}
@@ -654,7 +641,7 @@ export default function ProvidersPage() {
             </Field>
             <Field label="Display name">
               <input
-                style={inputStyle}
+                className="adm-input"
                 value={createForm.displayName}
                 onChange={(e) =>
                   setCreateForm((p) => ({ ...p, displayName: e.target.value }))
@@ -666,7 +653,7 @@ export default function ProvidersPage() {
               <>
                 <Field label="Issuer URL (OIDC discovery)">
                   <input
-                    style={inputStyle}
+                    className="adm-input"
                     value={createForm.issuerUrl}
                     onChange={(e) =>
                       setCreateForm((p) => ({
@@ -678,7 +665,7 @@ export default function ProvidersPage() {
                 </Field>
                 <Field label="Client ID">
                   <input
-                    style={inputStyle}
+                    className="adm-input"
                     value={createForm.clientId}
                     onChange={(e) =>
                       setCreateForm((p) => ({
@@ -691,7 +678,7 @@ export default function ProvidersPage() {
                 <Field label="Client secret">
                   <input
                     type="password"
-                    style={inputStyle}
+                    className="adm-input"
                     value={createForm.clientSecret}
                     onChange={(e) =>
                       setCreateForm((p) => ({
@@ -705,7 +692,7 @@ export default function ProvidersPage() {
             ) : null}
             <Field label="Allowed email domains (comma-separated)">
               <input
-                style={inputStyle}
+                className="adm-input"
                 value={createForm.allowedEmailDomains}
                 onChange={(e) =>
                   setCreateForm((p) => ({
@@ -718,7 +705,7 @@ export default function ProvidersPage() {
             </Field>
             <Field label="JIT default role">
               <select
-                style={selectStyle}
+                className="adm-select"
                 value={createForm.jitDefaultRole}
                 onChange={(e) =>
                   setCreateForm((p) => ({
@@ -726,7 +713,7 @@ export default function ProvidersPage() {
                     jitDefaultRole: e.target.value as "MEMBER" | "VIEWER" | "",
                   }))
                 }
-              >
+ >
                 <option value="">JIT disabled</option>
                 <option value="MEMBER">Member</option>
                 <option value="VIEWER">Viewer</option>
@@ -739,13 +726,13 @@ export default function ProvidersPage() {
               loading={busy === "create"}
               disabled={busy === "create"}
               onClick={submitCreate}
-            >
+ >
               {busy === "create" ? "Creating…" : "Create connection"}
             </Button>
             <Button
               variant="ghost"
               onClick={() => setShowCreate(false)}
-            >
+ >
               Cancel
             </Button>
           </div>
@@ -794,11 +781,11 @@ function PolicyPanel({
         flexDirection: "column",
         gap: 16,
       }}
-    >
+ >
       {isSaml ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <strong style={{ fontSize: 13 }}>SAML SP request signing</strong>
-          <div style={{ ...mutedStyle, fontSize: 12 }}>
+          <div className="adm-help" style={{ fontSize: 12 }}>
             Signing key source: <strong>{signingSourceLabel}</strong>
             {connection.samlSpKeyFingerprint ? (
               <>
@@ -818,7 +805,7 @@ function PolicyPanel({
               gap: 8,
               fontSize: 13,
             }}
-          >
+ >
             <input
               type="checkbox"
               checked={connection.samlSignRequests}
@@ -831,14 +818,14 @@ function PolicyPanel({
           </label>
           {connection.samlSignRequests &&
           connection.samlSpSigningKeySource === "none" ? (
-            <div style={{ ...mutedStyle, fontSize: 12, color: "var(--warning-strong)" }}>
+            <div className="adm-help" style={{ fontSize: 12, color: "var(--warning-strong)" }}>
               Signing is enabled but no signing key is available. Add a
               per-connection key below or set the SAML_SP_PRIVATE_KEY
               environment variable — until then requests are sent unsigned.
             </div>
           ) : null}
 
-          <div style={{ ...mutedStyle, fontSize: 12, marginTop: 4 }}>
+          <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
             Replace signing key (PEM, write-only — never shown again):
           </div>
           <textarea
@@ -846,24 +833,18 @@ function PolicyPanel({
             disabled={busy}
             onChange={(e) => setKeyDraft(e.target.value)}
             placeholder="-----BEGIN PRIVATE KEY-----&#10;…&#10;-----END PRIVATE KEY-----"
-            style={{
-              ...inputStyle,
-              minHeight: 80,
+            className="adm-input" style={{ minHeight: 80,
               fontFamily: "monospace",
-              fontSize: 11,
-            }}
+              fontSize: 11 }}
           />
           <textarea
             value={certDraft}
             disabled={busy}
             onChange={(e) => setCertDraft(e.target.value)}
             placeholder="SP certificate (base64, no PEM header) — optional"
-            style={{
-              ...inputStyle,
-              minHeight: 60,
+            className="adm-input" style={{ minHeight: 60,
               fontFamily: "monospace",
-              fontSize: 11,
-            }}
+              fontSize: 11 }}
           />
           <div style={{ display: "flex", gap: 8 }}>
             <Button
@@ -883,7 +864,7 @@ function PolicyPanel({
                 setKeyDraft("");
                 setCertDraft("");
               }}
-            >
+ >
               {busy ? "Saving…" : "Install / rotate key"}
             </Button>
             {connection.samlSpKeyConfigured ? (
@@ -892,21 +873,21 @@ function PolicyPanel({
                 size="sm"
                 disabled={busy}
                 onClick={() => onUpdate({ samlSpPrivateKey: "" })}
-              >
+ >
                 Clear stored key
               </Button>
             ) : null}
           </div>
         </div>
       ) : (
-        <div style={{ ...mutedStyle, fontSize: 12 }}>
+        <div className="adm-help" style={{ fontSize: 12 }}>
           SP request signing applies to SAML connections only.
         </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <strong style={{ fontSize: 13 }}>Verified-domain restriction</strong>
-        <div style={{ ...mutedStyle, fontSize: 12 }}>
+        <div className="adm-help" style={{ fontSize: 12 }}>
           Verified organization domains:{" "}
           <strong>{verifiedDomainCount}</strong>
         </div>
@@ -917,7 +898,7 @@ function PolicyPanel({
             gap: 8,
             fontSize: 13,
           }}
-        >
+ >
           <input
             type="checkbox"
             checked={connection.restrictToVerifiedDomains}
@@ -932,7 +913,7 @@ function PolicyPanel({
           <span>Restrict SSO logins to verified domains</span>
         </label>
         {noVerifiedDomains && !connection.restrictToVerifiedDomains ? (
-          <div style={{ ...mutedStyle, fontSize: 12, color: "var(--warning-strong)" }}>
+          <div className="adm-help" style={{ fontSize: 12, color: "var(--warning-strong)" }}>
             Verify at least one organization domain before enabling this
             restriction.
           </div>
@@ -958,7 +939,7 @@ function Field({
         fontSize: 12,
         color: TOKENS.inkMuted,
       }}
-    >
+ >
       <span>{label}</span>
       {children}
     </label>

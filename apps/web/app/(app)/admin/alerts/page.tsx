@@ -74,7 +74,6 @@ type AlertsResponse = {
   sourceCap?: number;
 };
 
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
 
 const SEVERITY_ORDER: AlertSeverity[] = ["critical", "high", "medium", "low"];
 
@@ -165,7 +164,7 @@ export default function AdminAlertsPage() {
         <PageSection
           title="Active alerts"
           description="This list is a read-only point-in-time snapshot. There is no per-alert acknowledge / resolve workflow — resolve an alert at its source (resolve the incident, drain the failed job, fix the SSO connection) and it clears on the next refresh. Each alert links to the surface that owns it."
-        >
+ >
           {!loading && !hasAlerts ? (
             <EmptyState variant="inline"
               framed
@@ -187,11 +186,11 @@ export default function AdminAlertsPage() {
                         gap: 10,
                         marginBottom: 10,
                       }}
-                    >
+ >
                       <Badge tone={severityTone(sev)} dot>
                         {SEVERITY_LABEL[sev]}
                       </Badge>
-                      <span style={{ fontSize: 12, color: INK_MUTED }}>
+                      <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
                         <ResultCount
                           shown={rows.length}
                           hasMore={data?.truncated ?? false}
@@ -204,7 +203,7 @@ export default function AdminAlertsPage() {
 
                     <div style={{ display: "grid", gap: 10 }}>
                       {loading ? (
-                        <Card padding="comfortable" style={{ color: INK_MUTED }}>
+                        <Card padding="comfortable" style={{ color: "var(--ink-muted)" }}>
                           Loading alerts…
                         </Card>
                       ) : (
@@ -240,7 +239,7 @@ export default function AdminAlertsPage() {
                             <li
                               key={`${a.source}:${a.createdAt}:${index}`}
                               className="adm-alert-row"
-                            >
+ >
                               <span className="adm-alert-row__title">
                                 {a.title}
                               </span>
@@ -264,7 +263,7 @@ export default function AdminAlertsPage() {
                                   data-variant="secondary"
                                   data-size="sm"
                                   style={buttonSurfaceStyle("secondary", "sm")}
-                                >
+ >
                                   View
                                 </Link>
                               ) : (

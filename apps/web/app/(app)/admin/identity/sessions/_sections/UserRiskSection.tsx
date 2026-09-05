@@ -210,7 +210,7 @@ export function UserRiskSection() {
             onChange={(e) => setSelectedUserId(e.target.value || null)}
             style={sectionInputStyle}
             data-user-risk-member-select
-          >
+ >
             <option value="">Select a member…</option>
             {members.data.map((m) => (
               <option key={m.userId} value={m.userId}>
@@ -226,7 +226,7 @@ export function UserRiskSection() {
 
       {!selectedUserId ? (
         <Card padding="comfortable">
-          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-muted, #64748b)" }}>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-muted)" }}>
             Select a member to read the risk the server currently assigns to them.
           </p>
         </Card>

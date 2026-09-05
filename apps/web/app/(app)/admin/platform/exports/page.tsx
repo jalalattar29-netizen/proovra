@@ -41,18 +41,7 @@ import {
 } from "../../../../../components/ui/PageShell";
 import "../admin-platform.css";
 import { AccessGate } from "../../../../../components/access/AccessGate";
-import {
-  badgeStyle,
-  cardStyle,
-  formatDateTime,
-  ghostButtonStyle,
-  mutedStyle,
-  primaryButtonStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  TOKENS,
-} from "../../identity/ui-tokens";
+import { badgeStyle, formatDateTime, ghostButtonStyle, primaryButtonStyle, TOKENS } from "../../identity/ui-tokens";
 
 // ============================================================================
 // Types (mirror the backend response shapes)
@@ -226,7 +215,7 @@ function OperationsExportsContent() {
           className="apf-control"
           onClick={load}
           disabled={loading}
-          >
+ >
           {loading ? "Refreshing…" : "Refresh"}
           </button>
         </>
@@ -284,7 +273,7 @@ function OperationsExportsContent() {
 function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
   if (!status) {
     return (
-      <section style={{ ...cardStyle, marginTop: 16 }}>
+      <section className="adm-card" style={{ marginTop: 16 }}>
         <p className="apf-muted">Loading Object Lock status…</p>
       </section>
     );
@@ -299,9 +288,9 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
           : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" };
   return (
     <section
-      style={{ ...cardStyle, marginTop: 16 }}
+      className="adm-card" style={{ marginTop: 16 }}
       data-testid="object-lock-panel"
-    >
+ >
       <h2 className="apf-section-title">S3 Object Lock platform status</h2>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <span style={badgeStyle(palette)} data-testid="object-lock-badge">
@@ -328,7 +317,7 @@ function ObjectLockPanel({ status }: { status: ObjectLockStatus | null }) {
           </span>
         )}
       </div>
-      <p style={{ ...mutedStyle, marginTop: 8 }}>
+      <p className="adm-help" style={{ marginTop: 8 }}>
         Checked {formatDateTime(status.checkedAtUtc)}.
       </p>
     </section>
@@ -351,7 +340,7 @@ function ExportListTable({
 }) {
   if (items === null) {
     return (
-      <section style={{ ...cardStyle, marginTop: 12 }}>
+      <section className="adm-card" style={{ marginTop: 12 }}>
         <p className="apf-muted">Loading exports…</p>
       </section>
     );
@@ -359,28 +348,28 @@ function ExportListTable({
   if (items.length === 0) {
     return (
       <section
-        style={{ ...cardStyle, marginTop: 12, padding: 24, textAlign: "center" }}
-      >
+        className="adm-card" style={{ marginTop: 12, padding: 24, textAlign: "center" }}
+ >
         <p className="apf-muted">No exports recorded for this workspace yet.</p>
       </section>
     );
   }
   return (
     <section
-      style={{ ...cardStyle, marginTop: 12, padding: 0 }}
+      className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="export-list"
-    >
+ >
       <div className="apf-table-wrap">
-        <table style={tableStyle}>
+        <table className="adm-table">
           <thead>
             <tr>
-              <th style={thStyle}>Kind</th>
-              <th style={thStyle}>Version</th>
-              <th style={thStyle}>Generated</th>
-              <th style={thStyle}>Size</th>
-              <th style={thStyle}>Object Lock</th>
-              <th style={thStyle}>Artifact signed</th>
-              <th style={thStyle}>{" "}</th>
+              <th>Kind</th>
+              <th>Version</th>
+              <th>Generated</th>
+              <th>Size</th>
+              <th>Object Lock</th>
+              <th>Artifact signed</th>
+              <th>{" "}</th>
             </tr>
           </thead>
           <tbody>
@@ -396,24 +385,24 @@ function ExportListTable({
                       ? { background: TOKENS.surfaceMuted }
                       : undefined
                   }
-                >
-                  <td style={tdStyle}>
+ >
+                  <td>
                     <strong>{it.kindLabel}</strong>
                   </td>
-                  <td style={tdStyle}>v{it.exportVersion}</td>
-                  <td style={tdStyle}>
+                  <td>v{it.exportVersion}</td>
+                  <td>
                     <span className="apf-muted">
                       {formatDateTime(it.generatedAtUtc)}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <span className="apf-muted">
                       {it.sizeBytes
                         ? `${Math.round(Number(it.sizeBytes) / 1024)} KB`
                         : "—"}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {immutable ? (
                       <span
                         style={badgeStyle({
@@ -421,7 +410,7 @@ function ExportListTable({
                           fg: "var(--success-strong)",
                           border: "var(--success-border)",
                         })}
-                      >
+ >
                         IMMUTABLE · {it.objectLockStoredMode}
                       </span>
                     ) : it.objectLockStoredMode ? (
@@ -431,7 +420,7 @@ function ExportListTable({
                           fg: "var(--warning-strong)",
                           border: "var(--warning-border)",
                         })}
-                      >
+ >
                         STORED {it.objectLockStoredMode} (platform unverified)
                       </span>
                     ) : (
@@ -441,12 +430,12 @@ function ExportListTable({
                           fg: "var(--ink-secondary)",
                           border: "var(--border-standard)",
                         })}
-                      >
+ >
                         no lock
                       </span>
                     )}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     {it.artifactSigned ? (
                       <span
                         style={badgeStyle({
@@ -454,7 +443,7 @@ function ExportListTable({
                           fg: "var(--info)",
                           border: "var(--info-border)",
                         })}
-                      >
+ >
                         SIGNED
                       </span>
                     ) : it.artifactUnsignedOptOut ? (
@@ -464,7 +453,7 @@ function ExportListTable({
                           fg: "var(--danger-strong)",
                           border: "var(--danger-border)",
                         })}
-                      >
+ >
                         UNSIGNED OPT-OUT
                       </span>
                     ) : it.kind === "verification_package_zip" ? (
@@ -474,7 +463,7 @@ function ExportListTable({
                           fg: "var(--ink-secondary)",
                           border: "var(--border-standard)",
                         })}
-                      >
+ >
                         {it.verificationPackageSignatureStatus === "UNSIGNED"
                           ? "unsigned package"
                           : "unsigned"}
@@ -486,17 +475,17 @@ function ExportListTable({
                           fg: "var(--ink-secondary)",
                           border: "var(--border-standard)",
                         })}
-                      >
+ >
                         unsigned
                       </span>
                     )}
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <button
                       type="button"
                       className="apf-control"
                       onClick={() => onSelect(it.exportId)}
-                    >
+ >
                       Inspect
                     </button>
                   </td>
@@ -595,7 +584,7 @@ function ExportDrawer({
         overflowY: "auto",
         padding: 20,
       }}
-    >
+ >
       <header
         style={{
           display: "flex",
@@ -603,7 +592,7 @@ function ExportDrawer({
           alignItems: "center",
           marginBottom: 12,
         }}
-      >
+ >
         <h2 style={{ fontSize: 16, margin: 0 }}>Export detail</h2>
         <button type="button" className="apf-control" onClick={onClose}>
           Close
@@ -619,47 +608,47 @@ function ExportDrawer({
           <section>
             <h2 className="apf-section-title">Identity</h2>
             <div className="apf-table-wrap">
-              <table style={tableStyle}>
+              <table className="adm-table">
                 <tbody>
                   <tr>
-                    <td style={tdStyle}>kind</td>
-                    <td style={tdStyle}>{envelope.manifest.kindLabel}</td>
+                    <td>kind</td>
+                    <td>{envelope.manifest.kindLabel}</td>
                   </tr>
                   <tr>
-                    <td style={tdStyle}>exportId</td>
-                    <td style={tdStyle}>
+                    <td>exportId</td>
+                    <td>
                       <code
                         style={{ fontFamily: "monospace", fontSize: 12 }}
                         data-testid="manifest-export-id"
-                      >
+ >
                         {envelope.manifest.exportId}
                       </code>
                     </td>
                   </tr>
                   <tr>
-                    <td style={tdStyle}>version</td>
-                    <td style={tdStyle}>v{envelope.manifest.exportVersion}</td>
+                    <td>version</td>
+                    <td>v{envelope.manifest.exportVersion}</td>
                   </tr>
                   <tr>
-                    <td style={tdStyle}>generatedAtUtc</td>
-                    <td style={tdStyle}>
+                    <td>generatedAtUtc</td>
+                    <td>
                       {formatDateTime(envelope.manifest.generatedAtUtc)}
                     </td>
                   </tr>
                   <tr>
-                    <td style={tdStyle}>manifestHash</td>
-                    <td style={tdStyle}>
+                    <td>manifestHash</td>
+                    <td>
                       <code
                         style={{ fontFamily: "monospace", fontSize: 11 }}
                         data-testid="manifest-hash"
-                      >
+ >
                         {envelope.manifestHash.slice(0, 24)}…
                       </code>
                       <button
                         type="button"
                         style={{ ...ghostButtonStyle, marginInlineStart: 6 }}
                         onClick={() => copy(envelope.manifestHash)}
-                      >
+ >
                         Copy
                       </button>
                     </td>
@@ -672,25 +661,25 @@ function ExportDrawer({
           <section style={{ marginTop: 16 }}>
             <h2 className="apf-section-title">Signature status</h2>
             <div className="apf-table-wrap">
-              <table style={tableStyle}>
+              <table className="adm-table">
                 <tbody>
                   <tr>
-                    <td style={tdStyle}>signed</td>
-                    <td style={tdStyle}>
+                    <td>signed</td>
+                    <td>
                       {envelope.manifest.signing.artifactSigned ? "YES" : "NO"}
                     </td>
                   </tr>
                   <tr>
-                    <td style={tdStyle}>signing key id</td>
-                    <td style={tdStyle}>
+                    <td>signing key id</td>
+                    <td>
                       <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                         {envelope.manifest.signing.artifactSigningKeyId ?? "—"}
                       </code>
                     </td>
                   </tr>
                   <tr>
-                    <td style={tdStyle}>signed at</td>
-                    <td style={tdStyle}>
+                    <td>signed at</td>
+                    <td>
                       {formatDateTime(
                         envelope.manifest.signing.artifactSignedAtUtc,
                       )}
@@ -698,15 +687,15 @@ function ExportDrawer({
                   </tr>
                   {envelope.manifest.signing.artifactUnsignedOptOut ? (
                     <tr>
-                      <td style={tdStyle}>opt-out</td>
-                      <td style={tdStyle}>
+                      <td>opt-out</td>
+                      <td>
                         <span
                           style={badgeStyle({
                             bg: "var(--warning-subtle-bg)",
                             fg: "var(--warning-strong)",
                             border: "var(--warning-border)",
                           })}
-                        >
+ >
                           UNSIGNED OPT-OUT
                         </span>
                       </td>
@@ -725,7 +714,7 @@ function ExportDrawer({
               onClick={verify}
               disabled={verifying}
               data-testid="verify-button"
-            >
+ >
               {verifying ? "Verifying…" : "Verify reproducibility"}
             </button>
             {report ? (
@@ -733,7 +722,7 @@ function ExportDrawer({
                 <ReproducibilityResultPanel report={report} />
               </div>
             ) : (
-              <p style={{ ...mutedStyle, marginTop: 8 }}>
+              <p className="adm-help" style={{ marginTop: 8 }}>
                 Run the verifier to re-derive the manifest hash, refetch the
                 S3 artifact, and compare Object Lock state against the
                 row's stored intent.
@@ -754,14 +743,14 @@ function ExportDrawer({
                 overflow: "auto",
               }}
               data-testid="manifest-json"
-            >
+ >
               {manifestJson}
             </pre>
             <button
               type="button"
               className="apf-control"
               onClick={() => copy(manifestJson)}
-            >
+ >
               Copy manifest JSON
             </button>
           </section>
@@ -794,24 +783,24 @@ function ReproducibilityResultPanel({
       <p style={{ marginTop: 8, fontSize: 13 }}>{report.summary}</p>
       {report.checks.length > 0 ? (
         <div className="apf-table-wrap">
-          <table style={{ ...tableStyle, marginTop: 8 }}>
+          <table className="adm-table" style={{ marginTop: 8 }}>
             <thead>
               <tr>
-                <th style={thStyle}>Check</th>
-                <th style={thStyle}>Expected</th>
-                <th style={thStyle}>Actual</th>
-                <th style={thStyle}>OK</th>
+                <th>Check</th>
+                <th>Expected</th>
+                <th>Actual</th>
+                <th>OK</th>
               </tr>
             </thead>
             <tbody>
               {report.checks.map((c) => (
                 <tr key={c.field}>
-                  <td style={tdStyle}>
+                  <td>
                     <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                       {c.field}
                     </code>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <span className="apf-muted">
                       {c.expected
                         ? c.expected.length > 24
@@ -820,7 +809,7 @@ function ReproducibilityResultPanel({
                         : "—"}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <span className="apf-muted">
                       {c.actual
                         ? c.actual.length > 24
@@ -829,14 +818,14 @@ function ReproducibilityResultPanel({
                         : "—"}
                     </span>
                   </td>
-                  <td style={tdStyle}>{c.ok ? "✓" : "✗"}</td>
+                  <td>{c.ok ? "✓" : "✗"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : null}
-      <p style={{ ...mutedStyle, marginTop: 6 }}>
+      <p className="adm-help" style={{ marginTop: 6 }}>
         Verified {formatDateTime(report.verifiedAtUtc)}.
       </p>
     </div>

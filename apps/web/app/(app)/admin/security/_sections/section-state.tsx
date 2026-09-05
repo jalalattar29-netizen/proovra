@@ -32,7 +32,7 @@ export type SectionState<T> =
   | { kind: "error"; message: string }
   | { kind: "ready"; data: T };
 
-const MUTED = "var(--ink-muted, #64748b)";
+const MUTED = "var(--ink-muted)";
 
 /**
  * Classify a thrown apiFetch error into `denied` vs `error`. A denial is a
@@ -161,13 +161,13 @@ export function SectionDescription({ text }: { text: string }) {
           padding: 0,
           border: 0,
           background: "none",
-          color: "var(--ink-primary, #0f172a)",
+          color: "var(--ink-primary)",
           textDecoration: "underline",
           textUnderlineOffset: 2,
           cursor: "pointer",
           minHeight: 0,
         }}
-      >
+ >
         {open ? "Show less" : "Read more"}
       </button>
     </>
@@ -178,10 +178,10 @@ export const sectionInputStyle = {
   width: "100%",
   padding: "8px 10px",
   fontSize: 13,
-  border: "1px solid var(--border, #cbd5e1)",
+  border: "1px solid var(--border)",
   borderRadius: 6,
-  background: "var(--surface, #fff)",
-  color: "var(--ink-primary, #0f172a)",
+  background: "var(--surface)",
+  color: "var(--ink-primary)",
 } as const;
 
 export const sectionLabelStyle = {

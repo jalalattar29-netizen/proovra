@@ -42,7 +42,6 @@ import {
   type RowResult,
   type SurfaceFailure,
 } from "./identity-admin-shared";
-import { inputStyle, mutedStyle, selectStyle } from "../ui-tokens";
 
 type StepUpControl = {
   runStepUpAction: <T>(action: (headers?: Record<string, string>) => Promise<T>) => Promise<T>;
@@ -200,11 +199,8 @@ export function ExternalMappingsSection({
           {rowResult && rowResult.rowId === m.id ? (
             <div
               data-identity-mapping-result={rowResult.ok ? "ok" : "failed"}
-              style={{
-                ...mutedStyle,
-                color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)",
-              }}
-            >
+              className="adm-help" style={{ color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)" }}
+ >
               {rowResult.message}
             </div>
           ) : null}
@@ -220,7 +216,7 @@ export function ExternalMappingsSection({
       key: "subject",
       header: "Provider subject",
       render: (m) => (
-        <span style={{ ...mutedStyle, fontSize: 11, wordBreak: "break-all" }}>
+        <span className="adm-help" style={{ fontSize: 11, wordBreak: "break-all" }}>
           {m.externalSubjectId}
         </span>
       ),
@@ -236,7 +232,7 @@ export function ExternalMappingsSection({
       key: "linked",
       header: "Linked",
       nowrap: true,
-      render: (m) => <span style={mutedStyle}>{fmt(m.linkedAtUtc)}</span>,
+      render: (m) => <span className="adm-help">{fmt(m.linkedAtUtc)}</span>,
     },
   ];
 
@@ -252,18 +248,18 @@ export function ExternalMappingsSection({
           size="sm"
           data-identity-mappings-refresh
           onClick={() => void load()}
-        >
+ >
           Refresh
         </Button>
       }
-    >
+ >
       {failure ? (
         <Card
           variant="status"
           tone="risk"
           padding="compact"
           data-identity-mappings-failure={failure.kind}
-        >
+ >
           <strong>
             {failure.kind === "denied"
               ? "Not available to you"
@@ -280,21 +276,21 @@ export function ExternalMappingsSection({
         padding="compact"
         data-identity-mapping-link-form
         style={{ marginBottom: 12 }}
-      >
-        <p style={{ ...mutedStyle, marginTop: 0 }}>
+ >
+        <p className="adm-help" style={{ marginTop: 0 }}>
           The member is chosen from this workspace's own member list — there is
           no free-text organization or workspace field on this surface.
         </p>
         <div
           style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}
-        >
+ >
           <select
             aria-label="Member"
             data-identity-mapping-member
-            style={{ ...selectStyle, maxWidth: 260 }}
+            className="adm-select" style={{ maxWidth: 260 }}
             value={subjectUserId}
             onChange={(e) => setSubjectUserId(e.target.value)}
-          >
+ >
             <option value="">Select a member…</option>
             {activeMembers.map((m) => (
               <option key={m.userId} value={m.userId}>
@@ -305,12 +301,12 @@ export function ExternalMappingsSection({
           <select
             aria-label="Provider"
             data-identity-mapping-provider
-            style={selectStyle}
+            className="adm-select"
             value={provider}
             onChange={(e) =>
               setProvider(e.target.value as ExternalIdentityProvider)
             }
-          >
+ >
             {EXTERNAL_IDENTITY_PROVIDERS.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -320,7 +316,7 @@ export function ExternalMappingsSection({
           <input
             data-identity-mapping-subject
             aria-label="Provider subject id (NameID or sub claim) to link"
-            style={{ ...inputStyle, maxWidth: 280 }}
+            className="adm-input" style={{ maxWidth: 280 }}
             value={externalSubjectId}
             maxLength={320}
             placeholder="Provider subject id (NameID / sub)"
@@ -329,7 +325,7 @@ export function ExternalMappingsSection({
           <input
             data-identity-mapping-display-name
             aria-label="Optional label for the new mapping"
-            style={{ ...inputStyle, maxWidth: 200 }}
+            className="adm-input" style={{ maxWidth: 200 }}
             value={displayName}
             maxLength={180}
             placeholder="Label (optional)"
@@ -345,19 +341,16 @@ export function ExternalMappingsSection({
               busyRow === `new:${subjectUserId}`
             }
             onClick={() => void link()}
-          >
+ >
             Link identity
           </Button>
         </div>
         {rowResult && rowResult.rowId.startsWith("new:") ? (
           <div
             data-identity-mapping-link-result={rowResult.ok ? "ok" : "failed"}
-            style={{
-              ...mutedStyle,
-              marginTop: 8,
-              color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)",
-            }}
-          >
+            className="adm-help" style={{ marginTop: 8,
+              color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)" }}
+ >
             {rowResult.message}
           </div>
         ) : null}
@@ -385,7 +378,7 @@ export function ExternalMappingsSection({
           }
           rowActions={(m) =>
             m.unlinkedAtUtc ? (
-              <span style={mutedStyle}>unlinked {fmt(m.unlinkedAtUtc)}</span>
+              <span className="adm-help">unlinked {fmt(m.unlinkedAtUtc)}</span>
             ) : (
               <Button
                 variant="destructive"
@@ -393,7 +386,7 @@ export function ExternalMappingsSection({
                 data-identity-mapping-unlink={m.id}
                 disabled={busyRow === m.id}
                 onClick={() => void unlink(m)}
-              >
+ >
                 Unlink
               </Button>
             )

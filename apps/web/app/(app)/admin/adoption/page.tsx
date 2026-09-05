@@ -32,7 +32,6 @@ import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../lib/date";
 
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
 
 type CapabilityAdoption = {
   key: string;
@@ -56,12 +55,12 @@ type AdoptionReport = {
 
 /** Muted "Not measured" cell — the single honest signal for absent data. */
 function NotMeasured() {
-  return <span style={{ color: INK_MUTED }}>Not measured</span>;
+  return <span style={{ color: "var(--ink-muted)" }}>Not measured</span>;
 }
 
 /** Muted em-dash for a genuinely null-but-measured cell. */
 function Dash() {
-  return <span style={{ color: INK_MUTED }}>—</span>;
+  return <span style={{ color: "var(--ink-muted)" }}>—</span>;
 }
 
 function numberOrNull(value: number | null) {
@@ -112,11 +111,11 @@ function AdminAdoptionInner() {
             <div
               style={{
                 fontSize: 11.5,
-                color: INK_MUTED,
+                color: "var(--ink-muted)",
                 marginTop: 2,
                 overflowWrap: "anywhere",
               }}
-            >
+ >
               {row.source}
             </div>
           </div>
@@ -166,7 +165,7 @@ function AdminAdoptionInner() {
           if (!row.measured) return <NotMeasured />;
           if (!row.firstUsedAt) return <Dash />;
           return (
-            <span style={{ fontSize: 12, color: INK_MUTED }}>
+            <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
               {formatUserDateTime(row.firstUsedAt)}
             </span>
           );
@@ -180,7 +179,7 @@ function AdminAdoptionInner() {
           if (!row.measured) return <NotMeasured />;
           if (!row.lastUsedAt) return <Dash />;
           return (
-            <span style={{ fontSize: 12, color: INK_MUTED }}>
+            <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
               {formatUserDateTime(row.lastUsedAt)}
             </span>
           );
@@ -217,7 +216,7 @@ function AdminAdoptionInner() {
       <PageSection
         title="Capability adoption"
         description="Each row is derived from a single real backing table. 'Enabled' counts orgs/teams/rows with the capability active; 'Used' / 'Count' come from live row counts. Absent signals show 'Not measured' — never estimated."
-      >
+ >
         <DataTable
           ariaLabel="Feature adoption by capability"
           columns={columns}

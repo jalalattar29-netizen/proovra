@@ -52,6 +52,9 @@ import {
 } from "../../../../../components/operational";
 import { PageShell, PageHeader } from "../../../../../components/ui";
 import { Badge } from "../../../../../components/ui/Badge";
+import {
+  AdmInline,
+} from "../../../../../components/admin/AdminSurfaces";
 
 /**
  * ADM-013 PHASE 3 — the canonical platform health authority.
@@ -295,7 +298,7 @@ const SAMPLE_CAP = 20;
  * see `readHot` below.
  */
 const sparklineNotMeasuredStyle: React.CSSProperties = {
-  border: "1px dashed var(--hairline, #e2e8f0)",
+  border: "1px dashed var(--hairline)",
   borderRadius: 8,
   padding: "10px 12px",
   display: "grid",
@@ -420,7 +423,7 @@ function PlatformPostureBlock({
         data-posture-state="UNKNOWN"
         role="status"
         style={postureBlockStyle("UNKNOWN")}
-      >
+ >
         <div style={postureHeadStyle}>
           <span style={postureStateStyle("UNKNOWN")}>UNKNOWN</span>
           <span style={postureReasonStyle}>
@@ -438,7 +441,7 @@ function PlatformPostureBlock({
         data-platform-posture
         data-posture-state="PENDING"
         style={postureBlockStyle("UNKNOWN")}
-      >
+ >
         <div style={postureHeadStyle}>
           <span style={postureStateStyle("UNKNOWN")}>EVALUATING</span>
           <span style={postureReasonStyle}>
@@ -458,7 +461,7 @@ function PlatformPostureBlock({
       data-platform-posture
       data-posture-state={overall.state}
       style={postureBlockStyle(overall.state)}
-    >
+ >
       <div style={postureHeadStyle}>
         <span style={postureStateStyle(overall.state)}>{overall.state}</span>
         <span style={postureReasonStyle}>{overall.reason}</span>
@@ -903,20 +906,20 @@ function ObservabilityDashboardPageInner() {
               // 44px hit box; the header keeps its height (admin-console.css).
               className="admin-hit-link"
               style={navLinkStyle}
-            >
+ >
               ← Operations Center
             </Link>
           }
         />
       }
-    >
+ >
       {/* ADM-013 PHASE 1 — `RuntimeStatusBanner` is a WORKSPACE surface: it
           takes a teamId and reports that workspace's conditions. On a page whose
           every other number is platform-wide it read as a platform banner, which
           is the conflation this split removes. Workspace runtime state now has
           its own page at /operations/health. */}
 
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <AdmInline state="error">{error}</AdmInline> : null}
 
       {/* ================================================================== */}
       {/* PLATFORM POSTURE — the canonical authority, above the instrument.   */}
@@ -976,7 +979,7 @@ function ObservabilityDashboardPageInner() {
         data-observability-summary
         aria-label="Observability summary"
         style={summaryGridStyle}
-      >
+ >
         <SummaryTile
           label="Alerts firing"
           value={alerts ? alerts.counts.total : "—"}
@@ -1147,7 +1150,7 @@ function ObservabilityDashboardPageInner() {
             ...cardStyle,
             marginTop: 12,
           }}
-        >
+ >
           <h2 style={sectionTitleStyle}>Operational heat</h2>
           <p style={mutedStyle}>
             Where the system is under the most operator pressure right now.
@@ -1203,7 +1206,7 @@ function ObservabilityDashboardPageInner() {
             ...cardStyle,
             marginTop: 12,
           }}
-        >
+ >
           <h2 style={sectionTitleStyle}>Live trends</h2>
           <p style={mutedStyle}>
             Last {SAMPLE_CAP} polled samples (~{(SAMPLE_CAP * 15) / 60} min) for
@@ -1234,7 +1237,7 @@ function ObservabilityDashboardPageInner() {
                     style={sparklineNotMeasuredStyle}
                     data-metric-state={present ? "AWAITING_SAMPLE" : "NOT_MEASURED"}
                     data-metric-key={hot.key}
-                  >
+ >
                     <div style={{ fontWeight: 600 }}>{hot.caption}</div>
                     <div style={mutedStyle}>
                       {present
@@ -1360,7 +1363,7 @@ function ObservabilityDashboardPageInner() {
       <details style={{ ...cardStyle, marginTop: 16 }}>
         <summary
           style={{ ...sectionTitleStyle, cursor: "pointer", marginBottom: 0 }}
-        >
+ >
           Scrape endpoints + raw API references
         </summary>
         <ul style={{ ...listStyle, marginTop: 12 }}>
@@ -1434,7 +1437,7 @@ function SummaryTile({
       data-tone={tone}
       data-summary-tile={label.toLowerCase().replace(/s+/g, "_")}
       data-summary-tone={tone}
-    >
+ >
       <div className="apf-tile-label">{label}</div>
       <div className="apf-tile-value">{value}</div>
       <div className="apf-tile-hint">{hint}</div>
@@ -1464,7 +1467,7 @@ function SignalList({
             <li
               key={name}
               className="apf-signal-row"
-            >
+ >
               <code style={tdMonoStyle}>{name}</code>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
                 {value.toLocaleString()}
@@ -1547,7 +1550,7 @@ function HeatCell({
       data-tone={severity}
       data-heat-cell={kicker.toLowerCase().replace(/\s+/g, "_")}
       data-heat-severity={severity}
-    >
+ >
       <div className="apf-tile-label">{kicker}</div>
       <div className="apf-tile-value">{value.toLocaleString()}</div>
       <code className="apf-tile-hint apf-mono">{metric}</code>
@@ -1559,15 +1562,6 @@ const navLinkStyle: React.CSSProperties = {
   fontWeight: 600,
   textDecoration: "none",
   fontSize: 13,
-};
-const errorBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 12,
-  background: "var(--danger-subtle-bg)",
-  color: "var(--danger-strong)",
-  border: "1px solid var(--danger-border)",
-  borderRadius: 8,
-  fontSize: 14,
 };
 const alertRibbonStyle: React.CSSProperties = {
   marginTop: 16,

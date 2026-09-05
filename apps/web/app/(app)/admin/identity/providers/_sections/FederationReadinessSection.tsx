@@ -69,7 +69,7 @@ const BLOCKER_COPY: Record<string, string> = {
 const mutedStyle = {
   fontSize: 12.5,
   lineHeight: 1.55,
-  color: "var(--ink-secondary, #475569)",
+  color: "var(--ink-secondary)",
 } as const;
 
 type Phase =
@@ -139,7 +139,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
         tone="risk"
         padding="comfortable"
         data-testid="federation-readiness-denied"
-      >
+ >
         <strong style={{ fontSize: 14 }}>Readiness not available to you</strong>
         <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 0 }}>{phase.detail}</p>
       </Card>
@@ -153,7 +153,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
         tone="risk"
         padding="comfortable"
         data-testid="federation-readiness-error"
-      >
+ >
         <strong style={{ fontSize: 14 }}>Readiness check didn't complete</strong>
         <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 10 }}>{phase.detail}</p>
         <Button variant="secondary" size="sm" onClick={() => void load()}>
@@ -170,12 +170,12 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
     <div
       style={{ display: "flex", flexDirection: "column", gap: 12 }}
       data-testid="federation-readiness"
-    >
+ >
       <Card
         variant="status"
         tone={notReady.length > 0 ? "risk" : "governance"}
         padding="comfortable"
-      >
+ >
         <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div>
             <div style={mutedStyle}>Connections ready to sign in</div>
@@ -230,7 +230,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
         padding="comfortable"
         title="Domain binding"
         data-testid="federation-domain-binding"
-      >
+ >
         {readiness.domains.length === 0 ? (
           <EmptyState variant="inline"
             title="No organization domain claimed"
@@ -243,7 +243,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
                 key={d.id}
                 style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
                 data-domain-verified={d.verified ? "true" : "false"}
-              >
+ >
                 <code style={{ fontFamily: "monospace", fontSize: 12.5 }}>{d.domain}</code>
                 {d.verified ? (
                   <Badge tone="verified" subtle>
@@ -267,7 +267,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
           padding="comfortable"
           title="These connections cannot sign anyone in yet"
           data-testid="federation-readiness-blockers"
-        >
+ >
           <ul style={{ margin: 0, paddingInlineStart: 18, display: "grid", gap: 10 }}>
             {notReady.map((c) => (
               <li key={c.id}>

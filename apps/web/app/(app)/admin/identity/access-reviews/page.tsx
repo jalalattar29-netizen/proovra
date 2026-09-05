@@ -39,12 +39,7 @@ import {
   type RowResult,
   type SurfaceFailure,
 } from "../_sections/identity-admin-shared";
-import {
-  formatDateTime,
-  inputStyle,
-  mutedStyle,
-  statusBadgeStyle,
-} from "../ui-tokens";
+import { formatDateTime, statusBadgeStyle } from "../ui-tokens";
 import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
 import { Button } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
@@ -258,7 +253,7 @@ export default function AccessReviewsPage() {
         header={
           <PageHeader eyebrow="Identity operations" title="Access reviews" />
         }
-      >
+ >
         <EmptyState variant="inline"
           framed
           title="No workspace selected"
@@ -274,15 +269,12 @@ export default function AccessReviewsPage() {
       header: "Kind",
       render: (r) => (
         <div data-access-review-row={r.id}>
-          <span style={{ ...mutedStyle, fontSize: 11 }}>{r.kind}</span>
+          <span className="adm-help" style={{ fontSize: 11 }}>{r.kind}</span>
           {rowResult && rowResult.rowId === r.id ? (
             <div
               data-access-review-result={rowResult.ok ? "ok" : "failed"}
-              style={{
-                ...mutedStyle,
-                color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)",
-              }}
-            >
+              className="adm-help" style={{ color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)" }}
+ >
               {rowResult.message}
             </div>
           ) : null}
@@ -308,7 +300,7 @@ export default function AccessReviewsPage() {
               "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 11,
           }}
-        >
+ >
           {r.subjectKind}{" "}
           {(r.subjectUserId ?? r.subjectApiCredentialId ?? "").slice(0, 8)}…
         </code>
@@ -319,27 +311,24 @@ export default function AccessReviewsPage() {
       header: "Initiated",
       nowrap: true,
       render: (r) => (
-        <span style={mutedStyle}>{formatDateTime(r.initiatedAtUtc)}</span>
+        <span className="adm-help">{formatDateTime(r.initiatedAtUtc)}</span>
       ),
     },
     {
       key: "due",
       header: "Due",
       nowrap: true,
-      render: (r) => <span style={mutedStyle}>{formatDateTime(r.dueAtUtc)}</span>,
+      render: (r) => <span className="adm-help">{formatDateTime(r.dueAtUtc)}</span>,
     },
     {
       key: "note",
       header: "Note",
       render: (r) => (
         <span
-          style={{
-            ...mutedStyle,
-            fontSize: 11,
+          className="adm-help" style={{ fontSize: 11,
             maxWidth: 240,
-            display: "block",
-          }}
-        >
+            display: "block" }}
+ >
           {r.decisionNote ?? "—"}
         </span>
       ),
@@ -360,7 +349,7 @@ export default function AccessReviewsPage() {
               // 44px hit box; the header keeps its height (admin-console.css).
               className="admin-hit-link"
               style={{ fontSize: 12 }}
-            >
+ >
               ← Back to identity administration
             </Link>
           }
@@ -371,7 +360,7 @@ export default function AccessReviewsPage() {
               loading={regenBusy}
               disabled={regenBusy}
               onClick={() => void regenerate()}
-            >
+ >
               Regenerate queue
             </Button>
           }
@@ -382,14 +371,14 @@ export default function AccessReviewsPage() {
           }
         />
       }
-    >
+ >
       {failure ? (
         <Card
           variant="status"
           tone="risk"
           padding="compact"
           data-access-reviews-failure={failure.kind}
-        >
+ >
           <strong>
             {failure.kind === "denied"
               ? "Not available to you"
@@ -407,7 +396,7 @@ export default function AccessReviewsPage() {
           tone="risk"
           padding="compact"
           data-access-review-regenerate-failure={regenFailure.kind}
-        >
+ >
           {regenFailure.message}
         </Card>
       ) : null}
@@ -417,7 +406,7 @@ export default function AccessReviewsPage() {
           tone="verified"
           padding="compact"
           data-access-review-regenerate-notice
-        >
+ >
           {regenNotice}
         </Card>
       ) : null}
@@ -439,15 +428,15 @@ export default function AccessReviewsPage() {
         <Card variant="admin" padding="compact" style={{ marginTop: 12 }}>
           <label
             htmlFor="access-review-note"
-            style={{ ...mutedStyle, display: "block", marginBottom: 4 }}
-          >
+            className="adm-help" style={{ display: "block", marginBottom: 4 }}
+ >
             Decision note — required for Suspend, Revoke and No action. Applied
             to the next decision you record.
           </label>
           <input
             id="access-review-note"
             data-access-review-note
-            style={{ ...inputStyle, maxWidth: 560 }}
+            className="adm-input" style={{ maxWidth: 560 }}
             value={note}
             maxLength={2000}
             placeholder="e.g. contractor rolled off, confirmed with the engagement lead"
@@ -484,7 +473,7 @@ export default function AccessReviewsPage() {
                     flexWrap: "wrap",
                     justifyContent: "flex-end",
                   }}
-                >
+ >
                   {DECISIONS.map((option) => (
                     <Button
                       key={option.decision}
@@ -493,7 +482,7 @@ export default function AccessReviewsPage() {
                       data-access-review-decision={`${r.id}:${option.decision}`}
                       disabled={busyRow === r.id}
                       onClick={() => void decide(r, option)}
-                    >
+ >
                       {option.label}
                     </Button>
                   ))}

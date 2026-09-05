@@ -141,12 +141,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
           fontWeight: 700,
           letterSpacing: "0.08em",
           textTransform: "uppercase",
-          color: "var(--ink-muted, #64748b)",
+          color: "var(--ink-muted)",
         }}
-      >
+ >
         {label}
       </div>
-      <div style={{ marginTop: 4, fontSize: 14, color: "var(--ink-primary, #0f172a)" }}>
+      <div style={{ marginTop: 4, fontSize: 14, color: "var(--ink-primary)" }}>
         {children}
       </div>
     </div>
@@ -161,7 +161,7 @@ function FieldGrid({ children }: { children: React.ReactNode }) {
         gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
         gap: 18,
       }}
-    >
+ >
       {children}
     </div>
   );
@@ -267,7 +267,7 @@ export default function AdminWorkspaceDetailPage() {
                 data-variant="ghost"
                 data-size="md"
                 style={buttonSurfaceStyle("ghost")}
-              >
+ >
                 ← All workspaces
               </Link>
               <Button variant="secondary" onClick={() => void load()} disabled={loading}>
@@ -277,7 +277,7 @@ export default function AdminWorkspaceDetailPage() {
           }
         />
       }
-    >
+ >
 
       {loading ? (
         <Card>
@@ -331,11 +331,11 @@ export default function AdminWorkspaceDetailPage() {
                     <Link
                       href={`/admin/customers/${encodeURIComponent(detail.organization.id)}`}
                       className="admin-hit-link"
-                    >
+ >
                       {detail.organization.name}
                     </Link>
                   ) : (
-                    <span style={{ color: "var(--ink-muted, #94a3b8)" }}>
+                    <span style={{ color: "var(--ink-muted)" }}>
                       Self-service (no customer organization)
                     </span>
                   )}
@@ -347,7 +347,7 @@ export default function AdminWorkspaceDetailPage() {
                     <Link
                       href={`/admin/users/${encodeURIComponent(detail.owner.userId)}`}
                       className="admin-hit-link"
-                    >
+ >
                       {detail.owner.email}
                     </Link>
                   ) : (
@@ -359,11 +359,11 @@ export default function AdminWorkspaceDetailPage() {
                     <Link
                       href={`/admin/users/${encodeURIComponent(detail.billingOwner.userId)}`}
                       className="admin-hit-link"
-                    >
+ >
                       {detail.billingOwner.email}
                     </Link>
                   ) : (
-                    <span style={{ color: "var(--ink-muted, #94a3b8)" }}>Not set</span>
+                    <span style={{ color: "var(--ink-muted)" }}>Not set</span>
                   )}
                 </Field>
               </FieldGrid>
@@ -373,7 +373,7 @@ export default function AdminWorkspaceDetailPage() {
           <PageSection
             title="Commercial context"
             description="Resolved through the canonical commercial authority — the same one checkout and the billing UI read. The stored workspace columns are shown beneath for comparison."
-          >
+ >
             <Card>
               {detail.commercial ? (
                 <FieldGrid>
@@ -408,7 +408,7 @@ export default function AdminWorkspaceDetailPage() {
                   <Field label="Billing shape">{detail.commercial.billingShape}</Field>
                 </FieldGrid>
               ) : (
-                <div style={{ fontSize: 13, color: "var(--risk-strong, #a4243b)" }}>
+                <div style={{ fontSize: 13, color: "var(--risk-strong)" }}>
                   {detail.commercialUnavailableReason ??
                     "The commercial context could not be resolved."}
                 </div>
@@ -419,19 +419,19 @@ export default function AdminWorkspaceDetailPage() {
                   style={{
                     marginTop: 20,
                     paddingTop: 18,
-                    borderTop: "1px solid var(--border-default, #e2e8f0)",
+                    borderTop: "1px solid var(--border-default)",
                   }}
-                >
+ >
                   <div
                     style={{
                       fontSize: 11,
                       fontWeight: 700,
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
-                      color: "var(--ink-muted, #64748b)",
+                      color: "var(--ink-muted)",
                       marginBottom: 12,
                     }}
-                  >
+ >
                     Enterprise contract
                   </div>
                   <FieldGrid>
@@ -442,7 +442,7 @@ export default function AdminWorkspaceDetailPage() {
                             ? "verified"
                             : "risk"
                         }
-                      >
+ >
                         {detail.commercial.enterpriseContract.status}
                       </Badge>
                     </Field>
@@ -470,11 +470,11 @@ export default function AdminWorkspaceDetailPage() {
                         marginTop: 14,
                         padding: "10px 14px",
                         borderRadius: 8,
-                        border: "1px solid var(--warning-border, #e0b070)",
-                        background: "var(--warning-surface, #fdf6ec)",
+                        border: "1px solid var(--warning-border)",
+                        background: "var(--warning-surface)",
                         fontSize: 13,
                       }}
-                    >
+ >
                       <strong>No stored contract row.</strong> This projection was derived
                       from the organization&apos;s status by the compatibility adapter. It is
                       not a contract — treat it as a placeholder until the contract backfill
@@ -488,19 +488,19 @@ export default function AdminWorkspaceDetailPage() {
                 style={{
                   marginTop: 20,
                   paddingTop: 18,
-                  borderTop: "1px solid var(--border-default, #e2e8f0)",
+                  borderTop: "1px solid var(--border-default)",
                 }}
-              >
+ >
                 <div
                   style={{
                     fontSize: 11,
                     fontWeight: 700,
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
-                    color: "var(--ink-muted, #64748b)",
+                    color: "var(--ink-muted)",
                     marginBottom: 12,
                   }}
-                >
+ >
                   Stored projection (Team.billing*)
                 </div>
                 <FieldGrid>
@@ -554,12 +554,12 @@ export default function AdminWorkspaceDetailPage() {
               <Link
                 href={`/admin/operations?teamId=${encodeURIComponent(detail.id)}`}
                 className="admin-stat admin-stat--link"
-              >
+ >
                 <div className="admin-stat-label">Open incidents</div>
                 <div
                   className="admin-stat-value"
                   data-emphasis={detail.incidents.open > 0 ? "critical" : undefined}
-                >
+ >
                   {detail.incidents.open}
                 </div>
                 <div className="admin-stat-hint">
@@ -573,7 +573,7 @@ export default function AdminWorkspaceDetailPage() {
           <PageSection
             title="Provider subscriptions"
             description="Bound to this workspace. Provider references are masked — enough to correlate with a provider dashboard, never the full handle."
-          >
+ >
             <Card>
               <DataTable
                 ariaLabel="Workspace subscriptions"
@@ -599,7 +599,7 @@ export default function AdminWorkspaceDetailPage() {
                       key={a.id}
                       tone={a.status === "ACTIVE" ? "verified" : "neutral"}
                       subtle
-                    >
+ >
                       {a.addonKey} · {a.status} · {a.billingCycle}
                     </Badge>
                   ))}
@@ -620,7 +620,7 @@ export default function AdminWorkspaceDetailPage() {
                   {detail.recentActivity.map((a) => (
                     <li key={a.id} style={{ marginBottom: 6 }}>
                       <strong>{a.eventType}</strong>{" "}
-                      <span style={{ color: "var(--ink-muted, #94a3b8)" }}>
+                      <span style={{ color: "var(--ink-muted)" }}>
                         {formatUserDateTime(a.createdAt)}
                       </span>
                     </li>

@@ -108,7 +108,7 @@ function AutomationPageInner(): JSX.Element {
   const [reloadToken, setReloadToken] = useState(0);
   const [formMode, setFormMode] = useState<
     { kind: "closed" } | { kind: "create" } | { kind: "edit"; ruleId: string }
-  >({ kind: "closed" });
+ >({ kind: "closed" });
   const [lastAction, setLastAction] = useState<string | null>(null);
   const canManage = ctx.can("AUTOMATION_MANAGE");
 
@@ -176,7 +176,7 @@ function AutomationPageInner(): JSX.Element {
           title={"Automation rules"}
         />
       }
-    >
+ >
         <section className="apf-section">
           <div className="cc-skeleton" />
         </section>
@@ -197,7 +197,7 @@ function AutomationPageInner(): JSX.Element {
           subtitle={"Automation visibility requires the AUTOMATION_VIEW capability (team writer or admin)."}
         />
       }
-    >
+ >
       </PageShell>
     );
   }
@@ -213,7 +213,7 @@ function AutomationPageInner(): JSX.Element {
           subtitle={state.message}
         />
       }
-    >
+ >
       </PageShell>
     );
   }
@@ -253,7 +253,7 @@ function AutomationPageInner(): JSX.Element {
           }
         />
       }
-    >
+ >
 
       {/* Phase E3.1 — execution runtime active. The dispatcher accepts
           trigger events from internal services, matches enabled rules,
@@ -267,7 +267,7 @@ function AutomationPageInner(): JSX.Element {
           paddingInlineStart: 12,
           background: "var(--success-subtle-bg)",
         }}
-      >
+ >
         <p style={{ margin: 0, fontSize: 13, color: "var(--success-strong)" }}>
           <strong>Phase E3.1 — execution runtime active.</strong> Enabled
           rules execute when matching trigger events fire from internal
@@ -284,7 +284,7 @@ function AutomationPageInner(): JSX.Element {
           <span
             className="cc-section-subtitle"
             data-automation-manage-hint
-          >
+ >
             {/*
               PHASE 13 (NEW-034) — both requirements, stated.
               This console is a PLATFORM-ADMIN surface (`platform.automation`
@@ -314,7 +314,7 @@ function AutomationPageInner(): JSX.Element {
             style={newRuleButtonStyle(
               !canManage || formMode.kind === "create" || !teamId,
             )}
-          >
+ >
             New rule
           </button>
         </header>
@@ -326,7 +326,7 @@ function AutomationPageInner(): JSX.Element {
           aria-live="polite"
           data-automation-page-status
           style={{ minHeight: 16, fontSize: 12, color: "var(--success-strong)" }}
-        >
+ >
           {lastAction ?? ""}
         </div>
 
@@ -383,7 +383,7 @@ function AutomationPageInner(): JSX.Element {
               style={newRuleButtonStyle(
                 !canManage || formMode.kind === "create" || !teamId,
               )}
-            >
+ >
               Create the first rule
             </button>
           </div>
@@ -393,7 +393,7 @@ function AutomationPageInner(): JSX.Element {
               className="apf-table"
               data-automation-rules-table
               style={{ width: "100%", fontSize: 13 }}
-            >
+ >
               <thead>
                 <tr>
                   <th>Name</th>
@@ -423,7 +423,7 @@ function AutomationPageInner(): JSX.Element {
                     key={r.id}
                     data-automation-rule-id={r.id}
                     data-automation-rule-enabled={String(r.enabled)}
-                  >
+ >
                     <td>
                       <strong>{r.name}</strong>
                       {r.description ? (
@@ -451,7 +451,7 @@ function AutomationPageInner(): JSX.Element {
                           gap: 6,
                           alignItems: "flex-start",
                         }}
-                      >
+ >
                         <AutomationRuleToggle
                           rule={r}
                           canManage={canManage}
@@ -475,7 +475,7 @@ function AutomationPageInner(): JSX.Element {
                               : "Requires the AUTOMATION_MANAGE capability (workspace owner or admin) on this platform-admin console."
                           }
                           style={newRuleButtonStyle(!canManage || !teamId)}
-                        >
+ >
                           Edit
                         </button>
                       </div>
@@ -541,7 +541,7 @@ function AutomationPageInner(): JSX.Element {
               className="apf-table"
               data-automation-runs-table
               style={{ width: "100%", fontSize: 13 }}
-            >
+ >
               <thead>
                 <tr>
                   <th>When</th>

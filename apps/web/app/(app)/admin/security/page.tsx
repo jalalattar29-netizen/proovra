@@ -71,7 +71,7 @@ export default function AdminSecurityPage() {
         page has always actually been: WORKSPACE security administration.
       */}
       <Card padding="compact" style={{ marginBottom: 4 }}>
-        <p style={{ margin: 0, fontSize: 12.5, color: "var(--ink-muted, #64748b)" }}>
+        <p style={{ margin: 0, fontSize: 12.5, color: "var(--ink-muted)" }}>
           Every section on this page acts on the workspace you are currently in
           {teamId ? "" : " — none is selected yet"}. Platform-wide security events
           and operational incidents live in{" "}

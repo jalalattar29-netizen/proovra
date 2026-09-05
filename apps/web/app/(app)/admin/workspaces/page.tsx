@@ -159,7 +159,7 @@ export default function AdminWorkspacesPage() {
         render: (r) => (
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 650 }}>{r.name}</div>
-            <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
               Created {formatUserDateTime(r.createdAt)}
             </div>
           </div>
@@ -193,12 +193,12 @@ export default function AdminWorkspacesPage() {
           r.organization && r.organization.kind === "CUSTOMER" ? (
             <a
               href={`/admin/customers/${encodeURIComponent(r.organization.id)}`}
-              style={{ color: "var(--accent-600, #1d4ed8)" }}
-            >
+              style={{ color: "var(--accent-600)" }}
+ >
               {r.organization.name}
             </a>
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)", fontSize: 12 }}>
+            <span style={{ color: "var(--ink-muted)", fontSize: 12 }}>
               Self-service
             </span>
           ),
@@ -210,12 +210,12 @@ export default function AdminWorkspacesPage() {
           r.owner?.email ? (
             <a
               href={`/admin/users/${encodeURIComponent(r.owner.userId)}`}
-              style={{ color: "var(--accent-600, #1d4ed8)", fontSize: 12.5 }}
-            >
+              style={{ color: "var(--accent-600)", fontSize: 12.5 }}
+ >
               {r.owner.email}
             </a>
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+            <span style={{ color: "var(--ink-muted)" }}>—</span>
           ),
       },
       {
@@ -257,12 +257,12 @@ export default function AdminWorkspacesPage() {
           r.openIncidents > 0 ? (
             <a
               href={`/admin/operations?teamId=${encodeURIComponent(r.id)}`}
-              style={{ color: "var(--risk-strong, #a4243b)", fontWeight: 700 }}
-            >
+              style={{ color: "var(--risk-strong)", fontWeight: 700 }}
+ >
               {r.openIncidents}
             </a>
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>0</span>
+            <span style={{ color: "var(--ink-muted)" }}>0</span>
           ),
       },
     ],
@@ -292,7 +292,7 @@ export default function AdminWorkspacesPage() {
           subtitle="Every workspace on the platform, by kind and lifecycle. A closed workspace is excluded from the live view by default and remains findable under Closed — closure revokes access without touching billing, so the two are reported separately."
         />
       }
-    >
+ >
 
       <FilterBar
         actions={
@@ -305,14 +305,14 @@ export default function AdminWorkspacesPage() {
             </Button>
           </>
         }
-      >
+ >
         <form
           onSubmit={(e) => {
             e.preventDefault();
             setApplied(search);
           }}
           style={{ display: "contents" }}
-        >
+ >
           <FilterBar.Search
             label="Search workspaces"
             value={search}
@@ -399,10 +399,10 @@ export default function AdminWorkspacesPage() {
             gap: 12,
             flexWrap: "wrap",
             fontSize: 13,
-            color: "var(--ink-secondary, #475569)",
+            color: "var(--ink-secondary)",
             marginTop: 16,
           }}
-        >
+ >
           <span>
             {total === 0
               ? "No workspaces"
@@ -414,7 +414,7 @@ export default function AdminWorkspacesPage() {
               size="sm"
               onClick={() => void load(page - 1)}
               disabled={loading || page <= 1}
-            >
+ >
               Previous
             </Button>
             <span style={{ minWidth: 90, textAlign: "center" }}>
@@ -425,7 +425,7 @@ export default function AdminWorkspacesPage() {
               size="sm"
               onClick={() => void load(page + 1)}
               disabled={loading || page >= (data?.totalPages ?? 0)}
-            >
+ >
               Next
             </Button>
           </div>

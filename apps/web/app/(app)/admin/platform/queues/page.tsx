@@ -43,20 +43,11 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
-import {
-  badgeStyle,
-  cardStyle,
-  formatDateTime,
-  inputStyle,
-  mutedStyle,
-  primaryButtonStyle,
-  successBoxStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  TOKENS,
-} from "../../identity/ui-tokens";
+import { badgeStyle, formatDateTime, primaryButtonStyle, TOKENS } from "../../identity/ui-tokens";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
+import {
+  AdmInline,
+} from "../../../../../components/admin/AdminSurfaces";
 
 type QueueInventoryItem = {
   queueName: string;
@@ -323,7 +314,7 @@ function OperationsQueuesContent() {
     <PageShell width="full" header={pageHeader} data-testid="operations-queues-root">
 
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
-      {success ? <div style={successBoxStyle}>{success}</div> : null}
+      {success ? <AdmInline state="done">{success}</AdmInline> : null}
 
       <QueueOverviewCards
         queues={queues}
@@ -395,7 +386,7 @@ function QueueOverviewCards({
 }) {
   if (queues === null) {
     return (
-      <section style={{ ...cardStyle, marginTop: 16 }}>
+      <section className="adm-card" style={{ marginTop: 16 }}>
         <p className="apf-muted">Loading queues…</p>
       </section>
     );
@@ -409,7 +400,7 @@ function QueueOverviewCards({
         marginTop: 16,
       }}
       data-testid="queue-overview"
-    >
+ >
       {queues.map((q) => {
         const isSelected = selectedQueue === q.queueName;
         return (
@@ -417,28 +408,25 @@ function QueueOverviewCards({
             key={q.queueName}
             type="button"
             onClick={() => onSelect(q.queueName)}
-            style={{
-              ...cardStyle,
-              cursor: "pointer",
+            className="adm-card" style={{ cursor: "pointer",
               textAlign: "left",
               border: isSelected
                 ? `2px solid ${TOKENS.accent}`
                 : `1px solid ${TOKENS.border}`,
               background: TOKENS.surface,
-              padding: 12,
-            }}
-          >
+              padding: 12 }}
+ >
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
               }}
-            >
+ >
               <strong style={{ fontSize: 13 }}>{q.label}</strong>
               <span style={healthBadge(q.health)}>{q.health}</span>
             </div>
-            <div style={{ ...mutedStyle, marginTop: 6, fontSize: 11 }}>
+            <div className="adm-help" style={{ marginTop: 6, fontSize: 11 }}>
               {q.queueName}
             </div>
             <div
@@ -448,7 +436,7 @@ function QueueOverviewCards({
                 marginTop: 8,
                 fontSize: 12,
               }}
-            >
+ >
               <span>
                 <strong>{q.counts.waiting}</strong> waiting
               </span>
@@ -459,7 +447,7 @@ function QueueOverviewCards({
                 style={{
                   color: q.counts.failed > 0 ? "var(--danger-strong)" : TOKENS.inkMuted,
                 }}
-              >
+ >
                 <strong>{q.counts.failed}</strong> failed
               </span>
               {q.stalledCount > 0 ? (
@@ -483,13 +471,10 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
   if (degradedOrMissing.length === 0) {
     return (
       <section
-        style={{
-          ...cardStyle,
-          marginTop: 12,
+        className="adm-card" style={{ marginTop: 12,
           background: "var(--success-subtle-bg)",
-          border: "1px solid var(--success-border)",
-        }}
-      >
+          border: "1px solid var(--success-border)" }}
+ >
         <span style={{ fontSize: 13, color: "var(--success-strong)" }}>
           All workers reporting healthy.
         </span>
@@ -498,41 +483,41 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
   }
   return (
     <section
-      style={{ ...cardStyle, marginTop: 12 }}
+      className="adm-card" style={{ marginTop: 12 }}
       data-testid="worker-health"
-    >
+ >
       <h2 className="apf-section-title">Worker health</h2>
       <div className="apf-table-wrap">
-        <table style={tableStyle}>
+        <table className="adm-table">
           <thead>
             <tr>
-              <th style={thStyle}>Queue</th>
-              <th style={thStyle}>Status</th>
-              <th style={thStyle}>Stalled</th>
-              <th style={thStyle}>Recommended action</th>
+              <th>Queue</th>
+              <th>Status</th>
+              <th>Stalled</th>
+              <th>Recommended action</th>
             </tr>
           </thead>
           <tbody>
             {degradedOrMissing.map((w) => (
               <tr key={w.queueName}>
-                <td style={tdStyle}>
+                <td>
                   <code style={{ fontFamily: "monospace", fontSize: 12 }}>
                     {w.queueName}
                   </code>
                 </td>
-                <td style={tdStyle}>
+                <td>
                   <span
                     style={badgeStyle(
                       w.status === "missing"
                         ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
                         : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
                     )}
-                  >
+ >
                     {w.status}
                   </span>
                 </td>
-                <td style={tdStyle}>{w.stalledCount}</td>
-                <td style={tdStyle}>
+                <td>{w.stalledCount}</td>
+                <td>
                   <span style={{ fontSize: 12 }}>
                     {w.recommendedAction ?? "—"}
                   </span>
@@ -577,9 +562,9 @@ function FailedJobsPanel({
 }) {
   return (
     <section
-      style={{ ...cardStyle, marginTop: 12, padding: 0 }}
+      className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="failed-jobs-panel"
-    >
+ >
       <div
         style={{
           padding: 12,
@@ -588,13 +573,13 @@ function FailedJobsPanel({
           justifyContent: "space-between",
           alignItems: "center",
         }}
-      >
+ >
         <strong style={{ fontSize: 14 }}>Failed jobs · {queueName}</strong>
       </div>
       {jobs === null ? (
-        <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
+        <p className="adm-help" style={{ padding: 16 }}>Loading…</p>
       ) : jobs.length === 0 ? (
-        <p style={{ ...mutedStyle, padding: 24 }}>
+        <p className="adm-help" style={{ padding: 24 }}>
           {/* The queue name is the filter on this page, so the empty message
               has to name it. "No failed jobs" alone reads as "the platform has
               no failed jobs", which during an incident is the difference
@@ -604,16 +589,16 @@ function FailedJobsPanel({
         </p>
       ) : (
         <div className="apf-table-wrap">
-          <table style={tableStyle}>
+          <table className="adm-table">
             <thead>
               <tr>
-                <th style={thStyle}>Job id</th>
-                <th style={thStyle}>Job name</th>
-                <th style={thStyle}>Replay safety</th>
-                <th style={thStyle}>Failed</th>
-                <th style={thStyle}>Attempts</th>
-                <th style={thStyle}>Reason</th>
-                <th style={thStyle}>Actions</th>
+                <th>Job id</th>
+                <th>Job name</th>
+                <th>Replay safety</th>
+                <th>Failed</th>
+                <th>Attempts</th>
+                <th>Reason</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -622,39 +607,39 @@ function FailedJobsPanel({
                 const disabled = cat === "forbidden" || cat === "unknown";
                 return (
                   <tr key={j.jobId}>
-                    <td style={tdStyle}>
+                    <td>
                       <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                         {j.jobId.slice(0, 18)}
                         {j.jobId.length > 18 ? "…" : ""}
                       </code>
                     </td>
-                    <td style={tdStyle}>{j.jobName}</td>
-                    <td style={tdStyle}>
+                    <td>{j.jobName}</td>
+                    <td>
                       <span style={categoryBadge(cat)}>{cat}</span>
                     </td>
-                    <td style={tdStyle}>
+                    <td>
                       <span className="apf-muted">
                         {formatDateTime(j.failedAtUtc)}
                       </span>
                     </td>
-                    <td style={tdStyle}>
+                    <td>
                       {j.attemptsMade}
                       {j.maxAttempts ? ` / ${j.maxAttempts}` : ""}
                     </td>
-                    <td style={tdStyle}>
+                    <td>
                       <span
                         style={{
                           fontSize: 11,
                           fontFamily: "monospace",
                           color: TOKENS.inkMuted,
                         }}
-                      >
+ >
                         {j.failureReason}
                       </span>
                     </td>
-                    <td style={tdStyle}>
+                    <td>
                       {disabled ? (
-                        <span style={{ ...mutedStyle, fontSize: 11 }}>
+                        <span className="adm-help" style={{ fontSize: 11 }}>
                           {cat === "forbidden"
                             ? "Forbidden — diagnose via audit center"
                             : "Unknown kind — refused"}
@@ -665,7 +650,7 @@ function FailedJobsPanel({
                           className="apf-control"
                           disabled={busyJobId !== null}
                           onClick={() => onPickReplay(j, cat)}
-                        >
+ >
                           Replay…
                         </button>
                       )}
@@ -724,20 +709,20 @@ function ReplayDialog({
         padding: 16,
         zIndex: 60,
       }}
-    >
+ >
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
         }}
-      >
+ >
         <strong style={{ fontSize: 14 }}>Replay job</strong>
         <button type="button" className="apf-control" onClick={onCancel}>
           Close
         </button>
       </header>
-      <p style={{ ...mutedStyle, marginTop: 8 }}>
+      <p className="adm-help" style={{ marginTop: 8 }}>
         <code style={{ fontFamily: "monospace", fontSize: 11 }}>
           {target.jobName} · {target.jobId.slice(0, 24)}
         </code>
@@ -748,7 +733,7 @@ function ReplayDialog({
       {/* What each button does to THIS job, before the operator picks one.
           The dialog is the confirmation for both actions: it names the job,
           demands a reason, and is the only way either request is sent. */}
-      <p style={{ ...mutedStyle, marginTop: 8 }} data-testid="replay-effect">
+      <p className="adm-help" style={{ marginTop: 8 }} data-testid="replay-effect">
         <strong>Retry attempt</strong> re-runs this one failed job in place and
         keeps its history. <strong>Replay</strong> enqueues a fresh copy of the
         job; if the original completed part of its work, that work is repeated.
@@ -760,7 +745,7 @@ function ReplayDialog({
       <label style={{ display: "block", marginTop: 8, fontSize: 12 }}>
         Operator reason (required)
         <input
-          style={{ ...inputStyle, marginTop: 4 }}
+          className="adm-input" style={{ marginTop: 4 }}
           value={reason}
           onChange={(e) => onReasonChange(e.target.value)}
           placeholder="e.g. upstream API recovered; investigated incident XYZ"
@@ -773,7 +758,7 @@ function ReplayDialog({
           className="apf-control"
           onClick={onRetry}
           disabled={busy || reason.trim().length === 0}
-        >
+ >
           {busy ? "Retrying…" : "Retry attempt"}
         </button>
         <button
@@ -781,7 +766,7 @@ function ReplayDialog({
           style={primaryButtonStyle}
           onClick={onReplay}
           disabled={busy || reason.trim().length === 0}
-        >
+ >
           {busy
             ? "Replaying…"
             : target.category === "requires_step_up"
@@ -790,7 +775,7 @@ function ReplayDialog({
         </button>
       </div>
       {target.category === "requires_step_up" ? (
-        <p style={{ ...mutedStyle, marginTop: 8 }}>
+        <p className="adm-help" style={{ marginTop: 8 }}>
           ⚠ This job kind requires step-up confirmation before the replay
           executes.
         </p>

@@ -185,7 +185,7 @@ function MetricCard(props: {
         borderRadius: 8,
         background: degraded ? "var(--warning-subtle-bg)" : "var(--surface-card)",
       }}
-    >
+ >
       <div
         style={{
           fontSize: 11,
@@ -193,7 +193,7 @@ function MetricCard(props: {
           letterSpacing: "0.05em",
           color: "var(--ink-muted)",
         }}
-      >
+ >
         {props.label}
       </div>
       <div style={{ fontSize: 28, fontWeight: 600, marginTop: 4 }}>
@@ -203,7 +203,7 @@ function MetricCard(props: {
         <div
           style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 2 }}
           data-analytics-metric-hint={props.metric}
-        >
+ >
           {props.hint}
         </div>
       ) : null}
@@ -212,7 +212,7 @@ function MetricCard(props: {
           style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 8 }}
           data-analytics-source-trace={props.metric}
           title={`source=${trace.source} filter=${trace.filter} windowed=${trace.windowed ? "yes" : "no"}`}
-        >
+ >
           source: {trace.source}
           {trace.windowed ? " · windowed" : ""}
         </div>
@@ -225,7 +225,7 @@ function MetricCard(props: {
             marginTop: 4,
           }}
           data-analytics-degraded-notice={props.metric}
-        >
+ >
           Data source unavailable — value omitted rather than estimated.
         </div>
       ) : null}
@@ -349,7 +349,7 @@ function AnalyticsPageInner(): JSX.Element {
           title={"Operational analytics"}
         />
       }
-    >
+ >
         <section className="apf-section">
           <div className="cc-skeleton" />
         </section>
@@ -370,7 +370,7 @@ function AnalyticsPageInner(): JSX.Element {
           subtitle={"Operational analytics require the ANALYTICS_VIEW capability (team writer or admin)."}
         />
       }
-    >
+ >
       </PageShell>
     );
   }
@@ -386,7 +386,7 @@ function AnalyticsPageInner(): JSX.Element {
           subtitle={state.message}
         />
       }
-    >
+ >
       </PageShell>
     );
   }
@@ -406,11 +406,11 @@ function AnalyticsPageInner(): JSX.Element {
               <div
               className="cc-meta"
               style={{ display: "flex", gap: 12, alignItems: "center" }}
-              >
+ >
               <label
               htmlFor="analytics-window-select"
               style={{ fontSize: 12, color: "var(--ink-muted)" }}
-              >
+ >
               Window
               </label>
               <select
@@ -431,7 +431,7 @@ function AnalyticsPageInner(): JSX.Element {
               border: "1px solid var(--border-standard)",
               borderRadius: 6,
               }}
-              >
+ >
               {allowedWindowOptions.map((d) => (
               <option key={d} value={d}>
               Last {d} days
@@ -442,7 +442,7 @@ function AnalyticsPageInner(): JSX.Element {
               <span
               data-analytics-window-active
               style={{ fontSize: 11, color: "var(--ink-muted)" }}
-              >
+ >
               {formatUserDate(headerWindow.start)} →{" "}
               {formatUserDate(headerWindow.end)}
               </span>
@@ -454,7 +454,7 @@ function AnalyticsPageInner(): JSX.Element {
               data-analytics-window-max={windowContract.maxDays}
               style={{ fontSize: 11, color: "var(--ink-muted)" }}
               title={`The API clamps any window to ${windowContract.minDays}–${windowContract.maxDays} days.`}
-              >
+ >
               {windowContract.minDays}–{windowContract.maxDays} day range
               </span>
               ) : null}
@@ -463,7 +463,7 @@ function AnalyticsPageInner(): JSX.Element {
           }
         />
       }
-    >
+ >
 
       <section
         className="apf-section"
@@ -473,7 +473,7 @@ function AnalyticsPageInner(): JSX.Element {
           paddingInlineStart: 12,
           background: "var(--info-subtle-bg)",
         }}
-      >
+ >
         <p style={{ margin: 0, fontSize: 13, color: "var(--info)" }}>
           <strong>How to read this page.</strong> Each tile shows a count
           from a specific Prisma model. Tiles render "—" with an amber
@@ -486,7 +486,7 @@ function AnalyticsPageInner(): JSX.Element {
       <section
         className="apf-section"
         data-analytics-section="operations"
-      >
+ >
         <header className="cc-section-header">
           <h2 className="apf-section-title">Operations overview</h2>
           <span className="cc-section-subtitle">
@@ -499,7 +499,7 @@ function AnalyticsPageInner(): JSX.Element {
             gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
             gap: 12,
           }}
-        >
+ >
           <MetricCard
             envelope={operations}
             metric="evidenceCreated"
@@ -559,7 +559,7 @@ function AnalyticsPageInner(): JSX.Element {
             gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
             gap: 12,
           }}
-        >
+ >
           <MetricCard
             envelope={reviewer}
             metric="activeReviews"
@@ -612,7 +612,7 @@ function AnalyticsPageInner(): JSX.Element {
             gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
             gap: 12,
           }}
-        >
+ >
           <MetricCard
             envelope={governance}
             metric="activeLegalHolds"
@@ -662,7 +662,7 @@ function AnalyticsPageInner(): JSX.Element {
             gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
             gap: 12,
           }}
-        >
+ >
           <MetricCard
             envelope={automation}
             metric="enabledRules"
@@ -766,7 +766,7 @@ function AnalyticsPageInner(): JSX.Element {
             gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
             gap: 12,
           }}
-        >
+ >
           <MetricCard
             envelope={artifacts}
             metric="reportsGeneratedInWindow"
@@ -788,7 +788,7 @@ function AnalyticsPageInner(): JSX.Element {
         className="apf-section"
         data-analytics-footer
         style={{ fontSize: 11, color: "var(--ink-muted)" }}
-      >
+ >
         Generated at{" "}
         {state.data.operations?.generatedAt
           ? formatUserDateTime(state.data.operations.generatedAt)

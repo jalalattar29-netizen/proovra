@@ -201,10 +201,10 @@ export default function AdminOrganizationsPage() {
             <div
               style={{
                 fontSize: 12,
-                color: "var(--ink-muted, #94a3b8)",
+                color: "var(--ink-muted)",
                 marginTop: 2,
               }}
-            >
+ >
               Created {formatUserDateTime(row.createdAt)}
             </div>
           </div>
@@ -222,7 +222,7 @@ export default function AdminOrganizationsPage() {
                 ? row.lifecycleReasons.join(" ")
                 : undefined
             }
-          >
+ >
             {LIFECYCLE_LABEL[row.lifecycleStage] ?? row.lifecycleStage}
           </Badge>
         ),
@@ -236,7 +236,7 @@ export default function AdminOrganizationsPage() {
               {row.plan}
             </Badge>
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+            <span style={{ color: "var(--ink-muted)" }}>—</span>
           ),
       },
       {
@@ -258,7 +258,7 @@ export default function AdminOrganizationsPage() {
               ) : null}
             </div>
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>None</span>
+            <span style={{ color: "var(--ink-muted)" }}>None</span>
           ),
       },
       {
@@ -280,7 +280,7 @@ export default function AdminOrganizationsPage() {
           row.ownerEmail ? (
             row.ownerEmail
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>
+            <span style={{ color: "var(--ink-muted)" }}>
               Not measured
             </span>
           ),
@@ -335,7 +335,7 @@ export default function AdminOrganizationsPage() {
           subtitle="Read-only roster of every customer organization: plan, workspaces, seat usage, owner, domain verification, SSO/SCIM posture, and onboarding health. Aggregated from live records — nothing here is fabricated."
         />
       }
-    >
+ >
 
       <FilterBar
         actions={
@@ -348,7 +348,7 @@ export default function AdminOrganizationsPage() {
             </Button>
           </>
         }
-      >
+ >
         <FilterBar.Search
           label="Search organizations"
           value={search}
@@ -436,9 +436,9 @@ export default function AdminOrganizationsPage() {
           gap: 12,
           flexWrap: "wrap",
           fontSize: 13,
-          color: "var(--ink-secondary, #475569)",
+          color: "var(--ink-secondary)",
         }}
-      >
+ >
         <div>
           {/* "page 1 of 0" is what an unguarded totalPages prints on an
               empty result, and it reads as a broken pager rather than an
@@ -454,7 +454,7 @@ export default function AdminOrganizationsPage() {
             size="sm"
             disabled={loading || page <= 1}
             onClick={() => void load(page - 1)}
-          >
+ >
             Previous
           </Button>
           <Button
@@ -462,7 +462,7 @@ export default function AdminOrganizationsPage() {
             size="sm"
             disabled={loading || page >= totalPages}
             onClick={() => void load(page + 1)}
-          >
+ >
             Next
           </Button>
         </div>

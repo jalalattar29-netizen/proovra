@@ -48,11 +48,11 @@
  * observation nobody made.
  * ------------------------------------------------------------------------ */
 .adminattn > li[data-tone="critical"] {
-  border-inline-start-color: var(--danger-500, var(--border-default));
+  border-inline-start-color: var(--danger-500);
 }
 
 .adminattn > li[data-tone="attention"] {
-  border-inline-start-color: var(--warning-500, var(--border-default));
+  border-inline-start-color: var(--warning-500);
 }
 
 .adminattn > li[data-tone="unknown"] {

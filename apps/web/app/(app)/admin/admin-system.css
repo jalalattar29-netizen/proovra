@@ -672,6 +672,22 @@ a.adm-kpi:focus-visible {
   color: var(--ink-muted);
 }
 
+/* CONFIRMATION, WHICH IS NOT A STATE OF THE DATA.
+   The other states describe what the page could or could not show. This one
+   describes what the OPERATOR just did — "12 jobs replayed", "key promoted" —
+   and it is the only green here. It was `successBoxStyle`, a 23-call-site
+   inline object that rendered as a bare tinted rectangle with no label and no
+   `role`, so a screen reader was told nothing had happened. */
+.adm-inline[data-state="done"] {
+  border-color: var(--success-border);
+  background: var(--success-subtle-bg);
+  color: var(--success-standard);
+}
+
+.adm-inline[data-state="done"] .adm-inline__label {
+  color: var(--success-standard);
+}
+
 /* A skeleton the shape of the answer, not a spinner: the concern is layout
    jump, and a 56px bar that becomes a 56px row does not jump. */
 .adm-skeleton {
@@ -1230,6 +1246,16 @@ a.adm-kpi:focus-visible {
 .adm-stack[data-gap="loose"] { gap: var(--space-5); }
 
 .adm-muted { color: var(--ink-muted); }
+
+/* A footnote under a section: a truncation notice, a scope caveat, a "counted
+   at" stamp. Muted and small, but still AA — the console had these at 11px in
+   #94A3B8, which is decoration, not a caveat somebody can read. */
+.adm-note {
+  margin-block: var(--space-2) 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}
 .adm-secondary { color: var(--ink-secondary); }
 .adm-nums { font-variant-numeric: tabular-nums; }
 
@@ -1848,3 +1874,406 @@ body.is-admin-console .app-sidebar-v2-link,
 body.is-admin-console .app-sidebar-v2-help {
   min-block-size: 44px;
 }
+
+/* ==========================================================================
+ * 23. OVERLAY — THE DRAWER AND THE FOCUSED DIALOG
+ *
+ * =============================================================================
+ * WHAT WAS THERE
+ * =============================================================================
+ * Four admin surfaces opened a panel over the page, and all four were written
+ * from scratch in inline styles:
+ *
+ *   identity/sessions  SessionTimelineDrawer   role="dialog"  right: 0
+ *   platform/exports   export-drawer           role="dialog"  right: 0
+ *   platform/recovery  report-drawer           role="dialog"  right: 0
+ *   platform/queues    replay-dialog           role="dialog"  right/bottom: 20
+ *
+ * Between them they carried four defects, each repeated per copy:
+ *
+ *   1. `right: 0` is a physical edge. Under `dir="rtl"` the panel stayed on the
+ *      right while the whole console mirrored to the left, so it covered the
+ *      content it was describing instead of sitting beside it.
+ *   2. No scrim. The page stayed fully visible and fully clickable underneath,
+ *      so nothing said the panel was modal and nothing dismissed it by clicking
+ *      away.
+ *   3. `role="dialog"` with no `aria-modal`, no focus move, no focus trap and
+ *      no focus return. A keyboard operator opening the exports drawer kept
+ *      focus on the row behind it, tabbed straight past the panel into the page
+ *      it was covering, and on close was returned to `<body>` — the top of a
+ *      long table they had scrolled down.
+ *   4. Escape did nothing. The only way out was to find the close control.
+ *
+ * =============================================================================
+ * WHAT THIS IS
+ * =============================================================================
+ * One anatomy, two shapes. `.adm-drawer` is the edge panel for reading an
+ * entity beside the list it came from; `.adm-dialog` is the small centred
+ * surface for one decision. Both share the scrim, the head/body split, and the
+ * behaviour that `AdmOverlay` provides.
+ *
+ * The body is the ONLY scrolling region, so the title and the close control
+ * stay reachable however long the content is — the exports drawer scrolled its
+ * header away at 640px of content.
+ * ========================================================================== */
+
+.adm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-dialog);
+  display: flex;
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* The panel is anchored to the END edge, which follows the writing direction
+   rather than the screen. This is the whole RTL fix. */
+.adm-overlay--drawer { justify-content: flex-end; }
+
+.adm-overlay--dialog {
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .adm-overlay { animation: adm-overlay-in 0.14s ease-out; }
+}
+
+@keyframes adm-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* -------------------------------------------------------------- the panel -- */
+
+.adm-drawer,
+.adm-dialog {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  background: var(--surface-card);
+  color: var(--ink-primary);
+  box-shadow: var(--shadow-drawer);
+}
+
+.adm-drawer {
+  inline-size: min(640px, 100vw);
+  block-size: 100vh;
+  block-size: 100dvh;
+  border-inline-start: 1px solid var(--border-default);
+}
+
+.adm-dialog {
+  inline-size: min(520px, 100%);
+  max-block-size: min(640px, calc(100dvh - var(--space-8)));
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+}
+
+.adm-drawer:focus-visible,
+.adm-dialog:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-drawer), var(--focus-ring);
+}
+
+/* ---------------------------------------------------------------- the head -- */
+
+.adm-overlay__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex: 0 0 auto;
+  padding: var(--space-5) var(--space-6);
+  border-block-end: 1px solid var(--border-subtle);
+}
+
+.adm-overlay__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink-primary);
+}
+
+.adm-overlay__subtitle {
+  margin: var(--space-1) 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+}
+
+/* 44px of target reclaimed from the head's own padding, so meeting the touch
+   floor does not make every panel header taller — the same technique the table
+   links and the `.adm-why` summary use. */
+.adm-overlay__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 44px;
+  block-size: 44px;
+  margin: -10px -10px -10px 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.adm-overlay__close:hover {
+  border-color: var(--border-default);
+  background: var(--surface-muted);
+  color: var(--ink-primary);
+}
+
+.adm-overlay__close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ---------------------------------------------------------------- the body -- */
+
+.adm-overlay__body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-6);
+}
+
+.adm-overlay__body > * + * { margin-block-start: var(--space-5); }
+
+.adm-overlay__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  padding: var(--space-4) var(--space-6);
+  border-block-start: 1px solid var(--border-subtle);
+  background: var(--surface-muted);
+}
+
+/* ---------------------------------------------------------------- narrow --- */
+
+@media (max-width: 640px) {
+  /* A 640px panel on a 375px phone is the whole screen with a 40px sliver of
+     scrim that is too small to aim at, so the drawer becomes a sheet and the
+     scrim stops pretending to be a dismiss target. */
+  .adm-overlay--drawer { align-items: flex-end; }
+
+  .adm-drawer {
+    inline-size: 100%;
+    block-size: min(88dvh, 100dvh);
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--border-default);
+    border-start-start-radius: var(--radius-card);
+    border-start-end-radius: var(--radius-card);
+  }
+
+  .adm-overlay__head { padding: var(--space-4); }
+  .adm-overlay__body,
+  .adm-overlay__foot { padding: var(--space-4); }
+}
+
+/* ==========================================================================
+ * 24. TIMELINE — ORDERED EVENTS AGAINST A RAIL
+ *
+ * Three surfaces render "what happened to this thing, in order": the session
+ * identity timeline, the identity timeline page, and the recovery report. All
+ * three drew their own rail with `borderInlineStart: 2px solid` on the list and
+ * a hand-chosen indent on every item, so the same construct arrived at three
+ * different rail colours and three different indents.
+ *
+ * The marker is drawn on the ITEM rather than as a list bullet, because a
+ * severity has to be able to colour it — a `::marker` cannot take an arbitrary
+ * background, and a coloured bullet is the only thing that lets an operator
+ * find the failure in forty rows without reading forty rows.
+ * ========================================================================== */
+
+.adm-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-inline-start: 2px solid var(--border-subtle);
+}
+
+.adm-timeline > li {
+  position: relative;
+  margin-inline-start: var(--space-3);
+  padding-inline-start: var(--space-4);
+  padding-block-end: var(--space-4);
+}
+
+.adm-timeline > li:last-child { padding-block-end: 0; }
+
+.adm-timeline > li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -5px;
+  inset-block-start: 6px;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.adm-timeline > li[data-severity="critical"]::before { background: var(--danger-500); }
+.adm-timeline > li[data-severity="warning"]::before { background: var(--warning-500); }
+.adm-timeline > li[data-severity="healthy"]::before { background: var(--success-standard); }
+
+.adm-timeline__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-1);
+}
+
+.adm-timeline__kind {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  /* An event type is a machine token (`identity.session.revoked`) and must not
+     mirror under RTL. */
+  unicode-bidi: plaintext;
+}
+
+.adm-timeline__summary {
+  font-size: 0.8125rem;
+  font-weight: 550;
+  line-height: 1.45;
+  color: var(--ink-primary);
+}
+
+.adm-timeline__when {
+  margin-block-start: var(--space-1);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+ * 25. FORM CONTROLS
+ *
+ * The console's fields and dropdowns came from `identity/ui-tokens.ts` as
+ * inline style objects — `inputStyle`, `selectStyle`, `choiceRowStyle` — which
+ * is why a field could not have a focus ring, a hover, a disabled appearance
+ * or an invalid appearance: an inline style has no states. Thirty call sites
+ * shared one flat box that looked identical whether it was focused, disabled
+ * or rejected.
+ *
+ * `admin-console.css` already guarantees the 44px target floor on every
+ * `main input/select/textarea/button`. This is the appearance and the states;
+ * it does not restate the height.
+ * ========================================================================== */
+
+.adm-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.adm-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
+.adm-help {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}
+
+.adm-input,
+.adm-select,
+.adm-textarea {
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-standard);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--ink-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.adm-textarea {
+  min-block-size: 88px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* A dropdown is content-sized: a status filter stretched to 100% of a flex row
+   is how the console ended up with a 640px "All statuses". */
+.adm-select { inline-size: auto; padding-inline-end: var(--space-2); }
+
+.adm-input::placeholder,
+.adm-textarea::placeholder { color: var(--ink-muted); }
+
+.adm-input:hover,
+.adm-select:hover,
+.adm-textarea:hover { border-color: var(--border-strong); }
+
+.adm-input:focus-visible,
+.adm-select:focus-visible,
+.adm-textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent-500);
+  box-shadow: var(--focus-ring);
+}
+
+.adm-input:disabled,
+.adm-select:disabled,
+.adm-textarea:disabled {
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+/* Invalid is stated in words next to the field as well; this is the marker,
+   not the message. */
+.adm-input[aria-invalid="true"],
+.adm-select[aria-invalid="true"],
+.adm-textarea[aria-invalid="true"] { border-color: var(--danger-500); }
+
+/* An identifier, a key or a JSON body typed into a field must not mirror. */
+.adm-input[data-mono],
+.adm-textarea[data-mono] {
+  font-family: var(--font-mono);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* --------------------------------------------------------------- choice --- */
+
+/* A native radio or checkbox is 13x13 and always will be — that is the platform
+   widget — so the <label> wrapping it is the target a person actually hits.
+   Three separate choice rows in the security console measured 43px, 39px and
+   39px: near-misses that only a measurement finds, and that would have been
+   patched three times and missed a fourth.
+   `align-items: flex-start` is deliberate: these rows carry a bold label above
+   a description, and centring floats the control beside the second line. */
+.adm-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-block-size: 44px;
+  padding-block: 2px;
+  cursor: pointer;
+}
+
+.adm-choice > input { margin-block-start: 3px; flex: 0 0 auto; }
+.adm-choice__label { font-size: 0.8125rem; font-weight: 600; color: var(--ink-primary); }
+.adm-choice__note { font-size: 0.75rem; line-height: 1.5; color: var(--ink-secondary); }
+.adm-choice:has(> input:disabled) { cursor: not-allowed; }
+.adm-choice:has(> input:disabled) .adm-choice__label { color: var(--ink-muted); }

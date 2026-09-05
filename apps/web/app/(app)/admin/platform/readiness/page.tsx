@@ -47,7 +47,7 @@ import {
 import { Card } from "../../../../../components/ui/Card";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
-import { monoStyle, TOKENS } from "../../identity/ui-tokens";
+import { TOKENS } from "../../identity/ui-tokens";
 
 // ---------------------------------------------------------------------------
 // Response shape — matches
@@ -203,16 +203,16 @@ function OperationsReadinessContent() {
           }
         />
       }
-    >
+ >
       {error ? (
         <Card variant="status" tone="risk" data-testid="readiness-error">
-          <div style={{ color: "var(--status-risk-fg, #991b1b)" }}>{error}</div>
+          <div style={{ color: "var(--status-risk-fg)" }}>{error}</div>
         </Card>
       ) : null}
 
       {!posture ? (
         <Card>
-          <p style={mutedStyle}>
+          <p className="adm-help">
             {loading ? "Loading posture…" : "No posture loaded."}
           </p>
         </Card>
@@ -224,7 +224,7 @@ function OperationsReadinessContent() {
           <ResiliencySection resiliency={posture.resiliency} />
           <KnownLimitationsSection limitations={posture.knownLimitations} />
           <RunbooksSection />
-          <p style={{ ...mutedStyle, fontSize: 11 }}>
+          <p className="adm-help" style={{ fontSize: 11 }}>
             Generated {posture.generatedAtUtc}
           </p>
         </>
@@ -265,7 +265,7 @@ function PostureBadge({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={mutedStyle}>{label}</div>
+      <div className="adm-help">{label}</div>
       <div style={{ marginTop: 4 }}>{children}</div>
     </div>
   );
@@ -286,7 +286,7 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
     <PageSection
       title="Backup & preservation posture"
       description="Object Lock, honest database-backup label, and artifact regeneration."
-    >
+ >
       <Card data-testid="backup-section">
         <div style={gridStyle}>
           <Row label="S3 Object Lock">
@@ -306,7 +306,7 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
             </PostureBadge>
           </Row>
           <Row label="Retention (days)">
-            <span style={monoStyle}>
+            <span className="adm-mono">
               {backup.objectLockRetainDays ?? "Not set"}
             </span>
           </Row>
@@ -314,7 +314,7 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
             <PostureBadge
               tone={backup.objectLockStatus.mode === "verified" ? GREEN : AMBER}
               testId="object-lock-status"
-            >
+ >
               {backup.objectLockStatus.mode}
             </PostureBadge>
           </Row>
@@ -332,7 +332,7 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
               </PostureBadge>
             )}
           </Row>
-          <p style={{ ...mutedStyle, fontSize: 12, marginTop: 6 }}>
+          <p className="adm-help" style={{ fontSize: 12, marginTop: 6 }}>
             {backup.databaseBackupReason}
           </p>
         </div>
@@ -385,7 +385,7 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
               Available
             </PostureBadge>
           </Row>
-          <p style={{ ...mutedStyle, fontSize: 12, marginTop: 6 }}>
+          <p className="adm-help" style={{ fontSize: 12, marginTop: 6 }}>
             {backup.artifactRegeneration.note}
           </p>
         </div>
@@ -407,7 +407,7 @@ function MfaThrottleSection({
             <PostureBadge
               tone={mfaThrottle.shared ? GREEN : AMBER}
               testId="mfa-throttle-store"
-            >
+ >
               {mfaThrottle.store}
               {mfaThrottle.shared ? " (shared)" : " (per-instance)"}
             </PostureBadge>
@@ -425,7 +425,7 @@ function MfaThrottleSection({
               )}
             </Row>
           </div>
-          <p style={{ ...mutedStyle, fontSize: 12, marginTop: 6 }}>
+          <p className="adm-help" style={{ fontSize: 12, marginTop: 6 }}>
             {mfaThrottle.reason}
           </p>
         </div>
@@ -443,7 +443,7 @@ function KeySection({ keys }: { keys: ReadinessPosture["keys"] }) {
             <PostureBadge
               tone={keys.signerProvider === "disabled" ? AMBER : NEUTRAL}
               testId="signer-provider"
-            >
+ >
               {keys.signerProvider}
             </PostureBadge>
           </Row>
@@ -460,11 +460,11 @@ function KeySection({ keys }: { keys: ReadinessPosture["keys"] }) {
           </Row>
         </div>
         {keys.keyVersionUnknownReason ? (
-          <p style={{ ...mutedStyle, fontSize: 12, marginTop: 6 }}>
+          <p className="adm-help" style={{ fontSize: 12, marginTop: 6 }}>
             {keys.keyVersionUnknownReason}
           </p>
         ) : null}
-        <p style={{ ...mutedStyle, fontSize: 11, marginTop: 8 }}>
+        <p className="adm-help" style={{ fontSize: 11, marginTop: 8 }}>
           No key material, KMS ARNs, or IAM details are exposed on this surface.
         </p>
       </Card>
@@ -496,14 +496,14 @@ function ResiliencySection({
             gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
             gap: 16,
           }}
-        >
+ >
           <div>
             <Row label="Runtime readiness">
               <PostureBadge tone={statusTone(rr.status)} testId="runtime-status">
                 {rr.status}
               </PostureBadge>
             </Row>
-            <p style={{ ...mutedStyle, fontSize: 12, marginTop: 6 }}>
+            <p className="adm-help" style={{ fontSize: 12, marginTop: 6 }}>
               {rr.unavailableReason
                 ? rr.unavailableReason
                 : `${rr.subsystemCount} subsystems checked${
@@ -519,7 +519,7 @@ function ResiliencySection({
                 {sd.status}
               </PostureBadge>
             </Row>
-            <p style={{ ...mutedStyle, fontSize: 12, marginTop: 6 }}>
+            <p className="adm-help" style={{ fontSize: 12, marginTop: 6 }}>
               {sd.unavailableReason
                 ? sd.unavailableReason
                 : `${sd.failureCount} of ${sd.checkedCount} expected schema objects missing.`}
@@ -553,7 +553,7 @@ function KnownLimitationsSection({
           </p>
         ) : (
           <>
-            <p style={mutedStyle}>
+            <p className="adm-help">
               These are real, flagged caveats — not marketing copy. They are
               stated plainly so operators and reviewers can make informed
               decisions.
@@ -576,7 +576,7 @@ function RunbooksSection() {
   return (
     <PageSection title="Runbooks & checklists">
       <Card data-testid="runbooks-section">
-        <p style={mutedStyle}>
+        <p className="adm-help">
           Operator and reviewer documentation. Each opens in the console.
         </p>
         <ul style={{ marginTop: 8, paddingInlineStart: 0, listStyle: "none" }}>
@@ -585,10 +585,10 @@ function RunbooksSection() {
               <Link
                 href={`/admin/platform/runbooks/${r.slug}`}
                 style={{ color: TOKENS.link ?? "var(--info)", fontWeight: 600 }}
-              >
+ >
                 {r.label}
               </Link>
-              <div style={{ ...mutedStyle, fontSize: 12 }}>{r.summary}</div>
+              <div className="adm-help" style={{ fontSize: 12 }}>{r.summary}</div>
             </li>
           ))}
         </ul>
@@ -597,7 +597,3 @@ function RunbooksSection() {
   );
 }
 
-const mutedStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "var(--ink-muted, #94a3b8)",
-};

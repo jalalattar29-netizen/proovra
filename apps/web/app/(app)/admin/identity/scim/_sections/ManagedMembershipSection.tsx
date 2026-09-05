@@ -87,7 +87,7 @@ const OWNERSHIP_COPY: Record<Ownership, { label: string; tone: "verified" | "ris
 const mutedStyle = {
   fontSize: 12.5,
   lineHeight: 1.55,
-  color: "var(--ink-secondary, #475569)",
+  color: "var(--ink-secondary)",
 } as const;
 
 type Phase =
@@ -231,7 +231,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         tone="risk"
         padding="comfortable"
         data-testid="scim-ownership-denied"
-      >
+ >
         <strong style={{ fontSize: 14 }}>{phase.title}</strong>
         <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
           {phase.detail}
@@ -247,7 +247,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         tone="risk"
         padding="comfortable"
         data-testid="scim-ownership-error"
-      >
+ >
         <strong style={{ fontSize: 14 }}>Ownership didn&apos;t load</strong>
         <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 10 }}>{phase.detail}</p>
         <Button variant="secondary" size="sm" onClick={() => void load()}>
@@ -263,7 +263,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
     <div
       style={{ display: "flex", flexDirection: "column", gap: 12 }}
       data-testid="scim-ownership"
-    >
+ >
       <div
         style={{
           display: "flex",
@@ -272,7 +272,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
           gap: 12,
           flexWrap: "wrap",
         }}
-      >
+ >
         <p style={{ ...mutedStyle, maxWidth: 720 }}>
           Who your identity provider actually owns in this workspace. A person
           your directory deactivated keeps their account and their evidence — the
@@ -288,7 +288,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         variant="status"
         tone={projection.summary.conflicts > 0 ? "risk" : "governance"}
         padding="comfortable"
-      >
+ >
         <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div>
             <div style={mutedStyle}>Owned by your directory</div>
@@ -305,7 +305,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
                 color: projection.summary.conflicts > 0 ? "var(--danger-strong)" : undefined,
               }}
               data-testid="scim-ownership-conflicts"
-            >
+ >
               {projection.summary.conflicts}
             </div>
           </div>
@@ -321,7 +321,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
               <Badge
                 tone={projection.managedIdentityRequired ? "governance" : "neutral"}
                 subtle
-              >
+ >
                 {projection.managedIdentityRequired
                   ? "Required for every member"
                   : "Not required"}
@@ -356,7 +356,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         padding="comfortable"
         title="What your groups grant"
         data-testid="scim-group-effects"
-      >
+ >
         {projection.groups.length === 0 ? (
           <EmptyState variant="inline"
             title="No SCIM groups"

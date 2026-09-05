@@ -44,19 +44,11 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
-import {
-  badgeStyle,
-  cardStyle,
-  formatDateTime,
-  mutedStyle,
-  primaryButtonStyle,
-  successBoxStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  TOKENS,
-} from "../../identity/ui-tokens";
+import { badgeStyle, formatDateTime, primaryButtonStyle, TOKENS } from "../../identity/ui-tokens";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
+import {
+  AdmInline,
+} from "../../../../../components/admin/AdminSurfaces";
 
 type ValidationOutcome = "passed" | "warning" | "failed" | "unsupported";
 
@@ -281,10 +273,10 @@ function OperationsRecoveryContent() {
     <PageShell width="full" header={pageHeader} data-testid="operations-recovery-root">
 
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
-      {success ? <div style={successBoxStyle}>{success}</div> : null}
+      {success ? <AdmInline state="done">{success}</AdmInline> : null}
 
       {!overview ? (
-        <p style={{ ...mutedStyle, marginTop: 16 }}>
+        <p className="adm-help" style={{ marginTop: 16 }}>
           Loading recovery overview…
         </p>
       ) : (
@@ -347,7 +339,7 @@ function ReadinessSummary({
 }) {
   const last = overview.readiness;
   return (
-    <section style={{ ...cardStyle, marginTop: 16 }} data-testid="readiness">
+    <section className="adm-card" style={{ marginTop: 16 }} data-testid="readiness">
       <h2 className="apf-section-title">Readiness</h2>
       <div
         style={{
@@ -355,7 +347,7 @@ function ReadinessSummary({
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
           gap: 16,
         }}
-      >
+ >
         <div>
           <div className="apf-muted">S3 Object Lock platform mode</div>
           <div style={{ marginTop: 4 }}>
@@ -365,7 +357,7 @@ function ReadinessSummary({
                   ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
                   : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
-            >
+ >
               {last.objectLockMode}
             </span>
           </div>
@@ -378,7 +370,7 @@ function ReadinessSummary({
                 <span style={outcomeBadge(last.lastBackupReport.outcome)}>
                   {last.lastBackupReport.outcome ?? "unknown"}
                 </span>
-                <div style={{ ...mutedStyle, fontSize: 12, marginTop: 4 }}>
+                <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
                   {formatDateTime(last.lastBackupReport.generatedAtUtc)}
                 </div>
               </>
@@ -395,7 +387,7 @@ function ReadinessSummary({
                 <span style={outcomeBadge(last.lastRestoreReport.outcome)}>
                   {last.lastRestoreReport.outcome ?? "unknown"}
                 </span>
-                <div style={{ ...mutedStyle, fontSize: 12, marginTop: 4 }}>
+                <div className="adm-help" style={{ fontSize: 12, marginTop: 4 }}>
                   {formatDateTime(last.lastRestoreReport.generatedAtUtc)}
                 </div>
               </>
@@ -412,7 +404,7 @@ function ReadinessSummary({
           onClick={onRunBackup}
           disabled={busy !== null}
           data-testid="run-backup-validation"
-        >
+ >
           {busy === "backup" ? "Running…" : "Run backup validation"}
         </button>
         <button
@@ -421,7 +413,7 @@ function ReadinessSummary({
           onClick={onRunRestore}
           disabled={busy !== null}
           data-testid="run-restore-validation"
-        >
+ >
           {busy === "restore" ? "Running…" : "Run restore validation (step-up)"}
         </button>
       </div>
@@ -436,13 +428,10 @@ function UnsupportedDomainsPanel({
 }) {
   return (
     <section
-      style={{
-        ...cardStyle,
-        marginTop: 12,
-        background: TOKENS.surfaceMuted,
-      }}
+      className="adm-card" style={{ marginTop: 12,
+        background: TOKENS.surfaceMuted }}
       data-testid="unsupported-domains"
-    >
+ >
       <h2 className="apf-section-title">Unsupported domains (honest disclosure)</h2>
       <p className="apf-muted">
         These categories are explicitly NOT validated by the PROOVRA
@@ -476,54 +465,54 @@ function RecentReportsTable({
 }) {
   return (
     <section
-      style={{ ...cardStyle, marginTop: 12, padding: 0 }}
+      className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="recent-reports"
-    >
+ >
       <div style={{ padding: 12, borderBottom: `1px solid ${TOKENS.border}` }}>
         <strong style={{ fontSize: 14 }}>Recent reports</strong>
       </div>
       {reports.length === 0 ? (
-        <p style={{ ...mutedStyle, padding: 24 }}>
+        <p className="adm-help" style={{ padding: 24 }}>
           No reports yet. Run a backup or restore validation above.
         </p>
       ) : (
         <div className="apf-table-wrap">
-          <table style={tableStyle}>
+          <table className="adm-table">
             <thead>
               <tr>
-                <th style={thStyle}>Kind</th>
-                <th style={thStyle}>Generated</th>
-                <th style={thStyle}>Outcome</th>
-                <th style={thStyle}>Report id</th>
-                <th style={thStyle}>{" "}</th>
+                <th>Kind</th>
+                <th>Generated</th>
+                <th>Outcome</th>
+                <th>Report id</th>
+                <th>{" "}</th>
               </tr>
             </thead>
             <tbody>
               {reports.map((r) => (
                 <tr key={r.reportId}>
-                  <td style={tdStyle}>{r.kind}</td>
-                  <td style={tdStyle}>
+                  <td>{r.kind}</td>
+                  <td>
                     <span className="apf-muted">
                       {formatDateTime(r.generatedAtUtc)}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <span style={outcomeBadge(r.outcome)}>
                       {r.outcome ?? "unknown"}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                       {r.reportId.slice(0, 28)}
                       {r.reportId.length > 28 ? "…" : ""}
                     </code>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <button
                       type="button"
                       className="apf-control"
                       onClick={() => onOpen(r.reportId)}
-                    >
+ >
                       Open
                     </button>
                   </td>
@@ -571,20 +560,20 @@ function ReportDrawer({
         overflowY: "auto",
         padding: 20,
       }}
-    >
+ >
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
         }}
-      >
+ >
         <h2 style={{ fontSize: 16, margin: 0 }}>{report.kind}</h2>
         <button type="button" className="apf-control" onClick={onClose}>
           Close
         </button>
       </header>
-      <p style={{ ...mutedStyle, marginTop: 8 }}>
+      <p className="adm-help" style={{ marginTop: 8 }}>
         Report id <code style={{ fontFamily: "monospace" }}>{report.reportId}</code>
         <br />
         Started {formatDateTime(report.startedAtUtc)} · finished{" "}
@@ -603,25 +592,25 @@ function ReportDrawer({
       <section style={{ marginTop: 16 }}>
         <h2 className="apf-section-title">Checks</h2>
         <div className="apf-table-wrap">
-          <table style={tableStyle}>
+          <table className="adm-table">
             <thead>
               <tr>
-                <th style={thStyle}>Check</th>
-                <th style={thStyle}>Outcome</th>
-                <th style={thStyle}>Detail</th>
+                <th>Check</th>
+                <th>Outcome</th>
+                <th>Detail</th>
               </tr>
             </thead>
             <tbody>
               {report.checks.map((c) => (
                 <tr key={c.id}>
-                  <td style={tdStyle}>
+                  <td>
                     <strong style={{ fontSize: 13 }}>{c.label}</strong>
-                    <div style={{ ...mutedStyle, fontSize: 11 }}>{c.id}</div>
+                    <div className="adm-help" style={{ fontSize: 11 }}>{c.id}</div>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <span style={outcomeBadge(c.outcome)}>{c.outcome}</span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <span style={{ fontSize: 12 }}>{c.detail}</span>
                   </td>
                 </tr>

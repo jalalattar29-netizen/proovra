@@ -103,7 +103,7 @@
 .adminnav__secondary {
   padding-inline-start: 0.125rem;
   padding-block-start: 0.125rem;
-  border-block-start: 1px solid var(--border-subtle, var(--border-default));
+  border-block-start: 1px solid var(--border-subtle);
   padding-block: 0.5rem 0;
 }
 
@@ -120,7 +120,7 @@
 }
 
 .adminnav__secondary-link:hover {
-  background: var(--surface-muted, var(--accent-050));
+  background: var(--surface-muted);
   color: var(--ink-primary);
 }
 
@@ -138,7 +138,7 @@
   padding: 0.0625rem 0.3125rem;
   border-radius: 0.25rem;
   border: 1px solid var(--border-default);
-  background: var(--surface-page, var(--surface-card));
+  background: var(--surface-page);
   /* 11px, not 10. The scope chip is the thing that tells an operator a
      surface administers their OWN workspace rather than the platform, and it
      was the smallest text in the console. */
@@ -199,9 +199,9 @@
 .adminnav__scope-notice {
   margin-block-end: 1rem;
   padding: 0.75rem 0.875rem;
-  border: 1px solid var(--warning-border, var(--border-default));
+  border: 1px solid var(--warning-border);
   border-radius: 0.5rem;
-  background: var(--warning-surface, var(--surface-muted, var(--surface-card)));
+  background: var(--warning-surface);
   font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--ink-secondary);

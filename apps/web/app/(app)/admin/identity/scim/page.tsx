@@ -38,28 +38,14 @@ import {
 import { FilterBar } from "../../../../../components/ui/FilterBar";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
-import {
-  cardStyle,
-  errorBoxStyle,
-  formatDateTime,
-  ghostButtonStyle,
-  inputStyle,
-  mutedStyle,
-  sectionTitleStyle,
-  statusBadgeStyle,
-  successBoxStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  badgeStyle,
-  TOKENS,
-} from "../ui-tokens";
+import { formatDateTime, ghostButtonStyle, statusBadgeStyle, successBoxStyle, badgeStyle, TOKENS } from "../ui-tokens";
 import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import {
+  AdmInline,
   AdmTabPanel,
   AdmTabs,
 } from "../../../../../components/admin/AdminSurfaces";
@@ -115,9 +101,9 @@ function ScimDenialPanel({ denial }: { denial: ScimDenial }) {
       padding="comfortable"
       data-testid="scim-denied"
       style={{ marginTop: 12 }}
-    >
+ >
       <strong style={{ fontSize: 14 }}>{denial.title}</strong>
-      <p style={{ ...mutedStyle, marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
+      <p className="adm-help" style={{ marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
         {denial.detail}
       </p>
     </Card>
@@ -347,7 +333,7 @@ export default function ScimPage() {
           }
         />
       }
-    >
+ >
       <AdmTabs
         label="SCIM operations"
         tabs={(Object.keys(TAB_LABELS) as TabKey[]).map((k) => ({
@@ -618,7 +604,7 @@ function TokensTab({ teamId }: { teamId: string }) {
               "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 12,
           }}
-        >
+ >
           {t.tokenPrefix}…
         </code>
       ),
@@ -632,20 +618,20 @@ function TokensTab({ teamId }: { teamId: string }) {
       key: "scopes",
       header: "Scopes",
       render: (t) => (
-        <span style={{ ...mutedStyle, fontSize: 11 }}>{t.scopes.join(", ")}</span>
+        <span className="adm-help" style={{ fontSize: 11 }}>{t.scopes.join(", ")}</span>
       ),
     },
     {
       key: "lastused",
       header: "Last used",
       nowrap: true,
-      render: (t) => <span style={mutedStyle}>{formatDateTime(t.lastUsedAtUtc)}</span>,
+      render: (t) => <span className="adm-help">{formatDateTime(t.lastUsedAtUtc)}</span>,
     },
     {
       key: "created",
       header: "Created",
       nowrap: true,
-      render: (t) => <span style={mutedStyle}>{formatDateTime(t.createdAt)}</span>,
+      render: (t) => <span className="adm-help">{formatDateTime(t.createdAt)}</span>,
     },
   ];
 
@@ -658,8 +644,8 @@ function TokensTab({ teamId }: { teamId: string }) {
           alignItems: "center",
           marginBottom: 8,
         }}
-      >
-        <p style={mutedStyle}>
+ >
+        <p className="adm-help">
           Bearer tokens for SCIM v2 provisioning. Tokens are scope-bounded and
           hashed at rest; raw values are shown exactly once at creation.
         </p>
@@ -675,13 +661,13 @@ function TokensTab({ teamId }: { teamId: string }) {
             setShowCreate(true);
             setRevealedToken(null);
           }}
-        >
+ >
           New token
         </Button>
       </div>
 
       {denial ? <ScimDenialPanel denial={denial} /> : null}
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {revealedToken ? (
         <div style={successBoxStyle}>
           <strong>Token issued.</strong> Copy now — this is the only time it
@@ -691,7 +677,7 @@ function TokensTab({ teamId }: { teamId: string }) {
             type="button"
             style={{ ...ghostButtonStyle, marginInlineStart: 12 }}
             onClick={() => setRevealedToken(null)}
-          >
+ >
             Dismiss
           </button>
         </div>
@@ -704,12 +690,12 @@ function TokensTab({ teamId }: { teamId: string }) {
             marginTop: 16,
             padding: "12px 14px",
             borderRadius: 8,
-            border: "1px solid var(--border-subtle, #d6d9e0)",
-            background: "var(--surface-muted, #f6f7f9)",
+            border: "1px solid var(--border-subtle)",
+            background: "var(--surface-muted)",
             fontSize: 13,
             lineHeight: 1.5,
           }}
-        >
+ >
           <strong style={{ display: "block", marginBottom: 2 }}>
             Directory provisioning is not included in this plan
           </strong>
@@ -744,7 +730,7 @@ function TokensTab({ teamId }: { teamId: string }) {
                       setShowCreate(true);
                       setRevealedToken(null);
                     }}
-                  >
+ >
                     New token
                   </Button>
                 }
@@ -763,7 +749,7 @@ function TokensTab({ teamId }: { teamId: string }) {
                         : "Rotating a token is part of the Enterprise plan. You can still revoke this token."
                     }
                     onClick={() => rotate(t)}
-                  >
+ >
                     Rotate
                   </Button>
                   {/*
@@ -777,7 +763,7 @@ function TokensTab({ teamId }: { teamId: string }) {
                     size="sm"
                     disabled={busy === t.id}
                     onClick={() => revoke(t.id)}
-                  >
+ >
                     Revoke
                   </Button>
                 </div>
@@ -788,8 +774,8 @@ function TokensTab({ teamId }: { teamId: string }) {
       )}
 
       {showCreate ? (
-        <section style={{ ...cardStyle, marginTop: 16 }}>
-          <h3 style={sectionTitleStyle}>New SCIM token</h3>
+        <section className="adm-card" style={{ marginTop: 16 }}>
+          <h3 className="adm-subhead">New SCIM token</h3>
           <label
             style={{
               display: "flex",
@@ -799,10 +785,10 @@ function TokensTab({ teamId }: { teamId: string }) {
               color: TOKENS.inkMuted,
               maxWidth: 360,
             }}
-          >
+ >
             <span>Token name</span>
             <input
-              style={inputStyle}
+              className="adm-input"
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
               placeholder="Acme Okta provisioning"
@@ -810,12 +796,9 @@ function TokensTab({ teamId }: { teamId: string }) {
           </label>
           <div style={{ marginTop: 12 }}>
             <div
-              style={{
-                ...sectionTitleStyle,
-                fontSize: 11,
-                marginBottom: 4,
-              }}
-            >
+              className="adm-subhead" style={{ fontSize: 11,
+                marginBottom: 4 }}
+ >
               Scopes
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -843,7 +826,7 @@ function TokensTab({ teamId }: { teamId: string }) {
                       borderColor: active ? TOKENS.accent : "var(--border-standard)",
                       cursor: "pointer",
                     }}
-                  >
+ >
                     {s}
                   </button>
                 );
@@ -856,13 +839,13 @@ function TokensTab({ teamId }: { teamId: string }) {
               loading={busy === "create"}
               disabled={busy === "create" || createScopes.size === 0}
               onClick={submitCreate}
-            >
+ >
               {busy === "create" ? "Creating…" : "Create token"}
             </Button>
             <Button
               variant="ghost"
               onClick={() => setShowCreate(false)}
-            >
+ >
               Cancel
             </Button>
           </div>
@@ -1009,8 +992,8 @@ function DriftTab({ teamId }: { teamId: string }) {
           gap: 12,
           flexWrap: "wrap",
         }}
-      >
-        <p style={{ ...mutedStyle, maxWidth: 720 }}>
+ >
+        <p className="adm-help" style={{ maxWidth: 720 }}>
           Detect drift between PROOVRA workspace state and IdP source of truth:
           orphan memberships, unlinked-but-active users, stale tokens, orphan
           SCIM groups, duplicate external subjects. Scan runs locally — no IdP
@@ -1021,13 +1004,13 @@ function DriftTab({ teamId }: { teamId: string }) {
           onClick={scan}
           loading={scanning}
           disabled={scanning}
-        >
+ >
           {scanning ? "Scanning…" : "Re-scan"}
         </Button>
       </div>
 
       {denial ? <ScimDenialPanel denial={denial} /> : null}
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+      {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {result ? (
         <div style={successBoxStyle}>
           <strong>Reconciliation complete.</strong> Applied{" "}
@@ -1045,34 +1028,34 @@ function DriftTab({ teamId }: { teamId: string }) {
             tone={report.summary.byRisk.HIGH > 0 ? "risk" : "governance"}
             padding="comfortable"
             style={{ marginTop: 16 }}
-          >
+ >
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
             <div>
-              <div style={mutedStyle}>Drift items</div>
+              <div className="adm-help">Drift items</div>
               <div style={{ fontSize: 22, fontWeight: 700 }}>
                 {report.summary.total}
               </div>
             </div>
             <div>
-              <div style={mutedStyle}>High risk</div>
+              <div className="adm-help">High risk</div>
               <div
                 style={{
                   fontSize: 22,
                   fontWeight: 700,
                   color: report.summary.byRisk.HIGH > 0 ? "var(--danger-strong)" : undefined,
                 }}
-              >
+ >
                 {report.summary.byRisk.HIGH ?? 0}
               </div>
             </div>
             <div>
-              <div style={mutedStyle}>Destructive</div>
+              <div className="adm-help">Destructive</div>
               <div style={{ fontSize: 22, fontWeight: 700 }}>
                 {report.summary.destructiveCount}
               </div>
             </div>
             <div>
-              <div style={mutedStyle}>Preview generated</div>
+              <div className="adm-help">Preview generated</div>
               <div style={{ fontSize: 13, fontWeight: 500 }}>
                 {formatDateTime(report.generatedAtUtc)}
               </div>
@@ -1083,7 +1066,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                 disabled={selected.size === 0 || executing}
                 loading={executing}
                 onClick={execute}
-              >
+ >
                 {executing
                   ? "Reconciling…"
                   : `Reconcile selected (${selected.size})`}
@@ -1093,13 +1076,13 @@ function DriftTab({ teamId }: { teamId: string }) {
           </Card>
 
           {report.truncated ? (
-            <p style={{ ...mutedStyle, marginTop: 8 }}>
+            <p className="adm-help" style={{ marginTop: 8 }}>
               ⚠ Result truncated to 200 rows. Resolve high-risk items first,
               then re-scan.
             </p>
           ) : null}
 
-          <section style={{ ...cardStyle, marginTop: 12, padding: 0 }}>
+          <section className="adm-card" style={{ marginTop: 12, padding: 0 }}>
             {report.items.length === 0 ? (
               <EmptyState variant="inline"
                 title="No drift detected"
@@ -1110,21 +1093,21 @@ function DriftTab({ teamId }: { teamId: string }) {
               {/* A wide table scrolls ITSELF. Measured at 320px, an unwrapped table
               drags the whole page sideways and the reader loses the column
               headers and the navigation at the same moment. */}
-              <table style={tableStyle}>
+              <table className="adm-table">
                 <thead>
                   <tr>
-                    <th style={thStyle}>{" "}</th>
-                    <th style={thStyle}>Category</th>
-                    <th style={thStyle}>Risk</th>
-                    <th style={thStyle}>Subject</th>
-                    <th style={thStyle}>Summary</th>
-                    <th style={thStyle}>Action</th>
+                    <th>{" "}</th>
+                    <th>Category</th>
+                    <th>Risk</th>
+                    <th>Subject</th>
+                    <th>Summary</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {report.items.map((i) => (
                     <tr key={i.id}>
-                      <td style={tdStyle}>
+                      <td>
                         <input
                           type="checkbox"
                           checked={selected.has(i.id)}
@@ -1133,30 +1116,30 @@ function DriftTab({ teamId }: { teamId: string }) {
                           aria-label={`Select drift item ${i.id}`}
                         />
                       </td>
-                      <td style={tdStyle}>
-                        <span style={{ ...mutedStyle, fontSize: 11 }}>
+                      <td>
+                        <span className="adm-help" style={{ fontSize: 11 }}>
                           {i.category}
                         </span>
                       </td>
-                      <td style={tdStyle}>
+                      <td>
                         <span style={riskBadge(i.riskLevel)}>
                           {i.riskLevel}
                         </span>
                       </td>
-                      <td style={tdStyle}>
+                      <td>
                         <div style={{ fontSize: 12 }}>
                           <div style={{ fontWeight: 500 }}>
                             {i.subject.label ?? "—"}
                           </div>
-                          <div style={mutedStyle}>
+                          <div className="adm-help">
                             {i.subject.kind} · {i.subject.id.slice(0, 12)}…
                           </div>
                         </div>
                       </td>
-                      <td style={tdStyle}>
+                      <td>
                         <span style={{ fontSize: 12 }}>{i.summary}</span>
                       </td>
-                      <td style={tdStyle}>
+                      <td>
                         <span
                           style={
                             i.isDestructive
@@ -1171,7 +1154,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                                   border: "var(--info-border)",
                                 })
                           }
-                        >
+ >
                           {i.proposedAction}
                         </span>
                       </td>
@@ -1184,7 +1167,7 @@ function DriftTab({ teamId }: { teamId: string }) {
           </section>
         </>
       ) : scanning ? (
-        <p style={{ ...mutedStyle, padding: 16 }}>Running drift scan…</p>
+        <p className="adm-help" style={{ padding: 16 }}>Running drift scan…</p>
       ) : null}
 
       <StepUpModal control={stepUp} />
@@ -1306,13 +1289,13 @@ function ReplayTab({ teamId }: { teamId: string }) {
       key: "occurred",
       header: "Occurred",
       nowrap: true,
-      render: (f) => <span style={mutedStyle}>{formatDateTime(f.occurredAtUtc)}</span>,
+      render: (f) => <span className="adm-help">{formatDateTime(f.occurredAtUtc)}</span>,
     },
     {
       key: "type",
       header: "Type",
       render: (f) => (
-        <span style={{ ...mutedStyle, fontSize: 11 }}>{f.eventType}</span>
+        <span className="adm-help" style={{ fontSize: 11 }}>{f.eventType}</span>
       ),
     },
     {
@@ -1327,7 +1310,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
                 ? { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" }
                 : { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" },
           )}
-        >
+ >
           {f.severity}
         </span>
       ),
@@ -1366,8 +1349,8 @@ function ReplayTab({ teamId }: { teamId: string }) {
           alignItems: "center",
           marginBottom: 8,
         }}
-      >
-        <p style={{ ...mutedStyle, maxWidth: 720 }}>
+ >
+        <p className="adm-help" style={{ maxWidth: 720 }}>
           Recent SCIM sync failures. Transient failures (e.g. failed user
           creation) can be replayed; terminal failures (bad token) require
           issuing a new token in the Tokens tab.
@@ -1378,8 +1361,8 @@ function ReplayTab({ teamId }: { teamId: string }) {
       </div>
 
       {denial ? <ScimDenialPanel denial={denial} /> : null}
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
-      {success ? <div style={successBoxStyle}>{success}</div> : null}
+      {error ? <AdmInline state="error">{error}</AdmInline> : null}
+      {success ? <AdmInline state="done">{success}</AdmInline> : null}
 
       {/* Server-side. Both go into the request, so the 100-row cap applies
           to the NARROWED set — a browser-side filter would keep the cap over
@@ -1434,11 +1417,11 @@ function ReplayTab({ teamId }: { teamId: string }) {
                 size="sm"
                 disabled={busy === f.id}
                 onClick={() => replay(f.id)}
-              >
+ >
                 {busy === f.id ? "Replaying…" : "Replay"}
               </Button>
             ) : (
-              <span style={{ ...mutedStyle, fontSize: 11 }}>Not replayable</span>
+              <span className="adm-help" style={{ fontSize: 11 }}>Not replayable</span>
             )
           }
         />

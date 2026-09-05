@@ -17,12 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId } from "../../../../../lib/platform-context";
-import {
-  errorBoxStyle,
-  formatDateTime,
-  mutedStyle,
-  statusBadgeStyle,
-} from "../ui-tokens";
+import { formatDateTime, statusBadgeStyle } from "../ui-tokens";
 import { PageShell, PageHeader, PageSection } from "../../../../../components/ui/PageShell";
 import { Button } from "../../../../../components/ui/Button";
 import { FilterBar } from "../../../../../components/ui/FilterBar";
@@ -30,6 +25,9 @@ import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { presentActor } from "../../../../../lib/audit/auditPresentation";
+import {
+  AdmInline,
+} from "../../../../../components/admin/AdminSurfaces";
 
 type TimelineEvent = {
   id: string;
@@ -190,14 +188,14 @@ export default function IdentityTimelinePage() {
   // nothing to pop on page one, Next nothing to follow when hasMore is false.
   const pager = (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <span style={mutedStyle}>{`Page ${cursors.length + 1}`}</span>
+      <span className="adm-help">{`Page ${cursors.length + 1}`}</span>
       <Button
         variant="secondary"
         size="sm"
         disabled={events === null || cursors.length === 0}
         onClick={goPrevious}
         data-testid="admin-identity-timeline-previous"
-      >
+ >
         Previous
       </Button>
       <Button
@@ -206,7 +204,7 @@ export default function IdentityTimelinePage() {
         disabled={events === null || !hasMore || !nextCursor}
         onClick={goNext}
         data-testid="admin-identity-timeline-next"
-      >
+ >
         Next
       </Button>
     </div>
@@ -218,7 +216,7 @@ export default function IdentityTimelinePage() {
       header: "When",
       nowrap: true,
       render: (e) => (
-        <span style={mutedStyle}>{formatDateTime(e.occurredAtUtc)}</span>
+        <span className="adm-help">{formatDateTime(e.occurredAtUtc)}</span>
       ),
     },
     {
@@ -238,7 +236,7 @@ export default function IdentityTimelinePage() {
               "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             fontSize: 12,
           }}
-        >
+ >
           {e.kind}
         </code>
       ),
@@ -293,8 +291,8 @@ export default function IdentityTimelinePage() {
           }
         />
       }
-    >
-      {error ? <div style={errorBoxStyle}>{error}</div> : null}
+ >
+      {error ? <AdmInline state="error">{error}</AdmInline> : null}
 
       <PageSection>
         <FilterBar>

@@ -172,7 +172,7 @@ export function ActiveSessionsSection() {
   });
   const [quarantineState, setQuarantineState] = useState<
     SectionState<QuarantinePage>
-  >({ kind: "loading" });
+ >({ kind: "loading" });
   /** A page turn keeps the table on screen and marks it busy. */
   const [sessionsBusy, setSessionsBusy] = useState(false);
   const [quarantineBusy, setQuarantineBusy] = useState(false);
@@ -504,7 +504,7 @@ export function ActiveSessionsSection() {
           Refresh
         </Button>
       }
-    >
+ >
       {/* WHAT YOU SEE, separated from WHAT AN ACTION WILL DO.
           These three controls shared one box: two of them filter the list and
           the third sets the reason recorded when you quarantine a session.
@@ -534,14 +534,14 @@ export function ActiveSessionsSection() {
       <Card padding="compact" style={{ marginBottom: 12 }}>
         <div
           style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}
-        >
+ >
           <label style={{ minWidth: 220 }}>
             <span style={sectionLabelStyle}>Reason used when you quarantine</span>
             <select
               value={quarantineReason}
               onChange={(e) => setQuarantineReason(e.target.value)}
               style={sectionInputStyle}
-            >
+ >
               {QUARANTINE_REASONS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
@@ -581,7 +581,7 @@ export function ActiveSessionsSection() {
               whiteSpace: "nowrap",
               justifyContent: "flex-end",
             }}
-          >
+ >
             <Button variant="secondary" size="sm" onClick={() => setTimelineFor(s.id)}>
               Timeline
             </Button>
@@ -605,7 +605,7 @@ export function ActiveSessionsSection() {
                     failureMessage: "We couldn't quarantine that session.",
                   })
                 }
-              >
+ >
                 Quarantine
               </Button>
             ) : null}
@@ -628,7 +628,7 @@ export function ActiveSessionsSection() {
                     failureMessage: "We couldn't revoke that session.",
                   })
                 }
-              >
+ >
                 Revoke
               </Button>
             ) : null}
@@ -656,7 +656,7 @@ export function ActiveSessionsSection() {
                   failureMessage: "We couldn't revoke that member's sessions.",
                 })
               }
-            >
+ >
               Revoke all
             </Button>
           </div>
@@ -724,7 +724,7 @@ export function ActiveSessionsSection() {
                     failureMessage: "We couldn't release that hold.",
                   })
                 }
-              >
+ >
                 Release
               </Button>
             )}

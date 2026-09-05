@@ -180,7 +180,7 @@ export default function AdminPeoplePage() {
       render: (r) => (
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 620 }}>{dash(r.email)}</div>
-          <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
             {dash(r.name)} · joined {formatUserDateTime(r.createdAt)}
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function AdminPeoplePage() {
         r.accountTier ? (
           <Badge tone={TIER_TONE[r.accountTier] ?? "neutral"}>{r.accountTier}</Badge>
         ) : (
-          <span style={{ color: "var(--ink-muted, #94a3b8)" }}>None</span>
+          <span style={{ color: "var(--ink-muted)" }}>None</span>
         ),
     },
     {
@@ -201,7 +201,7 @@ export default function AdminPeoplePage() {
       header: "Subscription",
       render: (r) => {
         if (r.subscriptions.length === 0) {
-          return <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>;
+          return <span style={{ color: "var(--ink-muted)" }}>—</span>;
         }
         const live = r.subscriptions.filter(
           (s) => s.status === "ACTIVE" || s.status === "TRIALING",
@@ -214,7 +214,7 @@ export default function AdminPeoplePage() {
                 key={s.id}
                 tone={s.status === "ACTIVE" ? "verified" : "neutral"}
                 subtle
-              >
+ >
                 {s.provider} {s.plan} · {s.status}
               </Badge>
             ))}
@@ -268,7 +268,7 @@ export default function AdminPeoplePage() {
         r.platformRole ? (
           <Badge tone="governance">Admin</Badge>
         ) : (
-          <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+          <span style={{ color: "var(--ink-muted)" }}>—</span>
         ),
     },
     {
@@ -317,7 +317,7 @@ export default function AdminPeoplePage() {
           subtitle="Every person on the platform, with the commercial context that answers 'what do they pay for?'. Membership states are shown as memberships — this platform models no account-level disable, so nothing here claims one."
         />
       }
-    >
+ >
 
       <FilterBar
         actions={
@@ -330,14 +330,14 @@ export default function AdminPeoplePage() {
             </Button>
           </>
         }
-      >
+ >
         <form
           onSubmit={(e) => {
             e.preventDefault();
             setApplied(search);
           }}
           style={{ display: "contents" }}
-        >
+ >
           <FilterBar.Search
             label="Search people by email or name"
             value={search}
@@ -437,10 +437,10 @@ export default function AdminPeoplePage() {
             gap: 12,
             flexWrap: "wrap",
             fontSize: 13,
-            color: "var(--ink-secondary, #475569)",
+            color: "var(--ink-secondary)",
             marginTop: 16,
           }}
-        >
+ >
           <span>
             {total === 0
               ? "No people"
@@ -452,7 +452,7 @@ export default function AdminPeoplePage() {
               size="sm"
               onClick={() => void load(page - 1)}
               disabled={loading || page <= 1}
-            >
+ >
               Previous
             </Button>
             <span style={{ minWidth: 90, textAlign: "center" }}>
@@ -463,7 +463,7 @@ export default function AdminPeoplePage() {
               size="sm"
               onClick={() => void load(page + 1)}
               disabled={loading || page >= (data?.totalPages ?? 0)}
-            >
+ >
               Next
             </Button>
           </div>

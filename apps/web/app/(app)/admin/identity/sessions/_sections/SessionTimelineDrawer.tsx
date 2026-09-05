@@ -12,6 +12,12 @@
  * surfaced (login, MFA, step-up, quarantine, revoke). Page views, mouse
  * activity and evidence-content reads are never included, and IP / UA /
  * device telemetry is omitted from the timeline entirely.
+ *
+ * PHASE 7: the panel itself was a hand-rolled `role="dialog"` — `right: 0`
+ * that did not mirror under RTL, no scrim, no focus move, no focus trap, no
+ * focus return and no Escape. It is now `AdmOverlay`, which is the one
+ * implementation the console's four panels share, and the body is composed
+ * from the canonical surfaces rather than from the legacy token objects.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -21,11 +27,16 @@ import { useTenantGuard } from "../../../../../../lib/platform-context";
 import { Badge } from "../../../../../../components/ui/Badge";
 import { Button } from "../../../../../../components/ui/Button";
 import {
+  AdmFacts,
+  AdmInline,
+  AdmOverlay,
+  AdmSkeleton,
+} from "../../../../../../components/admin/AdminSurfaces";
+import {
   classifyError,
-  sectionMuted,
   type SectionState,
 } from "../../../security/_sections/section-state";
-import { formatDateTime, TOKENS } from "../../ui-tokens";
+import { formatDateTime } from "../../ui-tokens";
 
 type IdentityTimelineEvent = {
   id: string;
@@ -48,6 +59,16 @@ type IdentitySessionTimeline = {
   };
   events: ReadonlyArray<IdentityTimelineEvent>;
   truncated: boolean;
+};
+
+/** The API's three levels, mapped to the console's severity vocabulary. */
+const SEVERITY: Record<
+  IdentityTimelineEvent["severity"],
+  "critical" | "warning" | "unknown"
+> = {
+  HIGH: "critical",
+  WARNING: "warning",
+  INFO: "unknown",
 };
 
 export function SessionTimelineDrawer({
@@ -99,131 +120,97 @@ export function SessionTimelineDrawer({
   }, [load]);
 
   return (
-    <div
-      role="dialog"
-      aria-label="Session identity timeline"
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        height: "100vh",
-        width: "min(560px, 100vw)",
-        background: TOKENS.surface,
-        borderInlineStart: `1px solid ${TOKENS.border}`,
-        boxShadow: "0 0 40px rgba(15, 23, 42, 0.1)",
-        zIndex: 50,
-        overflowY: "auto",
-        padding: 20,
-      }}
-    >
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 12,
-        }}
-      >
-        <h2 style={{ fontSize: 16, margin: 0 }}>Session timeline</h2>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Close
-        </Button>
-      </header>
-
-      <p style={sectionMuted}>
-        Bounded reconstruction of the identity events in this session&apos;s life:
-        sign-in, second factor, step-up, quarantine, revoke. Page views, mouse
-        activity and evidence reads are never included.
-      </p>
-
-      {state.kind === "loading" ? (
-        <p style={sectionMuted}>Reading the timeline…</p>
-      ) : null}
+    <AdmOverlay
+      title="Session timeline"
+      subtitle="Sign-in, second factor, step-up, quarantine and revoke — in order. Page views, mouse activity and evidence reads are never recorded here."
+      onClose={onClose}
+      testId="session-timeline-drawer"
+ >
+      {state.kind === "loading" ? <AdmSkeleton shape="row" count={4} /> : null}
 
       {state.kind === "denied" ? (
-        <div style={{ marginTop: 12 }}>
-          <Badge tone="neutral">No access</Badge>
-          <p style={{ ...sectionMuted, marginTop: 6 }}>{state.message}</p>
-          <p style={sectionMuted}>
-            This is a refusal, not an empty timeline. Ask a workspace owner or
-            admin for identity-operations access.
-          </p>
-        </div>
+        <AdmInline state="unavailable" label="No access">
+          {state.message} This is a refusal, not an empty timeline — ask a
+          workspace owner or admin for identity-operations access.
+        </AdmInline>
       ) : null}
 
       {state.kind === "error" ? (
-        <div style={{ marginTop: 12 }}>
-          <Badge tone="risk">Could not load</Badge>
-          <p style={{ ...sectionMuted, marginTop: 6 }}>{state.message}</p>
-          <Button variant="secondary" size="sm" onClick={() => void load()}>
-            Try again
-          </Button>
-        </div>
+        <AdmInline
+          state="error"
+          action={
+            <Button variant="secondary" size="sm" onClick={() => void load()}>
+              Try again
+            </Button>
+          }
+ >
+          {state.message}
+        </AdmInline>
       ) : null}
 
       {state.kind === "ready" ? (
         <>
-          <section style={{ marginTop: 12 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 6px" }}>Session</h3>
-            <dl style={{ margin: 0, fontSize: 12.5 }}>
-              <Row label="Signed in" value={formatDateTime(state.data.session.issuedAtUtc)} />
-              <Row label="Expires" value={formatDateTime(state.data.session.expiresAtUtc)} />
-              <Row
-                label="Last seen"
-                value={formatDateTime(state.data.session.lastSeenAtUtc)}
-              />
-              {state.data.session.revokedAtUtc ? (
-                <Row
-                  label="Revoked"
-                  value={`${formatDateTime(state.data.session.revokedAtUtc)} (${
-                    state.data.session.revocationReason ?? "unspecified"
-                  })`}
-                />
-              ) : null}
-              {state.data.session.ssoConnectionId ? (
-                <Row
-                  label="Identity provider"
-                  value={`${state.data.session.ssoConnectionId.slice(0, 8)}…`}
-                />
-              ) : null}
-            </dl>
+          <section>
+            <h3 className="adm-card__title">Session</h3>
+            <AdmFacts
+              items={[
+                {
+                  label: "Signed in",
+                  value: formatDateTime(state.data.session.issuedAtUtc),
+                },
+                {
+                  label: "Expires",
+                  value: formatDateTime(state.data.session.expiresAtUtc),
+                },
+                {
+                  label: "Last seen",
+                  value: formatDateTime(state.data.session.lastSeenAtUtc),
+                },
+                ...(state.data.session.revokedAtUtc
+                  ? [
+                      {
+                        label: "Revoked",
+                        value: `${formatDateTime(
+                          state.data.session.revokedAtUtc,
+                        )} (${
+                          state.data.session.revocationReason ?? "unspecified"
+                        })`,
+                      },
+                    ]
+                  : []),
+                ...(state.data.session.ssoConnectionId
+                  ? [
+                      {
+                        label: "Identity provider",
+                        value: (
+                          <span className="adm-mono">
+                            {state.data.session.ssoConnectionId}
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </section>
 
-          <section style={{ marginTop: 16 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, margin: "0 0 6px" }}>
+          <section>
+            <h3 className="adm-card__title">
               Identity events ({state.data.events.length}
               {state.data.truncated ? " of 200+" : ""})
             </h3>
             {state.data.events.length === 0 ? (
-              <p style={sectionMuted}>
-                No bounded identity events were recorded for this session.
-              </p>
+              <AdmInline state="empty" label="No identity events">
+                Nothing in the bounded allowlist was recorded for this session.
+              </AdmInline>
             ) : (
-              <ol
-                style={{
-                  margin: 0,
-                  padding: 0,
-                  listStyle: "none",
-                  borderInlineStart: `2px solid ${TOKENS.border}`,
-                }}
-              >
+              <ol className="adm-timeline">
                 {state.data.events.map((e) => (
-                  <li
-                    key={e.id}
-                    style={{
-                      marginInlineStart: 12,
-                      paddingInlineStart: 12,
-                      paddingBottom: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 6,
-                        alignItems: "center",
-                        marginBottom: 2,
-                      }}
-                    >
+                  <li key={e.id} data-severity={SEVERITY[e.severity]}>
+                    <div className="adm-timeline__meta">
+                      {/* The marker's colour is a scan aid, not the signal:
+                          severity is stated in words so it survives greyscale,
+                          colour-blindness and a screen reader. */}
                       <Badge
                         tone={
                           e.severity === "HIGH"
@@ -232,19 +219,21 @@ export function SessionTimelineDrawer({
                               ? "pending"
                               : "info"
                         }
-                      >
+ >
                         {e.severity}
                       </Badge>
-                      <span style={sectionMuted}>{e.eventType}</span>
+                      <span className="adm-timeline__kind">{e.eventType}</span>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{e.summary}</div>
-                    <div style={sectionMuted}>{formatDateTime(e.occurredAtUtc)}</div>
+                    <div className="adm-timeline__summary">{e.summary}</div>
+                    <div className="adm-timeline__when">
+                      {formatDateTime(e.occurredAtUtc)}
+                    </div>
                   </li>
                 ))}
               </ol>
             )}
             {state.data.truncated ? (
-              <p style={{ ...sectionMuted, marginTop: 8 }}>
+              <p className="adm-note">
                 More than 200 events were recorded for this session — older ones
                 are not shown. Use the Audit Center for the full history.
               </p>
@@ -252,16 +241,7 @@ export function SessionTimelineDrawer({
           </section>
         </>
       ) : null}
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: "flex", gap: 8, padding: "3px 0" }}>
-      <dt style={{ ...sectionMuted, minWidth: 130 }}>{label}</dt>
-      <dd style={{ margin: 0 }}>{value}</dd>
-    </div>
+    </AdmOverlay>
   );
 }
 

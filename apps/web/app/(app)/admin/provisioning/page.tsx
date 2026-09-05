@@ -148,7 +148,7 @@ function AdminProvisioningInner() {
           />
         </div>
       }
-    >
+ >
       {!teamId ? (
         <Card variant="summary" padding="comfortable">
           <p style={mutedStyle} data-testid="admin-provisioning-loading">
@@ -160,7 +160,7 @@ function AdminProvisioningInner() {
           <PageSection
             title="Provision new enterprise customer"
             description="Stand up a brand-new organization and its enterprise workspace, or invite an owner who doesn't have an account yet."
-          >
+ >
             <ProvisionPanel
               teamId={teamId}
               onOrganizationProvisioned={setTargetOrganizationId}
@@ -170,7 +170,7 @@ function AdminProvisioningInner() {
           <PageSection
             title="Grant enterprise to an existing organization"
             description="Apply the ENTERPRISE plan to every workspace in an organization that already exists."
-          >
+ >
             <GrantPlanPanel
               teamId={teamId}
               organizationId={targetOrganizationId}
@@ -181,7 +181,7 @@ function AdminProvisioningInner() {
           <PageSection
             title="Invitations for this organization"
             description="Durable delivery state for every pending invitation, with resend (which rotates the link) and revoke."
-          >
+ >
             <InvitationGovernanceSection
               organizationId={targetOrganizationId}
               onOrganizationIdChange={setTargetOrganizationId}
@@ -191,7 +191,7 @@ function AdminProvisioningInner() {
           <PageSection
             title="Recent provisioning events"
             description="Every provision and plan grant is written to the platform audit log."
-          >
+ >
             <RecentEventsCard />
           </PageSection>
         </>
@@ -211,17 +211,17 @@ const labelStyle = {
   gap: 6,
   fontSize: 13,
   fontWeight: 600,
-  color: "var(--ink-primary, #0f172a)",
+  color: "var(--ink-primary)",
 } as const;
 
 const inputStyle = {
   padding: "10px 12px",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.14))",
+  border: "1px solid var(--border-default)",
   borderRadius: 10,
   fontSize: 14,
   fontWeight: 400,
-  background: "var(--surface-card, #ffffff)",
-  color: "var(--ink-primary, #0f172a)",
+  background: "var(--surface-card)",
+  color: "var(--ink-primary)",
   width: "100%",
   outline: "none",
 } as const;
@@ -229,21 +229,21 @@ const inputStyle = {
 const mutedStyle = {
   fontSize: 12.5,
   lineHeight: 1.55,
-  color: "var(--ink-secondary, #475569)",
+  color: "var(--ink-secondary)",
 } as const;
 
 const monoStyle = {
   fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
   fontSize: 12,
-  color: "var(--ink-primary, #0f172a)",
+  color: "var(--ink-primary)",
 } as const;
 
 const errorBoxStyle = {
   marginTop: 14,
   padding: "12px 14px",
-  background: "var(--status-risk-bg, #fef2f2)",
-  color: "var(--status-risk-fg, #991b1b)",
-  border: "1px solid var(--status-risk-border, #fecaca)",
+  background: "var(--status-risk-bg)",
+  color: "var(--status-risk-fg)",
+  border: "1px solid var(--status-risk-border)",
   borderRadius: 10,
   fontSize: 13,
   lineHeight: 1.5,
@@ -252,9 +252,9 @@ const errorBoxStyle = {
 const successBoxStyle = {
   marginTop: 14,
   padding: "12px 14px",
-  background: "var(--status-verified-bg, #ecfdf5)",
-  color: "var(--status-verified-fg, #065f46)",
-  border: "1px solid var(--status-verified-border, #a7f3d0)",
+  background: "var(--status-verified-bg)",
+  color: "var(--status-verified-fg)",
+  border: "1px solid var(--status-verified-border)",
   borderRadius: 10,
   fontSize: 13,
   lineHeight: 1.55,
@@ -287,7 +287,7 @@ function RecentEventsCard() {
           gap: 16,
           flexWrap: "wrap",
         }}
-      >
+ >
         <div style={{ minWidth: 0 }}>
           <div
             style={{
@@ -296,8 +296,8 @@ function RecentEventsCard() {
               gap: 8,
               marginBottom: 6,
             }}
-          >
-            <strong style={{ fontSize: 14, color: "var(--ink-primary, #0f172a)" }}>
+ >
+            <strong style={{ fontSize: 14, color: "var(--ink-primary)" }}>
               Recorded in the platform audit log
             </strong>
             <Badge tone="governance" subtle>
@@ -314,7 +314,7 @@ function RecentEventsCard() {
           href="/admin/audit"
           style={{ textDecoration: "none", flexShrink: 0 }}
           data-testid="recent-events-audit-link"
-        >
+ >
           <Button variant="secondary">Open audit log</Button>
         </a>
       </div>
@@ -481,7 +481,7 @@ function ProvisionPanel({
       variant="summary"
       padding="comfortable"
       data-section="provision-new-customer"
-    >
+ >
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
         Creates the organization. If the owner already has an account, an
         enterprise workspace is created and they can sign in immediately. If
@@ -545,7 +545,7 @@ function ProvisionPanel({
           loading={busy}
           onClick={submit}
           data-testid="provision-submit"
-        >
+ >
           {busy ? "Provisioning…" : "Provision customer"}
         </Button>
       </div>
@@ -588,7 +588,7 @@ function ProvisionPanel({
                 data-testid="provision-invite-delivery"
                 data-delivery-status={result.ownerInviteDelivery.status}
                 style={{ marginTop: 6, ...mutedStyle }}
-              >
+ >
                 Email delivery: {result.ownerInviteDelivery.status.toLowerCase()}
               </div>
             ) : null}
@@ -600,7 +600,7 @@ function ProvisionPanel({
                 alignItems: "center",
                 flexWrap: "wrap",
               }}
-            >
+ >
               <input
                 readOnly
                 style={{ ...inputStyle, maxWidth: 480 }}
@@ -614,7 +614,7 @@ function ProvisionPanel({
                   copyInvite(absoluteInviteUrl(result.inviteUrl))
                 }
                 data-testid="provision-invite-copy"
-              >
+ >
                 {copied ? "Copied" : "Copy invite URL"}
               </Button>
             </div>
@@ -736,7 +736,7 @@ function GrantPlanPanel({
       variant="summary"
       padding="comfortable"
       data-section="grant-existing-org"
-    >
+ >
       <p style={{ ...mutedStyle, marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
         Sets every workspace in the organization to the ENTERPRISE plan. Use
         this after an invited owner accepts, or for any existing organization
@@ -776,7 +776,7 @@ function GrantPlanPanel({
           loading={busy}
           onClick={submit}
           data-testid="grant-submit"
-        >
+ >
           {busy ? "Granting…" : "Grant ENTERPRISE"}
         </Button>
       </div>

@@ -239,7 +239,7 @@ export default function AdminEvidenceRecordsPage() {
               {COHORT_SHORT[r.cohort] ?? r.cohort}
             </Badge>
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+            <span style={{ color: "var(--ink-muted)" }}>—</span>
           ),
       },
       {
@@ -283,7 +283,7 @@ export default function AdminEvidenceRecordsPage() {
               <Link href={`/admin/workspaces/${encodeURIComponent(r.workspace.id)}`}>
                 {r.workspace.name}
               </Link>
-              <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
                 {r.customer ? (
                   <Link href={`/admin/customers/${encodeURIComponent(r.customer.id)}`}>
                     {r.customer.name}
@@ -295,7 +295,7 @@ export default function AdminEvidenceRecordsPage() {
               </div>
             </div>
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+            <span style={{ color: "var(--ink-muted)" }}>—</span>
           ),
       },
       {
@@ -318,10 +318,10 @@ export default function AdminEvidenceRecordsPage() {
             <div
               style={{
                 fontSize: 12,
-                color: "var(--ink-muted, #94a3b8)",
+                color: "var(--ink-muted)",
                 marginTop: 2,
               }}
-            >
+ >
               {r.ageDays} day{r.ageDays === 1 ? "" : "s"} old
             </div>
           </div>
@@ -338,7 +338,7 @@ export default function AdminEvidenceRecordsPage() {
           r.lastChangeAtUtc ? (
             formatUserDateTime(r.lastChangeAtUtc)
           ) : (
-            <span style={{ color: "var(--ink-muted, #94a3b8)" }}>—</span>
+            <span style={{ color: "var(--ink-muted)" }}>—</span>
           ),
       },
       {
@@ -354,7 +354,7 @@ export default function AdminEvidenceRecordsPage() {
               <Link
                 href={`/admin/platform/runbooks/${resolveRunbookSlug(r.runbookSlug)}`}
                 style={{ fontSize: 12.5 }}
-              >
+ >
                 Runbook
               </Link>
             ) : null}
@@ -396,9 +396,9 @@ export default function AdminEvidenceRecordsPage() {
                   margin: "4px 0 0",
                   fontSize: 12.5,
                   lineHeight: 1.55,
-                  color: "var(--ink-secondary, #475569)",
+                  color: "var(--ink-secondary)",
                 }}
-              >
+ >
                 {r.notRetryableReason}
               </p>
             </div>
@@ -445,7 +445,7 @@ export default function AdminEvidenceRecordsPage() {
                 data-variant="ghost"
                 data-size="md"
                 style={buttonSurfaceStyle("ghost")}
-              >
+ >
                 ← Evidence health
               </Link>
               <Button variant="secondary" onClick={() => void load(page)} disabled={loading}>
@@ -455,7 +455,7 @@ export default function AdminEvidenceRecordsPage() {
           }
         />
       }
-    >
+ >
 
       {!evidenceId ? (
         <FilterBar>
@@ -524,7 +524,7 @@ export default function AdminEvidenceRecordsPage() {
               variant="ghost"
               aria-expanded={openRow === r.id}
               onClick={() => setOpenRow(openRow === r.id ? null : r.id)}
-            >
+ >
               {openRow === r.id ? "Hide detail" : "What to do"}
             </Button>
           )}
@@ -557,10 +557,10 @@ export default function AdminEvidenceRecordsPage() {
               gap: 12,
               flexWrap: "wrap",
               fontSize: 13,
-              color: "var(--ink-secondary, #475569)",
+              color: "var(--ink-secondary)",
               marginTop: 16,
             }}
-          >
+ >
             <span>
               {total === 0
                 ? "No records"
@@ -572,7 +572,7 @@ export default function AdminEvidenceRecordsPage() {
                 size="sm"
                 onClick={() => void load(page - 1)}
                 disabled={loading || page <= 1}
-              >
+ >
                 Previous
               </Button>
               <span style={{ minWidth: 90, textAlign: "center" }}>
@@ -583,7 +583,7 @@ export default function AdminEvidenceRecordsPage() {
                 size="sm"
                 onClick={() => void load(page + 1)}
                 disabled={loading || page >= (data?.totalPages ?? 0)}
-              >
+ >
                 Next
               </Button>
             </div>

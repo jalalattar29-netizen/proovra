@@ -157,10 +157,10 @@ function PostureTerm({
           fontWeight: 700,
           letterSpacing: "0.06em",
           textTransform: "uppercase",
-          color: "var(--ink-muted, #64748b)",
+          color: "var(--ink-muted)",
           whiteSpace: "nowrap",
         }}
-      >
+ >
         {label}
       </dt>
       <dd style={{ margin: 0, fontSize: 15, fontWeight: 650 }}>
@@ -398,7 +398,7 @@ export function WorkspaceSecurityPostureSection() {
           Refresh
         </Button>
       }
-    >
+ >
       {/* Every value the nine cards held, in one row that wraps. */}
       <dl
         data-security-posture-strip
@@ -408,11 +408,11 @@ export function WorkspaceSecurityPostureSection() {
           gap: "12px 28px",
           margin: "0 0 16px",
           padding: "12px 16px",
-          border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-          borderRadius: "var(--radius-card, 14px)",
-          background: "var(--surface-card, #ffffff)",
+          border: "1px solid var(--border-default)",
+          borderRadius: "var(--radius-card)",
+          background: "var(--surface-card)",
         }}
-      >
+ >
         <PostureTerm
           label="Malware scanning"
           value={summary.malwareScanningEnabled ? "enabled" : "not enabled"}

@@ -630,20 +630,20 @@ function Shell() {
                 void loadSupportGrants();
                 void loadEmergencyGrants();
               }}
-            >
+ >
               Refresh
             </Button>
           }
         />
       }
-    >
+ >
       {mutationFailure ? (
         <Card
           variant="status"
           tone="risk"
           padding="compact"
           data-support-access-mutation-failure={mutationFailure.kind}
-        >
+ >
           {mutationFailure.message}
         </Card>
       ) : null}
@@ -653,7 +653,7 @@ function Shell() {
           tone="verified"
           padding="compact"
           data-support-access-notice
-        >
+ >
           {notice}
         </Card>
       ) : null}
@@ -667,7 +667,7 @@ function Shell() {
             tone="risk"
             padding="compact"
             data-support-context-active={contextMeta.grantId}
-          >
+ >
             <strong>Support context is active in this tab.</strong>
             <div style={{ ...muted, marginTop: 4 }}>
               Grant <code>{contextMeta.grantId.slice(0, 8)}…</code> · token held
@@ -682,7 +682,7 @@ function Shell() {
                 size="sm"
                 data-support-context-exit
                 onClick={exitContext}
-              >
+ >
                 Leave support context
               </Button>
             </div>
@@ -715,12 +715,12 @@ function Shell() {
               size="sm"
               data-support-access-toggle-actors
               onClick={() => setShowAllActors((v) => !v)}
-            >
+ >
               {showAllActors ? "Show only mine" : "Show all support actors"}
             </Button>
           </FilterBar>
         }
-      >
+ >
         <p style={{ ...muted, marginTop: 0 }}>
           {showAllActors
             ? "Every support grant on the platform. You can only enter context for grants issued to you."
@@ -732,7 +732,7 @@ function Shell() {
             tone="risk"
             padding="compact"
             data-support-grants-failure={supportFailure.kind}
-          >
+ >
             {supportFailure.message}
           </Card>
         ) : (
@@ -758,7 +758,7 @@ function Shell() {
                       data-support-access-enter={g.id}
                       disabled={mutating || contextMeta?.grantId === g.id}
                       onClick={() => void enterContext(g)}
-                    >
+ >
                       {contextMeta?.grantId === g.id ? "In context" : "Enter"}
                     </Button>
                     <Button
@@ -767,7 +767,7 @@ function Shell() {
                       data-support-access-revoke={g.id}
                       disabled={mutating}
                       onClick={() => void revokeSupport(g)}
-                    >
+ >
                       Revoke
                     </Button>
                   </div>
@@ -796,7 +796,7 @@ function Shell() {
       <PageSection
         title="Grant access"
         description="Mint a support grant, or activate break-glass emergency access, over a customer organization. Both are recorded against you and both remain revocable below."
-      >
+ >
         <Card>
           <div style={{ display: "grid", gap: 12, maxWidth: 640 }}>
             <label style={{ display: "grid", gap: 4 }}>
@@ -828,7 +828,7 @@ function Shell() {
                   value={mintAccessLevel}
                   onChange={(e) => setMintAccessLevel(e.target.value)}
                   data-testid="mint-access-level"
-                >
+ >
                   <option value="READ_ONLY">Read only</option>
                   <option value="ELEVATED">Elevated</option>
                 </select>
@@ -839,12 +839,12 @@ function Shell() {
                 disabled={
                   mutating || !mintOrgId.trim() || mintReason.trim().length < 8
                 }
-              >
+ >
                 Create support grant
               </Button>
             </div>
 
-            <hr style={{ border: 0, borderTop: "1px solid var(--rule, #e2e8f0)", margin: "4px 0" }} />
+            <hr style={{ border: 0, borderTop: "1px solid var(--rule)", margin: "4px 0" }} />
 
             <p style={{ ...muted, margin: 0 }}>
               Break-glass is for an incident in which the ordinary permission
@@ -869,7 +869,7 @@ function Shell() {
                   value={emergencyRole}
                   onChange={(e) => setEmergencyRole(e.target.value)}
                   data-testid="break-glass-role"
-                >
+ >
                   <option value="EMERGENCY_READ_ONLY">Emergency read only</option>
                   <option value="EMERGENCY_OPERATOR">Emergency operator</option>
                 </select>
@@ -884,7 +884,7 @@ function Shell() {
                   !emergencyUserId.trim() ||
                   mintReason.trim().length < 8
                 }
-              >
+ >
                 Activate break-glass
               </Button>
             </div>
@@ -908,7 +908,7 @@ function Shell() {
             />
           </FilterBar>
         }
-      >
+ >
         <p style={{ ...muted, marginTop: 0 }}>
           Emergency access grants across the platform. Activation is above and
           requires a recorded strong-auth proof; this console also shows the
@@ -920,7 +920,7 @@ function Shell() {
             tone="risk"
             padding="compact"
             data-break-glass-failure={emergencyFailure.kind}
-          >
+ >
             {emergencyFailure.message}
           </Card>
         ) : (
@@ -945,7 +945,7 @@ function Shell() {
                     data-break-glass-revoke={g.id}
                     disabled={mutating}
                     onClick={() => void revokeEmergency(g)}
-                  >
+ >
                     Revoke
                   </Button>
                 ) : (

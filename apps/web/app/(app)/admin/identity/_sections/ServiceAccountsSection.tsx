@@ -39,7 +39,6 @@ import {
   type RowResult,
   type SurfaceFailure,
 } from "./identity-admin-shared";
-import { inputStyle, mutedStyle } from "../ui-tokens";
 
 type StepUpControl = {
   runStepUpAction: <T>(action: (headers?: Record<string, string>) => Promise<T>) => Promise<T>;
@@ -208,17 +207,14 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
       render: (a) => (
         <div data-identity-service-account-row={a.id}>
           <strong style={{ fontSize: 13 }}>{a.name}</strong>
-          <div style={{ ...mutedStyle }}>
+          <div className="adm-help">
             key <code>{a.keyPrefix}…</code>
           </div>
           {rowResult && rowResult.rowId === a.id ? (
             <div
               data-identity-service-account-result={rowResult.ok ? "ok" : "failed"}
-              style={{
-                ...mutedStyle,
-                color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)",
-              }}
-            >
+              className="adm-help" style={{ color: rowResult.ok ? "var(--success-strong)" : "var(--danger-strong)" }}
+ >
               {rowResult.message}
             </div>
           ) : null}
@@ -244,7 +240,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
       key: "scopes",
       header: "Scopes",
       render: (a) => (
-        <span style={{ ...mutedStyle, fontSize: 11 }}>
+        <span className="adm-help" style={{ fontSize: 11 }}>
           {a.scopes.length > 0 ? a.scopes.join(", ") : "—"}
         </span>
       ),
@@ -253,7 +249,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
       key: "hardening",
       header: "Hardening",
       render: (a) => (
-        <span style={{ ...mutedStyle, fontSize: 11 }}>
+        <span className="adm-help" style={{ fontSize: 11 }}>
           {a.environment ? `${a.environment} · ` : ""}
           {a.ipAllowlist.length > 0
             ? `${a.ipAllowlist.length} IP rule${a.ipAllowlist.length === 1 ? "" : "s"}`
@@ -266,13 +262,13 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
       key: "expires",
       header: "Expires",
       nowrap: true,
-      render: (a) => <span style={mutedStyle}>{fmt(a.expiresAtUtc)}</span>,
+      render: (a) => <span className="adm-help">{fmt(a.expiresAtUtc)}</span>,
     },
     {
       key: "lastused",
       header: "Last used",
       nowrap: true,
-      render: (a) => <span style={mutedStyle}>{fmt(a.lastUsedAtUtc)}</span>,
+      render: (a) => <span className="adm-help">{fmt(a.lastUsedAtUtc)}</span>,
     },
   ];
 
@@ -288,18 +284,18 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
           size="sm"
           data-identity-service-accounts-refresh
           onClick={() => void load()}
-        >
+ >
           Refresh
         </Button>
       }
-    >
+ >
       {failure ? (
         <Card
           variant="status"
           tone="risk"
           padding="compact"
           data-identity-service-accounts-failure={failure.kind}
-        >
+ >
           <strong>
             {failure.kind === "denied"
               ? "Restricted section"
@@ -339,9 +335,9 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
                 flexWrap: "wrap",
                 justifyContent: "flex-end",
               }}
-            >
+ >
               {a.status === "REVOKED" ? (
-                <span style={mutedStyle}>revoked</span>
+                <span className="adm-help">revoked</span>
               ) : (
                 <>
                   {a.disabledAtUtc ? (
@@ -351,7 +347,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
                       data-identity-service-account-enable={a.id}
                       disabled={busyRow === a.id}
                       onClick={() => void setEnabled(a, true)}
-                    >
+ >
                       Re-enable
                     </Button>
                   ) : (
@@ -361,7 +357,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
                       data-identity-service-account-disable={a.id}
                       disabled={busyRow === a.id}
                       onClick={() => void setEnabled(a, false)}
-                    >
+ >
                       Disable
                     </Button>
                   )}
@@ -374,7 +370,7 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
                         ? setHardeningFor(null)
                         : openHardening(a)
                     }
-                  >
+ >
                     Hardening
                   </Button>
                 </>
@@ -391,46 +387,46 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
           title={`Hardening — ${editing.name}`}
           data-identity-service-account-hardening-form={editing.id}
           style={{ marginTop: 12 }}
-        >
+ >
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: 10,
             }}
-          >
-            <label style={{ ...mutedStyle }}>
+ >
+            <label className="adm-help">
               IP allowlist (comma-separated)
               <input
                 data-identity-hardening-ip
-                style={inputStyle}
+                className="adm-input"
                 value={ipAllowlistDraft}
                 onChange={(e) => setIpAllowlistDraft(e.target.value)}
                 placeholder="203.0.113.0/24, 198.51.100.7"
               />
             </label>
-            <label style={{ ...mutedStyle }}>
+            <label className="adm-help">
               Environment label
               <input
                 data-identity-hardening-environment
-                style={inputStyle}
+                className="adm-input"
                 value={environmentDraft}
                 maxLength={32}
                 onChange={(e) => setEnvironmentDraft(e.target.value)}
                 placeholder="production"
               />
             </label>
-            <label style={{ ...mutedStyle }}>
+            <label className="adm-help">
               Expires (UTC date, empty clears)
               <input
                 data-identity-hardening-expiry
                 type="date"
-                style={inputStyle}
+                className="adm-input"
                 value={expiryDraft}
                 onChange={(e) => setExpiryDraft(e.target.value)}
               />
             </label>
-            <label style={{ ...mutedStyle, alignSelf: "end" }}>
+            <label className="adm-help" style={{ alignSelf: "end" }}>
               <input
                 data-identity-hardening-rotation
                 type="checkbox"
@@ -447,14 +443,14 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
               data-identity-hardening-save={editing.id}
               disabled={busyRow === editing.id}
               onClick={() => void saveHardening(editing)}
-            >
+ >
               Save hardening
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setHardeningFor(null)}
-            >
+ >
               Cancel
             </Button>
           </div>

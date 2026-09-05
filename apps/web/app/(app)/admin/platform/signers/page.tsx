@@ -56,20 +56,10 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../../components/identity-security/StepUpModal";
+import { badgeStyle, formatDateTime, ghostButtonStyle, primaryButtonStyle, TOKENS } from "../../identity/ui-tokens";
 import {
-  badgeStyle,
-  cardStyle,
-  formatDateTime,
-  ghostButtonStyle,
-  inputStyle,
-  mutedStyle,
-  primaryButtonStyle,
-  successBoxStyle,
-  tableStyle,
-  tdStyle,
-  thStyle,
-  TOKENS,
-} from "../../identity/ui-tokens";
+  AdmInline,
+} from "../../../../../components/admin/AdminSurfaces";
 
 // ============================================================================
 // Types
@@ -414,7 +404,7 @@ function OperationsSignersContent() {
     <PageShell width="full" header={pageHeader} data-testid="operations-signers-root">
 
       {error ? <div className="apf-note" data-tone="critical">{error}</div> : null}
-      {success ? <div style={successBoxStyle}>{success}</div> : null}
+      {success ? <AdmInline state="done">{success}</AdmInline> : null}
 
       <PurposeOverview
         signers={signers}
@@ -482,7 +472,7 @@ function PurposeOverview({
 }) {
   if (signers === null) {
     return (
-      <section style={{ ...cardStyle, marginTop: 16 }}>
+      <section className="adm-card" style={{ marginTop: 16 }}>
         <p className="apf-muted">Loading signer registry…</p>
       </section>
     );
@@ -502,7 +492,7 @@ function PurposeOverview({
         marginTop: 16,
       }}
       data-testid="signer-overview"
-    >
+ >
       {purposes.map((p) => {
         const active = signers.find(
           (s) => s.signerPurpose === p && s.status === "active",
@@ -511,42 +501,39 @@ function PurposeOverview({
           (s) => s.signerPurpose === p && s.status === "staged",
         );
         return (
-          <div key={p} style={{ ...cardStyle, padding: 12 }}>
+          <div key={p} className="adm-card" style={{ padding: 12 }}>
             <strong style={{ fontSize: 14 }}>{PURPOSE_LABELS[p]}</strong>
             {active ? (
               <div style={{ marginTop: 8 }}>
                 <span style={statusBadge(active.status)}>{active.status}</span>
                 <div
-                  style={{
-                    ...mutedStyle,
-                    fontSize: 11,
+                  className="adm-help" style={{ fontSize: 11,
                     marginTop: 4,
-                    fontFamily: "monospace",
-                  }}
-                >
+                    fontFamily: "monospace" }}
+ >
                   {active.provider} ·{" "}
                   {active.keyId ? active.keyId.slice(0, 18) : "—"}
                   {active.keyVersion ? `:v${active.keyVersion}` : ""}
                 </div>
-                <div style={{ ...mutedStyle, fontSize: 11 }}>
+                <div className="adm-help" style={{ fontSize: 11 }}>
                   {active.algorithm ?? "—"}
                 </div>
                 <button
                   type="button"
                   style={{ ...ghostButtonStyle, marginTop: 8 }}
                   onClick={() => onSelect(active.signerId)}
-                >
+ >
                   {selectedId === active.signerId ? "Selected" : "Inspect"}
                 </button>
               </div>
             ) : (
-              <p style={{ ...mutedStyle, marginTop: 8 }}>
+              <p className="adm-help" style={{ marginTop: 8 }}>
                 No active signer for this purpose.
               </p>
             )}
             {staged.length > 0 ? (
               <div style={{ marginTop: 10 }}>
-                <div style={{ ...mutedStyle, fontSize: 11 }}>
+                <div className="adm-help" style={{ fontSize: 11 }}>
                   Staged ({staged.length})
                 </div>
                 {staged.map((s) => (
@@ -563,7 +550,7 @@ function PurposeOverview({
                       fontSize: 11,
                     }}
                     onClick={() => onSelect(s.signerId)}
-                  >
+ >
                     {s.signerId.slice(0, 36)}
                     {s.signerId.length > 36 ? "…" : ""}
                   </button>
@@ -595,16 +582,16 @@ function KmsKeyRow({ arn }: { arn: string | null }) {
   if (!ref) return null;
   return (
     <tr>
-      <td style={tdStyle}>KMS key</td>
-      <td style={tdStyle}>
+      <td>KMS key</td>
+      <td>
         <code style={{ fontFamily: "monospace", fontSize: 11 }}>
           {ref.display}
         </code>
         {ref.redacted ? (
           <span
-            style={{ marginInlineStart: 8, fontSize: 11, color: "var(--ink-muted, #94a3b8)" }}
+            style={{ marginInlineStart: 8, fontSize: 11, color: "var(--ink-muted)" }}
             title="Shortened for display. The full key reference is not shown in the console."
-          >
+ >
             shortened
           </span>
         ) : null}
@@ -776,7 +763,7 @@ function SignerDetailDrawer({
 
   if (!signer) {
     return (
-      <section style={{ ...cardStyle, marginTop: 12 }}>
+      <section className="adm-card" style={{ marginTop: 12 }}>
         <p className="apf-muted">Loading signer detail…</p>
       </section>
     );
@@ -789,25 +776,22 @@ function SignerDetailDrawer({
 
   return (
     <section
-      style={{ ...cardStyle, marginTop: 12 }}
+      className="adm-card" style={{ marginTop: 12 }}
       data-testid="signer-detail"
-    >
+ >
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
         }}
-      >
+ >
         <h2 className="apf-section-title">
           {PURPOSE_LABELS[signer.signerPurpose]}{" "}
           <span
-            style={{
-              ...mutedStyle,
-              fontFamily: "monospace",
-              fontWeight: 400,
-            }}
-          >
+            className="adm-help" style={{ fontFamily: "monospace",
+              fontWeight: 400 }}
+ >
             · {signer.signerId.slice(0, 48)}
             {signer.signerId.length > 48 ? "…" : ""}
           </span>
@@ -818,39 +802,39 @@ function SignerDetailDrawer({
       </div>
 
       <div className="apf-table-wrap">
-        <table style={tableStyle}>
+        <table className="adm-table">
           <tbody>
             <tr>
-              <td style={tdStyle}>status</td>
-              <td style={tdStyle}>
+              <td>status</td>
+              <td>
                 <span style={statusBadge(signer.status)}>{signer.status}</span>
               </td>
             </tr>
             <tr>
-              <td style={tdStyle}>provider</td>
-              <td style={tdStyle}>{signer.provider}</td>
+              <td>provider</td>
+              <td>{signer.provider}</td>
             </tr>
             <tr>
-              <td style={tdStyle}>algorithm</td>
-              <td style={tdStyle}>{signer.algorithm ?? "—"}</td>
+              <td>algorithm</td>
+              <td>{signer.algorithm ?? "—"}</td>
             </tr>
             <tr>
-              <td style={tdStyle}>keyId</td>
-              <td style={tdStyle}>
+              <td>keyId</td>
+              <td>
                 <code style={{ fontFamily: "monospace" }}>
                   {signer.keyId ?? "—"}
                 </code>
               </td>
             </tr>
             <tr>
-              <td style={tdStyle}>keyVersion</td>
-              <td style={tdStyle}>{signer.keyVersion ?? "—"}</td>
+              <td>keyVersion</td>
+              <td>{signer.keyVersion ?? "—"}</td>
             </tr>
             <KmsKeyRow arn={signer.kmsKeyArn} />
             {signer.verificationMaterialRef ? (
               <tr>
-                <td style={tdStyle}>verification material</td>
-                <td style={tdStyle}>
+                <td>verification material</td>
+                <td>
                   <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                     {signer.verificationMaterialRef}
                   </code>
@@ -859,8 +843,8 @@ function SignerDetailDrawer({
             ) : null}
             {signer.activatedAtUtc ? (
               <tr>
-                <td style={tdStyle}>activatedAtUtc</td>
-                <td style={tdStyle}>{formatDateTime(signer.activatedAtUtc)}</td>
+                <td>activatedAtUtc</td>
+                <td>{formatDateTime(signer.activatedAtUtc)}</td>
               </tr>
             ) : null}
           </tbody>
@@ -875,7 +859,7 @@ function SignerDetailDrawer({
           onClick={runHealth}
           disabled={busy !== null}
           data-testid="run-health"
-        >
+ >
           {busy === "health" ? "Probing…" : "Run health probe"}
         </button>
         {health ? (
@@ -889,10 +873,10 @@ function SignerDetailDrawer({
                     ? { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" }
                     : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
-            >
+ >
               {health.health}
             </span>
-            <p style={{ ...mutedStyle, marginTop: 6 }}>
+            <p className="adm-help" style={{ marginTop: 6 }}>
               {health.reason ? `Reason: ${health.reason}. ` : ""}
               Checked {formatDateTime(health.checkedAtUtc)}.
             </p>
@@ -912,7 +896,7 @@ function SignerDetailDrawer({
           className="apf-control"
           onClick={runPreview}
           disabled={busy !== null || signer.status !== "staged"}
-        >
+ >
           {busy === "preview" ? "Previewing…" : "Preview rotation"}
         </button>
         {preview ? (
@@ -923,7 +907,7 @@ function SignerDetailDrawer({
                   ? { bg: "var(--success-subtle-bg)", fg: "var(--success-strong)", border: "var(--success-border)" }
                   : { bg: "var(--warning-subtle-bg)", fg: "var(--warning-strong)", border: "var(--warning-border)" },
               )}
-            >
+ >
               {preview.compatibility}
             </span>
             <ul style={{ marginTop: 8, fontSize: 12, paddingInlineStart: 18 }}>
@@ -935,7 +919,7 @@ function SignerDetailDrawer({
                 </li>
               ))}
             </ul>
-            <p style={{ ...mutedStyle, marginTop: 6, fontSize: 12 }}>
+            <p className="adm-help" style={{ marginTop: 6, fontSize: 12 }}>
               {preview.rolloutPlan}
             </p>
           </div>
@@ -944,7 +928,7 @@ function SignerDetailDrawer({
           <label style={{ display: "block", fontSize: 12 }}>
             Operator reason (required for promote / retire / revoke)
             <input
-              style={{ ...inputStyle, marginTop: 4 }}
+              className="adm-input" style={{ marginTop: 4 }}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. quarterly key rotation; staged signer validated by team"
@@ -958,7 +942,7 @@ function SignerDetailDrawer({
               disabled={busy !== null}
               onClick={() => runStepUpAction("promote")}
               data-testid="signer-promote"
-            >
+ >
               Promote (step-up)
             </button>
             <button
@@ -968,7 +952,7 @@ function SignerDetailDrawer({
               title={terminalState ? `A ${signer.status} signer cannot be retired.` : undefined}
               onClick={() => runStepUpAction("retire")}
               data-testid="signer-retire"
-            >
+ >
               Retire (step-up)
             </button>
             <button
@@ -982,7 +966,7 @@ function SignerDetailDrawer({
               title={signer.status === "revoked" ? "This signer is already revoked." : undefined}
               onClick={() => runStepUpAction("revoke")}
               data-testid="signer-revoke"
-            >
+ >
               Revoke (step-up)
             </button>
           </div>
@@ -993,37 +977,34 @@ function SignerDetailDrawer({
         <section style={{ marginTop: 16 }}>
           <h4 className="apf-section-title">Audit timeline</h4>
           <div className="apf-table-wrap">
-            <table style={tableStyle}>
+            <table className="adm-table">
               <thead>
                 <tr>
-                  <th style={thStyle}>Occurred</th>
-                  <th style={thStyle}>Event</th>
-                  <th style={thStyle}>Severity</th>
-                  <th style={thStyle}>Actor</th>
+                  <th>Occurred</th>
+                  <th>Event</th>
+                  <th>Severity</th>
+                  <th>Actor</th>
                 </tr>
               </thead>
               <tbody>
                 {audit.map((e) => (
                   <tr key={e.id}>
-                    <td style={tdStyle}>
+                    <td>
                       <span className="apf-muted">
                         {formatDateTime(e.occurredAtUtc)}
                       </span>
                     </td>
-                    <td style={tdStyle}>
+                    <td>
                       <div style={{ fontSize: 12 }}>{e.summary}</div>
                       <div
-                        style={{
-                          ...mutedStyle,
-                          fontFamily: "monospace",
-                          fontSize: 11,
-                        }}
-                      >
+                        className="adm-help" style={{ fontFamily: "monospace",
+                          fontSize: 11 }}
+ >
                         {e.eventType}
                       </div>
                     </td>
-                    <td style={tdStyle}>{e.severity}</td>
-                    <td style={tdStyle}>
+                    <td>{e.severity}</td>
+                    <td>
                       <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                         {e.actorUserId ? e.actorUserId.slice(0, 12) + "…" : "—"}
                       </code>
@@ -1064,9 +1045,9 @@ function CustodyAttestationsPanel({
 }) {
   return (
     <section
-      style={{ ...cardStyle, marginTop: 12, padding: 0 }}
+      className="adm-card" style={{ marginTop: 12, padding: 0 }}
       data-testid="custody-attestations"
-    >
+ >
       <div
         style={{
           padding: 12,
@@ -1075,7 +1056,7 @@ function CustodyAttestationsPanel({
           justifyContent: "space-between",
           alignItems: "center",
         }}
-      >
+ >
         <strong style={{ fontSize: 14 }}>Detached custody attestations</strong>
         <button
           type="button"
@@ -1083,7 +1064,7 @@ function CustodyAttestationsPanel({
           disabled={busy !== null}
           onClick={onBackfill}
           data-testid="run-backfill"
-        >
+ >
           {busy === "backfill"
             ? "Running…"
             : "Backfill 50 events (step-up)"}
@@ -1111,51 +1092,51 @@ function CustodyAttestationsPanel({
         data-testid="admin-signers-attestations-count"
       />
       {attestations === null ? (
-        <p style={{ ...mutedStyle, padding: 16 }}>Loading…</p>
+        <p className="adm-help" style={{ padding: 16 }}>Loading…</p>
       ) : attestations.length === 0 ? (
-        <p style={{ ...mutedStyle, padding: 24 }}>
+        <p className="adm-help" style={{ padding: 24 }}>
           {evidenceFilter.trim() !== ""
             ? "No custody attestation matches that evidence ID. Clearing the filter shows every recorded attestation."
             : "No custody attestations recorded. Run a backfill to attest historical custody events."}
         </p>
       ) : (
         <div className="apf-table-wrap">
-          <table style={tableStyle}>
+          <table className="adm-table">
             <thead>
               <tr>
-                <th style={thStyle}>Attestation id</th>
-                <th style={thStyle}>Evidence</th>
-                <th style={thStyle}>Signer</th>
-                <th style={thStyle}>Signed</th>
-                <th style={thStyle}>Actions</th>
+                <th>Attestation id</th>
+                <th>Evidence</th>
+                <th>Signer</th>
+                <th>Signed</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {attestations.map((a) => (
                 <tr key={a.attestationId}>
-                  <td style={tdStyle}>
+                  <td>
                     <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                       {a.attestationId.slice(0, 28)}
                       {a.attestationId.length > 28 ? "…" : ""}
                     </code>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                       {a.evidenceId.slice(0, 12)}…
                     </code>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <code style={{ fontFamily: "monospace", fontSize: 11 }}>
                       {a.signerId.slice(0, 28)}
                       {a.signerId.length > 28 ? "…" : ""}
                     </code>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <span className="apf-muted">
                       {formatDateTime(a.signedAtUtc)}
                     </span>
                   </td>
-                  <td style={tdStyle}>
+                  <td>
                     <button
                       type="button"
                       className="apf-control"
@@ -1164,7 +1145,7 @@ function CustodyAttestationsPanel({
                       aria-label={`Verify attestation ${a.attestationId} for evidence ${a.evidenceId}`}
                       title="Re-checks this attestation's signature against its custody event and shows the report. Nothing is written."
                       data-testid={`verify-${a.attestationId}`}
-                    >
+ >
                       {busy === a.attestationId ? "Verifying…" : "Verify"}
                     </button>
                   </td>
@@ -1182,7 +1163,7 @@ function CustodyAttestationsPanel({
             background: TOKENS.surfaceMuted,
           }}
           data-testid="verify-result"
-        >
+ >
           <span
             style={badgeStyle(
               verifyResult.outcome === "verified"
@@ -1191,12 +1172,12 @@ function CustodyAttestationsPanel({
                   ? { bg: "var(--surface-muted)", fg: "var(--ink-secondary)", border: "var(--border-standard)" }
                   : { bg: "var(--danger-subtle-bg)", fg: "var(--danger-strong)", border: "var(--danger-border)" },
             )}
-          >
+ >
             {verifyResult.outcome}
           </span>
           <p style={{ marginTop: 6, fontSize: 13 }}>{verifyResult.summary}</p>
           {verifyResult.attestation ? (
-            <p style={{ ...mutedStyle, fontSize: 11 }}>
+            <p className="adm-help" style={{ fontSize: 11 }}>
               Signer{" "}
               <code style={{ fontFamily: "monospace" }}>
                 {verifyResult.attestation.signerId}

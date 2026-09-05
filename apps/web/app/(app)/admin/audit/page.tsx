@@ -75,10 +75,7 @@ type VerifyState =
   | { valid: false; brokenAt: string }
   | null;
 
-const INK_PRIMARY = "var(--ink-primary, #0F172A)";
-const INK_SECONDARY = "var(--ink-secondary, #475569)";
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
-const BORDER_DEFAULT = "var(--border-default, #e2e8f0)";
+const BORDER_DEFAULT = "var(--border-default)";
 
 function formatTimestamp(value: string) {
   const d = new Date(value);
@@ -152,20 +149,20 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
           gap: "8px 16px",
           margin: 0,
           fontSize: 12.5,
-          color: INK_SECONDARY,
+          color: "var(--ink-secondary)",
         }}
-      >
+ >
         {facts.map(([label, value]) => (
           <div key={label} style={{ minWidth: 0 }}>
-            <dt style={{ fontSize: 11, color: INK_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <dt style={{ fontSize: 11, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               {label}
             </dt>
-            <dd style={{ margin: "2px 0 0", color: INK_PRIMARY, overflowWrap: "anywhere" }}>{value}</dd>
+            <dd style={{ margin: "2px 0 0", color: "var(--ink-primary)", overflowWrap: "anywhere" }}>{value}</dd>
           </div>
         ))}
       </dl>
       <div>
-        <div style={{ fontSize: 11, color: INK_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        <div style={{ fontSize: 11, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
           Metadata
         </div>
         {/*
@@ -182,7 +179,7 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
           see that the row carries more and ask for it deliberately.
         */}
         {meta.entries.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: INK_MUTED, marginTop: 4 }}>
+          <div style={{ fontSize: 12.5, color: "var(--ink-muted)", marginTop: 4 }}>
             No recognised context fields on this record.
           </div>
         ) : (
@@ -194,18 +191,18 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
               gap: "8px 16px",
               margin: "4px 0 0",
               fontSize: 12.5,
-              background: "var(--surface-card, #ffffff)",
+              background: "var(--surface-card)",
               border: `1px solid ${BORDER_DEFAULT}`,
               borderRadius: 10,
               padding: 12,
             }}
-          >
+ >
             {meta.entries.map(([label, value]) => (
               <div key={label} style={{ minWidth: 0 }}>
-                <dt style={{ fontSize: 11, color: INK_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <dt style={{ fontSize: 11, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   {label}
                 </dt>
-                <dd style={{ margin: "2px 0 0", color: INK_PRIMARY, overflowWrap: "anywhere" }}>
+                <dd style={{ margin: "2px 0 0", color: "var(--ink-primary)", overflowWrap: "anywhere" }}>
                   {value}
                 </dd>
               </div>
@@ -213,7 +210,7 @@ function AuditEntryDetails({ entry }: { entry: AuditRow }) {
           </dl>
         )}
         {meta.withheldCount > 0 ? (
-          <div style={{ fontSize: 11.5, color: INK_MUTED, marginTop: 6 }}>
+          <div style={{ fontSize: 11.5, color: "var(--ink-muted)", marginTop: 6 }}>
             {meta.withheldCount} further field
             {meta.withheldCount === 1 ? " is" : "s are"} recorded on this event and not shown here.
           </div>
@@ -260,23 +257,23 @@ function SummaryCard({
           fontWeight: 700,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          color: INK_MUTED,
+          color: "var(--ink-muted)",
         }}
-      >
+ >
         {label}
       </div>
       <div
         style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}
         data-metric-state={state}
-      >
+ >
         <span
           style={{
             fontSize: state === "UNAVAILABLE" ? 17 : 30,
             fontWeight: 750,
             letterSpacing: "-0.02em",
-            color: state === "UNAVAILABLE" ? INK_MUTED : INK_PRIMARY,
+            color: state === "UNAVAILABLE" ? "var(--ink-muted)" : "var(--ink-primary)",
           }}
-        >
+ >
           {state === "UNAVAILABLE" ? "Unavailable" : value}
         </span>
         {/* A tile with no number has nothing to be verified or at risk about. */}
@@ -284,7 +281,7 @@ function SummaryCard({
           {label}
         </Badge>
       </div>
-      <div style={{ marginTop: 8, fontSize: 12.5, color: INK_SECONDARY, lineHeight: 1.6 }}>
+      <div style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-secondary)", lineHeight: 1.6 }}>
         {state === "UNAVAILABLE"
           ? "The audit log could not be read, so this is not a zero. Reload to try the read again."
           : note}
@@ -484,7 +481,7 @@ export default function AdminAuditPage() {
         header: "When",
         nowrap: true,
         render: (entry) => (
-          <span style={{ fontSize: 12.5, color: INK_MUTED }}>{formatTimestamp(entry.createdAt)}</span>
+          <span style={{ fontSize: 12.5, color: "var(--ink-muted)" }}>{formatTimestamp(entry.createdAt)}</span>
         ),
       },
       {
@@ -505,14 +502,14 @@ export default function AdminAuditPage() {
             <div
               style={{
                 fontSize: 11,
-                color: INK_MUTED,
-                fontFamily: "var(--font-mono, ui-monospace, monospace)",
+                color: "var(--ink-muted)",
+                fontFamily: "var(--font-mono)",
                 overflowWrap: "anywhere",
               }}
-            >
+ >
               {entry.action}
             </div>
-            <div style={{ fontSize: 12, color: INK_MUTED, overflowWrap: "anywhere" }}>
+            <div style={{ fontSize: 12, color: "var(--ink-muted)", overflowWrap: "anywhere" }}>
               {dash(entry.category)}
               {entry.source ? ` · ${entry.source}` : ""}
             </div>
@@ -547,15 +544,15 @@ export default function AdminAuditPage() {
             <span style={{ display: "grid", gap: 1, fontSize: 12.5 }}>
               <span
                 style={{
-                  color: actor.unknown ? INK_MUTED : INK_PRIMARY,
+                  color: actor.unknown ? "var(--ink-muted)" : "var(--ink-primary)",
                   fontStyle: actor.unknown ? "italic" : "normal",
                 }}
-              >
+ >
                 {actor.name}
               </span>
-              <span style={{ color: INK_SECONDARY, fontSize: 11.5 }}>{actor.kind}</span>
+              <span style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}>{actor.kind}</span>
               {actor.reference ? (
-                <span style={{ color: INK_MUTED, fontSize: 11 }}>{actor.reference}</span>
+                <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{actor.reference}</span>
               ) : null}
             </span>
           );
@@ -569,10 +566,10 @@ export default function AdminAuditPage() {
           const transition = presentTransition(entry);
           return (
             <span style={{ display: "grid", gap: 1, fontSize: 12.5 }}>
-              <span style={{ color: INK_PRIMARY }}>{target.name}</span>
-              <span style={{ color: INK_SECONDARY, fontSize: 11.5 }}>{target.scope}</span>
+              <span style={{ color: "var(--ink-primary)" }}>{target.name}</span>
+              <span style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}>{target.scope}</span>
               {transition ? (
-                <span style={{ color: INK_MUTED, fontSize: 11 }}>{transition.text}</span>
+                <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{transition.text}</span>
               ) : null}
             </span>
           );
@@ -587,7 +584,7 @@ export default function AdminAuditPage() {
   // said there is no more.
   const pager = (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 12.5, color: INK_MUTED }}>{`Page ${cursors.length + 1}`}</span>
+      <span style={{ fontSize: 12.5, color: "var(--ink-muted)" }}>{`Page ${cursors.length + 1}`}</span>
       <Button
         type="button"
         variant="secondary"
@@ -595,7 +592,7 @@ export default function AdminAuditPage() {
         disabled={loading || cursors.length === 0}
         onClick={goPrevious}
         data-testid="admin-audit-previous"
-      >
+ >
         Previous
       </Button>
       <Button
@@ -605,7 +602,7 @@ export default function AdminAuditPage() {
         disabled={loading || !hasMore || !nextCursor}
         onClick={goNext}
         data-testid="admin-audit-next"
-      >
+ >
         Next
       </Button>
     </div>
@@ -632,7 +629,7 @@ export default function AdminAuditPage() {
                 disabled={exporting}
                 loading={exporting}
                 onClick={() => void exportAudit()}
-              >
+ >
                 {exporting ? "Exporting…" : "Export CSV"}
               </Button>
               <Button variant="primary" onClick={() => void verifyChain()}>
@@ -642,7 +639,7 @@ export default function AdminAuditPage() {
           }
         />
       }
-    >
+ >
 
       {/* A <p>, not a <div>: this is one running sentence, and the element
           says so — a reader in a screen reader hears a paragraph, and the
@@ -652,18 +649,18 @@ export default function AdminAuditPage() {
         style={{
           margin: 0,
           fontSize: 13,
-          color: INK_SECONDARY,
+          color: "var(--ink-secondary)",
           lineHeight: 1.6,
         }}
-      >
-        This is the <strong style={{ color: INK_PRIMARY }}>tamper-evident admin audit log</strong> — a
+ >
+        This is the <strong style={{ color: "var(--ink-primary)" }}>tamper-evident admin audit log</strong> — a
         hash-chained record of privileged actions with chain-integrity verification. For the
         broader platform event feed (security events, incidents, org lifecycle, billing/team
         events), see the{" "}
         <Link
           href="/admin/timeline"
-          style={{ color: "var(--accent-500, #7C3AED)", fontWeight: 700, textDecoration: "underline" }}
-        >
+          style={{ color: "var(--accent-500)", fontWeight: 700, textDecoration: "underline" }}
+ >
           Global timeline
         </Link>
         . The timeline is a broader, non-tamper-evident operational feed; this page is the
@@ -673,14 +670,14 @@ export default function AdminAuditPage() {
       <PageSection
         title="Audit summary"
         description="Rollup of the audit rows currently loaded in this view."
-      >
+ >
         <div
           style={{
             display: "grid",
             gap: 16,
             gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
           }}
-        >
+ >
           <SummaryCard
             label="Audit Entries"
             value={summary.total}
@@ -719,7 +716,7 @@ export default function AdminAuditPage() {
         <p
           data-audit-coverage
           style={{ marginTop: 12, fontSize: 13, color: "var(--silver-ink)" }}
-        >
+ >
           {loadFailed
             ? "These rollups could not be counted — the audit log did not load, so no figure above is a measurement."
             : hasMore
@@ -734,12 +731,12 @@ export default function AdminAuditPage() {
           gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
           gap: 16,
         }}
-      >
+ >
         <Card padding="comfortable" style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: INK_PRIMARY, letterSpacing: "-0.01em" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--ink-primary)", letterSpacing: "-0.01em" }}>
             Chain Status
           </div>
-          <div style={{ marginTop: 8, color: INK_SECONDARY, lineHeight: 1.6, fontSize: 13.5 }}>
+          <div style={{ marginTop: 8, color: "var(--ink-secondary)", lineHeight: 1.6, fontSize: 13.5 }}>
             Verify whether the administrative audit chain is still intact and whether the
             currently checked segment passed validation.
           </div>
@@ -749,16 +746,16 @@ export default function AdminAuditPage() {
               <div
                 style={{
                   border: `1px solid ${BORDER_DEFAULT}`,
-                  background: "var(--surface-muted, #f8fafc)",
+                  background: "var(--surface-muted)",
                   borderRadius: 14,
                   padding: 16,
                   minWidth: 0,
                 }}
-              >
-                <div style={{ fontSize: 15, fontWeight: 700, color: INK_SECONDARY, overflowWrap: "anywhere" }}>
+ >
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-secondary)", overflowWrap: "anywhere" }}>
                   Verification unavailable
                 </div>
-                <div style={{ fontSize: 13, color: INK_MUTED, marginTop: 6, lineHeight: 1.6, overflowWrap: "anywhere" }}>
+                <div style={{ fontSize: 13, color: "var(--ink-muted)", marginTop: 6, lineHeight: 1.6, overflowWrap: "anywhere" }}>
                   Chain status could not be determined yet. Refresh or re-run verification to
                   fetch the latest integrity result.
                 </div>
@@ -767,12 +764,12 @@ export default function AdminAuditPage() {
               <div
                 style={{
                   border: `1px solid ${BORDER_DEFAULT}`,
-                  background: "var(--surface-muted, #f8fafc)",
+                  background: "var(--surface-muted)",
                   borderRadius: 14,
                   padding: 16,
                   minWidth: 0,
                 }}
-              >
+ >
                 {/*
                   THE HEADLINE MAY NOT OUTRUN THE VERIFICATION.
                   The page always requests `?limit=1000`, so `partial: true` is
@@ -785,8 +782,8 @@ export default function AdminAuditPage() {
                 <div
                   style={{ display: "flex", alignItems: "center", gap: 10 }}
                   data-metric-state={verify.partial ? "PARTIAL" : "MEASURED"}
-                >
-                  <span style={{ fontSize: 15, fontWeight: 700, color: INK_PRIMARY, overflowWrap: "anywhere" }}>
+ >
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-primary)", overflowWrap: "anywhere" }}>
                     {verify.partial
                       ? "Audit chain tail verified"
                       : "Audit chain verified"}
@@ -795,7 +792,7 @@ export default function AdminAuditPage() {
                     {verify.partial ? "Partial" : "Verified"}
                   </Badge>
                 </div>
-                <div style={{ fontSize: 13, color: INK_SECONDARY, marginTop: 6, lineHeight: 1.6, overflowWrap: "anywhere" }}>
+                <div style={{ fontSize: 13, color: "var(--ink-secondary)", marginTop: 6, lineHeight: 1.6, overflowWrap: "anywhere" }}>
                   {verify.partial
                     ? "Only the most recent rows were checked — earlier rows in the chain were not."
                     : "Full verification across the whole chain."}
@@ -808,21 +805,21 @@ export default function AdminAuditPage() {
               <div
                 style={{
                   border: `1px solid ${BORDER_DEFAULT}`,
-                  background: "var(--surface-muted, #f8fafc)",
+                  background: "var(--surface-muted)",
                   borderRadius: 14,
                   padding: 16,
                   minWidth: 0,
                 }}
-              >
+ >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: INK_PRIMARY, overflowWrap: "anywhere" }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-primary)", overflowWrap: "anywhere" }}>
                     Integrity issue detected
                   </span>
                   <Badge tone="risk" dot>
                     Broken
                   </Badge>
                 </div>
-                <div style={{ fontSize: 13, color: INK_SECONDARY, marginTop: 6, lineHeight: 1.6, overflowWrap: "anywhere" }}>
+                <div style={{ fontSize: 13, color: "var(--ink-secondary)", marginTop: 6, lineHeight: 1.6, overflowWrap: "anywhere" }}>
                   brokenAt: {verify.brokenAt}
                 </div>
               </div>
@@ -831,21 +828,21 @@ export default function AdminAuditPage() {
             <div
               style={{
                 border: `1px solid ${BORDER_DEFAULT}`,
-                background: "var(--surface-muted, #f8fafc)",
+                background: "var(--surface-muted)",
                 borderRadius: 14,
                 padding: 16,
                 minWidth: 0,
               }}
-            >
+ >
               <div
                 style={{
                   fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: "0.1em",
                   textTransform: "uppercase",
-                  color: INK_MUTED,
+                  color: "var(--ink-muted)",
                 }}
-              >
+ >
                 Current Snapshot
               </div>
 
@@ -856,35 +853,35 @@ export default function AdminAuditPage() {
                   gap: 12,
                   marginTop: 12,
                 }}
-              >
+ >
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: INK_MUTED }}>Loaded rows</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>Loaded rows</div>
                   <div
                     style={{
                       marginTop: 4,
                       fontSize: 20,
                       fontWeight: 750,
-                      color: INK_PRIMARY,
+                      color: "var(--ink-primary)",
                       letterSpacing: "-0.02em",
                       overflowWrap: "anywhere",
                     }}
-                  >
+ >
                     {summary.total}
                   </div>
                 </div>
 
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: INK_MUTED }}>Public/system</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>Public/system</div>
                   <div
                     style={{
                       marginTop: 4,
                       fontSize: 20,
                       fontWeight: 750,
-                      color: INK_PRIMARY,
+                      color: "var(--ink-primary)",
                       letterSpacing: "-0.02em",
                       overflowWrap: "anywhere",
                     }}
-                  >
+ >
                     {summary.publicCount}
                   </div>
                 </div>
@@ -894,10 +891,10 @@ export default function AdminAuditPage() {
         </Card>
 
         <Card padding="comfortable" style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: INK_PRIMARY, letterSpacing: "-0.01em" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--ink-primary)", letterSpacing: "-0.01em" }}>
             Audit Overview
           </div>
-          <div style={{ marginTop: 8, color: INK_SECONDARY, lineHeight: 1.6, fontSize: 13.5 }}>
+          <div style={{ marginTop: 8, color: "var(--ink-secondary)", lineHeight: 1.6, fontSize: 13.5 }}>
             Use this page to inspect administrative actions, review metadata, and quickly
             identify elevated severity or failed outcomes.
           </div>
@@ -906,12 +903,12 @@ export default function AdminAuditPage() {
             <div
               style={{
                 border: `1px solid ${BORDER_DEFAULT}`,
-                background: "var(--surface-muted, #f8fafc)",
+                background: "var(--surface-muted)",
                 borderRadius: 14,
                 padding: 16,
               }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 700, color: INK_PRIMARY }}>
+ >
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-primary)" }}>
                 What you can check here
               </div>
               <div
@@ -920,10 +917,10 @@ export default function AdminAuditPage() {
                   gap: 8,
                   marginTop: 12,
                   fontSize: 13,
-                  color: INK_SECONDARY,
+                  color: "var(--ink-secondary)",
                   lineHeight: 1.7,
                 }}
-              >
+ >
                 <div>• action names and categories</div>
                 <div>• outcome and severity markers</div>
                 <div>• linked request, resource, and user identifiers</div>
@@ -934,11 +931,11 @@ export default function AdminAuditPage() {
             <div
               style={{
                 border: `1px solid ${BORDER_DEFAULT}`,
-                background: "var(--surface-muted, #f8fafc)",
+                background: "var(--surface-muted)",
                 borderRadius: 14,
                 padding: 16,
               }}
-            >
+ >
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <Badge tone={severityTone("low")}>Low / Info</Badge>
                 <Badge tone={severityTone("medium")}>Medium</Badge>
@@ -968,7 +965,7 @@ export default function AdminAuditPage() {
       <PageSection
         title="Recent Admin Actions"
         description="One line per audit row, newest first, in pages of 25. Open a row's details for its identifiers and raw metadata."
-      >
+ >
         <FilterBar style={{ marginBottom: 16 }}>
           <FilterBar.Search
             label="Category"
@@ -1020,7 +1017,7 @@ export default function AdminAuditPage() {
               aria-expanded={isExpanded(entry.id)}
               data-admin-audit-details-toggle={entry.id}
               onClick={() => toggleExpanded(entry.id)}
-            >
+ >
               {isExpanded(entry.id) ? "Hide details" : "Details"}
             </Button>
           )}

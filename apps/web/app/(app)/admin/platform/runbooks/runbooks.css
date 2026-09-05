@@ -31,9 +31,9 @@
   top: 16px;
   max-height: calc(100vh - 32px);
   overflow-y: auto;
-  border: 1px solid var(--border-subtle, #e2e8f0);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: var(--surface-card, #fff);
+  background: var(--surface-card);
   padding: 12px;
 }
 
@@ -49,7 +49,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-muted, #94a3b8);
+  color: var(--ink-muted);
   margin: 14px 0 6px;
   padding: 0 6px;
 }
@@ -73,29 +73,29 @@
   border-radius: 6px;
   font-size: 13.5px;
   line-height: 1.35;
-  color: var(--ink-secondary, #475569);
+  color: var(--ink-secondary);
   text-decoration: none;
 }
 
 .rb-nav-link:hover {
-  background: var(--surface-muted, #f1f5f9);
-  color: var(--ink-primary, #0f172a);
+  background: var(--surface-muted);
+  color: var(--ink-primary);
 }
 
 /* The current runbook, marked by more than colour — a left rule survives a
    monochrome display and a colour-vision difference. */
 .rb-nav-link[aria-current="page"] {
-  background: var(--surface-muted, #f1f5f9);
-  color: var(--ink-primary, #0f172a);
+  background: var(--surface-muted);
+  color: var(--ink-primary);
   font-weight: 650;
-  box-shadow: inset 2px 0 0 0 var(--accent-standard, #2563eb);
+  box-shadow: inset 2px 0 0 0 var(--accent-standard);
 }
 
 .rb-nav-slug {
   display: block;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 11px;
-  color: var(--ink-muted, #94a3b8);
+  color: var(--ink-muted);
   margin-top: 1px;
 }
 
@@ -124,7 +124,7 @@
   font-size: 14px;
   line-height: 1.65;
   max-inline-size: 36em;
-  color: var(--ink-primary, #0f172a);
+  color: var(--ink-primary);
 }
 
 .rb-h2 {
@@ -133,7 +133,7 @@
   letter-spacing: -0.01em;
   margin: 28px 0 8px;
   padding-top: 14px;
-  border-top: 1px solid var(--border-subtle, #e2e8f0);
+  border-top: 1px solid var(--border-subtle);
   scroll-margin-top: 16px;
 }
 
@@ -153,7 +153,7 @@
 .rb-p {
   font-size: 14px;
   line-height: 1.65;
-  color: var(--ink-secondary, #475569);
+  color: var(--ink-secondary);
   margin: 0 0 12px;
 }
 
@@ -178,12 +178,12 @@
 
 .rb-li + .rb-li { margin-block-start: 5px; }
 
-.rb-li::marker { color: var(--ink-muted, #94a3b8); }
+.rb-li::marker { color: var(--ink-muted); }
 
 .rb-li {
   font-size: 14px;
   line-height: 1.6;
-  color: var(--ink-secondary, #475569);
+  color: var(--ink-secondary);
 }
 
 .rb-li[data-depth="1"] {
@@ -192,7 +192,7 @@
 
 .rb-hr {
   border: 0;
-  border-top: 1px solid var(--border-subtle, #e2e8f0);
+  border-top: 1px solid var(--border-subtle);
   margin: 22px 0;
 }
 
@@ -201,19 +201,19 @@
 .rb-quote {
   margin: 0 0 14px;
   padding: 10px 14px;
-  border-inline-start: 3px solid var(--accent-standard, #2563eb);
-  background: var(--surface-muted, #f1f5f9);
+  border-inline-start: 3px solid var(--accent-standard);
+  background: var(--surface-muted);
   border-radius: 0 8px 8px 0;
   font-size: 13.5px;
   line-height: 1.6;
-  color: var(--ink-secondary, #475569);
+  color: var(--ink-secondary);
 }
 
 .rb-code-inline {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12.5px;
-  background: var(--surface-muted, #f1f5f9);
-  border: 1px solid var(--border-subtle, #e2e8f0);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
   padding: 1px 5px;
   /* Code is read left-to-right even inside RTL prose. */
@@ -224,8 +224,8 @@
 .rb-pre {
   margin: 0 0 14px;
   padding: 12px 14px;
-  background: var(--surface-inset, #0f172a);
-  color: var(--ink-inverse, #e2e8f0);
+  background: var(--surface-inset);
+  color: var(--ink-inverse);
   border-radius: 8px;
   overflow-x: auto;
   direction: ltr;
@@ -242,7 +242,7 @@
 .rb-table-wrap {
   overflow-x: auto;
   margin: 0 0 14px;
-  border: 1px solid var(--border-subtle, #e2e8f0);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
 }
 
@@ -256,19 +256,19 @@
 .rb-table td {
   text-align: start;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-subtle, #e2e8f0);
+  border-bottom: 1px solid var(--border-subtle);
   vertical-align: top;
 }
 
 .rb-table th {
   font-weight: 650;
-  color: var(--ink-primary, #0f172a);
-  background: var(--surface-muted, #f1f5f9);
+  color: var(--ink-primary);
+  background: var(--surface-muted);
   white-space: nowrap;
 }
 
 .rb-table td {
-  color: var(--ink-secondary, #475569);
+  color: var(--ink-secondary);
 }
 
 .rb-table tr:last-child td {
@@ -281,7 +281,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .rb-pre {
-    background: var(--surface-inset, #020617);
+    background: var(--surface-inset);
   }
 }
 
@@ -304,7 +304,7 @@
   max-inline-size: min(100ch, 100%);
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--border-subtle, #e2e8f0);
+  border: 1px solid var(--border-subtle);
 }
 
 .rb-codeblock__bar {
@@ -313,8 +313,8 @@
   justify-content: space-between;
   gap: 8px;
   padding: 4px 6px 4px 12px;
-  background: var(--surface-muted, #f1f4f9);
-  border-block-end: 1px solid var(--border-subtle, #e2e8f0);
+  background: var(--surface-muted);
+  border-block-end: 1px solid var(--border-subtle);
 }
 
 .rb-codeblock__lang {
@@ -323,7 +323,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--ink-muted, #94a3b8);
+  color: var(--ink-muted);
   /* A language tag is an identifier, not prose: LTR under RTL. */
   direction: ltr;
   unicode-bidi: isolate;
@@ -379,7 +379,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 2px 6px 10px;
-  border-block-end: 1px solid var(--border-subtle, #e2e8f0);
+  border-block-end: 1px solid var(--border-subtle);
   margin-block-end: 4px;
 }
 
@@ -388,7 +388,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-muted, #94a3b8);
+  color: var(--ink-muted);
 }
 
 .rb-search__input {

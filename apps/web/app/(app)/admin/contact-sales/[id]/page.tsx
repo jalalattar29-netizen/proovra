@@ -138,9 +138,9 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
         fontWeight: 700,
         letterSpacing: "0.16em",
         textTransform: "uppercase",
-        color: "var(--ink-muted, #64748b)",
+        color: "var(--ink-muted)",
       }}
-    >
+ >
       {children}
     </div>
   );
@@ -156,7 +156,7 @@ function Field({
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <div style={{ marginTop: 4, color: "var(--ink-primary, #0f172a)" }}>
+      <div style={{ marginTop: 4, color: "var(--ink-primary)" }}>
         {value && String(value).trim() ? value : "—"}
       </div>
     </div>
@@ -299,13 +299,13 @@ export default function AdminContactSalesDetailPage({
                 data-variant="ghost"
                 data-size="sm"
                 style={buttonSurfaceStyle("ghost", "sm")}
-              >
+ >
                 ← Back to list
               </Link>
             }
           />
         }
-      >
+ >
 
         <div
           style={{
@@ -315,28 +315,28 @@ export default function AdminContactSalesDetailPage({
             justifyContent: "flex-end",
             gap: 8,
           }}
-        >
+ >
           <div
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 8,
               borderRadius: 999,
-              border: "1px solid var(--border-default, #e2e8f0)",
-              background: "var(--surface-card, #ffffff)",
+              border: "1px solid var(--border-default)",
+              background: "var(--surface-card)",
               padding: "6px 12px",
               fontSize: 12,
-              color: "var(--ink-secondary, #475569)",
+              color: "var(--ink-secondary)",
             }}
-          >
+ >
             <span
               style={{
                 fontWeight: 600,
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
-                color: "var(--ink-muted, #64748b)",
+                color: "var(--ink-muted)",
               }}
-            >
+ >
               Record ID
             </span>
             <code
@@ -344,9 +344,9 @@ export default function AdminContactSalesDetailPage({
                 fontFamily:
                   "ui-monospace, SFMono-Regular, Menlo, monospace",
                 fontSize: 12,
-                color: "var(--ink-primary, #0f172a)",
+                color: "var(--ink-primary)",
               }}
-            >
+ >
               {id}
             </code>
             <Button
@@ -354,7 +354,7 @@ export default function AdminContactSalesDetailPage({
               size="sm"
               onClick={() => void copyId()}
               aria-label="Copy record ID"
-            >
+ >
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>
@@ -379,18 +379,18 @@ export default function AdminContactSalesDetailPage({
                 style={{
                   fontSize: 15,
                   fontWeight: 650,
-                  color: "var(--ink-primary, #0f172a)",
+                  color: "var(--ink-primary)",
                 }}
-              >
+ >
                 Record not found
               </div>
               <p
                 style={{
                   marginTop: 8,
                   fontSize: 13.5,
-                  color: "var(--ink-secondary, #475569)",
+                  color: "var(--ink-secondary)",
                 }}
-              >
+ >
                 The contact-sales inquiry you’re looking for has been removed or
                 the link is incorrect. Use the list page to find the current
                 record.
@@ -402,7 +402,7 @@ export default function AdminContactSalesDetailPage({
                   data-variant="primary"
                   data-size="sm"
                   style={buttonSurfaceStyle("primary", "sm")}
-                >
+ >
                   Open list
                 </Link>
               </div>
@@ -417,18 +417,18 @@ export default function AdminContactSalesDetailPage({
                 style={{
                   fontSize: 15,
                   fontWeight: 650,
-                  color: "var(--ink-primary, #0f172a)",
+                  color: "var(--ink-primary)",
                 }}
-              >
+ >
                 Admin access required
               </div>
               <p
                 style={{
                   marginTop: 8,
                   fontSize: 13.5,
-                  color: "var(--ink-secondary, #475569)",
+                  color: "var(--ink-secondary)",
                 }}
-              >
+ >
                 You don’t have permission to view this record. Contact your
                 workspace administrator if you believe this is in error.
               </p>
@@ -443,18 +443,18 @@ export default function AdminContactSalesDetailPage({
                 style={{
                   fontSize: 15,
                   fontWeight: 650,
-                  color: "var(--ink-primary, #0f172a)",
+                  color: "var(--ink-primary)",
                 }}
-              >
+ >
                 Couldn’t load this record
               </div>
               <p
                 style={{
                   marginTop: 8,
                   fontSize: 13.5,
-                  color: "var(--ink-secondary, #475569)",
+                  color: "var(--ink-secondary)",
                 }}
-              >
+ >
                 {state.message}
               </p>
               <div style={{ marginTop: 16 }}>
@@ -476,24 +476,24 @@ export default function AdminContactSalesDetailPage({
                 {state.details.isSpam ? <Badge tone="risk">Spam</Badge> : null}
               </div>
             }
-          >
+ >
             <div
               style={{
                 display: "grid",
                 gap: 24,
                 gridTemplateColumns: "minmax(0, 1fr) 320px",
               }}
-            >
+ >
               <div
                 style={{
                   display: "flex",
                   flexDirection: "column",
                   gap: 16,
                   fontSize: 14,
-                  color: "var(--ink-primary, #0f172a)",
+                  color: "var(--ink-primary)",
                   minWidth: 0,
                 }}
-              >
+ >
                 <div>
                   <FieldLabel>Email</FieldLabel>
                   <div style={{ marginTop: 4 }}>
@@ -501,8 +501,8 @@ export default function AdminContactSalesDetailPage({
                       href={`mailto:${state.details.workEmail}`}
                       // 44px hit box; the row keeps its height (admin-console.css).
                       className="admin-hit-link"
-                      style={{ color: "var(--accent-500, #7C3AED)" }}
-                    >
+                      style={{ color: "var(--accent-500)" }}
+ >
                       {state.details.workEmail}
                     </a>
                   </div>
@@ -514,7 +514,7 @@ export default function AdminContactSalesDetailPage({
                     gap: 12,
                     gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
                   }}
-                >
+ >
                   <Field label="Job title" value={state.details.jobTitle} />
                   <Field label="Country" value={state.details.country} />
                   <Field label="Workspace size" value={state.details.teamSize} />
@@ -538,14 +538,14 @@ export default function AdminContactSalesDetailPage({
                       marginTop: 8,
                       whiteSpace: "pre-wrap",
                       borderRadius: 10,
-                      border: "1px solid var(--border-default, #e2e8f0)",
-                      background: "var(--surface-muted, #f8fafc)",
+                      border: "1px solid var(--border-default)",
+                      background: "var(--surface-muted)",
                       padding: 12,
                       fontSize: 13.5,
                       lineHeight: 1.6,
-                      color: "var(--ink-primary, #0f172a)",
+                      color: "var(--ink-primary)",
                     }}
-                  >
+ >
                     {state.details.currentChallenge}
                   </p>
                 </div>
@@ -558,14 +558,14 @@ export default function AdminContactSalesDetailPage({
                         marginTop: 8,
                         whiteSpace: "pre-wrap",
                         borderRadius: 10,
-                        border: "1px solid var(--border-default, #e2e8f0)",
-                        background: "var(--surface-muted, #f8fafc)",
+                        border: "1px solid var(--border-default)",
+                        background: "var(--surface-muted)",
                         padding: 12,
                         fontSize: 13.5,
                         lineHeight: 1.6,
-                        color: "var(--ink-primary, #0f172a)",
+                        color: "var(--ink-primary)",
                       }}
-                    >
+ >
                       {state.details.additionalDetails}
                     </p>
                   </div>
@@ -578,9 +578,9 @@ export default function AdminContactSalesDetailPage({
                   flexDirection: "column",
                   gap: 12,
                   fontSize: 12.5,
-                  color: "var(--ink-secondary, #475569)",
+                  color: "var(--ink-secondary)",
                 }}
-              >
+ >
                 <Field
                   label="Submitted"
                   value={formatTimestamp(state.details.createdAt)}
@@ -617,10 +617,10 @@ export default function AdminContactSalesDetailPage({
 
                 <div
                   style={{
-                    borderTop: "1px solid var(--border-default, #e2e8f0)",
+                    borderTop: "1px solid var(--border-default)",
                     paddingTop: 12,
                   }}
-                >
+ >
                   <FieldLabel>Set status</FieldLabel>
                   <div
                     style={{
@@ -629,7 +629,7 @@ export default function AdminContactSalesDetailPage({
                       flexWrap: "wrap",
                       gap: 8,
                     }}
-                  >
+ >
                     {commercialStatusActions(state.details.status).map((rule) => (
                       <Button
                         key={rule.to}
@@ -649,7 +649,7 @@ export default function AdminContactSalesDetailPage({
                         title={rule.effect}
                         data-testid={`contact-sales-status-${rule.to.toLowerCase()}`}
                         onClick={() => void patchStatus(rule.to)}
-                      >
+ >
                         {COMMERCIAL_STATUS_LABEL[rule.to]}
                       </Button>
                     ))}

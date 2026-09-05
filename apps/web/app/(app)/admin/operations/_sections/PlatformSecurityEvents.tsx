@@ -157,7 +157,7 @@ export function PlatformSecurityEvents() {
         render: (r) => (
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 620 }}>{r.eventType}</div>
-            <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
               {r.origin === "ADMIN_AUDIT" ? "Admin audit" : "Security event"}
               {r.category ? ` · ${r.category}` : ""}
               {r.outcome ? ` · ${r.outcome}` : ""}
@@ -180,7 +180,7 @@ export function PlatformSecurityEvents() {
                 Workspace
               </Link>
             ) : (
-              <span style={{ color: "var(--ink-muted, #94a3b8)" }}>No workspace</span>
+              <span style={{ color: "var(--ink-muted)" }}>No workspace</span>
             )}
             {r.userId ? (
               <>
@@ -205,7 +205,7 @@ export function PlatformSecurityEvents() {
   // nothing to pop on page one, Next nothing to follow when hasMore is false.
   const pager = (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" }}>
+      <span style={{ fontSize: 12.5, color: "var(--ink-muted)" }}>
         {`Page ${cursors.length + 1}`}
       </span>
       <Button
@@ -214,7 +214,7 @@ export function PlatformSecurityEvents() {
         disabled={loading || cursors.length === 0}
         onClick={goPrevious}
         data-testid="admin-security-events-previous"
-      >
+ >
         Previous
       </Button>
       <Button
@@ -223,7 +223,7 @@ export function PlatformSecurityEvents() {
         disabled={loading || !hasMore || !nextCursor}
         onClick={goNext}
         data-testid="admin-security-events-next"
-      >
+ >
         Next
       </Button>
     </div>
@@ -233,7 +233,7 @@ export function PlatformSecurityEvents() {
     <PageSection
       title="Security events"
       description="High-severity security events and privileged admin actions, aggregated across every workspace. Read-only. No raw IP address, user-agent string or audit metadata is returned by the API."
-    >
+ >
       <FilterBar>
         <FilterBar.Select
           label="Severity"
@@ -253,7 +253,7 @@ export function PlatformSecurityEvents() {
             applyFilters();
           }}
           style={{ display: "contents" }}
-        >
+ >
           <FilterBar.Search
             label="Event type"
             value={eventType}

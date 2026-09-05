@@ -492,7 +492,9 @@ export type AdmInlineState =
   | "loading"
   | "error"
   | "unavailable"
-  | "not-measured";
+  | "not-measured"
+  /** The operator's action succeeded. Not a state of the data. */
+  | "done";
 
 const STATE_WORD: Record<AdmInlineState, string> = {
   empty: "Nothing yet",
@@ -501,6 +503,7 @@ const STATE_WORD: Record<AdmInlineState, string> = {
   error: "Could not load",
   unavailable: "Unavailable",
   "not-measured": "Not measured",
+  done: "Done",
 };
 
 /**
@@ -764,6 +767,181 @@ export function AdmTabPanel({
       tabIndex={selected ? 0 : -1}
     >
       {children}
+    </div>
+  );
+}
+
+/* ==========================================================================
+ * OVERLAY — the drawer and the focused dialog
+ *
+ * Four admin panels each hand-rolled `role="dialog"` in inline styles and each
+ * shipped the same four defects: a physical `right: 0` that did not mirror
+ * under RTL, no scrim, no focus handling of any kind, and no Escape. This is
+ * the one implementation they now share.
+ *
+ * What it does that the four copies did not:
+ *
+ *   - anchors to the INLINE-END edge, so the panel follows the writing
+ *     direction instead of the screen;
+ *   - traps Tab. `aria-modal` tells a screen reader the page behind is
+ *     unavailable; it does nothing to the Tab order, so without a trap a
+ *     keyboard operator tabs out of the panel into content the attribute has
+ *     just told their screen reader does not exist;
+ *   - marks the page behind `inert`, which removes it from the accessibility
+ *     tree and from pointer and focus targeting;
+ *   - moves focus in on open and returns it to the opener on close;
+ *   - closes on Escape and on a scrim click.
+ * ========================================================================== */
+
+/**
+ * Everything focusable, in DOM order, that is not disabled or hidden.
+ *
+ * `tabIndex="-1"` is deliberately excluded: it is how an element says it is
+ * programmatically focusable but not a tab stop, and the panel itself carries
+ * one.
+ */
+const FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "details > summary",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+function focusableWithin(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    (el) =>
+      !el.hasAttribute("inert") &&
+      el.offsetParent !== null &&
+      // A zero-size control is present but unreachable by pointer; keeping it
+      // in the cycle is how a trap appears to swallow Tab.
+      (el.offsetWidth > 0 || el.offsetHeight > 0),
+  );
+}
+
+export function AdmOverlay({
+  shape = "drawer",
+  title,
+  subtitle,
+  onClose,
+  footer,
+  testId,
+  children,
+}: {
+  shape?: "drawer" | "dialog";
+  title: string;
+  subtitle?: React.ReactNode;
+  onClose: () => void;
+  footer?: React.ReactNode;
+  testId?: string;
+  children: React.ReactNode;
+}) {
+  const panelRef = React.useRef<HTMLDivElement | null>(null);
+  const restoreRef = React.useRef<HTMLElement | null>(null);
+  const titleId = React.useId();
+
+  React.useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    restoreRef.current = document.activeElement as HTMLElement | null;
+
+    // Focus the first real control if there is one, so a drawer whose first
+    // action is "Retry" does not make the operator tab to it; otherwise the
+    // panel itself, so the title is announced.
+    const first = focusableWithin(panel)[0];
+    (first ?? panel).focus();
+
+    // The page behind. `inert` is set imperatively because React 18 serialises
+    // a `false` JSX boolean on an unknown attribute as the STRING "false",
+    // which is itself inert — the opposite of the intent.
+    const siblings = Array.from(document.body.children).filter(
+      (el): el is HTMLElement =>
+        el instanceof HTMLElement && !el.contains(panel),
+    );
+    const previouslyInert = siblings.map((el) => el.hasAttribute("inert"));
+    siblings.forEach((el) => el.toggleAttribute("inert", true));
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const stops = focusableWithin(panel);
+      if (stops.length === 0) {
+        // Nothing to cycle through, so Tab would leave the panel entirely.
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const firstStop = stops[0]!;
+      const lastStop = stops[stops.length - 1]!;
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === firstStop || active === panel)) {
+        event.preventDefault();
+        lastStop.focus();
+      } else if (!event.shiftKey && active === lastStop) {
+        event.preventDefault();
+        firstStop.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      siblings.forEach((el, i) => {
+        if (!previouslyInert[i]) el.removeAttribute("inert");
+      });
+      restoreRef.current?.focus?.();
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className={`adm-overlay adm-overlay--${shape}`}
+      onMouseDown={(event) => {
+        // mousedown, not click: a click that STARTED inside the panel and
+        // ended on the scrim (releasing a text selection past the edge) would
+        // otherwise close the panel and lose the selection.
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={panelRef}
+        className={shape === "drawer" ? "adm-drawer" : "adm-dialog"}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        data-testid={testId}
+      >
+        <header className="adm-overlay__head">
+          <div>
+            <h2 className="adm-overlay__title" id={titleId}>
+              {title}
+            </h2>
+            {subtitle ? (
+              <p className="adm-overlay__subtitle">{subtitle}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="adm-overlay__close"
+            onClick={onClose}
+            aria-label={`Close ${title.toLowerCase()}`}
+          >
+            <span aria-hidden="true">&#215;</span>
+          </button>
+        </header>
+        <div className="adm-overlay__body">{children}</div>
+        {footer ? <div className="adm-overlay__foot">{footer}</div> : null}
+      </div>
     </div>
   );
 }

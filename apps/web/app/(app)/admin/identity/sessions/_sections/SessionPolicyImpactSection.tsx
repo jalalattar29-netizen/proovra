@@ -179,7 +179,7 @@ export function SessionPolicyImpactSection() {
           Refresh
         </Button>
       }
-    >
+ >
       <Card padding="comfortable" style={{ marginBottom: 12 }}>
         {!policy.policyProvisioned ? (
           <p style={{ margin: 0, fontSize: 13 }}>
@@ -193,7 +193,7 @@ export function SessionPolicyImpactSection() {
               <Badge tone="neutral">policy version {policy.policyVersion}</Badge>
               <Badge
                 tone={policy.concurrentSessionLimit === null ? "neutral" : "info"}
-              >
+ >
                 Concurrent limit:{" "}
                 {policy.concurrentSessionLimit === null
                   ? "not set"

@@ -158,7 +158,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
  */
 function SubjectCell({ s }: { s: Subject }) {
   if (!s.userId && !s.workspaceId) {
-    return <span style={{ color: "var(--ink-muted, #94a3b8)" }}>Unattributed</span>;
+    return <span style={{ color: "var(--ink-muted)" }}>Unattributed</span>;
   }
   return (
     <div style={{ minWidth: 0 }}>
@@ -167,9 +167,9 @@ function SubjectCell({ s }: { s: Subject }) {
           {s.userEmail ?? "View person"}
         </Link>
       ) : (
-        <span style={{ color: "var(--ink-muted, #94a3b8)" }}>No account</span>
+        <span style={{ color: "var(--ink-muted)" }}>No account</span>
       )}
-      <div style={{ fontSize: 12, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+      <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
         {s.workspaceId ? (
           <Link href={`/admin/workspaces/${encodeURIComponent(s.workspaceId)}`}>
             {s.workspaceName ?? "workspace"}
@@ -187,7 +187,7 @@ function SubjectCell({ s }: { s: Subject }) {
         ) : null}
       </div>
       {s.billingOwnerEmail && s.billingOwnerUserId !== s.userId ? (
-        <div style={{ fontSize: 11.5, color: "var(--ink-muted, #94a3b8)", marginTop: 2 }}>
+        <div style={{ fontSize: 11.5, color: "var(--ink-muted)", marginTop: 2 }}>
           Billed to {s.billingOwnerEmail}
         </div>
       ) : null}
@@ -365,7 +365,7 @@ export default function AdminBillingPage() {
           }
         />
       }
-    >
+ >
 
       {loading ? (
         <Card>
@@ -381,7 +381,7 @@ export default function AdminBillingPage() {
           <PageSection
             title="Revenue"
             description="Succeeded payment totals, one per currency."
-          >
+ >
             {detail.revenueByCurrency.length === 0 ? (
               <EmptyState variant="inline"
                 title="No payments recorded"
@@ -443,7 +443,7 @@ export default function AdminBillingPage() {
                 <div
                   className="admin-stat-value"
                   data-emphasis={detail.storageAddons.orphanedCount > 0 ? "attention" : undefined}
-                >
+ >
                   {detail.storageAddons.orphanedCount}
                 </div>
                 <div className="admin-stat-hint">
@@ -457,14 +457,14 @@ export default function AdminBillingPage() {
             id="subscriptionStatus"
             title="Subscriptions"
             description="Provider subscription rows by their provider-confirmed status. A cancelled subscription is shown as cancelled and is never counted as an active one."
-          >
+ >
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {detail.subscriptions.byStatus.map((s) => (
                 <Badge
                   key={s.status}
                   tone={STATUS_TONE[s.status] ?? "neutral"}
                   subtle={focus !== s.status}
-                >
+ >
                   {s.status}: {s.count}
                 </Badge>
               ))}
@@ -480,7 +480,7 @@ export default function AdminBillingPage() {
             id="pendingCancellation"
             title="Pending cancellation"
             description="Active subscriptions the provider has confirmed will not renew. These are customers who have already left; the paid period is simply still running."
-          >
+ >
             <Card>
               <DataTable
                 ariaLabel="Pending cancellations"
@@ -500,7 +500,7 @@ export default function AdminBillingPage() {
           <PageSection
             title="Past due"
             description="Subscriptions the provider reports as past due."
-          >
+ >
             <Card>
               <DataTable
                 ariaLabel="Past due subscriptions"
@@ -521,7 +521,7 @@ export default function AdminBillingPage() {
             id="paymentStatus"
             title="Failed payments"
             description="Recent failed payments, with the account and workspace behind each one."
-          >
+ >
             <Card>
               <DataTable
                 ariaLabel="Failed payments"
@@ -541,7 +541,7 @@ export default function AdminBillingPage() {
           <PageSection
             title="Renewal window"
             description="Subscriptions whose period ends soon."
-          >
+ >
             <Card>
               <DataTable
                 ariaLabel="Renewal window"
@@ -572,7 +572,7 @@ export default function AdminBillingPage() {
             id="addons"
             title="Storage add-ons"
             description="Every active storage add-on, orphans first. An orphan is an add-on still billing on a live workspace that carries no active subscription — the condition the count above names, now with the rows behind it."
-          >
+ >
             <Card>
               <DataTable
                 ariaLabel="Storage add-ons"
@@ -599,7 +599,7 @@ export default function AdminBillingPage() {
           <PageSection
             title="Provider webhooks"
             description="Delivery health from real processing-status rows."
-          >
+ >
             <div className="admin-stat-grid">
               {(["stripe", "paypal"] as const).map((p) => {
                 const w = detail.webhooks[p];
@@ -610,7 +610,7 @@ export default function AdminBillingPage() {
                       className="admin-stat-value"
                       data-state={w.total === 0 ? "UNKNOWN" : "VALUE"}
                       data-emphasis={w.failed > 0 ? "critical" : undefined}
-                    >
+ >
                       {w.total === 0 ? "Not connected" : `${w.failed} failed`}
                     </div>
                     <div className="admin-stat-hint">
@@ -628,20 +628,20 @@ export default function AdminBillingPage() {
           <PageSection
             title="Reconciliation"
             description="What the platform can honestly say about provider agreement."
-          >
+ >
             <Card>
               <div
                 role="note"
                 style={{
                   padding: "12px 16px",
                   borderRadius: 8,
-                  border: "1px solid var(--border-default, #e2e8f0)",
-                  background: "var(--surface-muted, #f8fafc)",
+                  border: "1px solid var(--border-default)",
+                  background: "var(--surface-muted)",
                   fontSize: 13,
                   lineHeight: 1.6,
                   marginBottom: 16,
                 }}
-              >
+ >
                 {detail.reconciliation.providerAgreement.note}
               </div>
 
@@ -664,7 +664,7 @@ export default function AdminBillingPage() {
                         ? "attention"
                         : undefined
                     }
-                  >
+ >
                     {detail.reconciliation.providerAgreement.subscriptionsNeverConfirmed}
                   </div>
                   <div className="admin-stat-hint">
@@ -681,7 +681,7 @@ export default function AdminBillingPage() {
                         : "UNKNOWN"
                     }
                     style={{ fontSize: "1.05rem" }}
-                  >
+ >
                     {detail.reconciliation.providerAgreement.oldestConfirmationAtUtc
                       ? formatUserDateTime(
                           detail.reconciliation.providerAgreement.oldestConfirmationAtUtc,
@@ -700,10 +700,10 @@ export default function AdminBillingPage() {
                       fontWeight: 700,
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
-                      color: "var(--ink-muted, #64748b)",
+                      color: "var(--ink-muted)",
                       marginBottom: 10,
                     }}
-                  >
+ >
                     Recent governance reconciliation runs
                   </div>
                   <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13.5 }}>

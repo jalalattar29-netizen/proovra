@@ -266,11 +266,11 @@ export function TrustedDevicesSection() {
           Refresh
         </Button>
       }
-    >
+ >
       <Card padding="comfortable" style={{ marginBottom: 12 }}>
         <div
           style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}
-        >
+ >
           <label style={{ maxWidth: 200 }}>
             <span style={sectionLabelStyle}>Trust this browser for (days)</span>
             <input
@@ -292,7 +292,7 @@ export function TrustedDevicesSection() {
             disabled={busy !== null}
             onClick={() => void trustThisDevice()}
             data-trusted-device-trust-self
-          >
+ >
             Trust this browser
           </Button>
         </div>
@@ -321,7 +321,7 @@ export function TrustedDevicesSection() {
               loading={busy === `revoke-${d.id}`}
               disabled={busy !== null}
               onClick={() => void revokeDevice(d)}
-            >
+ >
               Remove trust
             </Button>
           ) : null

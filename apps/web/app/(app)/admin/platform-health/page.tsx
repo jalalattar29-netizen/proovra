@@ -84,9 +84,6 @@ interface PlatformHealth {
   now: PlatformNow;
 }
 
-const INK_MUTED = "var(--ink-muted, #94a3b8)";
-const INK_SECONDARY = "var(--ink-secondary, #475569)";
-const INK_PRIMARY = "var(--ink-primary, #0f172a)";
 
 /**
  * Honest status → tone + human label. `healthy` is green ONLY here;
@@ -239,10 +236,10 @@ function ServiceCard({ row }: { row: ServiceStatusRow }) {
           justifyContent: "space-between",
           gap: 12,
         }}
-      >
+ >
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 650, color: INK_PRIMARY }}>{row.label}</div>
-          <div style={{ marginTop: 2, fontSize: 11, color: INK_MUTED }}>
+          <div style={{ fontWeight: 650, color: "var(--ink-primary)" }}>{row.label}</div>
+          <div style={{ marginTop: 2, fontSize: 11, color: "var(--ink-muted)" }}>
             Checked {formatUserDateTime(row.lastCheckedAtUtc)}
           </div>
         </div>
@@ -256,10 +253,10 @@ function ServiceCard({ row }: { row: ServiceStatusRow }) {
             marginTop: 10,
             fontSize: 12.5,
             lineHeight: 1.5,
-            color: INK_SECONDARY,
+            color: "var(--ink-secondary)",
             overflowWrap: "anywhere",
           }}
-        >
+ >
           {row.detail}
         </div>
       ) : null}
@@ -269,15 +266,15 @@ function ServiceCard({ row }: { row: ServiceStatusRow }) {
             marginTop: 8,
             fontSize: 12,
             lineHeight: 1.5,
-            color: INK_MUTED,
+            color: "var(--ink-muted)",
             overflowWrap: "anywhere",
           }}
-        >
+ >
           {row.lastError}
         </div>
       ) : null}
       {row.lastSuccessAtUtc ? (
-        <div style={{ marginTop: 8, fontSize: 11, color: INK_MUTED }}>
+        <div style={{ marginTop: 8, fontSize: 11, color: "var(--ink-muted)" }}>
           Last success {formatUserDateTime(row.lastSuccessAtUtc)}
         </div>
       ) : null}
@@ -303,9 +300,9 @@ function NowTile({
           fontWeight: 700,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          color: INK_MUTED,
+          color: "var(--ink-muted)",
         }}
-      >
+ >
         {label}
       </div>
       <div
@@ -315,9 +312,9 @@ function NowTile({
           fontWeight: measured ? 750 : 600,
           lineHeight: 1.1,
           letterSpacing: "-0.02em",
-          color: measured ? INK_PRIMARY : INK_MUTED,
+          color: measured ? "var(--ink-primary)" : "var(--ink-muted)",
         }}
-      >
+ >
         {measured
           ? `${new Intl.NumberFormat().format(metric!.value as number)}${
               suffix ? ` ${suffix}` : ""
@@ -325,7 +322,7 @@ function NowTile({
           : "Not measured"}
       </div>
       {!measured && metric?.reason ? (
-        <div style={{ marginTop: 8, fontSize: 12, color: INK_MUTED }}>
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--ink-muted)" }}>
           {metric.reason}
         </div>
       ) : null}
@@ -411,15 +408,15 @@ function AdminPlatformHealthPage() {
           }
         />
       }
-    >
+ >
       <div data-testid="admin-platform-health">
 
         {error ? (
           <Card variant="status" tone="risk" padding="comfortable">
-            <div style={{ fontWeight: 650, color: INK_PRIMARY }}>
+            <div style={{ fontWeight: 650, color: "var(--ink-primary)" }}>
               Could not load platform health
             </div>
-            <div style={{ marginTop: 6, fontSize: 13.5, color: INK_SECONDARY }}>
+            <div style={{ marginTop: 6, fontSize: 13.5, color: "var(--ink-secondary)" }}>
               {error}
             </div>
           </Card>
@@ -462,7 +459,7 @@ function AdminPlatformHealthPage() {
               <PageSection
                 title="Needs attention"
                 description="A live probe reports a non-healthy state for these. Everything else on this page is either measured healthy or not measured at all."
-              >
+ >
                 <div style={SERVICE_GRID} data-testid="admin-platform-health-attention">
                   {attentionRows.map((row) => (
                     <ServiceCard key={row.key} row={row} />
@@ -474,7 +471,7 @@ function AdminPlatformHealthPage() {
             <PageSection
               title="Now"
               description="Live platform activity. Each number is a real count or an honest 'Not measured' — never a fabricated value."
-            >
+ >
               <div style={NOW_GRID} data-testid="admin-platform-health-now">
                 <NowTile label="Active sessions (5m)" metric={now?.activeSessions} />
                 <NowTile label="Uploads in progress" metric={now?.uploadsInProgress} />
@@ -494,7 +491,7 @@ function AdminPlatformHealthPage() {
             <PageSection
               title="Measured healthy"
               description="A live probe proved each of these up. Green appears here and nowhere else on the page."
-            >
+ >
               {data.services.length === 0 ? (
                 <EmptyState
                   variant="inline"
@@ -525,7 +522,7 @@ function AdminPlatformHealthPage() {
               <PageSection
                 title="Not measured"
                 description="No live probe exists for these in this build, or no credential is bound. Their state is UNKNOWN — this page never reads an unprobed subsystem as healthy."
-              >
+ >
                 <AdmCard pad="compact">
                   <AdmFacts
                     items={unprobedRows.map((row) => ({
@@ -549,7 +546,7 @@ function AdminPlatformHealthPage() {
               </PageSection>
             ) : null}
 
-            <div style={{ fontSize: 12, color: INK_MUTED }}>
+            <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
               Snapshot generated {formatUserDateTime(data.generatedAtUtc)} ·
               read-only · connects existing health services · no secrets, no
               estimated availability figures.

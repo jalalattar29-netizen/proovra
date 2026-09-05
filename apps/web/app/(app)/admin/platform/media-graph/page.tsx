@@ -486,7 +486,7 @@ useEffect(() => {
                 style={primaryButtonStyle(
                   actionResult.kind === "pending" || !teamId,
                 )}
-              >
+ >
                 {actionResult.kind === "pending" && actionResult.label === "Retry"
                   ? "Retrying…"
                   : "Retry"}
@@ -514,7 +514,7 @@ useEffect(() => {
                 style={primaryButtonStyle(
                   actionResult.kind === "pending" || !teamId,
                 )}
-              >
+ >
                 {actionResult.kind === "pending" &&
                 actionResult.label === "Replay DLQ"
                   ? "Replaying…"
@@ -532,7 +532,7 @@ useEffect(() => {
                   : actionResultErrorStyle
               }
               role="status"
-            >
+ >
               <strong>{actionResult.label}:</strong> {actionResult.detail}
             </div>
           ) : null}
