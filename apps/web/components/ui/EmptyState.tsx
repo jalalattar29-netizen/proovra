@@ -44,6 +44,22 @@ export interface EmptyStateProps {
   framed?: boolean;
   /** Tighter spacing for inline / in-card use. */
   compact?: boolean;
+  /**
+   * HOW MUCH PRESENCE THIS EMPTY STATE EARNS.
+   *
+   *   page    the centred column with an icon. For an empty state that IS the
+   *           page — a search with no results, a list the operator navigated
+   *           to specifically. ~180px, and worth it there.
+   *   inline  a single 56px row: label, sentence, optional action, left
+   *           aligned, no icon disc. For a SECTION of six.
+   *
+   * The distinction exists because the console measured ~25 tables whose
+   * "nothing here" row was 156-235px tall, five of them stacked on
+   * /admin/costs — over a thousand pixels of "nothing", each box shouting as
+   * loudly as the populated panel beside it. The content was right in every
+   * case; the presence was not.
+   */
+  variant?: "page" | "inline";
   className?: string;
   style?: React.CSSProperties;
   "data-testid"?: string;
@@ -76,6 +92,7 @@ export function EmptyState({
   icon,
   framed = false,
   compact = false,
+  variant = "page",
   className,
   style,
   ...rest
@@ -92,6 +109,71 @@ export function EmptyState({
    * which is the common one; `compact` stays for dense panels.
    */
   const pad = compact ? "20px 16px" : "28px 24px";
+
+  /**
+   * THE INLINE SHAPE.
+   *
+   * One row. The icon disc is dropped rather than shrunk: a 40px decorative
+   * glyph repeated down a page of six empty sections is the decoration this
+   * console has too much of, and it carries no information a screen reader or
+   * a person can use — the words already say what is empty.
+   *
+   * `note` follows the sentence rather than stacking below it, because a
+   * caveat on one line beside its own claim is read; a caveat 60px under a
+   * centred column is not.
+   */
+  if (variant === "inline") {
+    return (
+      <div
+        {...rest}
+        role="status"
+        data-ui-empty-state
+        data-variant="inline"
+        className={["ui-empty-state", className].filter(Boolean).join(" ")}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          minBlockSize: 56,
+          padding: "12px 16px",
+          borderRadius: "var(--radius-md, 8px)",
+          border: framed
+            ? "1px dashed var(--border-strong, rgba(15,23,42,0.14))"
+            : "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
+          background: framed ? "transparent" : "var(--surface-muted, #f1f4f9)",
+          fontSize: 13,
+          lineHeight: 1.5,
+          color: "var(--ink-secondary, #475569)",
+          minWidth: 0,
+          ...style,
+        }}
+      >
+        <span
+          style={{
+            fontWeight: 650,
+            color: "var(--ink-primary, #0f172a)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {title}
+        </span>
+        {purpose != null ? (
+          <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{purpose}</span>
+        ) : null}
+        {note != null ? (
+          <span style={{ color: "var(--ink-muted, #94a3b8)", minWidth: 0 }}>
+            {note}
+          </span>
+        ) : null}
+        {action != null ? (
+          <span style={{ marginInlineStart: "auto", whiteSpace: "nowrap" }}>
+            {action}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
       {...rest}

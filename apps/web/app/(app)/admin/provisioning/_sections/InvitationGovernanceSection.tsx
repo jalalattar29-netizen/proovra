@@ -399,7 +399,7 @@ export function InvitationGovernanceSection({
       </label>
 
       {phase.kind === "idle" ? (
-        <EmptyState
+        <EmptyState variant="inline"
           title="No organization selected"
           purpose="Provision a customer above — its organization id is filled in here automatically — or paste the id of an existing organization to govern its invitations."
         />
@@ -521,7 +521,7 @@ export function InvitationGovernanceSection({
             getRowId={(i) => i.inviteId}
             ariaLabel="Pending organization invitations"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No pending invitations"
                 purpose="Everyone invited to this organization has either accepted or had their invitation revoked or expired."
               />

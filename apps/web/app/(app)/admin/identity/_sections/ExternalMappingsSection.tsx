@@ -372,12 +372,12 @@ export function ExternalMappingsSection({
           loading={rows === null}
           emptyState={
             failure ? (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="Mappings unavailable"
                 purpose={failure.message}
               />
             ) : (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No external identity mappings"
                 purpose="Nobody in this workspace has a recorded identity-provider subject yet. Link one above, or let SSO/SCIM record them as people sign in."
               />

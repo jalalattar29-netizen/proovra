@@ -10,10 +10,17 @@ import { EmptyState } from "../../../components/ui/EmptyState";
 import {
   AdminStat,
   AdminStatGrid,
+  formatMetricNumber,
   formatMoney,
   type Metric,
   type OverviewFigure,
 } from "../../../components/admin/AdminMetric";
+import {
+  AdmAttention,
+  AdmCard,
+  AdmFacts,
+  type AdmSeverity,
+} from "../../../components/admin/AdminSurfaces";
 import "./admin-overview.css";
 
 import { apiFetch } from "../../../lib/api";
@@ -165,6 +172,21 @@ const STATUS_TONE: Record<StatusLevel, BadgeTone> = {
   degraded: "pending",
   critical: "risk",
   unknown: "neutral",
+};
+
+/**
+ * The same four levels, mapped onto the attention surface's severities.
+ *
+ * A SEPARATE MAP FROM `STATUS_TONE`, deliberately: that one names a Badge
+ * tone and this one names a severity, and `degraded` maps to "warning" here
+ * while it maps to "pending" there. Collapsing them would make one of the two
+ * wrong to keep the other right.
+ */
+const ADM_SEVERITY: Record<StatusLevel, AdmSeverity> = {
+  healthy: "healthy",
+  degraded: "warning",
+  critical: "critical",
+  unknown: "unknown",
 };
 
 /**
@@ -379,6 +401,41 @@ function NeedsAttention({ ov }: { ov: PlatformOverview }) {
  * word rather than a dash: the whole point of the sentence is that a reader
  * can check the arithmetic, and they cannot check it against a dash.
  */
+/**
+ * AN INVENTORY FIGURE, AS A FACT RATHER THAN AS A TILE.
+ *
+ * Fifteen of the nineteen estate tiles were counts nobody acts on — archived
+ * customers, personal workspaces, registered people. They keep their number,
+ * their drill-down and their caveat; they lose the 112px box and the equal
+ * billing with "Suspended customers", which is a condition.
+ *
+ * The four honest non-values survive: `formatMetricNumber` already renders
+ * NOT_MEASURED / UNKNOWN / ERROR as words, and this does not convert any of
+ * them to a zero.
+ */
+function FigureText({
+  f,
+  suffix,
+}: {
+  f: OverviewFigure;
+  suffix?: string;
+}) {
+  const text = formatMetricNumber(f.metric);
+  const measured = f.metric.state === "VALUE" || f.metric.state === "PARTIAL";
+  return (
+    <span className="adm-row" data-adm-figure>
+      {f.drillDown && measured ? (
+        <Link href={f.drillDown} className="admin-hit-link" style={{ fontWeight: 650 }}>
+          {text}
+        </Link>
+      ) : (
+        <strong style={{ fontWeight: 650 }}>{text}</strong>
+      )}
+      {suffix ? <span className="adm-muted" style={{ fontSize: 12 }}>{suffix}</span> : null}
+    </span>
+  );
+}
+
 function metricText(metric: Metric<number>): string {
   return metric.state === "VALUE" && typeof metric.value === "number"
     ? String(metric.value)
@@ -447,40 +504,50 @@ export default function AdminOverviewPage() {
         </PageSection>
       ) : ov == null ? (
         <PageSection title="Platform status">
-          <EmptyState
+          <EmptyState variant="inline"
             title="Overview unavailable"
             purpose="The platform overview could not be loaded. This is an honest not-connected state, not an empty platform."
           />
         </PageSection>
       ) : (
         <>
-          {/* ---- A. Posture ------------------------------------------------ */}
+          {/* ---- 1. THE VERDICT -------------------------------------------
+              The single most important fact on the console, and now the first
+              thing on it. It was previously a Badge inside the fourth block of
+              the "Platform posture" section, under a 90-word methodology
+              paragraph. Severity is carried by a WORD as well as a colour. */}
+          <AdmAttention
+            severity={ADM_SEVERITY[ov.status.level] ?? "unknown"}
+            statement={
+              <span data-testid="admin-status-level">
+                {ov.status.level.toUpperCase()}
+              </span>
+            }
+            /* A state word with no reason is how "degraded" came to mean
+               "something, somewhere". The snapshot always names what decided
+               it, and the page always prints that sentence. */
+            detail={
+              <span data-testid="admin-status-reason">{ov.status.reason}</span>
+            }
+            action={{ href: "/admin/platform-health", label: "Platform health" }}
+          />
+
+          {/* ---- 2. NEEDS ATTENTION ---------------------------------------
+              Promoted above the summary. An operator arriving here asks "is
+              anything critical, and what needs me" before "how many
+              workspaces are there", and the page now answers in that order. */}
+          <PageSection
+            title="Needs attention"
+            description="Every attention signal on this page that is non-zero or unmeasured, with the records behind it. Measured zeros are omitted here and remain in the summary below — thirty cards reading zero is not a summary."
+          >
+            <NeedsAttention ov={ov} />
+          </PageSection>
+
+          {/* ---- 3. OPERATIONAL SUMMARY ---------------------------------- */}
           <PageSection
             title="Platform posture"
-            description="One authority. Incidents, signals, queues, workers, search, the evidence pipeline and every dependency probe are evaluated together by the platform health snapshot, and every global surface reads the same body. 'Healthy' is claimed only when every source answered and the evaluation is fresh — a failed read is Unknown, never green and never zero."
+            description="One authority: incidents, signals, queues, workers, search, the evidence pipeline and every dependency probe are evaluated together. 'Healthy' is claimed only when every source answered and the evaluation is fresh — a failed read is Unknown, never green and never zero."
           >
-            <div
-              style={{
-                marginBottom: 14,
-                display: "flex",
-                gap: 10,
-                alignItems: "baseline",
-                flexWrap: "wrap",
-              }}
-            >
-              <Badge tone={STATUS_TONE[ov.status.level]} data-testid="admin-status-level">
-                {ov.status.level.toUpperCase()}
-              </Badge>
-              {/* A state word with no reason is how "degraded" came to mean
-                  "something, somewhere". The snapshot always names what decided
-                  it, and the page always prints that sentence. */}
-              <span
-                style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}
-                data-testid="admin-status-reason"
-              >
-                {ov.status.reason}
-              </span>
-            </div>
             <div
               style={{
                 marginBottom: 14,
@@ -499,23 +566,12 @@ export default function AdminOverviewPage() {
                 : " · no telemetry sample recorded"}
             </div>
             {ov.status.unavailableSources.length > 0 ? (
-              <div
-                role="status"
-                data-testid="admin-status-unavailable-sources"
-                style={{
-                  marginBottom: 14,
-                  padding: "10px 12px",
-                  border: "1px solid var(--border-default, #cbd5e1)",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  color: "var(--ink-secondary, #475569)",
-                }}
-              >
-                <strong style={{ color: "var(--ink-primary, #0f172a)" }}>
-                  Partial evaluation.
-                </strong>{" "}
-                {ov.status.unavailableSources.join(", ")} did not answer. Figures
-                these sources feed are shown as unknown rather than as zero.
+              <div data-testid="admin-status-unavailable-sources">
+                <AdmAttention
+                  severity="unknown"
+                  statement="Partial evaluation"
+                  detail={`${ov.status.unavailableSources.join(", ")} did not answer. Figures these sources feed are shown as unknown rather than as zero.`}
+                />
               </div>
             ) : null}
             <AdminStatGrid>
@@ -575,53 +631,39 @@ export default function AdminOverviewPage() {
             </p>
           </PageSection>
 
-          {/* ---- A2. Needs attention -------------------------------------- */}
+          {/* ---- 4. THE ESTATE --------------------------------------------
+              ONE section, not three, and split by whether a figure is a
+              CONDITION or an INVENTORY. Nineteen equal tiles said the number
+              of archived customers mattered as much as the number of suspended
+              ones. Four conditions keep tiles; the inventory becomes two fact
+              lists, which fit in a third of the height and read faster. */}
           <PageSection
-            title="Needs attention"
-            description="Every attention signal on this page that is non-zero or unmeasured, with the records behind it. Measured zeros are omitted here and remain in the sections below — thirty cards reading zero is not a summary."
+            title="Customers, workspaces and people"
+            description="Customer organizations only — the internal 1:1 bootstrap container every workspace owns is not a customer. Live workspaces exclude closed ones, which are counted separately because closing a workspace revokes its access without touching its billing columns."
           >
-            <NeedsAttention ov={ov} />
-          </PageSection>
-
-          {/* ---- B. Customers --------------------------------------------- */}
-          <PageSection
-            title="Customers"
-            description="Customer organizations only. The internal 1:1 bootstrap container every workspace owns is not a customer and is not counted here."
-          >
-            <AdminStatGrid>
-              <AdminStat label="Customers" figure={ov.customers.total} />
-              <AdminStat label="Active" figure={ov.customers.active} />
-              <AdminStat
-                label="Enterprise contracts"
-                figure={ov.customers.enterpriseContracts}
-                hint="Contracts in ACTIVE status — not a workspace plan string"
-              />
-              <AdminStat label="Onboarding" figure={ov.customers.onboarding} hint="Pending enterprise seats" />
-              <AdminStat label="Suspended" figure={ov.customers.suspended} emphasis="attention" />
-              <AdminStat label="Archived" figure={ov.customers.archived} />
+            <AdminStatGrid cols={4}>
+              <AdminStat label="Suspended customers" figure={ov.customers.suspended} emphasis="attention" />
               <AdminStat label="SSO outages" metric={ov.customers.ssoOutageConnections} emphasis="attention" />
-              <AdminStat label="Unverified domains" metric={ov.customers.unverifiedDomains} />
+              <AdminStat label="Unverified domains" metric={ov.customers.unverifiedDomains} emphasis="attention" />
+              <AdminStat label="Onboarding" figure={ov.customers.onboarding} hint="Pending enterprise seats" />
             </AdminStatGrid>
-          </PageSection>
 
-          {/* ---- C. Workspaces --------------------------------------------- */}
-          <PageSection
-            title="Workspaces"
-            description="Live workspaces by kind. Closed workspaces are excluded from every live figure and counted separately — closing a workspace revokes its access without touching its billing columns, so billing state was never a usable liveness signal."
-          >
-            <AdminStatGrid>
-              <AdminStat label="Live workspaces" figure={ov.workspaces.live} />
-              <AdminStat label="Personal" figure={ov.workspaces.personal} />
-              <AdminStat label="Owned" figure={ov.workspaces.owned} />
-              <AdminStat label="Organization" figure={ov.workspaces.organization} />
-            </AdminStatGrid>
-            <div style={{ marginTop: 16 }}>
-              <AdminStatGrid>
-                <AdminStat label="Closed (history)" figure={ov.workspaces.closed} />
-                <AdminStat label="People" figure={ov.people.total} />
-                <AdminStat label="Registered" figure={ov.people.registered} hint="Excludes guest identities" />
-              </AdminStatGrid>
-            </div>
+            <AdmCard
+              title="Estate"
+              note="Inventory, not attention. Every figure links to the records behind it."
+              pad="compact"
+            >
+              <AdmFacts
+                items={[
+                  { label: "Customers", value: <FigureText f={ov.customers.total} suffix={`${metricText(ov.customers.active.metric)} active · ${metricText(ov.customers.archived.metric)} archived`} /> },
+                  { label: "Enterprise contracts", value: <FigureText f={ov.customers.enterpriseContracts} suffix="Contracts in ACTIVE status — not a workspace plan string" /> },
+                  { label: "Live workspaces", value: <FigureText f={ov.workspaces.live} suffix={`${metricText(ov.workspaces.personal.metric)} personal · ${metricText(ov.workspaces.organization.metric)} organization · ${metricText(ov.workspaces.owned.metric)} owned`} /> },
+                  { label: "Closed workspaces", value: <FigureText f={ov.workspaces.closed} suffix="History. Access already revoked." /> },
+                  { label: "People", value: <FigureText f={ov.people.total} suffix={`${metricText(ov.people.registered.metric)} registered, excluding guest identities`} /> },
+                ]}
+              />
+            </AdmCard>
+
             {ov.people.accountsByTier.length > 0 ? (
               <div style={{ marginTop: 16 }}>
                 <div
@@ -665,7 +707,7 @@ export default function AdminOverviewPage() {
             title="Commercial attention"
             description="The states that need somebody to do something. Every row behind these figures carries the customer it belongs to."
           >
-            <AdminStatGrid>
+            <AdminStatGrid cols={4}>
               <AdminStat label="Active subscriptions" figure={ov.billing.activeSubscriptions} />
               <AdminStat
                 label="Pending cancellation"
@@ -725,13 +767,47 @@ export default function AdminOverviewPage() {
               )}
             </div>
 
-            <div style={{ marginTop: 16 }}>
-              <AdminStatGrid>
-                <AdminStat label="Storage add-ons" figure={ov.billing.activeStorageAddons} />
-                <AdminStat label="MRR" metric={ov.billing.mrrCents} />
-                <AdminStat label="ARR" metric={ov.billing.arrCents} />
-              </AdminStatGrid>
-            </div>
+            {/* NOT ATTENTION. Two of these three are structurally
+                unmeasurable — the schema carries no billed-amount column — so
+                they can never become a number, and a tile that can never hold
+                a value is a permanent 112px apology. They keep their figure
+                and their reason, in a fact row. */}
+            <AdmCard title="Recurring revenue" pad="compact">
+              <AdmFacts
+                items={[
+                  {
+                    label: "Storage add-ons",
+                    value: <FigureText f={ov.billing.activeStorageAddons} />,
+                  },
+                  {
+                    label: "MRR",
+                    value: (
+                      <span className="adm-row" style={{ alignItems: "baseline", gap: 8 }}>
+                        <strong>{formatMetricNumber(ov.billing.mrrCents)}</strong>
+                        {ov.billing.mrrCents.reason ? (
+                          <span className="adm-muted" style={{ fontSize: 12 }}>
+                            {ov.billing.mrrCents.reason}
+                          </span>
+                        ) : null}
+                      </span>
+                    ),
+                  },
+                  {
+                    label: "ARR",
+                    value: (
+                      <span className="adm-row" style={{ alignItems: "baseline", gap: 8 }}>
+                        <strong>{formatMetricNumber(ov.billing.arrCents)}</strong>
+                        {ov.billing.arrCents.reason ? (
+                          <span className="adm-muted" style={{ fontSize: 12 }}>
+                            {ov.billing.arrCents.reason}
+                          </span>
+                        ) : null}
+                      </span>
+                    ),
+                  },
+                ]}
+              />
+            </AdmCard>
 
             {ov.billing.subscriptionsByStatus.length > 0 ? (
               <div style={{ marginTop: 16 }}>
@@ -771,7 +847,10 @@ export default function AdminOverviewPage() {
             title="Evidence operations"
             description="Pipeline volume and failure signals. Each failure figure opens the affected records with the workspace and customer they belong to."
           >
-            <AdminStatGrid>
+            {/* Three per row: six tiles in the auto-fill grid laid out 5+1 at
+                1440px, and a lone tile on a second row reads as an
+                afterthought rather than as the sixth of six. */}
+            <AdminStatGrid cols={3}>
               <AdminStat label="Evidence created (24h)" metric={ov.evidenceVolume.last24h} />
               <AdminStat label="Evidence created (7d)" metric={ov.evidenceVolume.last7d} />
               <AdminStat label="Evidence created (30d)" metric={ov.evidenceVolume.last30d} />
@@ -826,26 +905,56 @@ export default function AdminOverviewPage() {
             </AdminStatGrid>
           </PageSection>
 
-          {/* ---- G. Traffic ------------------------------------------------ */}
+          {/* ---- 8. TRAFFIC ------------------------------------------------
+              DEMOTED, and deliberately not deleted.
+
+              Three tiles of consented public analytics closed the platform
+              control centre, in the same visual weight as open incidents — and
+              the same three figures are the top of /admin/dashboard, which is
+              the page that owns them. A control centre that repeats another
+              page's summary at the bottom is a link directory with extra
+              steps. It keeps its numbers, as a fact row, and names where the
+              rest of the analysis lives. */}
           <PageSection
             title="Traffic"
-            description="Consented public analytics."
+            description="Consented public analytics. The full breakdown — geography, funnel, referrers — is on Platform Analytics."
           >
             {ov.traffic.connected ? (
-              <AdminStatGrid>
-                <AdminStat label="Page views (7d)" metric={ov.traffic.pageViewsLast7d} />
-                <AdminStat label="Visitors (7d)" metric={ov.traffic.visitorsLast7d} />
-                <AdminStat
-                  label="Countries seen"
-                  metric={
-                    ov.traffic.topCountries.state === "VALUE"
-                      ? { state: "VALUE", value: ov.traffic.topCountries.value?.length ?? 0 }
-                      : { state: ov.traffic.topCountries.state, value: null, reason: ov.traffic.topCountries.reason }
-                  }
+              <AdmCard pad="compact">
+                <AdmFacts
+                  items={[
+                    {
+                      label: "Page views (7d)",
+                      value: <strong>{formatMetricNumber(ov.traffic.pageViewsLast7d)}</strong>,
+                    },
+                    {
+                      label: "Visitors (7d)",
+                      value: <strong>{formatMetricNumber(ov.traffic.visitorsLast7d)}</strong>,
+                    },
+                    {
+                      label: "Countries seen",
+                      value: (
+                        <strong>
+                          {formatMetricNumber(
+                            ov.traffic.topCountries.state === "VALUE"
+                              ? { state: "VALUE", value: ov.traffic.topCountries.value?.length ?? 0 }
+                              : {
+                                  state: ov.traffic.topCountries.state,
+                                  value: null,
+                                  reason: ov.traffic.topCountries.reason,
+                                },
+                          )}
+                        </strong>
+                      ),
+                    },
+                  ]}
                 />
-              </AdminStatGrid>
+                <Link href="/admin/dashboard" style={{ fontSize: 13, fontWeight: 600 }}>
+                  Platform Analytics →
+                </Link>
+              </AdmCard>
             ) : (
-              <EmptyState title="Traffic not connected" purpose={ov.traffic.note} />
+              <EmptyState variant="inline" title="Traffic not connected" purpose={ov.traffic.note} />
             )}
           </PageSection>
         </>

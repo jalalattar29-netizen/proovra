@@ -169,6 +169,24 @@ export function AdminStat({
   );
 }
 
-export function AdminStatGrid({ children }: { children: React.ReactNode }) {
-  return <div className="admin-stat-grid">{children}</div>;
+export function AdminStatGrid({
+  children,
+  cols,
+}: {
+  children: React.ReactNode;
+  /**
+   * A FIXED COLUMN COUNT, for a row that must not reflow into an orphan.
+   *
+   * The default `auto-fill` is right for a long inventory grid and wrong for
+   * a summary row: four attention tiles at 1440px laid out 6-per-row left two
+   * on a second line, and a row of four peers reading as 6+2 is what made the
+   * Control Center's grids look accidental.
+   */
+  cols?: 2 | 3 | 4 | 5;
+}) {
+  return (
+    <div className="admin-stat-grid" data-cols={cols}>
+      {children}
+    </div>
+  );
 }

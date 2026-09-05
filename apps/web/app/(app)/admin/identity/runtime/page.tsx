@@ -501,7 +501,7 @@ const load = useCallback(() => {
   if (!teamId) {
     return (
       <PageShell header={<PageHeader eyebrow="Identity operations" title="Identity Runtime Monitor" />}>
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="No workspace selected"
           purpose="Switch to a workspace to monitor its live sessions and quarantine posture."
@@ -749,7 +749,7 @@ const load = useCallback(() => {
           loading={quarantined === null}
           ariaLabel="Quarantined sessions"
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title="No quarantined sessions"
               purpose="Sessions held for review appear here with their reason and auto-release time."
             />
@@ -837,7 +837,7 @@ const load = useCallback(() => {
           loading={sessions === null}
           ariaLabel="Active sessions"
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title={userFilter.trim() !== "" || !includeRevoked || includeExpired ? "No sessions match these filters" : "No active sessions"}
               purpose={userFilter.trim() !== "" || !includeRevoked || includeExpired
                 ? "No session matches the current user, revoked or expired filters. Clearing them shows every live session in this workspace."

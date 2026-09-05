@@ -194,8 +194,20 @@ export default async function RunbookDetailPage({
               color: "var(--ink-muted, #94a3b8)",
             }}
           >
-            Source: <code className="rb-code-inline">docs/runbooks/{rb.slug}.md</code>{" "}
-            · content sha256 <code className="rb-code-inline">{rb.sha256.slice(0, 16)}…</code>
+            {/*
+              THE REPOSITORY PATH IS GONE, THE HASH STAYS.
+
+              "Source: docs/runbooks/tsa-timestamp-failure.md" told an operator
+              mid-incident to go and find a file they have no checkout of, on a
+              machine they are not on. It is an implementation detail of where
+              this console gets its text, presented as if it were a next step.
+
+              The content hash is the part that was doing real work and it is
+              kept: an operator comparing this page against a repository
+              checkout can tell whether the two are the same text rather than
+              assuming, and that is a question the path alone cannot answer.
+            */}
+            Content sha256 <code className="rb-code-inline">{rb.sha256.slice(0, 16)}…</code>
             {rb.lastChangedUtc ? (
               <>
                 {" "}· last changed{" "}

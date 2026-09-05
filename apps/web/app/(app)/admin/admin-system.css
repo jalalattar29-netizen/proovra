@@ -1,0 +1,1475 @@
+/* ==========================================================================
+ * THE ADMIN CONTROL PLANE SURFACE SYSTEM (`adm-*`).
+ *
+ * =============================================================================
+ * WHY A SYSTEM AND NOT MORE CARDS
+ * =============================================================================
+ * The console reached forty-seven pages with one surface pattern — a white
+ * rounded box — doing every job. The measured result, across a full capture of
+ * every route:
+ *
+ *   /admin              20 cards, 12 of them holding one number, in 7 repeated
+ *                       metric grids; "Open incidents 10" printed three times
+ *   /admin/dashboard    39 cards; four empty states between 120px and 330px
+ *                       tall, each shouting as loudly as the populated panel
+ *                       beside it
+ *   /admin/platform-health   31 cards
+ *   ~25 tables          a single "nothing here" row 156-235px tall
+ *   evidence-ops/records     385px table rows — 5 records over 1,550px
+ *   observability            301 rows at 31px in one unbounded table
+ *
+ * None of those is a styling mistake. They are all the same structural
+ * mistake: no vocabulary existed for "this is a summary figure", "this is a
+ * grouped concept", "this is one focused action", "this needs somebody now",
+ * "this could not be read". So everything became a card, and a card carries no
+ * hierarchy.
+ *
+ * This file is that vocabulary. A page composes it; it does not restyle it.
+ *
+ * =============================================================================
+ * RULES OBSERVED HERE
+ * =============================================================================
+ *   - no colour literals: every value resolves through lib/design-tokens
+ *   - no `!important`
+ *   - logical properties throughout, so the console mirrors in RTL without a
+ *     second stylesheet
+ *   - the spacing scale only: 4/8/12/16/20/24/32/40 via --space-*
+ *   - status is never carried by hue alone; every tone has a word beside it
+ *   - a 44px minimum interactive target, on every viewport
+ *   - nothing scrolls the PAGE sideways: wide content scrolls in its container
+ * ========================================================================== */
+
+/* ==========================================================================
+ * 1. PAGE FRAME
+ *
+ * Three widths, chosen by the page family rather than by whoever wrote the
+ * page. An operations table wants room; a normal console page wants a
+ * comfortable measure; a procedure wants a reading column.
+ * ========================================================================== */
+
+.adm-page {
+  inline-size: 100%;
+  max-inline-size: var(--adm-w-page);
+  margin-inline: auto;
+  min-inline-size: 0;
+  /* The block flow of the whole page: 32px between major sections. Set once,
+     so no page needs to remember it and none can disagree. */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.adm-page[data-width="wide"] {
+  max-inline-size: var(--adm-w-wide);
+}
+
+.adm-page[data-width="read"] {
+  max-inline-size: var(--adm-w-read);
+}
+
+/* ==========================================================================
+ * 2. SECTION
+ *
+ * The unit of page structure, and the answer to "why is this grouped".
+ * A heading, one line of orientation, an optional action, then the content.
+ *
+ * Sections do not draw borders — the surfaces inside them do. A bordered
+ * section containing bordered cards is the card-inside-card-inside-card the
+ * review found four levels deep.
+ * ========================================================================== */
+
+.adm-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.adm-section__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  min-inline-size: 0;
+}
+
+.adm-section__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.adm-section h2,
+.adm-section__title {
+  margin: 0;
+  font-size: 1.125rem; /* 18px */
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--ink-primary);
+}
+
+/* One line of orientation, held to a readable measure. The review found five
+   paragraphs over 160 characters on /admin alone, set across the full page
+   width — 150+ characters per line. */
+.adm-section__note {
+  margin: 0;
+  max-inline-size: 78ch;
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.55;
+  color: var(--ink-secondary);
+}
+
+.adm-section__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* A quieter sub-group inside a section, for content that does not deserve its
+   own H2 — which is how heading levels get skipped. */
+.adm-subhead {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* ==========================================================================
+ * 3. KPI — ONE MEANINGFUL FIGURE
+ *
+ * label / value / one line of context / optional drill-down. Nothing else.
+ *
+ * EQUAL HEIGHT WITHIN A ROW, by grid rather than by hope: the review found
+ * rows where the tile carrying a "View records" link was 40px taller than the
+ * tile beside it, so a row of peers read as a row of accidents.
+ *
+ * COLOUR IS EARNED BY THE VALUE. `data-tone` is applied by the caller only
+ * when the value itself is the condition — the AdminStat contract already
+ * refuses emphasis to a measured zero, and this styling follows it. A tile
+ * reading 0 is neutral; the console had eleven coloured zeros on one page.
+ *
+ * AN UNMEASURED FIGURE IS NOT A ZERO AND NOT A FAILURE. `data-state` paints
+ * NOT_MEASURED / UNKNOWN / NOT_APPLICABLE in muted ink at body size — visibly
+ * not a number — and ERROR / STALE in the warning tone, because those two mean
+ * the reading in front of you is not the current truth.
+ * ========================================================================== */
+
+.adm-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+/* Explicit column counts, for a row that must not reflow into an orphan. */
+.adm-kpis[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.adm-kpis[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.adm-kpis[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.adm-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* 112px floor: enough for label, value and a line of context; not enough to
+     become a panel. The floor is what keeps a row even. */
+  min-block-size: 112px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  min-inline-size: 0;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.adm-kpi__label {
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  /* A long translated label wraps rather than clipping; two lines is the
+     budget, and the value below stays where the neighbouring tile put it. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.adm-kpi__value {
+  font-size: 1.75rem; /* 28px */
+  font-weight: 680;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  /* Tabular, so a column of figures aligns on its digits. */
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-primary);
+  margin-block-start: auto;
+}
+
+/* The honest non-values. Rendered as WORDS at body size, because a 15px
+   sentence and a 28px numeral do not read as the same kind of thing — which
+   is exactly the point. */
+.adm-kpi__value[data-state="NOT_MEASURED"],
+.adm-kpi__value[data-state="UNKNOWN"],
+.adm-kpi__value[data-state="NOT_APPLICABLE"] {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink-muted);
+}
+
+.adm-kpi__value[data-state="ERROR"],
+.adm-kpi__value[data-state="STALE"],
+.adm-kpi__value[data-state="PARTIAL"] {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--warning-standard);
+}
+
+/* Tone, when the value IS the condition. */
+.adm-kpi__value[data-tone="critical"] { color: var(--danger-standard); }
+.adm-kpi__value[data-tone="attention"] { color: var(--warning-standard); }
+.adm-kpi__value[data-tone="healthy"] { color: var(--success-standard); }
+
+.adm-kpi__context {
+  font-size: 0.75rem; /* 12px */
+  line-height: 1.45;
+  color: var(--ink-secondary);
+  /* Three lines, then it stops. The review found a 112px tile whose body text
+     ran past its own border. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.adm-kpi__drill {
+  margin-block-start: var(--space-1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-600);
+}
+
+/* A whole tile is clickable only when it has ONE destination — which is why
+   this is a rule on the anchor rather than a class a div can borrow. */
+a.adm-kpi:hover {
+  border-color: var(--accent-500);
+  background: var(--accent-050);
+}
+
+a.adm-kpi:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+}
+
+/* A rail, for the row where one tile is the reason the operator is here. */
+.adm-kpi[data-rail="critical"] {
+  border-inline-start: 3px solid var(--danger-500);
+}
+
+.adm-kpi[data-rail="attention"] {
+  border-inline-start: 3px solid var(--warning-500);
+}
+
+/* ==========================================================================
+ * 4. CARD — A GROUPED CONCEPT
+ *
+ * Used when several facts belong together and the grouping IS the
+ * information. Not used to put a border around whatever was next.
+ *
+ * Height follows content. `data-peer` opts a row into equal height, and only
+ * a row of genuine peers should ask for it: the review found a three-card row
+ * stretched to its tallest member, leaving 180px of nothing under the first.
+ * ========================================================================== */
+
+.adm-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  min-inline-size: 0;
+}
+
+.adm-card[data-pad="compact"] { padding: var(--space-4); }
+.adm-card[data-pad="none"] { padding: 0; overflow: hidden; }
+
+.adm-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+/* A card heading must not be visually weaker than its own body text — the
+   review found several that were. */
+.adm-card__title {
+  margin: 0;
+  font-size: 0.9375rem; /* 15px */
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--ink-primary);
+}
+
+.adm-card__note {
+  margin: var(--space-1) 0 0;
+  max-inline-size: 72ch;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+}
+
+.adm-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.adm-card__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.adm-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  /* Start, not stretch: a card is as tall as it needs to be unless the row
+     opts in below. */
+  align-items: start;
+  min-inline-size: 0;
+}
+
+.adm-cards[data-peer="true"] { align-items: stretch; }
+.adm-cards[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.adm-cards[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* ==========================================================================
+ * 5. FACTS — IDENTITY AND STATUS, NOT A WALL OF EVERY FIELD
+ *
+ * A definition list. The label is quiet and fixed-width; the value carries the
+ * weight. Technical identity gets monospace, safe truncation and a copy
+ * control rather than a wrapped UUID occupying four lines of a table cell —
+ * which is literally what made evidence-ops/records 385px per row.
+ * ========================================================================== */
+
+.adm-facts {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.adm-facts dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  min-inline-size: 0;
+}
+
+.adm-facts dd {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-primary);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Stacked, for a narrow column. */
+.adm-facts[data-layout="stack"] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.adm-facts[data-layout="stack"] dt { margin-block-end: var(--space-1); }
+
+/* Technical identity. LTR always: an id, a hash, an email, a path or a command
+   is not natural-language text and must not mirror under RTL. */
+.adm-mono {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  direction: ltr;
+  unicode-bidi: isolate;
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
+
+.adm-id {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.adm-id__value {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  direction: ltr;
+  unicode-bidi: isolate;
+  color: var(--ink-secondary);
+  /* One line, ellipsised. The full value travels in `title` and in the copy
+     control, so nothing is lost by not wrapping it. */
+  max-inline-size: var(--cell-max-w);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+ * 6. ATTENTION — AN ACTIONABLE WARNING OR FAILURE
+ *
+ * Severity, scope, the statement, and the next action. Informational prose may
+ * NOT use this surface: an alarm that fires for ordinary information is how
+ * operators learn to stop reading alarms.
+ *
+ * Deliberately not a full-bleed coloured slab. Support Access must look
+ * high-risk without becoming a giant red page, and the same restraint is right
+ * everywhere: a tinted surface, a 3px rail, and a word.
+ * ========================================================================== */
+
+.adm-attention {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-inline-start-width: 3px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  min-inline-size: 0;
+}
+
+.adm-attention[data-severity="critical"] {
+  border-color: var(--danger-border);
+  border-inline-start-color: var(--danger-500);
+  background: var(--danger-subtle-bg);
+}
+
+.adm-attention[data-severity="warning"] {
+  border-color: var(--warning-border);
+  border-inline-start-color: var(--warning-500);
+  background: var(--warning-surface);
+}
+
+/* An unmeasured condition is NEUTRAL. Not a lighter warning: a measurement
+   that failed is the absence of an observation, and colouring it as a warning
+   claims an observation nobody made. */
+.adm-attention[data-severity="unknown"] {
+  border-inline-start-color: var(--ink-muted);
+  background: var(--surface-muted);
+}
+
+.adm-attention[data-severity="healthy"] {
+  border-color: var(--success-border);
+  border-inline-start-color: var(--success);
+  background: var(--success-subtle-bg);
+}
+
+.adm-attention__severity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  /* The WORD, so severity is never hue alone. */
+  border: 1px solid currentColor;
+}
+
+.adm-attention[data-severity="critical"] .adm-attention__severity {
+  color: var(--danger-standard);
+}
+
+.adm-attention[data-severity="warning"] .adm-attention__severity {
+  color: var(--warning-standard);
+}
+
+.adm-attention[data-severity="unknown"] .adm-attention__severity {
+  color: var(--ink-secondary);
+}
+
+.adm-attention[data-severity="healthy"] .adm-attention__severity {
+  color: var(--success-standard);
+}
+
+.adm-attention__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.adm-attention__statement {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink-primary);
+}
+
+.adm-attention__detail {
+  margin: 0;
+  max-inline-size: 84ch;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+}
+
+.adm-attention__action {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding-inline: var(--space-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent-600);
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+}
+
+.adm-attention__action:hover { text-decoration: underline; }
+
+.adm-attention__action:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
+}
+
+/* A LIST of conditions needing somebody. Rows, not tiles: a row carries the
+   number, the name, why it needs an owner and where the records are, and four
+   fit in the space one tile occupies. */
+.adm-attention-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-inline-size: 0;
+}
+
+/* ==========================================================================
+ * 7. INLINE STATUS — loading, empty, unavailable, not measured
+ *
+ * The surface that stops every state from becoming a 250px box.
+ *
+ * A single row: 56px, left-aligned, no icon disc, no centred column. The
+ * review counted ~25 tables whose "nothing here" row was between 156 and
+ * 235px tall, and five of them stacked on /admin/costs — over a thousand
+ * pixels of "nothing", each shouting as loudly as the one above.
+ *
+ * A page-level empty (a search with no results) still earns a centred
+ * presentation; that is EmptyState's job. This is for a section of six.
+ * ========================================================================== */
+
+.adm-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 56px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+  min-inline-size: 0;
+}
+
+.adm-inline__label {
+  font-weight: 650;
+  color: var(--ink-primary);
+  white-space: nowrap;
+}
+
+.adm-inline__text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.adm-inline__action {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+
+/* The states, kept visually distinct from each other AND from a measured zero.
+   This is the Phase 2 truth contract made visible. */
+.adm-inline[data-state="empty"] {
+  background: transparent;
+  border-style: dashed;
+}
+
+.adm-inline[data-state="filtered"] {
+  background: var(--surface-muted);
+  border-style: solid;
+}
+
+.adm-inline[data-state="unavailable"],
+.adm-inline[data-state="error"] {
+  border-color: var(--warning-border);
+  background: var(--warning-surface);
+  color: var(--warning-standard);
+}
+
+.adm-inline[data-state="unavailable"] .adm-inline__label,
+.adm-inline[data-state="error"] .adm-inline__label {
+  color: var(--warning-standard);
+}
+
+.adm-inline[data-state="not-measured"] {
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+}
+
+.adm-inline[data-state="not-measured"] .adm-inline__label {
+  color: var(--ink-secondary);
+}
+
+.adm-inline[data-state="loading"] {
+  border-color: var(--border-subtle);
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+}
+
+/* A skeleton the shape of the answer, not a spinner: the concern is layout
+   jump, and a 56px bar that becomes a 56px row does not jump. */
+.adm-skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface-muted) 25%,
+    var(--border-subtle) 37%,
+    var(--surface-muted) 63%
+  );
+  background-size: 400% 100%;
+  animation: adm-shimmer 1.4s ease-in-out infinite;
+}
+
+.adm-skeleton[data-shape="line"] { block-size: 0.75rem; inline-size: 100%; }
+.adm-skeleton[data-shape="value"] { block-size: 1.75rem; inline-size: 4ch; }
+.adm-skeleton[data-shape="row"] { block-size: var(--row-h); inline-size: 100%; }
+
+@keyframes adm-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-skeleton {
+    animation: none;
+    background: var(--surface-muted);
+  }
+}
+
+/* ==========================================================================
+ * 8. TABLE — OPERATIONALLY USEFUL
+ *
+ * Density is a decision taken here once. The review measured 31px rows on
+ * observability (301 of them) and 385px rows on evidence-ops/records: a 12x
+ * spread for the same job, in the same console.
+ *
+ * The container scrolls, never the page. That is the difference between a wide
+ * table and a broken page, and it is why the horizontal overflow lives on
+ * `.adm-tablewrap` rather than anywhere higher.
+ * ========================================================================== */
+
+.adm-tablewrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  min-inline-size: 0;
+  /* Contain the scroll so a nested overflow cannot escape to the body. */
+  overscroll-behavior-x: contain;
+}
+
+.adm-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  /* NOT tabular here. Tabular digits are wider, and a table already at its
+     width floor answers a wider digit by wrapping a cell. Spending that width
+     on id, hash and timestamp columns takes it from the columns that hold
+     comparable numbers, which are the only ones that benefit. A cell that
+     holds one opts in with `.adm-table__num`. */
+}
+
+.adm-table th {
+  padding: var(--space-3) var(--row-pad-x);
+  border-block-end: 1px solid var(--border-default);
+  background: var(--surface-header);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.adm-table td {
+  /* 52px standard — inside the 48-56px an operational row should occupy. */
+  block-size: var(--row-h);
+  padding: var(--space-2) var(--row-pad-x);
+  border-block-end: 1px solid var(--border-subtle);
+  color: var(--ink-primary);
+  vertical-align: middle;
+}
+
+.adm-table tbody tr:last-child td { border-block-end: 0; }
+
+.adm-table tbody tr:hover { background: var(--surface-muted); }
+
+.adm-table[data-density="compact"] td {
+  block-size: var(--row-h-compact);
+  padding-block: var(--space-1);
+}
+
+/* The primary column carries identity and is the only one with weight. */
+.adm-table__primary {
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+/* Secondary metadata is quieter, on the same row, and does not double its
+   height: it truncates. A wrapped UUID under a wrapped name is what turned
+   five records into 1,550px. */
+.adm-table__meta {
+  display: block;
+  margin-block-start: 2px;
+  font-size: 0.6875rem;
+  color: var(--ink-muted);
+  max-inline-size: var(--cell-max-w);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Any cell may opt into single-line truncation. `title` carries the full
+   value; the review found raw user-agent strings and JSON in table cells. */
+.adm-table__truncate {
+  max-inline-size: var(--cell-max-w);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adm-table__num { text-align: end; }
+.adm-table__actions { text-align: end; white-space: nowrap; }
+
+/* An in-table state row. Not a 200px box in a colspan. */
+.adm-table td.adm-table__state {
+  block-size: auto;
+  padding: var(--space-3) var(--row-pad-x);
+}
+
+/* Sticky header, for a table long enough that the columns leave the screen.
+   Opt-in, because a sticky header on a four-row table is decoration. */
+.adm-table[data-sticky="true"] th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+}
+
+/* --------------------------------------------------------------------------
+ * The narrow-viewport strategy, chosen per table rather than by shrinking
+ * everything until it is unreadable.
+ *
+ *   scroll  the table keeps its columns and scrolls inside its container
+ *   cards   each row becomes a labelled block
+ *
+ * `cards` reads `data-label` off the cell, so identity, state, the important
+ * timestamp and the primary action all survive.
+ * ------------------------------------------------------------------------ */
+@media (max-width: 48rem) {
+  .adm-tablewrap[data-narrow="cards"] {
+    border: 0;
+    background: transparent;
+  }
+
+  .adm-tablewrap[data-narrow="cards"] .adm-table,
+  .adm-tablewrap[data-narrow="cards"] .adm-table tbody,
+  .adm-tablewrap[data-narrow="cards"] .adm-table tr,
+  .adm-tablewrap[data-narrow="cards"] .adm-table td {
+    display: block;
+    inline-size: auto;
+    block-size: auto;
+  }
+
+  .adm-tablewrap[data-narrow="cards"] .adm-table thead { display: none; }
+
+  .adm-tablewrap[data-narrow="cards"] .adm-table tr {
+    margin-block-end: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+  }
+
+  .adm-tablewrap[data-narrow="cards"] .adm-table td {
+    display: grid;
+    grid-template-columns: minmax(96px, 38%) minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
+    border: 0;
+  }
+
+  .adm-tablewrap[data-narrow="cards"] .adm-table td::before {
+    content: attr(data-label);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+
+  /* A cell with no label is a full-width block — the actions row. */
+  .adm-tablewrap[data-narrow="cards"] .adm-table td:not([data-label]) {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block-start: var(--space-3);
+  }
+
+  .adm-tablewrap[data-narrow="cards"] .adm-table td:not([data-label])::before {
+    content: none;
+  }
+
+  /* Truncation is a desktop-density device. On a card, the value has room. */
+  .adm-tablewrap[data-narrow="cards"] .adm-table__truncate,
+  .adm-tablewrap[data-narrow="cards"] .adm-table__meta {
+    max-inline-size: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ==========================================================================
+ * 9. CONTROL BAR — search, filters, scope, count, reset
+ *
+ * One order, everywhere: search, filters, scope, count, reset. A page-by-page
+ * order is how an operator ends up hunting for the reset control.
+ * ========================================================================== */
+
+.adm-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-inline-size: 0;
+}
+
+.adm-controls__search { flex: 1 1 260px; min-inline-size: 0; }
+.adm-controls__filter { flex: 0 1 auto; min-inline-size: 0; }
+.adm-controls__spacer { flex: 1 1 auto; }
+
+.adm-controls__count {
+  font-size: 0.75rem;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The active filters, visible. A filtered view that looks identical to an
+   unfiltered one is how "no results" gets read as "no data". */
+.adm-active-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-inline-size: 0;
+}
+
+.adm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px var(--space-2);
+  border: 1px solid var(--accent-200);
+  border-radius: var(--radius-pill);
+  background: var(--accent-050);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--accent-600);
+  white-space: nowrap;
+}
+
+.adm-chip__key { color: var(--ink-secondary); font-weight: 500; }
+
+@media (max-width: 48rem) {
+  .adm-controls__search { flex-basis: 100%; }
+  .adm-controls > * { min-block-size: 44px; }
+}
+
+/* ==========================================================================
+ * 10. ACTION — ONE FOCUSED OPERATOR ACTION
+ *
+ * Consequence, target, authority, the control, and the caveat. Nothing else:
+ * an action card that also carries unrelated status is how a destructive
+ * control ends up beside a metric.
+ * ========================================================================== */
+
+.adm-action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  min-inline-size: 0;
+}
+
+.adm-action[data-risk="destructive"] { border-color: var(--danger-border); }
+.adm-action[data-risk="elevated"] { border-color: var(--warning-border); }
+
+.adm-action__consequence {
+  margin: 0;
+  max-inline-size: 78ch;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+}
+
+.adm-action__target {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  font-size: 0.8125rem;
+  color: var(--ink-primary);
+  min-inline-size: 0;
+}
+
+.adm-action__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.adm-action__caveat {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+/* ==========================================================================
+ * 11. DETAIL HEADER — entity identity and primary status
+ *
+ * For a record page. Identity, the technical id, the states that matter, and
+ * the actions — separated from the body so a detail page does not open with a
+ * wall of every field it has.
+ * ========================================================================== */
+
+.adm-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  min-inline-size: 0;
+}
+
+.adm-detail-head__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  flex: 1 1 320px;
+}
+
+.adm-detail-head__name {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 680;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+
+.adm-detail-head__states {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.adm-detail-head__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ==========================================================================
+ * 12. PANEL TABS — peer views of ONE entity
+ *
+ * Not navigation: unrelated destinations are links. These are the tabs INSIDE
+ * a page, and they carry the ARIA the role requires.
+ * ========================================================================== */
+
+.adm-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  border-block-end: 1px solid var(--border-default);
+  min-inline-size: 0;
+  /* Scrolls inside itself on a phone. The page does not move. */
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.adm-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  /* The indicator is a block-end border, which mirrors correctly under RTL
+     without a second rule. */
+  border-block-end: 2px solid transparent;
+  margin-block-end: -1px;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.adm-tab:hover {
+  color: var(--ink-primary);
+  border-block-end-color: var(--border-strong);
+}
+
+.adm-tab[aria-selected="true"],
+.adm-tab[data-active="true"] {
+  color: var(--accent-600);
+  border-block-end-color: var(--accent-500);
+}
+
+.adm-tab:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: -2px;
+}
+
+.adm-tab:disabled,
+.adm-tab[aria-disabled="true"] {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+  border-block-end-color: transparent;
+}
+
+.adm-tab__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1.5rem;
+  padding: 1px var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+}
+
+.adm-tab[aria-selected="true"] .adm-tab__count {
+  background: var(--accent-050);
+  color: var(--accent-600);
+}
+
+.adm-tabpanel { min-inline-size: 0; }
+
+/* ==========================================================================
+ * 13. PROSE — a procedure, not rendered Markdown
+ *
+ * A reading column, real list markers, and inline code that stays LTR under
+ * RTL. The Runbook reader must feel like an operational procedure.
+ * ========================================================================== */
+
+.adm-prose {
+  max-inline-size: var(--adm-w-read);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--ink-secondary);
+  min-inline-size: 0;
+}
+
+.adm-prose > * + * { margin-block-start: var(--space-4); }
+
+.adm-prose h2 {
+  margin-block: var(--space-8) var(--space-3);
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ink-primary);
+  scroll-margin-block-start: var(--space-8);
+}
+
+.adm-prose h3 {
+  margin-block: var(--space-6) var(--space-2);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--ink-primary);
+  scroll-margin-block-start: var(--space-8);
+}
+
+.adm-prose p { margin: 0; }
+
+.adm-prose ul,
+.adm-prose ol {
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+.adm-prose li + li { margin-block-start: var(--space-2); }
+
+.adm-prose ul { list-style: disc; }
+.adm-prose ol { list-style: decimal; }
+
+.adm-prose li::marker { color: var(--ink-muted); }
+
+.adm-prose strong { color: var(--ink-primary); font-weight: 650; }
+
+.adm-prose code {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125em;
+  direction: ltr;
+  unicode-bidi: isolate;
+  color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+
+.adm-prose blockquote {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-inline-start: 3px solid var(--accent-standard);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--accent-050);
+  color: var(--ink-primary);
+}
+
+/* ==========================================================================
+ * 14. UTILITIES — a short, closed list
+ * ========================================================================== */
+
+.adm-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-inline-size: 0;
+}
+
+.adm-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.adm-stack[data-gap="tight"] { gap: var(--space-2); }
+.adm-stack[data-gap="loose"] { gap: var(--space-5); }
+
+.adm-muted { color: var(--ink-muted); }
+.adm-secondary { color: var(--ink-secondary); }
+.adm-nums { font-variant-numeric: tabular-nums; }
+
+/* A copy control. Never `window.prompt`, never a bare glyph without a name. */
+.adm-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  /* Give the height back to the line box so a table row does not grow. */
+  margin-block: -12px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.adm-copy:hover { color: var(--accent-600); background: var(--accent-050); }
+
+.adm-copy:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: -2px;
+}
+
+/* ==========================================================================
+ * 15. RESPONSIVE FRAME
+ *
+ * Padding steps with the viewport; content width is handled by .adm-page.
+ * ========================================================================== */
+
+@media (max-width: 64rem) {
+  .adm-page { gap: var(--space-6); }
+}
+
+@media (max-width: 48rem) {
+  .adm-card { padding: var(--space-4); }
+  .adm-action { padding: var(--space-4); }
+  .adm-detail-head { padding: var(--space-4); }
+  .adm-kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  /* An explicit column count must still collapse. Two, never one: a phone
+     showing one KPI per screen is a scroll, not a summary. */
+  .adm-kpis[data-cols="3"],
+  .adm-kpis[data-cols="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-cards[data-cols="2"],
+  .adm-cards[data-cols="3"] { grid-template-columns: minmax(0, 1fr); }
+  .adm-facts { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .adm-facts dt { margin-block-end: var(--space-1); }
+  .adm-attention { grid-template-columns: auto minmax(0, 1fr); }
+  .adm-attention__action { grid-column: 1 / -1; }
+}
+
+@media (max-width: 30rem) {
+  .adm-kpi { min-block-size: 96px; padding: var(--space-3); }
+  .adm-kpi__value { font-size: 1.5rem; }
+}
+
+/* Forced colours: the tinted surfaces disappear, so the rails and the words
+   have to carry the meaning on their own. They already do. */
+@media (forced-colors: active) {
+  .adm-kpi,
+  .adm-card,
+  .adm-action,
+  .adm-attention,
+  .adm-inline,
+  .adm-tablewrap { border-color: CanvasText; }
+  .adm-tab[aria-selected="true"] { border-block-end-color: Highlight; }
+}
+
+/* ==========================================================================
+ * 16. THE CONSOLE'S TYPE SCALE, AND ITS GROUND
+ *
+ * =============================================================================
+ * WHY THESE ARE SET ON THE BODY CLASS
+ * =============================================================================
+ * `PageShell`/`PageSection` are the canonical page primitives and 37 of the 47
+ * admin pages already use them, so the right move was to make them serve this
+ * family — not to fork a second header. Their sizes are now tokens with the
+ * previous literals as fallbacks, which means every product surface outside
+ * the console renders byte-identically and only the console re-scales.
+ *
+ * WHAT WAS WRONG
+ * A 22px page title above a 15px section heading above 13px body text: three
+ * sizes inside 9px of each other. A page with six sections had a visible title
+ * and then an undifferentiated column, which is most of what "no hierarchy"
+ * meant in the review.
+ * ========================================================================== */
+
+body.is-admin-console {
+  --page-h1-size: 28px;
+  --page-h2-size: 18px;
+
+  /* The console's own ground and measure. An operations console is read for
+     hours beside a terminal; it gets the flat working canvas, and the product
+     decor is already turned off by this same class (see layout.tsx). */
+  --page-max-w: var(--adm-w-page);
+  --page-pad-x: 32px;
+  --page-pad-y: 28px;
+  --section-gap: var(--space-8);
+}
+
+@media (max-width: 64rem) {
+  body.is-admin-console {
+    --page-h1-size: 25px;
+    --page-pad-x: 24px;
+    --page-pad-y: 22px;
+    --section-gap: var(--space-6);
+  }
+}
+
+@media (max-width: 48rem) {
+  body.is-admin-console {
+    --page-h1-size: 23px;
+    --page-h2-size: 17px;
+    --page-pad-x: 16px;
+    --page-pad-y: 18px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * A PAGE FAMILY THAT NEEDS MORE WIDTH SAYS SO, AND ONE THAT NEEDS LESS SAYS
+ * SO. Set by the page on its own `PageShell` via `data-adm-width`; the token
+ * is what `PageShell` already reads for its clamp, so this needs no component
+ * change and no `!important`.
+ * ------------------------------------------------------------------------ */
+body.is-admin-console [data-adm-width="wide"] { --page-max-w: var(--adm-w-wide); }
+body.is-admin-console [data-adm-width="read"] { --page-max-w: 92ch; }
+
+/* --------------------------------------------------------------------------
+ * TABULAR NUMERALS — ON FIGURES, NOT ON TABLES.
+ *
+ * Every figure on these pages is compared against another figure — a count
+ * against yesterday's, a size against a quota, a duration against a budget —
+ * and proportional digits make a column of them ragged.
+ *
+ * SCOPED TO FIGURES, NOT APPLIED TO WHOLE TABLES. Tabular digits are wider
+ * than proportional ones, and these tables already sit at the `minWidth` floor
+ * DataTable computes from its column count — so widening every digit in an id,
+ * a hash and a timestamp column spends width that the columns which actually
+ * hold comparable numbers need, and buys nothing: nobody scans a column of
+ * UUIDs for magnitude.
+ *
+ * A NOTE ON HOW THIS WAS DIAGNOSED, because the first version of this comment
+ * got it wrong. Four event-listing pages grew by ~1,000px each between the
+ * before and after captures and the table-wide rule was blamed. It was not the
+ * cause: disabling every rule in this file moved /admin/audit by 74px, not by
+ * 1,222px. The pages had grown because the visual probes signed in repeatedly
+ * and each sign-in writes an audit event and a session row — the fixture had
+ * more DATA, not a worse layout. Page-height comparisons across a capture pair
+ * are only meaningful against a re-seeded fixture.
+ *
+ * The scoping below stands on its own merits. The measurement it was first
+ * justified with did not.
+ * ------------------------------------------------------------------------ */
+body.is-admin-console .admin-stat-value,
+body.is-admin-console .adminattn__value,
+body.is-admin-console .adm-table__num,
+body.is-admin-console .adm-nums,
+body.is-admin-console [data-adm-figure] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+ * PROSE MEASURE, for the descriptive text every console page opens with.
+ *
+ * The review measured 5 paragraphs over 160 characters on /admin, 5 on
+ * /admin/identity and 5 on /admin/provisioning, each set across the full
+ * content width — 150+ characters per line, where 75 is the comfortable
+ * ceiling. `PageHeader`'s own subtitle is already clamped; this catches the
+ * page-body paragraphs it does not own.
+ * ------------------------------------------------------------------------ */
+body.is-admin-console .ui-page-section > p,
+body.is-admin-console .ui-page-shell > p {
+  max-inline-size: 84ch;
+}
+
+/* ==========================================================================
+ * 17. THE LEGACY STAT GRID, GIVEN A FIXED-COLUMN MODE
+ *
+ * `.admin-stat-grid` is `auto-fill minmax(200px, 1fr)`, which is right for a
+ * long inventory grid and wrong for a summary row: four peer tiles at 1440px
+ * laid out six-per-row and left two on a second line. The component now takes
+ * a `cols` prop; this is where it lands.
+ * ========================================================================== */
+
+.admin-stat-grid[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-stat-grid[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.admin-stat-grid[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-stat-grid[data-cols="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+@media (max-width: 64rem) {
+  .admin-stat-grid[data-cols="4"],
+  .admin-stat-grid[data-cols="5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 48rem) {
+  .admin-stat-grid[data-cols="3"],
+  .admin-stat-grid[data-cols="4"],
+  .admin-stat-grid[data-cols="5"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* --------------------------------------------------------------------------
+ * EVEN TILES IN A ROW.
+ *
+ * `.admin-stat` is `display: block` with no floor, so a tile carrying a hint
+ * and a drill-down link stood 40px taller than the tile beside it. The review
+ * found that on every stat row in the console. A floor plus a column layout
+ * that pushes the value down is what makes a row read as a row.
+ * ------------------------------------------------------------------------ */
+body.is-admin-console .admin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-block-size: 112px;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+
+/* THE VALUE SITS DIRECTLY UNDER THE LABEL, NOT AT THE BOTTOM.
+   Bottom-aligning it looked tidier on a mockup and was wrong in practice: the
+   value then floats on however much hint text happens to sit below it, so
+   three tiles in one row put their numbers at 1523, 1547 and 1573. Top
+   alignment under a label of fixed height puts every number in a row on one
+   line, which is the whole reason a row of figures exists. */
+body.is-admin-console .admin-stat-value { margin-block-start: 0; }
+body.is-admin-console .admin-stat-drill { margin-block-start: auto; padding-block-start: 6px; }
+
+/* --------------------------------------------------------------------------
+ * A LABEL RESERVES TWO LINES.
+ *
+ * With the value bottom-aligned, a row of tiles whose labels wrap differently
+ * puts its numbers at different heights: "OPEN INCIDENTS" is one line and
+ * "DISTINCT ATTENTION ITEMS" is two, so 10 and 27 sat 17px apart. Reserving
+ * the second line everywhere costs 13px on the short labels and makes the row
+ * read as a row. It also absorbs a long translated label without moving the
+ * value, which is the same problem in a different language.
+ * ------------------------------------------------------------------------ */
+body.is-admin-console .admin-stat-label,
+.adm-kpi__label {
+  min-block-size: 2.2em;
+}
+
+body.is-admin-console .admin-stat-hint,
+body.is-admin-console .admin-stat-reason {
+  /* Three lines, then it stops. A 112px tile whose body text ran past its own
+     border was on the Control Center at every width. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* An inventory figure rendered as a fact keeps its baseline with its caveat. */
+[data-adm-figure] { align-items: baseline; gap: var(--space-2); }

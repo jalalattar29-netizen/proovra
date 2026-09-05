@@ -559,7 +559,7 @@ export function ActiveSessionsSection() {
         loading={sessionsBusy}
         ariaLabel="Active sessions inventory"
         emptyState={
-          <EmptyState
+          <EmptyState variant="inline"
             title="No sessions match these filters"
             purpose="Nobody currently holds a live session in this workspace under the filters above. Turn on “Show revoked” or “Show expired” to widen the view."
           />
@@ -697,7 +697,7 @@ export function ActiveSessionsSection() {
             loading={quarantineBusy}
             ariaLabel="Quarantined sessions"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="Nothing is on hold"
                 purpose="No session in this workspace is currently quarantined. Held sessions appear here with the reason and the auto-release time."
               />

@@ -247,7 +247,7 @@ export default function ScimPage() {
   if (!teamId) {
     return (
       <PageShell header={<PageHeader eyebrow="Identity operations" title="SCIM Operations" />}>
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="No SCIM directory connected"
           purpose="Switch to a workspace to manage its SCIM provisioning tokens, drift reconciliation, and sync replay."
@@ -670,7 +670,7 @@ function TokensTab({ teamId }: { teamId: string }) {
             loading={tokens === null}
             ariaLabel="SCIM provisioning tokens"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No SCIM directory connected"
                 purpose="Issue a scope-bounded SCIM v2 provisioning token so your identity provider can create, update, and deactivate users automatically."
                 action={
@@ -1043,7 +1043,7 @@ function DriftTab({ teamId }: { teamId: string }) {
 
           <section style={{ ...cardStyle, marginTop: 12, padding: 0 }}>
             {report.items.length === 0 ? (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No drift detected"
                 purpose="Workspace state matches IdP expectations. Re-scan after IdP changes to surface new drift."
               />
@@ -1362,7 +1362,7 @@ function ReplayTab({ teamId }: { teamId: string }) {
           loading={failures === null}
           ariaLabel="SCIM sync failures"
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title={eventTypeFilter !== "" || severityFilter !== "" ? "No failures match these filters" : "No sync failures"}
               purpose={eventTypeFilter !== "" || severityFilter !== ""
                 ? "No SCIM failure matches the selected type and severity. Clearing them shows every recorded failure."

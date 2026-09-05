@@ -113,7 +113,7 @@ function RunbookCatalog() {
           </div>
 
           {grouped.length === 0 ? (
-            <EmptyState
+            <EmptyState variant="inline"
               framed
               title="No runbook matches that"
               purpose="Try a subsystem id instead — a readiness banner names the subsystem, not the runbook. Every runbook is listed in the sidebar."

@@ -241,7 +241,117 @@
 
   /* ------------------------------------------------------------------
    * SPACING (4px base)
+   *
+   * The scale was an empty comment for as long as this file has existed, so
+   * every surface picked its own number and the admin console accumulated
+   * 13px, 17px, 23px and 37px paddings that no rule can defend. These are the
+   * only spacings a page may use.
    * ------------------------------------------------------------------ */
+  --space-1: 4px;   /* micro — icon to label */
+  --space-2: 8px;   /* tight internal */
+  --space-3: 12px;  /* related controls */
+  --space-4: 16px;  /* standard compact / mobile card padding */
+  --space-5: 20px;  /* card interior */
+  --space-6: 24px;  /* section and card separation */
+  --space-8: 32px;  /* major section separation */
+  --space-10: 40px; /* page-level separation, where justified */
+
+  /* ------------------------------------------------------------------
+   * MONOSPACE
+   *
+   * Referenced as `--font-mono` from twelve places with three different
+   * fallbacks. Technical identity — an id, a hash, a metric key, a command —
+   * is read character by character, so it needs a real stack rather than the
+   * browser's default `monospace`, whose metrics differ per platform.
+   * ------------------------------------------------------------------ */
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono",
+    "Roboto Mono", Menlo, Consolas, monospace;
+
+  /* ------------------------------------------------------------------
+   * SEMANTIC SURFACES AND INKS — the aliases the console was already asking
+   * for, and did not have.
+   *
+   * WHY THIS BLOCK EXISTS
+   * Twenty-five semantic tokens were referenced across `/admin/*` and defined
+   * nowhere. Every one resolved to its call-site fallback, which meant:
+   *
+   *   `--warning-strong` was #92400e on one surface, #9a3412 on the next and
+   *   #a3560f on a third — three browns for one meaning;
+   *   `--warning-border` was #e0b070, #fde68a and #fed7aa;
+   *   `--accent-standard` was #2563eb, so the Platform Operations focus ring
+   *   and the Runbook active rail were BLUE while the rest of the console was
+   *   PROOVRA purple;
+   *   `--danger-500` and `--warning-500` had `var(--border-default)` as their
+   *   fallback, so the Control Center's "Needs attention" tone rails — the one
+   *   place critical and warning are distinguished — rendered as plain grey
+   *   borders and carried no tone at all.
+   *
+   * Everything below is an ALIAS onto the palette declared above. Nothing new
+   * is invented except the two readable inks noted at their declarations, so a
+   * surface cannot drift from the badge for the same state.
+   * ------------------------------------------------------------------ */
+
+  /* Readable red INK, on the --warning-ink / --success-ink precedent.
+     `--error` (#DC2626) measures 4.53:1 on #FFFFFF — it passes for body text
+     by 0.03 and fails on the #F1F4F9 muted surface (4.19:1). This is the same
+     family one step darker: 6.42:1 on white, 5.94:1 on muted. Use `--error`
+     for fills and rails, this for words. */
+  --error-ink: #B91C1C;
+  --success-050: #F0FDF4;
+  --success-200: #BBF7D0;
+  --warning-050: #FFFBEB;
+  --warning-200: #FDE68A;
+  --info-050: #EFF6FF;
+
+  /* DANGER — a confirmed failure or a destructive consequence. */
+  --danger-500: var(--error);
+  --danger-standard: var(--error-ink);
+  --danger-strong: var(--error-ink);
+  --danger-border: var(--error-200);
+  --danger-subtle-bg: var(--error-050);
+  --risk-strong: var(--error-ink);
+  --risk-border: var(--error-200);
+  --risk-surface: var(--error-050);
+
+  /* WARNING — degraded, pending an operator, stale or partial.
+     Resolves through the ORANGE family, not amber: `--tone-orange` is the
+     declared authority for "needs attention" (see its comment above), and
+     amber-as-text is on the retired list in canonical-semantic-colors. */
+  --warning-500: var(--orange-500);
+  --warning-standard: var(--orange-ink);
+  --warning-strong: var(--orange-ink);
+  --warning-border: var(--orange-200);
+  --warning-surface: var(--orange-050);
+  --warning-subtle-bg: var(--orange-050);
+
+  /* SUCCESS — verified healthy, confirmed complete. Never "unknown". */
+  --success-border: var(--success-200);
+  --success-subtle-bg: var(--success-050);
+  --success-strong: var(--success-standard);
+
+  /* INFO / ACCENT. `--accent-standard` is the BRAND accent, which is what its
+     three consumers actually mean: a focus ring, an active-item rail and a
+     callout edge. It resolved to blue. */
+  --accent-standard: var(--accent-500);
+  --info-border: #BFDBFE;
+  --info-subtle-bg: var(--info-050);
+
+  /* NEUTRAL structure. */
+  --surface-page: var(--surface-app);
+  --admin-ground: var(--surface-app);
+  --surface-subtle: var(--surface-muted);
+  --surface-hover: var(--surface-muted);
+  --surface-inset: var(--ink-primary);
+  --border-standard: var(--border-strong);
+  --hairline: var(--border-default);
+  --rule: var(--border-default);
+  --text-strong: var(--ink-primary);
+  --text-muted: var(--ink-muted);
+  --ink-link: var(--accent-600);
+  /* The two the organization-admin surfaces ask for, by their own names. */
+  --status-ok-fg: var(--success-standard);
+  --status-warn-fg: var(--orange-ink);
+
 
   /* ------------------------------------------------------------------
    * LAYOUT
@@ -265,8 +375,28 @@
 
   /* ------------------------------------------------------------------
    * DENSITY
-   * Consumed by tables / cards / lists to switch row height + padding.
+   *
+   * Consumed by tables / cards / lists so row height is a decision taken once
+   * rather than per page. The console measured 31px rows on
+   * /admin/platform/observability (301 of them in one table) and 385px rows on
+   * /admin/evidence-ops/records — a 12x spread for the same job.
    * ------------------------------------------------------------------ */
+  --row-h: 52px;          /* the standard operational row */
+  --row-h-compact: 44px;  /* dense technical listing; still a 44px target */
+  --row-pad-x: 14px;
+  --cell-max-w: 34ch;     /* beyond this a cell truncates and titles itself */
+
+  /* ------------------------------------------------------------------
+   * ADMIN CONSOLE LAYOUT
+   *
+   * Three widths, because three page families read differently: an operations
+   * table wants room, a normal page wants a comfortable measure, and a
+   * procedure wants a reading column.
+   * ------------------------------------------------------------------ */
+  --adm-w-wide: 1440px;   /* tables and operational grids */
+  --adm-w-page: 1280px;   /* the default console page */
+  --adm-w-read: 74ch;     /* prose: runbooks, policy text */
+
 
   /* ------------------------------------------------------------------
    * SIDEBAR (dark surface, separate scale — never mix with --ink-*)

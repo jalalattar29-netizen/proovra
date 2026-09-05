@@ -421,7 +421,7 @@ export default function AdminOrganizationsPage() {
           )
         }
         emptyState={
-          <EmptyState
+          <EmptyState variant="inline"
             title="No customers yet"
             purpose="Customer organizations appear here once they exist. This roster is read-only and reflects live records."
           />

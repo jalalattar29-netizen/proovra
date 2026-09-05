@@ -1003,7 +1003,7 @@ export default function AdminAuditPage() {
           getRowId={(entry) => entry.id}
           loading={loading}
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title="No audit entries"
               purpose={
                 filtered

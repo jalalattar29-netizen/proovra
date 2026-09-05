@@ -177,7 +177,7 @@ export default function IdentityTimelinePage() {
   if (!teamId) {
     return (
       <PageShell header={<PageHeader eyebrow="Identity operations" title="Identity Audit" />}>
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="No workspace selected"
           purpose="Switch to a workspace to view its identity-governance event timeline."
@@ -329,7 +329,7 @@ export default function IdentityTimelinePage() {
             loading={events === null}
             ariaLabel="Identity event timeline"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No identity events"
                 purpose="No events match the selected category and severity. Adjust the filters or refresh."
               />

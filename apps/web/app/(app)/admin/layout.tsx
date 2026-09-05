@@ -49,6 +49,7 @@ import { useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import "../../../components/admin/admin-console.css";
+import "./admin-system.css";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { AdminEntityCrumbProvider } from "../../../components/admin/AdminEntityCrumb";

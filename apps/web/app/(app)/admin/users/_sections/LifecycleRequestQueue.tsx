@@ -225,7 +225,7 @@ export function LifecycleRequestQueue() {
           getRowId={(r) => `${r.kind}:${r.id}`}
           loading={loading}
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title="No lifecycle requests"
               purpose="Nobody has an outstanding account-closure or data-export request. This is a real zero, not an unmeasured signal."
             />

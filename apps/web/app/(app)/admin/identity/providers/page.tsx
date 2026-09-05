@@ -391,7 +391,7 @@ export default function ProvidersPage() {
   if (!teamId) {
     return (
       <PageShell header={<PageHeader eyebrow="Identity operations" title="Identity Providers" />}>
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="No workspace selected"
           purpose="Switch to a workspace to configure its SSO identity providers."
@@ -457,7 +457,7 @@ export default function ProvidersPage() {
         ) : denial ? (
           <DenialPanel denial={denial} />
         ) : providers.length === 0 ? (
-          <EmptyState
+          <EmptyState variant="inline"
             framed
             title="No SSO provider configured"
             purpose="Connect an identity provider (Okta, Entra ID, Google Workspace, or generic OIDC/SAML) to enable single sign-on and just-in-time provisioning for this workspace."

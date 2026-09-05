@@ -22,6 +22,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { RunbookCatalogNav } from "./_RunbookCatalogNav";
+
 // Metadata only. Importing the full catalog here pulled every runbook BODY
 // into the client bundle — 125 KB of markdown to render a list of titles.
 import {
@@ -78,7 +80,17 @@ export function RunbookLayout({
 }) {
   return (
     <div className="rb-layout">
-      <RunbookSidebar activeSlug={activeSlug} />
+      {/*
+        THE SEARCHABLE CATALOG, not the static list above.
+
+        `RunbookSidebar` is kept and still exported: it is the server-rendered
+        list, it needs no JavaScript, and it is what the catalog page's own
+        no-script path and the render tests read. The rail beside a runbook is
+        the one an operator uses under pressure, and twenty-nine procedures in
+        seven categories is a 1,000px scroll to find the one whose symptom you
+        already know. That one gets the filter.
+      */}
+      <RunbookCatalogNav activeSlug={activeSlug} />
       <div>{children}</div>
     </div>
   );

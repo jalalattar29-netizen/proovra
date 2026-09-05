@@ -344,7 +344,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         getRowId={(m) => m.userId}
         ariaLabel="Directory-managed membership"
         emptyState={
-          <EmptyState
+          <EmptyState variant="inline"
             title="No directory identities linked yet"
             purpose="Once your identity provider pushes users over SCIM, each person it owns appears here with their ownership state, workspace access, and directory link."
           />
@@ -358,7 +358,7 @@ export function ManagedMembershipSection({ teamId }: { teamId: string }) {
         data-testid="scim-group-effects"
       >
         {projection.groups.length === 0 ? (
-          <EmptyState
+          <EmptyState variant="inline"
             title="No SCIM groups"
             purpose="Groups pushed by your identity provider map to a workspace role. Each group's effect on access appears here."
           />

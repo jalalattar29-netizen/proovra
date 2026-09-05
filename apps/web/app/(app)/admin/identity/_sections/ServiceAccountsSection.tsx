@@ -320,12 +320,12 @@ export function ServiceAccountsSection({ stepUp }: { stepUp: StepUpControl }) {
           loading={rows === null}
           emptyState={
             failure ? (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="Service accounts unavailable"
                 purpose={failure.message}
               />
             ) : (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No service accounts"
                 purpose="No machine credentials are issued for this workspace. They are created in the integrations surface, where the secret is shown exactly once."
               />

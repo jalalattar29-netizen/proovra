@@ -35,6 +35,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { RunbookCodeBlock } from "./CodeBlock";
 import { tokenizeInline } from "./inline-tokens";
 
 // ---------------------------------------------------------------------------
@@ -130,6 +131,35 @@ const IS_DIVIDER = (l: string) => /^\|?[\s:|-]+\|[\s:|-]*$/.test(l);
 
 export function renderRunbookMarkdown(md: string): ReactNode[] {
   const lines = md.replace(/\r\n/g, "\n").split("\n");
+
+  /**
+   * Does this line CONTINUE the list item above it?
+   *
+   * The corpus is hard-wrapped at ~80 columns, so an item longer than that is
+   * written as a bullet plus one or more INDENTED continuation lines:
+   *
+   *   - Egress from the API to the provider during the window — a firewall or
+   *     DNS change is as likely as a provider outage.
+   *
+   * The list loops below consumed only lines matching the bullet pattern, so
+   * they stopped at the first continuation and the remainder fell through to
+   * the PARAGRAPH branch. The rendered result was a bullet ending "a firewall
+   * or" and, beneath the whole list, an unindented paragraph beginning "DNS
+   * change is as likely as". 394 items across 21 of the 29 runbooks were split
+   * that way: every operator procedure in the platform had sentences broken in
+   * half, and the break moved whenever somebody reflowed the source.
+   *
+   * Deliberately narrow. A line inside a fenced block never reaches this,
+   * because the fence branch consumes its body verbatim first.
+   */
+  const isContinuation = (l: string | undefined) =>
+    l !== undefined &&
+    l.trim() !== "" &&
+    /^\s+\S/.test(l) &&
+    !/^\s*[-*]\s+/.test(l) &&
+    !/^\s*\d+\.\s+/.test(l) &&
+    !l.trimStart().startsWith("```");
+
   const out: ReactNode[] = [];
   let i = 0;
   let k = 0;
@@ -149,10 +179,11 @@ export function renderRunbookMarkdown(md: string): ReactNode[] {
         i += 1;
       }
       i += 1; // closing fence
+      // A command in a runbook gets RUN, so it gets a copy control and its
+      // language label rather than being a dark block somebody selects by
+      // hand at 3am. See CodeBlock.tsx.
       out.push(
-        <pre key={key()} className="rb-pre" data-lang={lang || undefined}>
-          <code>{body.join("\n")}</code>
-        </pre>,
+        <RunbookCodeBlock key={key()} body={body.join("\n")} lang={lang} />,
       );
       continue;
     }
@@ -253,11 +284,16 @@ export function renderRunbookMarkdown(md: string): ReactNode[] {
       const items: { depth: number; text: string }[] = [];
       while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
         const indent = /^(\s*)/.exec(lines[i])![1].length;
-        items.push({
-          depth: indent >= 2 ? 1 : 0,
-          text: lines[i].replace(/^\s*[-*]\s+/, ""),
-        });
+        const parts = [lines[i].replace(/^\s*[-*]\s+/, "")];
         i += 1;
+        // Absorb the hard-wrap with ONE space: the source line break is a
+        // typographic accident of an 80-column file, not a break the reader
+        // should see.
+        while (isContinuation(lines[i])) {
+          parts.push(lines[i].trim());
+          i += 1;
+        }
+        items.push({ depth: indent >= 2 ? 1 : 0, text: parts.join(" ") });
       }
       out.push(
         <ul key={key()} className="rb-ul">
@@ -277,8 +313,13 @@ export function renderRunbookMarkdown(md: string): ReactNode[] {
       const first = Number(/^\s*(\d+)\./.exec(line)![1]);
       const items: string[] = [];
       while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
+        const parts = [lines[i].replace(/^\s*\d+\.\s+/, "")];
         i += 1;
+        while (isContinuation(lines[i])) {
+          parts.push(lines[i].trim());
+          i += 1;
+        }
+        items.push(parts.join(" "));
       }
       out.push(
         <ol key={key()} className="rb-ol" start={first}>

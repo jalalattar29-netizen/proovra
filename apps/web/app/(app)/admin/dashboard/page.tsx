@@ -283,7 +283,7 @@ function StatRow({ label, value, tone }: { label: string; value: number; tone: B
 function NotConnectedCard({ title, signal }: { title: string; signal: string }) {
   return (
     <Card title={title} padding="comfortable">
-      <EmptyState
+      <EmptyState variant="inline"
         compact
         title="Not connected"
         purpose={signal}
@@ -537,7 +537,7 @@ export default function AdminDashboardPage() {
       ) : !bundle ? (
         <PageSection>
           <Card variant="empty" padding="none">
-            <EmptyState
+            <EmptyState variant="inline"
               framed
               data-testid="admin-analytics-not-connected"
               title="Analytics not connected"
@@ -585,7 +585,7 @@ export default function AdminDashboardPage() {
           >
             {bundle.geography.countries.length === 0 ? (
               <Card variant="empty" padding="none">
-                <EmptyState
+                <EmptyState variant="inline"
                   framed
                   compact
                   data-testid="admin-geography-empty"
@@ -639,7 +639,7 @@ export default function AdminDashboardPage() {
             >
               <Card title="Top pages" subtitle="Most-viewed routes in this window." padding="comfortable">
                 {bundle.pages.length === 0 ? (
-                  <EmptyState
+                  <EmptyState variant="inline"
                     compact
                     data-testid="admin-pages-empty"
                     title="No page views recorded"
@@ -688,7 +688,7 @@ export default function AdminDashboardPage() {
                 padding="comfortable"
               >
                 {bundle.funnel.length === 0 ? (
-                  <EmptyState
+                  <EmptyState variant="inline"
                     compact
                     data-testid="admin-funnel-empty"
                     title="No funnel data"
@@ -836,7 +836,7 @@ export default function AdminDashboardPage() {
           >
             {bundle.recent.length === 0 ? (
               <Card variant="empty" padding="none">
-                <EmptyState
+                <EmptyState variant="inline"
                   framed
                   compact
                   data-testid="admin-recent-empty"

@@ -308,7 +308,7 @@ export function TrustedDevicesSection() {
         getRowId={(d) => d.id}
         ariaLabel="Trusted devices"
         emptyState={
-          <EmptyState
+          <EmptyState variant="inline"
             title="No trusted devices"
             purpose="Nobody in this workspace has a trusted device, so the second factor is requested every time the policy calls for one."
           />

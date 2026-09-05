@@ -294,7 +294,7 @@ export default function PermissionMatrixPage() {
           <PageHeader eyebrow="Identity operations" title="Permission matrix" />
         }
       >
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="No workspace selected"
           purpose="Switch to a workspace to inspect what its roles grant and what a specific member can do."
@@ -411,7 +411,7 @@ export default function PermissionMatrixPage() {
             Loading the role matrix…
           </p>
         ) : matrix.length === 0 ? (
-          <EmptyState
+          <EmptyState variant="inline"
             framed
             title="Role matrix unavailable"
             purpose="The server returned no roles for this workspace. Refresh, or check that your session is still in the workspace you expect."
@@ -693,7 +693,7 @@ export default function PermissionMatrixPage() {
                 getRowId={(r) => r.permission}
                 ariaLabel="Permission matrix"
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="No permissions match"
                     purpose="Adjust the permission-name filter or outcome filter to see entries."
                   />

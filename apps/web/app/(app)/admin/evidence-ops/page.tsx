@@ -424,13 +424,13 @@ export default function AdminEvidenceOpsPage() {
       ) : null}
 
       {loading && !snapshot ? (
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="Loading pipeline health…"
           purpose="Reading platform-wide upload, evidence, report, package, and preservation counts."
         />
       ) : !snapshot ? (
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="No pipeline snapshot available"
           purpose="The evidence-health endpoint returned no data. Try refreshing, or check that the API and workers are reachable."

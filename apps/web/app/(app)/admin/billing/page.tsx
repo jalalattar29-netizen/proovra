@@ -372,7 +372,7 @@ export default function AdminBillingPage() {
           <Skeleton width="100%" height="220px" />
         </Card>
       ) : !detail ? (
-        <EmptyState
+        <EmptyState variant="inline"
           title="Billing unavailable"
           purpose="The billing aggregate could not be loaded. This is a not-connected state, not an empty platform."
         />
@@ -383,7 +383,7 @@ export default function AdminBillingPage() {
             description="Succeeded payment totals, one per currency."
           >
             {detail.revenueByCurrency.length === 0 ? (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No payments recorded"
                 purpose="No succeeded payment exists yet. This is a real zero, not an unmeasured signal."
               />
@@ -488,7 +488,7 @@ export default function AdminBillingPage() {
                 rows={detail.attention.pendingCancellation}
                 getRowId={(r) => r.id}
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="No pending cancellations"
                     purpose="No active subscription is currently set to cancel at the end of its period."
                   />
@@ -508,7 +508,7 @@ export default function AdminBillingPage() {
                 rows={detail.attention.pastDue}
                 getRowId={(r) => r.id}
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="Nothing past due"
                     purpose="No subscription is currently in a past-due state."
                   />
@@ -529,7 +529,7 @@ export default function AdminBillingPage() {
                 rows={detail.attention.failedPayments}
                 getRowId={(r) => r.id}
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="No failed payments"
                     purpose="No payment has failed. This is a real zero."
                   />
@@ -549,7 +549,7 @@ export default function AdminBillingPage() {
                 rows={detail.attention.renewalWindow}
                 getRowId={(r) => r.id}
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="No renewals in the window"
                     purpose="No subscription renews in the configured window."
                   />
@@ -580,7 +580,7 @@ export default function AdminBillingPage() {
                 rows={detail.storageAddons.rows}
                 getRowId={(r) => r.id}
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="No active storage add-ons"
                     purpose="No workspace currently carries a storage add-on. This is a real zero, not an unmeasured signal."
                   />

@@ -493,7 +493,7 @@ function ExecutiveDashboardBody() {
       ) : !data ? (
         <PageSection>
           <Card variant="empty" padding="none">
-            <EmptyState
+            <EmptyState variant="inline"
               framed
               title="Executive dashboard not available"
               purpose="No aggregate was returned. Once revenue, customers, leads and usage records exist, the honest platform KPIs appear here."
@@ -586,7 +586,7 @@ function ExecutiveDashboardBody() {
               getRowId={(r) => r.teamId}
               ariaLabel="Top customers by usage"
               emptyState={
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No customer usage yet"
                   purpose="Once teams accumulate evidence, the highest-usage customers appear here."
                   data-testid="admin-executive-top-empty"
@@ -605,7 +605,7 @@ function ExecutiveDashboardBody() {
               getRowId={(r) => r.teamId}
               ariaLabel="At-risk customers"
               emptyState={
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No at-risk customers"
                   purpose="No team currently matches the at-risk rule (PAST_DUE billing, unresolved SSO outage, or a recent failed payment)."
                   data-testid="admin-executive-at-risk-empty"

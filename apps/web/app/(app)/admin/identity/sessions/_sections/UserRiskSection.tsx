@@ -262,7 +262,7 @@ export function UserRiskSection() {
             getRowId={(s, i) => `${s.kind}-${i}`}
             ariaLabel="Member risk signals"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No active risk signals"
                 purpose="Nothing is currently raising this member's risk. Signals expire on their own, so an empty list can also mean earlier signals have aged out."
               />

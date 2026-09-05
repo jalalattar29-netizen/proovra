@@ -248,7 +248,7 @@ export default function AdminSearchPage() {
             </FilterBar>
 
             {tooShort ? (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="Enter at least 2 characters"
                 purpose="Type a name, email, or a complete ID (minimum 2 characters) to search across platform entities. Only exact identifiers are matched — there is no partial or prefix matching. This search is read-only."
               />
@@ -262,18 +262,18 @@ export default function AdminSearchPage() {
                 needs to be told to paste the whole one, not to conclude the
                 record is gone.
               */
-              <EmptyState
+              <EmptyState variant="inline"
                 data-search-validation
                 title="That is not a complete identifier"
                 purpose={validationMessage}
               />
             ) : loading ? (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="Searching…"
                 purpose="Running a bounded, read-only search across platform entities."
               />
             ) : !hasResults ? (
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No matches"
                 purpose={
                   hasSearched

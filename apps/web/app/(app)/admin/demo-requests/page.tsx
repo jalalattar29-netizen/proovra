@@ -866,7 +866,7 @@ export default function AdminDemoRequestsPage() {
             </div>
           ) : items.length === 0 ? (
             <div style={{ marginTop: 18 }}>
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No demo requests found"
                 purpose="No inbound demo requests match the current filters. Adjust the filters above or clear them to see every request."
               />
@@ -1036,7 +1036,7 @@ export default function AdminDemoRequestsPage() {
           description="Inspect request content, qualification, routing, follow-up state, spam signals, and internal review controls."
         >
           {!details ? (
-            <EmptyState
+            <EmptyState variant="inline"
               title="No request selected"
               purpose="Select a request from the list to inspect and update it."
             />

@@ -130,7 +130,18 @@ export function PageHeader({
         <h1
           style={{
             margin: 0,
-            fontSize: 22,
+            /**
+             * TOKEN, NOT A LITERAL, so a page FAMILY can set its own scale
+             * without a second header component.
+             *
+             * The admin control plane needs a taller H1 than the product
+             * surfaces: it measured 22px against a 15px section heading, and
+             * the two read as one block, so a page with six sections had no
+             * visible structure to scan. It sets --page-h1-size on
+             * body.is-admin-console. Every other surface resolves the
+             * fallback and renders exactly what it rendered before.
+             */
+            fontSize: "var(--page-h1-size, 22px)",
             fontWeight: 700,
             lineHeight: 1.2,
             letterSpacing: "-0.01em",
@@ -239,7 +250,10 @@ export function PageSection({
                   // 650 against a 13px description read as one block: two
                   // pieces of text almost the same size and weight, so a page
                   // with six sections had no visible structure to scan.
-                  fontSize: 15,
+                  //
+                  // A token for the same reason as the H1 above: 15px is right
+                  // beside a 22px title and too small beside a 28px one.
+                  fontSize: "var(--page-h2-size, 15px)",
                   fontWeight: 700,
                   letterSpacing: "-0.01em",
                   lineHeight: 1.3,

@@ -688,7 +688,7 @@ function Shell() {
             </div>
           </Card>
         ) : (
-          <EmptyState
+          <EmptyState variant="inline"
             framed
             title="Not in support context"
             purpose="Enter support context from an active grant below. Until you do, you act only as yourself and see only your own platform surfaces."
@@ -744,7 +744,7 @@ function Shell() {
               getRowId={(g) => g.id}
               loading={!supportGrants}
               emptyState={
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No support grants"
                   purpose="No support-access grant matches this filter. Grants are minted through the incident workflow, not from this console."
                 />
@@ -932,7 +932,7 @@ function Shell() {
               getRowId={(g) => g.id}
               loading={!emergencyGrants}
               emptyState={
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No emergency grants"
                   purpose="No break-glass grant matches this filter. That is the expected steady state."
                 />

@@ -477,7 +477,7 @@ export function WorkspaceSecurityPostureSection() {
             loading={eventsBusy}
             ariaLabel="Workspace security events"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No security events in this window"
                 purpose="No security events match the current filters for this workspace. This is a real empty result from the server, not a permission problem."
               />
@@ -513,7 +513,7 @@ export function WorkspaceSecurityPostureSection() {
         loading={scansBusy}
         ariaLabel="Workspace file security scans"
         emptyState={
-          <EmptyState
+          <EmptyState variant="inline"
             title="No scans recorded"
             purpose="No file security scans match the current filter for this workspace."
           />

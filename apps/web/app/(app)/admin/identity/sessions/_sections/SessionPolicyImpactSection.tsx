@@ -229,7 +229,7 @@ export function SessionPolicyImpactSection() {
         getRowId={(r) => r.userId}
         ariaLabel="Session policy impact per member"
         emptyState={
-          <EmptyState
+          <EmptyState variant="inline"
             title="No active members"
             purpose="This workspace has no active members, so there is nothing for the session limits to apply to."
           />

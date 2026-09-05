@@ -35,6 +35,7 @@ import {
   useToast,
   type DataTableColumn,
 } from "../../../../../components/ui";
+import { AdmFacts, AdmId } from "../../../../../components/admin/AdminSurfaces";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { Card } from "../../../../../components/ui/Card";
@@ -146,6 +147,9 @@ export default function AdminEvidenceRecordsPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Response | null>(null);
   const [page, setPage] = useState(1);
+  /** Which row has its detail open. One at a time: this is a reading pane,
+      not a bulk expansion. */
+  const [openRow, setOpenRow] = useState<string | null>(null);
 
   const load = useCallback(
     async (targetPage: number) => {
@@ -218,17 +222,10 @@ export default function AdminEvidenceRecordsPage() {
         header: "Record",
         render: (r) => (
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 620 }}>{r.title ?? "(untitled)"}</div>
-            <div
-              style={{
-                fontSize: 11.5,
-                fontFamily: "monospace",
-                color: "var(--ink-muted, #94a3b8)",
-                marginTop: 2,
-              }}
-            >
-              {r.id}
+            <div className="adm-table__primary adm-table__truncate" title={r.title ?? undefined}>
+              {r.title ?? "(untitled)"}
             </div>
+            <AdmId value={r.id} label="evidence id" short />
           </div>
         ),
       },
@@ -253,8 +250,12 @@ export default function AdminEvidenceRecordsPage() {
       {
         key: "preservation",
         header: "Preservation",
+        // One line. Three badges wrapping in a 115px column added 25px to
+        // every row; the table already scrolls horizontally, which is the
+        // right place for the width to come from.
+        nowrap: true,
         render: (r) => (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
             {r.tsaStatus ? (
               <Badge tone={STATUS_TONE[r.tsaStatus] ?? "neutral"} subtle>
                 TSA {r.tsaStatus}
@@ -343,51 +344,81 @@ export default function AdminEvidenceRecordsPage() {
       {
         key: "action",
         header: "Required action",
+        nowrap: true,
         render: (r) => (
-          <div style={{ minWidth: 220 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Badge tone={r.retryable ? "info" : "neutral"} subtle>
-                {r.retryable ? "Retryable" : "Manual"}
-              </Badge>
-              {r.runbookSlug ? (
-                <Link
-                  href={`/admin/platform/runbooks/${resolveRunbookSlug(r.runbookSlug)}`}
-                  style={{ fontSize: 12.5 }}
-                >
-                  Runbook
-                </Link>
-              ) : null}
-            </div>
-            <div
-              style={{
-                marginTop: 4,
-                fontSize: 12.5,
-                lineHeight: 1.45,
-                color: "var(--ink-secondary, #475569)",
-              }}
-            >
-              {r.operatorAction}
-            </div>
-            {/* "You cannot retry this" with no reason is the message an
-                operator escalates about. The reason comes from the remediation
-                registry, not from this page. */}
-            {!r.retryable && r.notRetryableReason ? (
-              <div
-                style={{
-                  marginTop: 4,
-                  fontSize: 12,
-                  lineHeight: 1.45,
-                  color: "var(--ink-muted, #94a3b8)",
-                }}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Badge tone={r.retryable ? "info" : "neutral"} subtle>
+              {r.retryable ? "Retryable" : "Manual"}
+            </Badge>
+            {r.runbookSlug ? (
+              <Link
+                href={`/admin/platform/runbooks/${resolveRunbookSlug(r.runbookSlug)}`}
+                style={{ fontSize: 12.5 }}
               >
-                {r.notRetryableReason}
-              </div>
+                Runbook
+              </Link>
             ) : null}
           </div>
         ),
       },
     ],
     [],
+  );
+
+  /**
+   * THE NARRATIVE, WHERE IT CAN BE READ.
+   *
+   * What to do about a record — and, when nothing can be done, WHY — is the
+   * most useful thing on this page and the worst possible table cell. It had
+   * 244px, wrapped to 331px, and made every row 348px tall while the column
+   * itself sat past the container's horizontal scroll. Here it has the full
+   * width of the table and one row is one line again.
+   *
+   * "You cannot retry this" with no reason is the message an operator
+   * escalates about, so `notRetryableReason` travels with it. The reason comes
+   * from the remediation registry, not from this page.
+   */
+  const detail = useCallback(
+    (r: RecordRow) =>
+      openRow === r.id ? (
+        <div className="adm-stack" style={{ maxInlineSize: "84ch" }}>
+          <div>
+            <span className="adm-subhead">Required action</span>
+            <p style={{ margin: "4px 0 0", fontSize: 13, lineHeight: 1.55 }}>
+              {r.operatorAction}
+            </p>
+          </div>
+          {!r.retryable && r.notRetryableReason ? (
+            <div>
+              <span className="adm-subhead">Why it cannot be retried</span>
+              <p
+                style={{
+                  margin: "4px 0 0",
+                  fontSize: 12.5,
+                  lineHeight: 1.55,
+                  color: "var(--ink-secondary, #475569)",
+                }}
+              >
+                {r.notRetryableReason}
+              </p>
+            </div>
+          ) : null}
+          <AdmFacts
+            items={[
+              { label: "Evidence id", value: <AdmId value={r.id} label="evidence id" /> },
+              {
+                label: "Workspace id",
+                value: r.workspace ? (
+                  <AdmId value={r.workspace.id} label="workspace id" />
+                ) : (
+                  <span className="adm-muted">Not recorded</span>
+                ),
+              },
+            ]}
+          />
+        </div>
+      ) : null,
+    [openRow],
   );
 
   const total = data?.total ?? 0;
@@ -480,8 +511,19 @@ export default function AdminEvidenceRecordsPage() {
           rows={data?.items ?? []}
           getRowId={(r) => r.id}
           loading={loading}
+          expandedContent={detail}
+          rowActions={(r) => (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={openRow === r.id}
+              onClick={() => setOpenRow(openRow === r.id ? null : r.id)}
+            >
+              {openRow === r.id ? "Hide detail" : "What to do"}
+            </Button>
+          )}
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title={
                 evidenceId
                   ? "Record not found"

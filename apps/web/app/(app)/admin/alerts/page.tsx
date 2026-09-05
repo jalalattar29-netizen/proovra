@@ -166,7 +166,7 @@ export default function AdminAlertsPage() {
           description="This list is a read-only point-in-time snapshot. There is no per-alert acknowledge / resolve workflow — resolve an alert at its source (resolve the incident, drain the failed job, fix the SSO connection) and it clears on the next refresh. Each alert links to the surface that owns it."
         >
           {!loading && !hasAlerts ? (
-            <EmptyState
+            <EmptyState variant="inline"
               framed
               title="No active alerts"
               purpose="No alert-worthy platform signals are currently active. Open incidents, recent high/critical security events, failed jobs, failed payments, and SSO outages would appear here — right now there are none."

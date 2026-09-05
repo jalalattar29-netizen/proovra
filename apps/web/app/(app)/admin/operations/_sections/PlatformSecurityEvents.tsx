@@ -272,7 +272,7 @@ export function PlatformSecurityEvents() {
           getRowId={(r) => r.id}
           loading={loading}
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title="No security events"
               purpose="No security event matches the current filters. An empty table here is a real zero, not an unmeasured signal."
             />

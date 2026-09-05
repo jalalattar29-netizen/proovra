@@ -365,7 +365,7 @@ function AdminCostsInner() {
       ) : !data ? (
         <PageSection>
           <Card variant="empty" padding="none">
-            <EmptyState
+            <EmptyState variant="inline"
               framed
               title="No cost data"
               purpose="No cost aggregate was returned. Once provider usage events exist, estimated costs, per-provider breakdown, budgets and embeddings spend appear here."
@@ -413,7 +413,7 @@ function AdminCostsInner() {
               getRowId={(r) => r.provider}
               ariaLabel="Per-provider estimated cost"
               emptyState={
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No provider usage recorded"
                   purpose="No provider usage events were recorded in this window. Once usage is metered, per-provider estimated costs appear here."
                   data-testid="admin-costs-providers-empty"
@@ -432,7 +432,7 @@ function AdminCostsInner() {
               getRowId={(r) => `${r.provider}:${r.operation}`}
               ariaLabel="Top operations by estimated cost"
               emptyState={
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No operations recorded"
                   purpose="No operations were recorded in this window."
                   data-testid="admin-costs-operations-empty"
@@ -447,7 +447,7 @@ function AdminCostsInner() {
           >
             {data.budgets.length === 0 ? (
               <Card variant="empty" padding="none">
-                <EmptyState
+                <EmptyState variant="inline"
                   framed
                   title="No budgets configured"
                   purpose="No provider budgets are configured. Once budgets exist, their limits, state and recent alerts appear here."
@@ -532,7 +532,7 @@ function AdminCostsInner() {
               </div>
             ) : (
               <Card variant="empty" padding="none">
-                <EmptyState
+                <EmptyState variant="inline"
                   framed
                   title="Not connected — no embeddings spend recorded"
                   purpose="No semantic-usage rows were recorded in this window. Once the semantic index records activity, EUR spend appears here."
@@ -552,7 +552,7 @@ function AdminCostsInner() {
               getRowId={(r) => `${r.key}:${r.periodStartUtc ?? "none"}`}
               ariaLabel="Entitlement consumption"
               emptyState={
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No entitlement usage recorded"
                   purpose="No entitlement consumption has been recorded. Once metered features are used, consumption appears here."
                   data-testid="admin-costs-entitlements-empty"

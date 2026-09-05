@@ -326,12 +326,12 @@ export default function AdminPersonDetailPage() {
           <Skeleton width="100%" height="220px" />
         </Card>
       ) : notFound ? (
-        <EmptyState
+        <EmptyState variant="inline"
           title="Person not found"
           purpose="No account exists with this id. It may have been removed, or the link is wrong — the people roster is the place to find the one you meant."
         />
       ) : !detail ? (
-        <EmptyState
+        <EmptyState variant="inline"
           title="Person unavailable"
           purpose="This person could not be loaded right now. The account may still exist — reload to try the read again."
         />
@@ -549,7 +549,7 @@ export default function AdminPersonDetailPage() {
                 rows={detail.workspaces}
                 getRowId={(w) => w.id}
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="No workspace memberships"
                     purpose="This person belongs to no workspace."
                   />
@@ -594,7 +594,7 @@ export default function AdminPersonDetailPage() {
                 rows={detail.payments}
                 getRowId={(p) => p.id}
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="No payments"
                     purpose="No payment has been recorded for this account."
                   />
@@ -610,7 +610,7 @@ export default function AdminPersonDetailPage() {
             <Card>
               {detail.lifecycleRequests.closure.length === 0 &&
               detail.lifecycleRequests.dataExport.length === 0 ? (
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No lifecycle requests"
                   purpose="This person has requested neither account closure nor a data export."
                 />

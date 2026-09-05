@@ -366,7 +366,7 @@ export function MfaMemberPostureSection() {
       </Card>
 
       {members.data.length === 0 ? (
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="No active members"
           purpose="This workspace has no active members to administer."
@@ -479,7 +479,7 @@ export function MfaMemberPostureSection() {
             getRowId={(f) => f.id}
             ariaLabel="Member MFA factors"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No factors enrolled"
                 purpose="This member has never enrolled an authenticator. They will be prompted to enrol if the policy requires it."
               />
@@ -524,7 +524,7 @@ export function MfaMemberPostureSection() {
             getRowId={(d) => d.id}
             ariaLabel="Member trusted devices"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No trusted devices"
                 purpose="This member has no trusted devices, so they are asked for their second factor every time the policy requires one."
               />

@@ -300,13 +300,13 @@ function AdminPlatformHealthPage() {
         ) : null}
 
         {loading && !data ? (
-          <EmptyState
+          <EmptyState variant="inline"
             framed
             title="Loading platform health…"
             purpose="Connecting to the runtime-readiness, signer, queue, observability, and provider health probes."
           />
         ) : !data ? (
-          <EmptyState
+          <EmptyState variant="inline"
             framed
             title="No health snapshot available"
             purpose="The platform-health endpoint returned no data. Try refreshing, or check that the API is reachable."
@@ -342,7 +342,7 @@ function AdminPlatformHealthPage() {
               description="Each row connects an existing health probe. Green means a live signal proves it up; 'Not connected' means no credential is bound; 'Not measured' means no live probe exists in this build."
             >
               {data.services.length === 0 ? (
-                <EmptyState
+                <EmptyState variant="inline"
                   framed
                   title="No services reported"
                   purpose="The platform-health aggregate returned no service rows. This is unexpected — try refreshing."

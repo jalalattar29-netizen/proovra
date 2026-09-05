@@ -422,7 +422,7 @@ export default function AdminPeoplePage() {
             ),
           )}
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title="No people found"
               purpose="No platform user matches the current filters. Adjust the search or filters above."
             />

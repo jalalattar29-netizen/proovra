@@ -327,7 +327,7 @@ export function MfaDigestPreferencesSection() {
           </p>
         </Card>
       ) : (
-        <EmptyState
+        <EmptyState variant="inline"
           title="No digest preview available"
           purpose="The server could not build a digest preview for your account right now. Your preferences below are still accurate."
           style={{ marginBottom: 12 }}

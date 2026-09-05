@@ -104,9 +104,26 @@
    --------------------------------------------------------------------------- */
 
 .rb-doc {
-  /* A comfortable measure. Operator prose read at 1440px across a full-width
-     column is prose that loses its place between lines. */
-  max-width: 74ch;
+  /* A COMFORTABLE MEASURE, AND WHY IT TOOK TWO CORRECTIONS TO GET ONE.
+   *
+   * Operator prose read at 1440px across a full-width column is prose that
+   * loses its place between lines, so `max-width: 74ch` was already here. It
+   * measured 124 characters per line, for two compounding reasons:
+   *
+   *   1. `ch` resolves against the ELEMENT'S OWN font size, and `.rb-doc`
+   *      inherited the 16px body size while its paragraphs render at 14px.
+   *   2. `ch` is the advance width of the "0" glyph, which in this family is
+   *      ~0.73em rather than the ~0.5em the unit is usually assumed to be. So
+   *      even at the right font size, 72ch came out at 738px — ~105
+   *      characters.
+   *
+   * Setting the document's own size to the size its text uses fixes (1). Using
+   * `em` fixes (2) and removes the dependency on one glyph's metrics
+   * altogether: 36em is 504px here and measures ~72 characters, and it tracks
+   * the font size instead of silently unbinding from it. */
+  font-size: 14px;
+  line-height: 1.65;
+  max-inline-size: 36em;
   color: var(--ink-primary, #0f172a);
 }
 
@@ -140,14 +157,28 @@
   margin: 0 0 12px;
 }
 
+/* THE BULLETS WERE MISSING, FOR TWO REASONS AT ONCE.
+ *
+ * `display: flex` makes every child a flex item, and a flex item is not a
+ * list item, so `::marker` never renders. The global reset also sets
+ * `list-style: none` on `ul`, which this rule never overrode. The result was
+ * a runbook whose steps were indented text with nothing marking where one
+ * ended and the next began — on a procedure somebody follows during an
+ * incident, which is the worst document in the product to render ambiguously.
+ *
+ * Block layout with an explicit marker, and the item gap moved to a margin. */
 .rb-ul,
 .rb-ol {
   margin: 0 0 14px;
   padding-inline-start: 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
 }
+
+.rb-ul { list-style: disc; }
+.rb-ol { list-style: decimal; }
+
+.rb-li + .rb-li { margin-block-start: 5px; }
+
+.rb-li::marker { color: var(--ink-muted, #94a3b8); }
 
 .rb-li {
   font-size: 14px;
@@ -252,4 +283,169 @@
   :root:not([data-theme="light"]) .rb-pre {
     background: var(--surface-inset, #020617);
   }
+}
+
+/* ---------------------------------------------------------------------------
+   A FENCED BLOCK, WITH ITS LANGUAGE AND A COPY CONTROL
+
+   The commands in a runbook get run. They were a dark `<pre>` an operator
+   selected by hand, in an incident, with a shell already open — and a `psql`
+   statement that wraps is a statement half of which can be selected by
+   mistake. See lib/runbooks/CodeBlock.tsx for the rest of the argument.
+
+   BREAKS OUT OF THE PROSE COLUMN. `.rb-doc` is 72ch so its sentences can be
+   read; a command is not a sentence, it is a line that must not wrap, and
+   holding it to the reading measure would make every block scroll sideways.
+   --------------------------------------------------------------------------- */
+
+.rb-codeblock {
+  margin: 0 0 14px;
+  /* Wider than the prose, bounded by the pane. */
+  max-inline-size: min(100ch, 100%);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.rb-codeblock__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  background: var(--surface-muted, #f1f4f9);
+  border-block-end: 1px solid var(--border-subtle, #e2e8f0);
+}
+
+.rb-codeblock__lang {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #94a3b8);
+  /* A language tag is an identifier, not prose: LTR under RTL. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.rb-codeblock__copy {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding-inline: 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent-600);
+  cursor: pointer;
+}
+
+.rb-codeblock__copy:hover { background: var(--accent-050); }
+
+.rb-codeblock__copy:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: -2px;
+}
+
+/* The block itself no longer draws its own radius or margin — the wrapper
+   owns both, so the bar and the code read as one object. */
+.rb-codeblock .rb-pre {
+  margin: 0;
+  border-radius: 0;
+}
+
+.rb-codeblock .rb-pre:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: -2px;
+}
+
+/* A wide table is not prose either. */
+.rb-doc .rb-table-wrap { max-inline-size: min(100ch, 100%); }
+
+/* ---------------------------------------------------------------------------
+   CATALOG SEARCH
+
+   Twenty-nine procedures in seven categories is a 1,000px scroll on a 1440px
+   desktop, and the operator reaching for it is mid-incident with a SYMPTOM in
+   mind rather than a category name. See _RunbookCatalogNav.tsx for what the
+   filter matches and why the bodies are deliberately not searched here.
+   --------------------------------------------------------------------------- */
+
+.rb-search {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 6px 10px;
+  border-block-end: 1px solid var(--border-subtle, #e2e8f0);
+  margin-block-end: 4px;
+}
+
+.rb-search__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted, #94a3b8);
+}
+
+.rb-search__input {
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-card);
+  font-size: 13px;
+  color: var(--ink-primary);
+}
+
+.rb-search__input:focus-visible {
+  outline: none;
+  border-color: var(--accent-500);
+  box-shadow: var(--focus-ring);
+}
+
+.rb-search__count {
+  margin: 0;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+}
+
+.rb-search__empty {
+  margin: 8px 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+}
+
+.rb-search__empty code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-muted);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* A real button, not a styled span: it is an action and it is reachable by
+   keyboard. Inline in a sentence, so the 44px floor does not apply. */
+.rb-search__clear {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-weight: 650;
+  color: var(--accent-600);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.rb-search__clear:focus-visible {
+  outline: 2px solid var(--accent-500);
+  outline-offset: 2px;
 }

@@ -232,7 +232,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
         data-testid="federation-domain-binding"
       >
         {readiness.domains.length === 0 ? (
-          <EmptyState
+          <EmptyState variant="inline"
             title="No organization domain claimed"
             purpose="Claim and verify a domain to bind single sign-on to email addresses your organization actually controls. Until then, verified-domain restriction cannot be switched on."
           />

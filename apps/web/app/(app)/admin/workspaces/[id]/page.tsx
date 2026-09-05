@@ -278,12 +278,12 @@ export default function AdminWorkspaceDetailPage() {
           <Skeleton width="100%" height="220px" />
         </Card>
       ) : notFound ? (
-        <EmptyState
+        <EmptyState variant="inline"
           title="Workspace not found"
           purpose="No workspace exists with this id. It may have been removed, or the link is wrong — the workspace inventory is the place to find the one you meant."
         />
       ) : !detail ? (
-        <EmptyState
+        <EmptyState variant="inline"
           title="Workspace unavailable"
           purpose="This workspace could not be loaded right now. The record may still exist — reload to try the read again."
         />
@@ -564,7 +564,7 @@ export default function AdminWorkspaceDetailPage() {
                 rows={detail.subscriptions}
                 getRowId={(s) => s.id}
                 emptyState={
-                  <EmptyState
+                  <EmptyState variant="inline"
                     title="No provider subscriptions"
                     purpose="This workspace has no subscription bound to it. That is normal for a free or contract-billed workspace."
                   />
@@ -594,7 +594,7 @@ export default function AdminWorkspaceDetailPage() {
           <PageSection title="Recent workspace activity">
             <Card>
               {detail.recentActivity.length === 0 ? (
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No recorded activity"
                   purpose="No workspace activity events have been recorded for this workspace."
                 />

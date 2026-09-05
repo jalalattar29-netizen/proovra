@@ -360,7 +360,7 @@ export default function AdminTimelinePage() {
             loading={loading}
             ariaLabel="Platform operational timeline"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 framed
                 title="No platform events"
                 purpose="No platform-operational events match the current filters. As admin actions, organization lifecycle events, security events, incidents, or billing/team events are recorded, they appear here — evidence custody events are never included."

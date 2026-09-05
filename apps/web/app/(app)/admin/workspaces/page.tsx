@@ -384,7 +384,7 @@ export default function AdminWorkspacesPage() {
             ),
           )}
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title="No workspaces match"
               purpose="No workspace matches the current filters. Adjust the search or filters above — the Lifecycle filter defaults to Live, so closed workspaces are hidden unless you ask for them."
             />

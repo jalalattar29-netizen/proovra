@@ -485,7 +485,7 @@ export default function AdminOperationsPage() {
           getRowId={(r) => r.id}
           loading={loading}
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               title="No conditions match"
               purpose="No operational condition matches the current filters. With the Status filter on Open, an empty table means nothing is currently open — not that nothing was measured."
             />

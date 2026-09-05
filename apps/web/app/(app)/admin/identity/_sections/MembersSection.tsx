@@ -539,12 +539,12 @@ export function MembersSection({
             loading={members === null}
             emptyState={
               failure ? (
-                <EmptyState
+                <EmptyState variant="inline"
                   title="Member list unavailable"
                   purpose={failure.message}
                 />
               ) : (
-                <EmptyState
+                <EmptyState variant="inline"
                   title="No members match"
                   purpose="Adjust the status filter or the member-id filter. Newly invited people appear once they accept."
                 />
@@ -688,7 +688,7 @@ export function MembersSection({
         description="Capabilities and delegated-admin scopes stack on top of the member's role. Both are time-bounded when the grant carries an expiry, and both are revocable here."
       >
         {!selected ? (
-          <EmptyState
+          <EmptyState variant="inline"
             framed
             title="No member selected"
             purpose="Choose Access on a member above to review and change the capabilities and delegated-admin scopes they hold."

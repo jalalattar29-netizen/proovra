@@ -259,7 +259,7 @@ export default function AccessReviewsPage() {
           <PageHeader eyebrow="Identity operations" title="Access reviews" />
         }
       >
-        <EmptyState
+        <EmptyState variant="inline"
           framed
           title="No workspace selected"
           purpose="Switch to a workspace to view and act on its access-review queue."
@@ -464,12 +464,12 @@ export default function AccessReviewsPage() {
             ariaLabel="Access reviews"
             emptyState={
               failure ? (
-                <EmptyState
+                <EmptyState variant="inline"
                   title="Access reviews unavailable"
                   purpose={failure.message}
                 />
               ) : (
-                <EmptyState
+                <EmptyState variant="inline"
                   title="Nothing to certify"
                   purpose="No access reviews match this filter. Regenerate the queue to re-scan for stale access, unused service accounts and expiring temporary access."
                 />

@@ -225,7 +225,7 @@ function AdminAdoptionInner() {
           getRowId={(row) => row.key}
           loading={loading}
           emptyState={
-            <EmptyState
+            <EmptyState variant="inline"
               framed
               title="No adoption data"
               purpose="Feature adoption is derived from live records. Once workspaces configure capabilities and capture evidence, each capability's real counts appear here. Nothing on this page is estimated."

@@ -353,7 +353,7 @@ export function MfaEventsSection() {
         loading={eventsBusy}
         ariaLabel="Workspace MFA events"
         emptyState={
-          <EmptyState
+          <EmptyState variant="inline"
             title="No MFA events recorded"
             purpose="Nothing has happened to a second factor in this workspace yet. Enrollments, verification failures, admin revocations and trusted-device changes all appear here."
           />
@@ -403,7 +403,7 @@ export function MfaEventsSection() {
             loading={recoveryBusy}
             ariaLabel="Lost-factor recovery activity"
             emptyState={
-              <EmptyState
+              <EmptyState variant="inline"
                 title="No recovery activity"
                 purpose="No lost-factor recovery has been requested, approved, rejected or cancelled across the workspaces you administer in this window."
               />
