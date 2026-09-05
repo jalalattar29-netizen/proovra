@@ -38,6 +38,17 @@
  * raw evidence content.
  */
 
+/* THIS PAGE USES THE apf-* CLASSES AND DID NOT LOAD THEM.
+ *
+ * Nine of the ten pages under /admin/platform import this stylesheet. The
+ * tenth was this one — the page whose own comments point at `.apf-tile` "in
+ * admin-platform.css for what each tone means". In Next's App Router a CSS
+ * import belongs to the route that declares it, so every apf-* element here
+ * resolved to nothing: the six summary tiles measured 0px border, transparent
+ * background and 0 padding, which is why the platform's alert rollup rendered
+ * as bare stacked text outside any surface while every section around it sat
+ * in a card. */
+import "../admin-platform.css";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
