@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAdminEntityCrumbValue } from "./AdminEntityCrumb";
+
 import {
   ADMIN_NAV_SECTIONS,
   resolveAdminLocation,
@@ -141,6 +143,7 @@ function AdminSecondaryNav({
  */
 export function AdminBreadcrumb() {
   const pathname = usePathname();
+  const entityLabel = useAdminEntityCrumbValue();
   const location = resolveAdminLocation(pathname);
   if (!location) return null;
 
@@ -157,7 +160,20 @@ export function AdminBreadcrumb() {
     // The RETURN PATH. `parentHref` is a link and the record is not, so the
     // last thing an operator can click is the list they came from.
     crumbs.push({ label: contextual.parentLabel, href: contextual.parentHref });
-    crumbs.push({ label: contextual.label });
+    /*
+     * PHASE 6 6 - the record, by name where the page could tell us.
+     *
+     * This was `contextual.label`, a static type name, so every customer
+     * page ended "... > Customer directory > Customer" - three crumbs
+     * identical on every customer, and the fourth, which is the one that
+     * would say WHICH customer, saying nothing.
+     *
+     * The fallback is deliberate rather than incidental: a page still
+     * loading, a failed fetch and a deleted record all publish nothing, and
+     * the type name is the honest answer for a record we cannot name. An
+     * empty crumb would be a broken chain; a guessed one would be a lie.
+     */
+    crumbs.push({ label: entityLabel ?? contextual.label });
   } else if (child && child.href !== section.href) {
     crumbs.push({ label: child.label });
   }

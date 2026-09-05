@@ -37,6 +37,7 @@ import { formatMoney } from "../../../../../components/admin/AdminMetric";
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
 
 type Detail = {
   id: string;
@@ -268,6 +269,11 @@ export default function AdminPersonDetailPage() {
       ),
     },
   ];
+
+  // PHASE 6 §6 — name this record in the breadcrumb. The expression mirrors
+  // the page H1, so the crumb and the heading cannot say different things,
+  // and it resolves to null while loading or when the record is gone.
+  useAdminEntityCrumb(detail?.email ?? detail?.name ?? null);
 
   return (
     <PageShell

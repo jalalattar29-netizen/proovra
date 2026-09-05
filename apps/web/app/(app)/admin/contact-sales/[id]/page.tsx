@@ -39,6 +39,7 @@ import {
   statusActionLabel,
   statusPatchBody,
 } from "../../../../../lib/admin/commercialStatusActions";
+import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
 
 type Status =
   | "NEW"
@@ -276,6 +277,11 @@ export default function AdminContactSalesDetailPage({
       addToast("Could not copy — your browser blocked clipboard access.", "error");
     }
   }
+
+  // PHASE 6 §6 — name this record in the breadcrumb. Null while loading or
+  // when the record is gone, so the crumb falls back to the type name
+  // rather than going blank or inventing one.
+  useAdminEntityCrumb(state.kind === "ok" ? (state.details.organization ?? state.details.fullName ?? null) : null);
 
   return (
     <PageRouteGate routeId="admin.contactSales">

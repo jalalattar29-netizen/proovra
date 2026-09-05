@@ -49,6 +49,7 @@ import {
 import { renderRunbookMarkdown } from "../../../../../../lib/runbooks/render";
 import { resolveRunbookAccess } from "../../../../../../lib/runbooks/server-authorization";
 import { RunbookLayout } from "../_RunbookLayout";
+import { AdminEntityCrumbPublisher } from "../../../../../../components/admin/AdminEntityCrumb";
 import "../runbooks.css";
 
 // dynamicParams = false, and this time it is MEASURED rather than assumed.
@@ -121,6 +122,16 @@ export default async function RunbookDetailPage({
 
   return (
     <PageRouteGate routeId="platform.runbook_document">
+      {/*
+        PHASE 6 §6 — name the runbook in the breadcrumb.
+
+        This page is server-rendered, which is right: it resolves the document
+        before rendering anything. So it publishes through a client component
+        that draws nothing rather than a hook it cannot call. Without it the
+        crumb read "… › Runbook catalog › Runbook" — three-quarters correct,
+        and silent about which runbook an operator is reading mid-incident.
+      */}
+      <AdminEntityCrumbPublisher label={rb.title} />
       <PageShell
         width="full"
         header={

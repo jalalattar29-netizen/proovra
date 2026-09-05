@@ -312,13 +312,13 @@
 | `/admin/audit` | 1047 | 3c/1t/2s |  |
 | `/admin/billing` | 727 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 780 | 3c/1t/0s |  |
-| `/admin/contact-sales/:id` | 652 | 5c/0t/0s |  |
+| `/admin/contact-sales/:id` | 658 | 5c/0t/0s |  |
 | `/admin/costs` | 614 | 7c/3t/9s |  |
 | `/admin/customers` | 463 | 0c/1t/0s |  |
-| `/admin/customers/:id` | 1171 | 12c/1t/0s |  |
+| `/admin/customers/:id` | 1177 | 12c/1t/0s |  |
 | `/admin/dashboard` | 905 | 11c/3t/8s |  |
 | `/admin/demo-requests` | 1315 | 3c/0t/2s |  |
-| `/admin/demo-requests/:id` | 526 | 5c/0t/0s |  |
+| `/admin/demo-requests/:id` | 532 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 748 | 4c/0t/7s | HARDCODED_STATUS_HEX |
 | `/admin/evidence-ops/records` | 548 | 2c/1t/0s |  |
 | `/admin/executive` | 637 | 3c/2t/7s |  |
@@ -342,7 +342,7 @@
 | `/admin/platform/recovery` | 648 | 0c/2t/0s | HARDCODED_STATUS_HEX |
 | `/admin/platform/reliability` | 465 | 0c/0t/3s | HARDCODED_STATUS_HEX |
 | `/admin/platform/runbooks` | 197 | 1c/0t/0s |  |
-| `/admin/platform/runbooks/:slug` | 210 | 0c/0t/0s |  |
+| `/admin/platform/runbooks/:slug` | 221 | 0c/0t/0s |  |
 | `/admin/platform/signers` | 1213 | 0c/3t/0s | HARDCODED_STATUS_HEX |
 | `/admin/provisioning` | 807 | 8c/1t/4s | HARDCODED_STATUS_HEX |
 | `/admin/search` | 410 | 1c/0t/0s |  |
@@ -350,6 +350,6 @@
 | `/admin/support-access` | 964 | 6c/2t/4s |  |
 | `/admin/timeline` | 465 | 0c/1t/1s |  |
 | `/admin/users` | 467 | 2c/2t/1s |  |
-| `/admin/users/:id` | 572 | 7c/2t/6s |  |
+| `/admin/users/:id` | 578 | 7c/2t/6s |  |
 | `/admin/workspaces` | 427 | 1c/1t/0s |  |
-| `/admin/workspaces/:id` | 614 | 6c/1t/6s |  |
+| `/admin/workspaces/:id` | 620 | 6c/1t/6s |  |

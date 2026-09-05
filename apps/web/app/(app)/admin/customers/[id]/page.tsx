@@ -28,6 +28,7 @@ import { useActiveWorkspaceId } from "../../../../../lib/platform-context";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
 
 type OnboardingHealth = "HEALTHY" | "ATTENTION" | "BLOCKED" | "UNKNOWN";
 
@@ -476,6 +477,11 @@ export default function AdminOrganizationDetailPage({
       render: (row) => num(row.packageCount),
     },
   ];
+
+  // PHASE 6 §6 — name this record in the breadcrumb. The expression mirrors
+  // the page H1, so the crumb and the heading cannot say different things,
+  // and it resolves to null while loading or when the record is gone.
+  useAdminEntityCrumb(detail?.overview.name ?? null);
 
   return (
     <PageShell

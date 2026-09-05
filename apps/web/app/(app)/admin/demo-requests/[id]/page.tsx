@@ -29,6 +29,7 @@ import { PageRouteGate } from "../../../../../components/navigation/PageRouteGat
 import { apiFetch, ApiError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { describeClient } from "../../../../../lib/ui/describeClient";
+import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
 
 type DemoStatus =
   | "NEW"
@@ -236,6 +237,11 @@ export default function AdminDemoRequestDetailPage({
     state.kind === "ok" && state.details.organization
       ? `${state.details.organization} · One-record view of an inbound demo request.`
       : "One-record view of an inbound demo request. Routing, follow-up, and review controls are managed from the list page; this page is a focused inspection surface for the deep-link landing.";
+
+  // PHASE 6 §6 — name this record in the breadcrumb. Null while loading or
+  // when the record is gone, so the crumb falls back to the type name
+  // rather than going blank or inventing one.
+  useAdminEntityCrumb(state.kind === "ok" ? (state.details.organization ?? state.details.fullName ?? null) : null);
 
   return (
     <PageRouteGate routeId="admin.demoRequests">

@@ -51,6 +51,7 @@ import { usePathname } from "next/navigation";
 import "../../../components/admin/admin-console.css";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
+import { AdminEntityCrumbProvider } from "../../../components/admin/AdminEntityCrumb";
 import AdminConsoleNav, {
   AdminBreadcrumb,
   AdminTenantScopeNotice,
@@ -94,6 +95,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   return (
     <PageRouteGate routeId="platform.admin">
+      {/*
+        PHASE 6 6 - the provider wraps BOTH the breadcrumb and the page, so a
+        detail page can publish the name of the record it is showing and the
+        crumb the layout renders can read it. The layout renders the
+        breadcrumb precisely so no page can omit it; this is how the page
+        contributes the one part of it the layout cannot know.
+      */}
+      <AdminEntityCrumbProvider>
       <div className="admin-premium-shell">
         <AdminConsoleNav />
         <AdminBreadcrumb />
@@ -101,6 +110,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         {platformAuditScoped ? <AdminPlatformAuditScopeNotice /> : null}
         {children}
       </div>
+      </AdminEntityCrumbProvider>
     </PageRouteGate>
   );
 }
