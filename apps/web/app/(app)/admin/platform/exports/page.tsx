@@ -45,7 +45,9 @@ import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { formatCellDateTime } from "../../../../../lib/date";
 import {
+  AdmInline,
   AdmOverlay,
+  AdmSkeleton,
 } from "../../../../../components/admin/AdminSurfaces";
 
 // ============================================================================
@@ -345,17 +347,23 @@ function ExportListTable({
 }) {
   if (items === null) {
     return (
-      <section className="adm-card" style={{ marginTop: 12 }}>
-        <p className="apf-muted">Loading exports…</p>
+      <section style={{ marginTop: 12 }}>
+        <AdmSkeleton shape="row" count={3} />
       </section>
     );
   }
   if (items.length === 0) {
+    /* THE CONSOLE HAS ONE EMPTY STATE, AND THIS WAS NOT IT.
+       A 74px card with one CENTRED muted line and no label — every other
+       empty in the console is a left-aligned 56px row that says WHICH state
+       it is and why. Centred prose in a tall box is the ~25-instance shape
+       this phase replaced everywhere else. */
     return (
-      <section
-        className="adm-card" style={{ marginTop: 12, padding: 24, textAlign: "center" }}
-      >
-        <p className="apf-muted">No exports recorded for this workspace yet.</p>
+      <section style={{ marginTop: 12 }}>
+        <AdmInline state="empty" label="No exports yet">
+          Nothing has been exported from this workspace. A Report PDF or a
+          Verification Package appears here once one is produced.
+        </AdmInline>
       </section>
     );
   }

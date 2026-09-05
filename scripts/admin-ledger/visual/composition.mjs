@@ -196,6 +196,22 @@ async function measure(page) {
           )),
     ).length;
 
+    /* CENTRED PROSE IN A TALL BOX, WHERE A 56px ROW BELONGS.
+       The console has ONE empty state: a left-aligned row that names WHICH
+       state it is and why. /admin/platform/exports still had the older shape
+       — a 74px card holding one centred muted line and no label — which is
+       the ~25-instance form the phase replaced everywhere else, and it reads
+       as "loading, forever" rather than as an answer. */
+    const centredEmpties = Array.from(
+      main.querySelectorAll(".adm-card, .apf-section, section, div"),
+    ).filter((el) => {
+      if (getComputedStyle(el).textAlign !== "center") return false;
+      const text = (el.textContent ?? "").trim();
+      if (text.length === 0 || text.length > 200) return false;
+      if (el.querySelector("table, ul, ol, button, a, svg, img")) return false;
+      return el.getBoundingClientRect().height > 56;
+    }).length;
+
     /* A COLUMN WHERE EVERY ROW SAYS THE SAME THING.
        /admin/identity/runtime rendered `0adf0000-000…` in its User column on
        all twenty-five session rows: `shortId` took a UUID's FIRST eight
@@ -336,6 +352,7 @@ async function measure(page) {
       secondsInList,
       tallRows,
       deadColumns,
+      centredEmpties,
       alarmedRows,
       silentDisabled,
       rawIso,
@@ -430,6 +447,9 @@ async function report(route, result, bad) {
     bad.push(
       `${result.silentDisabled}/${result.disabledControls} disabled controls give no reason`,
     );
+  }
+  if (result.centredEmpties > 0) {
+    bad.push(`${result.centredEmpties} centred prose block(s) taller than a state row`);
   }
   if (result.deadColumns > 0) {
     bad.push(
