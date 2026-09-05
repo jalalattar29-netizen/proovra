@@ -168,14 +168,35 @@ export function renderRunbookMarkdown(md: string): ReactNode[] {
   while (i < lines.length) {
     const line = lines[i];
 
-    // Fenced code. Consumed first and verbatim: everything inside is content,
-    // including lines that would otherwise look like headings or lists.
-    if (line.startsWith("```")) {
-      const lang = line.slice(3).trim();
+    /* Fenced code. Consumed first and verbatim: everything inside is content,
+       including lines that would otherwise look like headings or lists.
+       =======================================================================
+       THE FENCE DOES NOT HAVE TO START AT COLUMN 0
+       =======================================================================
+       This required `line.startsWith("```")`, so a fence INDENTED under a
+       numbered step — which is how a runbook writes the command for step 2 —
+       was not recognised as a fence at all. Measured across the 33 runbooks:
+       ten fenced blocks on five runbooks fell through to the paragraph
+       handler and rendered as this:
+
+         Identify the first broken row: ``sql SELECT id, "createdAt",
+         "prevHash", "hash" FROM "AdminAuditLog" WHERE id = ( SELECT id …
+
+       — every newline collapsed to a space, the fence markers printed as
+       literal backticks (one eaten by the inline-code pass), and no copy
+       control. That is a SQL statement an operator is meant to run at 3am,
+       rendered as a sentence they cannot copy and cannot read.
+
+       The body is dedented by the fence's own indentation, so the command
+       keeps its internal shape without carrying the list's indent. */
+    const fence = /^(\s*)```(.*)$/.exec(line);
+    if (fence) {
+      const indent = fence[1].length;
+      const lang = fence[2].trim();
       const body: string[] = [];
       i += 1;
-      while (i < lines.length && !lines[i].startsWith("```")) {
-        body.push(lines[i]);
+      while (i < lines.length && !/^\s*```/.test(lines[i])) {
+        body.push(lines[i].slice(0, indent).trim() === "" ? lines[i].slice(indent) : lines[i]);
         i += 1;
       }
       i += 1; // closing fence
@@ -226,11 +247,35 @@ export function renderRunbookMarkdown(md: string): ReactNode[] {
       continue;
     }
 
-    // Table. A header row followed by a divider; anything else starting with
-    // `|` is treated as a paragraph so a stray pipe does not eat the document.
-    if (line.trimStart().startsWith("|") && IS_DIVIDER(lines[i + 1] ?? "")) {
-      const head = cells(line);
-      i += 2;
+    /* Table. A header row followed by a divider — or, in four of the reviewer
+       runbooks, a run of pipe rows with NO header and NO divider:
+
+         ## Escalation path
+
+         | 0-1 hour | Reviewer Ops on-call reassigns. |
+         | 1-4 hours | Workspace admin assesses whether … |
+         | 4+ hours  | Operations lead reviews … |
+
+       That is not valid GFM, and the renderer's original answer was to let it
+       fall through to the paragraph branch, which produced one run-on
+       sentence of pipes. Rendering the escalation path of an incident runbook
+       as `| 0-1 hour | Reviewer Ops on-call reassigns. | | 1-4 hours | …` is
+       not a cosmetic problem: it is the section an operator reads while
+       deciding who to wake up.
+
+       A run of two or more rows that both open and close with `|` is
+       unambiguous enough to render as a headerless table. A SINGLE stray pipe
+       line still falls through, which is the case the original comment was
+       protecting against. */
+    const hasDivider = IS_DIVIDER(lines[i + 1] ?? "");
+    const isPipeRow = (l: string | undefined) =>
+      l !== undefined && /^\s*\|.*\|\s*$/.test(l);
+    if (
+      line.trimStart().startsWith("|") &&
+      (hasDivider || (isPipeRow(line) && isPipeRow(lines[i + 1])))
+    ) {
+      const head = hasDivider ? cells(line) : null;
+      i += hasDivider ? 2 : 0;
       const rows: string[][] = [];
       while (i < lines.length && lines[i].trimStart().startsWith("|")) {
         rows.push(cells(lines[i]));
@@ -241,13 +286,18 @@ export function renderRunbookMarkdown(md: string): ReactNode[] {
         // never scroll horizontally.
         <div key={key()} className="rb-table-wrap">
           <table className="rb-table">
-            <thead>
-              <tr>
-                {head.map((c, n) => (
-                  <th key={n}>{renderInline(c, `${key()}-h${n}`)}</th>
-                ))}
-              </tr>
-            </thead>
+            {/* A headerless run gets no <thead> rather than an empty one: an
+                empty header row is a blank band above the data that reads as
+                a rendering fault. */}
+            {head ? (
+              <thead>
+                <tr>
+                  {head.map((c, n) => (
+                    <th key={n}>{renderInline(c, `${key()}-h${n}`)}</th>
+                  ))}
+                </tr>
+              </thead>
+            ) : null}
             <tbody>
               {rows.map((r, rn) => (
                 <tr key={rn}>
@@ -338,8 +388,14 @@ export function renderRunbookMarkdown(md: string): ReactNode[] {
     while (
       i < lines.length &&
       lines[i].trim() !== "" &&
-      !lines[i].startsWith("```") &&
+      // An INDENTED fence ends a paragraph too, or the command it opens is
+      // swallowed into the sentence above it.
+      !/^\s*```/.test(lines[i]) &&
       !lines[i].startsWith(">") &&
+      // A table's header row must reach the table branch. Without this the
+      // paragraph loop reaches it first whenever no blank line separates
+      // them, and the whole table renders as one run-on sentence.
+      !lines[i].trimStart().startsWith("|") &&
       !/^#{1,3}\s/.test(lines[i]) &&
       !/^\s*[-*]\s+/.test(lines[i]) &&
       !/^\s*\d+\.\s+/.test(lines[i]) &&

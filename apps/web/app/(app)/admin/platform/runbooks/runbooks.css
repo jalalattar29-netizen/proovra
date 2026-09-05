@@ -236,7 +236,35 @@
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12.5px;
   line-height: 1.6;
-  white-space: pre;
+
+  /* =====================================================================
+   * A COMMAND AN OPERATOR MUST RUN CANNOT BE PARTLY OFF-SCREEN
+   * =====================================================================
+   * This was `white-space: pre` on a container with `overflow-x: auto`.
+   * Technically scrollable; practically not, because an overlay scrollbar
+   * only appears once you already know to scroll. Measured across the
+   * corpus: EIGHT blocks on five runbooks hid up to 145px of their own
+   * text, and what was hidden was the end of the line —
+   *
+   *   AND status NOT IN ('CLOSED','REJECTED_INSUFFICIENT','APPROVED_INTERNA
+   *   AND COALESCE(last_reviewed_at, assigned_at_utc) <= NOW() - ($2 || ' h
+   *
+   * — so a reviewer-inactivity query read as if it were complete and was
+   * not. At 3am, from a phone, that is a wrong query run against
+   * production.
+   *
+   * `pre-wrap` keeps every space and newline the source had and adds a
+   * wrap only where the line would otherwise leave the box. The hanging
+   * indent is what keeps it readable: a continued line is visibly indented
+   * past its own start, so a wrap cannot be mistaken for a new statement.
+   * `Copy` still yields the exact original text — the wrap is presentation,
+   * not content.
+   * ===================================================================== */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  display: block;
+  padding-inline-start: 2ch;
+  text-indent: -2ch;
 }
 
 .rb-table-wrap {
