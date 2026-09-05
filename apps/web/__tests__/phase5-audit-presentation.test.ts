@@ -18,6 +18,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 
 import {
+  humaniseResourceType,
   presentAction,
   presentActor,
   presentMetadata,
@@ -70,6 +71,46 @@ test("an authority name is already whole, so it offers nothing to reveal", () =>
     userId: UUID,
   });
   assert.equal(human.referenceFull, UUID);
+});
+
+/**
+ * PHASE 7 — SCREAMING_CASE WAS STILL SCREAMING.
+ *
+ * The humaniser replaced separators and capitalised the first letter, which is
+ * right for a lower-case key and did nothing at all for an upper-case one.
+ * `/admin/billing` rendered "WORKSPACE_OPERATIONS · SUCCEEDED" as "WORKSPACE
+ * OPERATIONS · SUCCEEDED", twenty-five times, in bold.
+ *
+ * The two shapes that must NOT change are as load-bearing as the fix: mixed
+ * case, because "Evidenceid" is worse than "evidenceId"; and a short all-caps
+ * run, because "Tsa" is not a word and not the name of anything this product
+ * has. Every row below is a real value from this codebase.
+ */
+test("the humaniser lowers a shouted word and leaves an acronym alone", () => {
+  const cases: Array<[string, string]> = [
+    // Lower-case keys — the original behaviour, unchanged.
+    ["support_access_grant", "Support access grant"],
+    ["case.status.changed", "Case status changed"],
+    // Shouted words and keys.
+    ["WORKSPACE_OPERATIONS", "Workspace operations"],
+    ["SUCCEEDED", "Succeeded"],
+    ["FAILED", "Failed"],
+    ["ACTIVE", "Active"],
+    ["PLATFORM_ADMIN", "Platform admin"],
+    // Acronyms this product uses in prose.
+    ["TSA", "TSA"],
+    ["DLQ", "DLQ"],
+    ["SCIM", "SCIM"],
+    ["MFA", "MFA"],
+    // Mixed case is already readable.
+    ["evidenceId", "EvidenceId"],
+    ["Evidence", "Evidence"],
+  ];
+  for (const [input, expected] of cases) {
+    assert.equal(humaniseResourceType(input), expected, `for ${input}`);
+  }
+  assert.equal(humaniseResourceType(null), null);
+  assert.equal(humaniseResourceType("   "), null);
 });
 
 test("a target's reference and its scope both reveal the id they shortened", () => {

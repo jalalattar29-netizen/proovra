@@ -76,6 +76,14 @@
       "loadingAware": false
     },
     {
+      "route": "/admin/billing",
+      "kind": "ResultCount",
+      "noun": "reconciliation run",
+      "truth": "CAP_DISCLOSED",
+      "filteredAware": false,
+      "loadingAware": false
+    },
+    {
       "route": "/admin/contact-sales",
       "kind": "ResultCount",
       "noun": "inquiry",

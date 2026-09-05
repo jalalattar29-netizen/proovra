@@ -19,6 +19,7 @@ confident wrong answer with no way to tell.
 | `/admin/audit` | inline — row(s) loaded in this vi | `SERVER_HAS_MORE` | — | — |
 | `/admin/audit` | inline — row(s) loaded in this vi | `SERVER_HAS_MORE` | — | — |
 | `/admin/billing` | ResultCount — subscription needing attention | `CAP_DISCLOSED` | — | — |
+| `/admin/billing` | ResultCount — reconciliation run | `CAP_DISCLOSED` | — | — |
 | `/admin/contact-sales` | ResultCount — inquiry | `EXACT_TOTAL` | yes | yes |
 | `/admin/costs` | ResultCount — entitlement | `CAP_DISCLOSED` | — | — |
 | `/admin/dashboard` | ResultCount — recent event | `CAP_DISCLOSED` | — | — |

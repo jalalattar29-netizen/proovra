@@ -148,10 +148,34 @@ export type PresentedTarget = {
   scopeFull: string | null;
 };
 
-/** `support_access_grant` reads as machine output; `Support access grant` does not. */
+/**
+ * `support_access_grant` reads as machine output; `Support access grant` does not.
+ *
+ * PHASE 7 — SCREAMING_CASE WAS STILL SCREAMING. This replaced the separators
+ * and capitalised the first letter, which is right for a lower-case key and
+ * did nothing at all for an upper-case one: `/admin/billing` rendered
+ * "WORKSPACE_OPERATIONS · SUCCEEDED" as "WORKSPACE OPERATIONS · SUCCEEDED",
+ * twenty-five times, in bold. An enum shouted at a reader is still the enum.
+ *
+ * An upper-case value is lower-cased before the first letter is raised, so
+ * `WORKSPACE_OPERATIONS` becomes "Workspace operations". Two shapes are
+ * deliberately left alone:
+ *
+ *   • MIXED CASE. Lower-casing `evidenceId` would produce "Evidenceid", and a
+ *     camelCase key is already readable.
+ *   • A SHORT ALL-CAPS RUN WITH NO SEPARATOR. `TSA`, `DLQ`, `MFA`, `SSO` and
+ *     `SCIM` are acronyms this product uses in prose; "Tsa" is not a word and
+ *     not the name of anything. A longer run (`SUCCEEDED`, `FAILED`) is a word
+ *     shouted, and a value with a separator is a key either way.
+ */
 export function humaniseResourceType(value: string | null | undefined): string | null {
   if (!value) return null;
-  const t = value.trim().replace(/[_.]+/g, " ");
+  const raw = value.trim();
+  if (!raw) return null;
+  const allCaps = /^[A-Z0-9_.\s-]+$/.test(raw) && /[A-Z]/.test(raw);
+  const hasSeparator = /[_.\s-]/.test(raw);
+  const acronym = allCaps && !hasSeparator && raw.length <= 5;
+  const t = (allCaps && !acronym ? raw.toLowerCase() : raw).replace(/[_.]+/g, " ");
   if (!t) return null;
   return t.charAt(0).toUpperCase() + t.slice(1);
 }

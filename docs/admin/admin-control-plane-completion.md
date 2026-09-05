@@ -309,15 +309,15 @@
 | `/admin` | 966 | 0c/0t/9s |  |
 | `/admin/adoption` | 260 | 0c/1t/1s |  |
 | `/admin/alerts` | 287 | 1c/0t/1s |  |
-| `/admin/audit` | 1067 | 3c/1t/2s |  |
-| `/admin/billing` | 727 | 7c/5t/9s |  |
+| `/admin/audit` | 1087 | 3c/1t/2s |  |
+| `/admin/billing` | 764 | 7c/5t/9s |  |
 | `/admin/contact-sales` | 791 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 666 | 5c/0t/0s |  |
 | `/admin/costs` | 611 | 7c/3t/9s |  |
 | `/admin/customers` | 526 | 0c/1t/0s |  |
 | `/admin/customers/:id` | 1185 | 12c/1t/0s |  |
 | `/admin/dashboard` | 896 | 8c/3t/8s |  |
-| `/admin/demo-requests` | 1318 | 3c/0t/2s |  |
+| `/admin/demo-requests` | 1340 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 536 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 790 | 4c/0t/7s |  |
 | `/admin/evidence-ops/records` | 610 | 2c/1t/0s |  |
@@ -332,10 +332,10 @@
 | `/admin/identity/timeline` | 373 | 0c/1t/1s |  |
 | `/admin/operations` | 602 | 2c/2t/2s |  |
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
-| `/admin/platform/analytics` | 813 | 0c/0t/9s |  |
+| `/admin/platform/analytics` | 814 | 0c/0t/9s |  |
 | `/admin/platform/automation` | 641 | 0c/2t/5s |  |
 | `/admin/platform/exports` | 771 | 0c/4t/0s |  |
-| `/admin/platform/media-graph` | 740 | 0c/0t/5s |  |
+| `/admin/platform/media-graph` | 749 | 0c/0t/5s |  |
 | `/admin/platform/observability` | 1653 | 0c/2t/0s |  |
 | `/admin/platform/queues` | 811 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |
@@ -352,4 +352,4 @@
 | `/admin/users` | 485 | 2c/2t/1s |  |
 | `/admin/users/:id` | 584 | 7c/2t/6s |  |
 | `/admin/workspaces` | 444 | 1c/1t/0s |  |
-| `/admin/workspaces/:id` | 637 | 6c/1t/6s |  |
+| `/admin/workspaces/:id` | 664 | 6c/1t/6s |  |

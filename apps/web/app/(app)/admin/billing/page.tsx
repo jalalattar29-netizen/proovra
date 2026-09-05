@@ -40,7 +40,8 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { formatMoney } from "../../../../components/admin/AdminMetric";
 import { apiFetch } from "../../../../lib/api";
 import { ResultCount } from "../../../../components/ui/ResultCount";
-import { formatUserDateTime } from "../../../../lib/date";
+import { formatRelativeTime, formatUserDateTime } from "../../../../lib/date";
+import { humaniseResourceType } from "../../../../lib/audit/auditPresentation";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 type Subject = {
@@ -149,6 +150,12 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   FAILED: "risk",
   REFUNDED: "neutral",
 };
+/**
+ * The server reads the last 25 governance reconciliation runs
+ * (`billing.service.ts`), and the page said so nowhere — so the oldest line
+ * read as the first run rather than as the edge of the window.
+ */
+const RECONCILIATION_RUN_CAP = 25;
 
 /**
  * THE column every attention row needed and did not have (ADM-030).
@@ -706,15 +713,45 @@ export default function AdminBillingPage() {
                   >
                     Recent governance reconciliation runs
                   </div>
-                  <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 13.5 }}>
+                  {/*
+                    TWENTY-FIVE LINES THAT SAID THE SAME THING.
+                    This was the longest block on the page and carried the
+                    least per row: "WORKSPACE_OPERATIONS · SUCCEEDED · scanned
+                    14 · 05 Sept 2026, 18:41:00 Europe/Berlin", twenty-five
+                    times, differing only in the seconds. Three faults in one
+                    line — a raw enum shouted in bold, a raw status beside it,
+                    and a stamp to the second where the question is "how
+                    recently", which every other list in the console answers
+                    with a relative time and the exact instant on the hover.
+                    And the read is capped at 25 (billing.service.ts), which
+                    nothing said, so the oldest line read as the first run
+                    rather than as the edge of the window.
+                  */}
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingInlineStart: 0,
+                      listStyle: "none",
+                      fontSize: 13.5,
+                    }}
+                  >
                     {detail.reconciliation.runHistory.value!.map((r) => (
                       <li key={r.id} style={{ marginBottom: 6 }}>
-                        <strong>{r.kind}</strong> · {r.status} · scanned {r.scanned}
+                        <strong>{humaniseResourceType(r.kind) ?? r.kind}</strong> ·{" "}
+                        {humaniseResourceType(r.status) ?? r.status} · scanned{" "}
+                        {r.scanned}
                         {r.failed > 0 ? `, ${r.failed} failed` : ""} ·{" "}
-                        {formatUserDateTime(r.startedAtUtc)}
+                        <span title={formatUserDateTime(r.startedAtUtc)}>
+                          {formatRelativeTime(r.startedAtUtc)}
+                        </span>
                       </li>
                     ))}
                   </ul>
+                  <ResultCount
+                    shown={detail.reconciliation.runHistory.value!.length}
+                    cap={RECONCILIATION_RUN_CAP}
+                    noun="reconciliation run"
+                  />
                 </div>
               ) : null}
             </Card>
