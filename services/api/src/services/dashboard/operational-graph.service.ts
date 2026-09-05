@@ -375,30 +375,38 @@ export async function getOperationalGraphSummary(input: {
     },
   };
   try {
-    const [nodeGroups, edgeGroups, evCount, caseCount, reviewerCount] =
-      await Promise.all([
-        prisma.operationalGraphNode.groupBy({
-          by: ["nodeType"],
-          where: { teamId: input.teamId },
-          _count: { _all: true },
-          orderBy: { nodeType: "asc" },
-        }),
-        prisma.operationalGraphEdge.groupBy({
-          by: ["edgeType"],
-          where: { teamId: input.teamId },
-          _count: { _all: true },
-          orderBy: { edgeType: "asc" },
-        }),
-        prisma.operationalGraphNode.count({
-          where: { teamId: input.teamId, nodeType: "EVIDENCE" },
-        }),
-        prisma.operationalGraphNode.count({
-          where: { teamId: input.teamId, nodeType: "CASE" },
-        }),
-        prisma.operationalGraphNode.count({
-          where: { teamId: input.teamId, nodeType: "REVIEWER" },
-        }),
-      ]);
+    /*
+     * THE GROUPING ALREADY ANSWERED THIS.
+     *
+     * `nodeGroups` is a GROUP BY over `node_type` for this workspace, so it
+     * returns a count for EVERY type. Three `count()` calls then asked the
+     * same table, with the same tenant predicate, for one bucket each — three
+     * extra round trips inside the same `Promise.all` as the query that had
+     * already produced their answers.
+     *
+     * Read from the grouping instead. Same table, same predicate, same scope:
+     * a bucket with no rows is absent from a GROUP BY, which is why the
+     * lookup below reads a missing bucket as 0 rather than as undefined.
+     */
+    const [nodeGroups, edgeGroups] = await Promise.all([
+      prisma.operationalGraphNode.groupBy({
+        by: ["nodeType"],
+        where: { teamId: input.teamId },
+        _count: { _all: true },
+        orderBy: { nodeType: "asc" },
+      }),
+      prisma.operationalGraphEdge.groupBy({
+        by: ["edgeType"],
+        where: { teamId: input.teamId },
+        _count: { _all: true },
+        orderBy: { edgeType: "asc" },
+      }),
+    ]);
+    const nodeCountOf = (nodeType: string): number =>
+      nodeGroups.find((g) => String(g.nodeType) === nodeType)?._count._all ?? 0;
+    const evCount = nodeCountOf("EVIDENCE");
+    const caseCount = nodeCountOf("CASE");
+    const reviewerCount = nodeCountOf("REVIEWER");
 
     // Top root causes: nodes with the highest out-degree, restricted to
     // INCIDENT / CORRELATION / WORKFLOW types.

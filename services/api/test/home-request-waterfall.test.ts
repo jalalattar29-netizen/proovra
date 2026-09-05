@@ -30,6 +30,7 @@ const WEB = resolve(
   "apps/web",
 );
 const read = (rel: string) => readFileSync(resolve(WEB, rel), "utf8");
+const HOOK = read("lib/useGlobalRuntimeState.ts");
 
 const HOME_DATA = read("components/home-experience/useHomeData.ts");
 const RUNTIME_STATE = read("lib/useGlobalRuntimeState.ts");
@@ -153,6 +154,105 @@ describe("Home's own reads are one wave", () => {
     const calls = sections.match(/await apiFetch\(/g) ?? [];
     expect(calls.length).toBeLessThanOrEqual(2);
     expect(sections).not.toContain("useEffect(() => {\n    void apiFetch");
+  });
+
+  it("the runtime badge's FIRST read waits for idle, not for mount", () => {
+    /*
+     * The badge is chrome. It reads three endpoints from the SIDEBAR, so it
+     * reads them on every authenticated page, and it used to fire the first
+     * read synchronously on mount — in the same wave as the page's own data.
+     *
+     * Readiness alone costs 144 SQL statements and ~120-150ms server-side on
+     * the local fixture, 65 of those being catalog EXISTS probes from the
+     * runtime schema validator re-run per request. Measured in Chrome with 2ms
+     * of database round-trip latency added, it was the most expensive thing on
+     * Home — for a dot in the sidebar.
+     *
+     * Deferring it is only safe because UNKNOWN never collapses into HEALTHY;
+     * the pill renders "Status pending" until the answer arrives. The test
+     * below holds that rule.
+     */
+    expect(HOOK).toMatch(/requestIdleCallback/);
+    expect(HOOK).toMatch(/FIRST_TICK_DEADLINE_MS/);
+    // A hard deadline, so a page that never idles still gets its status.
+    expect(HOOK).toMatch(/setTimeout\(startFirstTick, FIRST_TICK_DEADLINE_MS\)/);
+    // And the immediate call is gone.
+    expect(HOOK).not.toMatch(/\n\s*void tickOnce\(\);\n\s*const handle = window\.setInterval/);
+  });
+
+  it("the deferred first read is still cancelled on unmount", () => {
+    // A deferred callback that outlives its component writes into a hook that
+    // is gone, or worse, into the next workspace's state.
+    expect(HOOK).toMatch(/cancelIdleCallback/);
+    expect(HOOK).toMatch(/clearTimeout\(timeoutHandle\)/);
+    expect(HOOK).toMatch(/if \(cancelled\) return;/);
+  });
+
+  it("waiting for the runtime state is never rendered as healthy", () => {
+    // The whole basis for deferring it. If UNKNOWN ever became HEALTHY, the
+    // deferral would turn a slow answer into a false all-clear.
+    const indicator = read("components/operational/GlobalRuntimeIndicator.tsx");
+    expect(indicator).toMatch(/UNKNOWN: "Status pending"/);
+    expect(HOOK).toMatch(/UNKNOWN never collapses into HEALTHY/);
+  });
+
+  it("the billing overview is read once when two components ask together", () => {
+    /*
+     * The sidebar storage widget and Home's data hook both read
+     * `/v1/billing/overview`. The widget is in the shell, so on Home they
+     * mount together and the page issued the request twice — measured in
+     * Chrome on every Home load.
+     */
+    const widget = read("components/app-shell-v2/SidebarStorageWidget.tsx");
+    const home = read("components/home-experience/useHomeData.ts");
+    expect(widget).toMatch(/inFlightGet<BillingOverview>\("\/v1\/billing\/overview"/);
+    expect(home).toMatch(/inFlightGet<\s*HomeBillingInput\s*>\("\/v1\/billing\/overview"/);
+  });
+
+  it("the coalescer is not a cache — nothing survives the request", () => {
+    /*
+     * A TTL cache here would serve a stale storage figure after an upload, and
+     * would block Home's own focus revalidation. Only CONCURRENT callers share
+     * a response, and the entry is dropped as soon as it settles — including
+     * when it rejects, so a failure cannot poison the next read.
+     */
+    const coalescer = read("lib/inFlightGet.ts");
+    expect(coalescer).toMatch(/inFlight\.delete\(key\)/);
+    expect(coalescer).toMatch(/\.finally\(/);
+    /*
+     * The CODE, with prose removed, and whole identifiers only. `/ttl/i`
+     * against the whole file matched the word "settles" — the kind of false
+     * positive that makes a guard look strict while proving nothing.
+     */
+    const code = coalescer
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((l) => !/^\s*\/\//.test(l))
+      .join("\n");
+    expect(code).not.toMatch(/\b(ttl|maxAge|expiresAt|cacheFor)\b/i);
+    expect(code).not.toMatch(/setTimeout/);
+  });
+
+  it("the API origin is preconnected from the one authority that knows it", () => {
+    /*
+     * The API is a different origin, so the browser cannot start DNS/TCP/TLS
+     * for it until something asks — and the first thing that asks is a
+     * provider mounting after the bundle parses. Measured from CDP (Resource
+     * Timing zeroes the connection phases for a cross-origin response with no
+     * Timing-Allow-Origin, and would have reported 0ms server time), the first
+     * two API requests each paid ~306ms of connection setup on this host.
+     *
+     * The origin must come from `apiBaseUrl()`. A literal or a second env read
+     * would preconnect to the wrong host in exactly the deployments where it
+     * matters.
+     */
+    const layout = read("app/layout.tsx");
+    expect(layout).toMatch(/rel="preconnect"/);
+    expect(layout).toMatch(/apiBaseUrl\(\)/);
+    // Credentialed: an anonymous preconnect opens a different connection from
+    // the one a credentialed request needs, and buys nothing.
+    expect(layout).toMatch(/crossOrigin="use-credentials"/);
+    expect(layout).not.toMatch(/rel="preconnect" href="http/);
   });
 
   it("a slice that has not arrived is never rendered as 'unavailable'", () => {

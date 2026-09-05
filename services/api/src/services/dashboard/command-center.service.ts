@@ -2243,6 +2243,7 @@ function settledRows<T>(r: PromiseSettledResult<T>): T {
 async function runTimeline(
   teamId: string,
   pop: WorkspacePopulation,
+  opsCounters: OperationsCounters,
 ): Promise<CommandCenterEnvelope["sections"]["timeline"]> {
   const items: TimelineEvent[] = [];
   let anyOk = false;
@@ -2350,18 +2351,9 @@ async function runTimeline(
         createdAt: true,
       },
     }),
-    prisma.reviewEscalation.findMany({
-      where: { teamId, createdAt: { gte: since14d } },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        severity: true,
-        reason: true,
-        workflowId: true,
-        createdAt: true,
-      },
-    }),
+    // From the request snapshot — the reconstructed timeline reads the same
+    // list, and both used to fetch it against a clock of their own.
+    Promise.resolve(opsCounters.recentEscalations),
     prisma.operationalIncident.findMany({
       where: {
         OR: [{ teamId }, { teamId: null }],
@@ -3048,7 +3040,7 @@ export async function buildCommandCenter(input: {
     runPipelineDetail(input.teamId, pop, opsCounters, evidenceCounters),
     runGovernancePosture(input.teamId, scope, pop, evidenceCounters, opsCounters),
     runOrganizationalIntelligence(input.teamId, pop, evidenceCounters),
-    runTimeline(input.teamId, pop),
+    runTimeline(input.teamId, pop, opsCounters),
     runAuditReadiness(input.teamId, scope, pop, counters, evidenceCounters, opsCounters),
     runRecentEvidence(input.teamId, pop),
     runIncidents(input.teamId),
@@ -3065,7 +3057,7 @@ export async function buildCommandCenter(input: {
     // Phase 32.8C++ deep operations intelligence (partial-failure tolerant).
     runRelationshipIntelligence(input.teamId, pop),
     runCrossCaseIntelligenceV2(input.teamId, scope, pop),
-    runReconstructedTimeline(input.teamId),
+    runReconstructedTimeline(input.teamId, opsCounters),
     runDeepIntegrityWatch(input.teamId, pop),
     runAccessSecurityClassifier(input.teamId),
     runQueueWorkerTelemetry(input.teamId, scope, pop, counters, evidenceCounters),
@@ -5029,6 +5021,7 @@ const RECONSTRUCTED_TIMELINE_WINDOW_DAYS = 14;
 
 async function runReconstructedTimeline(
   teamId: string,
+  opsCounters: OperationsCounters,
 ): Promise<{ meta: SectionMeta; events: ReconstructedTimelineEvent[] }> {
   const meta: SectionMeta = {
     status: "ok",
@@ -5207,18 +5200,8 @@ async function runReconstructedTimeline(
           firstSeenAtUtc: true,
         },
       }),
-      prisma.reviewEscalation.findMany({
-        where: { teamId, createdAt: { gte: since } },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-        select: {
-          id: true,
-          severity: true,
-          reason: true,
-          workflowId: true,
-          createdAt: true,
-        },
-      }),
+      // The same shared list the operational timeline reads.
+      Promise.resolve(opsCounters.recentEscalations),
       prisma.securityEvent.findMany({
         where: {
           teamId,

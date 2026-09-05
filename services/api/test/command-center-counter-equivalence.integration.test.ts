@@ -47,6 +47,8 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
    * harness has pointed DATABASE_URL at the test database — and the server
    * then boots against nothing and reports every table as missing.
    */
+  let RECENT_ESCALATION_WINDOW_DAYS: number;
+  let RECENT_ESCALATION_LIMIT: number;
   let DESTRUCTION_REVIEW_AWAITING_DECISION: readonly string[];
   let DESTRUCTION_REVIEW_PROPOSED: readonly string[];
 
@@ -70,6 +72,8 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
       loadOperationsCounters,
       DESTRUCTION_REVIEW_AWAITING_DECISION,
       DESTRUCTION_REVIEW_PROPOSED,
+      RECENT_ESCALATION_WINDOW_DAYS,
+      RECENT_ESCALATION_LIMIT,
     } = await import("../src/services/dashboard/command-center-counters.js"));
 
     const { signJwt } = await import("../src/services/jwt.js");
@@ -551,6 +555,105 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
     // EXECUTED exists and is excluded — "pending" is narrower than "all".
     expect(pending).toBeLessThan(
       await prisma.destructionReview.count({ where: { teamId } }),
+    );
+  });
+
+  it("the recent-escalation list equals the one two engines each fetched", async () => {
+    /*
+     * The operational timeline and the reconstructed timeline both read the
+     * most recent escalations, with the same predicate, ordering and bound —
+     * and each took its own `new Date()`, so the two sections of one page
+     * could be built from windows milliseconds apart.
+     *
+     * The original query, verbatim, against the same clock the snapshot uses.
+     */
+    const now = new Date();
+    const since = new Date(
+      now.getTime() - RECENT_ESCALATION_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const original = await prisma.reviewEscalation.findMany({
+      where: { teamId, createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: RECENT_ESCALATION_LIMIT,
+      select: {
+        id: true,
+        severity: true,
+        reason: true,
+        workflowId: true,
+        createdAt: true,
+      },
+    });
+
+    const ops = await loadOperationsCounters(teamId, now);
+    expect(ops.recentEscalations.map((e) => e.id)).toEqual(
+      original.map((e) => e.id),
+    );
+    // Not equal-but-empty: the fixture holds escalations in this window.
+    expect(original.length).toBeGreaterThan(0);
+  });
+
+  it("the recent-escalation list is another workspace's, never this one's", async () => {
+    const mine = await loadOperationsCounters(teamId);
+    const theirs = await loadOperationsCounters(otherTeamId);
+    const mineIds = new Set(mine.recentEscalations.map((e) => e.id));
+    for (const e of theirs.recentEscalations) {
+      expect(mineIds.has(e.id)).toBe(false);
+    }
+    expect(theirs.recentEscalations.length).toBeGreaterThan(0);
+  });
+
+  it("one clock: asking twice cannot move the escalation window", async () => {
+    const now = new Date();
+    const a = await loadOperationsCounters(teamId, now);
+    await new Promise((r) => setTimeout(r, 25));
+    const b = await loadOperationsCounters(teamId, now);
+    expect(b.recentEscalations.map((e) => e.id)).toEqual(
+      a.recentEscalations.map((e) => e.id),
+    );
+  });
+
+  // =========================================================================
+  // OPERATIONAL GRAPH — the grouping already answered the three counts
+  // =========================================================================
+
+  it("graph node counts derived from the grouping equal the counts they replaced", async () => {
+    const original = async (nodeType: string) =>
+      prisma.operationalGraphNode.count({
+        where: { teamId, nodeType: nodeType as never },
+      });
+
+    const groups = await prisma.operationalGraphNode.groupBy({
+      by: ["nodeType"],
+      where: { teamId },
+      _count: { _all: true },
+      orderBy: { nodeType: "asc" },
+    });
+    const derived = (nodeType: string) =>
+      groups.find((g) => String(g.nodeType) === nodeType)?._count._all ?? 0;
+
+    for (const nodeType of ["EVIDENCE", "CASE", "REVIEWER"]) {
+      expect(derived(nodeType), `${nodeType} disagrees`).toBe(
+        await original(nodeType),
+      );
+    }
+  });
+
+  it("a node type with no rows reads as zero, not undefined", async () => {
+    // A GROUP BY returns NO ROW for an empty bucket. Reading that as
+    // `undefined` and doing arithmetic on it is how a dashboard renders NaN.
+    const groups = await prisma.operationalGraphNode.groupBy({
+      by: ["nodeType"],
+      where: { teamId },
+      _count: { _all: true },
+    });
+    const derived = (nodeType: string) =>
+      groups.find((g) => String(g.nodeType) === nodeType)?._count._all ?? 0;
+    const empty = derived("REVIEWER");
+    expect(Number.isFinite(empty)).toBe(true);
+    expect(empty).toBe(
+      await prisma.operationalGraphNode.count({
+        where: { teamId, nodeType: "REVIEWER" as never },
+      }),
     );
   });
 

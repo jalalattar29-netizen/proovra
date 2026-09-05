@@ -390,10 +390,65 @@ export function useGlobalRuntimeState(
       setLoading(false);
     }
 
-    void tickOnce();
+    /*
+     * THE FIRST TICK WAITS FOR THE PAGE THE OPERATOR CAME FOR.
+     *
+     * This hook runs in the SIDEBAR, so it runs on every authenticated page,
+     * and it fired its first tick synchronously on mount — in the same wave as
+     * the page's own reads. Its three sources are chrome: a status pill and
+     * two sidebar badges. Nothing on any page waits for them, and no gate
+     * depends on them.
+     *
+     * Readiness alone costs 144 SQL statements and ~120-150ms server-side on
+     * the local fixture — 65 of those are catalog EXISTS probes from the
+     * runtime schema validator, re-run per request. Measured in Chrome with
+     * 2ms of database round-trip latency added, it took 2.3 seconds of a 3.8
+     * second settled Home timeline: by far the most expensive thing on the
+     * page, for a dot in the sidebar.
+     *
+     * So the first tick is scheduled for the browser's idle time instead of
+     * mount. Nothing is hidden and nothing is faked while it waits: the
+     * severity stays UNKNOWN, which the pill already renders as "Status
+     * pending" and the sidebar as a neutral dot. UNKNOWN never collapses into
+     * HEALTHY — that rule is the reason this is safe to defer at all.
+     *
+     * `requestIdleCallback` with a hard timeout, so a page that never goes
+     * idle still gets its status within the second; the fallback covers
+     * browsers without it. The poll interval below is unchanged.
+     */
+    const FIRST_TICK_DEADLINE_MS = 800;
+    let idleHandle: number | null = null;
+    let timeoutHandle: number | null = null;
+    const startFirstTick = () => {
+      if (cancelled) return;
+      void tickOnce();
+    };
+    const idle = (
+      window as unknown as {
+        requestIdleCallback?: (
+          cb: () => void,
+          opts?: { timeout: number },
+        ) => number;
+        cancelIdleCallback?: (handle: number) => void;
+      }
+    ).requestIdleCallback;
+    if (typeof idle === "function") {
+      idleHandle = idle(startFirstTick, { timeout: FIRST_TICK_DEADLINE_MS });
+    } else {
+      timeoutHandle = window.setTimeout(startFirstTick, FIRST_TICK_DEADLINE_MS);
+    }
+
     const handle = window.setInterval(tickOnce, clampedPoll);
     return () => {
       cancelled = true;
+      if (idleHandle !== null) {
+        (
+          window as unknown as {
+            cancelIdleCallback?: (h: number) => void;
+          }
+        ).cancelIdleCallback?.(idleHandle);
+      }
+      if (timeoutHandle !== null) window.clearTimeout(timeoutHandle);
       window.clearInterval(handle);
     };
   }, [teamId, clampedPoll, tick, silent, access]);

@@ -341,6 +341,23 @@ export async function loadEvidenceCounters(
  * only the questions that were already being asked — an engine wanting a
  * predicate that is not a plain status or category still asks for itself.
  */
+/** How far back both timeline surfaces look for escalations. */
+export const RECENT_ESCALATION_WINDOW_DAYS = 14;
+/** How many either surface renders. */
+export const RECENT_ESCALATION_LIMIT = 10;
+
+/** One escalation, as both timeline surfaces read it. */
+export type RecentEscalation = {
+  id: string;
+  // All three are NOT NULL in the schema — `severity` even carries a default.
+  // Declaring them nullable here would push a guard into every reader for a
+  // case the database cannot produce.
+  severity: string;
+  reason: string;
+  workflowId: string;
+  createdAt: Date;
+};
+
 export type OperationsCounters = {
   /** Open (OPEN + ACKNOWLEDGED) incidents for this workspace, by category. */
   openIncidentsByCategory: Readonly<Record<string, number>>;
@@ -354,6 +371,16 @@ export type OperationsCounters = {
   destructionReviews(statuses: readonly string[]): number;
   /** Sum over the given escalation statuses. */
   escalations(statuses: readonly string[]): number;
+  /**
+   * The most recent escalations in the shared window.
+   *
+   * TWO engines asked for this — the operational timeline and the
+   * reconstructed timeline — with the same predicate, the same ordering and
+   * the same bound, each against a `new Date()` of its own. So the page paid
+   * for the list twice, and the two sections could be built from windows
+   * milliseconds apart and disagree about which escalations are recent.
+   */
+  recentEscalations: ReadonlyArray<RecentEscalation>;
 };
 
 /**
@@ -368,8 +395,12 @@ const incidentScopeFor = (teamId: string) => ({
 
 export async function loadOperationsCounters(
   teamId: string,
+  now: Date = new Date(),
 ): Promise<OperationsCounters> {
-  const [incidents, destruction, escalations] = await Promise.all([
+  const escalationSince = new Date(
+    now.getTime() - RECENT_ESCALATION_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const [incidents, destruction, escalations, recentEscalations] = await Promise.all([
     prisma.operationalIncident
       .groupBy({
         by: ["category"],
@@ -385,6 +416,20 @@ export async function loadOperationsCounters(
       .catch(() => []),
     prisma.reviewEscalation
       .groupBy({ by: ["status"], where: { teamId }, _count: { _all: true } })
+      .catch(() => []),
+    prisma.reviewEscalation
+      .findMany({
+        where: { teamId, createdAt: { gte: escalationSince } },
+        orderBy: { createdAt: "desc" },
+        take: RECENT_ESCALATION_LIMIT,
+        select: {
+          id: true,
+          severity: true,
+          reason: true,
+          workflowId: true,
+          createdAt: true,
+        },
+      })
       .catch(() => []),
   ]);
 
@@ -406,6 +451,7 @@ export async function loadOperationsCounters(
     openIncidentsByCategory,
     destructionReviewsByStatus,
     escalationsByStatus,
+    recentEscalations: recentEscalations as ReadonlyArray<RecentEscalation>,
     openIncidents: (categories) => sum(openIncidentsByCategory, categories),
     destructionReviews: (statuses) => sum(destructionReviewsByStatus, statuses),
     escalations: (statuses) => sum(escalationsByStatus, statuses),

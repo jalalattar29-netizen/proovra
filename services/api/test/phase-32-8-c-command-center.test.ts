@@ -1489,7 +1489,19 @@ describe("Phase 32.8C++ — Reconstructed Timeline engine", () => {
     expect(body).toMatch(/prisma\.verificationPackage\.findMany/);
     expect(body).toMatch(/prisma\.evidenceLifecycleEvent\.findMany/);
     expect(body).toMatch(/prisma\.operationalIncident\.findMany/);
-    expect(body).toMatch(/prisma\.reviewEscalation\.findMany/);
+    /*
+     * Escalations still come from the real table — through the request-scoped
+     * operations snapshot rather than a query of this engine's own. The
+     * operational timeline read the identical list, with the identical
+     * predicate, ordering and bound, and each took a clock of its own, so one
+     * page could build two sections from windows milliseconds apart.
+     *
+     * What this test protects is that the events are REAL rather than
+     * synthesised, so it follows the read to where it now lives instead of
+     * requiring it to stay in this function.
+     */
+    expect(body).toMatch(/opsCounters\.recentEscalations/);
+    expect(COUNTERS).toMatch(/prisma\.reviewEscalation\s*\n?\s*\.findMany/);
     expect(body).toMatch(/prisma\.securityEvent\.findMany/);
   });
 });

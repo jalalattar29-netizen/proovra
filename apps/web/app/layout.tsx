@@ -5,6 +5,22 @@ import "./globals.css";
 import { Providers } from "./providers";
 import CookieConsentInit from "./CookieConsentInit";
 import PrivacyPreferencesLauncher from "../components/privacy/PrivacyPreferencesLauncher";
+import { apiBaseUrl } from "../lib/api";
+
+/**
+ * The API's ORIGIN, from the one authority that knows it.
+ *
+ * Never a literal and never an env read of its own: `apiBaseUrl()` is where
+ * the base URL is decided, and a second opinion here would preconnect to the
+ * wrong host in exactly the deployments where it matters most.
+ */
+const API_ORIGIN = (() => {
+  try {
+    return new URL(apiBaseUrl()).origin;
+  } catch {
+    return null;
+  }
+})();
 
 // Browser-tab + Apple-touch + PWA icons all resolve through Next.js's
 // app-router icon convention: `app/icon.png` → /icon, `app/apple-icon.png`
@@ -77,6 +93,41 @@ export default function RootLayout({
           content="width=device-width, initial-scale=1.0, viewport-fit=cover"
         />
         <meta name="theme-color" content="#FFFFFF" />
+        {/*
+          OPEN THE CONNECTION TO THE API WHILE THE BUNDLE IS STILL PARSING.
+
+          The API is a different origin from the app, so the browser cannot
+          reuse the document's connection for it. It also cannot START one
+          until something asks: the first request is issued by a provider that
+          mounts after the JavaScript has downloaded and parsed, so DNS, TCP
+          and TLS all begin from there and land on the critical path.
+
+          Measured in Chrome against a production build, from CDP rather than
+          Resource Timing — which zeroes the connection phases for a
+          cross-origin response with no `Timing-Allow-Origin`, and would have
+          reported this as "0ms server time" and hidden it entirely:
+
+            /v1/platform/context   queued 310ms · connect 309ms · waiting 51ms
+            /v1/users/me           queued 310ms · connect 309ms · waiting 18ms
+
+          Every later request showed connect 0ms — they reuse the pooled
+          connection. Only the first pay for it, and both of the first two pay
+          it in parallel. The server's own time was never the problem: 51ms,
+          against a ~650ms observation.
+
+          `preconnect` moves that work into HTML parse, in parallel with the
+          script download. It is a hint, not a fetch: it sends no request,
+          carries no credentials, and reveals nothing the next line of
+          JavaScript would not.
+
+          `crossOrigin` is REQUIRED and is not decoration — the API is called
+          with credentials, and a connection opened anonymously is a different
+          connection from the one a credentialed request needs, so without it
+          the browser opens a second one and the hint buys nothing.
+        */}
+        {API_ORIGIN ? (
+          <link rel="preconnect" href={API_ORIGIN} crossOrigin="use-credentials" />
+        ) : null}
       </head>
 
 <body className="antialiased" style={{ fontFamily: "var(--font-jakarta)" }}>

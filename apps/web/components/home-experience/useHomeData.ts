@@ -26,6 +26,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { inFlightGet } from "../../lib/inFlightGet";
 import {
   useActiveSpace,
   useActiveSpaceId,
@@ -139,9 +140,16 @@ export function useHomeData(): HomeData {
           }).catch(() => null)
         : Promise.resolve(null);
 
-    const billingPromise: Promise<HomeBillingInput | null> = apiFetch(
-      "/v1/billing/overview",
-      { method: "GET" },
+    /*
+     * Shared with the sidebar storage widget, which reads the same endpoint
+     * from the app shell and therefore mounts alongside this hook on every
+     * Home load. Two components asking one question at one moment got two
+     * responses; they now share the one that is already in flight.
+     */
+    const billingPromise: Promise<HomeBillingInput | null> = inFlightGet<
+      HomeBillingInput
+    >("/v1/billing/overview", () =>
+      apiFetch("/v1/billing/overview", { method: "GET" }),
     ).catch(() => null);
 
     const reportsPromise: Promise<HomeReportsInput | null> = apiFetch(

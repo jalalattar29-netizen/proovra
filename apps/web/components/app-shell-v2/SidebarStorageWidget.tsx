@@ -20,6 +20,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { inFlightGet } from "../../lib/inFlightGet";
 
 type StorageInfo = {
   usedBytes?: string;
@@ -97,7 +98,11 @@ export function SidebarStorageWidget() {
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch("/v1/billing/overview", { method: "GET" })
+    // Shared with Home's own read of the same endpoint when both mount
+    // together, which on Home they always do — this widget is in the shell.
+    inFlightGet<BillingOverview>("/v1/billing/overview", () =>
+      apiFetch("/v1/billing/overview", { method: "GET" }),
+    )
       .then((res: BillingOverview) => {
         if (cancelled) return;
         setView(toView(res?.workspaces?.personal?.storage));
