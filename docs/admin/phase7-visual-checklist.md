@@ -18,7 +18,7 @@ desktop screenshot present         = 47
 mobile screenshot present          = 47
 responsive swept (7 widths + zoom) = 47
 RTL verified                       = 47
-exactly one H1                     = 46
+exactly one H1                     = 47
 composition individually reviewed  = 47
 swept but not composition-reviewed = 0
 ```
@@ -31,7 +31,7 @@ swept but not composition-reviewed = 0
 
 | route | screens | cards | 1-val | tables | tabs | H1 | desktop | mobile | responsive | RTL | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin` | 3.7 | 19 | 9 | 0 | no in-page tabs (secondary nav is links) | 1 | 457 KB | 381 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin` | 3.7 | 19 | 9 | 0 | no in-page tabs (secondary nav is links) | 1 | 460 KB | 382 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 
 ### What was recomposed, and onto what
 
@@ -44,18 +44,18 @@ swept but not composition-reviewed = 0
 
 | route | screens | cards | 1-val | tables | tabs | H1 | desktop | mobile | responsive | RTL | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin/billing` | 3.1 | 26 | 4 | 5 | no in-page tabs (secondary nav is links) | 1 | 372 KB | 268 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/contact-sales` | 1 | 2 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 163 KB | 72 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/contact-sales/:id` | 1.5 | 2 | 1 | 0 | no in-page tabs (secondary nav is links) | 1 | 199 KB | 122 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/customers` | 1 | 1 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 180 KB | 79 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/customers/:id` | 3.3 | 11 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 396 KB | 341 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/demo-requests` | 1.3 | 6 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 214 KB | 144 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/demo-requests/:id` | 2.1 | 10 | 1 | 0 | no in-page tabs (secondary nav is links) | 1 | 225 KB | 148 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/provisioning` | 2.1 | 6 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 296 KB | 211 KB | 7w+z200, no overflow | rtl, no overflow | ALREADY_COMPLIANT |
-| `/admin/users` | 1.6 | 5 | 0 | 2 | no in-page tabs (secondary nav is links) | 1 | 255 KB | 144 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/users/:id` | 1.9 | 9 | 0 | 2 | no in-page tabs (secondary nav is links) | 1 | 238 KB | 146 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/workspaces` | 1.2 | 2 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 220 KB | 101 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/workspaces/:id` | 2 | 11 | 3 | 1 | no in-page tabs (secondary nav is links) | 1 | 263 KB | 187 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/billing` | 3.7 | 26 | 4 | 5 | no in-page tabs (secondary nav is links) | 1 | 483 KB | 375 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/contact-sales` | 1 | 2 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 163 KB | 71 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/contact-sales/:id` | 1.5 | 2 | 1 | 0 | no in-page tabs (secondary nav is links) | 1 | 203 KB | 126 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/customers` | 1 | 1 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 181 KB | 81 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/customers/:id` | 3.3 | 11 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 396 KB | 342 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/demo-requests` | 1.3 | 6 | 4 | 0 | no in-page tabs (secondary nav is links) | 1 | 205 KB | 135 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/demo-requests/:id` | 2.1 | 10 | 1 | 0 | no in-page tabs (secondary nav is links) | 1 | 224 KB | 148 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/provisioning` | 2 | 6 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 291 KB | 205 KB | 7w+z200, no overflow | rtl, no overflow | ALREADY_COMPLIANT |
+| `/admin/users` | 1.6 | 5 | 0 | 2 | no in-page tabs (secondary nav is links) | 1 | 252 KB | 137 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/users/:id` | 2.6 | 10 | 0 | 2 | no in-page tabs (secondary nav is links) | 1 | 302 KB | 202 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/workspaces` | 1.2 | 2 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 239 KB | 112 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/workspaces/:id` | 2 | 11 | 3 | 1 | no in-page tabs (secondary nav is links) | 1 | 266 KB | 189 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 
 ### What was recomposed, and onto what
 
@@ -90,12 +90,12 @@ swept but not composition-reviewed = 0
 
 | route | screens | cards | 1-val | tables | tabs | H1 | desktop | mobile | responsive | RTL | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin/evidence-ops` | 3.8 | 29 | 4 | 0 | no in-page tabs (secondary nav is links) | 1 | 568 KB | 469 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/evidence-ops/records` | 1.2 | 2 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 246 KB | 87 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/exports` | 1 | 3 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 163 KB | 78 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/media-graph` | 2.2 | 32 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 335 KB | 260 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/recovery` | 1.3 | 4 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 190 KB | 103 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/signers` | 1.2 | 6 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 174 KB | 102 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/evidence-ops` | 3.1 | 29 | 4 | 0 | no in-page tabs (secondary nav is links) | 1 | 444 KB | 407 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/evidence-ops/records` | 1.2 | 2 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 248 KB | 91 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/exports` | 1 | 3 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 169 KB | 85 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/media-graph` | 2.1 | 32 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 288 KB | 212 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/recovery` | 1.4 | 4 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 196 KB | 111 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/signers` | 1.2 | 6 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 177 KB | 108 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 
 ### What was recomposed, and onto what
 
@@ -118,14 +118,14 @@ swept but not composition-reviewed = 0
 
 | route | screens | cards | 1-val | tables | tabs | H1 | desktop | mobile | responsive | RTL | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin/identity` | 3.2 | 22 | 0 | 3 | no in-page tabs (secondary nav is links) | 1 | 548 KB | 415 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/identity/access-reviews` | 1.2 | 5 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 200 KB | 99 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/identity/permission-matrix` | 1.7 | 9 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 244 KB | 158 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/identity/providers` | 1.2 | 5 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 226 KB | 154 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/identity/runtime` | 1.4 | 5 | 0 | 2 | no in-page tabs (secondary nav is links) | 1 | 227 KB | 123 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/identity/scim` | 1 | 4 | 0 | 1 | 4 tabs, all opened (tabs.json) | 1 | 189 KB | 87 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/identity/sessions` | 2.6 | 12 | 0 | 4 | no in-page tabs (secondary nav is links) | 1 | 361 KB | 228 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/identity/timeline` | 1 | 0 | 0 | 0 | no in-page tabs (secondary nav is links) | 0 | 6 KB | 72 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/identity` | 3.2 | 22 | 0 | 3 | no in-page tabs (secondary nav is links) | 1 | 555 KB | 419 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/identity/access-reviews` | 1 | 2 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 163 KB | 71 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/identity/permission-matrix` | 1.7 | 9 | 2 | 0 | no in-page tabs (secondary nav is links) | 1 | 263 KB | 180 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/identity/providers` | 1.2 | 5 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 219 KB | 149 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/identity/runtime` | 2.7 | 5 | 0 | 2 | no in-page tabs (secondary nav is links) | 1 | 454 KB | 252 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/identity/scim` | 1 | 4 | 0 | 1 | 4 tabs, all opened (tabs.json) | 1 | 188 KB | 87 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/identity/sessions` | 4.9 | 12 | 0 | 4 | no in-page tabs (secondary nav is links) | 1 | 833 KB | 459 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/identity/timeline` | 1.5 | 2 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 280 KB | 128 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 
 ### What was recomposed, and onto what
 
@@ -152,11 +152,11 @@ swept but not composition-reviewed = 0
 
 | route | screens | cards | 1-val | tables | tabs | H1 | desktop | mobile | responsive | RTL | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin/alerts` | 3.9 | 26 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 469 KB | 369 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/audit` | 2.4 | 11 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 427 KB | 300 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/security` | 3.9 | 17 | 1 | 4 | no in-page tabs (secondary nav is links) | 1 | 454 KB | 367 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/support-access` | 1.9 | 7 | 0 | 2 | no in-page tabs (secondary nav is links) | 1 | 276 KB | 174 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/timeline` | 2.3 | 1 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 458 KB | 219 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/alerts` | 2.8 | 0 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 442 KB | 351 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/audit` | 3.7 | 11 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 729 KB | 446 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/security` | 4.2 | 16 | 1 | 4 | no in-page tabs (secondary nav is links) | 1 | 544 KB | 419 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/support-access` | 1.9 | 7 | 0 | 2 | no in-page tabs (secondary nav is links) | 1 | 276 KB | 175 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/timeline` | 2.3 | 1 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 452 KB | 232 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 
 ### What was recomposed, and onto what
 
@@ -177,15 +177,15 @@ swept but not composition-reviewed = 0
 
 | route | screens | cards | 1-val | tables | tabs | H1 | desktop | mobile | responsive | RTL | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin/costs` | 2.2 | 18 | 3 | 3 | no in-page tabs (secondary nav is links) | 1 | 377 KB | 288 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/operations` | 3.7 | 8 | 4 | 2 | no in-page tabs (secondary nav is links) | 1 | 683 KB | 343 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform-health` | 2.7 | 31 | 7 | 0 | no in-page tabs (secondary nav is links) | 1 | 499 KB | 462 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/automation` | 1.7 | 5 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 219 KB | 121 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/observability` | 3.2 | 6 | 0 | 12 | no in-page tabs (secondary nav is links) | 1 | 384 KB | 326 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/queues` | 1.9 | 3 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 303 KB | 223 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/readiness` | 2.7 | 6 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 373 KB | 291 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/reliability` | 1.5 | 10 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 237 KB | 147 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/search` | 1 | 2 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 145 KB | 65 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/costs` | 2.1 | 18 | 3 | 3 | no in-page tabs (secondary nav is links) | 1 | 374 KB | 286 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/operations` | 3.9 | 8 | 4 | 2 | no in-page tabs (secondary nav is links) | 1 | 718 KB | 367 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform-health` | 2.5 | 18 | 7 | 0 | no in-page tabs (secondary nav is links) | 1 | 426 KB | 355 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/automation` | 1.7 | 7 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 217 KB | 121 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/observability` | 3.6 | 14 | 3 | 12 | no in-page tabs (secondary nav is links) | 1 | 395 KB | 318 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/queues` | 2.3 | 3 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 314 KB | 214 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/readiness` | 2.7 | 6 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 372 KB | 286 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/reliability` | 1.5 | 10 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 236 KB | 148 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/search` | 1 | 2 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 145 KB | 64 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 
 ### What was recomposed, and onto what
 
@@ -214,7 +214,7 @@ swept but not composition-reviewed = 0
 
 | route | screens | cards | 1-val | tables | tabs | H1 | desktop | mobile | responsive | RTL | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin/platform/runbooks` | 4.2 | 33 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 628 KB | 608 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/runbooks` | 4.2 | 33 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 627 KB | 608 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 | `/admin/platform/runbooks/:slug` | 3.8 | 0 | 0 | 0 | no in-page tabs (secondary nav is links) | 1 | 614 KB | 547 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 
 ### What was recomposed, and onto what
@@ -230,10 +230,10 @@ swept but not composition-reviewed = 0
 
 | route | screens | cards | 1-val | tables | tabs | H1 | desktop | mobile | responsive | RTL | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin/adoption` | 2 | 1 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 316 KB | 204 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/dashboard` | 2.6 | 36 | 6 | 1 | 3-option window control, verified | 1 | 337 KB | 277 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/executive` | 1.9 | 16 | 8 | 2 | no in-page tabs (secondary nav is links) | 1 | 285 KB | 221 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
-| `/admin/platform/analytics` | 2.8 | 35 | 0 | 0 | 3-option window control, verified | 1 | 368 KB | 342 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/adoption` | 2 | 1 | 0 | 1 | no in-page tabs (secondary nav is links) | 1 | 302 KB | 203 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/dashboard` | 3.8 | 36 | 6 | 1 | 3-option window control, verified | 1 | 561 KB | 429 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/executive` | 1.8 | 13 | 8 | 2 | no in-page tabs (secondary nav is links) | 1 | 275 KB | 203 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
+| `/admin/platform/analytics` | 2.9 | 35 | 0 | 0 | 3-option window control, verified | 1 | 359 KB | 323 KB | 7w+z200, no overflow | rtl, no overflow | REDESIGNED_AND_VISUALLY_VERIFIED |
 
 ### What was recomposed, and onto what
 

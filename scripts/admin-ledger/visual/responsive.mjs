@@ -59,8 +59,23 @@ const MEASURE = () => {
   // them, which is exactly the shape of an instrument fault rather than a
   // finding.
   const doc = document.documentElement;
-  const main = document.querySelector("main") || document.body;
-  const inMain = (el) => main.contains(el);
+  /**
+   * NO MAIN IS A FINDING, NOT A REASON TO CALL EVERYTHING CONTENT.
+   *
+   * This read `document.querySelector("main") || document.body`. On
+   * `/admin/platform/runbooks/:slug` — the console's not-found state, which
+   * rendered a bare div — there was no main, so the fallback made the whole
+   * document count as page content and the sweep reported the app shell's
+   * 38px privacy-preferences launcher as an admin content target. Global
+   * chrome, with an aria-label, on a page no admin route owns.
+   *
+   * The ownership split now has no fallback, and the absence is reported in
+   * its own right: a page with no main landmark has no primary region and no
+   * "skip to content" target, which is worth a line of its own.
+   */
+  const mainEl = document.querySelector("main, [role='main']");
+  const inMain = (el) => (mainEl ? mainEl.contains(el) : false);
+  const main = mainEl ?? doc;
   const overflow = Math.max(0, doc.scrollWidth - doc.clientWidth);
 
   const culprits = [];
@@ -195,6 +210,7 @@ const MEASURE = () => {
     tinyContentTop: tiny.content.slice(0, 4),
     tinyChromeTop: tiny.chrome.slice(0, 3),
     h1: document.querySelectorAll("h1").length,
+    hasMainLandmark: Boolean(mainEl),
   };
 };
 
@@ -253,6 +269,26 @@ for (const zoom of [1, 2]) {
       // one — and 17 false "missing page heading" reports would have been the
       // headline of the accessibility section.
       await page.waitForTimeout(3_000);
+      /**
+       * A FIXED SETTLE IS A RACE, AND LOSING IT PRODUCES A FALSE FINDING.
+       *
+       * 3s replaced 1.5s for exactly this reason and it is still a guess. On
+       * one pass this sweep reported `/admin/identity` at 1024 as "h1=0 · NO
+       * MAIN LANDMARK" — a page with no heading and no primary region, which
+       * would be among the worst findings in the accessibility section. It was
+       * not true: the same route, measured on its own AND in the sweep's exact
+       * sequence at the same width with the same settle, reports one h1 and
+       * one landmark every time. The dev server compiles per request, and a
+       * cold compile of a heavy route can outrun three seconds.
+       *
+       * So the settle has a PRECONDITION rather than a longer guess: wait for
+       * the primary region to exist, with a ceiling. A slow compile now costs
+       * a longer wait; a page that genuinely has no landmark still reports one
+       * after the ceiling, because the wait resolves either way.
+       */
+      await page
+        .waitForSelector("main, [role='main']", { timeout: 15_000, state: "attached" })
+        .catch(() => null);
       await deadline(strip(page).catch(() => 0), 5_000, 0);
       const m = await deadline(
         page.evaluate(MEASURE).catch((e) => ({ error: String(e).slice(0, 80) })),
@@ -270,6 +306,7 @@ for (const zoom of [1, 2]) {
         m.tinyChrome ? `${m.tinyChrome} tiny(chrome)` : "",
       m.nativeWidgets ? `${m.nativeWidgets} native checkbox/radio (exempt)` : "",
         m.h1 !== 1 ? `h1=${m.h1}` : "",
+        m.hasMainLandmark === false ? "NO MAIN LANDMARK" : "",
       ].filter(Boolean).join(" · ");
       if (flag) {
         console.log(

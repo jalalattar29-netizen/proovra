@@ -593,7 +593,10 @@ function TileGrid({
             {t.hint ? <div className="apf-stat-hint">{t.hint}</div> : null}
             <div
               className="apf-mono"
-              style={{ fontSize: 10.5, color: "var(--ink-muted)", marginTop: 4 }}
+              /* 11px is the console's floor, closed everywhere else in this phase
+                 and missed here: the responsive sweep reported this key as
+                 sub-11px text at every width from 320 up. */
+              style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 4 }}
             >
               {/* `media_intelligence_processor_started_total` has no break
                   opportunity in it and this tile is about 120px wide, so

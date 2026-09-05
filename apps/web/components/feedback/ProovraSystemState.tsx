@@ -249,8 +249,32 @@ export function ProovraSystemState({
   };
 
   return (
+    /**
+     * A NOT-FOUND PAGE IS STILL A PAGE, AND NEEDS A MAIN LANDMARK.
+     *
+     * This was a bare `<div>`, and it is what `app/not-found.tsx` renders — so
+     * `/admin/platform/runbooks/:slug` and every other unmatched address in
+     * the console had NO `<main>` at all. Measured: `mainCount: 0`, against 1
+     * on every route that resolves. A screen-reader user arriving there has no
+     * primary region and no "skip to content" target, on the one page where
+     * they most need to find the way out.
+     *
+     * `role="main"` rather than the element, because these states render in
+     * three places — the root not-found, `AccessGate`, and inline inside a
+     * page that already has a `<main>` — and a nested `<main>` element is
+     * invalid. A `presentation` of "contained" is the inline case, so it
+     * claims nothing.
+     *
+     * IT ALSO EXPOSED AN INSTRUMENT FAULT. `responsive.mjs` resolved its
+     * ownership split with `document.querySelector("main") || document.body`,
+     * so on a page with no main it silently treated the whole document as page
+     * content and reported the app shell's 38px privacy-preferences launcher —
+     * global chrome, with an aria-label, outside anything admin owns — as an
+     * admin content target. The fallback is gone from the sweep too.
+     */
     <div
       style={wrap}
+      role={isFull ? "main" : undefined}
       data-proovra-system-state
       data-system-state-kind={kind}
       data-system-state-context={context}
