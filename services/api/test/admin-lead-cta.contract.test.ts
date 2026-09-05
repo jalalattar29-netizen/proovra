@@ -184,7 +184,12 @@ describe("Admin detail routes — Next.js pages exist", () => {
       "utf8",
     );
     expect(list).toMatch(
-      /href=\{`\/admin\/contact-sales\/\$\{encodeURIComponent\(it\.id\)\}`\}/,
+      /`\/admin\/contact-sales\/\$\{encodeURIComponent\(it\.id\)\}`/,
+    );
+    // PHASE 6 §7 — and it carries the queue state the operator filtered, so
+    // the return lands back on that list rather than page one of everything.
+    expect(list, "the row link no longer carries the list state").toContain(
+      "detailHrefWithReturn",
     );
   });
 
@@ -194,7 +199,12 @@ describe("Admin detail routes — Next.js pages exist", () => {
       "utf8",
     );
     expect(list).toMatch(
-      /href=\{`\/admin\/demo-requests\/\$\{encodeURIComponent\(item\.id\)\}`\}/,
+      /`\/admin\/demo-requests\/\$\{encodeURIComponent\(item\.id\)\}`/,
+    );
+    // PHASE 6 §7 — and it carries the queue state the operator filtered, so
+    // the return lands back on that list rather than page one of everything.
+    expect(list, "the row link no longer carries the list state").toContain(
+      "detailHrefWithReturn",
     );
   });
 });
