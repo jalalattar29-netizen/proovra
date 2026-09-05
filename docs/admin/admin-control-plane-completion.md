@@ -72,51 +72,51 @@
 | Route | Scope | Scope source | Capability | Backend authority | Nav | Parent |
 | --- | --- | --- | --- | --- | --- | --- |
 | `/admin` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | overview | /admin |
-| `/admin/adoption` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
+| `/admin/adoption` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | insight | /admin |
 | `/admin/alerts` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
-| `/admin/audit` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | audit | /admin |
-| `/admin/billing` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
+| `/admin/audit` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
+| `/admin/billing` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
 | `/admin/contact-sales` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
 | `/admin/contact-sales/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/contact-sales |
-| `/admin/costs` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
+| `/admin/costs` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
 | `/admin/customers` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
 | `/admin/customers/:id` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | contextual | /admin/customers |
-| `/admin/dashboard` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
+| `/admin/dashboard` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | insight | /admin |
 | `/admin/demo-requests` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin, requirePlatformAdminOrInternalKey | customers | /admin |
 | `/admin/demo-requests/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/demo-requests |
 | `/admin/evidence-ops` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | evidence | /admin |
 | `/admin/evidence-ops/records` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | evidence | /admin/evidence-ops |
-| `/admin/executive` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | commercial | /admin |
-| `/admin/identity` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | accounts | /admin |
-| `/admin/identity/access-reviews` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin/identity |
-| `/admin/identity/permission-matrix` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | resolveAdminWorkspace, requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin/identity |
-| `/admin/identity/providers` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin/identity |
-| `/admin/identity/runtime` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, requireIntegrationCronSecret, authorizeOrFail, AUTHORIZE(?) | accounts | /admin/identity |
-| `/admin/identity/scim` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireScimAdmin, requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin/identity |
-| `/admin/identity/sessions` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN |  | accounts | /admin/identity |
-| `/admin/identity/timeline` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin | accounts | /admin/identity |
-| `/admin/operations` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | operations | /admin |
-| `/admin/platform-health` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | operations | /admin |
-| `/admin/platform/analytics` | WORKSPACE_FILTERED | adminNavigation registry | ANALYTICS_VIEW | AUTH_ONLY, gateAnalyticsRead, requireTeamCapability | operations | /admin/platform |
-| `/admin/platform/automation` | WORKSPACE_FILTERED | adminNavigation registry | AUTOMATION_VIEW | requireTeamCapability | operations | /admin/platform |
-| `/admin/platform/exports` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor | operations | /admin/platform |
-| `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin, requirePlatformOpsActor | operations | /admin/platform |
-| `/admin/platform/observability` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | operations | /admin/platform |
-| `/admin/platform/queues` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | operations | /admin/platform |
-| `/admin/platform/readiness` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | operations | /admin/platform |
-| `/admin/platform/recovery` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | operations | /admin/platform |
-| `/admin/platform/reliability` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requireAdminMember | operations | /admin/platform |
-| `/admin/platform/runbooks` | PLATFORM | adminNavigation registry | RUNBOOKS_VIEW |  | operations | /admin/platform |
+| `/admin/executive` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | insight | /admin |
+| `/admin/identity` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | identity | /admin |
+| `/admin/identity/access-reviews` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | resolveAuthorizedWorkspaceSubject, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
+| `/admin/identity/permission-matrix` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | resolveAdminWorkspace, requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
+| `/admin/identity/providers` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
+| `/admin/identity/runtime` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireStepUpForSensitiveAction, +STEP_UP, requireIntegrationCronSecret, authorizeOrFail, AUTHORIZE(?) | identity | /admin/identity |
+| `/admin/identity/scim` | WORKSPACE_CANDIDATE | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin, requireScimAdmin, requireStepUpForSensitiveAction, +STEP_UP | identity | /admin/identity |
+| `/admin/identity/sessions` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN |  | identity | /admin/identity |
+| `/admin/identity/timeline` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requireIdentityAdmin | identity | /admin/identity |
+| `/admin/operations` | WORKSPACE_FILTERED | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
+| `/admin/platform-health` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | platform | /admin |
+| `/admin/platform/analytics` | WORKSPACE_FILTERED | adminNavigation registry | ANALYTICS_VIEW | AUTH_ONLY, gateAnalyticsRead, requireTeamCapability | platform | /admin/platform |
+| `/admin/platform/automation` | WORKSPACE_FILTERED | adminNavigation registry | AUTOMATION_VIEW | requireTeamCapability | platform | /admin/platform |
+| `/admin/platform/exports` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor | evidence | /admin/platform |
+| `/admin/platform/media-graph` | WORKSPACE_CANDIDATE | handler trace | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin, requirePlatformOpsActor | evidence | /admin/platform |
+| `/admin/platform/observability` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | platform | /admin/platform |
+| `/admin/platform/queues` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | platform | /admin/platform |
+| `/admin/platform/readiness` | PLATFORM | adminNavigation registry | PLATFORM_TELEMETRY_VIEW | requirePlatformAdmin | platform | /admin/platform |
+| `/admin/platform/recovery` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | evidence | /admin/platform |
+| `/admin/platform/reliability` | WORKSPACE_CANDIDATE | adminNavigation registry | OPS_CENTER_VIEW | requireAdminMember | platform | /admin/platform |
+| `/admin/platform/runbooks` | PLATFORM | adminNavigation registry | RUNBOOKS_VIEW |  | runbooks | /admin/platform |
 | `/admin/platform/runbooks/:slug` | PLATFORM | handler trace | RUNBOOKS_VIEW |  | contextual | /admin/platform/runbooks |
-| `/admin/platform/signers` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | operations | /admin/platform |
+| `/admin/platform/signers` | WORKSPACE_CANDIDATE | handler trace | OPS_CENTER_VIEW | requirePlatformOpsActor, requireStepUpForSensitiveAction, +STEP_UP | evidence | /admin/platform |
 | `/admin/provisioning` | PLATFORM_AUDIT_SCOPED | handler trace | PLATFORM_ADMIN | requirePlatformAdmin, requireStepUpForSensitiveAction, +STEP_UP | customers | /admin |
-| `/admin/search` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | audit | /admin |
+| `/admin/search` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
 | `/admin/security` | WORKSPACE_UNCLASSIFIED | adminNavigation registry | PLATFORM_ADMIN |  | security | /admin |
-| `/admin/support-access` | WORKSPACE_FILTERED | handler trace | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?), requireStepUpForSensitiveAction, +STEP_UP | accounts | /admin |
+| `/admin/support-access` | WORKSPACE_FILTERED | handler trace | PLATFORM_ADMIN | requirePlatformStaff, authorizeOrFail, AUTHORIZE(?), requireStepUpForSensitiveAction, +STEP_UP | security | /admin |
 | `/admin/timeline` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | security | /admin |
-| `/admin/users` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | accounts | /admin |
+| `/admin/users` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
 | `/admin/users/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/users |
-| `/admin/workspaces` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | workspaces | /admin |
+| `/admin/workspaces` | PLATFORM | adminNavigation registry | PLATFORM_ADMIN | requirePlatformAdmin | customers | /admin |
 | `/admin/workspaces/:id` | PLATFORM | handler trace | PLATFORM_ADMIN | requirePlatformAdmin | contextual | /admin/workspaces |
 
 ## Backend contract

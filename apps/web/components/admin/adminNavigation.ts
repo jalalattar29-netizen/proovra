@@ -91,8 +91,13 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
   {
     id: "overview",
     label: "Overview",
-    purpose: "What is happening across PROOVRA right now?",
+    purpose: "What needs attention across PROOVRA right now?",
     href: "/admin",
+    /*
+     * One landing page, deliberately alone. Adding the three insight
+     * dashboards here is what produced four surfaces all claiming to be the
+     * platform's summary; they live under Business insight instead.
+     */
     children: [
       {
         routeId: "platform.admin",
@@ -105,9 +110,16 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
   },
   {
     id: "customers",
-    label: "Customers",
-    purpose: "Which companies are our customers, and who wants to be?",
+    label: "Customers & organizations",
+    purpose:
+      "Who are our customers, what do they own, and who wants to be one?",
     href: "/admin/customers",
+    /*
+     * Customers, the workspaces and people inside them, and the inbound
+     * queues that become them. Workspaces used to be a section of ONE entry
+     * and People sat under an "Accounts" heading beside SSO configuration —
+     * so answering "who is in this customer" meant three sections.
+     */
     children: [
       {
         routeId: "platform.customers",
@@ -117,12 +129,18 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         scope: "PLATFORM",
       },
       {
-        routeId: "platform.provisioning",
-        href: "/admin/provisioning",
-        label: "Provisioning",
-        purpose: "Activate an enterprise customer.",
-        // Platform action; the active workspace is the audit envelope.
-        scope: "PLATFORM_AUDIT",
+        routeId: "platform.workspaces",
+        href: "/admin/workspaces",
+        label: "Workspace inventory",
+        purpose: "Every live workspace, its owner, plan and health.",
+        scope: "PLATFORM",
+      },
+      {
+        routeId: "platform.users",
+        href: "/admin/users",
+        label: "People",
+        purpose: "Every account, its verification and its memberships.",
+        scope: "PLATFORM",
       },
       {
         routeId: "platform.demo_requests",
@@ -138,44 +156,86 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         purpose: "Triage inbound sales inquiries.",
         scope: "PLATFORM",
       },
-    ],
-  },
-  {
-    id: "accounts",
-    label: "Accounts & access",
-    purpose: "Who are our users, and who can reach what?",
-    href: "/admin/users",
-    children: [
       {
-        routeId: "platform.users",
-        href: "/admin/users",
-        label: "People",
-        purpose: "Every account, its verification and its memberships.",
-        scope: "PLATFORM",
-      },
-      {
-        routeId: "platform.support_access",
-        href: "/admin/support-access",
-        label: "Support access",
-        purpose: "Support-access and break-glass grants.",
-        // The comment below this line already said the true thing — "platform
-        // action; the active workspace is the audit envelope" — and then chose
-        // WORKSPACE, which is the label for the opposite fact. The console
-        // therefore told an operator about to break glass into a CUSTOMER
-        // organization that this page "administers your own active workspace
-        // — not the platform".
-        //
-        // It was defensible when written: the grant listing narrowed by the
-        // supplied teamId, so the page really did show one workspace's rows.
-        // Phase 4 removed that narrowing. `/v1/support-access/grants` is now
-        // `requirePlatformStaff` and lists the staff member's own grants
-        // across every tenant, so the active workspace filters nothing and
-        // selects nothing; it only binds the operator's action, exactly as on
-        // /admin/provisioning and /admin/customers/:id.
-        //
+        routeId: "platform.provisioning",
+        href: "/admin/provisioning",
+        label: "Provisioning",
+        purpose: "Activate an enterprise customer.",
         // Platform action; the active workspace is the audit envelope.
         scope: "PLATFORM_AUDIT",
       },
+    ],
+  },
+  {
+    id: "evidence",
+    label: "Evidence operations",
+    purpose:
+      "Is the evidence itself healthy, signed, exportable and recoverable?",
+    href: "/admin/evidence-ops",
+    /*
+     * Evidence and the four operational surfaces that act ON evidence.
+     * Exports, signers, media graph and recovery were filed under a generic
+     * "Operations" heading with queue depth and cost reporting, so an operator
+     * investigating an evidence failure had to know that signing lived beside
+     * billing.
+     */
+    children: [
+      {
+        routeId: "platform.evidence_ops",
+        href: "/admin/evidence-ops",
+        label: "Evidence health",
+        purpose: "Timestamping, reports and packages across every tenant.",
+        scope: "PLATFORM",
+      },
+      {
+        routeId: "platform.evidence_records",
+        href: "/admin/evidence-ops/records",
+        label: "Affected records",
+        purpose: "The individual records behind each evidence-health figure.",
+        scope: "PLATFORM",
+      },
+      {
+        routeId: "operations.exports",
+        href: "/admin/platform/exports",
+        label: "Exports",
+        purpose: "Export manifests and reproducibility.",
+        scope: "WORKSPACE",
+      },
+      {
+        routeId: "operations.signers",
+        href: "/admin/platform/signers",
+        label: "Signers",
+        purpose: "Evidence-signing key custody and signer health.",
+        scope: "PLATFORM_AUDIT",
+      },
+      {
+        routeId: "platform.media_graph",
+        href: "/admin/platform/media-graph",
+        label: "Media intelligence ops",
+        purpose: "Media intelligence and investigation graph metrics.",
+        scope: "PLATFORM_AUDIT",
+      },
+      {
+        routeId: "operations.recovery",
+        href: "/admin/platform/recovery",
+        label: "Recovery",
+        purpose: "Backup and restore validation.",
+        scope: "WORKSPACE",
+      },
+    ],
+  },
+  {
+    id: "identity",
+    label: "Identity & access",
+    purpose:
+      "How do people authenticate into this workspace, and what may they do?",
+    href: "/admin/identity",
+    /*
+     * Every one of these is WORKSPACE-scoped and administers the operator's
+     * OWN workspace — which is why they are their own section rather than
+     * sitting under a platform heading that would imply otherwise.
+     */
+    children: [
       {
         routeId: "admin.identity",
         href: "/admin/identity",
@@ -208,7 +268,8 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         routeId: "admin.identity_scim",
         href: "/admin/identity/scim",
         label: "SCIM operations",
-        purpose: "Provisioning drift and reconciliation runs, for ONE workspace.",
+        purpose:
+          "Provisioning drift and reconciliation runs, for ONE workspace.",
         scope: "WORKSPACE",
       },
       {
@@ -230,7 +291,8 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         routeId: "admin.identity_access_reviews",
         href: "/admin/identity/access-reviews",
         label: "Access reviews",
-        purpose: "Periodic access-review campaigns and outcomes, for ONE workspace.",
+        purpose:
+          "Periodic access-review campaigns and outcomes, for ONE workspace.",
         scope: "WORKSPACE",
       },
       {
@@ -250,110 +312,97 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
     ],
   },
   {
-    id: "workspaces",
-    label: "Workspaces",
-    purpose: "What customer spaces exist, and what governs each one?",
-    href: "/admin/workspaces",
+    id: "security",
+    label: "Security & support",
+    purpose:
+      "Who did what, what was refused, and who is inside a customer right now?",
+    href: "/admin/security",
+    /*
+     * The investigation surfaces, together. Audit and Search sat in their own
+     * two-entry section, Support access sat under Accounts, and the Timeline
+     * sat with Alerts — so an incident review crossed three sections to read
+     * one story.
+     */
     children: [
       {
-        routeId: "platform.workspaces",
-        href: "/admin/workspaces",
-        label: "Workspace inventory",
-        purpose: "Every live workspace, its owner, plan and health.",
+        routeId: "platform.security",
+        href: "/admin/security",
+        label: "Security",
+        // Corrected. The page's own header calls it "Workspace security
+        // posture" and it reads /v1/security/* and /v1/identity/mfa-admin/*
+        // for ONE teamId. "Across every tenant" was the claim, not the code.
+        purpose: "Security posture and MFA lifecycle, for ONE workspace.",
+        scope: "WORKSPACE",
+      },
+      {
+        routeId: "platform.audit",
+        href: "/admin/audit",
+        label: "Admin activity",
+        purpose: "Every privileged action, and who took it.",
+        scope: "PLATFORM",
+      },
+      {
+        routeId: "platform.timeline",
+        href: "/admin/timeline",
+        label: "Timeline",
+        purpose: "What happened, in order, across the platform.",
+        scope: "PLATFORM",
+      },
+      {
+        routeId: "platform.alerts",
+        href: "/admin/alerts",
+        label: "Alerts",
+        purpose: "Every unresolved signal, and which incident backs it.",
+        scope: "PLATFORM",
+      },
+      {
+        routeId: "platform.support_access",
+        href: "/admin/support-access",
+        label: "Support access",
+        purpose: "Support-access and break-glass grants.",
+        // The comment below this line already said the true thing — "platform
+        // action; the active workspace is the audit envelope" — and then chose
+        // WORKSPACE, which is the label for the opposite fact. The console
+        // therefore told an operator about to break glass into a CUSTOMER
+        // organization that this page "administers your own active workspace
+        // — not the platform".
+        //
+        // It was defensible when written: the grant listing narrowed by the
+        // supplied teamId, so the page really did show one workspace's rows.
+        // Phase 4 removed that narrowing. `/v1/support-access/grants` is now
+        // `requirePlatformStaff` and lists the staff member's own grants
+        // across every tenant, so the active workspace filters nothing and
+        // selects nothing; it only binds the operator's action, exactly as on
+        // /admin/provisioning and /admin/customers/:id.
+        //
+        // Platform action; the active workspace is the audit envelope.
+        scope: "PLATFORM_AUDIT",
+      },
+      {
+        routeId: "platform.search",
+        href: "/admin/search",
+        label: "Search",
+        purpose: "Find any customer, workspace, person or record.",
         scope: "PLATFORM",
       },
     ],
   },
   {
-    id: "commercial",
-    label: "Commercial",
-    purpose: "Who pays for what, what is failing, and what are we spending?",
-    href: "/admin/billing",
-    children: [
-      {
-        routeId: "platform.billing",
-        href: "/admin/billing",
-        label: "Billing",
-        purpose: "Subscriptions, payments and what is failing.",
-        scope: "PLATFORM",
-      },
-      {
-        routeId: "platform.costs",
-        href: "/admin/costs",
-        label: "Costs",
-        purpose: "What we are spending with providers.",
-        scope: "PLATFORM",
-      },
-      {
-        routeId: "platform.executive",
-        href: "/admin/executive",
-        label: "Executive",
-        purpose: "Revenue, leads and usage KPIs.",
-        scope: "PLATFORM",
-      },
-      {
-        routeId: "platform.adoption",
-        href: "/admin/adoption",
-        label: "Adoption",
-        purpose: "Which capabilities are actually being used.",
-        scope: "PLATFORM",
-      },
-      {
-        routeId: "platform.dashboard",
-        href: "/admin/dashboard",
-        label: "Traffic",
-        purpose: "Marketing funnel, geography and page analytics.",
-        scope: "PLATFORM",
-      },
-    ],
-  },
-  {
-    id: "evidence",
-    label: "Evidence operations",
-    purpose: "What evidence is stuck or failed, and for whom?",
-    href: "/admin/evidence-ops",
-    children: [
-      {
-        routeId: "platform.evidence_ops",
-        href: "/admin/evidence-ops",
-        label: "Evidence health",
-        purpose: "Timestamping, reports and packages across every tenant.",
-        scope: "PLATFORM",
-      },
-      {
-        routeId: "platform.evidence_records",
-        href: "/admin/evidence-ops/records",
-        label: "Affected records",
-        purpose: "The individual records behind each evidence-health figure.",
-        scope: "PLATFORM",
-      },
-    ],
-  },
-  {
-    id: "operations",
+    id: "platform",
     label: "Platform operations",
-    purpose: "Is the platform healthy, and what is broken?",
-    href: "/admin/operations",
+    purpose: "Is the platform healthy, and what is it costing?",
+    href: "/admin/platform-health",
+    /*
+     * Ten entries and no further: this section was thirteen and still held
+     * signing, exports, media graph, recovery and the runbook catalog. Those
+     * moved to where an operator would look for them.
+     */
     children: [
-      {
-        routeId: "platform.operations",
-        href: "/admin/operations",
-        label: "Operations",
-        purpose: "Open conditions across every tenant, and whose they are.",
-        scope: "PLATFORM",
-      },
       {
         routeId: "platform.platform_health",
         href: "/admin/platform-health",
         label: "System health",
         purpose: "Dependency and provider status.",
-        scope: "PLATFORM",
-      },
-      {
-        routeId: "platform.observability",
-        href: "/admin/platform/observability",
-        label: "Observability",
-        purpose: "Process runtime, dependency probes and firing alerts.",
         scope: "PLATFORM",
       },
       {
@@ -364,18 +413,11 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         scope: "PLATFORM",
       },
       {
-        routeId: "platform.runbooks",
-        href: "/admin/platform/runbooks",
-        label: "Runbooks",
-        purpose: "What to do about each condition.",
+        routeId: "platform.observability",
+        href: "/admin/platform/observability",
+        label: "Observability",
+        purpose: "Process runtime, dependency probes and firing alerts.",
         scope: "PLATFORM",
-      },
-      {
-        routeId: "platform.queue_ops",
-        href: "/admin/platform/queues",
-        label: "Queues",
-        purpose: "Queue depth, failed jobs and replay.",
-        scope: "PLATFORM_AUDIT",
       },
       {
         routeId: "platform.reliability",
@@ -385,25 +427,11 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         scope: "WORKSPACE",
       },
       {
-        routeId: "operations.recovery",
-        href: "/admin/platform/recovery",
-        label: "Recovery",
-        purpose: "Backup and restore validation.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "operations.signers",
-        href: "/admin/platform/signers",
-        label: "Signers",
-        purpose: "Evidence-signing key custody and signer health.",
+        routeId: "platform.queue_ops",
+        href: "/admin/platform/queues",
+        label: "Queues",
+        purpose: "Queue depth, failed jobs and replay.",
         scope: "PLATFORM_AUDIT",
-      },
-      {
-        routeId: "operations.exports",
-        href: "/admin/platform/exports",
-        label: "Exports",
-        purpose: "Export manifests and reproducibility.",
-        scope: "WORKSPACE",
       },
       {
         routeId: "platform.automation",
@@ -420,64 +448,81 @@ export const ADMIN_NAV_SECTIONS: ReadonlyArray<AdminNavSection> = [
         scope: "WORKSPACE",
       },
       {
-        routeId: "platform.media_graph",
-        href: "/admin/platform/media-graph",
-        label: "Media intelligence ops",
-        purpose: "Media intelligence and investigation graph metrics.",
-        scope: "PLATFORM_AUDIT",
-      },
-    ],
-  },
-  {
-    id: "security",
-    label: "Security & governance",
-    purpose: "What security signals are open, and what changed?",
-    href: "/admin/security",
-    children: [
-      {
-        routeId: "platform.security",
-        href: "/admin/security",
-        label: "Security",
-        // Corrected. The page's own header calls it "Workspace security
-        // posture" and it reads /v1/security/* and /v1/identity/mfa-admin/*
-        // for ONE teamId. "Across every tenant" was the claim, not the code.
-        purpose: "Security posture and MFA lifecycle, for ONE workspace.",
-        scope: "WORKSPACE",
-      },
-      {
-        routeId: "platform.alerts",
-        href: "/admin/alerts",
-        label: "Alerts",
-        purpose: "Every unresolved signal, and which incident backs it.",
+        routeId: "platform.operations",
+        href: "/admin/operations",
+        label: "Operations",
+        purpose: "Open conditions across every tenant, and whose they are.",
         scope: "PLATFORM",
       },
       {
-        routeId: "platform.timeline",
-        href: "/admin/timeline",
-        label: "Timeline",
-        purpose: "What happened, in order, across the platform.",
+        routeId: "platform.billing",
+        href: "/admin/billing",
+        label: "Billing",
+        purpose: "Subscriptions, payments and what is failing.",
+        scope: "PLATFORM",
+      },
+      {
+        routeId: "platform.costs",
+        href: "/admin/costs",
+        label: "Costs",
+        purpose: "What we are spending with providers.",
         scope: "PLATFORM",
       },
     ],
   },
   {
-    id: "audit",
-    label: "Audit & operator tools",
-    purpose: "What did we do, and how do I find one record?",
-    href: "/admin/audit",
+    id: "runbooks",
+    label: "Runbooks",
+    purpose: "How do we fix this, written down before it broke?",
+    href: "/admin/platform/runbooks",
+    /*
+     * PHASE 6 §9 — A RUNBOOK MUST NOT BE DISCOVERABLE ONLY AFTER SOMETHING
+     * BREAKS. The catalog was the twelfth entry of a thirteen-entry Operations
+     * section, which is where you find it if you already know it exists. It is
+     * a top-level destination now, and the reader page beneath it finally has
+     * a breadcrumb parent (see ADMIN_CONTEXTUAL_ROUTES).
+     */
     children: [
       {
-        routeId: "platform.audit",
-        href: "/admin/audit",
-        label: "Admin activity",
-        purpose: "Every privileged action, and who took it.",
+        routeId: "platform.runbooks",
+        href: "/admin/platform/runbooks",
+        label: "Runbooks",
+        purpose: "What to do about each condition.",
+        scope: "PLATFORM",
+      },
+    ],
+  },
+  {
+    id: "insight",
+    label: "Business insight",
+    purpose: "How is the product being adopted, and how is the business doing?",
+    href: "/admin/dashboard",
+    /*
+     * The three reporting dashboards, named as reporting. They were filed
+     * under "Commercial" beside billing and cost, and each one landed an
+     * operator on something that looked like the Admin summary — four
+     * surfaces disagreeing about what "the overview" is.
+     */
+    children: [
+      {
+        routeId: "platform.dashboard",
+        href: "/admin/dashboard",
+        label: "Traffic",
+        purpose: "Marketing funnel, geography and page analytics.",
         scope: "PLATFORM",
       },
       {
-        routeId: "platform.search",
-        href: "/admin/search",
-        label: "Search",
-        purpose: "Find any customer, workspace, person or record.",
+        routeId: "platform.executive",
+        href: "/admin/executive",
+        label: "Executive",
+        purpose: "Revenue, leads and usage KPIs.",
+        scope: "PLATFORM",
+      },
+      {
+        routeId: "platform.adoption",
+        href: "/admin/adoption",
+        label: "Adoption",
+        purpose: "Which capabilities are actually being used.",
         scope: "PLATFORM",
       },
     ],
@@ -527,24 +572,41 @@ export const ADMIN_CONTEXTUAL_ROUTES: ReadonlyArray<{
   },
   {
     prefix: "/admin/users/",
-    sectionId: "accounts",
+    sectionId: "identity",
     parentHref: "/admin/users",
     parentLabel: "People",
     label: "Account",
   },
   {
     prefix: "/admin/workspaces/",
-    sectionId: "workspaces",
+    sectionId: "customers",
     parentHref: "/admin/workspaces",
     parentLabel: "Workspace inventory",
     label: "Workspace",
   },
   {
     prefix: "/admin/identity/",
-    sectionId: "accounts",
+    sectionId: "identity",
     parentHref: "/admin/identity",
     parentLabel: "Identity operations",
     label: "Identity",
+  },
+  {
+    /*
+     * PHASE 6 6/9 — THE RUNBOOK READER HAD NO PARENT.
+     *
+     * "/admin/platform/runbooks/<slug>" matched the catalog entry by prefix,
+     * so resolveAdminLocation set "child" and found no contextual rule —
+     * which makes "isDetail" false, so the reader rendered the CATALOG
+     * breadcrumb. No crumb naming the runbook, and no crumb back to the
+     * catalog: the deep-link dead end this file comment says it exists to
+     * close, live on the one surface an operator reaches mid-incident.
+     */
+    prefix: "/admin/platform/runbooks/",
+    sectionId: "runbooks",
+    parentHref: "/admin/platform/runbooks",
+    parentLabel: "Runbook catalog",
+    label: "Runbook",
   },
 ] as const;
 
@@ -580,10 +642,12 @@ export type AdminLocation = {
   scope: AdminSurfaceScope;
 };
 
-const ALL_CHILDREN: ReadonlyArray<{ section: AdminNavSection; child: AdminNavChild }> =
-  ADMIN_NAV_SECTIONS.flatMap((section) =>
-    section.children.map((child) => ({ section, child })),
-  );
+const ALL_CHILDREN: ReadonlyArray<{
+  section: AdminNavSection;
+  child: AdminNavChild;
+}> = ADMIN_NAV_SECTIONS.flatMap((section) =>
+  section.children.map((child) => ({ section, child })),
+);
 
 /**
  * Where am I?
@@ -631,9 +695,13 @@ export function resolveAdminLocation(
   }
 
   if (contextual) {
-    const section = ADMIN_NAV_SECTIONS.find((s) => s.id === contextual.sectionId);
+    const section = ADMIN_NAV_SECTIONS.find(
+      (s) => s.id === contextual.sectionId,
+    );
     if (section) {
-      const parent = section.children.find((c) => c.href === contextual.parentHref);
+      const parent = section.children.find(
+        (c) => c.href === contextual.parentHref,
+      );
       return {
         section,
         child: parent ?? null,
