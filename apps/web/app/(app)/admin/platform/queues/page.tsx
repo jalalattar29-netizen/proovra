@@ -321,6 +321,7 @@ function OperationsQueuesContent() {
 
       <QueueOverviewCards
         queues={queues}
+        workers={workers}
         selectedQueue={selectedQueue}
         onSelect={setSelectedQueue}
       />
@@ -378,12 +379,33 @@ function healthBadge(h: QueueInventoryItem["health"]) {
   return "neutral";
 }
 
+/**
+ * A "healthy" queue with no worker is UNOBSERVED, not healthy.
+ *
+ * Returns the server's own verdict unchanged in every case except the one the
+ * Worker health table already contradicts: the server says healthy purely
+ * from counts, and no worker has ever registered a lease for that queue.
+ * When the worker read has not answered yet (`null`) nothing is overridden —
+ * an unknown is not evidence either way.
+ */
+function effectiveHealth(
+  q: QueueInventoryItem,
+  workers: WorkerHealthRow[] | null,
+): QueueInventoryItem["health"] {
+  if (q.health !== "healthy" || workers === null) return q.health;
+  const worker = workers.find((w) => w.queueName === q.queueName);
+  if (!worker) return q.health;
+  return worker.status === "missing" ? "unknown" : q.health;
+}
+
 function QueueOverviewCards({
   queues,
+  workers,
   selectedQueue,
   onSelect,
 }: {
   queues: QueueInventoryItem[] | null;
+  workers: WorkerHealthRow[] | null;
   selectedQueue: string | null;
   onSelect: (q: string) => void;
 }) {
@@ -430,7 +452,31 @@ function QueueOverviewCards({
               }}
             >
               <strong style={{ fontSize: 13 }}>{q.label}</strong>
-              <Badge tone={healthBadge(q.health)}>{q.health}</Badge>
+              {/* ===============================================================
+                  THE TWO HALVES OF THIS PAGE CONTRADICTED EACH OTHER.
+                  ===============================================================
+                  These cards said "healthy" for all fifteen queues while the
+                  Worker health table directly beneath them said every one of
+                  the same fifteen was "missing", with the sentence that
+                  explains exactly why the badge above was wrong:
+
+                    "No worker has ever registered a lease. An empty queue is
+                     not evidence that a worker is running."
+
+                  The queue health is derived from COUNTS — 0 waiting, 0
+                  active, 0 failed — which is precisely the inference that
+                  sentence refuses. A queue nothing is consuming is not
+                  healthy; it is unobserved, and on this console that is the
+                  difference between "nothing to do" and "nothing is running".
+
+                  The page already reads the worker leases for the table. The
+                  badge now uses them: where the server reports the queue
+                  healthy but no worker holds a lease, it says so instead.
+                  Every other health verdict is the server's and is
+                  untouched. */}
+              <Badge tone={healthBadge(effectiveHealth(q, workers))}>
+                {effectiveHealth(q, workers)}
+              </Badge>
             </div>
             <div className="adm-help" style={{ marginTop: 6, fontSize: 11 }}>
               {q.queueName}
