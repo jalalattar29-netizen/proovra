@@ -97,7 +97,28 @@ for (const t of TABS) {
   await visit(page, SCIM, 3000);
   await page.locator('[role="tab"]').first().focus();
   await page.keyboard.press("ArrowRight");
-  await page.waitForTimeout(600);
+  /* 600ms was not enough and the difference MATTERED. The tab handler syncs
+     the URL through `router.replace`, which lands after React has already
+     repainted the panel — so reading at 600ms saw the new tab with the OLD
+     url, and the reload that followed then restored the default tab. Reported
+     as "arrow-key selection is not URL-addressable", which would have been a
+     real defect had it been true. Waiting for the URL to actually agree with
+     the selection is what makes the answer honest either way: it either
+     agrees within the timeout, or it never does. */
+  await page
+    .waitForFunction(
+      () => {
+        const t = document
+          .querySelector('[role="tab"][aria-selected="true"]')
+          ?.getAttribute("id");
+        if (!t) return false;
+        const id = t.replace("admtab-", "");
+        const qs = new URLSearchParams(location.search).get("tab") ?? "tokens";
+        return qs === id;
+      },
+      { timeout: 5000 },
+    )
+    .catch(() => undefined);
   const afterArrow = await page.evaluate(PANEL);
 
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -118,7 +139,18 @@ for (const t of TABS) {
   report.push({ keyboard: { afterArrow, afterReload, afterBack } });
 }
 
-/* --------------------------------------------- THE TWO WINDOW CONTROLS */
+/* --------------------------------------------- THE TWO WINDOW CONTROLS
+ *
+ * They are two different SHAPES, which is the thing to record rather than to
+ * flatten. /admin/dashboard offers three fixed ranges as a segmented button
+ * group; /admin/platform/analytics offers a bounded 1..180-day window as a
+ * `<select>`, because the API clamps to that contract and three buttons cannot
+ * express it. An earlier version of this probe looked only for the three
+ * button labels and reported analytics as having NO window control at all.
+ *
+ * Both are legitimate. What both must do is say which option is current in
+ * more than a colour, which is what `pressed` records.
+ */
 for (const route of ["/admin/dashboard", "/admin/platform/analytics"]) {
   await visit(page, route, 3500);
   const win = await page.evaluate(() => {
@@ -126,7 +158,20 @@ for (const route of ["/admin/dashboard", "/admin/platform/analytics"]) {
     const opts = [...main.querySelectorAll("button")].filter((b) =>
       /^(24 hours|7 days|30 days)$/.test((b.textContent || "").trim()),
     );
+    // The select-shaped window, measured in its own terms.
+    const selects = [...main.querySelectorAll("select")].filter((s) =>
+      [...s.options].some((o) => /\bdays?\b/i.test(o.textContent || "")),
+    );
     return {
+      shape: opts.length > 0 ? "segmented" : selects.length > 0 ? "select" : "none",
+      selectWindow: selects.map((s) => ({
+        named:
+          !!s.getAttribute("aria-label") ||
+          !!(s.id && document.querySelector(`label[for="${s.id}"]`)),
+        current: s.options[s.selectedIndex]?.textContent?.trim() ?? null,
+        choices: [...s.options].length,
+        height: Math.round(s.getBoundingClientRect().height),
+      })),
       options: opts.map((b) => (b.textContent || "").trim()),
       targets: opts.map((b) => {
         const r = b.getBoundingClientRect();

@@ -1,0 +1,4351 @@
+{
+  "states": [
+    "LOADING",
+    "REFRESHING",
+    "VALUE",
+    "MEASURED_ZERO",
+    "EMPTY",
+    "FILTERED_EMPTY",
+    "NOT_MEASURED",
+    "PARTIAL",
+    "TRUNCATED",
+    "STALE",
+    "ERROR",
+    "DENIED",
+    "PLAN_GATED",
+    "UNAVAILABLE",
+    "BUSY",
+    "DONE",
+    "ACTION_FAILED",
+    "STEP_UP_REQUIRED",
+    "BLOCKED"
+  ],
+  "rows": [
+    {
+      "route": "/admin",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": true,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bloading\\b\\s*\\?/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/refreshing/i"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<AdmFacts/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/NOT_MEASURED/"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/PARTIAL/"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/stale/i"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/forbidden/i"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/Unavailable/"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/adoption",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/Not measured/"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "UNHANDLED"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/alerts",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/degraded/i"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/truncated/i"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/audit",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 3,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/match the current filters/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/PARTIAL/"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/hasMore/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/notifyApiError/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/Unavailable/"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/billing",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bloading\\b\\s*\\?/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/refreshing/i"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/Not measured/"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/truncated/i"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/contact-sales",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 2,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/void load\\(/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "UNHANDLED"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "UNHANDLED"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/contact-sales/:id",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"loading\"/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/void load\\(/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no counted figure on this page"
+        },
+        "EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing on this page is a list"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/stale/i"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/403/"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "UNHANDLED"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "UNHANDLED"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/costs",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": true,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bloading\\b\\s*\\?/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "UNHANDLED"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/customers",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/match these filters/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/Not measured/"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/customers/:id",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 2,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/Loading[^\"`\\n]{0,40}…/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/void load\\(/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/Not measured/"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/degraded/i"
+        },
+        "TRUNCATED": {
+          "verdict": "UNHANDLED"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/dashboard",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": true,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/<AdmSkeleton/"
+        },
+        "REFRESHING": {
+          "verdict": "UNHANDLED"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"not-measured\"/"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not configured/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/demo-requests",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 5,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bloading\\b\\s*\\?/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/match the current filters/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/stale/i"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "UNHANDLED"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/demo-requests/:id",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"loading\"/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/void load\\(/"
+        },
+        "VALUE": {
+          "verdict": "UNHANDLED"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no counted figure on this page"
+        },
+        "EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing on this page is a list"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/403/"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/evidence-ops",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/Loading[^\"`\\n]{0,40}…/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/refreshing/i"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no counted figure on this page"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/Not measured/"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/PARTIAL/"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/Unavailable/"
+        },
+        "BUSY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/evidence-ops/records",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/executive",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": true,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bloading\\b\\s*\\?/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/NOT_MEASURED/"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity",
+      "files": 5,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 15,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/403/"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "UNHANDLED"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setRowResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/access-reviews",
+      "files": 5,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 18,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setRowResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/useStepUpAction/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/permission-matrix",
+      "files": 5,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 18,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "UNHANDLED"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setRowResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/providers",
+      "files": 6,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 19,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"denied\"/"
+        },
+        "PLAN_GATED": {
+          "verdict": "HANDLED",
+          "evidence": "/402/"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setRowResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/runtime",
+      "files": 5,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 22,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/match these filters/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/partial/i"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"error\"/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"done\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setRowResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/scim",
+      "files": 6,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 23,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/match these filters/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/truncated/i"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"denied\"/"
+        },
+        "PLAN_GATED": {
+          "verdict": "HANDLED",
+          "evidence": "/402/"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"done\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setRowResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/sessions",
+      "files": 10,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 23,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/<AdmSkeleton/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"empty\"/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/match these filters/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/truncated/i"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"unavailable\"/"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"unavailable\"/"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setRowResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/identity/timeline",
+      "files": 5,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 16,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/partial/i"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/hasMore/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"error\"/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "UNHANDLED"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setRowResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/useStepUpAction/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/operations",
+      "files": 2,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 3,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/refreshing/i"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "UNHANDLED"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform-health",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/Loading[^\"`\\n]{0,40}…/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/refreshing/i"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<AdmFacts/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"not-measured\"/"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/degraded/i"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/stale/i"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/Unavailable/"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/analytics",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 6,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "UNHANDLED"
+        },
+        "REFRESHING": {
+          "verdict": "UNHANDLED"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no counted figure on this page"
+        },
+        "EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing on this page is a list"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/degraded/i"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/403/"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/automation",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 2,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "UNHANDLED"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/\\breload\\(/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/No .* yet/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/truncated/i"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/403/"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/exports",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 4,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/Loading[^\"`\\n]{0,40}…/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/refreshing/i"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "UNHANDLED"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/No .* yet/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "HANDLED",
+          "evidence": "/<AccessGate/"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "UNHANDLED"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/media-graph",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 3,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "UNHANDLED"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/void load\\(/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no counted figure on this page"
+        },
+        "EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing on this page is a list"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "UNHANDLED"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setActionResult/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "UNHANDLED"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/observability",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 4,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/Loading[^\"`\\n]{0,40}…/"
+        },
+        "REFRESHING": {
+          "verdict": "UNHANDLED"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/NOT_MEASURED/"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/PARTIAL/"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/stale/i"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/403/"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/Unavailable/"
+        },
+        "BUSY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/queues",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 6,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/degraded/i"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/forbidden/i"
+        },
+        "PLAN_GATED": {
+          "verdict": "HANDLED",
+          "evidence": "/<AccessGate/"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"done\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/readiness",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing on this page is a list"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/degraded/i"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not configured/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/caveat/"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/recovery",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 4,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/Loading[^\"`\\n]{0,40}…/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/No .* yet/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "HANDLED",
+          "evidence": "/<AccessGate/"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"done\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/reliability",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 4,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/Loading[^\"`\\n]{0,40}…/"
+        },
+        "REFRESHING": {
+          "verdict": "UNHANDLED"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing on this page is a list"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/PARTIAL/"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "UNHANDLED"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "UNHANDLED"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/runbooks",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": true,
+        "workspaceScoped": false,
+        "reads": 0,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "content is compiled into the page from a generated index: there is no read to be in flight or to fail"
+        },
+        "REFRESHING": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "content is compiled into the page from a generated index: there is no read to be in flight or to fail"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "content is compiled into the page: there are no sources to answer in part"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "content is compiled into the page from a generated index: there is no read to be in flight or to fail"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/runbooks/:slug",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": true,
+        "workspaceScoped": false,
+        "reads": 0,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "content is compiled into the page from a generated index: there is no read to be in flight or to fail"
+        },
+        "REFRESHING": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "content is compiled into the page from a generated index: there is no read to be in flight or to fail"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no counted figure on this page"
+        },
+        "EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "nothing on this page is a list"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "content is compiled into the page: there are no sources to answer in part"
+        },
+        "TRUNCATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no list read to cap"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/stale/i"
+        },
+        "ERROR": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "content is compiled into the page from a generated index: there is no read to be in flight or to fail"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "DONE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/platform/signers",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 9,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/partial/i"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/permission_denied/"
+        },
+        "PLAN_GATED": {
+          "verdict": "HANDLED",
+          "evidence": "/<AccessGate/"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"done\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/provisioning",
+      "files": 2,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 5,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "UNHANDLED"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"denied\"/"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/not available/i"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/search",
+      "files": 1,
+      "shape": {
+        "hasTable": false,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bloading\\b\\s*\\?/"
+        },
+        "REFRESHING": {
+          "verdict": "UNHANDLED"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/\\.map\\(/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no counted figure on this page"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/No matches/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "HANDLED",
+          "evidence": "/partial/i"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/truncated/i"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/security",
+      "files": 8,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 12,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"loading\"/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/match the current filters/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/state=\"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"denied\"/"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/busy/i"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "UNHANDLED"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/StepUpModal/"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/support-access",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": true,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 7,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/\\?\\? 0/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/filtered=\\{/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bcap\\b/"
+        },
+        "STALE": {
+          "verdict": "HANDLED",
+          "evidence": "/isStale/"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"error\"/"
+        },
+        "DENIED": {
+          "verdict": "HANDLED",
+          "evidence": "/kind: \"denied\"/"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bmutating\\b/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "HANDLED",
+          "evidence": "/setMutationFailure/"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "HANDLED",
+          "evidence": "/step-up/i"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/timeline",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 1,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "UNHANDLED"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/match the current filters/"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/hasMore/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/addToast\\(/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        }
+      }
+    },
+    {
+      "route": "/admin/users",
+      "files": 2,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 2,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "UNHANDLED"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/users/:id",
+      "files": 2,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": false,
+        "reads": 2,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "NOT_MEASURED": {
+          "verdict": "HANDLED",
+          "evidence": "/Not measured/"
+        },
+        "PARTIAL": {
+          "verdict": "UNHANDLED"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: no active workspace to change under a read in flight"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: authorization is enforced at the route by the admin layout, not rendered as a page state"
+        },
+        "PLAN_GATED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "platform-scoped surface: not gated by any workspace's plan"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/Unavailable/"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/workspaces",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": true,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 1,
+        "hasOptionalCapability": false
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/loading=\\{/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "UNHANDLED"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "every capability this page fronts is always present in a deployment that has the console"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    },
+    {
+      "route": "/admin/workspaces/:id",
+      "files": 1,
+      "shape": {
+        "hasTable": true,
+        "hasFilter": false,
+        "hasMutation": false,
+        "hasKpi": false,
+        "isStatic": false,
+        "workspaceScoped": true,
+        "reads": 1,
+        "hasOptionalCapability": true
+      },
+      "states": {
+        "LOADING": {
+          "verdict": "HANDLED",
+          "evidence": "/\\bloading\\b\\s*\\?/"
+        },
+        "REFRESHING": {
+          "verdict": "HANDLED",
+          "evidence": "/Refresh/"
+        },
+        "VALUE": {
+          "verdict": "HANDLED",
+          "evidence": "/<DataTable/"
+        },
+        "MEASURED_ZERO": {
+          "verdict": "HANDLED",
+          "evidence": "/=== 0 \\?/"
+        },
+        "EMPTY": {
+          "verdict": "HANDLED",
+          "evidence": "/<EmptyState/"
+        },
+        "FILTERED_EMPTY": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no filter on this page"
+        },
+        "NOT_MEASURED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "no measured signal on this page: its content is records, not metrics"
+        },
+        "PARTIAL": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "reads a single source: there is no subset of one to be partial"
+        },
+        "TRUNCATED": {
+          "verdict": "HANDLED",
+          "evidence": "/limit/"
+        },
+        "STALE": {
+          "verdict": "UNHANDLED"
+        },
+        "ERROR": {
+          "verdict": "HANDLED",
+          "evidence": "/toSafeUserError/"
+        },
+        "DENIED": {
+          "verdict": "UNHANDLED"
+        },
+        "PLAN_GATED": {
+          "verdict": "UNHANDLED"
+        },
+        "UNAVAILABLE": {
+          "verdict": "HANDLED",
+          "evidence": "/Unavailable/"
+        },
+        "BUSY": {
+          "verdict": "HANDLED",
+          "evidence": "/\"pending\"/"
+        },
+        "DONE": {
+          "verdict": "HANDLED",
+          "evidence": "/tone=\"verified\"/"
+        },
+        "ACTION_FAILED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "STEP_UP_REQUIRED": {
+          "verdict": "NOT_APPLICABLE",
+          "reason": "read-only page: no mutation to be in flight"
+        },
+        "BLOCKED": {
+          "verdict": "HANDLED",
+          "evidence": "/disabled=\\{/"
+        }
+      }
+    }
+  ],
+  "gaps": [
+    "/admin/adoption: TRUNCATED",
+    "/admin/alerts: UNAVAILABLE",
+    "/admin/audit: DENIED",
+    "/admin/audit: PLAN_GATED",
+    "/admin/billing: UNAVAILABLE",
+    "/admin/contact-sales: EMPTY",
+    "/admin/contact-sales: PARTIAL",
+    "/admin/contact-sales: UNAVAILABLE",
+    "/admin/contact-sales: BUSY",
+    "/admin/contact-sales: ACTION_FAILED",
+    "/admin/contact-sales: STEP_UP_REQUIRED",
+    "/admin/contact-sales/:id: UNAVAILABLE",
+    "/admin/contact-sales/:id: BUSY",
+    "/admin/contact-sales/:id: ACTION_FAILED",
+    "/admin/contact-sales/:id: STEP_UP_REQUIRED",
+    "/admin/costs: NOT_MEASURED",
+    "/admin/costs: UNAVAILABLE",
+    "/admin/customers: UNAVAILABLE",
+    "/admin/customers/:id: EMPTY",
+    "/admin/customers/:id: TRUNCATED",
+    "/admin/customers/:id: UNAVAILABLE",
+    "/admin/customers/:id: ACTION_FAILED",
+    "/admin/dashboard: REFRESHING",
+    "/admin/demo-requests: PARTIAL",
+    "/admin/demo-requests: UNAVAILABLE",
+    "/admin/demo-requests: ACTION_FAILED",
+    "/admin/demo-requests: STEP_UP_REQUIRED",
+    "/admin/demo-requests/:id: VALUE",
+    "/admin/demo-requests/:id: UNAVAILABLE",
+    "/admin/evidence-ops/records: UNAVAILABLE",
+    "/admin/identity: PARTIAL",
+    "/admin/identity: PLAN_GATED",
+    "/admin/identity: DONE",
+    "/admin/identity/access-reviews: PARTIAL",
+    "/admin/identity/access-reviews: DENIED",
+    "/admin/identity/access-reviews: PLAN_GATED",
+    "/admin/identity/permission-matrix: PARTIAL",
+    "/admin/identity/permission-matrix: DENIED",
+    "/admin/identity/permission-matrix: PLAN_GATED",
+    "/admin/identity/permission-matrix: DONE",
+    "/admin/identity/providers: PARTIAL",
+    "/admin/identity/runtime: DENIED",
+    "/admin/identity/runtime: PLAN_GATED",
+    "/admin/identity/scim: PARTIAL",
+    "/admin/identity/sessions: PARTIAL",
+    "/admin/identity/sessions: PLAN_GATED",
+    "/admin/identity/timeline: DENIED",
+    "/admin/identity/timeline: PLAN_GATED",
+    "/admin/identity/timeline: DONE",
+    "/admin/operations: PARTIAL",
+    "/admin/operations: ACTION_FAILED",
+    "/admin/operations: STEP_UP_REQUIRED",
+    "/admin/platform/analytics: LOADING",
+    "/admin/platform/analytics: REFRESHING",
+    "/admin/platform/analytics: FILTERED_EMPTY",
+    "/admin/platform/analytics: STALE",
+    "/admin/platform/analytics: PLAN_GATED",
+    "/admin/platform/analytics: UNAVAILABLE",
+    "/admin/platform/automation: LOADING",
+    "/admin/platform/automation: PARTIAL",
+    "/admin/platform/automation: STALE",
+    "/admin/platform/automation: PLAN_GATED",
+    "/admin/platform/automation: UNAVAILABLE",
+    "/admin/platform/exports: MEASURED_ZERO",
+    "/admin/platform/exports: PARTIAL",
+    "/admin/platform/exports: STALE",
+    "/admin/platform/exports: DENIED",
+    "/admin/platform/exports: UNAVAILABLE",
+    "/admin/platform/exports: ACTION_FAILED",
+    "/admin/platform/exports: STEP_UP_REQUIRED",
+    "/admin/platform/media-graph: LOADING",
+    "/admin/platform/media-graph: PARTIAL",
+    "/admin/platform/media-graph: STALE",
+    "/admin/platform/media-graph: DENIED",
+    "/admin/platform/media-graph: PLAN_GATED",
+    "/admin/platform/media-graph: UNAVAILABLE",
+    "/admin/platform/media-graph: DONE",
+    "/admin/platform/media-graph: STEP_UP_REQUIRED",
+    "/admin/platform/observability: REFRESHING",
+    "/admin/platform/observability: EMPTY",
+    "/admin/platform/observability: PLAN_GATED",
+    "/admin/platform/queues: EMPTY",
+    "/admin/platform/queues: STALE",
+    "/admin/platform/queues: ACTION_FAILED",
+    "/admin/platform/recovery: PARTIAL",
+    "/admin/platform/recovery: STALE",
+    "/admin/platform/recovery: DENIED",
+    "/admin/platform/recovery: UNAVAILABLE",
+    "/admin/platform/recovery: ACTION_FAILED",
+    "/admin/platform/reliability: REFRESHING",
+    "/admin/platform/reliability: FILTERED_EMPTY",
+    "/admin/platform/reliability: STALE",
+    "/admin/platform/reliability: DENIED",
+    "/admin/platform/reliability: PLAN_GATED",
+    "/admin/platform/reliability: DONE",
+    "/admin/platform/reliability: ACTION_FAILED",
+    "/admin/platform/reliability: STEP_UP_REQUIRED",
+    "/admin/platform/runbooks: FILTERED_EMPTY",
+    "/admin/platform/runbooks: UNAVAILABLE",
+    "/admin/platform/signers: EMPTY",
+    "/admin/platform/signers: STALE",
+    "/admin/platform/signers: UNAVAILABLE",
+    "/admin/platform/signers: ACTION_FAILED",
+    "/admin/provisioning: PARTIAL",
+    "/admin/provisioning: TRUNCATED",
+    "/admin/provisioning: PLAN_GATED",
+    "/admin/provisioning: ACTION_FAILED",
+    "/admin/search: REFRESHING",
+    "/admin/security: PARTIAL",
+    "/admin/security: PLAN_GATED",
+    "/admin/security: UNAVAILABLE",
+    "/admin/security: ACTION_FAILED",
+    "/admin/support-access: PARTIAL",
+    "/admin/support-access: PLAN_GATED",
+    "/admin/timeline: MEASURED_ZERO",
+    "/admin/users: FILTERED_EMPTY",
+    "/admin/users: PARTIAL",
+    "/admin/users: UNAVAILABLE",
+    "/admin/users/:id: FILTERED_EMPTY",
+    "/admin/users/:id: PARTIAL",
+    "/admin/workspaces: FILTERED_EMPTY",
+    "/admin/workspaces: STALE",
+    "/admin/workspaces: DENIED",
+    "/admin/workspaces: PLAN_GATED",
+    "/admin/workspaces/:id: STALE",
+    "/admin/workspaces/:id: DENIED",
+    "/admin/workspaces/:id: PLAN_GATED"
+  ]
+}
