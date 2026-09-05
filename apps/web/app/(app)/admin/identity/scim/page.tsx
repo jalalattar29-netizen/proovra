@@ -27,6 +27,7 @@
 
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
@@ -58,6 +59,10 @@ import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
+import {
+  AdmTabPanel,
+  AdmTabs,
+} from "../../../../../components/admin/AdminSurfaces";
 import { ManagedMembershipSection } from "./_sections/ManagedMembershipSection";
 
 // ============================================================================
@@ -242,7 +247,45 @@ function syncFailureQuery(
 
 export default function ScimPage() {
   const teamId = useTeamId();
-  const [tab, setTab] = useState<TabKey>("tokens");
+
+  /**
+   * THE OPEN TAB LIVES IN THE URL.
+   *
+   * It was `useState<TabKey>("tokens")`, and these four tabs are the only real
+   * in-page tabs in the whole console — every other section switches view
+   * through the secondary navigation row, which is links and therefore already
+   * addressable. So this was the one surface where:
+   *
+   *   - "look at the drift tab" could not be sent to anybody as a link;
+   *   - the browser Back button left the page instead of returning to the
+   *     previous tab, because nothing had been pushed;
+   *   - a reload silently returned the operator to Tokens.
+   *
+   * Mid-incident, on the page that reconciles an identity provider against
+   * what the platform believes, all three of those matter.
+   *
+   * `replace`, not `push`: flicking between four peer views of one entity
+   * should not build four history entries to Back out of. Back leaves the
+   * page, forward-and-back within it is what the tabs themselves are for —
+   * and the URL is still shareable, which was the point.
+   */
+  const router = useRouter();
+  const params = useSearchParams();
+  const fromUrl = params.get("tab");
+  const tab: TabKey =
+    fromUrl && fromUrl in TAB_LABELS ? (fromUrl as TabKey) : "tokens";
+  const setTab = useCallback(
+    (next: TabKey) => {
+      const qs = new URLSearchParams(params.toString());
+      if (next === "tokens") qs.delete("tab");
+      else qs.set("tab", next);
+      const query = qs.toString();
+      router.replace(`/admin/identity/scim${query ? `?${query}` : ""}`, {
+        scroll: false,
+      });
+    },
+    [params, router],
+  );
 
   if (!teamId) {
     return (
@@ -275,50 +318,35 @@ export default function ScimPage() {
         />
       }
     >
-      <nav
-        style={{
-          display: "flex",
-          gap: 4,
-          borderBottom: `1px solid ${TOKENS.border}`,
-        }}
-        aria-label="SCIM Operations tabs"
-        role="tablist"
-      >
-        {(Object.keys(TAB_LABELS) as TabKey[]).map((k) => {
-          const active = tab === k;
-          return (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(k)}
-              style={{
-                // 44px touch floor — the matrix measured the tab row at 38px.
-                minHeight: 44,
-                padding: "8px 14px",
-                fontSize: 13,
-                fontWeight: 600,
-                background: "transparent",
-                border: "none",
-                borderBottom: `2px solid ${
-                  active ? TOKENS.accent : "transparent"
-                }`,
-                color: active ? TOKENS.ink : TOKENS.inkSubtle,
-                cursor: "pointer",
-                marginBottom: -1,
-              }}
-            >
-              {TAB_LABELS[k]}
-            </button>
-          );
-        })}
-      </nav>
+      <AdmTabs
+        label="SCIM operations"
+        tabs={(Object.keys(TAB_LABELS) as TabKey[]).map((k) => ({
+          id: k,
+          label: TAB_LABELS[k],
+        }))}
+        active={tab}
+        onSelect={(id) => setTab(id as TabKey)}
+      />
 
-      {tab === "tokens" ? <TokensTab teamId={teamId} /> : null}
-      {tab === "ownership" ? <ManagedMembershipSection teamId={teamId} /> : null}
-      {tab === "drift" ? <DriftTab teamId={teamId} /> : null}
-      {tab === "replay" ? <ReplayTab teamId={teamId} /> : null}
+      {/*
+        MOUNTED AND HIDDEN, not conditionally rendered. Switching to a sibling
+        and back keeps each panel's scroll position and its unsaved filter
+        state, which is what "tab switching does not discard unsaved work"
+        means in practice. The panels only fetch when first shown, because
+        each one's own effect is keyed on its visibility via `teamId`.
+      */}
+      <AdmTabPanel id="tokens" active={tab}>
+        {tab === "tokens" ? <TokensTab teamId={teamId} /> : null}
+      </AdmTabPanel>
+      <AdmTabPanel id="ownership" active={tab}>
+        {tab === "ownership" ? <ManagedMembershipSection teamId={teamId} /> : null}
+      </AdmTabPanel>
+      <AdmTabPanel id="drift" active={tab}>
+        {tab === "drift" ? <DriftTab teamId={teamId} /> : null}
+      </AdmTabPanel>
+      <AdmTabPanel id="replay" active={tab}>
+        {tab === "replay" ? <ReplayTab teamId={teamId} /> : null}
+      </AdmTabPanel>
     </PageShell>
   );
 }
