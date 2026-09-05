@@ -161,7 +161,17 @@ export function NotificationBell() {
   // account or the active workspace changes, and it is the ONE signal this
   // component uses to decide that everything it holds belongs to a context that
   // no longer exists.
-  const { contextGeneration, activeWorkspaceId } = usePlatformContext();
+  const { contextGeneration, activeWorkspaceId, state: contextState } =
+    usePlatformContext();
+  /*
+   * Has the workspace been DECIDED yet?
+   *
+   * Not "is it non-null" — a resolved context can legitimately have no
+   * workspace, and the bell still belongs on screen for that person. This
+   * distinguishes "no workspace" from "we have not been told yet", which are
+   * the same `null` and very different questions.
+   */
+  const workspaceResolved = contextState?.name !== "LOADING_CONTEXT";
   const [deniedKey, setDeniedKey] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [countIsExact, setCountIsExact] = useState(true);
@@ -300,6 +310,23 @@ export function NotificationBell() {
   }, [contextGeneration, bumpEpoch]);
 
   useEffect(() => {
+    /*
+     * DO NOT COUNT BEFORE THE SCOPE IS KNOWN.
+     *
+     * `loadSummary` closes over `activeWorkspaceId`, so this effect used to
+     * run once while the platform context was still loading — with no
+     * workspace, which the server reads as "every workspace" — and then again
+     * the moment the context arrived. Two requests in the most contended part
+     * of the boot, and the first answer was thrown away by the second.
+     *
+     * It was also briefly WRONG in exactly the way the scoping comment on
+     * `loadSummary` warns about: a badge counted across every workspace,
+     * shown beside a list showing one of them.
+     *
+     * Once the context has resolved this behaves as it always did, including
+     * when it resolves to no workspace at all.
+     */
+    if (!workspaceResolved) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     async function tick() {
@@ -311,7 +338,7 @@ export function NotificationBell() {
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [loadSummary]);
+  }, [loadSummary, workspaceResolved]);
 
   // Focus management — move focus into the popover on open, keep Tab
   // cycling inside it (light trap for a non-modal dialog), and hand

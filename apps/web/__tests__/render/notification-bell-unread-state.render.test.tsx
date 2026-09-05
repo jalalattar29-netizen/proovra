@@ -50,9 +50,16 @@ vi.mock("../../lib/api", () => ({
 }));
 
 let contextGeneration = 0;
+let contextStateName: string = "READY";
 let activeWorkspaceId: string | null = "ws-1";
 vi.mock("../../lib/platform-context", () => ({
-  usePlatformContext: () => ({ contextGeneration, activeWorkspaceId }),
+  usePlatformContext: () => ({
+    contextGeneration,
+    activeWorkspaceId,
+    // The real provider always carries its state machine, and the bell reads
+    // it to tell "no workspace" apart from "not told yet".
+    state: { name: contextStateName },
+  }),
 }));
 
 vi.mock("../../lib/navigation/useDeepLinkNavigation", () => ({

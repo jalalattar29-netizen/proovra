@@ -117,6 +117,10 @@ function webComponents(): Array<[string, string]> {
  * pretending to visit this one.
  */
 const EXPECTED_CONSUMERS = [
+  // The platform-admin evidence-credit grant. Its three fields carry the
+  // canonical label, and the contrast of that label ON THE ADMIN SHELL is
+  // asserted below rather than assumed — see the dark-surface test.
+  "app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/InvitesTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/SettingsTab.tsx",
@@ -127,6 +131,10 @@ const EXPECTED_CONSUMERS = [
   // The Operations workbench labels its ownership control with the canonical
   // field label, so the picker announces the same word the operator reads.
   "app/(app)/operations/_components/AssignmentControl.tsx",
+  // The PUBLIC intake page. An external contributor's display-name field is
+  // the one control on that page a person has to fill in, and it wears the
+  // same label as every internal form rather than a local imitation.
+  "app/intake/[token]/page.tsx",
   "components/cases-experience/matter-modals/StatusChangeModal.tsx",
   "components/search/SearchAuditLogPanel.tsx",
 ];
@@ -203,18 +211,32 @@ test("the admin shell needs no dark-surface treatment of its own", () => {
   const globals = read("app/globals.css");
   // The shell the pale rule was written beside declares no dark ground — it is
   // `position: relative` and nothing else — so there is no dark surface for a
-  // scoped modifier to serve.
+  // scoped modifier to serve. THIS is the load-bearing claim, and it is the
+  // reason the pale variant could be deleted.
   const start = globals.indexOf(".admin-premium-shell {");
   assert.ok(start >= 0, "the admin shell rule is gone; re-check this claim");
   const body = globals.slice(start, globals.indexOf("}", start));
   assert.doesNotMatch(body, /background/);
   assert.doesNotMatch(body, /color/);
 
-  // And nothing under the admin route renders the class, so no admin surface
-  // depended on the deleted declaration.
-  const adminConsumers = webComponents().filter(
-    ([path, src]) =>
-      path.startsWith("app/(app)/admin/") && src.includes("app-field-label"),
-  );
-  assert.deepEqual(adminConsumers.map(([p]) => p), []);
+  /*
+   * This used to assert that NO admin surface rendered the class at all.
+   *
+   * That was true when it was written and was offered as supporting evidence,
+   * but it is not the requirement — it is a stronger claim that happened to
+   * hold, and it made adding a labelled field to any admin page fail a test
+   * about a deleted CSS variant. The evidence-credit grant now renders three
+   * of them under `/admin/users/:id`.
+   *
+   * So the claim is re-established the way it should have been in the first
+   * place: an admin consumer is fine PROVIDED the shell still supplies no dark
+   * ground for it to disappear into, which the assertions above prove. The
+   * rendered result was measured in Chrome against the admin user detail page:
+   * ink rgb(52, 64, 84) on rgba(255, 255, 255, 0.92) — 10.46:1, against the
+   * 4.5:1 WCAG AA needs for small text.
+   *
+   * An admin-scoped override of the label ink is still forbidden — by the
+   * override-layer test above, which already rejects any selector that
+   * restates the tier, whatever it is scoped to.
+   */
 });
