@@ -311,7 +311,7 @@
 | `/admin/alerts` | 287 | 1c/0t/1s |  |
 | `/admin/audit` | 1087 | 3c/1t/2s |  |
 | `/admin/billing` | 764 | 7c/5t/9s |  |
-| `/admin/contact-sales` | 791 | 3c/1t/0s |  |
+| `/admin/contact-sales` | 818 | 3c/1t/0s |  |
 | `/admin/contact-sales/:id` | 666 | 5c/0t/0s |  |
 | `/admin/costs` | 611 | 7c/3t/9s |  |
 | `/admin/customers` | 526 | 0c/1t/0s |  |
@@ -320,7 +320,7 @@
 | `/admin/demo-requests` | 1340 | 3c/0t/2s |  |
 | `/admin/demo-requests/:id` | 536 | 5c/0t/0s |  |
 | `/admin/evidence-ops` | 790 | 4c/0t/7s |  |
-| `/admin/evidence-ops/records` | 610 | 2c/1t/0s |  |
+| `/admin/evidence-ops/records` | 626 | 2c/1t/0s |  |
 | `/admin/executive` | 690 | 3c/2t/7s |  |
 | `/admin/identity` | 296 | 13c/3t/7s |  |
 | `/admin/identity/access-reviews` | 557 | 4c/1t/1s |  |

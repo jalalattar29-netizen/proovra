@@ -416,7 +416,23 @@ export default function AdminContactSalesPage() {
                 <th style={{ padding: "12px 20px" }}>Priority</th>
                 <th style={{ padding: "12px 20px" }}>Status</th>
                 <th style={{ padding: "12px 20px" }}>Email</th>
-                <th style={{ padding: "12px 20px" }} />
+                {/* THIS TABLE IS HAND-ROLLED, so it inherits none of
+                    `DataTable`'s rules — including the sticky actions column
+                    added there. Measured: "Open →" rendered at x=1372 against
+                    a container edge at x=1367, so the last five pixels of the
+                    row's second action were off-screen at the default desktop
+                    width. Pinned here the same way rather than left to drift
+                    from the component it should be using; the table itself is
+                    recorded as debt. */}
+                <th
+                  style={{
+                    padding: "12px 20px",
+                    position: "sticky",
+                    insetInlineEnd: 0,
+                    background: "var(--surface-muted)",
+                    zIndex: 2,
+                  }}
+                />
               </tr>
             </thead>
             <tbody>
@@ -516,7 +532,18 @@ export default function AdminContactSalesPage() {
                         >
                           {it.emailSentAt ? "Sent" : "—"}
                         </td>
-                        <td style={{ padding: "12px 20px", textAlign: "right" }}>
+                        <td
+                          style={{
+                            padding: "12px 20px",
+                            textAlign: "right",
+                            // See the matching <th>: pinned so the row's
+                            // actions do not scroll off the right edge.
+                            position: "sticky",
+                            insetInlineEnd: 0,
+                            background: "var(--surface-card)",
+                            zIndex: 1,
+                          }}
+                        >
                           <div
                             style={{
                               display: "inline-flex",

@@ -182,7 +182,19 @@ export function DataTable<T>({
               <th
                 scope="col"
                 aria-label="Actions"
-                style={{ ...HEADER_TH, padding: pad, textAlign: "right", width: 1 }}
+                /* STICKY, so a row action survives a sideways scroll. See the
+                   long comment on the matching <td>. */
+                data-row-actions-head
+                style={{
+                  ...HEADER_TH,
+                  padding: pad,
+                  textAlign: "right",
+                  width: 1,
+                  position: "sticky",
+                  insetInlineEnd: 0,
+                  background: "var(--surface-muted, #f8fafc)",
+                  zIndex: 2,
+                }}
               />
             ) : null}
           </tr>
@@ -298,6 +310,30 @@ export function DataTable<T>({
                       // on this attribute overrides that inline style, so a
                       // page cannot make a row four lines tall by accident.
                       data-row-actions
+                      /**
+                       * AND IT STAYS ON SCREEN WHEN THE DATA SCROLLS PAST IT.
+                       *
+                       * A wide table scrolling inside its own surface is this
+                       * console's documented pattern, and off-screen COLUMNS
+                       * are fine — they are still columns. An off-screen
+                       * BUTTON is a capability the page appears not to have,
+                       * with nothing on screen saying otherwise.
+                       *
+                       * Measured, before this: `/admin/evidence-ops/records`
+                       * is eleven columns and 1661px wide in a 1206px
+                       * container, so its "What to do" control rendered 348px
+                       * past the right edge — invisible until an operator
+                       * thought to scroll a table sideways to look for a row
+                       * action. `/admin/contact-sales` put "Open →" 5px past
+                       * its edge, and `/admin/identity/sessions` put "Revoke
+                       * all" 41px past.
+                       *
+                       * Sticky rather than narrower: the columns those tables
+                       * carry are the inventory they exist to show, and the
+                       * fix for a wide inventory is not to stop showing it.
+                       * The opaque background is required — without it the
+                       * scrolling cells read straight through the buttons.
+                       */
                       style={{
                         padding: pad,
                         textAlign: "right",
@@ -305,6 +341,10 @@ export function DataTable<T>({
                         borderBottom:
                           "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
                         verticalAlign: "middle",
+                        position: "sticky",
+                        insetInlineEnd: 0,
+                        background: "var(--surface-card, #ffffff)",
+                        zIndex: 1,
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >

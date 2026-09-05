@@ -41,7 +41,11 @@ import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button"
 import { Card } from "../../../../../components/ui/Card";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
 import { apiFetch } from "../../../../../lib/api";
-import { formatUserDateTime } from "../../../../../lib/date";
+import {
+  formatRelativeTime,
+  formatUserDate,
+  formatUserDateTime,
+} from "../../../../../lib/date";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { resolveRunbookSlug } from "../../../../../lib/runbooks/slugs.generated";
 import { useUrlFilterSync } from "../../../../../lib/use-url-filter-sync";
@@ -314,7 +318,15 @@ export default function AdminEvidenceRecordsPage() {
         nowrap: true,
         render: (r) => (
           <div style={{ minWidth: 0 }}>
-            <div>{formatUserDateTime(r.createdAt)}</div>
+            {/* A DATE, NOT A STAMP TO THE SECOND — the same rule the roster,
+                the workspace directory and the incident feed already follow.
+                Created and Last change were both `nowrap` full stamps at 257px
+                each: 514px of a 1661px table, 31% of its width, spent on two
+                columns nobody reads to the second. The exact instant is on the
+                hover. */}
+            <div title={formatUserDateTime(r.createdAt)}>
+              {formatUserDate(r.createdAt)}
+            </div>
             {/* Age in whole days is what makes a backlog readable at a glance:
                 a two-day failure and a nine-month failure are different
                 problems and the timestamp alone does not say which. */}
@@ -339,7 +351,11 @@ export default function AdminEvidenceRecordsPage() {
         // nobody takes.
         render: (r) =>
           r.lastChangeAtUtc ? (
-            formatUserDateTime(r.lastChangeAtUtc)
+            // "How recently" is the triage question, so it reads as an
+            // interval with the instant on the hover.
+            <span title={formatUserDateTime(r.lastChangeAtUtc)}>
+              {formatRelativeTime(r.lastChangeAtUtc)}
+            </span>
           ) : (
             <span style={{ color: "var(--ink-muted)" }}>—</span>
           ),

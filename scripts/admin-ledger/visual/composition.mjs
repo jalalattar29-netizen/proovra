@@ -412,8 +412,105 @@ async function measure(page) {
       return hits;
     })();
 
+    /**
+     * HOW MANY SOLID-RED CONTROLS, AND HOW MANY IN ONE ROW.
+     *
+     * `/admin/identity/sessions` rendered TWO of them per row — "Revoke" and
+     * "Revoke all" — so a full page carried fifty, and the more dangerous of
+     * the pair was indistinguishable from the safer one. "Revoke all" is also
+     * member-scoped, so a member with ten live sessions rendered ten identical
+     * copies of the same button.
+     *
+     * Fifty red buttons remove red's meaning from the page: when everything is
+     * an alarm, the one genuine alarm is invisible. For scale, the other three
+     * admin routes with a filled destructive control render one, one and four.
+     *
+     * MEASURED BY COMPUTED FILL, not by variant name — a page can reach the
+     * same appearance with an inline style, and what matters is what the
+     * reader sees. Two per row is the finding; a page total is advisory,
+     * because a long list of genuinely destructive rows is a real shape.
+     */
+    const destructive = (() => {
+      const solidRed = (el) => {
+        const m = /rgba?\(([0-9.]+), ([0-9.]+), ([0-9.]+)(?:, ([0-9.]+))?\)/.exec(
+          getComputedStyle(el).backgroundColor,
+        );
+        if (!m) return false;
+        const alpha = m[4] === undefined ? 1 : Number(m[4]);
+        // Opaque, red-dominant, and not a pale tint.
+        return (
+          alpha > 0.8 &&
+          Number(m[1]) > 150 &&
+          Number(m[2]) < 110 &&
+          Number(m[3]) < 110
+        );
+      };
+      const controls = Array.from(
+        main.querySelectorAll("button, a.ui-button"),
+      ).filter((b) => b.getBoundingClientRect().height > 0 && solidRed(b));
+      const perRow = Array.from(main.querySelectorAll("tbody tr")).map(
+        (tr) =>
+          Array.from(tr.querySelectorAll("button, a.ui-button")).filter(solidRed)
+            .length,
+      );
+      return {
+        total: controls.length,
+        maxPerRow: perRow.length ? Math.max(...perRow) : 0,
+        labels: [...new Set(controls.map((b) => (b.textContent ?? "").trim()))].slice(
+          0,
+          4,
+        ),
+      };
+    })();
+
+    /**
+     * A CONTROL THAT RENDERS OUTSIDE WHAT THE READER CAN SEE.
+     *
+     * `/admin/identity/sessions` carried four controls in its actions cell,
+     * which made the table 1214→1268px inside a 1216px wrapper. "Revoke all"
+     * rendered at x=1403 against a visible container edge at x=1362, on all
+     * twenty-five rows, at the default 1440px desktop width.
+     *
+     * BE PRECISE ABOUT WHAT THAT IS. The wrapper is `overflow-x: auto`, so the
+     * button was REACHABLE — by scrolling a nine-column table sideways to find
+     * a row action. It was not clipped by a `hidden` container, and the first
+     * version of this check looked only for `hidden`/`clip` and therefore
+     * reported nothing even when handed the pre-fix DOM. An instrument that
+     * cannot reproduce the defect it was written for is worse than none: it
+     * certifies the page.
+     *
+     * So the rule is the one that matches the fault: a CONTROL whose box falls
+     * outside its scroll container's visible box, whether or not that
+     * container scrolls. Wide DATA scrolling inside its own surface is this
+     * console's documented pattern and stays fine — off-screen columns are
+     * still columns. An off-screen button is a capability the page appears not
+     * to have, with nothing on screen saying otherwise.
+     */
+    const clippedControls = (() => {
+      const hits = [];
+      for (const el of main.querySelectorAll("button, a.ui-button")) {
+        const r = el.getBoundingClientRect();
+        if (r.height === 0 || r.width === 0) continue;
+        let node = el.parentElement;
+        while (node && node !== document.body) {
+          const cs = getComputedStyle(node);
+          if (/hidden|clip|auto|scroll/.test(cs.overflowX)) {
+            const b = node.getBoundingClientRect();
+            if (r.right > b.right + 1 || r.left < b.left - 1) {
+              hits.push((el.textContent ?? "").trim().slice(0, 20));
+            }
+            break;
+          }
+          node = node.parentElement;
+        }
+      }
+      return [...new Set(hits)];
+    })();
+
     return {
       splitWords,
+      destructive,
+      clippedControls,
       probeBorder,
       duplicatePrimary,
       competingPrimaries,
@@ -455,6 +552,19 @@ async function report(route, result, bad) {
     bad.push(
       `${result.splitWords.length} word(s) broken mid-word: ` +
         result.splitWords.slice(0, 3).join(", "),
+    );
+  }
+  if ((result.destructive?.maxPerRow ?? 0) > 1) {
+    bad.push(
+      `${result.destructive.maxPerRow} solid-red controls in one row ` +
+        `(${result.destructive.total} on the page): ` +
+        result.destructive.labels.join(" / "),
+    );
+  }
+  if (result.clippedControls?.length) {
+    bad.push(
+      `${result.clippedControls.length} control(s) outside the visible box of ` +
+        `their container: ${result.clippedControls.slice(0, 3).join(", ")}`,
     );
   }
   if (result.cells > 0 && result.flatCells > 0)
