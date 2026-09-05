@@ -459,7 +459,14 @@ export default function AdminPersonDetailPage() {
                 style={{
                   marginTop: 20,
                   paddingTop: 18,
-                  borderTop: "1px solid var(--border-default, #e2e8f0)",
+                  /* No hex fallback: this phase removed 374 of them from the
+                     console, because a fallback is a second value for the
+                     same name and the two can disagree — Badge's dead pending
+                     colour differed from the live one by 4.95:1 of contrast.
+                     This one arrived with the evidence-credit section from
+                     main and is the last, caught by
+                     scripts/admin-ledger/deletion-proof.mjs on the rebase. */
+                  borderTop: "1px solid var(--border-default)",
                 }}
               >
                 <div
@@ -468,7 +475,7 @@ export default function AdminPersonDetailPage() {
                     fontWeight: 700,
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
-                    color: "var(--ink-muted, #64748b)",
+                    color: "var(--ink-muted)",
                     marginBottom: 10,
                   }}
                 >

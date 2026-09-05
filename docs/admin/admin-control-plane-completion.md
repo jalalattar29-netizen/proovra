@@ -350,6 +350,6 @@
 | `/admin/support-access` | 1017 | 6c/2t/4s |  |
 | `/admin/timeline` | 483 | 0c/1t/1s |  |
 | `/admin/users` | 485 | 2c/2t/1s |  |
-| `/admin/users/:id` | 584 | 7c/2t/6s |  |
+| `/admin/users/:id` | 663 | 7c/2t/6s |  |
 | `/admin/workspaces` | 444 | 1c/1t/0s |  |
 | `/admin/workspaces/:id` | 664 | 6c/1t/6s |  |

@@ -20,15 +20,15 @@ excluded by path: a guard naming the thing it forbids is not a regression.
 
 | deleted | scope searched | files | consumers | verdict |
 |---|---|---|---|---|
-| `apps/web/app/(app)/admin/identity/ui-tokens.ts` | `apps/web (app, components, lib)` | 872 | 0 | gone, zero consumers |
-| `the admin TOKENS.* colour alias map` | `app/(app)/admin/, app/(app)/settings/security, components/` | 319 | 0 | gone, zero consumers |
-| `--text-muted and --text-strong` | `apps/web (app, components, lib)` | 872 | 0 | gone, zero consumers |
+| `apps/web/app/(app)/admin/identity/ui-tokens.ts` | `apps/web (app, components, lib)` | 875 | 0 | gone, zero consumers |
+| `the admin TOKENS.* colour alias map` | `app/(app)/admin/, app/(app)/settings/security, components/` | 320 | 0 | gone, zero consumers |
+| `--text-muted and --text-strong` | `apps/web (app, components, lib)` | 875 | 0 | gone, zero consumers |
 | `the duplicate --status-* declarations in app/globals.css` | `app/globals.css` | 1 | 0 | gone, zero consumers |
-| `hex fallbacks inside var() at admin call sites` | `app/(app)/admin/` | 76 | 0 | gone, zero consumers |
-| `page-local INK_* and PALETTE aliases under /admin` | `app/(app)/admin/` | 76 | 0 | gone, zero consumers |
-| `the cc-* class family` | `app/(app)/admin/` | 76 | 0 | gone, zero consumers |
-| `admin-v2 files` | `apps/web (app, components, lib)` | 872 | 0 | gone, zero consumers |
-| `hand-rolled status capsules under /admin` | `app/(app)/admin/` | 76 | 0 | gone, zero consumers |
+| `hex fallbacks inside var() at admin call sites` | `app/(app)/admin/` | 77 | 0 | gone, zero consumers |
+| `page-local INK_* and PALETTE aliases under /admin` | `app/(app)/admin/` | 77 | 0 | gone, zero consumers |
+| `the cc-* class family` | `app/(app)/admin/` | 77 | 0 | gone, zero consumers |
+| `admin-v2 files` | `apps/web (app, components, lib)` | 875 | 0 | gone, zero consumers |
+| `hand-rolled status capsules under /admin` | `app/(app)/admin/` | 77 | 0 | gone, zero consumers |
 
 ## Why each one went
 
