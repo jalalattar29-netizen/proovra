@@ -23,6 +23,9 @@ import type { CreatedIntakeLink } from "../_lib/types";
 import { friendlyDeliveryReason } from "../_lib/wizardState";
 import { IconClose, IconSpinner } from "./icons";
 
+/** What `POST /v1/workflow/intake-links/:id/send` accepts. */
+type SendChannel = "EMAIL" | "SMS";
+
 export function LinkCreatedDialog({
   created,
   intakeUrl,
@@ -32,12 +35,25 @@ export function LinkCreatedDialog({
   intakeUrl: string;
   onClose: () => void;
 }) {
+  /*
+   * THE CHANNELS A NEW LINK MAY BE SENT ON.
+   *
+   * Email, SMS, copy link — the same three the create wizard offers and the
+   * same three `POST /:id/send` accepts (`z.enum(["SMS", "EMAIL"])`). This
+   * dialog still offered "Send by WhatsApp", which had become a button that
+   * could only fail: the server stopped accepting the channel when WhatsApp
+   * was retired from External Intake, and the wizard stopped offering it, but
+   * the one surface that appears immediately AFTER creating a link kept it.
+   *
+   * Historical rows still RENDER as WhatsApp wherever they are read — the
+   * enum, the labels and the delivery history are deliberately untouched, and
+   * MFA and general communications keep their WhatsApp support. What is gone
+   * is the ability to start a new one from here.
+   */
   const [copied, setCopied] = React.useState(false);
-  const [sendBusy, setSendBusy] = React.useState<"SMS" | "WHATSAPP" | null>(
-    null,
-  );
+  const [sendBusy, setSendBusy] = React.useState<SendChannel | null>(null);
   const [sendError, setSendError] = React.useState<string | null>(null);
-  const [sentChannel, setSentChannel] = React.useState<"SMS" | "WHATSAPP" | null>(
+  const [sentChannel, setSentChannel] = React.useState<SendChannel | null>(
     null,
   );
   const dialogRef = React.useRef<HTMLDivElement | null>(null);
@@ -45,15 +61,25 @@ export function LinkCreatedDialog({
   const sendingRef = React.useRef(false);
 
   const { delivery, link, rawToken } = created;
-  // Presence, not the number. The dialog needs to know a channel exists;
-  // it has never needed to read the recipient's phone number to decide that.
-  const canSend = link.hasRecipientPhone;
+  /*
+   * Presence, not the value. The dialog needs to know a channel exists; it has
+   * never needed to read the recipient's address or number to decide that, and
+   * the projection deliberately gives it only the booleans.
+   *
+   * Email is offered here for the first time. The send endpoint has always
+   * accepted it and a link created with an email recipient had no way to be
+   * sent from this dialog at all — the operator had to close it, losing the
+   * one-shot token, and start again.
+   */
+  const canSendSms = link.hasRecipientPhone === true;
+  const canSendEmail = link.hasRecipientEmail === true;
+  const canSend = canSendSms || canSendEmail;
 
   React.useEffect(() => {
     dialogRef.current?.focus();
   }, []);
 
-  async function send(channel: "SMS" | "WHATSAPP") {
+  async function send(channel: SendChannel) {
     if (sendingRef.current) return;
     sendingRef.current = true;
     setSendError(null);
@@ -73,6 +99,8 @@ export function LinkCreatedDialog({
       const map: Record<string, string> = {
         link_missing_phone:
           "Add a recipient phone number to the link before sending.",
+        link_missing_email:
+          "Add a recipient email address to the link before sending.",
         link_revoked: "This link has been disabled.",
         link_expired: "This link has already expired.",
         provider_unconfigured:
@@ -210,32 +238,43 @@ export function LinkCreatedDialog({
             </p>
           ) : null}
 
+          {/*
+            One action per channel the link HAS a recipient for. A link with
+            only an address offers only Email; one with only a number offers
+            only SMS; one with both offers both. Copy link is above and is
+            always available, because it is the only way to share a link the
+            operator means to hand over themselves.
+          */}
           {canSend ? (
             <div className="ilk-card__foot">
-              <button
-                type="button"
-                className="app-secondary-action"
-                onClick={() => void send("SMS")}
-                disabled={sendBusy !== null}
-                aria-busy={sendBusy === "SMS" || undefined}
-                data-intake-link-send="SMS"
-              >
-                {sendBusy === "SMS" ? <IconSpinner size={14} /> : null}
-                <span>{sendBusy === "SMS" ? "Sending…" : "Send by SMS"}</span>
-              </button>
-              <button
-                type="button"
-                className="app-secondary-action"
-                onClick={() => void send("WHATSAPP")}
-                disabled={sendBusy !== null}
-                aria-busy={sendBusy === "WHATSAPP" || undefined}
-                data-intake-link-send="WHATSAPP"
-              >
-                {sendBusy === "WHATSAPP" ? <IconSpinner size={14} /> : null}
-                <span>
-                  {sendBusy === "WHATSAPP" ? "Sending…" : "Send by WhatsApp"}
-                </span>
-              </button>
+              {canSendEmail ? (
+                <button
+                  type="button"
+                  className="app-secondary-action"
+                  onClick={() => void send("EMAIL")}
+                  disabled={sendBusy !== null}
+                  aria-busy={sendBusy === "EMAIL" || undefined}
+                  data-intake-link-send="EMAIL"
+                >
+                  {sendBusy === "EMAIL" ? <IconSpinner size={14} /> : null}
+                  <span>
+                    {sendBusy === "EMAIL" ? "Sending…" : "Send by email"}
+                  </span>
+                </button>
+              ) : null}
+              {canSendSms ? (
+                <button
+                  type="button"
+                  className="app-secondary-action"
+                  onClick={() => void send("SMS")}
+                  disabled={sendBusy !== null}
+                  aria-busy={sendBusy === "SMS" || undefined}
+                  data-intake-link-send="SMS"
+                >
+                  {sendBusy === "SMS" ? <IconSpinner size={14} /> : null}
+                  <span>{sendBusy === "SMS" ? "Sending…" : "Send by SMS"}</span>
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>

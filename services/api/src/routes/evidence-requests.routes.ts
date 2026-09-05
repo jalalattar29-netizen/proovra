@@ -533,7 +533,21 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
           // information). When true AND the link has a phone, the
           // service queues a templated CommunicationMessage.
           notifyContributor: z.boolean().optional(),
-          notifyChannel: z.enum(["SMS", "WHATSAPP"]).optional(),
+          /*
+           * WHATSAPP IS GONE FROM NEW INTAKE, AND THIS IS NEW INTAKE.
+           *
+           * A reviewer decision can notify the external contributor, and the
+           * "needs more information" branch issues a FRESH intake link to do
+           * it. That makes this an intake creation path, and it still accepted
+           * WHATSAPP after the retirement removed it from the wizard, from
+           * `POST /:id/send` and from `DELIVERY_METHODS` — so the one way left
+           * to start a WhatsApp intake conversation was through a reviewer.
+           *
+           * Historical rows keep rendering as WhatsApp, and the shared Twilio
+           * transport that MFA and communications rely on is untouched. Only
+           * the ability to CHOOSE it here is removed.
+           */
+          notifyChannel: z.enum(["SMS"]).optional(),
         })
         .parse(req.body ?? {});
 
@@ -583,7 +597,9 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         .object({
           reviewerNote: z.string().max(4000).nullable().optional(),
           notifyContributor: z.boolean().optional(),
-          notifyChannel: z.enum(["SMS", "WHATSAPP"]).optional(),
+          // Request-more issues a NEW intake link — see the note on the
+          // decision route above.
+          notifyChannel: z.enum(["SMS"]).optional(),
           expiresInHours: z.number().int().min(1).max(24 * 30).optional(),
         })
         .parse(req.body ?? {});

@@ -40,6 +40,7 @@
  */
 
 import { enqueueSearchIndexingJob } from "../queue/search-queue.js";
+import { indexEvidence } from "./search/evidence-indexing.service.js";
 import { enqueueMediaIntelligenceAnalysis } from "../queue/media-intelligence-queue.js";
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { prisma } from "../db.js";
@@ -197,6 +198,55 @@ export async function runEvidenceFinalizationFanout(
         { ...tag, reason: searchOutcome.reason },
         "finalize_fanout.search_indexing_not_enqueued",
       );
+
+      /*
+       * AN ENQUEUE THAT DID NOT HAPPEN USED TO MEAN NEVER SEARCHABLE.
+       *
+       * Reporting the failure truthfully (above) was the previous fix, and it
+       * is still right — but it left the record itself out of the index with
+       * nothing scheduled to put it back. `enqueueSearchIndexingJob` never
+       * throws, so a missing REDIS_URL or a dead connection produced a
+       * completed, signed, perfectly valid record that simply could not be
+       * found by any search surface, and no retry existed to notice.
+       *
+       * External Intake makes that worst. Its whole record is created and
+       * completed inside ONE public request from someone who is not a user of
+       * the product and will never come back to retry: if that single enqueue
+       * is lost, the workspace has evidence it cannot search for, and the
+       * operator has no way to tell that from "the contributor never
+       * submitted".
+       *
+       * So the index gets written here instead. This is the SAME canonical
+       * indexer the worker runs — `indexEvidence` composes the same projection
+       * through the same shared builder, including the four External Intake
+       * identity fields — not a second implementation and not a second
+       * opinion about what a document contains. The queue stays the primary
+       * path because it belongs off the request; this is what happens when
+       * the primary path is unavailable.
+       *
+       * Still non-blocking. Evidence completion has never depended on the
+       * index and does not start now: a failure here is recorded and the
+       * finalization stands.
+       */
+      try {
+        await indexEvidence({
+          teamId: input.teamId,
+          evidenceId: input.evidenceId,
+        });
+        result.searchIndexingEnqueued = true;
+        logger?.warn?.(
+          { ...tag, reason: searchOutcome.reason },
+          "finalize_fanout.search_indexing_indexed_inline",
+        );
+      } catch (inlineErr) {
+        const m =
+          inlineErr instanceof Error ? inlineErr.message : "inline_index_failed";
+        result.failureReasons.push(`search_indexing_inline:${m.slice(0, 80)}`);
+        logger?.warn?.(
+          { ...tag, err: m.slice(0, 200) },
+          "finalize_fanout.search_indexing_inline_failed",
+        );
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "search_indexing_failed";

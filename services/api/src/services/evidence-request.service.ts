@@ -1096,7 +1096,12 @@ export async function reviewEvidenceRequestResponse(
     // No-op when the link has no recipientPhone or notifyContributor
     // is false.
     notifyContributor?: boolean;
-    notifyChannel?: "SMS" | "WHATSAPP";
+    /*
+     * SMS only. This notification carries a fresh intake link, so it is an
+     * intake delivery channel and follows the same retirement as the rest of
+     * External Intake. Historical rows are unaffected.
+     */
+    notifyChannel?: "SMS";
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<DbResponse> {
@@ -1184,7 +1189,8 @@ export async function requestMoreEvidenceForResponse(
     actorUserId: string;
     reviewerNote?: string | null;
     notifyContributor?: boolean;
-    notifyChannel?: "SMS" | "WHATSAPP";
+    /** SMS only — see the decision path above. */
+    notifyChannel?: "SMS";
     /** Hours from now the new link should expire. Default 72h. */
     expiresInHours?: number;
   },

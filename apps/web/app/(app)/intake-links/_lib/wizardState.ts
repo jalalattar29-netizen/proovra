@@ -173,7 +173,7 @@ export function channelUnavailableReason(
 ): string | null {
   if (channel === "MANUAL") return null;
   if (!transport) return null;
-  const key = channel === "EMAIL" ? "email" : channel === "SMS" ? "sms" : "whatsapp";
+  const key = channel === "EMAIL" ? "email" : "sms";
   if (transport[key]?.configured) return null;
   return "This deployment can't send on that channel yet. Choose another, or copy the link and share it yourself.";
 }
@@ -429,8 +429,6 @@ export function friendlyDeliveryReason(reason: string): string {
     link_revoked: "this link has been disabled",
     link_expired: "this link has already expired",
     provider_unconfigured: "messaging isn't configured on this deployment",
-    whatsapp_template_unconfigured:
-      "the WhatsApp request template isn't approved yet",
     delivery_failed: "the message provider rejected the send",
     delivery_failed_or_skipped:
       "the message provider rejected or skipped the send",

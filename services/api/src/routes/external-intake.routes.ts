@@ -26,7 +26,7 @@ import type {
   FastifyReply,
   FastifyRequest,
 } from "fastify";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import {
   WORKFLOW_INTAKE_SESSION_STATUSES,
   WorkflowIntakeConsentSnapshotSchema,
@@ -529,6 +529,52 @@ function intakeErrorToReply(
 // Routes
 // -----------------------------------------------------------------------------
 
+/**
+ * WHAT A CATCH-ALL IS ALLOWED TO CALL A SERVER FAULT.
+ *
+ * Every public intake route ends in `catch (err)`, and each answered anything
+ * it did not recognise with a bare 500 `INTERNAL_ERROR` — which the
+ * contributor reads as "We hit a problem on our side. Please try again in a
+ * moment."
+ *
+ * That sentence is true for a database that is down. It is false, and a dead
+ * end, for a body the server simply did not accept: retrying sends the same
+ * body and fails the same way, and the contributor is told the fault is ours
+ * while the one thing that would fix it — which field was rejected — has been
+ * thrown away. Reproduced against the local fixture: a consent POST whose body
+ * did not match the schema answered 500 INTERNAL_ERROR rather than 400.
+ *
+ * The API already owns that answer. Its global error handler turns a
+ * `ZodError` into a bounded 400 `INVALID_INPUT` carrying `fields[]`, which
+ * the public page maps to a sentence a person can act on. These handlers were
+ * catching the error before it could reach that authority, so the fix is to
+ * stop catching it: re-throw, and let the one authority answer. Writing a
+ * second validation reply here would be a second contract to keep in step.
+ *
+ * Anything else genuinely is unexpected. It keeps the 500 and the generic
+ * sentence — there is nothing honest to add — and it is logged against the
+ * route that actually raised it.
+ *
+ * THE LABEL MATTERS. Five labels covered seven routes and one was wrong: a
+ * consent failure logged itself as `external-intake.identity`, so the only
+ * production signal pointed at the wrong endpoint. Each call site now names
+ * itself.
+ */
+function intakeUnhandled(
+  err: unknown,
+  req: FastifyRequest,
+  reply: FastifyReply,
+  route: string,
+): void {
+  if (err instanceof ZodError) throw err;
+
+  req.log.error(
+    { err, route, intakeErrorUnhandled: true },
+    "external intake: unhandled error",
+  );
+  reply.code(500).send({ error: { code: "INTERNAL_ERROR" } });
+}
+
 export async function externalIntakeRoutes(app: FastifyInstance) {
   // GET /v1/external-intake/:token
   //
@@ -582,13 +628,8 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           intakeErrorToReply(err, reply);
           return;
         }
-        req.log.error(
-          { err, route: "external-intake.validate", intakeErrorUnhandled: true },
-          "external intake: unhandled error",
-        );
-        return reply
-          .code(500)
-          .send({ error: { code: "INTERNAL_ERROR" } });
+        intakeUnhandled(err, req, reply, "external-intake.validate");
+        return;
       }
     },
   );
@@ -678,13 +719,8 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           intakeErrorToReply(err, reply);
           return;
         }
-        req.log.error(
-          { err, route: "external-intake.identity", intakeErrorUnhandled: true },
-          "external intake: unhandled error",
-        );
-        return reply
-          .code(500)
-          .send({ error: { code: "INTERNAL_ERROR" } });
+        intakeUnhandled(err, req, reply, "external-intake.consent");
+        return;
       }
     },
   );
@@ -878,11 +914,8 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         if (err instanceof ExternalIntakeOrchestrationError) {
           return orchestrationErrorToReply(err, reply);
         }
-        req.log.error(
-          { err, route: "external-intake.part", intakeErrorUnhandled: true },
-          "external intake: unhandled error",
-        );
-        return reply.code(500).send({ error: { code: "INTERNAL_ERROR" } });
+        intakeUnhandled(err, req, reply, "external-intake.part.create");
+        return;
       }
     },
   );
@@ -940,11 +973,8 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         if (err instanceof ExternalIntakeOrchestrationError) {
           return orchestrationErrorToReply(err, reply);
         }
-        req.log.error(
-          { err, route: "external-intake.part", intakeErrorUnhandled: true },
-          "external intake: unhandled error",
-        );
-        return reply.code(500).send({ error: { code: "INTERNAL_ERROR" } });
+        intakeUnhandled(err, req, reply, "external-intake.part.update");
+        return;
       }
     },
   );
@@ -1076,6 +1106,14 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         if (err instanceof ExternalIntakeOrchestrationError) {
           return orchestrationErrorToReply(err, reply);
         }
+        /*
+         * A schema rejection is the CALLERs to fix, and this route was
+         * calling it a submission failure. Re-thrown so the global handler
+         * answers it as the bounded 400 it is - see intakeUnhandled above for
+         * why that authority is not re-implemented here. Everything below is
+         * unchanged and still applies to a genuine unexpected fault.
+         */
+        if (err instanceof ZodError) throw err;
         // P0 audit-fix: the public submit endpoint previously returned a
         // bare `{error: {code: INTERNAL_ERROR}}` for any unhandled error
         // from completeEvidence (signing / S3 headObject / custody /
@@ -1163,13 +1201,8 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           intakeErrorToReply(err, reply);
           return;
         }
-        req.log.error(
-          { err, route: "external-intake.transition", intakeErrorUnhandled: true },
-          "external intake: unhandled error",
-        );
-        return reply
-          .code(500)
-          .send({ error: { code: "INTERNAL_ERROR" } });
+        intakeUnhandled(err, req, reply, "external-intake.transition");
+        return;
       }
     },
   );

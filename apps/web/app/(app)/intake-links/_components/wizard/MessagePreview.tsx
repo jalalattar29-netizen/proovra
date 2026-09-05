@@ -16,7 +16,6 @@ import * as React from "react";
 import {
   renderIntakeEmailMessage,
   renderIntakeSmsMessage,
-  renderIntakeWhatsappMessage,
   resolveIntakeSenderDisplay,
   type IntakeSenderDisplayMode,
 } from "@proovra/shared";
@@ -55,24 +54,12 @@ export function transportSummary(
   transport: SenderTransportInfo | null,
 ): string {
   if (!transport) return "Checking provider…";
-  const t =
-    channel === "EMAIL"
-      ? transport.email
-      : channel === "SMS"
-        ? transport.sms
-        : transport.whatsapp;
+  const t = channel === "EMAIL" ? transport.email : transport.sms;
   if (!t?.configured) return "Not configured on this deployment";
   if (channel === "EMAIL") {
     return `${t.fromName ?? "PROOVRA"} <${t.fromAddressPreview ?? "no-reply@proovra.com"}>`;
   }
-  if (channel === "SMS") {
-    return t.fromNumberPreview
-      ? `PROOVRA via ${t.fromNumberPreview}`
-      : "PROOVRA";
-  }
-  return t.fromNumberPreview
-    ? `PROOVRA WhatsApp via ${t.fromNumberPreview}`
-    : "PROOVRA WhatsApp";
+  return t.fromNumberPreview ? `PROOVRA via ${t.fromNumberPreview}` : "PROOVRA";
 }
 
 export function MessagePreview({
@@ -119,10 +106,8 @@ export function MessagePreview({
     const rendered = renderIntakeEmailMessage(renderInput);
     subject = rendered.subject;
     body = rendered.text;
-  } else if (channel === "SMS") {
-    body = renderIntakeSmsMessage(renderInput);
   } else {
-    body = renderIntakeWhatsappMessage(renderInput);
+    body = renderIntakeSmsMessage(renderInput);
   }
 
   return (
@@ -144,13 +129,7 @@ export function MessagePreview({
             data-intake-link-preview-transport="true"
             data-intake-link-preview-transport-configured={
               transport
-                ? transport[
-                    channel === "EMAIL"
-                      ? "email"
-                      : channel === "SMS"
-                        ? "sms"
-                        : "whatsapp"
-                  ]?.configured
+                ? transport[channel === "EMAIL" ? "email" : "sms"]?.configured
                   ? "true"
                   : "false"
                 : "unknown"
